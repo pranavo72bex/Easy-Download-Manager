@@ -1110,3 +1110,61 @@ fn a_finished_torrent_is_kept_shared_only_when_turned_on() {
     assert_eq!(old.torrent_share_ratio, 1.0);
     assert_eq!(old.torrent_share_minutes, 120);
 }
+
+fn dialup_password() -> String {
+    crate::test_secrets::secret("dialup_password")
+}
+
+/// The dial-up connection's password is written nowhere unless "Save password" is on, as
+/// reference A's: kept for this run only (gaps row 93, G84). On, it goes where the proxy's goes.
+#[test]
+fn a_dial_up_password_is_kept_only_when_save_password_is_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    let store = dm_core::secretstore::MemoryStore::default();
+    let mut settings = Settings::default();
+    settings.dialup.enabled = true;
+    settings.dialup.connection = "Office VPN".into();
+    settings.dialup.password = dialup_password();
+
+    // Off: neither the file nor the store has it, with a store or without one.
+    for store in [None, Some(&store as &dyn dm_core::secretstore::SecretStore)] {
+        settings.save_with(&path, store).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            !text.contains(&dialup_password()),
+            "written with Save password off"
+        );
+        assert!(text.contains("Office VPN"), "the connection itself is kept");
+    }
+    assert_eq!(
+        settings.dialup.password,
+        dialup_password(),
+        "kept for this run"
+    );
+    let (mut read, _) = Settings::load_file(&path);
+    read.take_passwords_from(&store, &dm_core::secretstore::namespace(&path));
+    assert!(read.dialup.password.is_empty(), "the store kept it");
+
+    // On: into the store, the file keeping none, and read back from there.
+    settings.dialup.save_password = true;
+    settings.save_with(&path, Some(&store)).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        !text.contains(&dialup_password()),
+        "in the file beside the store"
+    );
+    let (mut read, _) = Settings::load_file(&path);
+    read.take_passwords_from(&store, &dm_core::secretstore::namespace(&path));
+    assert_eq!(read.dialup.password, dialup_password());
+
+    // Off again: what the store kept is forgotten at the next save.
+    read.dialup.save_password = false;
+    read.save_with(&path, Some(&store)).unwrap();
+    let (mut again, _) = Settings::load_file(&path);
+    again.take_passwords_from(&store, &dm_core::secretstore::namespace(&path));
+    assert!(
+        again.dialup.password.is_empty(),
+        "forgotten once Save password was turned off"
+    );
+}

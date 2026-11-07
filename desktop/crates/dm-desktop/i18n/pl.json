@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "Aż wyśle (wielokrotność rozmiaru)",
  "For at most (minutes)": "Najwyżej przez (minuty)",
  "Send at most (KB/s, 0 for no limit)": "Wysyłaj najwyżej (KB/s, 0 bez limitu)",
- "Complete · sharing, {} sent": "Ukończone · udostępnianie, wysłano {}"
+ "Complete · sharing, {} sent": "Ukończone · udostępnianie, wysłano {}",
+ "Dial Up / VPN": "Połączenie telefoniczne / VPN",
+ "Use Windows Dial Up / VPN Networking": "Użyj połączeń telefonicznych / VPN systemu Windows",
+ "Connection": "Połączenie",
+ "User name": "Nazwa użytkownika",
+ "Save password": "Zapisz hasło",
+ "Redial attempts (zero if endlessly)": "Próby ponownego wybierania (zero bez końca)",
+ "Time between redial attempts (seconds)": "Czas między ponownymi wybraniami (sekundy)",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Połączenie znane systemowi Windows (Ustawienia › Sieć i Internet › Połączenie telefoniczne lub VPN). Pobieranie czeka, aż dm je nawiąże, i zatrzymuje się, jeśli się nie uda. Bez nazwy użytkownika i hasła tutaj dm używa tych zapisanych w Windows; bez „Zapisz hasło” wpisane hasło przepada po zamknięciu dm.",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "nie można połączyć się z Internetem. Połączenie telefoniczne lub VPN nie zostało nawiązane",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Wybierz inne połączenie w Opcje › Zaawansowane › Połączenie telefoniczne / VPN albo wyłącz „Użyj połączeń telefonicznych / VPN systemu Windows”, a potem kliknij Ponów",
+ "Redialling": "Ponowne wybieranie"
 }

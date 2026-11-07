@@ -3,8 +3,10 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The Sign-ins' and the proxy's passwords, kept in the operating system's store instead of
-//! `settings.json` where the store works (`dm_core::secretstore`; gaps row 39).
+//! The Sign-ins', the proxy's and the dial-up connection's passwords, kept in the operating
+//! system's store instead of `settings.json` where the store works (`dm_core::secretstore`; gaps
+//! row 39). The dial-up connection's goes there only when "Save password" is on; off, it is never
+//! written anywhere and is forgotten when dm closes (`Settings::save_to`, `dialup.rs`).
 //!
 //! In memory the settings keep their passwords as they always did, so nothing else changes. On
 //! the way to the file each password goes to the store under a name of its own and the file keeps
@@ -33,6 +35,10 @@ fn login_name(ns: &str, host: &str, user: &str) -> String {
 
 fn proxy_name(ns: &str) -> String {
     format!("dm:proxy:{ns}")
+}
+
+fn dialup_name(ns: &str) -> String {
+    format!("dm:dialup:{ns}")
 }
 
 impl Settings {
@@ -68,10 +74,14 @@ impl Settings {
         }
         let proxy = proxy_name(ns);
         keep(proxy, &mut self.proxy.password);
+        // Empty here unless it is to be saved (`Settings::save_to`): then what an earlier run
+        // kept is forgotten too.
+        keep(dialup_name(ns), &mut self.dialup.password);
         refused.map(|why| {
             format!(
                 "the operating system's store for passwords could not be used ({why}): the \
-                 Sign-ins' and the proxy's passwords stay in the settings file"
+                 Sign-ins', the proxy's and the dial-up connection's passwords stay in the \
+                 settings file"
             )
         })
     }
@@ -112,6 +122,7 @@ impl Settings {
             );
         }
         fill(proxy_name(ns), &mut self.proxy.password);
+        fill(dialup_name(ns), &mut self.dialup.password);
         let note = refused.map(|why| {
             format!(
                 "the operating system's store for passwords could not be read ({why}): a \

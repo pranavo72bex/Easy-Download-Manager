@@ -33,6 +33,8 @@ mod checksum;
 
 mod clip;
 
+mod connect_first;
+
 mod control;
 
 pub mod cookies;
@@ -163,6 +165,8 @@ pub use category::{
 pub use checksum::{digest, Algorithm, Checksum};
 
 pub use clip::Span;
+
+pub use connect_first::{set_connect_first, ConnectFirst, Redial};
 
 pub use control::{Control, Wanted};
 

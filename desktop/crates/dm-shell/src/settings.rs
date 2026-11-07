@@ -111,6 +111,11 @@ pub struct Settings {
     #[serde(deserialize_with = "lenient::proxy")]
     pub proxy: Proxy,
 
+    /// A dial-up or VPN connection every download waits for (Windows; Options › Advanced ›
+    /// Dial Up / VPN). Off unless the person turns it on.
+    #[serde(default)]
+    pub dialup: crate::dialup::DialUp,
+
     /// Watch the clipboard for links and offer to download them. Off by
     /// default: people copy URLs constantly, so this asks rather than grabs.
     #[serde(default)]
@@ -610,6 +615,7 @@ impl Default for Settings {
             // The computer's proxy settings, as a browser takes them: with none set it goes
             // direct as before; behind one, a new dm works where the browser does
             // (docs/decisions.md, 2026-11-06, in place of gaps row 80).
+            dialup: crate::dialup::DialUp::default(),
             proxy: Proxy {
                 enabled: true,
                 kind: dm_core::ProxyKind::System,
@@ -1175,11 +1181,26 @@ impl Settings {
         self.save_to(&Self::path())
     }
 
-    /// [`Settings::save`] to `path`. Where the operating system's store works the Sign-ins' and
-    /// the proxy's passwords go there and the file keeps them empty (`secrets.rs`).
+    /// [`Settings::save`] to `path`. Where the operating system's store works the Sign-ins',
+    /// the proxy's and a saved dial-up password go there and the file keeps them empty
+    /// (`secrets.rs`).
     fn save_to(&self, path: &std::path::Path) -> std::io::Result<()> {
+        self.save_with(path, secrets::store())
+    }
+
+    /// [`Settings::save_to`] with the store given, for the tests.
+    fn save_with(
+        &self,
+        path: &std::path::Path,
+        store: Option<&dyn dm_core::secretstore::SecretStore>,
+    ) -> std::io::Result<()> {
         let mut file = self.clone();
-        if let Some(store) = secrets::store() {
+        // A dial-up password not to be saved is written nowhere, store or no store: kept in
+        // memory for this run and forgotten when dm closes, as reference A's (`dialup.rs`).
+        if !file.dialup.save_password {
+            file.dialup.password.clear();
+        }
+        if let Some(store) = store {
             // A refusal leaves the password in the file, as before; the next read says so.
             let _ = file.move_passwords_to(store, &dm_core::secretstore::namespace(path));
         }

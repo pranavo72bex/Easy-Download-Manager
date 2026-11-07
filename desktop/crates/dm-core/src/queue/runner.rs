@@ -431,6 +431,22 @@ impl Queue {
             };
 
             let client = inner.client.lock().await.clone();
+            // A dial-up or VPN connection the person chose is up before the first request, and
+            // the download waits for it: never sent around it (`connect_first.rs`).
+            let connected = if form_lost {
+                Ok(())
+            } else {
+                let told = tx.clone();
+                crate::connect_first::before_download(&options.control, move |redial| {
+                    let _ = told.try_send(crate::download::Update::Retrying {
+                        attempt: redial.attempt,
+                        of: redial.of,
+                        why: redial.why,
+                        wait: redial.wait,
+                    });
+                })
+                .await
+            };
             let outcome = if form_lost {
                 drop(tx);
                 Err(crate::Error::Internal(
@@ -438,6 +454,9 @@ impl Queue {
                      closed: start it again from the page it came from"
                         .into(),
                 ))
+            } else if let Err(not_connected) = connected {
+                drop(tx);
+                Err(not_connected)
             } else {
                 download_reporting(&client, &url, &options, Some(tx)).await
             };

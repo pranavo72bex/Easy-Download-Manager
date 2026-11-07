@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "Até ter enviado (vezes o seu tamanho)",
  "For at most (minutes)": "No máximo por (minutos)",
  "Send at most (KB/s, 0 for no limit)": "Enviar no máximo (KB/s, 0 sem limite)",
- "Complete · sharing, {} sent": "Concluído · compartilhando, {} enviados"
+ "Complete · sharing, {} sent": "Concluído · compartilhando, {} enviados",
+ "Dial Up / VPN": "Discada / VPN",
+ "Use Windows Dial Up / VPN Networking": "Usar a rede discada / VPN do Windows",
+ "Connection": "Conexão",
+ "User name": "Nome de usuário",
+ "Save password": "Salvar senha",
+ "Redial attempts (zero if endlessly)": "Tentativas de rediscagem (zero para sem fim)",
+ "Time between redial attempts (seconds)": "Tempo entre as tentativas de rediscagem (segundos)",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Uma conexão que o Windows conhece (Configurações › Rede e Internet › Discada ou VPN). Um download espera enquanto o dm a conecta e para se ela não se estabelecer. Sem nome de usuário nem senha aqui, o dm usa os que o Windows guarda; sem Salvar senha, a digitada é esquecida quando o dm fecha.",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "não é possível conectar à Internet. A conexão discada ou VPN não se estabeleceu",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Escolha outra conexão em Opções › Avançado › Discada / VPN, ou desative Usar a rede discada / VPN do Windows, e clique em Tentar novamente",
+ "Redialling": "Rediscando"
 }

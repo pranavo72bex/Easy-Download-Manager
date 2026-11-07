@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "Bis gesendet (Vielfaches seiner Größe)",
  "For at most (minutes)": "Höchstens (Minuten)",
  "Send at most (KB/s, 0 for no limit)": "Höchstens senden (KB/s, 0 für kein Limit)",
- "Complete · sharing, {} sent": "Fertig · wird geteilt, {} gesendet"
+ "Complete · sharing, {} sent": "Fertig · wird geteilt, {} gesendet",
+ "Dial Up / VPN": "DFÜ / VPN",
+ "Use Windows Dial Up / VPN Networking": "Windows-DFÜ-/VPN-Netzwerk verwenden",
+ "Connection": "Verbindung",
+ "User name": "Benutzername",
+ "Save password": "Passwort speichern",
+ "Redial attempts (zero if endlessly)": "Wahlwiederholungen (null für endlos)",
+ "Time between redial attempts (seconds)": "Zeit zwischen Wahlwiederholungen (Sekunden)",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Eine Verbindung, die Windows kennt (Einstellungen › Netzwerk und Internet › DFÜ oder VPN). Ein Download wartet, während dm sie verbindet, und hält an, wenn sie nicht zustande kommt. Ohne Benutzername und Passwort hier nimmt dm die, die Windows speichert; ohne „Passwort speichern“ wird das eingegebene vergessen, wenn dm schließt.",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "keine Verbindung zum Internet möglich. Die DFÜ- oder VPN-Verbindung kam nicht zustande",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Wählen Sie eine andere Verbindung unter Optionen › Erweitert › DFÜ / VPN oder schalten Sie „Windows-DFÜ-/VPN-Netzwerk verwenden“ aus und klicken Sie dann auf Wiederholen",
+ "Redialling": "Wahlwiederholung"
 }

@@ -739,6 +739,7 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
         Tab::Advanced => &[
             "attempts",
             "cookies_file",
+            "dialup",
             "host_limits",
             "proxy",
             "read_timeout",

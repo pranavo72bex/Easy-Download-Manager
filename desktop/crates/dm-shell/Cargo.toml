@@ -35,4 +35,15 @@ axum = "0.8"
 # A browser's pipes to the native host, kept from the dm it starts
 # (`host::launch_desktop`): inherited, they held the host's answer open.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Console", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  # A dial-up or VPN connection dialled before downloads (dialup/ras.rs); a
+  # connection's status names its tunnel's addresses, which WinSock defines.
+  "Win32_NetworkManagement_Rras",
+  "Win32_Networking_WinSock",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_System_Console",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Threading",
+] }

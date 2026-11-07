@@ -342,6 +342,21 @@ Deviations from the brief, and why:
   `a_torrent_naming_a_drive_makes_no_file_on_it`, which without the fix found the file made in
   the test's own folder, outside the download folder.
 
+### BUG-014 — saved engine-wide settings were not in force until Options' OK
+
+- **Scenario**: dm started with "Identify as dm only" saved on (contract row B51: "the change
+  applies at once and is kept"), a second network chosen, or a dial-up connection to wait for
+  (gaps row 93, G84). Found 2026-11-08 beside reference A: a download started at once, with
+  the dial-up connection set and down, where reference A dialled first.
+- **Root cause**: `shell::apply` put those three in force (they live in the engine, not on the
+  queue), and only a change of settings called it; `shell::start` built the queue from the saved
+  settings and left the engine as it began, so the switch read on and was not in force.
+- **Fix**: one `engine_wide` in `shell.rs`, called at the start and at every change (at the
+  maintainer's standing word of 2026-11-07, "if found bug or improvement just implement it").
+- **Regression test**: `dm-shell/tests/start_in_force.rs`
+  `saved_settings_are_in_force_from_the_start`, which failed before the fix (dm's own name was
+  not the first sent).
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not
@@ -423,6 +438,21 @@ Deviations from the brief, and why:
   answered a handshake). `TorrentOptions::no_public_discovery` keeps a
   session to its trackers; the tests' options set it, and a run of the
   torrent tests watched with `lsof` saw no address but loopback.
+
+- **T-013** dm-shell's `dms_home_is_this_accounts_alone_on_windows_too` failed on the CI's
+  Windows runner before it reached dm (2026-11-07): it opened its parent with `icacls` and read
+  the access list back through PowerShell's `Get-Acl`, which did not show the entry just added.
+  It now sets and reads the lists through the calls dm itself makes (`owner_only::by_hand`), and
+  every assertion prints the list it saw; with dm's change of the home switched off it fails
+  naming the inherited users entry.
+
+- **T-014** dm-desktop's `toasts_give_their_handles_back` failed once in two full runs here and
+  once on the CI ("30 toasts with a file to open kept 15 handles", the limit 10): Windows' own
+  worker threads and late releases come and go. A kept handle a toast grows round after round,
+  so the toasts now go in three rounds of thirty, the count is the fewest over a second once
+  settled (`GetProcessHandleCount`, not a PowerShell started for each reading), and the limit is
+  half a handle a toast over the ninety: 201 to 205 as dm is, 272 kept with the handlers left on
+  as notify-rust left them.
 
 ## Static checks and fuzzing (Step 3)
 

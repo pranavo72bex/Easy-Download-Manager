@@ -1419,3 +1419,82 @@ fn keeping_a_finished_torrent_shared_is_set_in_options() {
     click(&mut harness, "OK");
     assert!(!harness.state().backend().settings().torrent_share);
 }
+
+/// Advanced's Dial Up / VPN section (Windows), reference A's last tab in its words and order:
+/// off as a new dm starts, the connection to pick once it is on, the sign-in and the redials
+/// once one is chosen, and OK keeping them (gaps row 93, G84). Saved with the switch off: on,
+/// the settings in force would hold every download in this program for the connection.
+#[cfg(windows)]
+#[test]
+fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
+    use egui::accesskit::Role;
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    for name in [
+        "Dial Up / VPN",
+        "Use Windows Dial Up / VPN Networking",
+        "User name",
+        "Save password",
+        "Redial attempts (zero if endlessly)",
+        "Time between redial attempts (seconds)",
+    ] {
+        assert!(
+            harness.query_by_label(name).is_some(),
+            "{name:?} is not on the Advanced page"
+        );
+    }
+    let greyed = |h: &Harness<'_, DmApp>, role: Role, name: &str| {
+        h.get_by_role_and_label(role, name)
+            .accesskit_node()
+            .is_disabled()
+    };
+    assert!(
+        greyed(&harness, Role::ComboBox, "Connection"),
+        "a connection can be picked with the switch off"
+    );
+    click(&mut harness, "Use Windows Dial Up / VPN Networking");
+    assert!(
+        !greyed(&harness, Role::ComboBox, "Connection"),
+        "the switch did not let a connection be picked"
+    );
+    assert!(
+        greyed(&harness, Role::TextInput, "User name"),
+        "a user name can be typed with no connection chosen"
+    );
+    // A connection Windows knows, as the list gives it (this computer may know none).
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.dialup.connection = "Office VPN".into();
+    }
+    harness.run_steps(2);
+    assert!(!greyed(&harness, Role::TextInput, "User name"));
+    click(&mut harness, "Cancel");
+
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.dialup.connection = "Office VPN".into();
+        d.draft.dialup.username = "me".into();
+        d.draft.dialup.attempts = 3;
+        d.draft.dialup.wait_seconds = 10;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let s = harness.state().backend().settings();
+    assert!(!s.dialup.enabled, "a new dm dials nothing");
+    assert_eq!(
+        (
+            s.dialup.connection.as_str(),
+            s.dialup.username.as_str(),
+            s.dialup.attempts,
+            s.dialup.wait_seconds
+        ),
+        ("Office VPN", "me", 3, 10)
+    );
+    let saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(Settings::path()).unwrap()).unwrap();
+    assert_eq!(saved["dialup"]["connection"], "Office VPN");
+    assert_eq!(saved["dialup"]["attempts"], 3);
+}

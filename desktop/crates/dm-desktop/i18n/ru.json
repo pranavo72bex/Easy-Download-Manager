@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "Пока не отдаст (раз свой размер)",
  "For at most (minutes)": "Не дольше (минут)",
  "Send at most (KB/s, 0 for no limit)": "Отдавать не быстрее (КБ/с, 0 — без ограничения)",
- "Complete · sharing, {} sent": "Готово · раздаётся, отдано {}"
+ "Complete · sharing, {} sent": "Готово · раздаётся, отдано {}",
+ "Dial Up / VPN": "Удалённый доступ / VPN",
+ "Use Windows Dial Up / VPN Networking": "Использовать удалённый доступ / VPN Windows",
+ "Connection": "Подключение",
+ "User name": "Имя пользователя",
+ "Save password": "Сохранять пароль",
+ "Redial attempts (zero if endlessly)": "Попыток повторного набора (ноль — бесконечно)",
+ "Time between redial attempts (seconds)": "Время между повторными наборами (секунд)",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Подключение, известное Windows (Параметры › Сеть и Интернет › Удалённый доступ или VPN). Загрузка ждёт, пока dm его устанавливает, и останавливается, если оно не устанавливается. Без имени пользователя и пароля здесь dm берёт те, что хранит Windows; без «Сохранять пароль» введённый пароль забывается при закрытии dm.",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "не удаётся подключиться к Интернету. Подключение удалённого доступа или VPN не установилось",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Выберите другое подключение в Параметры › Дополнительно › Удалённый доступ / VPN или выключите «Использовать удалённый доступ / VPN Windows», затем нажмите «Повторить»",
+ "Redialling": "Повторный набор"
 }

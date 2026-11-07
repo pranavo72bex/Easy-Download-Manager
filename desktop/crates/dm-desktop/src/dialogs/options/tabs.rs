@@ -941,6 +941,12 @@ pub(super) fn tab_advanced(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEn
     }
     section(ui, t("Proxy"));
     tab_proxy(ui, d, env);
+    // A dial-up or VPN connection every download waits for, as reference A's last
+    // Options tab, in its words and order (gaps row 93, G84; the maintainer's word of
+    // 2026-11-07). Windows only: the connections are the ones Windows knows.
+    if cfg!(windows) {
+        tab_dialup(ui, d);
+    }
     section(ui, t("BitTorrent"));
     field(
         ui,
@@ -1152,6 +1158,87 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
 }
 
 /// The proxy settings, the second part of the Advanced page.
+/// The connections Windows knows, read again at most every two seconds: the
+/// list is drawn every frame its drop-down is open.
+fn known_connections() -> Vec<String> {
+    static READ: Mutex<Option<(std::time::Instant, Vec<String>)>> = Mutex::new(None);
+    let mut read = dm_core::lock(&READ);
+    match &*read {
+        Some((at, names)) if at.elapsed() < std::time::Duration::from_secs(2) => names.clone(),
+        _ => {
+            let names = dm_shell::dialup::connections();
+            *read = Some((std::time::Instant::now(), names.clone()));
+            names
+        }
+    }
+}
+
+/// Advanced's Dial Up / VPN section (Windows): reference A's switch, then the
+/// connection with its sign-in, then the redials.
+fn tab_dialup(ui: &mut egui::Ui, d: &mut OptionsDialog) {
+    section(ui, t("Dial Up / VPN"));
+    let dial = &mut d.draft.dialup;
+    toggle_row(
+        ui,
+        &mut dial.enabled,
+        t("Use Windows Dial Up / VPN Networking"),
+    );
+    ui.add_enabled_ui(dial.enabled, |ui| {
+        setting_row(ui, t("Connection"), |ui, name| {
+            let now = if dial.connection.is_empty() {
+                t("None").to_string()
+            } else {
+                dial.connection.clone()
+            };
+            combo("dialup-connection")
+                .selected_text(now)
+                .show_ui(ui, |ui| {
+                    if option(ui, dial.connection.is_empty(), t("None")).clicked() {
+                        dial.connection.clear();
+                    }
+                    for found in known_connections() {
+                        if option(ui, dial.connection == found, &found).clicked() {
+                            dial.connection = found;
+                        }
+                    }
+                })
+                .response
+                .labelled_by(name);
+        });
+        // As reference A's: the sign-in and the redials wait for a connection chosen.
+        ui.add_enabled_ui(!dial.connection.is_empty(), |ui| {
+            field(ui, t("User name"), &mut dial.username, 200.0);
+            let name = ui.label(t("Password"));
+            ui.add(
+                egui::TextEdit::singleline(&mut dial.password)
+                    .password(true)
+                    .desired_width(ui.available_width().min(200.0)),
+            )
+            .labelled_by(name.id);
+            toggle_row(ui, &mut dial.save_password, t("Save password"));
+            number_row(ui, t("Redial attempts (zero if endlessly)"), |ui, name| {
+                ui.add(number_box(&mut dial.attempts).range(0..=dm_shell::dialup::MOST_ATTEMPTS))
+                    .labelled_by(name);
+            });
+            number_row(
+                ui,
+                t("Time between redial attempts (seconds)"),
+                |ui, name| {
+                    ui.add(
+                        number_box(&mut dial.wait_seconds)
+                            .range(0..=dm_shell::dialup::MOST_WAIT_SECONDS),
+                    )
+                    .labelled_by(name);
+                },
+            );
+        });
+    });
+    hint(
+        ui,
+        t("A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes."),
+    );
+}
+
 fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
     let s = &mut d.draft;
     use dm_core::ProxyKind as Kind;

@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "送信量の上限（サイズの倍数）",
  "For at most (minutes)": "最長時間（分）",
  "Send at most (KB/s, 0 for no limit)": "送信速度の上限（KB/秒、0 で無制限）",
- "Complete · sharing, {} sent": "完了 · 共有中、{} 送信済み"
+ "Complete · sharing, {} sent": "完了 · 共有中、{} 送信済み",
+ "Dial Up / VPN": "ダイヤルアップ / VPN",
+ "Use Windows Dial Up / VPN Networking": "Windows のダイヤルアップ / VPN ネットワークを使う",
+ "Connection": "接続",
+ "User name": "ユーザー名",
+ "Save password": "パスワードを保存",
+ "Redial attempts (zero if endlessly)": "リダイヤル回数（0 で無制限）",
+ "Time between redial attempts (seconds)": "リダイヤルの間隔（秒）",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Windows に登録済みの接続（設定 › ネットワークとインターネット › ダイヤルアップまたは VPN）。dm が接続するあいだダウンロードは待機し、接続できなければ停止します。ここにユーザー名とパスワードがなければ、Windows が保存しているものを使います。「パスワードを保存」がオフなら、入力したパスワードは dm を閉じると消えます。",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "インターネットに接続できません。ダイヤルアップまたは VPN 接続がつながりませんでした",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "オプション › 詳細設定 › ダイヤルアップ / VPN で別の接続を選ぶか、「Windows のダイヤルアップ / VPN ネットワークを使う」をオフにしてから、再試行 をクリックします",
+ "Redialling": "リダイヤル中"
 }

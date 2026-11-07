@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "Tot verstuurd (keer zijn grootte)",
  "For at most (minutes)": "Hoogstens (minuten)",
  "Send at most (KB/s, 0 for no limit)": "Hoogstens versturen (KB/s, 0 voor geen limiet)",
- "Complete · sharing, {} sent": "Voltooid · wordt gedeeld, {} verstuurd"
+ "Complete · sharing, {} sent": "Voltooid · wordt gedeeld, {} verstuurd",
+ "Dial Up / VPN": "Inbellen / VPN",
+ "Use Windows Dial Up / VPN Networking": "Windows-inbel-/VPN-netwerk gebruiken",
+ "Connection": "Verbinding",
+ "User name": "Gebruikersnaam",
+ "Save password": "Wachtwoord opslaan",
+ "Redial attempts (zero if endlessly)": "Inbelpogingen (nul voor eindeloos)",
+ "Time between redial attempts (seconds)": "Tijd tussen inbelpogingen (seconden)",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Een verbinding die Windows kent (Instellingen › Netwerk en internet › Inbellen of VPN). Een download wacht terwijl dm haar verbindt, en stopt als ze niet tot stand komt. Zonder gebruikersnaam of wachtwoord hier gebruikt dm die van Windows; zonder Wachtwoord opslaan wordt het getypte vergeten als dm sluit.",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "kan geen verbinding met internet maken. De inbel- of VPN-verbinding kwam niet tot stand",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Kies een andere verbinding in Opties › Geavanceerd › Inbellen / VPN, of zet Windows-inbel-/VPN-netwerk gebruiken uit, en klik dan op Opnieuw proberen",
+ "Redialling": "Opnieuw inbellen"
 }

@@ -292,12 +292,19 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 33] = [
+pub const REASONS: [(&[&str], &str); 34] = [
     // First: the failure text of a row waiting for a fresh address also names
     // the refusal that expired it (`dm_core::LINK_EXPIRED`).
     (
         &["dm is waiting for the browser to hand over a new one"],
         "this link has expired. dm is waiting for the browser to hand over a new one for the same file",
+    ),
+    // Second: the dial-up or VPN connection a download waited for (dm-shell's `dialup.rs`),
+    // whose failure ends in Windows' own reason, which can read as any of those below.
+    // Reference A's row says "Cannot connect to the Internet." (2026-11-08).
+    (
+        &["did not come up"],
+        "cannot connect to the Internet. The dial-up or VPN connection did not come up",
     ),
     (
         &[
@@ -522,12 +529,15 @@ pub fn retry_cause(raw: &str) -> Option<&'static str> {
         }
         "the server took too long to answer. Try again in a moment" => Some("No answer"),
         "the server couldn't be reached. Check that you're online" => Some("Server unreachable"),
+        "cannot connect to the Internet. The dial-up or VPN connection did not come up" => {
+            Some("Redialling")
+        }
         _ => None,
     }
 }
 
 /// Every word [`retry_cause`] can give, for the catalogs.
-pub const RETRY_CAUSES: [&str; 7] = [
+pub const RETRY_CAUSES: [&str; 8] = [
     "Server error",
     "Too many requests",
     "Connection dropped",
@@ -535,6 +545,7 @@ pub const RETRY_CAUSES: [&str; 7] = [
     "Connection refused",
     "No answer",
     "Server unreachable",
+    "Redialling",
 ];
 
 /// A file error in the window's language, without the system's number.
@@ -582,7 +593,7 @@ pub fn reason(raw: &str) -> Option<&'static str> {
 /// what went wrong: one sentence each, keyed by those words. The failures
 /// whose sentence already says what to do (try again, check the address, add
 /// the login) have none here.
-pub const NEXT_STEPS: [(&str, &str); 6] = [
+pub const NEXT_STEPS: [(&str, &str); 7] = [
     (
         "the disk is full",
         "Free some space, or choose a folder on another drive (Options › Folders), then click Retry",
@@ -606,6 +617,10 @@ pub const NEXT_STEPS: [(&str, &str); 6] = [
     (
         "the site's security certificate couldn't be checked, so dm didn't connect",
         "Check that the computer's date and time are right, then click Retry",
+    ),
+    (
+        "cannot connect to the Internet. The dial-up or VPN connection did not come up",
+        "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry",
     ),
 ];
 

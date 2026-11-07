@@ -4447,3 +4447,36 @@ one comparison, and its private part changes weekly); the same host always
 `dl.example.com`, which is why the family exists). Cost: a shared host not
 named stays as before; the list is added to when one is found.
 
+
+## 2026-11-08: Dial-up and VPN connections as reference A's, a download held until it is up (gaps row 93, G84)
+
+The maintainer's word of 2026-11-07 for G84: "If IDM has then implement it". Reference A's
+last Options tab was read and run beside dm with a VPN entry that refuses
+(`docs/reference-behavior.md`, 2026-11-08). Chosen: its switch, fields, words and defaults
+(off; zero redial attempts, endlessly; 30 seconds between) as a section of Options ›
+Advanced on Windows, where dm's connection settings already are (contract row B43's six tabs
+stay six); and its rule: a download that starts while the connection is down waits while it is
+dialled and is never sent without it, failing with "cannot connect to the Internet" when every
+try failed. The wait is a hook in the engine (`dm-core` `connect_first.rs`) that every download
+passes before its first request, and the dialling is dm-shell's (`dialup.rs`, Windows' RAS):
+downloads that start together wait on one dial, a pause or cancel while one waits is heard
+within a fifth of a second and the dialling stops once nobody waits, and a setting turned off
+while it redials lets the download go as it would have.
+
+Ruled out: dialling once when the queue starts and letting the downloads go whatever came of
+it (the first draft): through a VPN a download sent around it would come from the address the
+person chose it to hide, and reference A sent nothing. Left out, and why: reference A's box
+asking for a user name and password when Options has none (dm dials with the ones Windows keeps
+for the connection, and says Windows' reason when that fails), and its Apply button, which
+hands the sign-in to Windows (dm keeps its own: with Save password on in the system's store
+like the proxy's, off nowhere at all, forgotten when dm closes). Cost: a connection with no
+saved sign-in and none in Options fails where reference A would ask.
+
+## 2026-11-08: The engine-wide settings are put in force at the start too (BUGLOG BUG-014)
+
+"Identify as dm only", the second network and now the dial-up connection live in the engine,
+not on the queue, and only a change of settings put them in force: after a restart the switch
+read on while dm sent the browser's name. One `engine_wide` in `shell.rs` now serves the start
+and every change, at the maintainer's standing word of 2026-11-07 ("if found bug or improvement
+just implement it"); contract row B51 ("the change applies at once and is kept") is what it now
+does, so its words stand.

@@ -385,3 +385,17 @@ fn a_failure_that_only_says_what_went_wrong_says_what_to_do() {
     // A failure that already says what to do, and one not known, have none.
     assert_eq!(next_step("something nobody has seen before"), None);
 }
+
+/// A download whose dial-up or VPN connection never came up says reference A's
+/// words, with Windows' own reason under them (which reads as a refused
+/// server too), what to do, and "Redialling" while it tries again.
+#[test]
+fn a_connection_that_did_not_come_up_is_said_as_reference_a_says_it() {
+    let failed = "the connection Office VPN did not come up after 2 tries: No connection could be \
+                  made because the target machine actively refused it. (os error 10061)";
+    let plain = "cannot connect to the Internet. The dial-up or VPN connection did not come up";
+    assert_eq!(reason(failed), Some(plain));
+    assert!(next_step(failed).is_some_and(|step| step.contains("Dial Up / VPN")));
+    let redialling = "the connection Office VPN did not come up: Undefined RAS Dial Error.";
+    assert_eq!(retry_cause(redialling), Some("Redialling"));
+}

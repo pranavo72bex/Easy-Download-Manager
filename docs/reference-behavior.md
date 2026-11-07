@@ -285,6 +285,32 @@ file sparse, dm 73 s and reference A 96 s. Results:
 `D:\compare\plan-side-full.json` and `plan-side\report.json` (the error cases again with
 each window read and closed).
 
+## Dial-up / VPN redial, side by side (Observed, 2026-11-08, Windows)
+
+Reference A 6.43 and dm 0.8.7 (debug build) on one Windows 11 computer, one after the
+other, with the same connection: a VPN entry made for the test (`Add-VpnConnection`, SSTP
+to 127.0.0.1, which refuses), the same file from a local server, two tries five seconds
+apart. Reference A was set through its own Options (read and set with Windows messages,
+put back afterwards) and started by its command line; its windows were read as they
+showed. dm was driven by its control port, headless and then with its window.
+
+Reference A's last Options tab, Dial Up / VPN: "Use Windows Dial Up / VPN Networking"
+(off), then "Connection options" (Connection, a list of the connections Windows knows; User
+name; Password; Save password, off; Apply) and "Redial options" ("Redial attempts (zero if
+endlessly)", 0; "Time between redial attempts", 30 seconds). Everything under the switch is
+greyed out until it is on, and the sign-in and redials until a connection is chosen.
+
+| | Reference A | dm |
+|---|---|---|
+| No user name or password in Options | a box named after the connection asks for them (User name, Password, Save password, Dial, Cancel); the download waits at "Connecting..."; Cancel stops it ("Download has been cancelled by user") | dials with the ones Windows keeps for the connection, asking nothing |
+| Each try | its box: "Connecting Device", then "Undefined RAS Dial Error." and "Redial 5", counting down | the row: "Starting…", then "Redialling (retry 2 of 2)" |
+| Every try failed | stopped about 10 s in: "Cannot connect to the Internet." on the download, and once a box "Error connecting to VPN" ("change VPN connection that is set in IDM options, or turn off "Use Windows Dial Up / VPN Networking" checkbox") | failed at 9.9 s: "Error: cannot connect to the Internet. The dial-up or VPN connection did not come up", Windows' reason on hover ("No connection could be made because the target machine actively refused it"), and what to do next |
+| Requests to the server meanwhile | none | none |
+
+What dm leaves out, and why: the box that asks for a sign-in (dm takes what Windows keeps),
+and the Apply button, which hands the sign-in to Windows (dm keeps its own, in the system's
+store when Save password is on). `docs/decisions.md`, 2026-11-08.
+
 ## HTTP proxy test (dm only, 2026-11-02)
 
 FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for dm pending (proxy settings not loading from DM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: dm issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.

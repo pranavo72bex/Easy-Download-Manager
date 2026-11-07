@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "Sampai terkirim (kali ukurannya)",
  "For at most (minutes)": "Paling lama (menit)",
  "Send at most (KB/s, 0 for no limit)": "Kirim paling banyak (KB/s, 0 tanpa batas)",
- "Complete · sharing, {} sent": "Selesai · dibagikan, {} terkirim"
+ "Complete · sharing, {} sent": "Selesai · dibagikan, {} terkirim",
+ "Dial Up / VPN": "Dial Up / VPN",
+ "Use Windows Dial Up / VPN Networking": "Gunakan Jaringan Dial Up / VPN Windows",
+ "Connection": "Sambungan",
+ "User name": "Nama pengguna",
+ "Save password": "Simpan kata sandi",
+ "Redial attempts (zero if endlessly)": "Percobaan panggil ulang (nol untuk tanpa henti)",
+ "Time between redial attempts (seconds)": "Jeda antar panggil ulang (detik)",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Sambungan yang dikenal Windows (Pengaturan › Jaringan & internet › Dial-up atau VPN). Unduhan menunggu selagi dm menyambungkannya, dan berhenti bila sambungan tidak tersambung. Tanpa nama pengguna atau kata sandi di sini, dm memakai yang disimpan Windows; tanpa Simpan kata sandi, yang diketik dilupakan saat dm ditutup.",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "tidak dapat tersambung ke Internet. Sambungan dial-up atau VPN tidak tersambung",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Pilih sambungan lain di Opsi › Lanjutan › Dial Up / VPN, atau matikan Gunakan Jaringan Dial Up / VPN Windows, lalu klik Coba lagi",
+ "Redialling": "Memanggil ulang"
 }

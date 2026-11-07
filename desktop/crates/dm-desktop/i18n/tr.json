@@ -886,5 +886,16 @@
  "Until it has sent (times its size)": "Gönderene kadar (boyutunun katı)",
  "For at most (minutes)": "En çok (dakika)",
  "Send at most (KB/s, 0 for no limit)": "En çok gönder (KB/sn, 0 sınırsız)",
- "Complete · sharing, {} sent": "Tamamlandı · paylaşılıyor, {} gönderildi"
+ "Complete · sharing, {} sent": "Tamamlandı · paylaşılıyor, {} gönderildi",
+ "Dial Up / VPN": "Çevirmeli / VPN",
+ "Use Windows Dial Up / VPN Networking": "Windows Çevirmeli / VPN Ağını kullan",
+ "Connection": "Bağlantı",
+ "User name": "Kullanıcı adı",
+ "Save password": "Parolayı kaydet",
+ "Redial attempts (zero if endlessly)": "Yeniden arama denemesi (sınırsız için sıfır)",
+ "Time between redial attempts (seconds)": "Yeniden aramalar arası süre (saniye)",
+ "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Windows'un bildiği bir bağlantı (Ayarlar › Ağ ve İnternet › Çevirmeli veya VPN). dm onu bağlarken indirme bekler, bağlantı kurulamazsa durur. Burada kullanıcı adı ve parola yoksa dm, Windows'un sakladıklarını kullanır; Parolayı kaydet kapalıysa yazılan parola dm kapanınca unutulur.",
+ "cannot connect to the Internet. The dial-up or VPN connection did not come up": "internete bağlanılamıyor. Çevirmeli veya VPN bağlantısı kurulamadı",
+ "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Seçenekler › Gelişmiş › Çevirmeli / VPN bölümünden başka bir bağlantı seçin veya Windows Çevirmeli / VPN Ağını kullan seçeneğini kapatın, sonra Yeniden dene düğmesine tıklayın",
+ "Redialling": "Yeniden aranıyor"
 }

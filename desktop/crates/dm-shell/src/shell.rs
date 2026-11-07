@@ -427,6 +427,8 @@ pub async fn start(orders: &Orders) -> Started {
     // The cookies file, read now rather than at the first change of a
     // setting: before, a download that needed it failed until then.
     notices.extend(use_cookies(&saved));
+    // So with the engine's name, the dial-up connection and the second network.
+    notices.extend(engine_wide(&saved));
 
     let queue = Queue::new(
         client,
@@ -470,6 +472,25 @@ pub async fn start(orders: &Orders) -> Started {
         settings: saved,
         notices,
     }
+}
+
+/// What the settings put in force across the engine rather than on the queue:
+/// the name dm gives itself, the dial-up or VPN connection every download
+/// waits for, and the second network. At the start and at every change: only
+/// the changes did it before, so a saved "Identify as dm only", second network
+/// or dial-up connection was not in force until Options' OK (2026-11-08).
+/// What went wrong, in words.
+fn engine_wide(settings: &Settings) -> Option<String> {
+    dm_core::set_identify_as_dm(settings.identify_as_dm);
+    // A dial-up or VPN connection every download waits for (`dialup.rs`).
+    crate::dialup::set(&settings.dialup);
+    // The second network, where one is chosen and no proxy is on: through
+    // a proxy every connection must go by it, and one that did not would
+    // be seen by the site from this computer's own address.
+    let second = (!settings.proxy.enabled).then_some(settings.second_path.as_str());
+    dm_core::set_second_path(second)
+        .err()
+        .map(|why| format!("downloads use one network: {why}"))
 }
 
 /// Whether the client must be built again for a change from `previous`.
@@ -540,14 +561,7 @@ pub async fn apply(
             .await?;
     }
     let mut problems: Vec<String> = use_cookies(settings).into_iter().collect();
-    // The second network, where one is chosen and no proxy is on: through
-    // a proxy every connection must go by it, and one that did not would
-    // be seen by the site from this computer's own address.
-    dm_core::set_identify_as_dm(settings.identify_as_dm);
-    let second = (!settings.proxy.enabled).then_some(settings.second_path.as_str());
-    if let Err(why) = dm_core::set_second_path(second) {
-        problems.push(format!("downloads use one network: {why}"));
-    }
+    problems.extend(engine_wide(settings));
 
     let current = queue.options().await;
     // The limiter belongs to the running queue. The parts folder is the

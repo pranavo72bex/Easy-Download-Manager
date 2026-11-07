@@ -1197,6 +1197,17 @@ def walk(dm, origin):
     # B57: the site-limit list is there with its Add button.
     check("B57", "Advanced has a site connection-limit list with Add a site limit",
           "Sites with their own connection limit:" in words and "Add a site limit" in words, f"{words}")
+    # B43 since 2026-11-08: on Windows reference A's Dial Up / VPN section, below the proxy's
+    # (gaps row 93, G84); read further down the page, as a person scrolls on.
+    words += [w for w in dm.scrolled_texts(turns=12) if w not in words]
+    dialup = ("Dial Up / VPN", "Use Windows Dial Up / VPN Networking", "Connection", "User name",
+              "Save password", "Redial attempts (zero if endlessly)", "Time between redial attempts (seconds)")
+    if sys.platform == "win32":
+        check("B43", "On Windows, Advanced has reference A's Dial Up / VPN section in its words",
+              all(w in words for w in dialup), f"{[w for w in dialup if w not in words]} missing")
+    else:
+        check("B43", "Away from Windows, Advanced has no Dial Up / VPN section",
+              "Use Windows Dial Up / VPN Networking" not in words, f"{words}")
     # B60: Site files has the switch for following links to other sites.
     dm.click("Cancel")
     pause(0.8)

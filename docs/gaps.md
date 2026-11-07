@@ -93,9 +93,10 @@ maintainer's own. The commands are for PowerShell from the repository's root;
     checked with the app serving them (rows 68 and 69).
 11. **By hand, row 60.** The maintainer drags each kind of dialog out of dm's
     window, and onto a second monitor if there is one.
-12. **The maintainer's word, rows 93 and 110.** G74 (a single file: ask first),
-    G76 (where the bar sits) and G84 (dial-up and VPN) each change what a person
-    sees or what a click does, so nothing is built before a yes or no on each.
+12. **The maintainer's word, rows 93 and 110.** G74 (a single file: ask first)
+    and G76 (where the bar sits) each change what a person sees or what a click
+    does, so nothing is built before a yes or no on each. (G84, dial-up and VPN,
+    was built 2026-11-08 at the word of 2026-11-07.)
 
 **Not for the Windows session.** Row 154 (B25's macOS dialog pictures) needs
 a Mac whose Terminal is allowed Screen Recording; a few minutes on the
@@ -204,7 +205,7 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 75 | File names: reference A names a download from the page's title; dm uses the media file's own name (a hash, or `video`). Spec G75. | CODE BUILT AND TESTED (2026-11-03: dm-core `naming.rs` tests pass; title carried from `document.title` through `PanelClick`, `Start.title`, `host::Request.title`, `AddOptions`/`Entry`/`download::Options.title_hint`; `assemble.rs` names by the title only when no name was chosen and the found name is meaningless; a download the browser caught sends the title of the open tab at its referrer, `web/downloads.rs` `tab_title`, `decide::referrer_title` with a test). Found live on X 2026-11-06 and fixed: the panel never sent the title (`content/handoff.rs` read it for the list's lines only), so X's video kept the name "GiFPAi8WYAEgiBu.mp4"; every panel hand-off now carries it (`video_title`), and the same post saved as "NASA on X - Everybody, wave! @fireflyspace’s Blue Ghost lunar lander caught Earth on video as the lander continued.mp4". Facebook signed in, 2026-11-07: a video post's page and the Watch page are both titled only "(1) Facebook", so the file stays `video.mp4` (the post's words are not in the page's title; a site rule's `title` selector, row 124, is the way to them). Left: Instagram signed in, and whether reference A names a Facebook video otherwise (step 9) |
 | 77 | Pages where only one manager showed a bar (logged out). Not a defect; recorded so a later run is not misread. | NOTE |
 | 78 | Desktop apps compared side by side 2026-11-02 (`docs/reference-behavior.md`). Checked in dm's code and found already done, so not gaps: a connection limit per server (`Options::host_limits`, Options > Advanced), a command run after each download (a virus checker or a script), the last folder per category (`last_folders`), the file's date from the server (`set_modified`), the list columns Last try and Description (and Referrer and Folder besides). | NOTE |
-| 93 | Order to build, rows 72 to 98: G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first. Wait for the maintainer's word before 72a to 72d, G74, G76, G84, G91 (each changes visible wording, layout or what a click does). | PLAN |
+| 93 | Order to build, rows 72 to 98: G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first. Wait for the maintainer's word before 72a to 72d, G74, G76, G91 (G84 built 2026-11-08 at the word of 2026-11-07: CHANGELOG, `docs/decisions.md`) (each changes visible wording, layout or what a click does). | PLAN |
 | 99 | Extension, watched 2026-11-02 with both on one page: the right-click items match in kind (a page: dm "Download all links with dm", reference A "Download with" its own name; a link: "Download link with dm" and the same; a selection: "Download selected links with dm" and the same). Differences are rows 74, 76, 86 and 94. | NOTE |
 | 102 | **Torrent: what was tested 2026-11-02, and what is left** (reported: a magnet button on a torrent site does not open dm). Tested and working: the engine (a public test torrent, Sintel, 129,241,752 bytes in about a minute from the real swarm); a magnet link opened through a Windows protocol handler starts in dm (a handler registered by hand for the test, then removed); seven ways a page opens a magnet (plain link, link with a script handler, button that sets `location`, new-tab link, icon inside a link, `window.open`, a link a script makes and clicks) all reach dm through the extension. Not tested: the real 1337x site (behind a Cloudflare check an automated browser does not pass), a build from this branch installed on the person's computer. Specs T1 to T8. | NOTE |
 | 109 | T7: a magnet opened in a browser's Reading view (`read://`), a PDF viewer, or another program reaches dm only through the system handler (extensions do not run there). Spec T7 is a check list for a person on the real site. | NOTE |
@@ -415,12 +416,6 @@ unchanged, B kept.
   Options gets a Sounds section (a row per event: switch, path, Browse, Play); `app/sync.rs` and the queue start and
   finish hooks call it. Only `.wav` is promised (Windows `PlaySound`, macOS `afplay`, Linux `paplay` or `aplay`).
 - **Done when:** a settings round-trip test; a window test that the two new events fire once.
-
-#### G84 Dial-up / VPN (maintainer to decide)
-- **Today:** reference A has a last Options tab: use a Windows dial-up or VPN connection, user and password, redial
-  attempts and the time between them. dm has none.
-- **Decision needed:** build it for Windows only (RAS: `RasDial`, `RasEnumConnections`) or leave it out as obsolete.
-  If built: a settings block, an Options section on Windows, a redial loop around the queue's start.
 
 #### G85 Download-start options (audit, done 2026-11-05)
 - **Reference A's Downloads tab, item by item, against dm:**
