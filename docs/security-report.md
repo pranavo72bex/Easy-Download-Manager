@@ -329,7 +329,12 @@ Left, each a row in `docs/gaps.md` (row 159):
 - **Low (Windows): a torrent's file named `D:x`** passes librqbit's check
   (no `..`, no separator) and `PathBuf::push` makes it a path on another
   drive; the vendored storage creates the empty files before dm's own check
-  refuses the torrent. No content is written.
+  refuses the torrent. No content is written. Fixed on Windows the same day:
+  the vendored `init` checks every file's name before it makes any (plain
+  parts only: no root, no `..`, no drive, no `:`), tests
+  `dm_tests::a_torrents_file_name_must_stay_in_its_folder` (the vendored crate) and
+  `tests/torrent_names.rs` (dm-core: the file was made outside the folder without it;
+  BUGLOG BUG-013).
 - **Low: the plain-JavaScript panel** (sites whose policy forbids
   WebAssembly) checks only `isTrusted`, not that it is drawn as dm drew it
   (`as_drawn`), in an open shadow root a page can restyle; and a panel

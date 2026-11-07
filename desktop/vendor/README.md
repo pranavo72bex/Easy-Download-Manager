@@ -66,6 +66,14 @@ incoming connection that failed disabled the branch that collects the checks
 way were not polled until another connection came in; an encrypted handshake,
 which takes several round trips, stalled behind any refused connection.
 
+A torrent's file names checked before any file is made (`dm:` lines in
+`src/storage/filesystem/fs.rs`, `init` and `plain_relative`): only plain parts, no root,
+no `..`, no drive and, on Windows, no `:`. On Windows a name such as `D:x` made
+`PathBuf::push` start again on drive D:, so the storage made empty files outside the
+torrent's folder before dm's own check refused the torrent (dm's gaps row 159 b). Tests:
+`dm_tests` in that file (`cargo test --lib dm_tests` here) and dm-core's
+`tests/torrent_names.rs`.
+
 Left out of the copy: upstream's `webui/CLAUDE.md`, notes for an AI assistant
 working on its web interface (built only with the `webui` feature, which dm
 does not use), which would otherwise read as instructions for this project.

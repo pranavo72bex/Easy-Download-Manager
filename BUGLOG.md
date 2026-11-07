@@ -327,6 +327,21 @@ Deviations from the brief, and why:
   a handle) were still there, and called them a leak; it now reads the first and last waves
   once the threads stop falling (`settled_stats`).
 
+### BUG-013 — on Windows a torrent naming another drive made empty files there
+
+- **Scenario**: the source review of 2026-11-07 (`docs/security-report.md`, gaps row 159 b):
+  a torrent whose file is named `D:x` passes librqbit's name check (no `..`, no separator).
+- **Root cause**: the vendored storage joins each name onto the download folder with
+  `PathBuf::push`, which on Windows starts again at a name with a drive (`D:x` is `x` in drive
+  D:'s current folder), and creates every file before dm's own check refuses the torrent. No
+  content was written, but empty files were made where the torrent chose.
+- **Fix**: the vendored `init` checks every file's name before it makes any: plain parts only,
+  no root, no `..`, no drive, no `:` (`plain_relative`, `desktop/vendor/README.md`).
+- **Regression tests**: `dm_tests::a_torrents_file_name_must_stay_in_its_folder` in the
+  vendored `fs.rs`, and dm-core `tests/torrent_names.rs`
+  `a_torrent_naming_a_drive_makes_no_file_on_it`, which without the fix found the file made in
+  the test's own folder, outside the download folder.
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not

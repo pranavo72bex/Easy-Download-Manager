@@ -127,6 +127,15 @@ impl TorrentStorage for FilesystemStorage {
         shared: &ManagedTorrentShared,
         metadata: &TorrentMetadata,
     ) -> anyhow::Result<()> {
+        // dm: every file's name checked before any file is made (gaps row 159 b).
+        for file_details in metadata.file_infos.iter() {
+            if !file_details.attrs.padding && !plain_relative(&file_details.relative_filename) {
+                anyhow::bail!(
+                    "the torrent names a file outside its folder: {:?}",
+                    file_details.relative_filename
+                );
+            }
+        }
         let mut files = Vec::<OpenedFile>::new();
         for file_details in metadata.file_infos.iter() {
             let mut full_path = self.output_folder.clone();
@@ -165,5 +174,50 @@ impl TorrentStorage for FilesystemStorage {
 
         self.opened_files = files;
         Ok(())
+    }
+}
+
+/// dm: whether a torrent's file name stays in the torrent's folder: plain
+/// parts only, no root, no `..`, no drive. On Windows a part such as `D:x`
+/// made `PathBuf::push` start again on drive D: (and `name:stream` names a
+/// stream of a file), so such a torrent created empty files outside the
+/// output folder before dm's own check refused it (dm's gaps row 159 b).
+fn plain_relative(path: &std::path::Path) -> bool {
+    use std::path::Component;
+    let mut parts = 0;
+    for part in path.components() {
+        match part {
+            Component::Normal(name) => {
+                if cfg!(windows) && name.to_string_lossy().contains(':') {
+                    return false;
+                }
+                parts += 1;
+            }
+            _ => return false,
+        }
+    }
+    parts > 0
+}
+
+#[cfg(test)]
+mod dm_tests {
+    use super::plain_relative;
+    use std::path::Path;
+
+    #[test]
+    fn a_torrents_file_name_must_stay_in_its_folder() {
+        assert!(plain_relative(Path::new("Sintel/Sintel.mp4")));
+        assert!(plain_relative(Path::new("a.txt")));
+        assert!(!plain_relative(Path::new("")));
+        assert!(!plain_relative(Path::new("../outside.txt")));
+        assert!(!plain_relative(Path::new("a/../../outside.txt")));
+        assert!(!plain_relative(Path::new("/etc/passwd")));
+        #[cfg(windows)]
+        {
+            assert!(!plain_relative(Path::new("D:x")));
+            assert!(!plain_relative(Path::new(r"C:\Windows\x.dll")));
+            assert!(!plain_relative(Path::new(r"\server\share\x")));
+            assert!(!plain_relative(Path::new("folder/name:stream")));
+        }
     }
 }
