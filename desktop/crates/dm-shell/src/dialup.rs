@@ -149,7 +149,10 @@ static IN_FORCE: Mutex<Option<DialUp>> = Mutex::new(None);
 /// One dial at a time, and the end of the last: downloads that start together
 /// wait on one dial, and those that waited while it failed fail with it rather
 /// than each dialling every try again.
+// Dialled on Windows alone (and in the tests, everywhere): elsewhere nothing reads these.
+#[cfg(any(windows, test))]
 static DIALLING: Mutex<()> = Mutex::new(());
+#[cfg(any(windows, test))]
 static LAST: Mutex<(u64, Option<String>)> = Mutex::new((0, None));
 
 /// Takes the settings' connection as the one to dial (`shell::apply`), and
@@ -165,6 +168,7 @@ pub fn set(dial: &DialUp) {
     }));
 }
 
+#[cfg(any(windows, test))]
 fn in_force() -> Option<DialUp> {
     dm_core::lock(&IN_FORCE).clone()
 }
@@ -190,6 +194,7 @@ fn before_download(waiting: &dyn Fn() -> bool, redialling: &dyn Fn(Redial)) -> R
 }
 
 /// [`before_download`] with its dialler and pause given, for the tests.
+#[cfg(any(windows, test))]
 fn connect_with(
     dialer: &dyn Dialer,
     waiting: &dyn Fn() -> bool,
