@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Joins a WebM video's picture and sound into one file, by dm itself.
 //!
 //! A video site's WebM qualities (VP9 or AV1 picture, Opus sound) come as

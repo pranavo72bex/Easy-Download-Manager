@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 #[test]
 fn sound_alone_is_named_for_what_its_segments_are() {
     /* Called `.aac` whatever it was: fMP4 sound is an MP4 file and a

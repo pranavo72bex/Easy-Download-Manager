@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The sound of a file read by Media Foundation's source reader: the
 //! system's decoder turns AAC (an M4A's, an MP4's sound; also an MP3) into
 //! 16-bit samples, at most two channels, at a rate MP3 has. A Windows "N"

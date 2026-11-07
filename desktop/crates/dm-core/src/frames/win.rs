@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The pictures of a part decoded by Media Foundation's H.264 decoder, which
 //! dm feeds itself as VideoToolbox is fed on macOS: the samples dm's own
 //! MP4 reader finds (`mp4mux::tracks_in_file`: where each is, when it plays,

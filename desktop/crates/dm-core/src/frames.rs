@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Pictures of a video, for a part saved as GIF: its H.264 samples decoded
 //! by the system's own decoder (VideoToolbox on macOS, called directly; on
 //! Windows Media Foundation's source reader, `frames/win.rs`), a few a

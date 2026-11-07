@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 // The page script. Two small things are plain JavaScript, registered before
 // anything loads, because they must work on a page whose security policy
 // forbids WebAssembly: a click with a key held (Alt leaves a download with

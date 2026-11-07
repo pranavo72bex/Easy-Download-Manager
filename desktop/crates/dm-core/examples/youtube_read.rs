@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What dm's own YouTube reader makes of each address, with no sign-in: how
 //! many formats it found and the best height, or its words where it failed.
 //! For gaps row 122, which waits on a measurement before reading more from

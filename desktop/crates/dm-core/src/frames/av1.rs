@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Pictures of an AV1 video, for a part saved as GIF on Linux, where the
 //! system has no video decoder dm can use (gaps row 54). AV1 is royalty-free
 //! and YouTube offers most videos in it; the samples come from dm's own MP4

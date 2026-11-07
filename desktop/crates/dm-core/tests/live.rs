@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Streams from a media server: an RTMP address (and RTMPT, the same
 //! through HTTP) fetched by dm's own client, an RTSP camera and an MMS
 //! server, each placed as a file; and the refusals where one cannot be — an

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 /// Whether two addresses are of the same family of servers: the same host, or
 /// hosts that share their registered name (`cdn1.example.com` and
 /// `dl.example.com`). A signed address often moves between a site's own

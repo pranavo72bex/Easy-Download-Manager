@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Every word the window translates is in every catalog, and every
 //! translation can be drawn in the window's fonts: a missing one reads in
 //! English, which is a gap; a glyph the fonts lack is a box, which is a bug.

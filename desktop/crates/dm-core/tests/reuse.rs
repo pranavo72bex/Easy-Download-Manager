@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A connection that finished its piece takes the next one on the same
 //! socket, without a new connect and sign-in (docs/reference-behavior.md). The server here keeps connections open and
 //! counts both what it accepted and what it was asked.

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A sound file read to 16-bit samples by the system's own decoder, for the
 //! MP3 encoder: on macOS AudioToolbox's ExtAudioFile, on Windows Media
 //! Foundation's source reader (`win.rs`), which both read AAC in an M4A or

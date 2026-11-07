@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The shell's readers of outside input — what a browser sends the native
 //! host, lists and pages people import, settings files people edit — fed
 //! random and hostile input. `PROPTEST_CASES=200000` for a deep hunt.

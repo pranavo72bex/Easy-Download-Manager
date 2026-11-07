@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! "MP3 audio" picked for a video's sound, through the queue as a hand-off from
 //! the browser's panel arrives: the M4A is fetched and the row ends as an MP3
 //! of the same length, with nothing installed beyond dm (on Linux the AAC is

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A part of a real YouTube video saved as a GIF, end to end, on a computer
 //! with no video decoder of its own (Linux: dm takes the video's AV1 stream
 //! and decodes it itself, gaps row 54). It reaches youtube.com, so it runs

@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Inside a distribution's own image (see human-distro.sh): an X server, a
 # window manager and a session bus, as a desktop has, and then the check
 # with real input. The same session linux-chromium-human.sh and

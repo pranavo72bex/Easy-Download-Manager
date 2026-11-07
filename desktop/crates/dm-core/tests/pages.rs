@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A link to a document that is itself a page — `notes.html`, `feed.xml` —
 //! is that document; a watch page with no extension that is not YouTube is
 //! refused (its video comes from the browser's caught player requests).

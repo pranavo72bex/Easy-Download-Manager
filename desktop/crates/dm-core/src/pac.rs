@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A proxy configuration script (PAC): what `FindProxyForURL` answers, and running it.
 //!
 //! The script is run by QuickJS (`tools.rs`), in a program of its own with the helpers a script

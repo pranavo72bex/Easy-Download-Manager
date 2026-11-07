@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # CachyOS with Brave, Google Chrome, Microsoft Edge and Firefox, and dm and
 # its extension built from this checkout, for the extension hand-off checks
 # (scripts/chrome-check.py, scripts/firefox-check.py native) in each browser.

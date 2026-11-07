@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # The extension hand-off, end to end: Chromium with the unpacked extension
 # (dist/chrome, built in the image) catches downloads and hands them to dm over
 # native messaging, keeps them when dm is not running, and follows the app's

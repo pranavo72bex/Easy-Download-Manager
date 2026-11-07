@@ -65,6 +65,21 @@ Actions secrets only (docs/RELEASING.md).
 - **Privacy.** dm sends nothing anywhere except the downloads a person asks
   for. `cargo xtask privacy` checks that no analytics or stray addresses
   creep in.
+- **The licence header.** Every source file of dm's own starts with its
+  copyright and licence notice, in its language's comment style:
+
+  ```rust
+  // Copyright (C) 2026 pranavo72bex and the dm contributors.
+  // SPDX-License-Identifier: GPL-3.0-or-later
+  // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+  // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+  ```
+
+  `cargo xtask headers fix` (in `desktop/`) writes it into a new file;
+  `cargo xtask headers`, which CI runs, fails a file without it. Third-party
+  code in `desktop/vendor/` keeps its own licence and takes no header, and
+  test data under `fixtures/` takes none either. The NOTICE's section 7(b)
+  term asks everyone who copies dm's code to keep these notices unchanged.
 
 By contributing, you agree that your contribution is licensed under the
 [GNU GPL v3 or later](LICENSE), with the attribution terms in [NOTICE](NOTICE), like the rest of dm.

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 #[test]
 fn a_clicked_magnet_is_taken_and_named_by_its_dn() {
     use super::{magnet_name, magnet_url, PanelClick, MAGNET_MESSAGE};

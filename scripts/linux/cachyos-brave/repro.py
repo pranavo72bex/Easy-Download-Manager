@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 import http.server, json, os, pathlib, socket, socketserver, struct, subprocess, sys, threading, time
 HOME = pathlib.Path("/root/h"); HOME.mkdir(exist_ok=True)
 env = dict(os.environ, HOME=str(HOME))

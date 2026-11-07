@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A second network path for a download's ranges: another interface (an
 //! iPhone over USB or its hotspot, a second Wi-Fi, a wired port) beside the
 //! one the system routes by. Every other connection of a ranged download

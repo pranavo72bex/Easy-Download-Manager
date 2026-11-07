@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Driving the window as a person does: see what is drawn, click a word,
 //! type, press a key. Behind `ui.texts`, `ui.click`, `ui.type` and `ui.key`
 //! of the control protocol, and so behind the AI client's tools.

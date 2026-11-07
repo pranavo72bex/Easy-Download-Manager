@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Every torrent feature against a swarm on loopback: magnets, a torrent of
 //! several files, checksums, progress and the speed limit, pause and resume,
 //! category folders, the queue, and two torrents at once.

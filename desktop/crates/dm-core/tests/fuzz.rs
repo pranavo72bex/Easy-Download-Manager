@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The engine's readers of outside input, fed random and hostile input.
 //!
 //! Panics are hunted with fuzzing, on stable Rust with proptest, inside `cargo test`, so they need no extra toolchain and

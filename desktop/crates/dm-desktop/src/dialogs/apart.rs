@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A dialog as a window of its own: the operating system's title bar with
 //! the dialog's title and its close button, placed over the main window to
 //! begin with and moved anywhere on the screen by dragging it, as reference

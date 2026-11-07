@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Windows Media Foundation, the system's own decoders, as far as a video's
 //! sound saved as MP3 (`mp3/decode/win.rs`) and a part saved as GIF
 //! (`frames/win.rs`) need them: COM and Media Foundation started for the

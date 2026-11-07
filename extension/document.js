@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 // Runs in the page's own world (manifest "world": "MAIN"), where a content
 // script's isolated world cannot see the player's requests. It only reads:
 // the address a video site's player asks for is passed on to content.js,

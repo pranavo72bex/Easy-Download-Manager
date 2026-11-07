@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 /// What the window offers to queue on its own: the first word of some text,
 /// if it is a link. The queue is the authority on what it accepts.
 pub fn looks_downloadable(text: &str) -> Option<String> {

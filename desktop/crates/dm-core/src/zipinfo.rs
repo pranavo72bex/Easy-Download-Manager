@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What is inside a ZIP, from its end alone: a ZIP lists its files in a
 //! central directory at the very end, so a few range requests learn the names
 //! and sizes without fetching the archive, as reference A shows a ZIP's

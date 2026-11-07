@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Loads the repository's extension into Brave on CachyOS (docker) and checks the
 # panel's WebAssembly loads on a page with a video. Run run.sh once first, or
 # this builds the image itself.

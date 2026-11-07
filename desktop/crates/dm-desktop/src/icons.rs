@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The window's icons. In the modern look they are Fluent UI System Icons,
 //! Microsoft's open icons in the style of Fluent (MIT,
 //! `fonts/LICENSE-FluentSystemIcons.txt`), as a font of the few dm draws;

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A browser's hand-off reaching a row whose signed address ran out: the row
 //! takes the browser's fresh address and goes on (gaps rows 57 and 121), and
 //! a renewal no row waits for is dropped. A hand-off the window asks about is

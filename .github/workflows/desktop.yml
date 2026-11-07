@@ -76,6 +76,9 @@ jobs:
       - name: Dependency layering
         run: cargo xtask layers
 
+      - name: Every source file carries its licence header
+        run: cargo xtask headers
+
       # nextest runs the test binaries side by side (cargo test runs them
       # one after another) and fails a test that hangs; doctests, which it
       # does not run, follow.

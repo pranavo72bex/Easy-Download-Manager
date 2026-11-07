@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The MPEG-1 Layer III tables dm's MP3 encoder writes with (ISO/IEC
 //! 11172-3): the Huffman codes, the synthesis window and the scalefactor
 //! bands. Generated from the tables of PDMP3, a public-domain (Unlicense)

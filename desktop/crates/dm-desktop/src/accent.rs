@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The computer's accent colour, for the modern look's accent brushes: the
 //! primary button, the selection indicator, a checked box, the progress bar
 //! and words in the accent, as Fluent draws them from the system's accent.

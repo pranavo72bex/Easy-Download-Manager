@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The extension's decisions, fed whatever a browser or a host might send:
 //! a download item, a menu click, the host's frames. Run on the host, where
 //! the decisions are plain Rust. `PROPTEST_CASES=200000` for a deep hunt.

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Windows' firewall and dm's torrents (gaps rows 101, 107). The first torrent dm runs listens
 //! for peers, and Windows then asks, once, in a window of its own that can sit behind others,
 //! whether dm may use public and private networks. dm cannot answer it and does not try: it says

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A capped request (`StreamHints::chunk`) against servers that throttle or
 //! cut any one response: the file must come out byte for byte, and faster
 //! where the throttle is per response.

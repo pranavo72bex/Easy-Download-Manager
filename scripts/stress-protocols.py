@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """The rest of the stress check: proxy, mirrors and Metalink, FTP, the watched
 folder, the scheduler, the MCP server, a lossy and slow link, manifests with
 absurd sizes, and torrents.

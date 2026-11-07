@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Builds the CachyOS + Brave image and runs the video hand-off three ways:
 # with /tmp as a default system has it, with /tmp mounted noexec (hardened and
 # tuned systems), and with noexec and TMPDIR pointed at a folder programs may

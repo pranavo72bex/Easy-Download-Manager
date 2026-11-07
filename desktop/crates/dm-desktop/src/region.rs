@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The computer's regional formats: the decimal mark, the order a date is
 //! written in, and a 12- or 24-hour clock. They are the person's choice in
 //! the system's settings, apart from the language dm speaks: someone who

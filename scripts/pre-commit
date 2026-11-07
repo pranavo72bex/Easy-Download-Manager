@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Refuses a commit that writes a credential into a tracked file: a login in
 # an address, a Basic token, a private key, an access token. Installed with
 #   ln -sf ../../scripts/pre-commit .git/hooks/pre-commit

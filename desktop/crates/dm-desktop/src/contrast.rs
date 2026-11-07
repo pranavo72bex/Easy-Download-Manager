@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Windows' High Contrast themes (Aquatic, Desert, Dusk, Night sky, and the
 //! person's own): when one is on, the window is drawn in the system's own
 //! colours, whatever look was chosen, as a Windows app is.

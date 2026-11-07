@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """A link dragged onto dm's window under Wayland, with the compositor's own
 pointer: run by scripts/linux-wayland-drag-check.sh inside the Linux
 container, under sway (headless). A virtual pointer (`vpointer`, wlroots'

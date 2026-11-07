@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The settings a person reaches for when a site misbehaves: fewer
 //! connections for that one site, more (or endless) attempts on a link that
 //! drops, and a shorter wait on a connection that has gone quiet.

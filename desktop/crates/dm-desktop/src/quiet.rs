@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Not while the person is busy with something else: a fullscreen app or
 //! game, a presentation, or Focus Assist. What dm would say then is held, and
 //! said once the computer accepts notifications again; a sound is not held,

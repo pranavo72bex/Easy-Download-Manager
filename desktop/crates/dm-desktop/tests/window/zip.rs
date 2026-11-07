@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A ZIP's files are listed in Download details before the file is fetched,
 //! and in a finished ZIP's Properties (reference A shows a ZIP's contents;
 //! the maintainer's word of 2026-11-01).

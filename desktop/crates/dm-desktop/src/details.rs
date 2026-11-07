@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The text "Copy details" puts on the clipboard for a row that failed: what a person can paste to
 //! somebody who is helping them, with nothing secret in it. Never a cookie, a login, a token, a
 //! path or a query: the address is its host alone, the headers are their names alone, and what the

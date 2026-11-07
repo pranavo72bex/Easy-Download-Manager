@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The progress on dm's taskbar button, so a minimised window still says how
 //! far the downloads are: green while they run, yellow while they are
 //! paused, red for a minute after one failed. Only Windows has such a

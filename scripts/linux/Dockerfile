@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # A Linux with everything the client needs to build and run. Tray integration
 # uses the session's StatusNotifier host and is tested in a desktop session.
 FROM rust:1-slim-bookworm

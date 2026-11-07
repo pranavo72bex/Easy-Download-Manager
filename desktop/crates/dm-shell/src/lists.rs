@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Lists of downloads, the ways dm takes them in and gives them out: a
 //! numbered series made from one address with a wildcard, dm's own
 //! `.dmlist` file for export and import, and the links on a page for

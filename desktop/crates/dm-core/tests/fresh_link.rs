@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A signed address from the browser that has expired: the row waits for a
 //! fresh address for the same file instead of being left failed, and the
 //! browser's next hand-over of that file takes its place and goes on from the

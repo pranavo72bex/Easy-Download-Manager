@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What YouTube's format numbers (`itag`) stand for: the picture's height and frame rate, the
 //! codec family, and a sound's usual bitrate. The player's answer carries these as fields; this
 //! table is for the answer that leaves them out (a format listed by `itag` alone), so that such

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! dm against another implementation of encrypted peer connections (gaps
 //! row 150): a libtorrent peer, in a container, set to make and take only
 //! encrypted connections (MSE, RC4). libtorrent is the library most BitTorrent

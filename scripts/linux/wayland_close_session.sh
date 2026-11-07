@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # A headless sway session for scripts/linux/wayland_close_check.py, run as an
 # ordinary user (sway will not run as root).
 XDG_RUNTIME_DIR="/tmp/xdg-$(id -u)"

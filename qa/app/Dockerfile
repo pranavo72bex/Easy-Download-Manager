@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # dm built from this checkout, run headless by the QA suite; Chromium with the
 # unpacked extension for the hand-off checks. Built from the repository root:
 #   docker build -f qa/app/Dockerfile .

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The site rules the app serves to the extension in its hello: the document it ships, or a newer
 //! `rules.json` in dm's home folder. Nothing here can fail a hello: a missing, unreadable, too large,
 //! malformed or older file is passed over, and the extension keeps its compiled tables regardless.
