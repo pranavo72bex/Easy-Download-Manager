@@ -366,3 +366,30 @@ Left, each a row in `docs/gaps.md` (row 159):
 - The worker's re-read of a playlist on the public web still carries the
   browser's session, as the player's own request did; only private hosts are
   refused.
+
+## Review of `main..parity-with-reference-a`, 2026-11-08
+
+A second source review, of everything the branch adds over `main`, each candidate
+checked again by a separate reader for false positives. Two held, both new on
+this branch, both fixed the same day:
+
+- **H1, a proxy configuration script could run any program (High).** `pac.rs`
+  ran the script fetched from Options' "Automatic configuration script" address
+  (often plain `http://`) with QuickJS's command line, whose `qjs:os` module is
+  reachable by `import()` from any script: `os.exec` ran as the user (shown with
+  a QuickJS-ng binary). An attacker on the network path of an `http://` script,
+  its server's operator, or a shared settings file (`Settings::imported` kept
+  `proxy.script` from the file) could use it. Now: an installed Deno with no
+  permissions is preferred; in QuickJS a script naming `import` or hiding words
+  behind `\u` escapes is refused before it runs, and the prelude takes `eval`,
+  `Function` and the generator and async function constructors away, for good,
+  before the script (`pac.rs` `refused`, `PRELUDE`; tests, one against a real
+  engine where one is installed). An imported settings file keeps this
+  computer's own script address, and where a proxy host is set beside a script
+  its login goes only to that host.
+- **M9, a redirect got round M8 (Medium).** The extension's worker refused a
+  playlist on a private host but followed a public one's redirect, so a page
+  could have it send a GET with the browser's cookies to a router. The worker's
+  fetches now treat a redirect as an error (`plumbing.rs` `fetch_bytes`,
+  `redirect: "error"`); a playlist behind a redirect is left undescribed.
+  `chrome-check.py` 88 of 88.

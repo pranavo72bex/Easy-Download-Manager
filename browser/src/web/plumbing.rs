@@ -119,6 +119,11 @@ pub(super) async fn fetch_start(url: &str, cap: usize, ms: f64) -> Result<Vec<u8
 
 /// What [`fetch_text`] and [`fetch_start`] share: `start` asks for the first `cap` bytes by
 /// range and keeps what came as far as `cap`, where a playlist longer than `cap` is refused.
+///
+/// A redirect is an error, never followed: the address was checked before the fetch
+/// (`decide::may_reread`), and a public server answering it with a redirect to a router or a
+/// printer would otherwise have the worker ask that, with the browser's session (security
+/// review, 2026-11-08). A playlist behind a redirect is left undescribed.
 async fn fetch_bytes(url: &str, cap: usize, ms: f64, start: bool) -> Result<Vec<u8>, String> {
     let global: JsValue = js_sys::global().into();
     let controller = Reflect::get(&global, &"AbortController".into())
@@ -129,10 +134,13 @@ async fn fetch_bytes(url: &str, cap: usize, ms: f64, start: bool) -> Result<Vec<
         to_js(&serde_json::json!({
             "credentials": "include",
             "cache": "no-store",
+            "redirect": "error",
             "headers": { "Range": format!("bytes=0-{}", cap.saturating_sub(1)) },
         }))
     } else {
-        to_js(&serde_json::json!({ "credentials": "include", "cache": "no-store" }))
+        to_js(
+            &serde_json::json!({ "credentials": "include", "cache": "no-store", "redirect": "error" }),
+        )
     };
     if let Some(signal) = controller.as_ref().map(|c| field(c, "signal")) {
         if signal.is_object() {

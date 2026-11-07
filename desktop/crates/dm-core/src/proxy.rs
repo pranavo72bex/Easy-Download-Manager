@@ -391,7 +391,12 @@ pub fn client_with_timeout(
             }
             match crate::pac::way_to(&script, target) {
                 Ok(way) => way.map(|mut u| {
-                    if !chosen.username.is_empty() {
+                    // The login goes to the proxy it was given for: where a host is set beside
+                    // the script, only to that host, so a script cannot send it elsewhere.
+                    let ours = chosen.host.trim().is_empty()
+                        || u.host_str()
+                            .is_some_and(|h| h.eq_ignore_ascii_case(chosen.host.trim()));
+                    if !chosen.username.is_empty() && ours {
                         let _ = u.set_username(&chosen.username);
                         let _ = u.set_password(Some(&chosen.password));
                     }

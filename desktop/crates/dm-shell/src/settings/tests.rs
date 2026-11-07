@@ -951,6 +951,19 @@ fn a_settings_file_never_sets_the_program_run_at_the_end_of_the_schedule() {
 }
 
 #[test]
+fn a_settings_file_never_sets_the_proxy_script_dm_runs() {
+    let mut mine = Settings::default();
+    mine.proxy.script = "https://proxy.corp.example/proxy.pac".into();
+    let mut theirs = Settings::default();
+    theirs.proxy.enabled = true;
+    theirs.proxy.script = "http://evil.example/p.pac".into();
+    let read = mine
+        .imported(&serde_json::to_string(&theirs).unwrap())
+        .unwrap();
+    assert_eq!(read.proxy.script, "https://proxy.corp.example/proxy.pac");
+}
+
+#[test]
 fn a_settings_file_never_sets_the_program_run_at_the_end_of_a_queues_own_hours() {
     let mut mine = Settings::default();
     let kept = Schedule {

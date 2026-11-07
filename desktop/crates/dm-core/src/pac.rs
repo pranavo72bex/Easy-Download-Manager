@@ -134,7 +134,18 @@ pub fn is_in_net(address: &str, pattern: &str, mask: &str) -> bool {
 
 /// The helpers, in JavaScript, to stand in front of the script. The names that need the network
 /// (`dnsResolve`, `myIpAddress`) answer nothing, so a script cannot reach out from its sandbox.
+///
+/// First, every way of making code from text is taken away, for good: QuickJS's command line
+/// keeps its `qjs:os` and `qjs:std` modules within reach of an `import()`, and `os.exec` runs
+/// any program (security review, 2026-11-08). A script that says `import` itself is refused
+/// before it runs ([`refused`]); without `eval` and the function constructors it cannot write
+/// one. Then `std`, `os` and `bjson` are taken from the global object where an engine put them.
 const PRELUDE: &str = r#"
+(function(){var made=[function(){},function*(){},async function(){},async function*(){}];for(var i=0;i<made.length;i++){Object.defineProperty(Object.getPrototypeOf(made[i]),'constructor',{value:undefined,writable:false,configurable:false});}})();
+Object.defineProperty(globalThis,'eval',{value:undefined,writable:false,configurable:false});
+Object.defineProperty(globalThis,'Function',{value:undefined,writable:false,configurable:false});
+['std','os','bjson','Deno'].forEach(function(n){try{delete globalThis[n];}catch(e){}});
+var __say=(typeof print==='function')?print:console.log;
 function isPlainHostName(h){return String(h).indexOf('.')<0;}
 function dnsDomainIs(h,d){h=String(h).toLowerCase();d=String(d).toLowerCase();return h.length>=d.length&&h.substring(h.length-d.length)===d;}
 function localHostOrDomainIs(h,n){h=String(h).toLowerCase();n=String(n).toLowerCase();return h===n||(h.indexOf('.')<0&&n.split('.')[0]===h);}
@@ -154,13 +165,30 @@ function timeRange(){return true;}
 pub fn program(script: &str, url: &str, host: &str) -> String {
     let quote = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".into());
     format!(
-        "{PRELUDE}\n{script}\nprint(String(FindProxyForURL({}, {})));\n",
+        "{PRELUDE}\n{script}\n__say(String(FindProxyForURL({}, {})));\n",
         quote(url),
         quote(host)
     )
 }
 
-/// Runs `script` for `url` with the JavaScript engine at `engine` (QuickJS), the program written
+/// Why a script is not run at all: one that names `import` (the way to QuickJS's modules for
+/// files and programs, which no proxy script needs), or that hides words behind `\u` escapes.
+pub fn refused(script: &str) -> Option<&'static str> {
+    let words = script
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'))
+        .any(|word| word == "import");
+    if words {
+        return Some(
+            "the proxy script asks to import a module, which a proxy script has no need of",
+        );
+    }
+    if script.contains("\\u") {
+        return Some("the proxy script hides words behind \\u escapes");
+    }
+    None
+}
+
+/// Runs `script` for `url` with the JavaScript engine at `engine` (QuickJS, or Deno), the program written
 /// in `staging` for the run. Fails closed: any trouble is an error, never `DIRECT`.
 pub async fn evaluate(
     engine: &std::path::Path,
@@ -169,6 +197,9 @@ pub async fn evaluate(
     host: &str,
     staging: &std::path::Path,
 ) -> Result<Vec<Hop>, String> {
+    if let Some(why) = refused(script) {
+        return Err(why.into());
+    }
     tokio::fs::create_dir_all(staging)
         .await
         .map_err(|e| format!("no room for the proxy script: {e}"))?;
@@ -178,6 +209,23 @@ pub async fn evaluate(
         .map_err(|e| format!("could not write the proxy script: {e}"))?;
     let _gone = crate::videopage::RemoveOnDrop(file.clone());
     let mut command = tokio::process::Command::new(engine);
+    // Deno with no permissions reaches neither files nor programs nor the network, as the
+    // YouTube solver runs it (`youtube::run_js`).
+    let deno = engine
+        .file_stem()
+        .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case("deno"));
+    if deno {
+        command.args([
+            "run",
+            "--ext=js",
+            "--no-code-cache",
+            "--no-prompt",
+            "--no-remote",
+            "--no-lock",
+            "--no-config",
+            "--no-npm",
+        ]);
+    }
     command.arg(&file);
     crate::no_window_async(&mut command);
     command
@@ -331,6 +379,10 @@ async fn engine() -> Result<std::path::PathBuf, String> {
     if let Some(named) = named {
         return Ok(named);
     }
+    // An installed Deno first: with no permissions it is the tighter sandbox.
+    if let Some(deno) = crate::videopage::deno() {
+        return Ok(deno);
+    }
     crate::tools::ensure(&crate::client(), crate::tools::Tool::QuickJs)
         .await
         .map_err(|e| format!("no JavaScript engine to run the proxy script: {e}"))
@@ -465,6 +517,75 @@ mod tests {
         assert!(p.contains("function FindProxyForURL"));
         assert!(p.contains(r#"FindProxyForURL("http://a/\"x", "a")"#));
         assert!(p.contains("function shExpMatch"));
+    }
+
+    #[test]
+    fn a_script_that_imports_or_hides_its_words_is_refused_before_it_runs() {
+        for bad in [
+            "function FindProxyForURL(u,h){import('qjs:os').then(o=>o.exec(['/bin/sh']));return 'DIRECT';}",
+            "import * as os from 'qjs:os'; function FindProxyForURL(){return 'DIRECT';}",
+            "function FindProxyForURL(){var s='\\u0069mport';return 'DIRECT';}",
+        ] {
+            assert!(refused(bad).is_some(), "{bad}");
+        }
+        // Words that only contain it, as a proxy script may name them, are fine.
+        assert_eq!(
+            refused("function FindProxyForURL(u,h){var important=1, imports_=2; return 'DIRECT';}"),
+            None
+        );
+    }
+
+    #[test]
+    fn the_prelude_takes_away_every_way_of_making_code_from_text() {
+        for gone in [
+            "'constructor',{value:undefined",
+            "globalThis,'eval'",
+            "globalThis,'Function'",
+            "'std','os','bjson'",
+        ] {
+            assert!(PRELUDE.contains(gone), "{gone}");
+        }
+        // Before the script, so the script cannot have kept a constructor first.
+        let p = program(
+            "function FindProxyForURL(){return 'DIRECT';}",
+            "http://a/",
+            "a",
+        );
+        assert!(p.find("globalThis,'Function'") < p.find("function FindProxyForURL"));
+    }
+
+    /// With a real engine (where dm finds one installed): a script reaching for a program, by a
+    /// function constructor, fails, and an ordinary one still answers.
+    #[tokio::test]
+    async fn in_a_real_engine_a_script_cannot_make_code_and_an_ordinary_one_answers() {
+        let Some(engine) = crate::videopage::quickjs().or_else(crate::videopage::deno) else {
+            eprintln!("not run: no QuickJS or Deno installed");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let ok = evaluate(
+            &engine,
+            "function FindProxyForURL(u,h){return shExpMatch(h,'*.corp')?'PROXY p:8080':'DIRECT';}",
+            "http://a.corp/",
+            "a.corp",
+            dir.path(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(ok.len(), 1);
+        for reach in [
+            "function FindProxyForURL(){return (function(){}).constructor('return \"DIRECT\"')();}",
+            "function FindProxyForURL(){return Object.constructor('return \"DIRECT\"')();}",
+            "function FindProxyForURL(){return (async function(){}).constructor.name;}",
+            "function FindProxyForURL(){return eval('\"DIRECT\"');}",
+        ] {
+            assert!(
+                evaluate(&engine, reach, "http://a/", "a", dir.path())
+                    .await
+                    .is_err(),
+                "{reach}"
+            );
+        }
     }
 
     #[tokio::test]

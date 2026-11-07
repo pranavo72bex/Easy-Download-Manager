@@ -473,6 +473,9 @@ impl Settings {
         // after every download stays this computer's own, so a settings file
         // passed around cannot make dm start something.
         read.on_complete.clone_from(&self.on_complete);
+        // Nor a proxy script from someone else's file: it is a program dm runs, in a sandbox,
+        // and it decides where every request goes (security review, 2026-11-08).
+        read.proxy.script.clone_from(&self.proxy.script);
         read.schedule
             .run_when_done
             .clone_from(&self.schedule.run_when_done);
