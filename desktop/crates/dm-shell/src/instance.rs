@@ -143,46 +143,31 @@ mod tests {
         assert_eq!(mode, 0o700, "{mode:o}");
     }
 
-    /// The folder's and a file's access list as Windows writes it (SDDL), with
-    /// well-known accounts by their short names: `BU` users, `AU` signed-in users,
-    /// `WD` everyone.
-    #[cfg(windows)]
-    fn access_of(path: &Path) -> String {
-        let out = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "(Get-Acl -LiteralPath $env:DM_ACL_PATH).Sddl",
-            ])
-            .env("DM_ACL_PATH", path)
-            .output()
-            .unwrap();
-        String::from_utf8_lossy(&out.stdout).trim().to_string()
-    }
-
     #[cfg(windows)]
     #[test]
     fn dms_home_is_this_accounts_alone_on_windows_too() {
-        // A parent every account may read, as a second drive's root is.
+        use owner_only::by_hand::{access_of, open_to};
+        // A parent every account may read (`BU`: users), as a second drive's root is.
         let parent = tempfile::tempdir().unwrap();
-        let opened = std::process::Command::new("icacls")
-            .arg(parent.path())
-            .args(["/grant", "*S-1-5-32-545:(OI)(CI)RX"])
-            .output()
-            .unwrap();
-        assert!(opened.status.success(), "{opened:?}");
+        let me = owner_only::account().unwrap();
+        open_to(
+            parent.path(),
+            &format!("D:(A;OICI;FA;;;{me})(A;OICI;0x1200a9;;;BU)"),
+        )
+        .unwrap();
         let home = parent.path().join("dm");
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(home.join("queue.json"), "[]").unwrap();
+        let before = access_of(&home).unwrap();
         assert!(
-            access_of(&home).contains(";BU)"),
-            "the test's parent did not let users in"
+            before.contains(";BU)"),
+            "the test's parent did not let users in: {before}"
         );
         let _held = claim(&home).unwrap();
         let made_after = home.join("control.token");
         std::fs::write(&made_after, "x").unwrap();
         for path in [home.clone(), home.join("queue.json"), made_after] {
-            let access = access_of(&path);
+            let access = access_of(&path).unwrap();
             assert!(
                 access.contains("D:P") || path != home,
                 "{} still takes its parent's list: {access}",

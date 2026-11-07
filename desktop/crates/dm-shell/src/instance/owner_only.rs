@@ -29,8 +29,8 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{
     GetSecurityDescriptorControl, GetSecurityDescriptorDacl, GetTokenInformation, TokenUser, ACL,
-    DACL_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
-    SE_DACL_PROTECTED, TOKEN_QUERY, TOKEN_USER,
+    DACL_SECURITY_INFORMATION, OBJECT_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
+    PSECURITY_DESCRIPTOR, SE_DACL_PROTECTED, TOKEN_QUERY, TOKEN_USER,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -38,8 +38,27 @@ fn wide(s: &OsStr) -> Vec<u16> {
     s.encode_wide().chain(Some(0)).collect()
 }
 
+/// A NUL-terminated wide string Windows allocated with LocalAlloc, as text; freed.
+///
+/// # Safety
+///
+/// `text` must be such a string, not used again after this call.
+unsafe fn taken(text: *mut u16) -> String {
+    // SAFETY: the caller's promise: `text` is NUL-terminated.
+    let said = unsafe {
+        let mut length = 0;
+        while *text.add(length) != 0 {
+            length += 1;
+        }
+        String::from_utf16_lossy(std::slice::from_raw_parts(text, length))
+    };
+    // SAFETY: allocated with LocalAlloc (the caller's promise), freed once.
+    unsafe { LocalFree(text.cast()) };
+    said
+}
+
 /// This process's account as a SID string (`S-1-5-21-…`).
-fn account() -> std::io::Result<String> {
+pub(super) fn account() -> std::io::Result<String> {
     let mut token: HANDLE = null_mut();
     // SAFETY: GetCurrentProcess is a pseudo-handle that needs no closing; `token`
     // is written only when the call succeeds.
@@ -74,17 +93,8 @@ fn account() -> std::io::Result<String> {
     if unsafe { ConvertSidToStringSidW(sid, &mut text) } == 0 {
         return Err(std::io::Error::last_os_error());
     }
-    // SAFETY: `text` is the NUL-terminated wide string the call just made.
-    let said = unsafe {
-        let mut length = 0;
-        while *text.add(length) != 0 {
-            length += 1;
-        }
-        String::from_utf16_lossy(std::slice::from_raw_parts(text, length))
-    };
-    // SAFETY: allocated by ConvertSidToStringSidW with LocalAlloc, freed once.
-    unsafe { LocalFree(text.cast()) };
-    Ok(said)
+    // SAFETY: the LocalAlloc'd, NUL-terminated string the call just made, used once.
+    Ok(unsafe { taken(text) })
 }
 
 /// Whether the folder's access list is protected (takes nothing from its parent).
@@ -124,9 +134,17 @@ pub(super) fn make(home: &Path) -> std::io::Result<()> {
     }
     let me = account()?;
     // P: nothing from the parent. OICI: files and folders inside take it too.
-    let sddl = wide(OsStr::new(&format!(
-        "D:P(A;OICI;FA;;;{me})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
-    )));
+    set(
+        &path,
+        &format!("D:P(A;OICI;FA;;;{me})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"),
+        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+    )
+}
+
+/// Sets the access list of `path` (NUL-terminated) from its SDDL text. Windows
+/// passes the list's inheritable entries on to what is in the folder already.
+fn set(path: &[u16], sddl: &str, how: OBJECT_SECURITY_INFORMATION) -> std::io::Result<()> {
+    let sddl = wide(OsStr::new(sddl));
     let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
     // SAFETY: `sddl` ends in NUL; `descriptor` receives a LocalAlloc'd descriptor.
     if unsafe {
@@ -153,7 +171,7 @@ pub(super) fn make(home: &Path) -> std::io::Result<()> {
             SetNamedSecurityInfoW(
                 path.as_ptr(),
                 SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                how,
                 null_mut(),
                 null_mut(),
                 list,
@@ -169,4 +187,67 @@ pub(super) fn make(home: &Path) -> std::io::Result<()> {
     // SAFETY: allocated by ConvertStringSecurityDescriptorToSecurityDescriptorW, freed once.
     unsafe { LocalFree(descriptor) };
     result
+}
+
+/// The tests' hands on access lists, through the calls dm itself makes and no
+/// outside program: on the CI's runner the list read back through PowerShell
+/// did not show the entry `icacls` had just added, so the test failed before it
+/// reached dm.
+#[cfg(test)]
+pub(super) mod by_hand {
+    use super::*;
+    use windows_sys::Win32::Security::Authorization::ConvertSecurityDescriptorToStringSecurityDescriptorW;
+    use windows_sys::Win32::Security::UNPROTECTED_DACL_SECURITY_INFORMATION;
+
+    /// The access list of `path` as Windows writes it (SDDL), well-known accounts
+    /// by their short names: `BU` users, `AU` signed-in users, `WD` everyone.
+    pub fn access_of(path: &Path) -> std::io::Result<String> {
+        let path = wide(path.as_os_str());
+        let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
+        // SAFETY: `path` ends in NUL; only the access list is asked for, and the
+        // descriptor it is returned in is freed below.
+        let error = unsafe {
+            GetNamedSecurityInfoW(
+                path.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                null_mut(),
+                null_mut(),
+                null_mut(),
+                null_mut(),
+                &mut descriptor,
+            )
+        };
+        if error != ERROR_SUCCESS {
+            return Err(std::io::Error::from_raw_os_error(error as i32));
+        }
+        let mut text: *mut u16 = null_mut();
+        // SAFETY: `descriptor` was filled in above; `text` receives a LocalAlloc'd string.
+        let made = unsafe {
+            ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor,
+                SDDL_REVISION_1,
+                DACL_SECURITY_INFORMATION,
+                &mut text,
+                null_mut(),
+            )
+        };
+        let failed = std::io::Error::last_os_error();
+        // SAFETY: allocated by GetNamedSecurityInfoW, freed once.
+        unsafe { LocalFree(descriptor) };
+        if made == 0 {
+            return Err(failed);
+        }
+        // SAFETY: the LocalAlloc'd, NUL-terminated string the call just made, used once.
+        Ok(unsafe { taken(text) })
+    }
+
+    /// Gives `path` the entries of `sddl` and keeps what it takes from its parent.
+    pub fn open_to(path: &Path, sddl: &str) -> std::io::Result<()> {
+        set(
+            &wide(path.as_os_str()),
+            sddl,
+            DACL_SECURITY_INFORMATION | UNPROTECTED_DACL_SECURITY_INFORMATION,
+        )
+    }
 }
