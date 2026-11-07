@@ -258,6 +258,25 @@ def click_control(app, role, name, seconds=10, prefix=False):
     return at
 
 
+def dialog_point(call, words):
+    """Where on screen the words `words` are drawn in one of dm's dialogs, each a window of
+    its own (contract row B42), whose controls AT-SPI does not reach: the dialog window's
+    place (`ui.windows`) plus the words' place inside it (`ui.texts`), both dm's own account.
+    Only where to aim; the click itself is the real pointer's. None where it is not shown."""
+    if not call:
+        return None
+    try:
+        dialogs = [d for d in (call("ui.windows") or {}).get("dialogs") or [] if d.get("inner")]
+        texts = [t for t in (call("ui.texts") or {}).get("texts") or []
+                 if t.get("window") == "dialog" and t.get("text") == words]
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if len(dialogs) != 1 or not texts:
+        return None
+    inner, r = dialogs[0]["inner"], texts[0]["rect"]
+    return [int(inner[0] + (r[0] + r[2]) / 2), int(inner[1] + (r[1] + r[3]) / 2)]
+
+
 # ---------------------------------------------------------- the windows
 
 
@@ -694,11 +713,13 @@ def main():
             x("xdotool", "click", "1")
         # dm asks where a panel video goes (Download details) unless told not
         # to; a person answers Start now.
-        start = wait_for(lambda: where("dm-desktop", "push button", "Start now"), 15)
+        start = wait_for(lambda: where("dm-desktop", "push button", "Start now")
+                         or dialog_point(ORACLE, "Start now"), 15)
         if start:
-            front(dm_window())
             shoot("3-download-details")
-            start = click_control("dm-desktop", "push button", "Start now")
+            start = dialog_point(ORACLE, "Start now") or click_control("dm-desktop", "push button", "Start now")
+            if start and dialog_point(ORACLE, "Start now"):
+                press(start)
         check("3. dm asks, and its Start now is clicked", start)
         landed = wait_for(lambda: whole(dm_dl, "clip.webm"), 60)
         check("3. the video lands byte-exact in dm's folder", landed, str(sorted(p.name for p in dm_dl.iterdir())))

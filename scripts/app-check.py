@@ -544,7 +544,9 @@ def main():
         check("the screen can be read as words", soon(lambda: "Add URL" in on_screen()))
         human("ui.click", text="Options")
         check("clicking a toolbar button opens its dialog", soon(lambda: "Options" in open_dialogs()))
-        human("ui.click", text="Network")
+        # Options' tabs are General, Browser, Folders, Downloads, Advanced and Sign-ins
+        # (contract row B43): the network's settings are a part of Advanced's page.
+        human("ui.click", text="Advanced")
         check("clicking a tab changes the page", soon(lambda: "Network" in on_screen()))
         human("ui.click", text="Cancel")
         check("clicking Cancel closes the dialog", soon(lambda: "Options" not in open_dialogs()))
