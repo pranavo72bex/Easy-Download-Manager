@@ -188,39 +188,113 @@ def where(role, name, contains=False):
     """Where on screen dm's control of this role and name is, read over
     AT-SPI as a screen reader reads it: its centre, or None. With
     `contains`, a name that starts with `name` counts (menu items)."""
+    # With a dialog open, its own words first: the main window behind it takes no clicks, and
+    # holds many of the same words ("Browser", "Properties", "OK").
+    if role not in ("text", "entry", "spin button", "slider"):
+        first = dialog_point(ORACLE, name, contains)
+        if first:
+            return first
     out = x(sys.executable, "-c", WHERE, role, name, "1" if contains else "0").stdout.strip().splitlines()
     at = json.loads(out[-1]).get("at") if out else None
     # A control in one of dm's dialogs, each a window of its own that AT-SPI does not reach
     # (eframe gives only the main window to the accessibility bus; gaps row 160): where dm
     # itself says it drew those words. A field is reached by its focus, not here.
-    if at is None and not contains and role not in ("text", "entry", "spin button", "slider"):
-        at = dialog_point(ORACLE, name)
+    if at is None and role not in ("text", "entry", "spin button", "slider"):
+        at = dialog_point(ORACLE, name, contains)
     return at
 
 
-def dialog_point(call, words):
-    """Where on screen the words `words` are drawn in one of dm's dialogs, each a window of
-    its own (contract row B42), whose controls AT-SPI does not reach: the dialog window's
-    place (`ui.windows`) plus the words' place inside it (`ui.texts`), both dm's own account.
-    Only where to aim; the click itself is the real pointer's. None where it is not shown."""
+def dialog_texts(call):
+    """The words drawn in dm's one open dialog window, with that window's place on screen, as
+    dm itself says it drew them (`ui.windows`, `ui.texts`): ([], None) where not one is open."""
     if not call:
-        return None
+        return [], None
     try:
         dialogs = [d for d in (call("ui.windows") or {}).get("dialogs") or [] if d.get("inner")]
-        texts = [t for t in (call("ui.texts") or {}).get("texts") or []
-                 if t.get("window") == "dialog" and t.get("text") == words]
+        texts = [t for t in (call("ui.texts") or {}).get("texts") or [] if t.get("window") == "dialog"]
     except (OSError, RuntimeError, ValueError):
+        return [], None
+    if len(dialogs) != 1:
+        return [], None
+    return texts, dialogs[0]["inner"]
+
+
+def dialog_point(call, words, contains=False):
+    """Where on screen the words `words` are drawn in one of dm's dialogs, each a window of
+    its own (contract row B42), whose controls AT-SPI does not reach (gaps row 160): the dialog
+    window's place plus the words' place inside it, both dm's own account. Only where to aim;
+    the click itself is the real pointer's. None where it is not shown."""
+    texts, inner = dialog_texts(call)
+    found = [t for t in texts if (words in t.get("text", "") if contains else t.get("text") == words)]
+    if not found:
         return None
-    if len(dialogs) != 1 or not texts:
-        return None
-    inner, r = dialogs[0]["inner"], texts[0]["rect"]
+    r = found[0]["rect"]
     return [int(inner[0] + (r[0] + r[2]) / 2), int(inner[1] + (r[1] + r[3]) / 2)]
+
+
+def dialog_value(label):
+    """What dm draws on the row of `label`, to its right, in its open dialog (a number's value,
+    a field's text): None where nothing is."""
+    texts, _ = dialog_texts(ORACLE)
+    labels = [t for t in texts if t.get("text") == label]
+    if not labels:
+        return None
+    lx0, ly0, lx1, ly1 = labels[0]["rect"]
+    middle = (ly0 + ly1) / 2
+    beside = sorted((t for t in texts if t["rect"][0] > lx1 and abs((t["rect"][1] + t["rect"][3]) / 2 - middle) < 8),
+                    key=lambda t: t["rect"][0])
+    return beside[0]["text"] if beside else None
+
+
+def dialog_field_point(call, label):
+    """Where to click into the field a dialog labels `label`: the hint or text drawn on the
+    label's own row to its right, where there is one (a form's row, its hint shown); a
+    folder's box, just left of the Browse… under its label; else just below the label, where
+    dm's `field` puts the box. A long label wrapped onto several lines is found by its
+    first."""
+    texts, inner = dialog_texts(call)
+    labels = [t for t in texts if t.get("text") == label
+              or (len(t.get("text", "")) > 30 and label.startswith(t["text"].rstrip()))]
+    if not labels:
+        return None
+    lx0, ly0, lx1, ly1 = labels[0]["rect"]
+    middle = (ly0 + ly1) / 2
+    beside = sorted((t for t in texts if t["rect"][0] > lx1 and abs((t["rect"][1] + t["rect"][3]) / 2 - middle) < 8),
+                    key=lambda t: t["rect"][0])
+    if beside:
+        r = beside[0]["rect"]
+        return [int(inner[0] + r[0] + 6), int(inner[1] + (r[1] + r[3]) / 2)]
+    # Only under a long label (a sentence over a folder's box): a short one may have its own box
+    # with a folder's below it, as Move/Rename's Name pattern has.
+    browse = sorted((t for t in texts if t.get("text") == "Browse…" and 0 <= t["rect"][1] - ly0 < 80
+                     and len(labels[0].get("text", "")) > 30),
+                    key=lambda t: t["rect"][1])
+    if browse:
+        r = browse[0]["rect"]
+        return [int(inner[0] + r[0] - 80), int(inner[1] + (r[1] + r[3]) / 2)]
+    # dm's `field` puts its label over the box where the dialog lays things out downwards.
+    return [int(inner[0] + lx0 + 40), int(inner[1] + ly1 + 12)]
+
+
+def scrolled_to(words, contains=False, field=False):
+    """Where `words` are in dm's open dialog once it is scrolled down to them, a few notches
+    of the wheel at a time, as a person scrolls a long tab looking for them; None when no
+    dialog is open or they never show."""
+    if not dialog_texts(ORACLE)[1]:
+        return None
+    # Down first, a few notches at a time, then back up: what was looked for may be above.
+    for notches in [3] * 10 + [-3] * 20:
+        at = dialog_field_point(ORACLE, words) if field else dialog_point(ORACLE, words, contains)
+        if at:
+            return at
+        scroll_dialog(notches)
+    return None
 
 
 def click(role, name, seconds=10, contains=False):
     """Moves the real pointer onto the control and clicks it, as a person
     does. False if no such control shows within `seconds`."""
-    at = wait_for(lambda: where(role, name, contains), seconds)
+    at = wait_for(lambda: where(role, name, contains), seconds) or scrolled_to(name, contains)
     if not at:
         return False
     x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
@@ -470,13 +544,10 @@ def field_at(name):
 
 def click_field(name):
     """Clicks into the field labelled `name` and selects what it holds."""
-    at = wait_for(lambda: field_at(name), 10)
+    # In a dialog's own window (see `where`): aimed at from its label, as dm drew it.
+    at = wait_for(lambda: dialog_field_point(ORACLE, name) or field_at(name), 10) \
+        or scrolled_to(name, field=True)
     if not at:
-        # In a dialog's own window (see `where`): the field a dialog opens with has the
-        # keyboard, as Add URL's Address has; what it holds is selected, as below.
-        if dialog_point(ORACLE, name):
-            key("ctrl+a")
-            return True
         return False
     x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
     x("xdotool", "click", "1")
@@ -488,23 +559,81 @@ def click_field(name):
 def add_url_by_hand(url, then="Start now"):
     """Add URL, the address typed, OK, then `then` in Download details."""
     settle()
-    if not click("push button", "Add URL"):
+    def missed(step):
+        print(f"        (by hand: {step} was not found; dialogs open: {dialog_open_list()})")
         return False
+    # Clicked again where the first click only gave the window back its focus (just after a
+    # dialog closed), as a person clicks twice.
+    for _ in range(2):
+        if not click("push button", "Add URL"):
+            return missed("the Add URL button")
+        if wait_for(lambda: dialog_open("Add URL"), 3):
+            break
+        # Where dm says it drew the toolbar's words, as AT-SPI's place for them may be old.
+        at = main_point("Add URL")
+        if at:
+            x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
+            x("xdotool", "click", "1")
+            if wait_for(lambda: dialog_open("Add URL"), 3):
+                break
     if not click_field("Address"):
-        return False
+        return missed("Add URL's Address field")
     type_text(url)
     if not click("push button", "OK"):
+        return missed("Add URL's OK")
+    return click("push button", then) or missed(f"Download details' {then}")
+
+
+def main_point(words):
+    """Where dm says it drew `words` in its main window, on screen."""
+    geo = win_geo()
+    if not (ORACLE and geo):
+        return None
+    try:
+        texts = [t for t in (ORACLE("ui.texts") or {}).get("texts") or []
+                 if t.get("window") == "main" and t.get("text") == words]
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if not texts:
+        return None
+    r = texts[0]["rect"]
+    return [int(geo["X"] + (r[0] + r[2]) / 2), int(geo["Y"] + (r[1] + r[3]) / 2)]
+
+
+def dialog_open_list():
+    try:
+        return (ORACLE("ui.inspect") or {}).get("dialogs") or [] if ORACLE else []
+    except (OSError, RuntimeError, ValueError):
+        return []
+
+
+def dialog_open(title):
+    """Whether dm has the dialog of that title open (each a window of its own, B42, whose
+    title is the system's title bar, not words drawn in it): dm's own list of them."""
+    try:
+        return title in ((ORACLE("ui.inspect") or {}).get("dialogs") or []) if ORACLE else False
+    except (OSError, RuntimeError, ValueError):
         return False
-    return click("push button", then)
 
 
 def settle():
     """Closes a Download complete dialog or progress window if one is up,
-    as a person clears it before doing the next thing. With the pop-ups off
-    for most of the session there is usually nothing to close."""
-    for _ in range(4):
-        if not (where("*", "Download complete") or where("*", "Download progress", True)):
+    as a person clears it before doing the next thing: each brought to the
+    front by its title (a window of its own, B42) and closed with Escape.
+    With the pop-ups off for most of the session there is usually nothing
+    to close."""
+    for _ in range(6):
+        try:
+            open_now = (ORACLE("ui.inspect") or {}).get("dialogs") or [] if ORACLE else []
+        except (OSError, RuntimeError, ValueError):
+            open_now = []
+        stray = [d for d in open_now if d in ("Download complete", "Download progress")]
+        if not stray and not (where("*", "Download complete") or where("*", "Download progress", True)):
             return
+        for title in stray[:1]:
+            found = x("xdotool", "search", "--onlyvisible", "--name", f"^{title}$").stdout.split()
+            if found:
+                x("xdotool", "windowactivate", "--sync", found[-1])
         key("Escape")
         time.sleep(0.4)
 
@@ -554,13 +683,16 @@ def finished_files_by_hand(home, base, site, good, evil):
     check("right-clicking it offers Properties", click_row("good.zip", button="3") and bool(wait_for(lambda: where("*", "Properties"), 5)))
     click("*", "Properties", seconds=5)
     check("File properties shows its SHA-256, worked out beside the window",
-          bool(wait_for(lambda: where("*", expected), 15)), expected[:16])
+          bool(wait_for(lambda: where("*", expected) or dialog_point(ORACLE, expected[:16], contains=True), 15)),
+          expected[:16])
     check("and a box to check it against a digest", click_field("Check against"))
     type_text(expected.upper(), delay=5)
-    check("a digest it has, in capitals, matches", bool(wait_for(lambda: where("*", "It matches."), 8)))
+    check("a digest it has, in capitals, matches",
+          bool(wait_for(lambda: where("*", "It matches."), 8) or scrolled_to("It matches.")))
     key("ctrl+a")
     type_text("0" * 64, delay=5)
-    check("a digest it does not have is said not to match", bool(wait_for(lambda: where("*", "It does not match."), 8)))
+    check("a digest it does not have is said not to match",
+          bool(wait_for(lambda: where("*", "It does not match."), 8) or scrolled_to("It does not match.")))
     key("Escape")
     time.sleep(0.5)
 
@@ -595,7 +727,7 @@ def finished_files_by_hand(home, base, site, good, evil):
     key("ctrl+comma")
     wait_for(lambda: where("*", "General"), 10)
     check("Options › Downloads has the watched folder's field",
-          open_options_tab("Downloads", label) and (scroll_dialog() or True) and click_field(label))
+          open_options_tab("Downloads", label) and click_field(label))
     type_text(str(watched), delay=20)
     key("Tab")
     click("push button", "OK")
@@ -701,13 +833,21 @@ def open_options_tab(label, expect):
     also be a menu behind the dialog, which takes no clicks, so what the tab
     might be is tried until `expect`, a control of that tab, shows."""
     for role in ("page tab", "radio button", "toggle button", "push button", "*"):
-        if click(role, label, seconds=2) and wait_for(lambda: where("*", expect), 3):
+        if click(role, label, seconds=2) and (wait_for(lambda: where("*", expect), 3)
+                                              or scrolled_to(expect) or scrolled_to(expect, field=True)):
             return True
     return False
 
 
-def scroll_dialog():
-    """The wheel over the dialog, as a person scrolls a long tab."""
+def scroll_dialog(notches=12):
+    """The wheel over the dialog, as a person scrolls a long tab: over dm's open dialog
+    window, where one is (a window of its own, B42), else over dm's window."""
+    _, inner = dialog_texts(ORACLE)
+    if inner:
+        x("xdotool", "mousemove", "--sync", str(int((inner[0] + inner[2]) / 2)), str(int((inner[1] + inner[3]) / 2)))
+        x("xdotool", "click", "--repeat", str(abs(notches)), "--delay", "40", "5" if notches > 0 else "4")
+        time.sleep(0.5)
+        return
     geo = win_geo()
     if geo:
         x("xdotool", "mousemove", "--sync", str(geo["X"] + geo["WIDTH"] // 2), str(geo["Y"] + geo["HEIGHT"] // 2))
@@ -723,9 +863,9 @@ def options_by_hand(home):
     recording = "Stop recording after (minutes, 0 for no limit)"
     # The six tabs of contract row B43: the network's and the proxy's settings are parts of
     # Advanced's page, not tabs of their own.
-    tabs = [("General", "Language"), ("Browser", "File types"), ("Folders", "Download folder"),
-            ("Downloads", recording), ("Advanced", "Network"), ("Advanced", "Proxy type"),
-            ("Sign-ins", "Add a login")]
+    # Each tab is found by what is drawn at its top: the rest scrolls inside Options.
+    tabs = [("General", "Language"), ("Browser", "Add dm to your browser:"), ("Folders", "Download folder"),
+            ("Downloads", "Connections per file"), ("Advanced", "Network"), ("Sign-ins", "Add a login")]
     key("ctrl+comma")
     check("Ctrl+, opens Options", bool(wait_for(lambda: where("*", "General"), 10)))
 
@@ -733,7 +873,7 @@ def options_by_hand(home):
         check(f"the {label} tab, clicked, shows its settings", open_options_tab(label, expect), expect)
 
     check("on Downloads, the recording limit's box is scrolled to and clicked", open_options_tab("Downloads", recording)
-          and (scroll_dialog() or True) and click_field(recording))
+          and click_field(recording))
     type_text("45", delay=120)
     key("Tab")
     click("push button", "OK")
@@ -743,7 +883,7 @@ def options_by_hand(home):
     key("ctrl+comma")
     wait_for(lambda: where("*", "General"), 10)
     check("opened again, the value is still there",
-          open_options_tab("Downloads", recording) and (scroll_dialog() or True) and bool(field_at(recording)))
+          open_options_tab("Downloads", recording) and dialog_value(recording) == "45", str(dialog_value(recording)))
     click_field(recording)
     type_text("0", delay=120)
     key("Return")
@@ -802,16 +942,16 @@ def human_session(home, env, app):
         prog = files.url("progress-watch.bin")
         add_url_by_hand(prog)
         check("a progress window opens for the download, naming it",
-              wait_for(lambda: where("*", "Download progress", True), 10))
+              wait_for(lambda: dialog_open("Download progress") or where("*", "Download progress", True), 10))
         check("it shows the download's address and connections",
               wait_for(lambda: where("*", "progress-watch.bin", True), 5))
         # Not finished() here: that would close the completion dialog before
         # the check sees it.
         done = wait_for(lambda: state_of(home, prog) == "completed", 60)
-        saw_complete = done and wait_for(lambda: where("*", "Download complete"), 8)
+        saw_complete = done and wait_for(lambda: dialog_open("Download complete") or where("*", "Download complete"), 8)
         check("a completion dialog appears when it finishes", saw_complete)
         settle()
-        check("and it closes", not where("*", "Download complete"))
+        check("and it closes", not dialog_open("Download complete") and not where("*", "Download complete"))
         # Back off, so the rest of the session is not covered by pop-ups.
         key("ctrl+comma")
         click("*", "Show progress when a download starts")
@@ -845,7 +985,7 @@ def human_session(home, env, app):
         time.sleep(2)
         check("and it waits", state_of(home, later) == "paused", str(state_of(home, later)))
         check("Start queue, clicked, downloads it",
-              click("push button", "Start queue") and finished(home, later, 60), str(state_of(home, later)))
+              click("push button", "Start Queue") and finished(home, later, 60), str(state_of(home, later)))
 
         print("\na download that fails, and Retry")
         broken = files.url("broken.bin")
@@ -869,13 +1009,14 @@ def human_session(home, env, app):
         check("a right-click on a row opens its menu, with Properties",
               opened and wait_for(lambda: where("*", "Properties"), 5))
         check("Properties, clicked, shows the file's address",
-              click("*", "Properties") and wait_for(lambda: where("text", "Address") or where("entry", "Address"), 10))
+              click("*", "Properties") and wait_for(lambda: dialog_point(ORACLE, "Address") or where("text", "Address")
+                                                 or where("entry", "Address"), 10))
         key("Escape")
         time.sleep(0.5)
         # A running download cannot be deleted until it is stopped: Delete,
         # clicked on it, does nothing (dm keeps an active download safe).
         click_row(slow, seconds=5)
-        click("push button", "Remove")
+        click("push button", "Delete")
         time.sleep(1)
         check("Delete on a running download is refused until it is stopped",
               not where("push button", "Yes, remove") and row_of(home, slow) is not None)
@@ -885,7 +1026,7 @@ def human_session(home, env, app):
               and wait_for(lambda: state_of(home, slow) == "paused", 15), str(state_of(home, slow)))
         click_row(slow, seconds=5)
         check("Delete on the stopped download asks first",
-              click("push button", "Remove") and wait_for(lambda: where("push button", "Yes, remove"), 5))
+              click("push button", "Delete") and wait_for(lambda: where("push button", "Yes, remove"), 5))
         check("Yes, delete removes the row and its parts",
               click("push button", "Yes, remove") and wait_for(lambda: row_of(home, slow) is None, 10)
               and not (parts.exists() and any(p.name.startswith("part-") for p in parts.rglob("*") if p.is_file())))
@@ -914,14 +1055,14 @@ def human_session(home, env, app):
         click("push button", "Find next")
         time.sleep(0.5)
         key("Escape")
-        # The rail's places carry their counts: "Done (3)".
-        check("Done, clicked on the rail, shows the finished rows only",
-              click("*", "Done", contains=True) and wait_for(lambda: where("*", "by-hand.bin"), 5)
+        # The rail's places carry their counts beside them: "Finished 3".
+        check("Finished, clicked on the rail, shows the finished rows only",
+              click("*", "Finished", contains=True) and wait_for(lambda: where("*", "by-hand.bin"), 5)
               and not where("*", "one.zip"))
-        check("Everything shows them all again", click("*", "Everything") and wait_for(lambda: where("*", "by-hand.bin"), 5))
+        check("All shows them all again", click("*", "All (", contains=True) and wait_for(lambda: where("*", "by-hand.bin"), 5))
         finished_before = len([r for r in queue_rows(home) if (r.get("state") or {}).get("kind") == "completed"])
-        check("Clear finished, clicked, removes the finished rows",
-              finished_before > 0 and click("push button", "Clear finished")
+        check("Delete Completed, clicked, removes the finished rows",
+              finished_before > 0 and click("push button", "Delete Completed")
               and wait_for(lambda: not [r for r in queue_rows(home) if (r.get("state") or {}).get("kind") == "completed"], 10),
               f"{finished_before} finished before")
         check("and leaves the files on disk", path.exists())
@@ -959,7 +1100,7 @@ def human_session(home, env, app):
         x("xdotool", "windowsize", "--sync", window, "1000", "700")
         time.sleep(1.5)
         check("Program › Exit, clicked, quits dm",
-              click("*", "Program") and click("*", "Exit", contains=True) and wait_for(lambda: app.poll() is not None, 15))
+              click("*", "Tasks") and click("*", "Exit", contains=True) and wait_for(lambda: app.poll() is not None, 15))
         app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         window = wait_for(dm_windows, 30)
         ORACLE = oracle(home)
@@ -1105,6 +1246,9 @@ def main():
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "speed_limit": 0, "watch_clipboard": True,
         "show_progress": False, "show_complete": False,
+        # Settings of this version: an older file has the pop-ups turned on once (contract row
+        # B63), which put a progress window over the list at the first download.
+        "popups_version": 2,
         # Three attempts, not a person's ten: the failing download's scene
         # would otherwise sit through minutes of half-minute retries.
         "attempts": 3,
