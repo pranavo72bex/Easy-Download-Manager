@@ -278,6 +278,55 @@ Deviations from the brief, and why:
   failed with `Refused { status: 429 }` after 481 s and the second after
   four tries in the browser's name.
 
+### BUG-011 — a large download on Windows took twice reference A's time
+
+- **Scenario**: `D:\compare\plan_side.py large` (the video test plan's 4.5 GiB case, both
+  apps against one server on loopback), 2026-11-07, release build: dm 194 s, reference A
+  101 s, both byte for byte.
+- **Root cause**: the staged file is made as long as the download before any range writes
+  (`ranged::preallocate`), on the understanding that "the room is only taken as bytes land".
+  So it is on Linux and macOS; on NTFS a write far into such a file makes Windows write zeros
+  over everything before it first. Measured on this disk: 64 KB written at the end of a 4.5
+  GiB file took 94.5 s; the same write into a sparse file, 0.00 s.
+- **Fix**: on Windows the staged file is made sparse before its length is set
+  (`download/files.rs` `sparse`, `FSCTL_SET_SPARSE`). The same case: dm 73 s, reference A
+  96 s.
+- **Regression test**: `download::files::tests::a_staged_file_takes_its_room_only_as_bytes_land`
+  (a GiB staged file with 64 KB written at its end takes under 16 MB on disk); without the
+  fix it fails, "not sparse: attributes 0x20".
+
+### BUG-012 — on Windows every finished download's toast kept three handles
+
+- **Scenario**: `scripts/stress-check.py leak` on Windows (five waves of 150 files of 2 MB):
+  open handles grew 545 -> 935 while memory and threads stayed level (gaps row 156). Counted
+  by kind of kernel object on 2026-11-07: about two semaphores and one event a download, kept
+  after 20 s idle; one download at a time, 100 files left +184 semaphores and +92 events.
+- **Not the cause**, though the row first suspected them: the add-and-start path (files
+  added for later and started by Start queue kept as many), the engine (`dm-core`
+  `tests/handles.rs`: one range or four, +4 handles over forty downloads), the proxy lookup
+  and the quiet-hours question (50 asked, +0).
+- **Root cause**: a finished download's toast. On Windows notify-rust registers a click
+  handler and a dismissal handler on every toast and never takes them off, and Windows keeps
+  two semaphores and an event for each registration for as long as the program runs, the
+  Action Center cleared or not: 30 toasts with the two handlers kept +90 handles, 30 without
+  +0, from one thread or a thread each. A batch finishing in one pass is one toast, which is
+  why 256 KB files (finishing together) kept fewer than 2 MB ones.
+- **Fix**: on Windows dm posts its toasts itself (`dm-desktop` `toast.rs`, WinRT through the
+  `windows` crate it already had): the same toast (title, an empty line, the body, short,
+  silent, PowerShell's id); none with nothing to open has a handler, and one with a file has
+  its click heard until it is clicked or leaves the screen, then both handlers are taken off;
+  at most eight are heard at once. notify-rust is no longer built for Windows.
+- **Regression test**: `dm-desktop` `tests/handles.rs`
+  `toasts_give_their_handles_back` (toasts into the Action Center without a banner, then
+  taken out: 30 plain and 30 with a click keep at most 10 handles each; +0 and +0 on this
+  computer). The same toasts with their handlers left on, as notify-rust left them, kept +89.
+- **After**: 450 downloads of 2 MB through the headless app kept +2 semaphores and +5 events
+  (the release build before the fix: +170 and +101), and `stress-check.py leak` passes: handles
+  409 -> 429 and threads 81 -> 79 from the first wave to the fifth. That phase also read its
+  numbers 3 s after a wave, when the runtime's idle blocking threads (kept 10 s, each holding
+  a handle) were still there, and called them a leak; it now reads the first and last waves
+  once the threads stop falling (`settled_stats`).
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not

@@ -3,6 +3,31 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-07: dm posts its own toasts on Windows
+
+notify-rust's Windows toasts each hang a click and a dismissal handler that are never taken
+off, and Windows keeps three handles for each for the life of the process (BUGLOG BUG-012).
+dm now makes the toast itself through WinRT (`dm-desktop` `toast.rs`), as notify-rust made it
+(the same XML, PowerShell's app id), and takes the handlers off once the toast is clicked or
+dismissed; at most eight toasts are heard at once, as eight threads waited before. notify-rust
+stays for Linux and macOS. Not done: a fix to notify-rust or tauri-winrt-notification
+upstream, which dm would wait on, and a toast that opens its file through the shell by
+protocol activation with no handler at all, which would change what a click on an executable
+does. An app id of dm's own (its toasts say PowerShell) is a change a person sees, not part
+of this fix.
+
+## 2026-11-07: The staged file is sparse on Windows
+
+dm writes every range into one staged file at its own offset and makes that file as long as
+the download first (2026-10, "Written in place, finishing is a rename"). On NTFS a file made
+long that way is not sparse: the first write far into it makes Windows write zeros up to it,
+so a 4.5 GiB download spent minutes writing zeros (BUGLOG BUG-011). The file is made sparse
+before its length is set (`FSCTL_SET_SPARSE`). Not done: writing each range to a part file of
+its own and joining them (reference A's way, and dm's before 2026-10): every byte would be
+written twice again. Not done: `SetFileValidData`, which needs a privilege dm does not have and
+would expose whatever the disk held before. A finished file stays marked sparse; with every
+byte written it takes the same room as any other.
+
 ## 2026-11-07: A 429 to the browser's name moves that server to dm's own
 
 dm sends Internet Explorer's name first, as reference A does (2026-11-01), and moved to its own
