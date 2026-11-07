@@ -53,6 +53,8 @@ pub mod system_theme;
 pub mod table;
 pub mod taskbar;
 pub mod theme;
+#[cfg(windows)]
+pub mod toast;
 pub mod update;
 pub mod wake;
 #[cfg(target_os = "linux")]

@@ -329,6 +329,25 @@ pub(super) fn file_chooser_portal() -> bool {
 }
 
 /// Says a toast: one whose click opens a finished file, or a plain one.
+/// Posted by dm itself on Windows (`dm_desktop::toast`): notify-rust's kept
+/// three handles for every toast (gaps row 156).
+#[cfg(windows)]
+fn say(note: dm_desktop::quiet::Note) {
+    let dm_desktop::quiet::Note { title, body, path } = note;
+    // On a thread of its own, as before: the session's first toast starts
+    // Windows' runtime, which takes a moment the window should not wait.
+    std::thread::spawn(move || {
+        let open = path.filter(|p| !p.is_empty()).map(|path| {
+            move || {
+                let _ = shell::open_file(&path);
+            }
+        });
+        let _ = dm_desktop::toast::show(&title, &body, open);
+    });
+}
+
+/// Says a toast: one whose click opens a finished file, or a plain one.
+#[cfg(not(windows))]
 fn say(note: dm_desktop::quiet::Note) {
     let dm_desktop::quiet::Note { title, body, path } = note;
     let Some(path) = path else {

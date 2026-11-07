@@ -1810,6 +1810,26 @@ def p_hls(ctx):
         shutil.rmtree(dm.out, ignore_errors=True)
 
 
+def settled_stats(pid, most=90):
+    """proc_stats once the process's idle threads have gone.
+
+    The runtime keeps a thread that ran blocking work (a file's write) for ten seconds after its
+    last, then lets them go one by one, and each holds a handle on Windows. Read three seconds
+    after a wave, a debug build on four cores had 120 to 170 threads more than a minute later,
+    when threads and handles were back where they started (2026-11-07, gaps row 156): the leak
+    phase called that a leak. Read from twelve seconds on, until the threads stop falling."""
+    deadline = time.time() + most
+    time.sleep(12)
+    last = proc_stats(pid)
+    while time.time() < deadline:
+        time.sleep(5)
+        now = proc_stats(pid)
+        if now[3] >= last[3]:
+            return now
+        last = now
+    return last
+
+
 @phase
 def p_leak(ctx):
     """Five waves of downloads: memory, file descriptors and threads return to where they were."""
@@ -1821,8 +1841,13 @@ def p_leak(ctx):
             urls = [f"{base}/f/leak{wave}_{i}/{2 * MB}/w{wave}_{i}.bin" for i in range(150)]
             dm.add(urls)
             wait_for(lambda: len(dm.rows()) >= 150 * (wave + 1) and all(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 300, every=1)
-            time.sleep(3)
-            rss, cpu, fds, th = proc_stats(dm.proc.pid)
+            # The first wave and the last, which are compared, once idle threads have gone;
+            # the others as they are a moment after.
+            if wave in (0, 4):
+                rss, cpu, fds, th = settled_stats(dm.proc.pid)
+            else:
+                time.sleep(3)
+                rss, cpu, fds, th = proc_stats(dm.proc.pid)
             series.append((rss, fds, th))
             measure("leak", f"after wave {wave + 1}: rss {rss:.0f} MB, fds {fds}, threads {th}, rows {len(dm.rows())}")
         if series[-1][1] > series[0][1] + 60:
