@@ -45,10 +45,14 @@ impl Settings {
         ns: &str,
     ) -> Option<String> {
         let mut refused = None;
+        let forget = !self.keep_stored_passwords;
         let mut keep = |name: String, password: &mut String| {
             if password.is_empty() {
-                // Nothing to keep any more: forget what an earlier password left behind.
-                let _ = store.delete(&name);
+                // Nothing to keep any more: forget what an earlier password left behind, unless
+                // this run never read it back (`keep_stored_passwords`).
+                if forget {
+                    let _ = store.delete(&name);
+                }
                 return;
             }
             match store.put(&name, password.as_bytes()) {

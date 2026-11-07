@@ -858,6 +858,50 @@ fn a_file_with_clear_passwords_is_moved_into_the_store_on_its_first_read() {
     assert_eq!(later.proxy.password, proxy_password());
 }
 
+/// An empty password is forgotten in the store when the person cleared it, and kept when this
+/// run never read it back: a settings file read in part, or a store that would not answer at
+/// start (security review, 2026-11-07).
+#[test]
+fn a_password_this_run_did_not_read_back_is_not_forgotten_by_the_next_save() {
+    let store = dm_core::secretstore::MemoryStore::default();
+    let mut first = with_passwords();
+    first.move_passwords_to(&store, "ns");
+
+    let mut fallback = Settings {
+        keep_stored_passwords: true,
+        ..Settings::default()
+    };
+    fallback.move_passwords_to(&store, "ns");
+    let mut read = with_passwords();
+    read.proxy.password.clear();
+    read.take_passwords_from(&store, "ns");
+    assert_eq!(
+        read.proxy.password,
+        proxy_password(),
+        "kept through the fallback"
+    );
+
+    // Cleared by the person, in a run that read it: forgotten.
+    let mut cleared = with_passwords();
+    cleared.proxy.password.clear();
+    cleared.move_passwords_to(&store, "ns");
+    let mut again = with_passwords();
+    again.proxy.password.clear();
+    again.take_passwords_from(&store, "ns");
+    assert!(
+        again.proxy.password.is_empty(),
+        "the person's clearing stands"
+    );
+
+    // A file that cannot be read is a fallback; one that is read whole is not.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    std::fs::write(&path, "{ not json").unwrap();
+    assert!(Settings::load_from(&path).0.keep_stored_passwords);
+    std::fs::write(&path, serde_json::to_string(&Settings::default()).unwrap()).unwrap();
+    assert!(!Settings::load_from(&path).0.keep_stored_passwords);
+}
+
 #[test]
 fn a_store_that_refuses_leaves_the_passwords_in_the_file_and_says_so() {
     let mut file = with_passwords();

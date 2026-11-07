@@ -115,6 +115,12 @@ pub struct Settings {
     /// default: people copy URLs constantly, so this asks rather than grabs.
     #[serde(default)]
     pub watch_clipboard: bool,
+    /// Set when this run could not read its passwords back (the store refused, or the file
+    /// was read only in part or not at all, so its defaults stand in): an empty password then
+    /// says nothing about what the person wants, and the one in the store is not forgotten on
+    /// the next save (security review, 2026-11-07). Never written to the file.
+    #[serde(skip)]
+    pub keep_stored_passwords: bool,
     /// A link copied while the clipboard is watched is taken at once, its
     /// Download details opened (several, the list of them), rather than
     /// offered in a bar first. Off by default, as reference A's.
@@ -607,6 +613,7 @@ impl Default for Settings {
                 ..Proxy::default()
             },
             watch_clipboard: false,
+            keep_stored_passwords: false,
             start_copied: false,
             start_while_asking: false,
             start_on_login: true,
@@ -1007,9 +1014,14 @@ impl Settings {
 
     fn load_from(path: &std::path::Path) -> (Self, Option<String>) {
         let (mut settings, mut notice) = Self::load_file(path);
+        // A file not read whole: its empty passwords may be defaults standing in.
+        settings.keep_stored_passwords = notice.is_some();
         if let Some(store) = secrets::store() {
             let ns = dm_core::secretstore::namespace(path);
             let (moved, note) = settings.take_passwords_from(store, &ns);
+            if note.is_some() {
+                settings.keep_stored_passwords = true;
+            }
             if moved {
                 // Passwords the file held in clear are in the store now: write it again
                 // without them.

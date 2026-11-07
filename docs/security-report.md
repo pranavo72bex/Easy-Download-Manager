@@ -342,7 +342,11 @@ Left, each a row in `docs/gaps.md` (row 159):
   `id` and `mime` with the `itag` (`another_videos_address_with_the_same_itag_is_not_a_renewal`);
   the tab is still not compared.
 - **Low: a settings file that fell back to defaults** has an empty proxy
-  password, and `move_passwords_to` then forgets the one in the store.
+  password, and `move_passwords_to` then forgot the one in the store. Fixed
+  the same day: a run whose file was not read whole, or whose store did not
+  answer at start, forgets no stored password
+  (`a_password_this_run_did_not_read_back_is_not_forgotten_by_the_next_save`,
+  which fails without it).
 - **Info:** the update check compares the rules and installer addresses by
   their raw prefix (`%2e%2e` normalises elsewhere; only a forged
   `latest.json` could use it); "Get it from the browser" takes the next
