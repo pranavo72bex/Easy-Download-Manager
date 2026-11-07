@@ -216,3 +216,56 @@ release (CHANGELOG, "Security hardening from the pre-release review"):
   `DM_EJS_RELEASES`) are honoured in release builds; environment variables
   are trusted by this report's model.
 
+
+---
+
+## Windows, 2026-11-07
+
+The stress suite's two security phases had never run on Windows: `control`
+called `lsof` and read the token's Unix mode, `hostile` read `/etc/hosts`.
+Both now ask Windows (`netstat -ano`, `icacls`, the system's hosts file) and
+ran against the debug build on Windows 11 with no finding:
+
+- **hostile:** a redirect to `file:///C:/WINDOWS/System32/drivers/etc/hosts`
+  and one to `ftp://127.0.0.1` are refused ("an address dm does not
+  follow"); a 1 MB header is refused; a 120 KB gzip body that unpacks to 67 MB
+  is stopped as a decompression bomb; a file larger than the free space is
+  held, not started; a login written into an address is masked in the list.
+- **control:** the port listens on `127.0.0.1` only; no token and a wrong
+  token are refused and the connection cut; 1 MB with no line end is cut
+  with no growth in memory; 1500 idle unauthenticated connections are
+  closed by dm; `file:` and `javascript:` addresses, a `folder` outside the
+  download folder and a relative one are refused.
+
+### L4: a dm home outside the account's profile took its drive's access list (Low; fixed)
+
+**What.** On Unix dm makes its home 0700 (`instance.rs` `private`); on Windows
+that was a no-op, and the files in it take the folder's inherited access
+list. The default home, `%LOCALAPPDATA%\dm`, inherits the profile's: this
+account, SYSTEM and the administrators. A home anywhere else (`DM_HOME`, a
+portable copy on a second drive) inherits the drive's, which on this
+computer's D: gives `Authenticated Users: Modify` and `Users: Read`
+(measured with `icacls`). There, another signed-in account could read
+`control.token` (the control port is open by default for MCP, and loopback is
+shared by every account on the computer), the queue and unfinished parts.
+
+**Fix.** `instance/owner_only.rs`: when dm starts, a home whose access list is
+not protected is given one of its own (nothing from its parent): full
+control for this account, SYSTEM and the administrators, inherited by what
+is in it and applied to what is there already. A home already protected is
+left alone; a drive with no access lists (FAT) is not a reason to stop dm.
+Test: `instance::tests::dms_home_is_this_accounts_alone_on_windows_too` (a
+parent that lets every user in; the folder, a file already in it and one
+made after are left with no entry for users, signed-in users or everyone).
+It fails with the fix taken out.
+
+**Not covered.** A home folder another account made beforehand stays that
+account's to change (its owner can always rewrite the list).
+
+### Not done
+
+An independent source review of the changes since 2026-10-30 (the torrent
+encryption, the secret store, site rules served to the extension, renewed
+stream addresses, the watched folder, the new control-port methods). The
+review started on 2026-11-07 stopped before it reported; it is still to be
+done.

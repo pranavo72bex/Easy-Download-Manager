@@ -17,6 +17,9 @@ use std::fs::File;
 use std::path::Path;
 use std::time::Duration;
 
+#[cfg(windows)]
+mod owner_only;
+
 /// The file whose lock says dm is running.
 fn lock_path(home: &Path) -> std::path::PathBuf {
     home.join("instance.lock")
@@ -71,14 +74,18 @@ fn try_claim(home: &Path) -> std::io::Result<Option<File>> {
 /// dm's home readable by this account alone. Settings, the queue and the
 /// token are written 0600 already, but unfinished parts are not, and a home
 /// made with the default umask (0755 on Linux) let any user on the computer
-/// list and read downloads in progress.
+/// list and read downloads in progress. On Windows the folder gets an access
+/// list of its own (`owner_only.rs`): a home on a second drive took the drive's,
+/// which lets every signed-in account read and change it.
 fn private(home: &Path) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(home, std::fs::Permissions::from_mode(0o700));
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    let _ = owner_only::make(home);
+    #[cfg(not(any(unix, windows)))]
     let _ = home;
 }
 
@@ -134,6 +141,61 @@ mod tests {
         let _held = claim(&home).unwrap();
         let mode = std::fs::metadata(&home).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700, "{mode:o}");
+    }
+
+    /// The folder's and a file's access list as Windows writes it (SDDL), with
+    /// well-known accounts by their short names: `BU` users, `AU` signed-in users,
+    /// `WD` everyone.
+    #[cfg(windows)]
+    fn access_of(path: &Path) -> String {
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-Acl -LiteralPath $env:DM_ACL_PATH).Sddl",
+            ])
+            .env("DM_ACL_PATH", path)
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn dms_home_is_this_accounts_alone_on_windows_too() {
+        // A parent every account may read, as a second drive's root is.
+        let parent = tempfile::tempdir().unwrap();
+        let opened = std::process::Command::new("icacls")
+            .arg(parent.path())
+            .args(["/grant", "*S-1-5-32-545:(OI)(CI)RX"])
+            .output()
+            .unwrap();
+        assert!(opened.status.success(), "{opened:?}");
+        let home = parent.path().join("dm");
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(home.join("queue.json"), "[]").unwrap();
+        assert!(
+            access_of(&home).contains(";BU)"),
+            "the test's parent did not let users in"
+        );
+        let _held = claim(&home).unwrap();
+        let made_after = home.join("control.token");
+        std::fs::write(&made_after, "x").unwrap();
+        for path in [home.clone(), home.join("queue.json"), made_after] {
+            let access = access_of(&path);
+            assert!(
+                access.contains("D:P") || path != home,
+                "{} still takes its parent's list: {access}",
+                path.display()
+            );
+            for other in [";BU)", ";AU)", ";WD)"] {
+                assert!(
+                    !access.contains(other),
+                    "{} lets {other} in: {access}",
+                    path.display()
+                );
+            }
+        }
     }
 
     #[test]
