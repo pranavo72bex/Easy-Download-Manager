@@ -278,7 +278,9 @@ windows unread. The differences that stand: dm asks for many more, smaller piece
 seam checked again), which is the request rate Wikimedia's limiter answered with 429
 (BUG-010); reference A gives up on a 429 and on a host it cannot find where dm waits and
 tries again; reference A asks for a login on a 401 where dm says where to put one. On
-speed, the 4.5 GiB file is to be timed again with dm's release build. Results:
+speed, the 4.5 GiB file timed again with dm's release build: dm 194 s (55 requests, 8 at once),
+reference A 101 s (9 requests, 8 at once), its time including the move out of its temporary folder on C:.
+Not yet explained (gaps row 158). Results:
 `D:\compare\plan-side-full.json` and `plan-side\report.json` (the error cases again with
 each window read and closed).
 
