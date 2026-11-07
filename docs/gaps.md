@@ -114,10 +114,14 @@ installed on this Mac with the maintainer's OK of 2026-11-07: a magnet and a
 row 155 (a) and (b), approved by the maintainer on 2026-11-07 ("Approve (a)
 and (b)"; the Bilibili page gave a whole video with sound in Edge on macOS);
 row 157 (the source review; what it left is row 159, whose (b) is for
-Windows). Still taken here: row 158 measured on macOS, to see whether the
-slow large file is Windows' alone. Left to Windows: rows 156, 158's Windows
-profile, 159 (b), and every step above. Row 154 stays waiting (no Screen
-Recording permission given). Each push here is rebased on the branch first.
+Windows); row 158 measured on macOS (7.7 s for 4.5 GiB from the same server,
+so the slow time is Windows' own); row 159 (a) and (d); row 39's macOS part;
+Linux's `window` and `large` stress phases (row 20). `human-qa.py` on macOS
+after these changes: 63 of 64 rows hold, B25's two dialog pictures not taken
+(row 154). Left to Windows: rows 156, 158's Windows profile, 159 (b), and
+every step above; 159 (c) and (e) need the maintainer's choice (see the row).
+Row 154 stays waiting (no Screen Recording permission given). Each push here
+is rebased on the branch first.
 
 ### State audit, 2026-10-28
 
