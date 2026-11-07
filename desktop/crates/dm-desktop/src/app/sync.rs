@@ -687,6 +687,25 @@ impl DmApp {
                 .clone_from(&self.applied.schedule.run_when_done);
             self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
         }
+        // A queue's own hours run a program as the shared ones do.
+        if self.by_script() {
+            let mut kept = false;
+            for (name, schedule) in &mut wanted.queue_schedules {
+                let mine = self
+                    .applied
+                    .queue_schedules
+                    .get(name)
+                    .map(|s| s.run_when_done.clone())
+                    .unwrap_or_default();
+                if schedule.run_when_done != mine {
+                    schedule.run_when_done = mine;
+                    kept = true;
+                }
+            }
+            if kept {
+                self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
+            }
+        }
         let watch_changed = wanted.watch_clipboard != self.applied.watch_clipboard;
         match self.backend.set_settings(wanted) {
             Ok(now) => {

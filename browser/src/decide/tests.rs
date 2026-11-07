@@ -310,6 +310,7 @@ fn seen(url: &str, kind: &str, headers: &[(&str, &str)]) -> Seen {
                 value: Some((*v).into()),
             })
             .collect(),
+        ..Default::default()
     }
 }
 
@@ -2114,6 +2115,7 @@ fn a_players_byte_range_pieces_of_a_picture_and_a_sound_become_one_line_on_any_s
                     value: Some(range.into()),
                 },
             ],
+            ..Default::default()
         };
         stream_seen(&seen)
     };
@@ -2459,4 +2461,172 @@ fn a_streams_line_says_how_long_it_plays() {
     streams.absorb(&playlist_seen("https://e.com/media.m3u8"));
     assert!(streams.describe(7, "https://e.com/media.m3u8", vod));
     assert_eq!(streams.of(7)[0].label, "HLS stream, 12 sec");
+}
+
+#[test]
+fn a_playlist_is_read_again_from_the_public_web_and_from_a_private_host_only_for_its_own_page() {
+    // The public web: whoever asked.
+    assert!(may_reread(
+        "https://cdn.example/master.m3u8",
+        "https://video.example"
+    ));
+    assert!(may_reread("https://cdn.example/master.m3u8", ""));
+    // A page of this computer's (a check's local server) loading its own playlist.
+    assert!(may_reread(
+        "http://127.0.0.1:8123/master.m3u8",
+        "http://127.0.0.1:8123"
+    ));
+    // A public page aiming the worker at this computer, a router or a link-local address.
+    for inside in [
+        "http://127.0.0.1:8123/m.m3u8",
+        "http://localhost/m.m3u8",
+        "http://192.168.1.1/cgi?a=1",
+        "http://10.0.0.5/m.mpd",
+        "http://172.20.1.1/m.mpd",
+        "http://169.254.169.254/latest/meta-data",
+        "http://[::1]:80/m.m3u8",
+        "http://[fd00::1]/m.m3u8",
+        "http://[::ffff:192.168.0.1]/m.m3u8",
+        "http://printer.local/m.m3u8",
+        "http://100.64.0.1/m.m3u8",
+    ] {
+        assert!(!may_reread(inside, "https://evil.example"), "{inside}");
+        assert!(!may_reread(inside, ""), "{inside}");
+    }
+    // A rendition a private master names on another private host.
+    assert!(!may_reread(
+        "http://192.168.1.1/x",
+        "http://127.0.0.1:8123/master.m3u8"
+    ));
+}
+
+/// The first bytes of an MP4 holding one track: `ftyp`, then a `moov` whose `trak` has a
+/// track header (with `height` in its last four bytes) and a handler of `handler`.
+fn mp4_start(handler: &[u8; 4], height: u32) -> Vec<u8> {
+    fn boxed(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+        let mut out = ((body.len() + 8) as u32).to_be_bytes().to_vec();
+        out.extend_from_slice(kind);
+        out.extend_from_slice(body);
+        out
+    }
+    let mut tkhd = vec![0u8; 84];
+    tkhd[80..84].copy_from_slice(&(height << 16).to_be_bytes());
+    let mut hdlr = vec![0u8; 8];
+    hdlr.extend_from_slice(handler);
+    hdlr.extend_from_slice(&[0u8; 13]);
+    let mdia = boxed(b"mdia", &boxed(b"hdlr", &hdlr));
+    let trak = boxed(b"trak", &[boxed(b"tkhd", &tkhd), mdia].concat());
+    let moov = boxed(b"moov", &[boxed(b"mvhd", &[0u8; 100]), trak].concat());
+    [boxed(b"ftyp", b"iso5\0\0\x02\0iso5iso6mp41dash"), moov].concat()
+}
+
+#[test]
+fn an_mp4s_first_bytes_say_whether_it_is_a_picture_or_a_sound() {
+    assert_eq!(
+        mp4_track(&mp4_start(b"vide", 480)),
+        Some((false, Some(480)))
+    );
+    assert_eq!(mp4_track(&mp4_start(b"soun", 0)), Some((true, None)));
+    // Cut before the handler, not an MP4 at all, or a handler of neither kind.
+    let whole = mp4_start(b"vide", 480);
+    assert_eq!(mp4_track(&whole[..whole.len() - 20]), None);
+    assert_eq!(mp4_track(b"<!doctype html><title>x</title>"), None);
+    assert_eq!(mp4_track(&mp4_start(b"text", 0)), None);
+    assert_eq!(mp4_track(&[]), None);
+}
+
+fn ranged_answer(url: &str, mime: &str, range: &str) -> Seen {
+    Seen {
+        url: url.into(),
+        tab_id: 3,
+        kind: "xmlhttprequest".into(),
+        status_code: 206,
+        response_headers: vec![
+            Header {
+                name: "Content-Type".into(),
+                value: Some(mime.into()),
+            },
+            Header {
+                name: "Content-Range".into(),
+                value: Some(range.into()),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+/// Bilibili's player (gaps row 155): a picture and a sound, each one whole `.m4s` file fetched
+/// in ranges its requests' `Range` header asks for, both answered `206 video/mp4`. Once the
+/// sound's first bytes are read, they are one line, as a picture and a sound fetched apart are.
+#[test]
+fn a_picture_and_a_sound_fetched_whole_by_ranged_requests_become_one_line_once_read() {
+    let picture =
+        "https://upos-hz.akamaized.net/upgcxcode/77/66/4336/4336-1-30032.m4s?e=ig8e&deadline=1";
+    let sound =
+        "https://upos-hz.akamaized.net/upgcxcode/77/66/4336/4336-1-30216.m4s?e=ig8e&deadline=1";
+    let mut streams = Streams::default();
+    streams.absorb(&ranged_answer(
+        picture,
+        "video/mp4",
+        "bytes 1024-200000/5651664",
+    ));
+    streams.absorb(&ranged_answer(
+        sound,
+        "video/mp4",
+        "bytes 1024-90000/547149",
+    ));
+    // Both said to be video: before they are read, the larger is a file on its own.
+    assert!(streams.wants_track_read(3, picture));
+    assert!(streams.wants_track_read(3, sound));
+    assert!(!streams.wants_track_read(3, sound), "read once");
+    assert!(streams.read_track(3, picture, false, Some(480)));
+    assert!(streams.read_track(3, sound, true, None));
+    let lines = streams.of(3);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0].label, "480p video file + sound");
+    assert_eq!(lines[0].url, picture);
+    assert_eq!(lines[0].sound.as_deref(), Some(sound));
+    assert_eq!(lines[0].size, Some(5651664 + 547149));
+}
+
+#[test]
+fn whole_files_by_ranges_are_not_lines_beside_a_manifest_nor_change_a_plain_mp4() {
+    // A page whose DASH manifest names single-file renditions fetched by range.
+    let mut streams = Streams::default();
+    let mut manifest = seen(
+        "https://cdn.example/v/manifest.mpd",
+        "xmlhttprequest",
+        &[("Content-Type", "application/dash+xml")],
+    );
+    manifest.tab_id = 3;
+    streams.absorb(&manifest);
+    streams.absorb(&ranged_answer(
+        "https://cdn.example/v/video-720.m4s",
+        "video/mp4",
+        "bytes 900-90000/9000000",
+    ));
+    let lines = streams.of(3);
+    assert!(lines.iter().all(|s| !s.by_ranges), "{lines:?}");
+    // A plain MP4 a <video> fetches from its first byte stays the file it always was.
+    let plain = ranged_answer(
+        "https://cdn.example/clip.mp4",
+        "video/mp4",
+        "bytes 0-/9000000",
+    );
+    let mut plain = plain;
+    plain.kind = "media".into();
+    let found = stream_seen(&plain).unwrap();
+    assert_eq!((found.kind, found.by_ranges), (StreamKind::File, false));
+    assert_eq!(found.label, "MP4 video file");
+    // A whole 200 answer of a segment is still a segment; so is a tiny one.
+    let mut whole = ranged_answer("https://cdn.example/v/seg-1.m4s", "video/mp4", "");
+    whole.status_code = 200;
+    whole.response_headers.pop();
+    assert!(stream_seen(&whole).is_none());
+    let tiny = ranged_answer(
+        "https://cdn.example/v/a.m4s",
+        "video/mp4",
+        "bytes 10-20/30000",
+    );
+    assert!(stream_seen(&tiny).is_none());
 }

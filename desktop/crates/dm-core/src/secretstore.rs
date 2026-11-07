@@ -137,7 +137,14 @@ mod tools {
 
         #[cfg(target_os = "macos")]
         fn lookup_args(&self, name: &str) -> Vec<String> {
-            self.in_keychain(&["find-generic-password", "-a", "dm", "-s", name, "-w"])
+            self.in_keychain(&[
+                "find-generic-password",
+                "-a",
+                "dm",
+                "-s",
+                &keyed(name),
+                "-w",
+            ])
         }
         #[cfg(target_os = "linux")]
         fn lookup_args(&self, name: &str) -> Vec<String> {
@@ -145,6 +152,32 @@ mod tools {
             ["lookup", "service", "dm", "name", name]
                 .map(String::from)
                 .to_vec()
+        }
+    }
+
+    /// A word `security -i` cannot mis-split: no space, line break or quote.
+    #[cfg(target_os = "macos")]
+    fn plain(word: &str) -> bool {
+        !word
+            .chars()
+            .any(|c| c.is_whitespace() || "\"'\\".contains(c))
+    }
+
+    /// The name an item is kept under in the keychain: dm's own name where it is plain, and
+    /// otherwise the name spelt in base64url. A Sign-in's name holds a line break between the
+    /// site and the user (`settings/secrets.rs`), which `security -i` would split, so every
+    /// Sign-in's password was refused and stayed in the settings file (security review,
+    /// 2026-11-07). Plain names, the proxy's among them, are kept as they always were.
+    #[cfg(target_os = "macos")]
+    fn keyed(name: &str) -> std::borrow::Cow<'_, str> {
+        if plain(name) {
+            name.into()
+        } else {
+            format!(
+                "dm:b64:{}",
+                base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(name)
+            )
+            .into()
         }
     }
 
@@ -211,16 +244,10 @@ mod tools {
             )?;
             #[cfg(target_os = "macos")]
             let out = {
-                // The line is split on spaces and quotes by `security`; dm's names and the base64
-                // text have none, and anything else is refused rather than mis-split.
-                let plain = |word: &str| {
-                    !word
-                        .chars()
-                        .any(|c| c.is_whitespace() || "\"'\\".contains(c))
-                };
-                if !plain(name) {
-                    return Err("a secret name dm does not use".to_string());
-                }
+                // The line is split on spaces and quotes by `security`; the name as kept
+                // (`keyed`) and the base64 text have none, and a keychain path with any is
+                // refused rather than mis-split.
+                let name = keyed(name);
                 if !self.keychain.as_deref().is_none_or(plain) {
                     return Err("a keychain path dm does not use".to_string());
                 }
@@ -244,7 +271,8 @@ mod tools {
             #[cfg(target_os = "linux")]
             let args = ["clear", "service", "dm", "name", name].map(String::from);
             #[cfg(target_os = "macos")]
-            let args = self.in_keychain(&["delete-generic-password", "-a", "dm", "-s", name]);
+            let args =
+                self.in_keychain(&["delete-generic-password", "-a", "dm", "-s", &keyed(name)]);
             let out = run(&args, None)?;
             // Forgetting what is not there is not an error: the tools end unsuccessfully for it.
             let _ = out;
@@ -340,6 +368,28 @@ mod tools {
             store.delete(&name).unwrap();
             assert_eq!(store.get(&name).unwrap(), None, "forgotten");
             store.delete(&name).unwrap();
+        }
+
+        /// A Sign-in's name: the site and the user with a line break between, as
+        /// `settings/secrets.rs` makes it, and a user name with a space and a quote.
+        #[test]
+        fn a_sign_ins_name_with_a_line_break_is_kept_and_forgotten_in_the_real_store() {
+            let Some(scratch) = scratch() else { return };
+            let store = &scratch.store;
+            let name = format!("{}:example.com\nann o'neil", unique("login"));
+            store.put(&name, b"pw").unwrap();
+            assert_eq!(store.get(&name).unwrap().as_deref(), Some(&b"pw"[..]));
+            store.delete(&name).unwrap();
+            assert_eq!(store.get(&name).unwrap(), None, "forgotten");
+        }
+
+        #[cfg(target_os = "macos")]
+        #[test]
+        fn a_name_security_would_split_is_kept_under_a_plain_one_and_a_plain_one_as_it_is() {
+            assert_eq!(keyed("dm:proxy:host:3128:me"), "dm:proxy:host:3128:me");
+            let odd = keyed("dm:login:x:example.com\nann o'neil");
+            assert!(odd.starts_with("dm:b64:") && plain(&odd), "{odd}");
+            assert_ne!(odd, keyed("dm:login:x:example.com\nann o'neim"));
         }
 
         #[test]

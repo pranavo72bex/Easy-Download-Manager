@@ -262,10 +262,94 @@ It fails with the fix taken out.
 **Not covered.** A home folder another account made beforehand stays that
 account's to change (its owner can always rewrite the list).
 
-### Not done
+## Review of `desktop-v0.8.7..HEAD`, 2026-11-07 (source, on macOS)
 
-An independent source review of the changes since 2026-10-30 (the torrent
-encryption, the secret store, site rules served to the extension, renewed
-stream addresses, the watched folder, the new control-port methods). The
-review started on 2026-11-07 stopped before it reported; it is still to be
-done.
+A source review of the changes since 0.8.7 (gaps row 157), in three parts
+read independently: the secret store and how a row's sign-in travels; the
+desktop's local surface (control port and MCP, watched folder, native host,
+renewed addresses, site rules, torrents); and the browser extension. Every
+finding was read end to end in the code before it was kept. Counts: medium
+4, low 7, informational 8. Fixed the same day, with a test beside each (the
+tests of M5, M6's script guard and L5 were run with their fix taken out, and
+fail):
+
+- **M5, the browser's request headers read back through `queue.list`
+  (found twice).** `Entry.headers` (a site's `Authorization: Bearer …`, its
+  `X-…-Token`) went out to any control-port or MCP client; only `cookies` was
+  removed. Now removed too (`app/control.rs`;
+  `a_rows_handed_over_sign_in_is_never_read_back_out` adds a bearer header).
+- **M6, an imported settings file could make dm run a program.** A queue's
+  own hours (`queue_schedules`, new since 0.8.7) carry `run_when_done`;
+  `Settings::imported` kept this computer's program for the shared schedule
+  only, and the window's guard against a script ignored the queues' too.
+  Both now keep each queue's program as it was, and a queue the file adds
+  runs none (`a_settings_file_never_sets_the_program_run_at_the_end_of_a_queues_own_hours`,
+  `a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run`).
+- **M7, a page could hand dm any number of torrents after one click.**
+  `content.js` took a script-opened magnet (`dm-magnet`) whenever the page's
+  user activation was live, which lasts seconds and is not used up. Now
+  only within 1.5 s of a trusted pointer or key press seen by the content
+  script itself, and one per press (`chrome-check.py`: "five magnets a page
+  opens for one click hand dm one"; the seven ways still reach dm, pressed
+  with the mouse).
+- **M8, the extension re-read any playlist a page loaded, private networks
+  included.** A page could `fetch('http://192.168.1.1/…m3u8', {mode:
+  'no-cors'})` and have the worker ask it again with the browser's session,
+  no CORS and no private-network check, then the first rendition it named on
+  any host. Now a playlist (or a rendition, or a file read for its track) on
+  this computer or a private network is read again only when the page that
+  loaded it is on that same host (`decide::may_reread`, with a test of eleven
+  inside addresses; `chrome-check.py` 88 of 88).
+- **L5, the browser's headers followed a redirect to another host.** Across
+  hosts dm dropped `Authorization` and cookies but kept a site's own headers
+  (`X-Api-Key`…). Now a hop to another host carries only what every request
+  of dm's does (`redirects.rs` `CARRIED_ACROSS`; the cross-host redirect test
+  checks an `X-Api-Key`).
+- **L6, on macOS no Sign-in's password reached the Keychain.** A Sign-in's
+  secret name has a line break between the site and the user, which
+  `security -i` would split, so the store refused every one and the password
+  stayed in `settings.json` with a notice at each start. A name with
+  whitespace or quotes is now kept under its base64url spelling; plain names
+  (the proxy's) are unchanged (`secretstore::tools`, against a real scratch
+  keychain).
+- **L7, a secrets file that would not open was deleted by the next save.**
+  A locked Keychain or a Secret Service not yet running at login cost every
+  row's sign-in for good. It is now moved aside as `secrets.json.unopened`
+  and the notice says so (`a_file_of_secrets_that_cannot_be_read_is_kept_aside_not_deleted_by_the_next_save`).
+
+Left, each a row in `docs/gaps.md` (row 159):
+
+- **Low: a waiting row takes a fresh address from another customer's host**
+  on shared hosting: `queue/family.rs` keeps a host's last two labels, so
+  `victim.s3.amazonaws.com` and `evil.s3.amazonaws.com` are one family for a
+  row that never learned its name or size. Cookies do not cross (`set_url`).
+  Needs the public suffix list, or the same host.
+- **Low (Windows): a torrent's file named `D:x`** passes librqbit's check
+  (no `..`, no separator) and `PathBuf::push` makes it a path on another
+  drive; the vendored storage creates the empty files before dm's own check
+  refuses the torrent. No content is written.
+- **Low: the plain-JavaScript panel** (sites whose policy forbids
+  WebAssembly) checks only `isTrusted`, not that it is drawn as dm drew it
+  (`as_drawn`), in an open shadow root a page can restyle; and a panel
+  choice now sends the cookies of whatever host the page's `<video src>`
+  names. The app's Download details dialog is what remains.
+- **Low: a renewal is matched across tabs.** `RequestHeaders::renewed` does
+  not compare the tab or YouTube's `id`, so another tab's video with the same
+  itag on the same edge host could be offered as a renewal. The host cannot
+  change; the file could be the wrong video.
+- **Low: a settings file that fell back to defaults** has an empty proxy
+  password, and `move_passwords_to` then forgets the one in the store.
+- **Info:** the update check compares the rules and installer addresses by
+  their raw prefix (`%2e%2e` normalises elsewhere; only a forged
+  `latest.json` could use it); "Get it from the browser" takes the next
+  download from any site within ten minutes; the early answer buffer in
+  `document.js` (24 answers) is never released on a site with no rules; the
+  kept headers are not split by private window; `Start.referrer` is the full
+  page address where a browser sends its origin to another host; the panel's
+  `dm-player-*` listeners do not check `event.source`; the Properties and
+  Download complete dialogs' Open buttons have no script guard; with no
+  store at all the notice blames "Windows Credential Manager" on macOS and
+  Linux too.
+- The worker's re-read of a playlist on the public web still carries the
+  browser's session, as the player's own request did; only private hosts are
+  refused.

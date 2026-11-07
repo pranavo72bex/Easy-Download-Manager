@@ -37,6 +37,12 @@ mod control;
 
 pub mod cookies;
 
+/// What a row says when the browser's panel handed over a page whose video dm cannot read
+/// itself (any site but YouTube) and no file of the video had been seen (gaps row 155).
+pub const PAGE_NOT_READ: &str = "dm cannot read this page's video itself (it reads YouTube's \
+     pages), and the browser had not seen the video's own files: play the video for a few \
+     seconds, then press Download video again";
+
 pub mod dash;
 
 mod decode;

@@ -521,6 +521,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 '<p><a id="m5" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00e&dn=icon"><span><i>&#9733;</i> 5</span></a></p>'
                 '<p><a id="m6" href="#" onclick="window.open(\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc00f&dn=windowopen\'); return false;">6</a></p>'
                 '<p><a id="m7" href="#" onclick="var a=document.createElement(\'a\');a.href=\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc010&dn=synthetic\';document.body.appendChild(a);a.click();return false;">7</a></p>'
+                # One click, five magnets opened by script: a page that waits for any click
+                # (a cookie banner's) must not hand dm a list of torrents (security review,
+                # 2026-11-07). One goes to dm, as one opens in a browser.
+                '<p><button id="m8" onclick="for(var i=0;i<5;i++)window.open(\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc02\'+i+\'&dn=flood\'+i)">8</button></p>'
             ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -1858,17 +1862,28 @@ def main():
         # (DM_NO_SWARM), so each row fails at once rather than going to the DHT
         # and raising Windows' firewall question for this run's copy of dm.
         tab = open_tab(base, f"{origin}/magnets.html")
-        loaded(tab, "/magnets.html", "#m7")
+        loaded(tab, "/magnets.html", "#m8")
         names = ["plain", "onclick", "button", "blank", "icon", "windowopen", "synthetic"]
+        # Pressed with the mouse, as a person does: a magnet a page opens by script goes to dm
+        # only for the person's own press, which a script's click() is not.
+        def press(element_id):
+            x, y = tab.evaluate(f"""(() => {{ const el = document.getElementById('{element_id}');
+              el.scrollIntoView({{block: 'center'}}); const r = el.getBoundingClientRect();
+              return [r.left + r.width / 2, r.top + r.height / 2]; }})()""")
+            click_at(tab, x, y)
         for n in range(1, 8):
-            tab.evaluate(f"document.getElementById('m{n}').click()", gesture=True)
+            press(f"m{n}")
             time.sleep(1.0)
+        press("m8")
+        time.sleep(3.0)
         def magnets():
             return {name for r in queue_rows(engine_home) for name in names
                     if r.get("url", "").startswith("magnet:") and f"dn={name}" in r.get("url", "")}
         got = wait_for(lambda: magnets() if len(magnets()) == 7 else None, 30) or magnets()
         check("each of the seven ways a page opens a magnet link reaches dm",
               len(got) == 7, f"missing: {sorted(set(names) - set(got))}")
+        floods = [r.get("url", "") for r in queue_rows(engine_home) if "dn=flood" in r.get("url", "")]
+        check("five magnets a page opens for one click hand dm one", len(floods) == 1, f"{floods}")
 
         # 5. Only the browser can fetch it: dm is refused without the
         # browser's session, so it is handed over again with it, for this

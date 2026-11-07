@@ -34,6 +34,73 @@ pub struct Seen {
     pub status_code: u16,
     /// The response's headers.
     pub response_headers: Vec<Header>,
+    /// The origin of the page that made the request (Chrome and Edge).
+    pub initiator: String,
+    /// The address of the page that made the request (Firefox).
+    pub origin_url: String,
+}
+
+impl Seen {
+    /// The page that made the request, as the browser says it: Chrome's
+    /// `initiator`, or Firefox's `originUrl`.
+    pub fn requester(&self) -> &str {
+        if self.initiator.is_empty() {
+            &self.origin_url
+        } else {
+            &self.initiator
+        }
+    }
+}
+
+/// Whether the worker may fetch `target` again itself, with the browser's
+/// session, for what it says of its qualities: always on the public web, and
+/// on this computer or a private network (`localhost`, `127.0.0.1`,
+/// `192.168.1.1`, a link-local or unique-local address) only for a request
+/// that came from that very host, `from` (the page that loaded a playlist,
+/// or the playlist that named a rendition). Otherwise any page could load a
+/// "playlist" from a router's or a printer's address and have the extension
+/// ask it again with no CORS and no private-network check (security review,
+/// 2026-11-07).
+pub fn may_reread(target: &str, from: &str) -> bool {
+    let host = dm_protocol::host_of(target);
+    !inside(&host) || dm_protocol::host_of(from) == host
+}
+
+/// A host on this computer or a private network.
+fn inside(host: &str) -> bool {
+    if host.is_empty() {
+        return true;
+    }
+    if host == "localhost"
+        || host.ends_with(".localhost")
+        || host.ends_with(".local")
+        || host.ends_with(".internal")
+        || host.ends_with(".lan")
+        || host.ends_with(".home.arpa")
+    {
+        return true;
+    }
+    match host.parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(v4)) => {
+            let [a, b, ..] = v4.octets();
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                // Carrier-grade NAT: a provider's network, not the web.
+                || (a == 100 && (64..128).contains(&b))
+        }
+        Ok(std::net::IpAddr::V6(v6)) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return inside(&v4.to_string());
+            }
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_unique_local()
+                || v6.is_unicast_link_local()
+        }
+        Err(_) => false,
+    }
 }
 
 /// What kind of media a stream is, which decides how the app fetches it.
@@ -78,6 +145,12 @@ pub struct Stream {
     /// (gaps row 155), so two videos' streams of one page are told apart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub length: Option<u64>,
+    /// A whole MP4 file a player fetched in byte ranges asked for in its `Range` header, not
+    /// in its address (Bilibili's picture and sound, gaps row 155): picture or sound by its
+    /// type until its first bytes are read ([`mp4_track`]), as such a server may call both
+    /// `video/mp4`; and not a line beside a playlist or manifest, whose own files it may be.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub by_ranges: bool,
 }
 
 /// A whole file smaller than this is a thumbnail, a sound effect or an ad
@@ -148,6 +221,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             sound: None,
             members: Vec::new(),
             length: None,
+            by_ranges: false,
         });
     }
     // `application/dash+xml` and `video/vnd.mpeg.dash.mpd`.
@@ -160,6 +234,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             sound: None,
             members: Vec::new(),
             length: None,
+            by_ranges: false,
         });
     }
 
@@ -176,8 +251,11 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         // address; the piece is not the file.
         || seen.url.contains("range=")
         || seen.url.contains("&rn=");
+    // What is dropped here may still be a whole file fetched by ranges its request's header
+    // asked for (an `.m4s` that is a picture or a sound whole, gaps row 155).
+    let by_ranges = || whole_by_ranges(&seen.url, &mime, seen.status_code, header("content-range"));
     if !media || segment {
-        return None;
+        return by_ranges();
     }
     // The whole length: a range answer says it after the slash, and is the
     // file only if it starts at its first byte.
@@ -185,7 +263,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         Some(range) => {
             let (span, total) = range.trim_start_matches("bytes").trim().split_once('/')?;
             if !span.trim().starts_with("0-") {
-                return None;
+                return by_ranges();
             }
             total.trim().parse::<u64>().ok()
         }
@@ -220,6 +298,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         sound: None,
         members: Vec::new(),
         length: None,
+        by_ranges: false,
     })
 }
 
@@ -303,6 +382,7 @@ pub fn track_of(url: &str) -> Option<Stream> {
         sound: None,
         members: Vec::new(),
         length: None,
+        by_ranges: false,
     })
 }
 
@@ -859,6 +939,7 @@ pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
         sound: None,
         members: Vec::new(),
         length: None,
+        by_ranges: false,
     })
 }
 
@@ -942,7 +1023,152 @@ pub fn ranged_of(url: &str, mime: &str, content_range: Option<&str>) -> Option<S
         sound: None,
         members: Vec::new(),
         length: None,
+        by_ranges: false,
     })
+}
+
+/// The smallest whole file found by [`whole_by_ranges`]: below it, a sound effect or a preview.
+const BY_RANGES_FLOOR: u64 = 64 * 1024;
+
+/// A picture or a sound some players fetch as one whole MP4 file in byte ranges that the
+/// request's `Range` header asks for, the address naming no range (Bilibili's `…-1-100022.m4s`
+/// and `…-1-30216.m4s`, both answered `206 video/mp4`; gaps row 155): a partial answer with
+/// the file's whole length after the slash of its `Content-Range`, of an MP4 type, at an
+/// address that ends as an MP4 file or a DASH segment does. What it is, picture or sound, is
+/// its type for now, and is read from its first bytes later ([`Stream::by_ranges`]).
+///
+/// Nothing for YouTube's pieces (`track_of` reads those), a whole answer (200: a segment of
+/// a stream, or a file `stream_seen` takes as it is), or an address on the built-in list.
+pub fn whole_by_ranges(
+    url: &str,
+    mime: &str,
+    status: u16,
+    content_range: Option<&str>,
+) -> Option<Stream> {
+    if status != 206 {
+        return None;
+    }
+    let sound = match mime {
+        "audio/mp4" => true,
+        "video/mp4" => false,
+        _ => return None,
+    };
+    let (authority, rest) = url.split_once("://")?.1.split_once('/')?;
+    let host = authority.split(':').next().unwrap_or(authority);
+    if host == "googlevideo.com" || host.ends_with(".googlevideo.com") {
+        return None;
+    }
+    let path = rest.split(['?', '#']).next().unwrap_or("");
+    let extension = path
+        .rsplit('/')
+        .next()
+        .and_then(|name| name.rsplit_once('.'))
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !matches!(extension.as_str(), "m4s" | "mp4" | "m4v" | "m4a") {
+        return None;
+    }
+    let size = content_range
+        .and_then(|value| value.rsplit_once('/'))
+        .and_then(|(_, total)| total.trim().parse::<u64>().ok())
+        .filter(|total| *total >= BY_RANGES_FLOOR)?;
+    if excluded::address(url).is_some() {
+        return None;
+    }
+    let (kind, label) = if sound {
+        (StreamKind::Sound, RANGED_SOUND.to_string())
+    } else {
+        (StreamKind::Picture, RANGED_PICTURE.to_string())
+    };
+    Some(Stream {
+        url: url.to_string(),
+        kind,
+        size: Some(size),
+        label,
+        sound: None,
+        members: Vec::new(),
+        length: None,
+        by_ranges: true,
+    })
+}
+
+/// How many bytes of a file found by [`whole_by_ranges`] are read for what it is: an MP4's
+/// `moov` comes first in such a file, and is a few kilobytes.
+pub const TRACK_READ_CAP: usize = 64 * 1024;
+
+/// What an MP4 file's first bytes say it holds: its first track's handler, picture
+/// (`vide`) or sound (`soun`), and a picture's height from its track header. `None` for bytes
+/// that are not an MP4's start, or that end before its first track says what it is.
+pub fn mp4_track(bytes: &[u8]) -> Option<(bool, Option<u32>)> {
+    // The boxes in `data`: (type, body), as far as they are whole.
+    fn boxes(data: &[u8]) -> Vec<([u8; 4], &[u8])> {
+        let word = |at: usize| -> Option<u32> {
+            Some(u32::from_be_bytes(
+                data.get(at..at.checked_add(4)?)?.try_into().ok()?,
+            ))
+        };
+        let mut out = Vec::new();
+        let mut at = 0usize;
+        while let (Some(size), Some(kind)) = (word(at), data.get(at + 4..at + 8)) {
+            let Ok(kind) = <[u8; 4]>::try_from(kind) else {
+                break;
+            };
+            let (header, size) = match size {
+                1 => match (word(at + 8), word(at + 12)) {
+                    (Some(high), Some(low)) => (16usize, (u64::from(high) << 32) | u64::from(low)),
+                    _ => break,
+                },
+                // To the end of the file: as far as the bytes go.
+                0 => (8, (data.len() - at) as u64),
+                n => (8, u64::from(n)),
+            };
+            if size < header as u64 {
+                break;
+            }
+            let end = at.saturating_add(usize::try_from(size).unwrap_or(usize::MAX));
+            let Some(body) = data.get(at + header..end.min(data.len())) else {
+                break;
+            };
+            out.push((kind, body));
+            if end >= data.len() {
+                break;
+            }
+            at = end;
+        }
+        out
+    }
+    let find = |data, kind: &[u8; 4]| {
+        boxes(data)
+            .into_iter()
+            .find(|(k, _)| k == kind)
+            .map(|(_, b)| b)
+    };
+    let top = boxes(bytes);
+    if !top
+        .iter()
+        .any(|(k, _)| k == b"ftyp" || k == b"moov" || k == b"styp")
+    {
+        return None;
+    }
+    let moov = top.iter().find(|(k, _)| k == b"moov")?.1;
+    let trak = find(moov, b"trak")?;
+    let mdia = find(trak, b"mdia")?;
+    let hdlr = find(mdia, b"hdlr")?;
+    // Version and flags, then `pre_defined`, then the handler's type.
+    let handler: [u8; 4] = hdlr.get(8..12)?.try_into().ok()?;
+    let sound = match &handler {
+        b"soun" => true,
+        b"vide" => false,
+        _ => return None,
+    };
+    // The track header's height is its last four bytes, 16.16 fixed point.
+    let height = find(trak, b"tkhd")
+        .filter(|tkhd| tkhd.len() >= 84)
+        .and_then(|tkhd| tkhd.get(tkhd.len().saturating_sub(4)..))
+        .and_then(|b| b.try_into().ok())
+        .map(|b: [u8; 4]| u32::from_be_bytes(b) >> 16)
+        .filter(|h| !sound && (16..=8640).contains(h));
+    Some((sound, height))
 }
 
 /// Whether a response is a new page in its tab, whose streams start afresh:
@@ -1157,6 +1383,38 @@ impl Streams {
         true
     }
 
+    /// Whether the file at `url`, found by its byte ranges ([`whole_by_ranges`]), is to have
+    /// its first bytes read now for what it is; asking marks it, so it is read once.
+    pub fn wants_track_read(&mut self, tab: i64, url: &str) -> bool {
+        let unread = self
+            .by_tab
+            .get(&tab)
+            .and_then(|list| list.iter().find(|s| s.url == url))
+            .is_some_and(|s| s.by_ranges);
+        unread && self.described.insert((tab, url.to_string()))
+    }
+
+    /// What the first bytes of the file at `url` said it holds ([`mp4_track`]): a sound, or a
+    /// picture of that height, which its line is then called. Whether the list changed.
+    pub fn read_track(&mut self, tab: i64, url: &str, sound: bool, height: Option<u32>) -> bool {
+        let Some(stream) = self
+            .by_tab
+            .get_mut(&tab)
+            .and_then(|list| list.iter_mut().find(|s| s.url == url && s.by_ranges))
+        else {
+            return false;
+        };
+        let (kind, label) = match (sound, height) {
+            (true, _) => (StreamKind::Sound, RANGED_SOUND.to_string()),
+            (false, Some(h)) => (StreamKind::Picture, format!("{h}p {RANGED_PICTURE}")),
+            (false, None) => (StreamKind::Picture, RANGED_PICTURE.to_string()),
+        };
+        let changed = stream.kind != kind || stream.label != label;
+        stream.kind = kind;
+        stream.label = label;
+        changed
+    }
+
     /// The rendition to read for a master playlist's length: its first, while its line says
     /// none (a master names its renditions, not how long they play).
     pub fn rendition_for_length(&self, tab: i64, url: &str) -> Option<String> {
@@ -1214,6 +1472,14 @@ impl Streams {
     /// apart by their file name.
     pub fn of(&self, tab: i64) -> Vec<Stream> {
         let mut list = self.by_tab.get(&tab).cloned().unwrap_or_default();
+        // Beside a playlist or manifest, the whole files a player fetched by ranges are that
+        // stream's own (an HLS or DASH stream's single-file renditions), not lines of their own.
+        if list
+            .iter()
+            .any(|s| matches!(s.kind, StreamKind::Hls | StreamKind::Dash))
+        {
+            list.retain(|s| !s.by_ranges);
+        }
         // A picture and a sound a player fetched apart are one line, with
         // the largest of each: the best the page has loaded.
         let largest = |list: &[Stream], kind: StreamKind| {
@@ -1229,7 +1495,7 @@ impl Streams {
         list.retain(|s| !matches!(s.kind, StreamKind::Picture | StreamKind::Sound));
         // A file found by its byte ranges that has no partner is a whole file on its own.
         let alone = match (&picture, &sound) {
-            (Some(p), None) if p.label == RANGED_PICTURE => Some(p.clone()),
+            (Some(p), None) if p.label.ends_with(RANGED_PICTURE) => Some(p.clone()),
             (None, Some(s)) if s.label == RANGED_SOUND => Some(s.clone()),
             _ => None,
         };
@@ -1260,6 +1526,7 @@ impl Streams {
                 sound: Some(sound.url),
                 members: Vec::new(),
                 length: None,
+                by_ranges: false,
             });
         }
         // A small clip beside something larger (a sign-in page's, an advert,

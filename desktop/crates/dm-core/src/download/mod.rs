@@ -918,6 +918,11 @@ async fn fetch_reporting(
                         && !matches!(e, Error::Paused | Error::Cancelled) => {}
                 outcome => return outcome,
             }
+        } else if !document && options.media {
+            /* A page the browser's panel handed over for its video (gaps row 155): dm reads
+             * YouTube's pages only, and this site's video comes from its player's own files,
+             * which the browser had not seen. Not an expired link, and not a page to save. */
+            return Err(Error::Internal(crate::PAGE_NOT_READ.into()));
         } else if !document {
             /* Asked about in the window as an address that ends like a file is (contract row
              * B40, gaps row 136): a person who typed a page may want it, and Yes saves it as

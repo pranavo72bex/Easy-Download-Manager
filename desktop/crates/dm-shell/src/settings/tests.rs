@@ -907,6 +907,34 @@ fn a_settings_file_never_sets_the_program_run_at_the_end_of_the_schedule() {
 }
 
 #[test]
+fn a_settings_file_never_sets_the_program_run_at_the_end_of_a_queues_own_hours() {
+    let mut mine = Settings::default();
+    let kept = Schedule {
+        run_when_done: "backup --quiet".into(),
+        ..Schedule::default()
+    };
+    mine.queue_schedules.insert("Nightly".into(), kept);
+    let mut theirs = Settings::default();
+    for name in ["Nightly", "Main queue", "Added by the file"] {
+        let schedule = Schedule {
+            enabled: true,
+            run_when_done: "sh -c 'evil'".into(),
+            ..Schedule::default()
+        };
+        theirs.queue_schedules.insert(name.into(), schedule);
+    }
+    let read = mine
+        .imported(&serde_json::to_string(&theirs).unwrap())
+        .unwrap();
+    assert_eq!(
+        read.queue_schedules["Nightly"].run_when_done,
+        "backup --quiet"
+    );
+    assert_eq!(read.queue_schedules["Main queue"].run_when_done, "");
+    assert_eq!(read.queue_schedules["Added by the file"].run_when_done, "");
+}
+
+#[test]
 fn a_sound_file_chosen_for_an_event_is_kept_and_an_old_file_has_none() {
     let mut settings = Settings::default();
     settings

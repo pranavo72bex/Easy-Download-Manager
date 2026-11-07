@@ -106,12 +106,34 @@ pub(super) async fn sleep(ms: f64) {
 /// milliseconds. The body is read as it arrives and cut at the cap, never
 /// whole; `Err` says why there is no text.
 pub(super) async fn fetch_text(url: &str, cap: usize, ms: f64) -> Result<String, String> {
+    fetch_bytes(url, cap, ms, false)
+        .await
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// The first `cap` bytes of a file, asked for by range with the browser's own session, as
+/// [`fetch_text`] fetches; a server that answers the whole file is read as far as `cap`.
+pub(super) async fn fetch_start(url: &str, cap: usize, ms: f64) -> Result<Vec<u8>, String> {
+    fetch_bytes(url, cap, ms, true).await
+}
+
+/// What [`fetch_text`] and [`fetch_start`] share: `start` asks for the first `cap` bytes by
+/// range and keeps what came as far as `cap`, where a playlist longer than `cap` is refused.
+async fn fetch_bytes(url: &str, cap: usize, ms: f64, start: bool) -> Result<Vec<u8>, String> {
     let global: JsValue = js_sys::global().into();
     let controller = Reflect::get(&global, &"AbortController".into())
         .ok()
         .and_then(|c| c.dyn_into::<Function>().ok())
         .and_then(|ctor| Reflect::construct(&ctor, &Array::new()).ok());
-    let init = to_js(&serde_json::json!({ "credentials": "include", "cache": "no-store" }));
+    let init = if start {
+        to_js(&serde_json::json!({
+            "credentials": "include",
+            "cache": "no-store",
+            "headers": { "Range": format!("bytes=0-{}", cap.saturating_sub(1)) },
+        }))
+    } else {
+        to_js(&serde_json::json!({ "credentials": "include", "cache": "no-store" }))
+    };
     if let Some(signal) = controller.as_ref().map(|c| field(c, "signal")) {
         if signal.is_object() {
             let _ = Reflect::set(&init, &"signal".into(), &signal);
@@ -135,7 +157,7 @@ pub(super) async fn fetch_text(url: &str, cap: usize, ms: f64) -> Result<String,
             .ok()
             .and_then(|v| v.as_string())
             .and_then(|v| v.parse::<usize>().ok());
-        if stated.is_some_and(|len| len > cap) {
+        if !start && stated.is_some_and(|len| len > cap) {
             return Err("longer than a playlist".into());
         }
         let reader = call_on(&field(&response, "body"), "getReader", &[])?;
@@ -151,11 +173,15 @@ pub(super) async fn fetch_text(url: &str, cap: usize, ms: f64) -> Result<String,
             let part = js_sys::Uint8Array::new(&field(&chunk, "value")).to_vec();
             if bytes.len() + part.len() > cap {
                 let _ = call_on(&reader, "cancel", &[]);
+                if start {
+                    bytes.extend_from_slice(&part[..cap - bytes.len()]);
+                    break;
+                }
                 return Err("longer than a playlist".into());
             }
             bytes.extend_from_slice(&part);
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(bytes)
     };
     match select(Box::pin(work), Box::pin(sleep(ms))).await {
         Either::Left((done, _)) => done,

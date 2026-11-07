@@ -527,6 +527,8 @@ fn a_rows_handed_over_sign_in_is_never_read_back_out() {
             dm_core::AddOptions {
                 later: true,
                 cookies: format!("session={session}"),
+                // The browser's own request headers: a bearer token among them.
+                headers: vec![("Authorization".into(), format!("Bearer {session}-token"))],
                 ..Default::default()
             },
         )

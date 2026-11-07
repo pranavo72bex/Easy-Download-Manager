@@ -579,6 +579,41 @@ async fn a_login_and_cookies_stay_out_of_the_queue_file_and_come_back() {
     );
 }
 
+/// A file of secrets that cannot be read (damaged, or sealed under a key the store would not
+/// give out at that moment) is moved aside, not deleted by the next save: the rows' sign-ins
+/// can still be got back.
+#[tokio::test]
+async fn a_file_of_secrets_that_cannot_be_read_is_kept_aside_not_deleted_by_the_next_save() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let first = queue(dir.path(), 0);
+    first.persist_to(store.clone()).await;
+    first
+        .add_with(
+            "http://127.0.0.1:9/private.bin",
+            dm_core::AddOptions {
+                cookies: "session=given-by-the-browser".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    first.flush().await;
+    let secrets = dir.path().join("secrets.json");
+    std::fs::write(&secrets, b"{ damaged").unwrap();
+
+    let second = queue(dir.path(), 0);
+    second.persist_to(store.clone()).await;
+    second.add("http://127.0.0.1:9/plain.bin").await.unwrap();
+    second.flush().await;
+    let aside = dir.path().join("secrets.json.unopened");
+    assert_eq!(
+        std::fs::read(&aside).ok().as_deref(),
+        Some(&b"{ damaged"[..]),
+        "the unreadable file was not kept"
+    );
+}
+
 #[tokio::test]
 async fn the_queue_survives_the_app_closing() {
     /* Part files outlive the process; the row pointing at them did not. That

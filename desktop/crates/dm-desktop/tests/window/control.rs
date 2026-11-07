@@ -596,3 +596,32 @@ fn a_resume_straight_after_a_pause_is_not_refused_by_a_stale_list() {
             .any(|r| r.id == id && r.state == State::Running)
     });
 }
+
+/// A program run at the end of a queue's own hours is a person's to set, as
+/// the shared schedule's is: settings put in force a moment after a script
+/// drove the window keep the program the queue had.
+#[test]
+fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
+    let world = world();
+    let mut harness = world.harness();
+    let key = serde_json::json!({ "key": "Escape" });
+    assert!(matches!(
+        harness.state_mut().human_call("ui.key", &key, None),
+        Some(Ok(_))
+    ));
+    harness.run_steps(2);
+    let mut wanted = harness.state().applied.clone();
+    let hours = dm_core::Schedule {
+        enabled: true,
+        run_when_done: "sh -c 'evil'".into(),
+        ..dm_core::Schedule::default()
+    };
+    wanted.queue_schedules.insert("Main queue".into(), hours);
+    harness.state_mut().apply_settings(wanted).unwrap();
+    let saved = harness.state().backend().settings();
+    let kept = saved
+        .queue_schedules
+        .get("Main queue")
+        .map(|s| s.run_when_done.as_str());
+    assert_eq!(kept, Some(""), "{kept:?}");
+}

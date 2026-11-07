@@ -1509,12 +1509,13 @@ fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 
 /// A redirect to another host gets the page's origin alone as `Referer`,
 /// not the page (its path and query are the first host's business), and
-/// no sign-in: the first host sees both, as before.
+/// no sign-in and none of the browser's headers: the first host sees them, as before.
 #[tokio::test]
 async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_login_not_at_all() {
     use axum::{routing::get, Router};
-    // Which host, the Referer it saw, whether it saw a login.
-    type Seen = Arc<std::sync::Mutex<Vec<(String, Option<String>, bool)>>>;
+    // Which host, the Referer it saw, whether it saw a login, whether it saw
+    // the browser's own token header.
+    type Seen = Arc<std::sync::Mutex<Vec<(String, Option<String>, bool, bool)>>>;
     let seen: Seen = Default::default();
     let record = {
         let seen = seen.clone();
@@ -1526,6 +1527,7 @@ async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_l
                     .and_then(|v| v.to_str().ok())
                     .map(str::to_string),
                 headers.contains_key(axum::http::header::AUTHORIZATION),
+                headers.contains_key("x-api-key"),
             ));
         }
     };
@@ -1563,6 +1565,11 @@ async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_l
     let url = common::with_login(&format!("http://{first_addr}/go.bin"), "me", "pw");
     let opts = dm_core::Options {
         referrer: Some("http://pages.example/private/page?token=1".to_string()),
+        sign_in: dm_core::cookies::SignIn::with_headers(
+            &url,
+            "",
+            &[("X-Api-Key".to_string(), "first-hosts-key".to_string())],
+        ),
         ..options(dir.path())
     };
     let done = download(&client(), &url, &opts)
@@ -1574,14 +1581,19 @@ async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_l
     let firsts: Vec<_> = seen.iter().filter(|s| s.0 == "first").collect();
     let seconds: Vec<_> = seen.iter().filter(|s| s.0 == "second").collect();
     assert!(!firsts.is_empty() && !seconds.is_empty(), "{seen:?}");
-    for (_, referer, signed) in &firsts {
+    for (_, referer, signed, keyed) in &firsts {
+        assert!(keyed, "the first host should see its own header");
         assert_eq!(
             referer.as_deref(),
             Some("http://pages.example/private/page?token=1")
         );
         assert!(signed, "the first host should see the login");
     }
-    for (_, referer, signed) in &seconds {
+    for (_, referer, signed, keyed) in &seconds {
+        assert!(
+            !keyed,
+            "the browser's header for the first host crossed to the other"
+        );
         assert_eq!(
             referer.as_deref(),
             Some("http://pages.example/"),

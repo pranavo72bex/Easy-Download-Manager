@@ -113,10 +113,12 @@ pub(super) async fn hand_chosen(
         return in_browser_instead(&target, &why).await;
     }
     log("info", &format!("handed {} to the dm app", target.url));
-    Ok(if ask {
+    // A page goes to the app to be read for its video, which it may not be able to do (it
+    // reads YouTube's pages; gaps row 155): said as that, never as the app having the video.
+    Ok(if target.page {
+        "the dm app is reading this page for its video".into()
+    } else if ask {
         "the dm app has it".into()
-    } else if target.page {
-        "the dm app is fetching it".into()
     } else {
         "the dm app is downloading it".into()
     })

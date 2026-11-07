@@ -64,7 +64,46 @@ pub async fn on_response_started(details: JsValue) {
     }
     // Only a new line reaches here (the other answers returned above): a
     // playlist that says nothing of its quality is read for it.
-    describe_playlist(tab, &seen.url).await;
+    describe_playlist(tab, &seen.url, seen.requester()).await;
+    read_track(tab, &seen.url, seen.requester()).await;
+}
+
+/// A whole MP4 file a player fetched by ranges (`decide::whole_by_ranges`): its first bytes
+/// read once, with the browser's own session, for whether it is a picture or a sound, which
+/// its server's type may not say (Bilibili calls both `video/mp4`; gaps row 155). A failure
+/// leaves it as its type said.
+async fn read_track(tab: i64, url: &str, requester: &str) {
+    if !decide::may_reread(url, requester) {
+        return;
+    }
+    if !STREAMS.with(|s| s.borrow_mut().wants_track_read(tab, url)) {
+        return;
+    }
+    let page = PAGES.with(|p| p.borrow().now(tab));
+    let bytes = match fetch_start(url, decide::TRACK_READ_CAP, 4000.0).await {
+        Ok(bytes) => bytes,
+        Err(why) => {
+            log(
+                "debug",
+                &format!("a file's first bytes were not read: {why}"),
+            );
+            return;
+        }
+    };
+    if !PAGES.with(|p| p.borrow().still(tab, page)) {
+        return;
+    }
+    let Some((sound, height)) = decide::mp4_track(&bytes) else {
+        return;
+    };
+    if !STREAMS.with(|s| s.borrow_mut().read_track(tab, url, sound, height)) {
+        return;
+    }
+    let after = STREAMS.with(|s| s.borrow().raw(tab));
+    let item = to_js(&serde_json::json!({ streams_key(tab): after }));
+    if let Err(why) = call("storage.session", "set", &[item]).await {
+        log("debug", &format!("a tab's streams were not kept: {why}"));
+    }
 }
 
 /// A form a page sent (its body, as `background.js` read it): kept a moment
@@ -227,7 +266,10 @@ pub(super) async fn renewed(url: &str) -> String {
 /// with the browser's own session; what it says of its renditions names the
 /// line, and a master playlist's renditions stop being lines of their own.
 /// A failure leaves the line as it was.
-async fn describe_playlist(tab: i64, url: &str) {
+async fn describe_playlist(tab: i64, url: &str, requester: &str) {
+    if !decide::may_reread(url, requester) {
+        return;
+    }
     if !STREAMS.with(|s| s.borrow_mut().wants_description(tab, url)) {
         return;
     }
@@ -248,7 +290,10 @@ async fn describe_playlist(tab: i64, url: &str) {
     }
     // A master playlist says nothing of how long the video plays; one of its renditions does,
     // and the line says it, so two videos of one page are told apart (gaps row 155).
-    if let Some(rendition) = STREAMS.with(|s| s.borrow().rendition_for_length(tab, url)) {
+    if let Some(rendition) = STREAMS
+        .with(|s| s.borrow().rendition_for_length(tab, url))
+        .filter(|rendition| decide::may_reread(rendition, url))
+    {
         match fetch_text(&rendition, decide::PLAYLIST_READ_CAP, 4000.0).await {
             Ok(media) if PAGES.with(|p| p.borrow().still(tab, page)) => {
                 if let Some(seconds) = decide::hls_length(&media) {

@@ -82,7 +82,11 @@ define_class!(
 unsafe fn text_of(text: *mut NSString) -> Option<String> {
     let text = unsafe { text.as_ref() }?;
     let utf8: *const c_char = unsafe { msg_send![text, UTF8String] };
-    (!utf8.is_null()).then(|| unsafe { CStr::from_ptr(utf8) }.to_string_lossy().into_owned())
+    (!utf8.is_null()).then(|| {
+        unsafe { CStr::from_ptr(utf8) }
+            .to_string_lossy()
+            .into_owned()
+    })
 }
 
 /// The link a `GURL` event carries.

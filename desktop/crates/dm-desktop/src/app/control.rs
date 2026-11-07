@@ -211,9 +211,11 @@ impl DmApp {
                     // A site's sign-in, handed over by the browser, is the
                     // row's to send to that server and nobody's to read: not
                     // a script's, and not an AI client's through MCP. Said
-                    // only as whether there is one.
+                    // only as whether there is one. The browser's request
+                    // headers are the same (a bearer token rides in them).
                     if let Some(row) = value.as_object_mut() {
                         row.remove("cookies");
+                        row.remove("headers");
                         row.insert("signed_in".into(), json!(!r.cookies.is_empty()));
                     }
                     value

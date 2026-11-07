@@ -470,6 +470,15 @@ impl Settings {
         read.schedule
             .run_when_done
             .clone_from(&self.schedule.run_when_done);
+        // A queue's own hours run a program too: each keeps this computer's,
+        // and a queue the file adds runs none.
+        for (name, schedule) in &mut read.queue_schedules {
+            schedule.run_when_done = self
+                .queue_schedules
+                .get(name)
+                .map(|mine| mine.run_when_done.clone())
+                .unwrap_or_default();
+        }
         Ok(read.clamped())
     }
 }

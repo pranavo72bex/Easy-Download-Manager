@@ -57,9 +57,23 @@
     while (keptSize > 12 * 1024 * 1024 || bodies.length > 40) keptSize -= bodies.shift().length;
   });
 
+  // The person's own last click or key press, as this script saw it (a page cannot make an event
+  // that is trusted), and whether a magnet was taken for it: one magnet per gesture, so a page that
+  // waits for any click (a cookie banner's) cannot hand dm a list of torrents (security review,
+  // 2026-11-07). The page's user activation alone lasts seconds and is not used up by a message.
+  let gestureAt = -Infinity;
+  let gestureTaken = false;
+  const gesture = (event) => {
+    if (!event.isTrusted) return;
+    gestureAt = performance.now();
+    gestureTaken = false;
+  };
+  for (const kind of ['pointerdown', 'keydown']) window.addEventListener(kind, gesture, true);
+  const GESTURE_FOR_MS = 1500;
+
   // A magnet link the page opened with script while the person's own click is active (document.js
   // passes it on): taken for dm as a clicked magnet link is, or opened as the page meant when dm
-  // cannot take it. Never without the page's user activation, so a page cannot hand dm a torrent alone.
+  // cannot take it. Never without the person's own gesture, so a page cannot hand dm a torrent alone.
   window.addEventListener('message', (event) => {
     const data = event.data;
     if (event.source !== window || data?.source !== 'dm-magnet' || typeof data.url !== 'string') return;
@@ -67,7 +81,11 @@
     const open = () => openMagnet(data.url);
     let active = false;
     try { active = navigator.userActivation?.isActive === true; } catch { active = false; }
-    if (!active || !catchingNow() || privateTab) { open(); return; }
+    const fresh = performance.now() - gestureAt < GESTURE_FOR_MS;
+    // A second magnet for the same gesture goes nowhere: the browser too opens one at a time.
+    if (fresh && gestureTaken) return;
+    if (!active || !fresh || !catchingNow() || privateTab) { open(); return; }
+    gestureTaken = true;
     try {
       ext.runtime.sendMessage({ type: 'dm.magnet', src: data.url, frame: '' })
         .then((answer) => { if (!answer?.ok) open(); })

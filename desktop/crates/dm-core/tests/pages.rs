@@ -73,6 +73,28 @@ async fn a_page_named_as_a_document_is_saved() {
     }
 }
 
+/// A page the browser's panel handed over for its video (media asked for), on a site dm does
+/// not read: refused in words that say why and what to do, not as an expired link (which
+/// would leave the row waiting for a hand-off that never comes) and not as a page to save
+/// (gaps row 155).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_handed_over_for_its_video_is_refused_in_words_not_as_an_expired_link() {
+    let _turn = ONE_AT_A_TIME.lock().await;
+    let addr = site().await;
+    let dir = tempdir();
+    let mut media = options(dir.path());
+    media.media = true;
+    let err = dm_core::download(&dm_core::client(), &format!("http://{addr}/watch"), &media)
+        .await
+        .unwrap_err();
+    assert_eq!(err.to_string(), dm_core::PAGE_NOT_READ);
+    assert!(!err.link_expired(), "{err}");
+    assert!(
+        !err.to_string().contains("web page rather than the file"),
+        "the window would ask to save it as a page: {err}"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_page_named_as_a_document_behind_a_referrer_is_fetched_by_dm() {
     /* A page served only to a request naming its referrer is fetched by

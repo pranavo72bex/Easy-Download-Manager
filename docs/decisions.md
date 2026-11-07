@@ -4386,3 +4386,25 @@ winit's delegate again after adding the method (it relies on AppKit's cache
 being read afresh, which is not documented), and a delegate of dm's own
 (winit 0.30 panics on any other delegate).
 
+## 2026-11-07: Whole MP4 files fetched by ranges are told apart by their first bytes (gaps row 155)
+
+Bilibili's player fetches its picture and its sound as two whole fragmented
+MP4 files (`…-1-30032.m4s`, `…-1-30216.m4s`), each in byte ranges its
+requests' `Range` header asks for, and its server answers both `206
+video/mp4`: the type cannot say which is the sound. Chosen: the extension
+takes such a file (a partial answer, an MP4 type, an address ending `.m4s`,
+`.mp4`, `.m4v` or `.m4a`, its whole length after the slash of
+`Content-Range`, 64 KB at least; only where the older rules drop it) as a
+picture or a sound by its type, and reads its first 64 KB once, with the
+browser's session, for its first track's handler (`vide` or `soun`) and
+height (`decide::mp4_track`). The pair is then one line, as a picture and a
+sound a player fetched apart already were, and the app joins them as before
+(`download_media_pair`). Beside a playlist or manifest these files are not
+lines (they may be its single-file renditions). Ruled out: a site rule for
+Bilibili (its file ids, or its `playurl` answer through the page hook): it
+would work for one site, and reading the file's own header works for any
+player that fetches files this way; guessing by size (the sound is the
+smaller): wrong whenever two pictures are loaded. Cost: one more request per
+such file, of 64 KB at most, refused for a private host the page is not on
+(`may_reread`).
+
