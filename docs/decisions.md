@@ -4408,3 +4408,17 @@ smaller): wrong whenever two pictures are loaded. Cost: one more request per
 such file, of 64 KB at most, refused for a private host the page is not on
 (`may_reread`).
 
+## 2026-11-07: Shared hosts are named in dm, not read from the public suffix list
+
+A waiting row adopts a fresh address of the same "family" of servers (gaps
+row 57), and the family was a host's last two labels, so two customers of
+one shared host (`victim.s3.amazonaws.com`, `evil.s3.amazonaws.com`) were one
+family. Chosen: 30 names of the hosts files are served from (from the
+public suffix list's private part: object stores, CDNs, page and app hosts)
+under which a host is its own family (`queue/family.rs` `SHARED`). Ruled
+out: the whole public suffix list as a crate (a dependency of some size for
+one comparison, and its private part changes weekly); the same host always
+(a site's signed link moves between its own servers, `cdn1.example.com` to
+`dl.example.com`, which is why the family exists). Cost: a shared host not
+named stays as before; the list is added to when one is found.
+

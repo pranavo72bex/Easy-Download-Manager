@@ -161,11 +161,20 @@ impl RequestHeaders {
             n.sort();
             n
         };
-        let itag =
-            |p: &[(String, String)]| p.iter().find(|(n, _)| n == "itag").map(|(_, v)| v.clone());
+        // What says which stream it is, as against how it is signed: YouTube's `itag`, and its
+        // `id` and `mime`, which another video's address on the same edge host does not share
+        // (security review, 2026-11-07: another tab's video with the same itag was a "renewal").
+        let same = |p: &[(String, String)], q: &[(String, String)]| {
+            ["itag", "id", "mime"].iter().all(|name| {
+                let value = |x: &[(String, String)]| {
+                    x.iter().find(|(n, _)| n == name).map(|(_, v)| v.clone())
+                };
+                value(p) == value(q)
+            })
+        };
         let newest = self.kept.iter().rev().map(|(u, _)| u.as_str()).find(|u| {
             let (other_path, other) = split(u);
-            other_path == path && names(&other) == names(&pairs) && itag(&other) == itag(&pairs)
+            other_path == path && names(&other) == names(&pairs) && same(&other, &pairs)
         })?;
         (newest != key(url)).then(|| newest.to_string())
     }
@@ -280,6 +289,21 @@ mod tests {
             kept.renewed("https://c.example/w.mp4?itag=22&sig=old"),
             None
         );
+    }
+
+    /// Another video on the same edge host, with the same itag (another tab's, or an embed's), is
+    /// not a renewal of this one: YouTube's `id` tells them apart.
+    #[test]
+    fn another_videos_address_with_the_same_itag_is_not_a_renewal() {
+        let mut kept = RequestHeaders::default();
+        let at = |id: &str, sig: &str| {
+            format!("https://r1.googlevideo.com/videoplayback?id={id}&itag=22&mime=video%2Fmp4&sig={sig}")
+        };
+        kept.keep(&sent(&at("aaa", "old"), "media", &[("X-A", "1")]));
+        kept.keep(&sent(&at("bbb", "new"), "media", &[("X-A", "1")]));
+        assert_eq!(kept.renewed(&at("aaa", "old")), None);
+        kept.keep(&sent(&at("aaa", "newer"), "media", &[("X-A", "1")]));
+        assert_eq!(kept.renewed(&at("aaa", "old")), Some(at("aaa", "newer")));
     }
 
     #[test]

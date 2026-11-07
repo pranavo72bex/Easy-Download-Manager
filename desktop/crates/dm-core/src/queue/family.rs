@@ -22,6 +22,45 @@ pub(super) fn same_path(a: &str, b: &str) -> bool {
     same_family(a, b) && matches!((path(a), path(b)), (Some(x), Some(y)) if x == y)
 }
 
+/// Names under which each customer of a host has a name of their own (a bucket, a site, an
+/// app), so that two names under one of them are two customers, not one site's servers: from
+/// the private part of the public suffix list, the hosts files are served from. Under these a
+/// host is its own family (security review, 2026-11-07: `victim.s3.amazonaws.com` and
+/// `evil.s3.amazonaws.com` were one family, and a waiting row could take a file from the
+/// second).
+const SHARED: [&str; 30] = [
+    "amazonaws.com",
+    "cloudfront.net",
+    "blob.core.windows.net",
+    "azureedge.net",
+    "azurewebsites.net",
+    "azurefd.net",
+    "github.io",
+    "githubusercontent.com",
+    "gitlab.io",
+    "herokuapp.com",
+    "appspot.com",
+    "firebaseapp.com",
+    "web.app",
+    "netlify.app",
+    "vercel.app",
+    "pages.dev",
+    "workers.dev",
+    "r2.dev",
+    "r2.cloudflarestorage.com",
+    "b-cdn.net",
+    "digitaloceanspaces.com",
+    "backblazeb2.com",
+    "wasabisys.com",
+    "onrender.com",
+    "fly.dev",
+    "ngrok.io",
+    "ngrok-free.app",
+    "glitch.me",
+    "blogspot.com",
+    "sharepoint.com",
+];
+
 fn family(url: &str) -> Option<String> {
     let host = reqwest::Url::parse(url)
         .ok()?
@@ -30,6 +69,12 @@ fn family(url: &str) -> Option<String> {
     let labels: Vec<&str> = host.split('.').collect();
     // An address with no names in it (an IP) is its own family.
     if labels.len() < 3 || host.parse::<std::net::IpAddr>().is_ok() {
+        return Some(host);
+    }
+    if SHARED
+        .iter()
+        .any(|shared| host.ends_with(&format!(".{shared}")))
+    {
         return Some(host);
     }
     // `example.co.uk`: a short second-level label under a two-letter country
@@ -47,6 +92,35 @@ fn family(url: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::same_family;
+
+    #[test]
+    fn two_customers_of_a_shared_host_are_not_one_family() {
+        for (a, b) in [
+            (
+                "https://victim.s3.amazonaws.com/f.zip",
+                "https://evil.s3.amazonaws.com/f.zip",
+            ),
+            (
+                "https://victim.github.io/f.zip",
+                "https://evil.github.io/f.zip",
+            ),
+            (
+                "https://d1.cloudfront.net/f.zip",
+                "https://d2.cloudfront.net/f.zip",
+            ),
+            (
+                "https://a.blob.core.windows.net/f",
+                "https://b.blob.core.windows.net/f",
+            ),
+        ] {
+            assert!(!same_family(a, b), "{a} {b}");
+        }
+        // The very same customer's host is still one family.
+        assert!(same_family(
+            "https://victim.s3.amazonaws.com/f.zip?sig=1",
+            "https://victim.s3.amazonaws.com/f.zip?sig=2"
+        ));
+    }
 
     #[test]
     fn servers_of_one_site_are_a_family_and_other_sites_are_not() {
