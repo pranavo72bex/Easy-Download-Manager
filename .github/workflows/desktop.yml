@@ -95,6 +95,12 @@ jobs:
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci
 
+      # The log is the administrators' alone; the annotations are anyone's.
+      - name: Name the tests that failed
+        if: failure()
+        shell: bash
+        run: python3 ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml || python ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml
+
       - name: Doctests
         run: cargo test --doc --workspace --locked
 

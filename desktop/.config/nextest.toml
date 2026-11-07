@@ -11,3 +11,9 @@ failure-output = "immediate-final"
 # window tests that wait on real downloads met a shared two-core runner's
 # timing now and then, never alone.
 retries = 2
+
+# A report of every test, so a failure is named where anyone can read it: the
+# run's log is open to the repository's administrators only, and its
+# annotations to everyone (`scripts/ci-failed-tests.py`).
+[profile.ci.junit]
+path = "junit.xml"
