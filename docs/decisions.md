@@ -3,6 +3,21 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-07: A 429 to the browser's name moves that server to dm's own
+
+dm sends Internet Explorer's name first, as reference A does (2026-11-01), and moved to its own
+names only for a 403. Wikimedia's media servers answer a browser's name from a program with 429
+and `Retry-After: 600` and serve dm's name at once (measured with each name, with and without a
+`Referer`; BUGLOG BUG-010), now on the first request and now only on the ranges after it. So a
+429 to the browser's name asks once more by dm's own at the first request (`probe.rs`) and, on
+any later request, moves the server to dm's name for the rest of the run (`agents::limited`,
+called from `Error::from_response`, where every refusal passes). Not done: waiting the 429 out
+under the same name (the limit was on the name, so it never lifted; dm sat at 9 MB of 36 for 30
+minutes), trying every fallback name after a 429 (a server that limits everyone would be asked
+three more times at once; it is asked once), and moving a person's own choice (Identify as dm
+only) to another name on a limit. What stays as it was: a server that limits every name is waited
+out with `Retry-After` as the least wait (2026-11-04), one request more than before.
+
 
 ## 2026-10-31: The external video tool removed; videos as reference A gets them
 

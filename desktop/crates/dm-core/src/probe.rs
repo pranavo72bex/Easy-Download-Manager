@@ -123,6 +123,32 @@ pub async fn probe_get(
             }
         }
     }
+    /* A browser's name told "429 Too many requests" at once, where dm's own is
+     * served: Wikimedia's media servers (2026-11-07) gave Internet Explorer's
+     * and Firefox's names `Retry-After: 600` from the first request ("please
+     * contact noc@wikimedia.org to discuss a less disruptive approach") and
+     * dm's name the file, as their policy asks a program to say what it is.
+     * Asked once more by dm's own name, and by its name alone where a site
+     * refuses the full one; a server that limits every name answers 429 to
+     * that too and is waited out as before, one request more than it was. */
+    if !posted
+        && res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+        && crate::agent_for(url) == crate::IE_AGENT
+    {
+        for agent in [crate::USER_AGENT, crate::PLAIN_AGENT] {
+            let again = ask(agent).await?;
+            match again.status() {
+                reqwest::StatusCode::FORBIDDEN => continue,
+                reqwest::StatusCode::TOO_MANY_REQUESTS => break,
+                _ => {
+                    crate::prefer_agent(url, agent);
+                    crate::prefer_agent(again.url().as_str(), agent);
+                    res = again;
+                    break;
+                }
+            }
+        }
+    }
     // Still refused, with a `Referer` dm made up (none was given): asked once
     // more without it. A server that refuses any `Referer` but its own pages
     // (thinkbroadband) served reference A and refused dm on every agent.

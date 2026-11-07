@@ -249,6 +249,35 @@ Deviations from the brief, and why:
   `a_seeder_that_takes_only_encrypted_connections_is_reached` (it runs a
   refused plaintext connection beside the encrypted one; it timed out before).
 
+### BUG-010 — Wikimedia's originals stalled for ever on "Too many requests"
+
+- **Scenario**: `scripts/video-sites-check.py --phases public-url` on Windows,
+  2026-11-07 (test PUB-11a): a 36 MB video original from
+  `upload.wikimedia.org` stood at 9 to 13 MB for 30 minutes, the row saying
+  "Too many requests (retry 7 of 15)". Its 10 MB transcode from the same host
+  came whole.
+- **Root cause**: Wikimedia's media servers answer a browser's name from a
+  program with 429 and `Retry-After: 600` ("please contact noc@wikimedia.org
+  to discuss a less disruptive approach") and serve dm's own name at once
+  (measured: Internet Explorer's and Firefox's names 429, `dm/0.8.7 (+…)` 206,
+  with and without a `Referer`; eight ranges at once by dm's name all 206). dm
+  sends Internet Explorer's name first, as reference A does, and moved to its
+  own only when a server answered 403; a 429 was waited out under the same
+  name. The limit came now on the first request and now only on the ranges
+  after it.
+- **Fix**: a 429 to the browser's name asks once more by dm's own at the
+  first request (`probe.rs`), and on any later request moves that server to
+  dm's name for the rest of the run (`agents::limited`, from
+  `Error::from_response`). A server that limits every name gets one request
+  more than before and is waited out as before; with Identify as dm only on,
+  a limit never moves dm to another name.
+- **Regression test**: `tests/browser_agent_limited.rs`
+  `a_browsers_name_told_too_many_requests_is_asked_again_by_dms_own_once`
+  (four cases: ranges limited in the browser's name, the first request
+  limited, everyone limited, the switch on). Before the fix the first case
+  failed with `Refused { status: 429 }` after 481 s and the second after
+  four tries in the browser's name.
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not

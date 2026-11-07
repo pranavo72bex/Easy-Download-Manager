@@ -167,6 +167,9 @@ impl Error {
     pub async fn from_response(mut res: reqwest::Response) -> Error {
         let status = res.status().as_u16();
         let url = res.url().to_string();
+        if status == 429 {
+            crate::agents::limited(&url);
+        }
         // A refusal's body is either a short explanation or a whole error
         // page, whose sentence comes after its styles; it is read down to
         // that sentence rather than shown as markup.

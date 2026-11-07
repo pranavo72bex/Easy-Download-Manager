@@ -125,3 +125,17 @@ pub fn prefer_agent(url: &str, agent: &'static str) {
         lock(plain_hosts()).insert(host, agent);
     }
 }
+
+/// `url`'s server answered "429 Too many requests" to a request in the
+/// browser's name: from then on it is asked by dm's own. Wikimedia's media
+/// servers (2026-11-07) limit browsers' names from a program, now on the
+/// first request and now only on the ranges after it, and serve dm's name;
+/// held to the browser's, the ranges were refused for as long as dm tried. A
+/// server that limits every name limits dm's too and is waited out as before;
+/// one where the person chose dm's name first (Identify as dm only) is never
+/// moved to another by a limit.
+pub(crate) fn limited(url: &str) {
+    if agent_for(url) == IE_AGENT {
+        prefer_agent(url, USER_AGENT);
+    }
+}
