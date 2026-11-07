@@ -28,6 +28,35 @@ pub(crate) fn staged_path(parts_dir: &Path) -> PathBuf {
     parts_dir.join(STAGED)
 }
 
+/// `file` made sparse on Windows, so it takes its room only as bytes land,
+/// as files on other systems do. A staged file is made as long as the
+/// download first (`ranged::preallocate`); NTFS then wrote zeros over
+/// everything before the first byte a range wrote far into it, so a 4.5 GiB
+/// file's last range waited 95 s on this computer's disk (2026-11-07) and dm
+/// took twice reference A's time (gaps row 158). A file system without sparse
+/// files (FAT) says no, and the file is as it was before.
+#[cfg(windows)]
+pub(crate) fn sparse(file: &impl std::os::windows::io::AsRawHandle) {
+    let mut returned = 0u32;
+    // SAFETY: the handle is `file`'s own and open for the call; FSCTL_SET_SPARSE
+    // with no input buffer sets the flag, and no output is asked for.
+    unsafe {
+        windows_sys::Win32::System::IO::DeviceIoControl(
+            file.as_raw_handle(),
+            windows_sys::Win32::System::Ioctl::FSCTL_SET_SPARSE,
+            std::ptr::null(),
+            0,
+            std::ptr::null_mut(),
+            0,
+            &mut returned,
+            std::ptr::null_mut(),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
 /// The ledger of range `index`: how many of its bytes are on disk, in
 /// decimal. A part file's length used to be this number; in one shared
 /// file, where every range's region exists from the start, it is written

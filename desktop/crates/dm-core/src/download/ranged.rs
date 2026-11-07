@@ -125,6 +125,8 @@ pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
         .truncate(false)
         .open(job.staged())
         .await?;
+    #[cfg(windows)]
+    super::files::sparse(&file);
     if let Some(size) = job.size {
         if file.metadata().await?.len() < size {
             file.set_len(size).await?;
