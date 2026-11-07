@@ -246,6 +246,42 @@ after 120 s. dm's piece plan is not changed to reference A's halving: dm is
 the faster here, and row 65's rule is to change dm only where it is not
 already better.
 
+## The video test plan's cases, side by side (Observed, 2026-11-07, Windows)
+
+Both apps on one Windows 11 computer, one after the other, against the same server
+(`scripts/video-sites-check.py`'s, on 127.0.0.1) and the same public files: reference A
+6.43 by its command line (`/d`, `/p`, `/n`), its windows read before they were closed;
+dm 0.8.7 (debug build, with the 429 fix of BUGLOG BUG-010) by its control port,
+headless. Each case's requests were logged apart for each app. "Requests / ranges / at
+most at once" are the server's count.
+
+| Case | Reference A | dm |
+|---|---|---|
+| 48 MB, ranges, 4 MB/s a connection | whole; 13 / 12 / 8 | whole; 40 / 40 / 8 |
+| 24 MB, no ranges | whole; 3 / 2 / 3 (asked twice with a range first) | whole; 1 / 1 / 1 |
+| Three 302s to the file | whole, the file's own name; 8 / 7 / 2 | whole, the same name; 20 / 20 / 5 |
+| The first three connections cut at 1 MB | whole; 7 / 6 / 4 | whole; 37 / 37 / 5 |
+| 429, 429, 503 with `Retry-After: 2` | no file: a window "Cannot download this file. … HTTP/1.1 429 Too Many Requests", no second try | whole after the waits; then asked by dm's own name |
+| The server gone for 10 s at a quarter | whole | whole |
+| 404 | "The requested file doesn't exist. … HTTP/1.1 404 Not Found" | failed at once: "this link no longer works" (row: "the server answered 404 Not Found for …") |
+| 410 | "Cannot download this file. … HTTP/1.1 410 Gone" | failed at once with the 410 |
+| 401 | asks for a user name and password on the spot ("Type your user name and password … Save this password in … password list"), then "Authorization is required for this site/path. You can set login information for this download …" | failed at once: "the server wants you to sign in. Add the login in Properties › Login, or in Options › Sign-ins" |
+| 403 | "Cannot download this file" | failed at once with the 403 |
+| A host that does not exist | at once: "Error connecting. No such host is known …" | "Server not found (retry N of 15)" for about 170 s, then failed: "the site couldn't be found. Check the address, and that you're online" |
+| 64 TiB announced | refused: "The size of … is 70368744177664 bytes. There is no disk space left on drive 'C' to store downloaded file parts" (its temporary folder's drive) | held at once: "not enough room: the file needs 64.0 TB, and … has 119.0 GB free" (the download folder's drive) |
+| 4.5 GiB, ranges | whole in 91 s; 9 / 8 / 8 | whole in 187 s (debug build); 48 / 48 / 8 |
+| Internet Archive MP4, Wikimedia Commons original, a NASA library MP4, a Test-Videos WebM | each whole and named as the server names it | the same bytes (SHA-256 equal to reference A's) and the same names; the Internet Archive MD5 and Wikimedia SHA-1 match |
+
+What this changes in the record above: reference A **does** retry a cut connection and
+comes back after an outage; the 2026-11-02 runs that showed it stopping closed its
+windows unread. The differences that stand: dm asks for many more, smaller pieces (each
+seam checked again), which is the request rate Wikimedia's limiter answered with 429
+(BUG-010); reference A gives up on a 429 and on a host it cannot find where dm waits and
+tries again; reference A asks for a login on a 401 where dm says where to put one. On
+speed, the 4.5 GiB file is to be timed again with dm's release build. Results:
+`D:\compare\plan-side-full.json` and `plan-side\report.json` (the error cases again with
+each window read and closed).
+
 ## HTTP proxy test (dm only, 2026-11-02)
 
 FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for dm pending (proxy settings not loading from DM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: dm issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.

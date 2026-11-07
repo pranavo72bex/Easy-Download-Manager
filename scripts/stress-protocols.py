@@ -1198,6 +1198,12 @@ OPT_IN = {"realtorrent": p_realtorrent, "proxytls": p_proxytls, "fulldisk": p_fu
 # ----------------------------------------------------------------- main
 
 def main():
+    # Names and answers from hostile servers, printed as UTF-8 rather than the Windows code page.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     args = sys.argv[1:]
     if "--list" in args:
         for k, f in PHASES.items():

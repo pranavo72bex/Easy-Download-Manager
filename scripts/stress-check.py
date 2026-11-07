@@ -42,6 +42,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -50,8 +51,41 @@ MIN_FREE_GB = float(os.environ.get("DM_STRESS_MIN_FREE_GB", "8"))
 MAX_SERVE_GB = float(os.environ.get("DM_STRESS_MAX_SERVE_GB", "3"))     # per phase
 MB = 1024 * 1024
 BLOCK = 65536
+# The computer's own hosts file, which a file:// redirect must never bring into the folder.
+HOSTS = (pathlib.Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "drivers" / "etc" / "hosts"
+         if sys.platform == "win32" else pathlib.Path("/etc/hosts"))
 
 FINDINGS = []
+
+
+def listening(pid):
+    """The TCP sockets `pid` listens on, one per line, as `address:port`."""
+    if sys.platform == "win32":
+        out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True).stdout
+        return "\n".join(f.split()[1] for f in out.splitlines()
+                         if f.split()[-1:] == [str(pid)] and "LISTENING" in f)
+    return subprocess.run(["lsof", "-nP", "-a", "-p", str(pid), "-iTCP", "-sTCP:LISTEN"],
+                          capture_output=True, text=True).stdout
+
+
+def token_readers(path):
+    """Who other than this account (and the system, and administrators) may read `path`: a
+    Unix file's group and others, or a Windows file's other entries in its access list."""
+    if sys.platform == "win32":
+        out = subprocess.run(["icacls", str(path)], capture_output=True, text=True).stdout
+        me = os.environ.get("USERNAME", "").lower()
+        mine = ("nt authority\\system", "builtin\\administrators", "owner rights")
+        others = []
+        for line in out.splitlines():
+            entry = line.replace(str(path), "").strip()
+            if ":" not in entry or entry.lower().startswith("successfully"):
+                continue
+            who = entry.split(":")[0].strip()
+            if who and who.lower() not in mine and not who.lower().endswith("\\" + me):
+                others.append(who)
+        return ", ".join(others)
+    mode = path.stat().st_mode & 0o777
+    return "" if mode & 0o077 == 0 else f"mode {oct(mode)}"
 
 
 def finding(severity, phase, what):
@@ -499,6 +533,20 @@ class DM:
 
 def proc_stats(pid):
     """RSS in MB, CPU percent, open files, threads."""
+    if sys.platform == "win32":
+        # Windows has no ps or lsof: the working set, the seconds of processor time over the
+        # process's life (as a percentage of it), open handles and threads, as memory-check.py
+        # reads them. Without this every reading was zero and the memory checks passed unmeasured.
+        script = (f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; if ($p) {{ "
+                  "'{0} {1} {2} {3}' -f $p.WorkingSet64, "
+                  "[math]::Round(100 * $p.TotalProcessorTime.TotalSeconds / [math]::Max(1, ((Get-Date) - $p.StartTime).TotalSeconds) / [Environment]::ProcessorCount, 1), "
+                  "$p.HandleCount, $p.Threads.Count }")
+        try:
+            out = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True,
+                                 text=True, timeout=30).stdout.split()
+            return float(out[0]) / MB, float(out[1]), int(out[2]), int(out[3])
+        except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+            return 0.0, 0.0, 0, 0
     try:
         out = subprocess.run(["ps", "-o", "rss=,pcpu=", "-p", str(pid)], capture_output=True, text=True).stdout.split()
         rss, cpu = float(out[0]) / 1024, float(out[1])
@@ -929,7 +977,7 @@ def p_hostile(ctx):
     dm = DM(root, {"connections": 4, "concurrency": 8}, name="hostile").start()
     try:
         cases = {
-            "to_file": f"{base}/to?u=file:///etc/hosts",
+            "to_file": f"{base}/to?u={HOSTS.as_uri()}",
             "to_ftp_local": f"{base}/to?u=ftp://127.0.0.1:1/x",
             "bighead": f"{base}/bighead?kb=1024",
             "stall": f"{base}/stall?s=40",
@@ -960,7 +1008,7 @@ def p_hostile(ctx):
         # Whatever a file:// redirect saved is compared with the real file:
         # a link to /etc/hosts that ends as an empty or error page is not
         # the same as one that carries the computer's file.
-        hosts = pathlib.Path("/etc/hosts").read_bytes()
+        hosts = HOSTS.read_bytes()
         for r in rows:
             if "/to?u=file" in r["url"] and r["state"]["kind"] == "completed":
                 p = pathlib.Path(r["path"])
@@ -1005,14 +1053,14 @@ def p_control(ctx):
     try:
         port = int((dm.home / "control.port").read_text())
         # Bound to loopback only?
-        lsof = subprocess.run(["lsof", "-nP", "-a", "-p", str(dm.proc.pid), "-iTCP", "-sTCP:LISTEN"], capture_output=True, text=True).stdout
+        lsof = listening(dm.proc.pid)
         measure("control", f"listening: {lsof.strip().splitlines()[-1] if lsof.strip() else 'none'}")
-        if "*:" in lsof or "0.0.0.0" in lsof:
+        if "*:" in lsof or "0.0.0.0" in lsof or "[::]:" in lsof:
             finding("critical", "control", "the control port listens on every interface")
-        mode = oct((dm.home / "control.token").stat().st_mode & 0o777)
-        check("control", f"token file mode {mode}", mode == "0o600")
-        if mode != "0o600":
-            finding("high", "control", f"control.token is {mode}, readable by other users")
+        readers = token_readers(dm.home / "control.token")
+        check("control", f"control.token readable only by this account ({readers or 'nobody else'})", not readers)
+        if readers:
+            finding("high", "control", f"control.token is readable by {readers}")
         # No token, bad token.
         def raw(lines, timeout=10, read=True):
             s = socket.create_connection(("127.0.0.1", port), timeout=timeout)
@@ -1714,13 +1762,15 @@ def p_details(ctx):
 def p_speedlimit(ctx):
     """A speed limit is kept, and lifting it is felt."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8}, name="limit").start()
+    # A home of its own: `holds` keeps one called "limit", and its finished rows here
+    # read as this file finished at once (a 1024 KB/s limit "let 235517 KB/s through").
+    dm = DM(root, {"connections": 8}, name="speedlimit").start()
     try:
         dm.call("downloads.speed_limit", kb=1024)
         size = 12 * MB
         dm.add([f"{base}/f/limit/{size}/limit.bin"])
         t0 = time.time()
-        wait_for(lambda: any(r["state"]["kind"] == "completed" for r in dm.rows()), 60, every=0.5)
+        wait_for(lambda: any(r["state"]["kind"] == "completed" and r["url"].endswith("/limit.bin") for r in dm.rows()), 60, every=0.5)
         took = time.time() - t0
         rate = size / took / 1024
         measure("speedlimit", f"limit 1024 KB/s: {rate:.0f} KB/s over {took:.1f}s")
@@ -1797,6 +1847,13 @@ def p_leak(ctx):
 # ----------------------------------------------------------------- main
 
 def main():
+    # A hostile server's names (right-to-left marks, other scripts) are printed as they came:
+    # as UTF-8, not the Windows code page, which cannot write them and ended the run there.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     args = sys.argv[1:]
     if "--list" in args:
         for k, f in PHASES.items():
@@ -1823,6 +1880,7 @@ def main():
                 PHASES[name](ctx)
             except Exception as e:  # a phase that breaks is itself a result
                 import traceback
+                traceback.print_exc()
                 traceback.print_exc()
                 finding("high", name, f"the check itself failed: {e!r}")
             print(f"   ({time.time() - t0:.0f}s, {free_gb(tempfile.gettempdir()):.1f} GB free)", flush=True)

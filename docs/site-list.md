@@ -35,15 +35,15 @@ site, the row says which.
 |---|---|---|---|---|---|
 | YouTube | a public video; a Short; a playlist | no | panel (dm's own reader) | run 2026-11-04 (row 142) | whole, every quality but 60 fps lines (row 72d) |
 | Vimeo | a public video | no | panel | run 2026-11-04 (row 142) | whole with sound (row 142) |
-| Dailymotion | a public video | no | panel | not yet | not yet |
-| Twitch | a past broadcast and a clip | no | panel (HLS) | not yet | not yet |
+| Dailymotion | a public video | no | panel | not yet | 2026-11-07, `video-sites-check.py` in Edge on Windows: not judged; the player is a frame of Dailymotion's own that the check lost hold of twice, and the player page alone showed no video to an automated browser. For the run beside reference A |
+| Twitch | a past broadcast and a clip | no | panel (HLS) | not yet | 2026-11-07, `video-sites-check.py` in Edge on Windows, no sign-in: a NASA highlight (HLS) and a NASA clip, each a whole video with sound; a whole past broadcast is hours long and was still arriving when the check stopped waiting |
 | Facebook | a public video post, a reel | maintainer | panel | run 2026-11-04 (row 142); signed in on Windows 2026-11-07 | whole with sound: a NASA video post (26 s, 1280 tall) and the Watch page (222 s); saved as `video.mp4`, the page's title being "(1) Facebook" (row 75) |
 | Instagram | a reel | no | panel | run 2026-11-04 (row 142) | whole; one run in five a sign-in layer hides the button (row 71) |
 | TikTok | a video | no | panel | run 2026-11-04 (row 142) | whole with sound (row 71) |
 | X (Twitter) | a post with a video | no | panel | run 2026-11-04 (row 142) | whole (row 142) |
 | Reddit | a post with a video | maintainer | panel (plain-JavaScript panel: Reddit forbids WebAssembly) | run 2026-11-04 (row 142) | whole with sound (rows 63, 142) |
-| Rumble | a public video | no | panel | not yet | not yet |
-| Bilibili | a public video | no | panel (DASH, picture and sound apart) | not yet | not yet |
+| Rumble | a public video | no | panel | not yet | 2026-11-07: Rumble answered the automated Edge with Cloudflare's "Just a moment…" check; not judged |
+| Bilibili | a public video | no | panel (DASH, picture and sound apart) | not yet | 2026-11-07: **less than it should** (gaps row 155): the panel lists no quality for the page's range-fetched MP4 streams, and the page it hands over fails as an expired link |
 | Metacafe | a video | no | panel | not yet; check the site is still running | not yet |
 | Veoh | a video | no | panel | not yet; check the site is still running | not yet |
 | Break | a video | no | panel | not yet; check the site is still running | not yet |
@@ -139,8 +139,8 @@ says why.
 |---|---|---|---|---|---|
 | Ubuntu ISO mirror | a current ISO (several GB: many connections, pause and resume, a kill and a restart) | no | file, hand-over | not yet | not yet |
 | VLC media player | the Windows installer from the official page (a mirror redirect) | no | hand-over | not yet | not yet |
-| Test-Videos.co.uk | an MP4 and a WebM of each size | no | file, panel | not yet | not yet |
-| NASA Image and Video Library | a video and an original image | no | file, panel | not yet | not yet |
+| Test-Videos.co.uk | an MP4 and a WebM of each size | no | file, panel | not yet | 2026-11-07 (Add URL, Windows): the 360p 10 s MP4 (H.264) and WebM (VP9), each byte-identical to a plain fetch and whole |
+| NASA Image and Video Library | a video and an original image | no | file, panel | not yet | 2026-11-07 (Add URL, Windows): a library video's mobile MP4 (7.6 MB) and its original (221 MB), whole and the size the server gives |
 
 ## Download pages, run by `scripts/handover-check.py` (2026-11-06, Microsoft Edge on macOS)
 

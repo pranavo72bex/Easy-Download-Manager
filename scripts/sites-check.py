@@ -14,9 +14,14 @@ first line and waits for the file to land in dm's folder, then reads the
 file's own structure: is there a picture, is there a sound, how long is it.
 
     python3 scripts/sites-check.py [site ...]        # vimeo facebook facebook-watch tiktok x x2 reddit instagram
+                                                     # dailymotion rumble twitch twitch-clip bilibili peertube
 
 No credentials are used and nobody is signed in: a site that puts a login wall
 in front of its video is reported as that, not worked around.
+
+SITES_URL_<NAME>=<address> (the name in capitals, a dash as an underscore:
+SITES_URL_TWITCH_CLIP) opens that page instead of the site's own or the one its
+listing finds; video-sites-check.py uses it to name the exact page it tested.
 
 A person who wants a signed-in run sets SITES_SIGNIN=facebook (or another site's
 name): the check opens that site in its own visible browser window and waits, up
@@ -51,6 +56,12 @@ FACEBOOK_JS = """(() => { const h = [...document.querySelectorAll('a[href*="/vid
     .map(a => a.href).find(h => /\\/videos\\/(?:[^/?]+\\/)?\\d{6,}|\\/watch\\/\\?v=\\d{6,}/.test(h));
   return h || null; })()"""
 
+# The first video page a listing links to, for the sites of the video test plan
+# (docs/testing.md, "Video sites"): each listing is public and changes, so the page is found
+# on the day rather than named here.
+FIRST_LINK_JS = """(() => { const re = new RegExp(%r, 'i'); const h = [...document.querySelectorAll('a[href]')]
+    .map(a => a.href).find(h => re.test(h)); return h ? h.split('#')[0] : null; })()"""
+
 # Reddit's front page has no password box when nobody is signed in, only a "Log In" button.
 REDDIT_SIGNED_IN = """(() => document.readyState === 'complete' && !document.querySelector('input[type=password]')
   && !location.pathname.startsWith('/login') && !location.pathname.startsWith('/register')
@@ -74,6 +85,24 @@ SITES = {
     # A GIF-style clip: the post's media is a short silent MP4.
     "x": {"url": "https://x.com/NASA/status/1882872996031066248", "silent_ok": True},
     "x2": {"url": "https://x.com/NASA/status/2042756933686337713"},
+    # The player is a frame of Dailymotion's own (geo.dailymotion.com/player/...).
+    "dailymotion": {"listing": "https://www.dailymotion.com/",
+                    "discover": FIRST_LINK_JS % r"^https://www\.dailymotion\.com/video/[a-z0-9]+$",
+                    "frame": "dailymotion.com/player"},
+    "rumble": {"listing": "https://rumble.com/",
+               "discover": FIRST_LINK_JS % r"^https://rumble\.com/v[a-z0-9]+-[^/?]+\.html"},
+    # A highlight (a kept part of a past broadcast, HLS, shorter than the broadcast) and a clip
+    # (one MP4), both of NASA's channel.
+    "twitch": {"listing": "https://www.twitch.tv/nasa/videos?filter=highlights&sort=time",
+               "discover": FIRST_LINK_JS % r"^https://www\.twitch\.tv/videos/\d+"},
+    "twitch-clip": {"listing": "https://www.twitch.tv/nasa/clips?filter=clips&range=all",
+                    "discover": FIRST_LINK_JS % r"/clip/[A-Za-z0-9_-]+"},
+    # DASH, picture and sound apart; what plays without a sign-in depends on the region.
+    "bilibili": {"listing": "https://www.bilibili.com/v/popular/all",
+                 "discover": FIRST_LINK_JS % r"bilibili\.com/video/BV[0-9A-Za-z]+"},
+    # A PeerTube instance (Blender's own), its videos Creative Commons.
+    "peertube": {"listing": "https://video.blender.org/videos/browse?scope=local",
+                 "discover": FIRST_LINK_JS % r"^https://video\.blender\.org/w/[0-9A-Za-z]+$"},
     # Reddit's r/videos, whose posts more often have a sound than r/oddlysatisfying's do.
     "reddit-videos": {"listing": "https://www.reddit.com/r/nextfuckinglevel/top/?t=week", "discover": REDDIT_JS,
                       "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
@@ -240,7 +269,7 @@ def one(base, name, site, engine_dl, worker=None):
     if name in SIGNIN and not wait_for_signin(base, name, site):
         out["result"] = "not signed in within six minutes, so not checked"
         return out
-    url = site.get("url")
+    url = os.environ.get("SITES_URL_" + name.upper().replace("-", "_")) or site.get("url")
     tab = None
     if not url:
         listing = cc.open_tab(base, site["listing"])
@@ -411,8 +440,13 @@ def one(base, name, site, engine_dl, worker=None):
         return out
     said = cc.wait_for(lambda: (panel_of(view) or {}).get("title") == "Sent to dm" and panel_of(view), 20)
     out["sent"] = bool(said)
-    got = cc.wait_for(landed, 240)
+    # SITES_FINISH_WAIT=<seconds>: how long the file has to land (a long stream takes longer).
+    got = cc.wait_for(landed, int(os.environ.get("SITES_FINISH_WAIT", "240")))
     if not got:
+        # What dm's row said by then, so a slow download is told from a failed one.
+        out["dm_rows"] = [{"state": r.get("state"), "progress": r.get("progress"), "stalled": r.get("stalled"),
+                           "url": (r.get("url") or "")[:120]}
+                          for r in cc.queue_rows(engine_dl.parent / "dm-home")[-2:]]
         out["result"] = "the download did not finish into dm's folder"
         return out
     out["file"] = got[0].name
