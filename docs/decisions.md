@@ -4367,3 +4367,22 @@ working set and private bytes and runs about three times the threads, with
 half the handles; the three runs agree to within a megabyte of private bytes.
 What makes up the difference was not measured on Windows (on macOS: the
 window's drawing surfaces, fonts and the runtimes, row 137's old text).
+
+## 2026-11-07: macOS opens links and files with dm through Apple events (gaps row 105)
+
+The first click on a Mac with dm.app installed showed that a `magnet:` link
+or a `.torrent` file reached nothing, with dm closed or running. dm had added
+`application:openURLs:` to winit's application delegate at run time, as
+`dock.rs` adds the Dock's method, once AppKit said the app would finish
+launching; winit's class has no such method, so it was added, and still was
+never called: most likely because AppKit reads which methods its delegate
+answers when the delegate is set, and winit sets it before dm can add
+anything (not proved; the replacement was checked instead). Chosen: the Apple event manager's own
+handlers for `GURL` (a link) and `odoc` (files), on an object of dm's, put in
+at `NSApplicationWillFinishLaunchingNotification`, which Apple names as the
+place for them: after AppKit's defaults (which would replace handlers put in
+earlier) and before the launch's own event is read. Ruled out: setting
+winit's delegate again after adding the method (it relies on AppKit's cache
+being read afresh, which is not documented), and a delegate of dm's own
+(winit 0.30 panics on any other delegate).
+

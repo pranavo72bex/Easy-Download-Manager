@@ -6,26 +6,42 @@
 //! Links and files the system opens with dm, on macOS: a `magnet:` link
 //! clicked in a browser or another program, a `.torrent` file opened from
 //! Finder. The bundle's Info.plist (`macos/Info.plist`) names both; the
-//! system then sends the running app an Apple event, never a command line.
+//! system then sends the running app an Apple event, never a command line:
+//! `GURL` for a link, `odoc` for files.
 //!
-//! AppKit hands those events to the application delegate's
-//! `application:openURLs:`, which winit's delegate does not implement. As
-//! in `dock.rs`, the method is added to winit's delegate class at run time.
-//! It must be there before the app finishes launching, or the link that
-//! started dm is lost, and winit's delegate exists only once eframe has
-//! made its event loop: so the method is added when AppKit says the app
-//! will finish launching, before it reads the launch's own events.
+//! dm takes both events itself, from the Apple event manager. Adding
+//! `application:openURLs:` to winit's delegate (the way `dock.rs` adds the
+//! Dock's method) was tried first and never heard a link (gaps row 105,
+//! 2026-11-07), most likely because AppKit reads which methods its delegate
+//! answers when the delegate is set, and winit sets it before dm adds one. The handlers
+//! are put in when AppKit says the app will finish launching, as Apple
+//! documents: after AppKit's own defaults, which would otherwise replace
+//! them, and before the launch's own events are read, so the link or file
+//! that starts dm is not lost.
 
 use std::ffi::{c_char, CStr};
 use std::sync::OnceLock;
 
 use objc2::rc::Retained;
-use objc2::runtime::{AnyClass, AnyObject, Bool, NSObject, Sel};
+use objc2::runtime::{AnyObject, NSObject};
 use objc2::{class, define_class, msg_send, sel, ClassType, MainThreadMarker};
-use objc2_app_kit::NSApplication;
 use objc2_foundation::NSString;
 
 static OPENED: OnceLock<Box<dyn Fn(Vec<String>) + Send + Sync>> = OnceLock::new();
+
+/// A four-character Apple event code as the number the event manager takes.
+const fn code(text: &[u8; 4]) -> u32 {
+    u32::from_be_bytes(*text)
+}
+
+/// `kInternetEventClass` and `kAEGetURL`: a link opened with dm.
+const GET_URL: u32 = code(b"GURL");
+/// `kCoreEventClass`: the class of `kAEOpenDocuments`.
+const CORE: u32 = code(b"aevt");
+/// `kAEOpenDocuments`: files opened with dm.
+const OPEN_DOCUMENTS: u32 = code(b"odoc");
+/// `keyDirectObject`: the event's link, or its list of files.
+const DIRECT_OBJECT: u32 = code(b"----");
 
 define_class!(
     // SAFETY: NSObject has no subclassing requirements, and the class has
@@ -37,73 +53,117 @@ define_class!(
     impl Observer {
         #[unsafe(method(willFinishLaunching:))]
         fn will_finish_launching(&self, _note: *mut AnyObject) {
-            add_open_urls();
+            handle_events(self);
+        }
+
+        /// `GURL`: the event's direct object is the link, as text.
+        #[unsafe(method(getUrl:withReplyEvent:))]
+        fn get_url(&self, event: *mut AnyObject, _reply: *mut AnyObject) {
+            // SAFETY: `event` is the NSAppleEventDescriptor the event manager
+            // passes its handler; each message is one that class answers.
+            let words = unsafe { event.as_ref().map(|e| link_of(e)).unwrap_or_default() };
+            hand(words);
+        }
+
+        /// `odoc`: the event's direct object is a list of file addresses.
+        #[unsafe(method(openDocuments:withReplyEvent:))]
+        fn open_documents(&self, event: *mut AnyObject, _reply: *mut AnyObject) {
+            // SAFETY: as in `get_url`.
+            let words = unsafe { event.as_ref().map(|e| files_of(e)).unwrap_or_default() };
+            hand(words);
         }
     }
 );
 
-/// `- (void)application:(NSApplication *)app openURLs:(NSArray<NSURL *> *)urls`
-unsafe extern "C-unwind" fn open_urls(
-    _this: *mut AnyObject,
-    _cmd: Sel,
-    _app: *mut AnyObject,
-    urls: *mut AnyObject,
-) {
-    let Some(urls) = (unsafe { urls.as_ref() }) else {
-        return;
-    };
-    let mut words = Vec::new();
-    // SAFETY: `urls` is the NSArray of NSURL AppKit passes this method;
-    // each message is one NSArray and NSURL answer, and the C string an
-    // NSString gives is read before the string is let go.
+/// The text of an NSString, copied out before the string is let go.
+///
+/// # Safety
+/// `text` is null or an NSString.
+unsafe fn text_of(text: *mut NSString) -> Option<String> {
+    let text = unsafe { text.as_ref() }?;
+    let utf8: *const c_char = unsafe { msg_send![text, UTF8String] };
+    (!utf8.is_null()).then(|| unsafe { CStr::from_ptr(utf8) }.to_string_lossy().into_owned())
+}
+
+/// The link a `GURL` event carries.
+///
+/// # Safety
+/// `event` is an NSAppleEventDescriptor.
+unsafe fn link_of(event: &AnyObject) -> Vec<String> {
     unsafe {
-        let count: usize = msg_send![urls, count];
-        for i in 0..count {
-            let url: *mut AnyObject = msg_send![urls, objectAtIndex: i];
-            let Some(url) = url.as_ref() else { continue };
-            let is_file: Bool = msg_send![url, isFileURL];
-            // A file as its path, which the command line's reading takes;
-            // a link as written.
-            let text: *mut NSString = if is_file.as_bool() {
-                msg_send![url, path]
-            } else {
-                msg_send![url, absoluteString]
-            };
-            let Some(text) = text.as_ref() else { continue };
-            let utf8: *const c_char = msg_send![text, UTF8String];
-            if !utf8.is_null() {
-                words.push(CStr::from_ptr(utf8).to_string_lossy().into_owned());
-            }
+        let direct: *mut AnyObject = msg_send![event, paramDescriptorForKeyword: DIRECT_OBJECT];
+        let Some(direct) = direct.as_ref() else {
+            return Vec::new();
+        };
+        let text: *mut NSString = msg_send![direct, stringValue];
+        text_of(text).into_iter().collect()
+    }
+}
+
+/// The paths of the files an `odoc` event carries: one descriptor, or a
+/// list of them (counted from 1), each read as a file's address.
+///
+/// # Safety
+/// `event` is an NSAppleEventDescriptor.
+unsafe fn files_of(event: &AnyObject) -> Vec<String> {
+    unsafe {
+        let direct: *mut AnyObject = msg_send![event, paramDescriptorForKeyword: DIRECT_OBJECT];
+        let Some(direct) = direct.as_ref() else {
+            return Vec::new();
+        };
+        let path_of = |item: &AnyObject| -> Option<String> {
+            let url: *mut AnyObject = msg_send![item, fileURLValue];
+            let url = url.as_ref()?;
+            let path: *mut NSString = msg_send![url, path];
+            text_of(path)
+        };
+        let count: isize = msg_send![direct, numberOfItems];
+        if count <= 0 {
+            return path_of(direct).into_iter().collect();
         }
+        (1..=count)
+            .filter_map(|i| {
+                let item: *mut AnyObject = msg_send![direct, descriptorAtIndex: i];
+                item.as_ref().and_then(path_of)
+            })
+            .collect()
+    }
+}
+
+fn hand(words: Vec<String>) {
+    if words.is_empty() {
+        return;
     }
     if let Some(opened) = OPENED.get() {
         opened(words);
     }
 }
 
-fn add_open_urls() {
-    let Some(mtm) = MainThreadMarker::new() else {
-        return;
-    };
-    let app = NSApplication::sharedApplication(mtm);
-    let Some(delegate) = app.delegate() else {
-        return;
-    };
-    let object: &AnyObject = delegate.as_ref();
-    // SAFETY: `object` is the application's live delegate, borrowed from `app`
-    // for this call; `object_getClass` only reads its class pointer.
-    let class: *const AnyClass = unsafe { objc2::ffi::object_getClass(object) };
-    let selector = Sel::register(c"application:openURLs:");
-    // SAFETY: `open_urls` has exactly the signature of the Objective-C method
-    // (self, _cmd, application, urls, returning void), "v@:@@" is its type
-    // encoding, and `class` is a class, not an instance.
+/// Makes `observer` the event manager's handler for links and files.
+fn handle_events(observer: &Observer) {
+    // SAFETY: plain Foundation messages to the shared event manager; the
+    // observer lives for the life of the process (`listen` keeps it), and
+    // each selector takes the event and its reply, as the manager sends.
     unsafe {
-        let imp: objc2::runtime::Imp = std::mem::transmute(
-            open_urls
-                as unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject, *mut AnyObject),
-        );
-        // Fails, harmlessly, only if the class already answers it.
-        objc2::ffi::class_addMethod(class as *mut AnyClass, selector, imp, c"v@:@@".as_ptr());
+        let manager: *mut AnyObject =
+            msg_send![class!(NSAppleEventManager), sharedAppleEventManager];
+        let Some(manager) = manager.as_ref() else {
+            return;
+        };
+        let _: () = msg_send![
+            manager,
+            setEventHandler: observer,
+            andSelector: sel!(getUrl:withReplyEvent:),
+            forEventClass: GET_URL,
+            andEventID: GET_URL
+        ];
+        let _: () = msg_send![
+            manager,
+            setEventHandler: observer,
+            andSelector: sel!(openDocuments:withReplyEvent:),
+            forEventClass: CORE,
+            andEventID: OPEN_DOCUMENTS
+        ];
     }
 }
 
@@ -114,8 +174,9 @@ pub fn listen(opened: impl Fn(Vec<String>) + Send + Sync + 'static) {
         return;
     }
     // SAFETY: plain Foundation messages. The observer is kept for the life
-    // of the process (the notification centre does not keep it), and its
-    // selector takes the one NSNotification argument the centre sends.
+    // of the process (neither the notification centre nor the event manager
+    // keeps it), and its selector takes the one NSNotification argument the
+    // centre sends.
     unsafe {
         let observer: Retained<Observer> = msg_send![Observer::class(), new];
         let center: *mut AnyObject = msg_send![class!(NSNotificationCenter), defaultCenter];
