@@ -1,7 +1,7 @@
 [package]
 name = "dm-core"
 version = "0.8.7"
-license = "MIT"
+license = "GPL-3.0-or-later"
 edition = "2021"
 
 [dependencies]
@@ -44,11 +44,12 @@ md-5 = "0.11.0"
 # client challenge must be unpredictable.
 md4 = "0.11"
 getrandom = "0.4"
-hex = "0.4.3"
 quick-xml = "0.42.0"
 url = "2.5.8"
 aes = "0.9.3"
 cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
+# Seals the file of a row's secrets under a key the operating system's store keeps (`secretstore.rs`).
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
 # BitTorrent, the one kind of download the browser side cannot do at all: an
 # extension has no sockets. rustls to match reqwest above, so the binary
 # carries one TLS stack rather than two.
@@ -62,9 +63,15 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 # ratio (`decode.rs`), as a decompression bomb needs.
 flate2 = "1"
 brotli-decompressor = "5"
+symphonia-codec-aac = "0.6.1"
+symphonia-core = "0.6.1"
 
-# `killpg`, to end yt-dlp's process group without running a `kill` program
-# that a minimal `PATH` may not find. Already in the tree through tokio.
+# Calls into the C library that std does not wrap. Already in the tree through tokio.
+# A GIF of a video's part on Linux, from its AV1 stream (gaps row 54): pure
+# Rust, without its assembly (no assembler needed to build). BSD-2-Clause.
+[target.'cfg(target_os = "linux")'.dependencies]
+rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
@@ -72,9 +79,26 @@ libc = "0.2"
 # start. Already in the tree through tokio and others; only its
 # file-system module is named.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }
+
+# Media Foundation, the system's own decoders, for a video's sound saved as MP3
+# and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers
+# for. The same version dm-desktop uses, so already in the tree.
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Media_MediaFoundation",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+] }
 
 [dev-dependencies]
+# The info hash of a torrent another client made (tests/mse_interop.rs).
+sha1 = "0.11"
+# The AV1 reader is tested on every system, though only Linux builds it in;
+# libc for the C library's EAGAIN, rav1d's "not now", on Windows too.
+rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+libc = "0.2"
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.
 proptest = "1"
@@ -85,12 +109,12 @@ rand = "0.8"
 # downloaded parts behind on every run.
 tempfile = "3"
 sha2 = "0.11.0"
-hex = "0.4.3"
 memory-stats = "1.2.0"
 aes = "0.9.3"
 cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
 # A certificate for the rtsps:// bridge's test server.
 rcgen = "0.14"
+symphonia-bundle-mp3 = "0.6.1"
 
 # Used as `md5` (checksums and Digest sign-ins), which the name `md-5` hides
 # from cargo-machete.

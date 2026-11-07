@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// A state's own word, as the wire spells it.
@@ -12,6 +17,8 @@ pub fn kind(state: &State) -> &'static str {
     }
 }
 
+/// A category's name as the settings and the control protocol write it.
+#[must_use]
 pub fn category_word(c: Category) -> String {
     serde_json::to_value(c)
         .ok()
@@ -62,7 +69,7 @@ pub fn name_of(row: &Entry) -> String {
 /// first, a file renamed to "report (1).pdf" stayed under Other.
 /// One named "get.php" is still known by what the server sent.
 pub fn kind_of(row: &Entry) -> Option<Category> {
-    dm_core::category::by_name(&name_of(row)).or(row.category)
+    dm_core::by_name(&name_of(row)).or(row.category)
 }
 
 /// Why a row paused by itself, in plain words: a full disk names its
@@ -120,6 +127,22 @@ thread_local! {
     static LIMIT_HOLDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+thread_local! {
+    /// Each running torrent's swarm, as the last refresh found it.
+    static SWARMS: std::cell::RefCell<HashMap<Id, dm_core::Swarm>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// What the engine now says of each running torrent's swarm.
+pub fn set_swarms(now: HashMap<Id, dm_core::Swarm>) {
+    SWARMS.with(|s| *s.borrow_mut() = now);
+}
+
+/// A running torrent's swarm, as the last refresh found it.
+pub(crate) fn swarm_of(id: Id) -> Option<dm_core::Swarm> {
+    SWARMS.with(|s| s.borrow().get(&id).copied())
+}
+
 /// What holds waiting rows now, for the statuses drawn next.
 pub fn set_limit_holds(now: bool) {
     LIMIT_HOLDS.with(|l| l.set(now));
@@ -170,6 +193,12 @@ pub fn folder_of(row: &Entry) -> String {
             .unwrap_or_default();
     }
     row.save_dir.clone().unwrap_or_default()
+}
+
+/// Whether Windows may be asking about dm and the network (`dm_shell::firewall`); never in the
+/// unit tests, which say a row's words without a firewall.
+fn firewall_may_ask() -> bool {
+    !cfg!(test) && dm_shell::firewall::may_ask()
 }
 
 /// What the Status column says, in English whatever the window's language: what the control
@@ -235,6 +264,12 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
             }
             // A torrent with nothing yet is looking for peers, for as long
             // as that takes; "Starting…" read as stuck.
+            // The first torrent makes Windows ask, in a window of its own that
+            // can sit behind others, whether dm may use the network: said
+            // until Windows has an answer for dm (gaps row 101).
+            None if dm_core::is_torrent(&row.url) && firewall_may_ask() => {
+                words("Finding peers… Windows may be asking whether dm may use the network: allow it in that window").into()
+            }
             None if dm_core::is_torrent(&row.url) => words("Finding peers…").into(),
             // The first video waits while dm fetches what it needs for
             // videos, half a minute or so: said, so it does not read as
@@ -295,6 +330,11 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
                 _ => words("Complete").into(),
             }
         }
+        // A finished torrent kept shared says so, and how much it has sent (gaps row 147).
+        State::Completed if !row.path.is_empty() && dm_core::sharing(std::path::Path::new(&row.path)).is_some() => {
+            let sent = dm_core::sharing(std::path::Path::new(&row.path)).map_or(0, |s| s.sent);
+            crate::i18n::fill(words("Complete · sharing, {} sent"), &[&format::bytes(sent)])
+        }
         State::Completed => words("Complete").into(),
         // A server that wants a sign-in says where to give one: the plain
         // sentences for 401 and 403 do (`format::REASONS`); anything else
@@ -316,14 +356,13 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
         {
             crate::i18n::fill(words("Error: the disk is full in {}"), &[&going_into(row)])
         }
-        // A video page yt-dlp failed on, with nothing more specific known: the
-        // same sentence for every cause told a person nothing to act on or to
-        // report, so yt-dlp's own words follow it.
+        // A video page that failed, with nothing more specific known: the
+        // reader's own words follow the sentence.
         State::Failed(reason)
             if format::reason(reason) == Some(format::VIDEO_NOT_GOT)
-                && format::ytdlp_said(reason).is_some() =>
+                && format::video_said(reason).is_some() =>
         {
-            let said = format::ytdlp_said(reason).unwrap_or_default();
+            let said = format::video_said(reason).unwrap_or_default();
             crate::i18n::fill(
                 words("Error: {}"),
                 &[&format!("{} ({said})", words(format::VIDEO_NOT_GOT))],
@@ -434,15 +473,22 @@ pub(super) mod status_tests {
             queue: String::new(),
             save_dir: None,
             save_name: None,
+            accept_page: false,
             validator: None,
             quality: None,
             parts_dir: String::new(),
             began_in: String::new(),
             cookies: String::new(),
             cookies_once: false,
+            headers: Vec::new(),
             replaces: None,
             speed_limit: 0,
             stalled: String::new(),
+            fresh_link: false,
+            title_hint: None,
+            torrent_files: Vec::new(),
+            post: None,
+            posted: false,
             sound: None,
             span: None,
             shape: None,
@@ -460,6 +506,11 @@ pub(super) mod status_tests {
             to: "07:00".into(),
             days: vec![1],
             wake: false,
+            when_done: String::new(),
+            retries: 0,
+            run_when_done: String::new(),
+            once_at: None,
+            force: false,
         };
         // Monday 00:30: later today. Monday 08:00: next Monday.
         assert_eq!(opens_after(&schedule, 1, 30), Some((0, 60)));

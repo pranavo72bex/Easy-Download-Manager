@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The engine against a real server.
 //!
 //! Bytes are compared, not statuses: a download manager that reports success
@@ -107,20 +112,17 @@ async fn handler(State(s): State<Server>, headers: HeaderMap) -> Response {
             .unwrap();
     }
 
-    let range = headers
+    let range_str = headers
         .get("range")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("bytes="))
-        .map(|v| {
-            let mut parts = v.splitn(2, '-');
-            let a: usize = parts.next().unwrap_or("0").parse().unwrap_or(0);
-            let b = parts
-                .next()
-                .unwrap_or("")
-                .parse::<usize>()
-                .unwrap_or(total - 1);
-            (a, b.min(total - 1))
-        });
+        .and_then(|v| v.split_once('-'));
+    let open_ended = range_str.map(|(_, b)| b.is_empty()).unwrap_or(false);
+    let range = range_str.map(|(a, b)| {
+        let a: usize = a.parse().unwrap_or(0);
+        let b: usize = b.parse().unwrap_or(total - 1).min(total - 1);
+        (a, b)
+    });
 
     // No range asked for, or a server that does not do them: the whole body.
     let Some((a, b)) = range.filter(|_| s.mode != Mode::NoRanges) else {
@@ -131,7 +133,9 @@ async fn handler(State(s): State<Server>, headers: HeaderMap) -> Response {
             .unwrap();
     };
 
-    s.asked.lock().unwrap().push((a, b));
+    if !open_ended {
+        s.asked.lock().unwrap().push((a, b));
+    }
 
     // Only the bytes differ between the modes, so only the bytes are chosen
     // here — the response around them is built once.
@@ -250,8 +254,8 @@ async fn a_download_resumes_from_what_is_already_staged() {
     // A previous run that got the first range and stopped, under the plan
     // it wrote down when it started.
     std::fs::create_dir_all(&opts.parts_dir).unwrap();
-    let planned = dm_core::plan::plan(Some(body.len() as u64), 8, true);
-    dm_core::plan::record(
+    let planned = dm_core::plan(Some(body.len() as u64), 8, true);
+    dm_core::record_plan(
         &opts.parts_dir,
         Some(body.len() as u64),
         true,
@@ -286,8 +290,8 @@ async fn a_download_resumes_from_what_is_already_staged() {
 /// A previous run's plan and staged parts, as it left them at a power cut.
 fn staged(opts: &dm_core::Options, body: &[u8], parts: &[(usize, Vec<u8>)]) {
     std::fs::create_dir_all(&opts.parts_dir).unwrap();
-    let planned = dm_core::plan::plan(Some(body.len() as u64), 8, true);
-    dm_core::plan::record(
+    let planned = dm_core::plan(Some(body.len() as u64), 8, true);
+    dm_core::record_plan(
         &opts.parts_dir,
         Some(body.len() as u64),
         true,
@@ -459,8 +463,8 @@ async fn a_changed_connection_setting_does_not_corrupt_a_resumed_download() {
     let mut opts = options(dir);
 
     std::fs::create_dir_all(&opts.parts_dir).unwrap();
-    let planned = dm_core::plan::plan(Some(body.len() as u64), 8, true);
-    dm_core::plan::record(
+    let planned = dm_core::plan(Some(body.len() as u64), 8, true);
+    dm_core::record_plan(
         &opts.parts_dir,
         Some(body.len() as u64),
         true,
@@ -493,12 +497,14 @@ async fn a_changed_connection_setting_does_not_corrupt_a_resumed_download() {
     let asked = asked.lock().unwrap().clone();
     for segment in planned.iter().skip(2) {
         assert!(
-            asked.iter().any(|&(a, _)| a as u64 + 1 == segment.start),
+            asked.iter().any(|&(a, _)| a as u64 + 64 == segment.start),
             "the resume abandoned the recorded plan: {} never asked for in {asked:?}",
             segment.start
         );
     }
-    // Only each staged part's last 64 KiB, asked for again to compare.
+    // Only each staged part's last 64 KiB, asked for again to compare, and
+    // the few kilobytes either side of a seam that the second look at the
+    // seams fetches once the file is whole (`assemble`: 4 KiB at most).
     let staged_end = planned[1].end as usize;
     let tails: Vec<usize> = planned[..2]
         .iter()
@@ -507,7 +513,7 @@ async fn a_changed_connection_setting_does_not_corrupt_a_resumed_download() {
     assert!(
         !asked
             .iter()
-            .any(|&(a, b)| b > a && a < staged_end && !tails.contains(&a)),
+            .any(|&(a, b)| b > a && b - a >= 8192 && a + 64 <= staged_end && !tails.contains(&a)),
         "a staged part was fetched again: {asked:?}"
     );
     assert_eq!(
@@ -635,7 +641,10 @@ async fn progress_is_reported_while_the_file_arrives() {
             match update {
                 dm_core::Update::Progress(p) => seen.push(p),
                 dm_core::Update::Named { name, .. } => names.push(name),
-                dm_core::Update::Validator(_) | dm_core::Update::Retrying { .. } => {}
+                dm_core::Update::Validator(_)
+                | dm_core::Update::Retrying { .. }
+                | dm_core::Update::Swarm(_)
+                | dm_core::Update::Files(_) => {}
             }
         }
         (seen, names)
@@ -832,12 +841,11 @@ async fn serve_stalled() -> (SocketAddr, Arc<AtomicUsize>) {
             let hits = Arc::clone(&counted);
             async move {
                 hits.fetch_add(1, Ordering::SeqCst);
-                // The probe asks for one byte and gets it; every range after
-                // it gets headers and then silence.
-                if headers
+                let is_probe = headers
                     .get("range")
-                    .is_some_and(|r| r.to_str().unwrap_or("") == "bytes=0-0")
-                {
+                    .and_then(|r| r.to_str().ok())
+                    .is_some_and(|r| r == "bytes=0-0" || r == "bytes=0-");
+                if is_probe {
                     return Response::builder()
                         .status(StatusCode::PARTIAL_CONTENT)
                         .header("content-range", "bytes 0-0/8388608")
@@ -1367,7 +1375,7 @@ async fn a_small_file_from_a_slow_server_is_fetched_on_helping_connections() {
 /// nothing, so none is ever opened.
 #[tokio::test]
 async fn a_small_file_from_a_fast_server_gets_no_helping_connection() {
-    let body = Arc::new(vec![5u8; 3 * MB / 2]);
+    let body = Arc::new(vec![5u8; 48 * 1024]);
     let (addr, ports) = serve_counting(body.clone(), None).await;
     let dir = tempdir();
     let opts = dm_core::Options {
@@ -1419,7 +1427,7 @@ async fn a_pause_while_helpers_are_still_waiting_is_honoured() {
 /// helping connection would only share it out again: none is opened.
 #[tokio::test]
 async fn a_download_under_a_speed_limit_gets_no_helping_connection() {
-    let body = Arc::new(vec![4u8; 3 * MB / 2]);
+    let body = Arc::new(vec![4u8; 48 * 1024]);
     let (addr, ports) = serve_counting(body.clone(), Some(MB)).await;
     let dir = tempdir();
     let opts = dm_core::Options {
@@ -1501,12 +1509,13 @@ fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 
 /// A redirect to another host gets the page's origin alone as `Referer`,
 /// not the page (its path and query are the first host's business), and
-/// no sign-in: the first host sees both, as before.
+/// no sign-in and none of the browser's headers: the first host sees them, as before.
 #[tokio::test]
 async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_login_not_at_all() {
     use axum::{routing::get, Router};
-    // Which host, the Referer it saw, whether it saw a login.
-    type Seen = Arc<std::sync::Mutex<Vec<(String, Option<String>, bool)>>>;
+    // Which host, the Referer it saw, whether it saw a login, whether it saw
+    // the browser's own token header.
+    type Seen = Arc<std::sync::Mutex<Vec<(String, Option<String>, bool, bool)>>>;
     let seen: Seen = Default::default();
     let record = {
         let seen = seen.clone();
@@ -1518,6 +1527,7 @@ async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_l
                     .and_then(|v| v.to_str().ok())
                     .map(str::to_string),
                 headers.contains_key(axum::http::header::AUTHORIZATION),
+                headers.contains_key("x-api-key"),
             ));
         }
     };
@@ -1555,6 +1565,11 @@ async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_l
     let url = common::with_login(&format!("http://{first_addr}/go.bin"), "me", "pw");
     let opts = dm_core::Options {
         referrer: Some("http://pages.example/private/page?token=1".to_string()),
+        sign_in: dm_core::cookies::SignIn::with_headers(
+            &url,
+            "",
+            &[("X-Api-Key".to_string(), "first-hosts-key".to_string())],
+        ),
         ..options(dir.path())
     };
     let done = download(&client(), &url, &opts)
@@ -1566,14 +1581,19 @@ async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_l
     let firsts: Vec<_> = seen.iter().filter(|s| s.0 == "first").collect();
     let seconds: Vec<_> = seen.iter().filter(|s| s.0 == "second").collect();
     assert!(!firsts.is_empty() && !seconds.is_empty(), "{seen:?}");
-    for (_, referer, signed) in &firsts {
+    for (_, referer, signed, keyed) in &firsts {
+        assert!(keyed, "the first host should see its own header");
         assert_eq!(
             referer.as_deref(),
             Some("http://pages.example/private/page?token=1")
         );
         assert!(signed, "the first host should see the login");
     }
-    for (_, referer, signed) in &seconds {
+    for (_, referer, signed, keyed) in &seconds {
+        assert!(
+            !keyed,
+            "the browser's header for the first host crossed to the other"
+        );
         assert_eq!(
             referer.as_deref(),
             Some("http://pages.example/"),
@@ -1699,4 +1719,207 @@ async fn a_compressed_body_that_unpacks_to_far_more_than_it_sent_is_stopped() {
         .await
         .expect("a compressed page of text was refused");
     assert_eq!(std::fs::read(&done.path).unwrap(), plain);
+}
+
+/// A download with no page of its own is asked for as from its own folder,
+/// `http://host/files/` for `http://host/files/a.bin?x`, as reference A does;
+/// a page that was given is used as it was.
+#[tokio::test]
+async fn a_download_with_no_page_names_its_own_folder_as_the_referer() {
+    let seen: Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+    let log = seen.clone();
+    let app = axum::Router::new().fallback(get(move |headers: HeaderMap| {
+        let log = log.clone();
+        async move {
+            log.lock().unwrap().push(
+                headers
+                    .get(axum::http::header::REFERER)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("(none)")
+                    .to_string(),
+            );
+            Response::builder()
+                .header(axum::http::header::CONTENT_LENGTH, "4")
+                .body(Body::from("data"))
+                .unwrap()
+        }
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempdir();
+    download(
+        &client(),
+        &format!("http://{addr}/files/deep/a.bin?token=1"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("download");
+    let opts = dm_core::Options {
+        referrer: Some("https://example.com/page".to_string()),
+        ..options(dir.path())
+    };
+    download(&client(), &format!("http://{addr}/files/b.bin"), &opts)
+        .await
+        .expect("download with a page");
+    let seen = seen.lock().unwrap();
+    assert!(
+        seen.iter()
+            .all(|r| r == &format!("http://{addr}/files/deep/") || r == "https://example.com/page"),
+        "{seen:?}"
+    );
+    assert!(
+        seen.contains(&format!("http://{addr}/files/deep/")),
+        "{seen:?}"
+    );
+    assert!(
+        seen.contains(&"https://example.com/page".to_string()),
+        "{seen:?}"
+    );
+}
+
+// G95: small files must split across several connections even when each piece
+// is well under the old 1 MiB minimum.
+
+#[tokio::test]
+#[ignore = "gaps row 95: small-file pieces wait for the maintainer's word (they break contract row B36)"]
+async fn a_hundred_kb_file_uses_more_than_one_connection() {
+    // 100 KB / MIN_SEGMENT (32 KiB) = 3 pieces; the plan caps at min(4, 3) = 3.
+    let body = bytes(100 * 1024);
+    let (addr, _hits) = serve(Mode::Honest, body.clone()).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("download");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        body,
+        "bytes differ for 100 KB file"
+    );
+    assert!(
+        done.connections > 1,
+        "100 KB file used only {} connection(s); expected > 1",
+        done.connections
+    );
+}
+
+#[tokio::test]
+#[ignore = "gaps row 95: small-file pieces wait for the maintainer's word (they break contract row B36)"]
+async fn a_256_kb_file_uses_all_four_connections() {
+    // 256 KB / 32 KiB = 8 pieces; plan caps at min(4, 8) = 4.
+    let body = bytes(256 * 1024);
+    let (addr, _hits) = serve(Mode::Honest, body.clone()).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("download");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        body,
+        "bytes differ for 256 KB file"
+    );
+    assert_eq!(
+        done.connections, 4,
+        "256 KB file used {} connection(s); expected 4",
+        done.connections
+    );
+}
+
+#[tokio::test]
+#[ignore = "gaps row 95: small-file pieces wait for the maintainer's word (they break contract row B36)"]
+async fn a_one_mb_file_uses_eight_connections() {
+    // 1 MiB / 32 KiB = 32 pieces; plan caps at min(8, 32) = 8.
+    let body = bytes(MB);
+    let (addr, _hits) = serve(Mode::Honest, body.clone()).await;
+    let dir = tempdir();
+    let done = fetch(addr, dir.path()).await.expect("download");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        body,
+        "bytes differ for 1 MiB file"
+    );
+    assert_eq!(
+        done.connections, 8,
+        "1 MiB file used {} connection(s); expected 8",
+        done.connections
+    );
+}
+
+/// A file a server gives only as the answer to a form: dm sends the same
+/// form again, once, with its body and type, and the file is whole; asked
+/// for with a GET, the server gives nothing.
+#[tokio::test]
+async fn a_forms_answer_is_fetched_by_sending_the_form_again() {
+    use axum::response::IntoResponse;
+    let body = vec![7u8; 300 * 1024];
+    let served = body.clone();
+    let posts = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&posts);
+    let app = axum::Router::new().route(
+        "/export",
+        axum::routing::post(
+            move |headers: axum::http::HeaderMap, sent: axum::body::Bytes| {
+                let served = served.clone();
+                let counted = Arc::clone(&counted);
+                async move {
+                    counted.fetch_add(1, Ordering::SeqCst);
+                    let typed = headers
+                        .get("content-type")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or_default()
+                        .to_string();
+                    if &sent[..] != b"report=7&format=csv"
+                        || typed != "application/x-www-form-urlencoded"
+                    {
+                        return (axum::http::StatusCode::BAD_REQUEST, Vec::new()).into_response();
+                    }
+                    (
+                        [(
+                            axum::http::header::CONTENT_DISPOSITION,
+                            "attachment; filename=\"report.csv\"",
+                        )],
+                        served,
+                    )
+                        .into_response()
+                }
+            },
+        )
+        .get(|| async { axum::http::StatusCode::METHOD_NOT_ALLOWED }),
+    );
+    let addr = common::serve(app).await;
+    let url = format!("http://{addr}/export");
+    let dir = tempdir();
+    let mut posting = options(dir.path());
+    posting.sign_in = dm_core::cookies::SignIn::posting(
+        None,
+        dm_core::cookies::Posted {
+            url: url.clone(),
+            body: b"report=7&format=csv".to_vec(),
+            content_type: "application/x-www-form-urlencoded".into(),
+        },
+    );
+    let done = dm_core::download(&client(), &url, &posting)
+        .await
+        .expect("the form's answer");
+    assert_eq!(std::fs::read(&done.path).unwrap(), body);
+    assert!(done.path.ends_with("report.csv"), "{:?}", done.path);
+    assert_eq!(
+        posts.load(Ordering::SeqCst),
+        1,
+        "the form was sent more than once"
+    );
+
+    // Without the form, the same address gives nothing.
+    let dir = tempdir();
+    let plain = options(dir.path());
+    assert!(dm_core::download(&client(), &url, &plain).await.is_err());
 }

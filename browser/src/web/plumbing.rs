@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The browser's extension APIs reached by name, and the small helpers around them.
 
 use super::*;
@@ -94,6 +99,99 @@ pub(super) async fn sleep(ms: f64) {
         let _ = call_on(&global, "setTimeout", &[resolve.into(), ms.into()]);
     });
     let _ = JsFuture::from(promise).await;
+}
+
+/// A text the worker fetches with the browser's own session (the host's
+/// cookies, by the host permission): at most `cap` bytes and `ms`
+/// milliseconds. The body is read as it arrives and cut at the cap, never
+/// whole; `Err` says why there is no text.
+pub(super) async fn fetch_text(url: &str, cap: usize, ms: f64) -> Result<String, String> {
+    fetch_bytes(url, cap, ms, false)
+        .await
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// The first `cap` bytes of a file, asked for by range with the browser's own session, as
+/// [`fetch_text`] fetches; a server that answers the whole file is read as far as `cap`.
+pub(super) async fn fetch_start(url: &str, cap: usize, ms: f64) -> Result<Vec<u8>, String> {
+    fetch_bytes(url, cap, ms, true).await
+}
+
+/// What [`fetch_text`] and [`fetch_start`] share: `start` asks for the first `cap` bytes by
+/// range and keeps what came as far as `cap`, where a playlist longer than `cap` is refused.
+async fn fetch_bytes(url: &str, cap: usize, ms: f64, start: bool) -> Result<Vec<u8>, String> {
+    let global: JsValue = js_sys::global().into();
+    let controller = Reflect::get(&global, &"AbortController".into())
+        .ok()
+        .and_then(|c| c.dyn_into::<Function>().ok())
+        .and_then(|ctor| Reflect::construct(&ctor, &Array::new()).ok());
+    let init = if start {
+        to_js(&serde_json::json!({
+            "credentials": "include",
+            "cache": "no-store",
+            "headers": { "Range": format!("bytes=0-{}", cap.saturating_sub(1)) },
+        }))
+    } else {
+        to_js(&serde_json::json!({ "credentials": "include", "cache": "no-store" }))
+    };
+    if let Some(signal) = controller.as_ref().map(|c| field(c, "signal")) {
+        if signal.is_object() {
+            let _ = Reflect::set(&init, &"signal".into(), &signal);
+        }
+    }
+    let fetcher = global.clone();
+    let work = async move {
+        let promise = call_on(&fetcher, "fetch", &[url.into(), init])?;
+        let promise = promise
+            .dyn_into::<Promise>()
+            .map_err(|_| "the browser's fetch gave no promise".to_string())?;
+        let response = JsFuture::from(promise).await.map_err(|e| say(&e))?;
+        if field(&response, "ok").as_bool() != Some(true) {
+            return Err(format!(
+                "the server answered {}",
+                field(&response, "status").as_f64().unwrap_or(0.0)
+            ));
+        }
+        let headers = field(&response, "headers");
+        let stated = call_on(&headers, "get", &["content-length".into()])
+            .ok()
+            .and_then(|v| v.as_string())
+            .and_then(|v| v.parse::<usize>().ok());
+        if !start && stated.is_some_and(|len| len > cap) {
+            return Err("longer than a playlist".into());
+        }
+        let reader = call_on(&field(&response, "body"), "getReader", &[])?;
+        let mut bytes: Vec<u8> = Vec::new();
+        loop {
+            let read = call_on(&reader, "read", &[])?
+                .dyn_into::<Promise>()
+                .map_err(|_| "the body gave no promise".to_string())?;
+            let chunk = JsFuture::from(read).await.map_err(|e| say(&e))?;
+            if field(&chunk, "done").as_bool() == Some(true) {
+                break;
+            }
+            let part = js_sys::Uint8Array::new(&field(&chunk, "value")).to_vec();
+            if bytes.len() + part.len() > cap {
+                let _ = call_on(&reader, "cancel", &[]);
+                if start {
+                    bytes.extend_from_slice(&part[..cap - bytes.len()]);
+                    break;
+                }
+                return Err("longer than a playlist".into());
+            }
+            bytes.extend_from_slice(&part);
+        }
+        Ok(bytes)
+    };
+    match select(Box::pin(work), Box::pin(sleep(ms))).await {
+        Either::Left((done, _)) => done,
+        Either::Right(_) => {
+            if let Some(controller) = &controller {
+                let _ = call_on(controller, "abort", &[]);
+            }
+            Err("timed out".into())
+        }
+    }
 }
 
 pub(super) fn add_listener(event: &JsValue, listener: &JsValue) -> Result<(), String> {

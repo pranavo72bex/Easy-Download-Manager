@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// The least time between two writes of the queue file.
@@ -44,14 +49,22 @@ impl Queue {
     /// destroyed every queue on first launch, and the parts those rows
     /// pointed at were orphaned for good. It is moved aside and said.
     pub(super) async fn restore(&self, path: &std::path::Path) -> Result<(), String> {
-        let Ok(text) = std::fs::read_to_string(path) else {
-            return Ok(());
+        // Only a file that is not there is no queue: one that is there and
+        // cannot be read, or is not text, is kept aside as a bad one is.
+        let read = match std::fs::read(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            read => read.map_err(|e| e.to_string()),
         };
         let secrets = self.read_secrets(path);
-        let entries = match serde_json::from_str::<Vec<Entry>>(&text) {
+        let parsed = read.and_then(|text| {
+            serde_json::from_slice::<Vec<Entry>>(&text)
+                .map(|entries| (text, entries))
+                .map_err(|e| e.to_string())
+        });
+        let entries = match parsed {
             // With what changed since, where the journal was written over
             // this very file (`journal`).
-            Ok(entries) => super::journal::replayed(path, text.as_bytes(), entries),
+            Ok((text, entries)) => super::journal::replayed(path, &text, entries),
             Err(e) => {
                 let aside = path.with_extension("json.unreadable");
                 return match std::fs::rename(path, &aside) {
@@ -116,6 +129,7 @@ impl Queue {
                     task: None,
                     outside_schedule: false,
                     retrying: None,
+                    swarm: None,
                     own_limit,
                 },
             );
@@ -255,21 +269,59 @@ impl Queue {
                 "the queue could not be written ({e}); changes since will not survive a restart"
             ));
         }
+        if let Some(why) = crate::secretstore::take_note() {
+            self.note(why);
+        }
         self.save_quota(path);
     }
 
     /// The secrets saved beside the queue file, by row.
     fn read_secrets(&self, queue_file: &std::path::Path) -> HashMap<Id, Secret> {
         let kept = secrets_file(queue_file);
-        let Ok(text) = std::fs::read_to_string(&kept) else {
+        let Ok(bytes) = std::fs::read(&kept) else {
             return HashMap::new();
         };
+        // Sealed under a key the operating system's store keeps, or in clear as ever.
+        let (text, in_clear) = match crate::secretstore::opened(&bytes) {
+            crate::secretstore::Opened::Plain => {
+                (String::from_utf8_lossy(&bytes).into_owned(), true)
+            }
+            crate::secretstore::Opened::Opened(plain) => {
+                (String::from_utf8_lossy(&plain).into_owned(), false)
+            }
+            crate::secretstore::Opened::Failed(why) => {
+                self.note(format!(
+                    "the saved logins and cookies could not be opened ({why}): the downloads \
+                     that had them will ask for them again{}",
+                    kept_aside(&kept)
+                ));
+                return HashMap::new();
+            }
+        };
         match serde_json::from_str::<Vec<Secret>>(&text) {
-            Ok(secrets) => secrets.into_iter().map(|s| (s.id, s)).collect(),
+            Ok(secrets) => {
+                // A file written in clear moves into the store on its first read where there
+                // is one: written again, it is sealed.
+                if in_clear && crate::secretstore::system().is_some() {
+                    let mut listed = secrets.clone();
+                    listed.sort_by_key(|s| s.id);
+                    if let Err(e) = super::journal::write_secrets(queue_file, &listed) {
+                        self.note(format!(
+                            "the saved logins and cookies could not be moved into the operating \
+                             system's store ({e}); they stay in their file"
+                        ));
+                    }
+                    if let Some(why) = crate::secretstore::take_note() {
+                        self.note(why);
+                    }
+                }
+                secrets.into_iter().map(|s| (s.id, s)).collect()
+            }
             Err(e) => {
                 self.note(format!(
                     "the saved logins and cookies could not be read ({e}): the downloads \
-                     that had them will ask for them again"
+                     that had them will ask for them again{}",
+                    kept_aside(&kept)
                 ));
                 HashMap::new()
             }
@@ -366,6 +418,8 @@ pub(super) struct Secret {
     password: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     cookies: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    headers: Vec<(String, String)>,
 }
 
 impl Secret {
@@ -378,6 +432,7 @@ impl Secret {
                 let mut secret = Secret {
                     id: entry.id,
                     cookies: std::mem::take(&mut entry.cookies),
+                    headers: std::mem::take(&mut entry.headers),
                     ..Secret::default()
                 };
                 if let Ok(mut url) = url::Url::parse(&entry.url) {
@@ -391,7 +446,8 @@ impl Secret {
                 }
                 let any = !secret.username.is_empty()
                     || secret.password.is_some()
-                    || !secret.cookies.is_empty();
+                    || !secret.cookies.is_empty()
+                    || !secret.headers.is_empty();
                 any.then_some(secret)
             })
             .collect()
@@ -400,7 +456,10 @@ impl Secret {
     /// Puts this row's secrets back where they were.
     fn given_back(&self, entry: &mut Entry) {
         if !self.cookies.is_empty() {
-            entry.cookies = self.cookies.clone();
+            entry.cookies.clone_from(&self.cookies);
+        }
+        if !self.headers.is_empty() {
+            entry.headers.clone_from(&self.headers);
         }
         if !self.username.is_empty() || self.password.is_some() {
             if let Ok(mut url) = url::Url::parse(&entry.url) {
@@ -413,6 +472,18 @@ impl Secret {
 }
 
 /// Where the secrets of the queue at `queue_file` are kept.
+/// A file of secrets that could not be opened or read, moved aside so the next save (which
+/// writes only what it has, and removes the file when that is nothing) does not delete it: a
+/// store that was locked for a moment, or not yet running at login, must not cost every row's
+/// sign-in for good. Said as the end of the note.
+fn kept_aside(kept: &std::path::Path) -> String {
+    let aside = kept.with_extension("json.unopened");
+    match std::fs::rename(kept, &aside) {
+        Ok(()) => format!(" (the file was kept as {})", aside.display()),
+        Err(e) => format!(" (it could not be moved aside: {e})"),
+    }
+}
+
 pub(super) fn secrets_file(queue_file: &std::path::Path) -> PathBuf {
     queue_file.with_file_name("secrets.json")
 }

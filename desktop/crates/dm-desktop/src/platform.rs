@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// The desktop's own services.
@@ -119,6 +124,12 @@ impl Platform for Desktop {
     fn alert(&self) {
         if !dm_desktop::quiet::quiet_now() {
             dm_desktop::power::alert();
+        }
+    }
+
+    fn play_file(&self, path: &str) {
+        if !dm_desktop::quiet::quiet_now() && !dm_desktop::power::play_file(path) {
+            dm_desktop::power::chime();
         }
     }
 

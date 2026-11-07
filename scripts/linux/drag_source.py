@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """A window titled "drag me" that a real X11 drag starts from, carrying the
 file given on the command line as a text/uri-list, as a file manager does."""
 import pathlib

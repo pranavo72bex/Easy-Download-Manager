@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Joins MP4 (or WebM) files' tracks into one, as dm does with a video's
 //! picture and sound: `cargo run -p dm-core --example join -- out.mp4
 //! video.mp4 audio.m4a`, or `out.webm` with WebM inputs.

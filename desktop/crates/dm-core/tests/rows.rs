@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the File and Downloads menus do to a row, beyond pause and resume:
 //! "Add for later" into a named queue, a folder and name chosen before the
 //! start, "Update download link", "Redownload", the order rows wait in,
@@ -240,8 +245,8 @@ async fn each_connection_is_read_from_its_part_on_disk() {
 
     let parts = dir.path().join("parts").join(id.to_string());
     std::fs::create_dir_all(&parts).unwrap();
-    let plan = dm_core::plan::plan(Some(4 * 1024 * 1024), 4, true);
-    dm_core::plan::record(&parts, Some(4 * 1024 * 1024), true, None, &plan).unwrap();
+    let plan = dm_core::plan(Some(4 * 1024 * 1024), 4, true);
+    dm_core::record_plan(&parts, Some(4 * 1024 * 1024), true, None, &plan).unwrap();
     std::fs::write(parts.join("part-0000"), vec![0u8; 1024 * 1024]).unwrap();
     std::fs::write(parts.join("part-0002"), vec![0u8; 10]).unwrap();
 

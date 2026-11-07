@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
@@ -32,9 +37,12 @@ impl DmApp {
         self.rows_gen += 1;
         self.place_rows();
         set_retrying(self.backend.retrying());
+        set_swarms(self.backend.swarms());
         crate::table::set_superseded(&self.rows);
         set_limit_holds(self.backend.queue.allowance_spent().is_some());
         self.saved_sizes();
+        self.watch_asks();
+        self.apply_pending_renames();
         self.refreshed = Some(Instant::now());
         let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
         self.selected.retain(|id| ids.contains(id));
@@ -93,11 +101,18 @@ impl DmApp {
             ),
         }
         if self.applied.sound_on_complete && !finished.is_empty() {
-            self.backend.platform.chime();
+            match self.sound_file("complete") {
+                Some(path) => self.backend.platform.play_file(&path),
+                None => self.backend.platform.chime(),
+            }
         }
         if self.applied.sound_on_failure && !failed.is_empty() {
-            self.backend.platform.alert();
+            match self.sound_file("failed") {
+                Some(path) => self.backend.platform.play_file(&path),
+                None => self.backend.platform.alert(),
+            }
         }
+        self.schedule_hooks();
         self.when_queue_dry();
         for id in finished {
             /* Over, so its progress window is: left open it said "Complete"
@@ -239,9 +254,22 @@ impl DmApp {
     /// and its parts stay for Retry whatever the computer does next. But a
     /// stretch that ended with nothing finished or failed (a person pressed
     /// Stop all) is not "done": the choice stays armed for the next one.
+    /// The sound file chosen for `event`, if one was.
+    pub(super) fn sound_file(&self, event: &str) -> Option<String> {
+        self.applied
+            .sounds
+            .get(event)
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+    }
+
     pub(super) fn when_queue_dry(&mut self) {
         if !self.dry.look(&self.rows, &self.last_state) {
             return;
+        }
+        // A queue that has run dry has finished: its own sound, only where the person chose a file.
+        if let Some(path) = self.sound_file("queue_done") {
+            self.backend.platform.play_file(&path);
         }
         use crate::power::WhenDone;
         match std::mem::take(&mut self.when_done) {
@@ -314,7 +342,22 @@ impl DmApp {
                     referrer: request.referrer.clone(),
                     ..Default::default()
                 };
-                if let Err(e) = self.add(&request.links, with) {
+                // Each link's words on the page as its description, as the
+                // dialog does by default.
+                let items = request
+                    .links
+                    .iter()
+                    .map(|url| {
+                        let own = dm_core::AddOptions {
+                            description: request.texts.get(url).cloned().unwrap_or_default(),
+                            // The name its `download` attribute gives.
+                            save_name: request.names.get(url).cloned(),
+                            ..with.clone()
+                        };
+                        (url.clone(), own)
+                    })
+                    .collect();
+                if let Err(e) = self.add_items(items, &HashMap::new()) {
                     self.said = e.into();
                 }
             }
@@ -325,7 +368,13 @@ impl DmApp {
         // chooses "Download again". Only with a window to ask in.
         if request.caught && !self.headless {
             if let Some(id) = crate::dialogs::worth_keeping(self, &request.url) {
-                self.dialogs.duplicate = Some((request.url.clone(), id));
+                // Answered at once where the person ticked "Remember my choice".
+                match crate::dialogs::Dup::from_word(&self.applied.duplicate_choice) {
+                    Some(how) => {
+                        crate::dialogs::answer_duplicate(self, request.url.clone(), id, how)
+                    }
+                    None => self.dialogs.duplicate = Some((request.url.clone(), id)),
+                }
                 self.taken_from_browser(&request.url);
                 return;
             }
@@ -567,6 +616,13 @@ impl DmApp {
             (false, _) if self.clipboard.on => CLIPBOARD_REFRESH,
             (false, _) => IDLE_REFRESH,
         };
+        // A finished torrent being shared says how much it has sent, each second it is
+        // seen (gaps row 147); hidden, no one reads it.
+        let wake = if !self.hidden && dm_core::sharing_any() {
+            wake.min(REFRESH.max(Duration::from_secs(1)))
+        } else {
+            wake
+        };
         // A watched folder is read every few seconds, hidden or not.
         let wake = if self.applied.watch_folder.trim().is_empty() {
             wake
@@ -620,8 +676,35 @@ impl DmApp {
         // The command run when a download finishes is a person's to set, as
         // a settings file imported never sets it.
         if self.by_script() && wanted.on_complete != self.applied.on_complete {
-            wanted.on_complete = self.applied.on_complete.clone();
+            wanted.on_complete.clone_from(&self.applied.on_complete);
             self.said = "The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again".to_string().into();
+        }
+        if self.by_script() && wanted.schedule.run_when_done != self.applied.schedule.run_when_done
+        {
+            wanted
+                .schedule
+                .run_when_done
+                .clone_from(&self.applied.schedule.run_when_done);
+            self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
+        }
+        // A queue's own hours run a program as the shared ones do.
+        if self.by_script() {
+            let mut kept = false;
+            for (name, schedule) in &mut wanted.queue_schedules {
+                let mine = self
+                    .applied
+                    .queue_schedules
+                    .get(name)
+                    .map(|s| s.run_when_done.clone())
+                    .unwrap_or_default();
+                if schedule.run_when_done != mine {
+                    schedule.run_when_done = mine;
+                    kept = true;
+                }
+            }
+            if kept {
+                self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
+            }
         }
         let watch_changed = wanted.watch_clipboard != self.applied.watch_clipboard;
         match self.backend.set_settings(wanted) {
@@ -684,7 +767,11 @@ impl DmApp {
             // Its own file alone: one moved away or since written by another
             // row is not this row's to delete.
             let present = !row.path.is_empty() && !crate::table::gone(&row);
-            match present.then(|| self.backend.platform.trash(&row.path)) {
+            // A finished torrent still shared lets go of its file first (gaps row 147).
+            match present.then(|| {
+                dm_core::stop_sharing(std::path::Path::new(&row.path));
+                self.backend.platform.trash(&row.path)
+            }) {
                 Some(Err(e)) => {
                     failed.push(format!("{}: {e}", row.path));
                     self.backend.set_delete_after(row.id, None);
@@ -886,7 +973,7 @@ impl DmApp {
 
     /// Adds downloads, as "Start now" and "Add for later" do.
     pub fn add(&mut self, urls: &[String], with: dm_core::AddOptions) -> Result<usize, String> {
-        self.add_sized(urls, with, &HashMap::new())
+        self.add_sized(urls, &with, &HashMap::new())
     }
 
     /// The same, with the sizes a dialog already learned for some of the
@@ -894,14 +981,26 @@ impl DmApp {
     pub fn add_sized(
         &mut self,
         urls: &[String],
-        with: dm_core::AddOptions,
+        with: &dm_core::AddOptions,
+        sizes: &HashMap<String, u64>,
+    ) -> Result<usize, String> {
+        let items = urls.iter().map(|u| (u.clone(), with.clone())).collect();
+        self.add_items(items, sizes)
+    }
+
+    /// Adds downloads, each with options of its own (a name, a description,
+    /// a sign-in), in one batch.
+    pub fn add_items(
+        &mut self,
+        items: Vec<(String, dm_core::AddOptions)>,
         sizes: &HashMap<String, u64>,
     ) -> Result<usize, String> {
         let mut added = 0;
         let mut last_error = None;
         self.last_added.clear();
-        let items = urls.iter().map(|u| (u.clone(), with.clone())).collect();
-        for (url, outcome) in urls.iter().zip(self.backend.add_each(items)) {
+        let count = items.len();
+        let asked: Vec<(String, bool)> = items.iter().map(|(u, w)| (u.clone(), w.later)).collect();
+        for ((url, later), outcome) in asked.iter().zip(self.backend.add_each(items)) {
             match outcome {
                 Ok(id) => {
                     added += 1;
@@ -910,7 +1009,7 @@ impl DmApp {
                     if let Some(size) = sizes.get(url) {
                         self.sizes_told.insert(id, *size);
                     }
-                    if !with.later && self.applied.show_progress && urls.len() == 1 {
+                    if !later && self.applied.show_progress && count == 1 {
                         self.dialogs.progress.insert(id);
                     }
                 }
@@ -918,7 +1017,7 @@ impl DmApp {
             }
         }
         self.refresh();
-        let failed = urls.len().saturating_sub(added);
+        let failed = count.saturating_sub(added);
         match (added, last_error) {
             (0, Some(e)) => Err(e),
             (_, Some(e)) => {
@@ -934,4 +1033,169 @@ impl DmApp {
     }
 
     /* ---------------------------------------------------------- drawing */
+}
+
+/// A question a row raised, waiting for the dialogs to be free.
+pub(crate) enum Ask {
+    /// The server sent another name than the address's.
+    Name(crate::dialogs::NameAsk),
+    /// A web page answered for a file.
+    Page(Id),
+    /// A server said the file is not there.
+    NotFound(Id),
+}
+
+impl DmApp {
+    /// Looks at the rows as just read for what reference A asks about
+    /// (maintainer, 2026-11-01): a name the server sent that is not the
+    /// address's, a web page where a file was asked for, a 404. Only what is
+    /// new since the last read is asked about, and the first read only
+    /// notes what is there: rows of an earlier run are not asked about.
+    pub(super) fn watch_asks(&mut self) {
+        let first = !self.asks_primed;
+        self.asks_primed = true;
+        let mut seen = std::mem::take(&mut self.ask_seen);
+        // Several rows new at once are a batch (Download all links), which
+        // is not asked about names one by one.
+        let fresh = self
+            .rows
+            .iter()
+            .filter(|r| !seen.contains_key(&r.id))
+            .count();
+        for row in &self.rows {
+            let failed = match &row.state {
+                State::Failed(why) => Some(why.as_str()),
+                _ => None,
+            };
+            let before = seen.insert(row.id, (row.filename.clone(), failed.is_some()));
+            if first {
+                continue;
+            }
+            let was_unnamed = before.as_ref().is_none_or(|(name, _)| name.is_empty());
+            let chosen = row
+                .save_name
+                .as_deref()
+                .is_some_and(|name| !name.trim().is_empty());
+            // A download the browser handed over comes with the name the browser
+            // gives it (and has a page it came from): not asked about. Nor one a
+            // person has said yes to saving as an HTML page, which is named so.
+            let typed_in = row.referrer.is_empty() && !row.accept_page;
+            if was_unnamed && !row.filename.is_empty() && !chosen && typed_in && fresh < 2 {
+                let address_name = crate::format::provisional(&row.url);
+                if row.filename != address_name
+                    && without_copy_number(&row.filename) != address_name
+                {
+                    self.asks.push_back(Ask::Name(crate::dialogs::NameAsk {
+                        id: row.id,
+                        address_name,
+                        server_name: row.filename.clone(),
+                    }));
+                }
+            }
+            let newly_failed = before.as_ref().is_none_or(|(_, was)| !*was);
+            if let (true, Some(why)) = (newly_failed, failed) {
+                if why.contains("answered with a web page rather than the file") && !row.accept_page
+                {
+                    self.asks.push_back(Ask::Page(row.id));
+                } else if why.contains("answered 404") {
+                    self.asks.push_back(Ask::NotFound(row.id));
+                }
+            }
+        }
+        let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
+        seen.retain(|id, _| ids.contains(id));
+        self.ask_seen = seen;
+        self.promote_asks();
+    }
+
+    /// Opens the next waiting question, when no other is being asked: one at
+    /// a time, in the order they came, and none for a row that is gone.
+    pub(crate) fn promote_asks(&mut self) {
+        if self.dialogs.asking() {
+            return;
+        }
+        while let Some(ask) = self.asks.pop_front() {
+            match ask {
+                Ask::Name(n) if self.row(n.id).is_some() => {
+                    self.dialogs.name_ask = Some(n);
+                    return;
+                }
+                Ask::Page(id) if self.row(id).is_some() => {
+                    self.dialogs.page_ask = Some(id);
+                    return;
+                }
+                Ask::NotFound(id) if self.row(id).is_some() => {
+                    self.dialogs.not_found = Some(id);
+                    return;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// A person said no to the server's name: the file is given the
+    /// address's, at once if it is finished, else as it finishes.
+    pub(crate) fn use_address_name(&mut self, id: Id, name: &str) {
+        match self.row(id).map(|r| r.state.clone()) {
+            Some(State::Completed) => {
+                let _ = self.backend.rename(id, name);
+            }
+            Some(State::Failed(_) | State::Cancelled) | None => {}
+            Some(_) => {
+                self.pending_renames.insert(id, name.to_string());
+            }
+        }
+    }
+
+    /// Renames what finished since a person said no to the server's name.
+    pub(super) fn apply_pending_renames(&mut self) {
+        let ids: Vec<Id> = self.pending_renames.keys().copied().collect();
+        for id in ids {
+            match self.row(id).map(|r| r.state.clone()) {
+                Some(State::Completed) => {
+                    if let Some(name) = self.pending_renames.remove(&id) {
+                        let _ = self.backend.rename(id, &name);
+                    }
+                }
+                Some(State::Failed(_) | State::Cancelled) | None => {
+                    self.pending_renames.remove(&id);
+                }
+                Some(_) => {}
+            }
+        }
+    }
+}
+
+/// `name` without the " (2)" dm puts before the extension to keep two copies
+/// of one file apart: that number is dm's, not something the server sent.
+fn without_copy_number(name: &str) -> String {
+    let (stem, ext) = match name.rfind('.') {
+        Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
+        _ => (name, ""),
+    };
+    if let Some(open) = stem.rfind(" (") {
+        if let Some(digits) = stem[open + 2..].strip_suffix(')') {
+            if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+                return format!("{}{}", &stem[..open], ext);
+            }
+        }
+    }
+    name.to_string()
+}
+
+#[cfg(test)]
+mod copy_number_tests {
+    use super::without_copy_number;
+
+    #[test]
+    fn the_number_dm_adds_to_a_second_copy_is_not_the_servers() {
+        assert_eq!(without_copy_number("again (2).bin"), "again.bin");
+        assert_eq!(without_copy_number("again (12)"), "again");
+        assert_eq!(
+            without_copy_number("Report (final).pdf"),
+            "Report (final).pdf"
+        );
+        assert_eq!(without_copy_number("a.b (1).tar.gz"), "a.b (1).tar.gz");
+        assert_eq!(without_copy_number("plain.bin"), "plain.bin");
+    }
 }

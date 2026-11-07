@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// Concatenates part files into one, freeing each as it is consumed.
@@ -88,26 +93,111 @@ pub(super) fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64,
     Ok(out.get_ref().metadata()?.len())
 }
 
-/// No overlap byte fetched for a range (one fetched is 0–255).
-pub(super) const NO_OVERLAP: u16 = u16::MAX;
+/// How much of each side of a seam is fetched a second time to be compared.
+const SEAM_WINDOW: u64 = 2048;
 
-/// The byte at `at` in a file, if it has one there.
-pub(super) async fn byte_at(path: &Path, at: u64) -> Option<u8> {
-    let mut file = fs::File::open(path).await.ok()?;
-    if file.metadata().await.ok()?.len() <= at {
+/// How many seams are looked at, spread along the file: a request each, so
+/// a file cut in two hundred pieces is not asked two hundred more questions.
+const SEAMS_CHECKED: usize = 8;
+
+/// Whether the bytes either side of some seams, fetched again, are the ones
+/// on disk. A request that fails or is not answered as a range proves
+/// nothing and is let pass: only bytes that differ are a finding.
+async fn seams_agree(
+    client: &reqwest::Client,
+    job: &Job,
+    segments: &[Segment],
+    order: &[usize],
+) -> bool {
+    let pairs = order.len().saturating_sub(1);
+    if pairs == 0 {
+        return true;
+    }
+    let checks = pairs.min(SEAMS_CHECKED);
+    for k in 0..checks {
+        let at = k * pairs / checks;
+        let (previous, index) = (order[at], order[at + 1]);
+        let (before, after) = (&segments[previous], &segments[index]);
+        if before.done == 0 || after.done == 0 {
+            continue;
+        }
+        let seam = after.start;
+        let low = seam - before.done.min(SEAM_WINDOW);
+        let high = seam + after.done.min(SEAM_WINDOW) - 1;
+        let Some(there) = span_again(client, job, index, low, high).await else {
+            continue;
+        };
+        let Some(here) = span_on_disk(&job.staged(), low, high - low + 1).await else {
+            continue;
+        };
+        if there != here {
+            return false;
+        }
+    }
+    true
+}
+
+/// `low..=high` of the file fetched afresh from the source of range `index`,
+/// exactly as a range is asked for: `None` unless it comes back as that
+/// range, whole.
+async fn span_again(
+    client: &reqwest::Client,
+    job: &Job,
+    index: usize,
+    low: u64,
+    high: u64,
+) -> Option<Vec<u8>> {
+    let source = job.source(index);
+    let mut request = get(
+        client,
+        &source.url,
+        job.referrer.as_deref(),
+        job.sign_in.as_ref(),
+    );
+    request = job.headers.onto(
+        request,
+        crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
+        job.referrer.is_some(),
+    );
+    request = request.header(reqwest::header::RANGE, format!("bytes={low}-{high}"));
+    if let Some(validator) = source.validator.as_ref().filter(|v| !v.starts_with("W/")) {
+        request = request.header(reqwest::header::IF_RANGE, validator);
+    }
+    let res = or_stop(
+        &job.control,
+        crate::auth::send(client, request, &source.url),
+    )
+    .await
+    .ok()?;
+    if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
         return None;
     }
+    let wanted = high - low + 1;
+    if res.content_length().is_some_and(|n| n != wanted) {
+        return None;
+    }
+    let bytes = tokio::time::timeout(std::time::Duration::from_secs(15), res.bytes())
+        .await
+        .ok()?
+        .ok()?;
+    (bytes.len() as u64 == wanted).then(|| bytes.to_vec())
+}
+
+/// `length` bytes of the staged file from `at`.
+async fn span_on_disk(path: &Path, at: u64, length: u64) -> Option<Vec<u8>> {
+    let mut file = fs::File::open(path).await.ok()?;
     file.seek(std::io::SeekFrom::Start(at)).await.ok()?;
-    let mut byte = [0u8; 1];
-    tokio::io::AsyncReadExt::read_exact(&mut file, &mut byte)
+    let mut bytes = vec![0u8; usize::try_from(length).ok()?];
+    tokio::io::AsyncReadExt::read_exact(&mut file, &mut bytes)
         .await
         .ok()?;
-    Some(byte[0])
+    Some(bytes)
 }
 
 /// Checks the ranges against each other and places the staged file as the
 /// finished one.
 pub(super) async fn assemble(
+    client: &reqwest::Client,
     job: &Job,
     info: &Probe,
     options: &Options,
@@ -125,34 +215,48 @@ pub(super) async fn assemble(
         }
     }
 
-    // Each overlap byte against the last byte of the range before it. A
-    // mismatch is a server that sent bytes from the wrong place under the
+    // Each overlap slice against the matching bytes of the range before it.
+    // A mismatch is a server that sent bytes from the wrong place under the
     // right label; the parts are thrown away so a Retry fetches them afresh
     // rather than reassembling the same wrong bytes.
     // In file order, which a split leaves different from part order.
     let mut order: Vec<usize> = (0..segments.len()).collect();
     order.sort_by_key(|&i| segments[i].start);
+    let mut dishonest = false;
     for pair in order.windows(2) {
-        let (previous, index) = (pair[0], pair[1]);
-        let byte = job.overlaps[index].load(Ordering::Relaxed);
-        if byte == NO_OVERLAP {
+        let (_previous, index) = (pair[0], pair[1]);
+        let lead = {
+            let guard = crate::lock(&job.overlaps[index]);
+            guard.clone()
+        };
+        let Some(lead) = lead else { continue };
+        if lead.is_empty() {
             continue;
         }
-        let before = {
-            let p = &segments[previous];
-            match p.done {
-                0 => None,
-                done => byte_at(&job.staged(), p.start + done - 1).await,
-            }
+        let seam = segments[index].start;
+        let n = lead.len() as u64;
+        let disk_start = seam.saturating_sub(n);
+        let Some(on_disk) = span_on_disk(&job.staged(), disk_start, n).await else {
+            continue;
         };
-        if before.is_some_and(|b| u16::from(b) != byte) {
-            drop(segments);
-            let mut listing = fs::read_dir(&options.parts_dir).await?;
-            while let Some(entry) = listing.next_entry().await? {
-                let _ = fs::remove_file(entry.path()).await;
-            }
-            return Err(Error::DishonestRanges);
+        if on_disk != lead {
+            dishonest = true;
+            break;
         }
+    }
+    // The same seams looked at a second time, as reference A does: a few of
+    // them fetched again over a fresh request and compared with what the
+    // connections wrote.
+    if !dishonest && !seams_agree(client, job, &segments, &order).await {
+        dishonest = true;
+    }
+    if dishonest {
+        drop(segments);
+        let mut listing = fs::read_dir(&options.parts_dir).await?;
+        while let Some(entry) = listing.next_entry().await? {
+            let _ = fs::remove_file(entry.path()).await;
+        }
+        return Err(Error::DishonestRanges);
     }
 
     let name = if info.filename.is_empty() {
@@ -181,7 +285,7 @@ pub(super) async fn assemble(
 /// Everything that happens once the bytes are all on disk.
 ///
 /// Shared by every route that ends in a file: ranged downloads, streams, FTP,
-/// live recordings, yt-dlp's output and a torrent of one file. Ranged
+/// live recordings, video downloads and a torrent of one file. Ranged
 /// downloads and streams used to carry their own copy of this, including the checksum block —
 /// directly under a comment claiming there was one place that decided
 /// whether a file is the file.
@@ -209,7 +313,24 @@ pub(crate) async fn finish(
         .as_deref()
         .map(crate::probe::sanitize)
         .filter(|n| !n.trim().is_empty());
-    let path = claim_path(&dir, chosen.as_deref().unwrap_or(name)).await?;
+    let titled = if chosen.is_none() && crate::naming::is_meaningless(name) {
+        let extension = std::path::Path::new(name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        options
+            .title_hint
+            .as_deref()
+            .and_then(|t| crate::naming::title_name(t, extension))
+            .map(|n| crate::probe::sanitize(&n))
+    } else {
+        None
+    };
+    let path = claim_path(
+        &dir,
+        chosen.as_deref().or(titled.as_deref()).unwrap_or(name),
+    )
+    .await?;
 
     let bytes = join_parts(parts, &path).await?;
 

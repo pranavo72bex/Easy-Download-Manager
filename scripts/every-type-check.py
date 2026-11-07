@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """Every type of file a person clicks goes to dm, with dm set as installed.
 
     sh scripts/package.sh                      # builds dist/chrome

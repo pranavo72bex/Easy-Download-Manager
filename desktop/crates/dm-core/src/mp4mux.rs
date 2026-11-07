@@ -1,9 +1,14 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Joins a video's picture and sound into one MP4, by dm itself.
 //!
 //! A video site serves its better qualities as two files, the picture alone
 //! and the sound alone, each an MP4 — fragmented, as DASH serves them, or
-//! plain. yt-dlp fetches both and leaves the joining to a separate tool,
-//! which a person would have to install (or dm fetch, 40–80 MB). This
+//! plain. Other tools fetch both and leave the joining to a separate
+//! program; this
 //! does the joining itself: each input's samples are read from its own index
 //! (the `moov` sample tables, or the `moof` fragments after an empty one),
 //! and written as one plain MP4, the index first so it plays while it is
@@ -80,7 +85,7 @@ struct Defaults {
 
 /// The tracks of the MP4 at `path`, as the muxer reads them (for the
 /// system's video decoder, `frames`; macOS so far).
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
 pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, String> {
     let mut file =
         File::open(path).map_err(|e| format!("{} could not be read: {e}", path.display()))?;
@@ -88,7 +93,23 @@ pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, String> {
         .metadata()
         .map_err(|e| format!("{} could not be read: {e}", path.display()))?
         .len();
-    read_input(&mut file, length, 0)
+    let tracks = read_input(&mut file, length, 0)?;
+    within(&tracks, length, path)?;
+    Ok(tracks)
+}
+
+/// Refuses tracks whose index points past the end of the file they were
+/// read from: every reader seeks and sizes its buffers by those numbers.
+fn within(tracks: &[Track], length: u64, path: &Path) -> Result<(), String> {
+    let past = tracks.iter().flat_map(|t| &t.samples).any(|s| {
+        s.offset
+            .checked_add(u64::from(s.size))
+            .is_none_or(|end| end > length)
+    });
+    if past {
+        return Err(format!("{} is cut short", path.display()));
+    }
+    Ok(())
 }
 
 /// Joins `inputs`' tracks into one MP4 at `out`. Returns its length.
@@ -134,18 +155,7 @@ pub fn join_cut(
             read_input(&mut file, length, index)
         }
         .map_err(|e| format!("{} is not an MP4 dm can join: {e}", path.display()))?;
-        for track in &read {
-            if let Some(end) = track
-                .samples
-                .iter()
-                .map(|s| s.offset + u64::from(s.size))
-                .max()
-            {
-                if end > length {
-                    return Err(format!("{} is cut short", path.display()));
-                }
-            }
-        }
+        within(&read, length, path)?;
         tracks.extend(read.into_iter().filter(|t| !t.samples.is_empty()));
         files.push(file);
     }
@@ -208,10 +218,12 @@ pub async fn join_with_text_async(
         .map_err(|e| format!("joining stopped: {e}"))?
 }
 
+mod part;
 mod read;
 mod text;
 mod write;
 
+pub(crate) use part::*;
 use read::*;
 use text::*;
 pub(crate) use write::*;

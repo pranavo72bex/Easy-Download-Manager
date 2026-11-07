@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! dm's commands from a terminal: what is downloading, and pausing,
 //! resuming or cancelling it.
 //!
@@ -24,8 +29,11 @@ use crate::mcp::{finder, Control};
 /// What was asked for.
 #[derive(Debug, PartialEq)]
 pub enum Ask {
+    /// Lists the downloads.
     List,
+    /// Asks for one download's status, by its id.
     Status(u64),
+    /// Applies a named action to the downloads with these ids.
     Act(&'static str, Vec<u64>),
 }
 

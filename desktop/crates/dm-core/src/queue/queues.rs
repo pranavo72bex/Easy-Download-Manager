@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl Queue {
@@ -45,6 +50,16 @@ impl Queue {
             self.save().await;
         }
         stopped
+    }
+
+    /// A person said yes to saving the web page that answered for this file as
+    /// an HTML page: the row goes on from the next try as one.
+    pub async fn accept_page(&self, id: Id) -> bool {
+        self.edit(id, |slot| {
+            slot.entry_mut().accept_page = true;
+            true
+        })
+        .await
     }
 
     /// "Move/Rename" for a finished file: renamed where it lies, never

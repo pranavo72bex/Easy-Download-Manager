@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """Stress run: one Brave session, real YouTube, many rounds of what a person
 does, looking for "Unsafe attempt to load URL" from any tab. Run by
 stress.sh for the old (use_dynamic_url) and fixed manifests.

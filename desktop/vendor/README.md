@@ -28,3 +28,52 @@ connection from the window under the pointer, with the press's serial,
 which only that connection holds, and hands the target `text/uri-list`;
 `dm_take_drag_ended` tells dm the button is up. Checked with a real
 Wayland drag both ways: `scripts/linux-wayland-drag-check.sh`.
+
+## egui-winit 0.37.0
+
+Licence MIT OR Apache-2.0 (its `Cargo.toml`); the version eframe 0.37.0 uses.
+The `Cargo.lock` of the published package is left out; `src/lib.rs` is the
+only file changed.
+
+`src/lib.rs` (`OTHER_WINDOWS_INPUT`, searched for `dm:`): a function the
+application sets once, called with the input of every window but the first as
+`State::take_egui_input` hands it to egui. eframe offers the first window's
+input to the app (`App::raw_input_hook`) and the others' to nobody; dm draws
+each dialog as a window of its own (`dialogs/frame.rs`), and the clicks, keys
+and typing a control client sends (`ui.click`, `ui.key`, `ui.type`) have to
+reach them as a person's would, through the input of the window they are for
+(`app/human.rs`). Nothing else is changed.
+
+## librqbit 9.0.1
+
+Encrypted peer connections (`src/mse.rs`, and `dm:` lines in
+`peer_connection.rs`, `session.rs`, `torrent_state/mod.rs`,
+`torrent_state/live/mod.rs`, `lib.rs`, `Cargo.toml`): BitTorrent's Message
+Stream Encryption (MSE/PE: a 768-bit Diffie-Hellman exchange, then RC4), which
+upstream librqbit does not have (dm's gaps row 150). A peer that hangs up on a
+plaintext handshake is asked again encrypted, so one that takes only
+encrypted connections is reached; a connection that comes in encrypted is
+answered for whichever of the session's torrents it names, and a plaintext one
+is passed through. `PeerConnectionOptions::require_encryption` (off in dm)
+makes and takes encrypted connections only; the tests use it for a seeder that
+refuses plaintext. MSE hides BitTorrent from simple traffic shaping and
+reaches peers that insist on it; with RC4 and a 768-bit group it is not
+strong encryption, and dm does not present it as such.
+
+Also fixed on the way, in `session.rs` `task_listener`: a check of an
+incoming connection that failed disabled the branch that collects the checks
+(the pattern `Some(Ok(..))` in `tokio::select!`), so the checks still under
+way were not polled until another connection came in; an encrypted handshake,
+which takes several round trips, stalled behind any refused connection.
+
+Left out of the copy: upstream's `webui/CLAUDE.md`, notes for an AI assistant
+working on its web interface (built only with the `webui` feature, which dm
+does not use), which would otherwise read as instructions for this project.
+
+Checked against another implementation, libtorrent 2.0.8 (the library most
+BitTorrent clients are built on) set to make and take only encrypted
+connections, both ways (`scripts/mse-interop.sh`,
+`dm-core/tests/mse_interop.rs`), and in `dm-core/tests/torrent_features.rs`
+`a_seeder_that_takes_only_encrypted_connections_is_reached`. The protocol's own
+tests are in `src/mse.rs` (run from `desktop/vendor/librqbit` with
+`cargo test --lib mse`, as the crate is not a workspace member).

@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """dm in Microsoft Edge, run the way a person tests it, slowly and in sight.
 
     python3 scripts/edge-demo.py            # watch Edge and the dm window

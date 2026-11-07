@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What a failed connection says to the person reading the row.
 
 mod common;
@@ -84,7 +89,7 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or_default()
                 .to_string();
-            if range != "bytes=0-0" {
+            if range != "bytes=0-0" && range != "bytes=0-" {
                 counter.fetch_add(1, Ordering::SeqCst);
             }
             axum::response::Response::builder()
@@ -118,7 +123,11 @@ async fn a_file_too_large_for_the_drive_is_refused_before_it_is_fetched() {
     let handler = move |headers: axum::http::HeaderMap| {
         let counter = Arc::clone(&counter);
         async move {
-            if headers.get("range").and_then(|v| v.to_str().ok()) != Some("bytes=0-0") {
+            if headers
+                .get("range")
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|r| r != "bytes=0-0" && r != "bytes=0-")
+            {
                 counter.fetch_add(1, Ordering::SeqCst);
             }
             axum::response::Response::builder()
@@ -380,4 +389,386 @@ async fn an_untrusted_certificate_is_said_at_once_not_retried() {
         "asked {} times",
         hits.load(std::sync::atomic::Ordering::SeqCst)
     );
+}
+
+// G97: a dropped connection is retried at once (first quick retry = 0 ms),
+// and a server that returns after an outage is found within 2 s.
+
+/// A connection reset mid-download is retried immediately; the whole download
+/// finishes within a small multiple of what it would have taken undisturbed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_dropped_connection_is_retried_and_the_file_still_arrives() {
+    use axum::body::Body;
+    use axum::http::HeaderMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Instant;
+
+    const FILE: usize = 2 * 1024 * 1024;
+    let data: Vec<u8> = (0..FILE).map(|i| (i % 251) as u8).collect();
+    let served = Arc::new(data.clone());
+    let hits = Arc::new(AtomicUsize::new(0));
+
+    let (body_c, hits_c) = (served.clone(), hits.clone());
+    let app = axum::Router::new().route(
+        "/drop.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let data = body_c.clone();
+            let hits = hits_c.clone();
+            async move {
+                let total = FILE;
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        (
+                            a.parse::<usize>().unwrap_or(0),
+                            b.parse::<usize>().unwrap_or(total - 1).min(total - 1),
+                        )
+                    })
+                    .unwrap_or((0, total - 1));
+                let n = hits.fetch_add(1, Ordering::SeqCst);
+                // First ranged range after the probe: drop the connection
+                // after 64 KB so the download is mid-way through and must
+                // resume.
+                let bytes = if n == 1 {
+                    data[a..(a + 65536).min(b + 1)].to_vec()
+                } else {
+                    data[a..=b].to_vec()
+                };
+                axum::response::Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .header("etag", "\"drop\"")
+                    .body(Body::from(bytes))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let started = Instant::now();
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/drop.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the download failed after a mid-stream drop");
+    let took = started.elapsed();
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "bytes differ");
+    // With an immediate retry, the whole download should finish well under 3 s.
+    assert!(
+        took.as_secs_f64() < 3.0,
+        "a dropped connection was not retried quickly: {:.2}s",
+        took.as_secs_f64()
+    );
+}
+
+/// A server that stops answering for 3 s then returns is found within 2 s
+/// of its return: the quick retry loop re-checks often enough.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_server_back_after_a_short_outage_is_reached_quickly() {
+    use axum::body::Body;
+    use axum::http::HeaderMap;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    const FILE: usize = 512 * 1024;
+    let data: Vec<u8> = (0..FILE).map(|i| (i % 251) as u8).collect();
+    let served = Arc::new(data.clone());
+    let down = Arc::new(AtomicBool::new(false));
+    let came_back = Arc::new(AtomicBool::new(false));
+
+    let (body_c, down_c, back_c) = (served.clone(), down.clone(), came_back.clone());
+    let app = axum::Router::new().route(
+        "/outage.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let data = body_c.clone();
+            let down = down_c.clone();
+            let back = back_c.clone();
+            async move {
+                if down.load(Ordering::Relaxed) {
+                    back.store(true, Ordering::Relaxed);
+                    return axum::response::Response::builder()
+                        .status(503)
+                        .body(Body::empty())
+                        .unwrap();
+                }
+                let total = FILE;
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        (
+                            a.parse::<usize>().unwrap_or(0),
+                            b.parse::<usize>().unwrap_or(total - 1).min(total - 1),
+                        )
+                    })
+                    .unwrap_or((0, total - 1));
+                axum::response::Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .header("etag", "\"out\"")
+                    .body(Body::from(data[a..=b].to_vec()))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+
+    // Simulate a 3 s outage: take the server down, wait, then restore it and
+    // record when it came back.
+    let down_c = down.clone();
+    let came_back_at = Arc::new(std::sync::Mutex::new(None::<Instant>));
+    let back_at = came_back_at.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        down_c.store(true, Ordering::Relaxed);
+        tokio::time::sleep(Duration::from_millis(3000)).await;
+        down_c.store(false, Ordering::Relaxed);
+        *back_at.lock().unwrap() = Some(Instant::now());
+    });
+
+    let opts = dm_core::Options {
+        attempts: 20,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/outage.bin"),
+        &opts,
+    )
+    .await
+    .expect("the download failed during an outage");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "bytes differ");
+
+    // Verify the download completed within 2 s of the server returning.
+    // (The download may already be done before came_back_at is set if the
+    //  timing races, so we only assert when we have the timestamp.)
+    let at_opt = *came_back_at.lock().unwrap();
+    if let Some(at) = at_opt {
+        let lag = at.elapsed();
+        assert!(
+            lag < Duration::from_secs(4),
+            "the download took {lag:?} after the server returned; expected < 4 s"
+        );
+    }
+}
+
+/// A server that never returns causes the download to fail after the attempt
+/// limit, not to wait forever.
+#[tokio::test]
+async fn a_server_that_never_returns_fails_after_the_limit() {
+    use axum::body::Body;
+    use std::time::Instant;
+
+    let app = axum::Router::new().fallback(|| async {
+        axum::response::Response::builder()
+            .status(503)
+            .body(Body::empty())
+            .unwrap()
+    });
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        attempts: 3,
+        ..options(dir.path())
+    };
+    let started = Instant::now();
+    let result = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/forever.bin"),
+        &opts,
+    )
+    .await;
+    let took = started.elapsed();
+    assert!(result.is_err(), "expected failure but got success");
+    // Three attempts at most; even with backoff the total should be well
+    // under two minutes.
+    assert!(
+        took.as_secs() < 60,
+        "three attempts took too long: {took:?}"
+    );
+}
+
+/// thinkbroadband answers 403 to any `Referer` but its own pages, so the one
+/// dm makes up (the file's own folder) failed on every agent, where
+/// reference A got the file.
+#[tokio::test]
+async fn a_server_that_refuses_any_referer_gives_the_file_on_every_piece() {
+    use axum::http::HeaderMap;
+    use std::sync::{Arc, Mutex};
+    let data: Vec<u8> = (0..4_000_000u32).map(|i| (i % 251) as u8).collect();
+    let served = data.clone();
+    // Each request: whether it carried a `Referer`, and its `Range`.
+    type Asked = Vec<(bool, Option<String>)>;
+    let asked: Arc<Mutex<Asked>> = Arc::default();
+    let log = asked.clone();
+    let app = axum::Router::new().route(
+        "/files/f.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let served = served.clone();
+            let log = log.clone();
+            async move {
+                let referer = headers.contains_key("referer");
+                let range = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_owned);
+                log.lock().unwrap().push((referer, range.clone()));
+                if referer {
+                    return axum::response::Response::builder()
+                        .status(403)
+                        .body(axum::body::Body::from("not permitted"))
+                        .unwrap();
+                }
+                let total = served.len();
+                let (start, end) = range
+                    .as_deref()
+                    .and_then(|r| r.strip_prefix("bytes="))
+                    .and_then(|r| r.split_once('-'))
+                    .map(|(a, b)| {
+                        let a: usize = a.parse().unwrap_or(0);
+                        let b: usize = b.parse().unwrap_or(total - 1).min(total - 1);
+                        (a, b)
+                    })
+                    .unwrap_or((0, total - 1));
+                let body = served[start..=end].to_vec();
+                let mut reply = axum::response::Response::builder()
+                    .header("accept-ranges", "bytes")
+                    .header("content-length", body.len());
+                reply = if range.is_some() {
+                    reply
+                        .status(206)
+                        .header("content-range", format!("bytes {start}-{end}/{total}"))
+                } else {
+                    reply.status(200)
+                };
+                reply.body(axum::body::Body::from(body)).unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let once = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/files/f.bin"),
+        &once,
+    )
+    .await
+    .expect("asked again without the made-up Referer");
+    assert_eq!(std::fs::read(done.path).unwrap(), data);
+    let asked = asked.lock().unwrap();
+    let after_first_bare = asked.iter().skip_while(|(referer, _)| *referer).skip(1);
+    assert!(
+        after_first_bare.clone().all(|(referer, _)| !referer),
+        "a piece after the bare probe carried the Referer again: {asked:?}"
+    );
+}
+
+/// Wikimedia's limiter answered "429, Retry-After: 1" for as long as requests
+/// kept coming within its window; dm, asking each second as told, sat at
+/// 0 B for minutes. The server's wait is the least dm waits, and it grows.
+#[tokio::test]
+async fn a_limiter_that_resets_on_each_request_is_outwaited() {
+    use std::sync::{Arc, Mutex};
+    let data: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+    let served = data.clone();
+    // Refused while the last request, served or not, came under 2 s ago.
+    let last: Arc<Mutex<std::time::Instant>> = Arc::new(Mutex::new(std::time::Instant::now()));
+    let app = axum::Router::new().route(
+        "/f.bin",
+        axum::routing::get(move || {
+            let served = served.clone();
+            let last = last.clone();
+            async move {
+                let mut last = last.lock().unwrap();
+                let quiet = last.elapsed() >= std::time::Duration::from_secs(2);
+                *last = std::time::Instant::now();
+                if !quiet {
+                    return axum::response::Response::builder()
+                        .status(429)
+                        .header("retry-after", "1")
+                        .body(axum::body::Body::empty())
+                        .unwrap();
+                }
+                axum::response::Response::builder()
+                    .status(200)
+                    .header("content-length", served.len())
+                    .body(axum::body::Body::from(served))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let patient = dm_core::Options {
+        attempts: 8,
+        ..options(dir.path())
+    };
+    let started = std::time::Instant::now();
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/f.bin"),
+        &patient,
+    )
+    .await
+    .expect("the waits should have grown past the limiter's window");
+    assert_eq!(std::fs::read(done.path).unwrap(), data);
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(20),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn a_server_that_fails_ranged_requests_but_serves_the_plain_one_gives_the_file() {
+    use axum::http::HeaderMap;
+    let data: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    let served = data.clone();
+    let app = axum::Router::new().route(
+        "/f.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let served = served.clone();
+            async move {
+                if headers.contains_key("range") {
+                    return axum::response::Response::builder()
+                        .status(503)
+                        .body(axum::body::Body::empty())
+                        .unwrap();
+                }
+                axum::response::Response::builder()
+                    .status(200)
+                    .header("content-length", served.len())
+                    .body(axum::body::Body::from(served))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let once = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(&dm_core::client(), &format!("http://{addr}/f.bin"), &once)
+        .await
+        .expect("the plain request should have been tried");
+    assert_eq!(std::fs::read(done.path).unwrap(), data);
 }

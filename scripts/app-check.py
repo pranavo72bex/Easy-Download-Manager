@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """Drives the real desktop binary and reports what it did.
 
     python3 scripts/app-check.py
@@ -347,26 +352,9 @@ def main():
         if hls["state"]["kind"] == "completed":
             check("holding every segment in order", pathlib.Path(hls["path"]).read_bytes() == b"".join(SEGMENTS))
         page = done["watch"]
-        # Where dm itself looks for the tool, on either platform.
-        if WINDOWS:
-            homes = [pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links",
-                     pathlib.Path.home() / "scoop" / "shims",
-                     pathlib.Path(os.environ.get("ProgramData", "")) / "chocolatey" / "bin"]
-            homes += sorted((pathlib.Path(os.environ.get("APPDATA", "")) / "Python").glob("Python3*/Scripts"))
-            ytdlp = shutil.which("yt-dlp", path=os.pathsep.join(map(str, homes)))
-        else:
-            ytdlp = shutil.which("yt-dlp", path="/opt/homebrew/bin:/usr/local/bin:/usr/bin:" + str(pathlib.Path.home() / ".local/bin"))
-        if ytdlp:
-            check("a player page is handed to yt-dlp, found without the shell's PATH", page["state"], {"kind": "completed"})
-            if page["state"]["kind"] == "completed":
-                check("and the file it produced is the clip", pathlib.Path(page["path"]).read_bytes() == CLIP)
-        else:
-            # None installed: dm fetches yt-dlp itself into its own folder.
-            exe = "yt-dlp.exe" if WINDOWS else "yt-dlp"
-            check("with no yt-dlp installed, dm fetches its own and the page downloads",
-                  (page["state"], (home / "tools" / exe).exists()), ({"kind": "completed"}, True))
-            if page["state"]["kind"] == "completed":
-                check("and the file it produced is the clip", pathlib.Path(page["path"]).read_bytes() == CLIP)
+        # A watch page that is not YouTube's is refused: its video comes from
+        # the browser's caught player requests, not from reading the page.
+        check("a player page that is not YouTube's is refused with a reason", page["state"]["kind"], "failed")
         stop(app, home)
         check("the lock is released when dm exits", not lock_is_held(home))
 
@@ -443,7 +431,7 @@ def main():
             check("a --hidden launch shows no window", hidden, 0)
         # It makes no window until one is asked for, and still downloads.
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
@@ -496,13 +484,13 @@ def main():
         else:
             check("the token is private", oct((home / "control.token").stat().st_mode & 0o777), "0o600")
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
         check("a request before the token is refused", call("commands.list")["ok"], False)
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         check("the token is accepted", call("auth", token=token)["ok"], True)
         ids = [c["id"] for c in call("commands.list")["result"]]
         check("every registry command is listed", len(ids) >= 40 and "program.add_url" in ids)
@@ -556,7 +544,9 @@ def main():
         check("the screen can be read as words", soon(lambda: "Add URL" in on_screen()))
         human("ui.click", text="Options")
         check("clicking a toolbar button opens its dialog", soon(lambda: "Options" in open_dialogs()))
-        human("ui.click", text="Network")
+        # Options' tabs are General, Browser, Folders, Downloads, Advanced and Sign-ins
+        # (contract row B43): the network's settings are a part of Advanced's page.
+        human("ui.click", text="Advanced")
         check("clicking a tab changes the page", soon(lambda: "Network" in on_screen()))
         human("ui.click", text="Cancel")
         check("clicking Cancel closes the dialog", soon(lambda: "Options" not in open_dialogs()))
@@ -576,7 +566,7 @@ def main():
         soon(lambda: "Add URL" in open_dialogs())
         human("ui.key", key="Escape")
         check("Escape closes the top dialog", soon(lambda: "Add URL" not in open_dialogs()))
-        human("ui.click", text="Program")
+        human("ui.click", text="Tasks")
         check("a menu opens and lists its items", soon(lambda: "Add numbered series…" in on_screen()))
         human("ui.key", key="Escape")
         outside = call("downloads.add", urls=[url("outside.zip")], folder=str(home.parent / "elsewhere"))
@@ -595,7 +585,7 @@ def main():
         wait_for("the headless dm never wrote its port", lambda: port_file.exists() and port_file.read_text().strip())
         token = (home / "control.token").read_text().strip()
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())

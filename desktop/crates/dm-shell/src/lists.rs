@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Lists of downloads, the ways dm takes them in and gives them out: a
 //! numbered series made from one address with a wildcard, dm's own
 //! `.dmlist` file for export and import, and the links on a page for
@@ -151,13 +156,13 @@ pub fn from_list(text: &str) -> Vec<Listed> {
             return file
                 .downloads
                 .into_iter()
-                .filter(|row| dm_core::queue::accepted(&row.url))
+                .filter(|row| dm_core::accepted(&row.url))
                 .collect();
         }
     }
     text.split_whitespace()
         .map(link_in)
-        .filter(|word| dm_core::queue::accepted(word))
+        .filter(|word| dm_core::accepted(word))
         .map(|word| Listed {
             url: word.to_string(),
             ..Listed::default()
@@ -220,7 +225,7 @@ pub fn links_on_page(base: &str, html: &str) -> Vec<String> {
                 let mut link = link;
                 link.set_fragment(None);
                 let link = link.to_string();
-                if dm_core::queue::accepted(&link) && !found.contains(&link) {
+                if dm_core::accepted(&link) && !found.contains(&link) {
                     found.push(link);
                 }
             }
@@ -276,6 +281,12 @@ pub struct Search {
     /// Pages past the start page to read, 0 to [`MAX_DEPTH`]. Only pages on
     /// the start page's site are read.
     pub depth: u8,
+    /// Whether pages on other sites than the start page's are read too, to
+    /// the same depth. Off: only the start page's own site.
+    pub other_sites: bool,
+    /// Whether each file is saved in folders that mirror its address
+    /// (`site/folder/subfolder`) instead of the one download folder.
+    pub keep_layout: bool,
     /// Only files whose path has one of these in it; empty is any.
     pub include: Vec<String>,
     /// Files and pages whose path has one of these in it are skipped.
@@ -291,6 +302,35 @@ pub struct Search {
     /// What it has found before, without logins: added once, not again
     /// after the list is cleared or a login changed the row's address.
     pub seen: Vec<String>,
+    /// Files smaller than this many KB are left out; 0 is no floor. A file
+    /// whose size the server does not say is kept.
+    pub min_kb: u64,
+    /// Files larger than this many KB are left out; 0 is no ceiling.
+    pub max_kb: u64,
+}
+
+/// The folders a file is saved in when a search keeps the site's layout: its
+/// site, then the folders of its address, each made safe as a file name is.
+/// `None` for an address that is not a web or FTP one.
+pub fn layout_folder(file: &str) -> Option<String> {
+    let parsed = url::Url::parse(file).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https" | "ftp") {
+        return None;
+    }
+    let site = match parsed.port() {
+        Some(port) => format!("{}_{port}", parsed.host_str()?),
+        None => parsed.host_str()?.to_string(),
+    };
+    let mut parts = vec![dm_core::sanitize_name(&site.replace(':', "_"))];
+    let mut segments: Vec<&str> = parsed.path_segments()?.collect();
+    segments.pop();
+    for segment in segments {
+        let name = dm_core::sanitize_name(&dm_core::decode_percent(segment));
+        if !name.is_empty() && name != "." && name != ".." {
+            parts.push(name);
+        }
+    }
+    Some(parts.join("/"))
 }
 
 /// The most a saved search remembers having found.
@@ -334,12 +374,16 @@ impl Default for Search {
             page: String::new(),
             types: DEFAULT_TYPES.split(' ').map(str::to_string).collect(),
             depth: 0,
+            other_sites: false,
+            keep_layout: false,
             include: Vec::new(),
             exclude: Vec::new(),
             every_hours: 0,
             stop_after_minutes: 0,
             last_run: 0,
             seen: Vec::new(),
+            min_kb: 0,
+            max_kb: 0,
         }
     }
 }
@@ -392,7 +436,7 @@ pub struct Crawled {
 /// A link's path, for the filters: lower-cased, decoded.
 fn path_of(link: &str) -> String {
     url::Url::parse(link)
-        .map(|u| dm_core::probe::decode(u.path()).to_ascii_lowercase())
+        .map(|u| dm_core::decode_percent(u.path()).to_ascii_lowercase())
         .unwrap_or_default()
 }
 
@@ -421,6 +465,39 @@ pub fn looks_like_page(link: &str) -> bool {
     }
 }
 
+/// `page` with the login the start page was given, for a page on that same host: a
+/// site that wants a sign-in wants it on every page of it, and never on another host.
+fn with_start_login(page: &str, start: &url::Url) -> String {
+    if start.username().is_empty() {
+        return page.to_string();
+    }
+    let Ok(mut parsed) = url::Url::parse(page) else {
+        return page.to_string();
+    };
+    let same_place = parsed.host_str().map(str::to_ascii_lowercase)
+        == start.host_str().map(str::to_ascii_lowercase)
+        && parsed.port_or_known_default() == start.port_or_known_default()
+        && parsed.scheme() == start.scheme();
+    if !same_place || !parsed.username().is_empty() {
+        return page.to_string();
+    }
+    let _ = parsed.set_username(start.username());
+    let _ = parsed.set_password(start.password());
+    parsed.to_string()
+}
+
+/// `address` without a user and password, for saying it in a message.
+fn bare_of_login(address: &str) -> String {
+    match url::Url::parse(address) {
+        Ok(mut parsed) => {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.to_string()
+        }
+        Err(_) => address.to_string(),
+    }
+}
+
 fn same_site(a: &url::Url, link: &str) -> bool {
     url::Url::parse(link).ok().is_some_and(|b| {
         a.host_str().map(str::to_ascii_lowercase) == b.host_str().map(str::to_ascii_lowercase)
@@ -432,9 +509,12 @@ fn same_site(a: &url::Url, link: &str) -> bool {
 async fn fetch_page(
     client: &dm_core::reqwest::Client,
     page: &str,
+    ask: &str,
     start: bool,
 ) -> Result<(String, String), String> {
-    let res = dm_core::redirects::send(client.get(page))
+    // `ask` may carry a login; `page` is what is said in a message, and it may too.
+    let shown = bare_of_login(page);
+    let res = dm_core::auth::send(client, client.get(ask), ask)
         .await
         .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
@@ -444,13 +524,13 @@ async fn fetch_page(
         .headers()
         .get(dm_core::reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .map(|v| dm_core::probe::mime_essence(Some(v)))
+        .map(|v| dm_core::mime_essence(Some(v)))
         .unwrap_or_default();
     // Past the start page, an answer that does not say it is a page is not
     // read as one: a bare `/download/123` is usually the file itself.
     let html = kind == "text/html" || kind == "application/xhtml+xml";
     if !(html || (start && kind.is_empty())) {
-        return Err(format!("{page} is a file ({kind}), not a page of links"));
+        return Err(format!("{shown} is a file ({kind}), not a page of links"));
     }
     let base = res.url().to_string();
     // A page, not a file: past a few megabytes this is not HTML to read,
@@ -494,7 +574,54 @@ pub async fn crawl_with(
         };
         return crawl_ftp(search, options, deadline).await;
     }
-    crawl_until(client, search, deadline).await
+    let mut found = crawl_until(client, search, deadline).await?;
+    found.files = within_sizes(client, found.files, search.min_kb, search.max_kb).await;
+    Ok(found)
+}
+
+/// The files whose size is within `min_kb` and `max_kb` (0 is no limit at that end), each
+/// asked for its size once, eight at a time; one whose size the server does not say is kept,
+/// as reference A keeps it.
+pub async fn within_sizes(
+    client: &dm_core::reqwest::Client,
+    files: Vec<String>,
+    min_kb: u64,
+    max_kb: u64,
+) -> Vec<String> {
+    use futures_util::StreamExt;
+    if min_kb == 0 && max_kb == 0 {
+        return files;
+    }
+    let sizes: Vec<(String, Option<u64>)> = futures_util::stream::iter(files)
+        .map(|file| async move {
+            let size = client
+                .head(&file)
+                .timeout(std::time::Duration::from_secs(15))
+                .send()
+                .await
+                .ok()
+                .filter(|r| r.status().is_success())
+                .and_then(|r| {
+                    r.headers()
+                        .get(dm_core::reqwest::header::CONTENT_LENGTH)
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.parse::<u64>().ok())
+                });
+            (file, size)
+        })
+        .buffered(8)
+        .collect()
+        .await;
+    sizes
+        .into_iter()
+        .filter(|(_, size)| {
+            size.is_none_or(|bytes| {
+                (min_kb == 0 || bytes >= min_kb.saturating_mul(1024))
+                    && (max_kb == 0 || bytes <= max_kb.saturating_mul(1024))
+            })
+        })
+        .map(|(file, _)| file)
+        .collect()
 }
 
 /// An FTP server's folders, from the start folder down `depth` levels:
@@ -610,7 +737,8 @@ pub async fn crawl_until(
         }
         // Past the time it was given: what was found so far is the answer.
         // The start page is always read, however slow.
-        let fetch = fetch_page(client, &page, found.pages == 0);
+        let ask = with_start_login(&page, &start);
+        let fetch = fetch_page(client, &page, &ask, found.pages == 0);
         let read = match deadline {
             Some(at) if found.pages > 0 => match tokio::time::timeout_at(at, fetch).await {
                 Ok(read) => read,
@@ -653,7 +781,7 @@ pub async fn crawl_until(
             }
             if level < depth
                 && looks_like_page(&link)
-                && sites.iter().any(|site| same_site(site, &link))
+                && (search.other_sites || sites.iter().any(|site| same_site(site, &link)))
                 && seen.insert(link.clone())
             {
                 frontier.push_back((link, level + 1));
@@ -665,6 +793,21 @@ pub async fn crawl_until(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_file_is_kept_in_folders_that_mirror_its_address() {
+        assert_eq!(
+            super::layout_folder("https://files.example.org/pub/a%20b/c/file.zip?x=1").as_deref(),
+            Some("files.example.org/pub/a b/c")
+        );
+        assert_eq!(
+            super::layout_folder("http://h.example:8080/file.zip").as_deref(),
+            Some("h.example_8080")
+        );
+        assert_eq!(super::layout_folder("magnet:?xt=urn:btih:abc"), None);
+        let dotted = super::layout_folder("https://h.example/a/%2e%2e/b/f.zip").unwrap();
+        assert!(!dotted.contains(".."), "{dotted}");
+    }
+
     #[test]
     fn tracking_parameters_do_not_make_an_address_new() {
         let a = super::bare("https://v.example/watch?v=1&si=abc&utm_source=x");

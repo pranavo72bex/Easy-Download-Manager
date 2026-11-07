@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
@@ -24,6 +29,21 @@ impl DmApp {
         if response.clicked() {
             self.queued.push(command);
             ui.close();
+        }
+    }
+
+    /// The queues as menu items, for Start Queue or Stop Queue: a click
+    /// runs `command` on that queue.
+    pub(super) fn queue_items(&mut self, ui: &mut egui::Ui, command: Command) {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let enabled = self.enabled(command);
+        for queue in self.queues().iter() {
+            let label = crate::i18n::name(queue);
+            if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+                self.queue_chosen = Some(queue.clone());
+                self.queued.push(command);
+                ui.close();
+            }
         }
     }
 
@@ -151,7 +171,7 @@ impl DmApp {
         egui::MenuBar::new()
             .config(egui::containers::menu::MenuConfig::new().style(menu_style))
             .ui(ui, |ui| {
-                let program = ui.menu_button(t("Program"), |ui| {
+                let program = ui.menu_button(t("Tasks"), |ui| {
                     for c in [
                         Command::AddUrl,
                         Command::AddSeries,
@@ -182,6 +202,7 @@ impl DmApp {
                         Command::Redownload,
                         Command::UpdateLink,
                         Command::CopyLink,
+                        Command::CopyDetails,
                         Command::MoveRename,
                     ] {
                         self.item(ui, c);
@@ -220,9 +241,15 @@ impl DmApp {
                     ui.separator();
                     self.item(ui, Command::Find);
                     self.item(ui, Command::FindNext);
+                    self.item(ui, Command::FindPrevious);
                     ui.separator();
-                    for c in [Command::Scheduler, Command::StartQueue, Command::StopQueue] {
-                        self.item(ui, c);
+                    self.item(ui, Command::Scheduler);
+                    // Each a list of the queues, as reference A's are: the
+                    // one clicked is started or stopped, whichever the list
+                    // shows.
+                    for c in [Command::StartQueue, Command::StopQueue] {
+                        let title = self.title_of(c).to_string();
+                        submenu(ui, &title, |ui| self.queue_items(ui, c));
                     }
                     submenu(ui, t("Speed limiter"), |ui| {
                         // Ticked while a limit is in force: the item says
@@ -351,6 +378,46 @@ impl DmApp {
                 });
                 let help = ui.menu_button(t("Help"), |ui| {
                     self.item(ui, Command::Help);
+                    // Reference A's Help: its tutorials and topics, a tip of
+                    // the day, its home page, support and telling a friend
+                    // (gaps row 91). The topics are dm's own guide.
+                    let guide = crate::update::GUIDE;
+                    let mut page: Option<String> = None;
+                    for (words, address) in [
+                        (t("Tutorials"), guide.to_string()),
+                        (
+                            t("Queues and the Scheduler"),
+                            format!("{guide}#queues-and-the-scheduler"),
+                        ),
+                        (t("Grabber help"), format!("{guide}#grabber")),
+                    ] {
+                        if ui.button(words).clicked() {
+                            page = Some(address);
+                            ui.close();
+                        }
+                    }
+                    if ui.button(t("Tip of the day")).clicked() {
+                        self.dialogs.focus_on("Tip of the day");
+                        self.dialogs.tip = Some(self.dialogs.tip.unwrap_or(0));
+                        ui.close();
+                    }
+                    ui.separator();
+                    for (words, address) in [
+                        (t("Home page"), crate::update::SOURCE.to_string()),
+                        (t("Contact support"), crate::update::SUPPORT.to_string()),
+                        (t("Tell a friend"), crate::dialogs::tell_a_friend()),
+                    ] {
+                        if ui.button(words).clicked() {
+                            page = Some(address);
+                            ui.close();
+                        }
+                    }
+                    if let Some(page) = page {
+                        if let Err(e) = self.backend.platform.open(&page) {
+                            self.said = e.into();
+                        }
+                    }
+                    ui.separator();
                     self.item(ui, Command::CheckForUpdates);
                     self.item(ui, Command::About);
                 });
@@ -422,7 +489,11 @@ impl DmApp {
         let width = |stacked: bool| -> f32 {
             buttons
                 .iter()
-                .map(|(_, _, _, widest)| modern_width(ui, widest, stacked) + spacing)
+                .map(|(command, _, _, widest)| {
+                    modern_width(ui, widest, stacked)
+                        + spacing
+                        + queue_arrow_width(*command, spacing)
+                })
                 .sum()
         };
         let modern = t.modern && chosen == ToolStyle::Both;
@@ -437,6 +508,7 @@ impl DmApp {
         let wrap = !modern || icons_only;
         let in_front = self.dialogs.in_front();
         let show_categories = self.show_categories;
+        let queues = self.queues();
         let mut draw = |ui: &mut egui::Ui| {
             // The side panel's switch at the toolbar's left end, as the
             // other managers have it: the categories and queues folded
@@ -491,13 +563,61 @@ impl DmApp {
                 // None while a dialog is in front: one drawn over its title
                 // read as part of it.
                 let response =
-                    if (said != *name || chosen == ToolStyle::Icons || icons_only) && !in_front {
+                    if (said != *name || chosen == ToolStyle::Icons || icons_only || stacked)
+                        && !in_front
+                    {
                         response.on_hover_text(said)
                     } else {
                         response
                     };
                 if response.clicked() {
                     self.queued.push(*command);
+                }
+                // Start Queue and Stop Queue each with an arrow that lists
+                // the queues, as reference A's toolbar has: the button acts
+                // on the queue the list shows, the arrow on the one chosen.
+                if queue_arrow_width(*command, 0.0) > 0.0 {
+                    let words = if *command == Command::StartQueue {
+                        crate::i18n::t("Choose the queue to start")
+                    } else {
+                        crate::i18n::t("Choose the queue to stop")
+                    };
+                    let glyph = if crate::theme::fonts_ready(ui.ctx()) {
+                        egui::RichText::new(icons::fluent::CHEVRON_DOWN.to_string())
+                            .family(icons::family())
+                            .size(10.0)
+                    } else {
+                        egui::RichText::new("▾")
+                    };
+                    let arrow = ui.add_enabled(
+                        enabled,
+                        egui::Button::new(glyph)
+                            .frame(false)
+                            .min_size(egui::vec2(QUEUE_ARROW, response.rect.height())),
+                    );
+                    arrow.widget_info(|| {
+                        egui::WidgetInfo::labeled(egui::Role::Button, enabled, words)
+                    });
+                    // No tooltip while its list is open: it lay over the
+                    // list's items and took the pointer from them.
+                    let listing =
+                        egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&arrow));
+                    let arrow = if in_front || listing {
+                        arrow
+                    } else {
+                        arrow.on_hover_text(words)
+                    };
+                    egui::Popup::menu(&arrow).style(menu_style).show(|ui| {
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        for queue in queues.iter() {
+                            let label = crate::i18n::name(queue);
+                            if ui.button(label).clicked() {
+                                self.queue_chosen = Some(queue.clone());
+                                self.queued.push(*command);
+                                ui.close();
+                            }
+                        }
+                    });
                 }
             }
         };
@@ -556,6 +676,19 @@ impl DmApp {
                 self.said = e.into();
             }
         }
+    }
+}
+
+/// How wide the arrow beside Start Queue and Stop Queue is drawn.
+const QUEUE_ARROW: f32 = 14.0;
+
+/// The room the queue arrow beside `command`'s button takes, with the
+/// spacing after it: none for other buttons.
+fn queue_arrow_width(command: Command, spacing: f32) -> f32 {
+    if matches!(command, Command::StartQueue | Command::StopQueue) {
+        QUEUE_ARROW + spacing
+    } else {
+        0.0
     }
 }
 

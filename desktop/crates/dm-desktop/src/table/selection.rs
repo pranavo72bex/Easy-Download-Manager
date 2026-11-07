@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Which rows are selected, and stepping through them by keyboard.
 
 use super::*;
@@ -16,12 +21,17 @@ pub(super) fn select(
 /// A move of the keyboard's place in the list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
+    /// One row up.
     Up,
+    /// One row down.
     Down,
+    /// To the first row.
     First,
+    /// To the last row.
     Last,
     /// Page Up and Page Down: this many rows.
     PageUp(usize),
+    /// Page Down: this many rows.
     PageDown(usize),
 }
 

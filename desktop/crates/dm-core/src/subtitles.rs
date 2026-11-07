@@ -1,7 +1,12 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Subtitles read from WebVTT, for dm to put into a video itself.
 //!
-//! yt-dlp fetches a video's subtitles as WebVTT files beside it,
-//! `name.en.vtt`, and leaves putting them into the video to dm. dm reads
+//! A video's subtitles are fetched as WebVTT files beside it,
+//! `name.en.vtt`, and put into the video by dm. dm reads
 //! their cues here and the MP4 and WebM writers carry them as text tracks
 //! (`mp4mux`, `mkvmux`), one per language, so a player offers them.
 //!
@@ -15,7 +20,9 @@ use std::path::{Path, PathBuf};
 /// One cue: when it shows and hides, in milliseconds, and its text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cue {
+    /// When the cue shows, in milliseconds.
     pub start: u64,
+    /// When the cue hides, in milliseconds.
     pub end: u64,
     /// As written, tags and all (WebM carries WebVTT as WebVTT).
     pub text: String,
@@ -26,6 +33,7 @@ pub struct Cue {
 pub struct Subtitle {
     /// The code in the file's name: `en`, `pt-BR`, `de`.
     pub language: String,
+    /// The cues, in time order.
     pub cues: Vec<Cue>,
 }
 
@@ -177,7 +185,7 @@ pub fn iso639_2(language: &str) -> [u8; 3] {
         .map_or(*b"und", |(_, three)| **three)
 }
 
-/// The subtitle files yt-dlp left beside a video named `video`
+/// The subtitle files left beside a video named `video`
 /// (`name.<language>.vtt`), read. Unreadable ones are skipped.
 pub fn beside(video: &Path) -> Vec<(PathBuf, Subtitle)> {
     let (Some(dir), Some(stem)) = (video.parent(), video.file_stem()) else {

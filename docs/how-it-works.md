@@ -9,6 +9,9 @@ downloading, and a browser extension that catches downloads and hands them
 to it. Both are Rust — the app natively, the extension compiled to
 WebAssembly.
 
+The engine's blueprint (what it must do, what is built, what is not, and how
+each part is tested) is in [engine/README.md](engine/README.md).
+
 dm splits a file across several connections, resumes what was interrupted,
 keeps a queue, and takes the downloads you start by clicking a link — the
 things a download manager is used for.
@@ -156,7 +159,7 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 |---|---|
 | **Click a download link** | If it is one of the file types dm catches, the browser's download is paused, handed to dm, and removed from the browser's list once dm has it. dm's window shows it. |
 | **Right-click a link** | *Download link with dm* — any link, whatever its type, and magnets. |
-| **Right-click a video or audio** | *Download media with dm*. A player that streams from a `blob:` address has no file to fetch; its page is handed over instead, and dm resolves it with yt-dlp. |
+| **Right-click a video or audio** | *Download media with dm*. A player that streams from a `blob:` address has no file to fetch; its page is handed over instead; dm reads a YouTube page itself, and for any other site the extension's caught player requests are what is offered. |
 | **Right-click a page** | *Download all links with dm*: the page's links, in dm's list to pick from. |
 | **The toolbar button** | A popup: whether the dm app answers, a switch for catching downloads, a switch for the "Download video" panel on this site, and **Open dm**. It downloads nothing. |
 | **No app** | A caught download stays with the browser as if dm were not there. The menus and the button say, in a notification, that dm isn't connected to this browser yet and to open dm (again, if it is open), with `--register` for advanced users; the popup says the same and hides Open dm. |
@@ -219,7 +222,7 @@ settings rather than borrowing the browser's.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="settings-dark.png">
-  <img alt="The Options dialog, in its tabs: General, Folders, Downloads, Network, Proxy and Sign-ins" src="settings.png">
+  <img alt="The Options dialog, in its tabs: General, Browser, Folders, Downloads, Advanced and Sign-ins" src="settings.png">
 </picture>
 
 | | |
@@ -231,7 +234,7 @@ settings rather than borrowing the browser's.
 | **Checksums** | Paste a published SHA-256, SHA-512 or MD5 onto a row. A mismatch fails the download and removes the file — a file known to be wrong should not sit in the downloads folder looking like every other one. |
 | **Mirrors** | Give it a `.meta4` or `.metalink` and it probes every mirror, drops any that disagree about the length, and hands each range its own mirror so all of them are working at once. The document's own checksum is used without being asked for. |
 | **History** | Finished rows stay, with the time they finished, until you clear them. |
-| **BitTorrent** | Paste a magnet or a `.torrent` and the client joins the swarm, fetches every piece, and reports on the same row as any other download — one speed ceiling covers both. The extension cannot do this at all: it has no sockets, so a magnet is a download only the app can take. |
+| **BitTorrent** | Paste a magnet or a `.torrent` and the client joins the swarm, fetches every piece, and reports on the same row as any other download — one speed ceiling covers both. The extension cannot do this at all: it has no sockets, so a magnet is a download only the app can take. With "Keep sharing a finished torrent" on (Options › Advanced, off by default), `torrent::keep_sharing` adds the torrent again, in a session of its own that listens for peers, over the files where they now are, and sends them until its ratio or its time is reached; `torrent::sharing` is what the row's status reads, and removing the row or deleting its file calls `stop_sharing`. That session never fetches: files that are no longer whole end the sharing. |
 
 The browser extension hands downloads to it once the client has been
 registered with `--register`.
@@ -302,7 +305,7 @@ sides, where it used to be two languages kept in step by hand:
 
 | extension sends | host answers |
 |---|---|
-| `engine.hello` | `engine.hello` with the app's version and whether it has yt-dlp |
+| `engine.hello` | `engine.hello` with the app's version and whether it reads video pages (the field is still named `videopage` on the wire) |
 | `settings.get` | `settings.get` with the `catch` rules |
 | `download.start` `{id, url, referrer, caught}` | `download.started`, or `download.failed` with the reason |
 
@@ -326,6 +329,15 @@ refusal, or a server that will not serve dm: the browser's download is
 resumed — or, where it cannot be (Firefox cannot resume what a server will
 not range), started again, marked so the extension does not catch it a
 second time. A download the extension itself started is never caught.
+
+**An address that runs out.** A row from the browser whose signed address
+answers 403 or 410 waits for a fresh one (`Entry::fresh_link`). The browser's
+next hand-off of the same file takes its place (`shell::take_from_browser`,
+`Queue::adopt_fresh_link`) unless Download details asks first. The extension
+also remembers what it handed over (`decide::Handed`) and, when the page's
+player asks for one of those streams anew, offers dm that address marked
+`renews`, only to an app whose hello says it takes them: a waiting row goes
+on with it, and the app drops it otherwise.
 
 ## What it cannot do
 
@@ -428,13 +440,12 @@ desktop/
                           and a playlist page's videos
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
-    ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
-    ytdlp/fetch.rs        a page read by yt-dlp, its streams fetched by dm's engine
-    ytdlp/choices.rs      the panel's list of qualities (page data first, yt-dlp as fallback)
-    ytdlp/page_data.rs    a YouTube watch page's own player data, read as that list
-    ytdlp/readings.rs     yt-dlp's readings kept for the download, and the marker while one is made
-    ytdlp/refusal.rs      a failed yt-dlp run said in words a person can act on
-    ytdlp/process.rs      yt-dlp's process trees, ended with everything under them
+    videopage.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old
+                          name), and the tools dm fetches and checks (QuickJS)
+    videopage/fetch.rs        a page's reading, its streams fetched by dm's engine
+    videopage/choices.rs      the panel's list of qualities, from the page's own data
+    videopage/page_data.rs    a YouTube watch page's own player data, read as that list
+    videopage/playlist.rs     a playlist page's videos, listed to tick
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)
@@ -447,7 +458,10 @@ desktop/
                           sync.rs (queue ↔ rows), commands.rs (enabled/run), control.rs (the control protocol),
                           places.rs, ui.rs, menus.rs, tree.rs, bars.rs, drops.rs, search.rs, lists.rs, files.rs…
     src/dialogs/          one file per dialog (add.rs, options.rs, file_info.rs…); frame.rs and
-                          controls.rs are the toolkit they share; state.rs holds the open dialogs
+                          controls.rs are the toolkit they share; state.rs holds the open dialogs;
+                          apart.rs opens each as a window of its own (an egui viewport, sized to
+                          what the body measures), and hands the control port's clicks and keys
+                          to it (the input hook in vendor/egui-winit)
     src/commands.rs       the command registry every menu, key and script runs
     src/cli.rs, mcp.rs, control.rs   the command line, the MCP server, the control protocol
     tests/window.rs       indexes tests/window/*.rs, grouped by what they check (options, dialogs,
@@ -463,4 +477,4 @@ scripts/app-check.py      the built binary, driven
 
 ## Licence
 
-MIT — see [LICENSE](../LICENSE).
+GPL-3.0-or-later, with the attribution terms of section 7(b) — see [LICENSE](../LICENSE) and [NOTICE](../NOTICE).

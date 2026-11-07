@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Cutting a file into the ranges that will be fetched at once.
 //!
 //! This is the decision download managers are really named for: one connection is limited by
@@ -18,8 +23,11 @@ use std::path::Path;
 /// number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Segment {
+    /// The first byte of the range, inclusive.
     pub start: u64,
+    /// The last byte of the range, inclusive.
     pub end: u64,
+    /// How many of its bytes are on disk, from the start.
     pub done: u64,
 }
 
@@ -35,10 +43,13 @@ impl Segment {
     }
 
     /// Where the next request for this range should begin.
+    #[must_use]
     pub fn cursor(&self) -> u64 {
         self.start + self.done
     }
 
+    /// Whether the whole range is on disk.
+    #[must_use]
     pub fn finished(&self) -> bool {
         self.done >= self.span()
     }
@@ -46,7 +57,11 @@ impl Segment {
 
 /// Below this, splitting costs more in round trips than it wins in
 /// parallelism — the connections spend their time being set up rather than
-/// carrying bytes.
+/// carrying bytes. Reference A cuts a 100 KB file into pieces down to about
+/// 14 KB (gaps row 95); lowering this to match opens every connection at once
+/// on a small file from a fast server, which the browser check (contract row
+/// B36: "no more connections than it needs") refuses, so it waits for the
+/// maintainer's word.
 pub const MIN_SEGMENT: u64 = 1024 * 1024;
 
 /// Browsers cap connections per host at six and no amount of asking changes
@@ -163,7 +178,9 @@ pub fn pieces(size: Option<u64>, connections: usize, resumable: bool) -> Vec<Seg
 /// one the settings now suggest.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Recorded {
+    /// The file's size, where the server said.
     pub size: Option<u64>,
+    /// Whether the server answered range requests.
     pub resumable: bool,
     /// `(start, end)` of each range, in part-file order.
     pub ranges: Vec<(u64, u64)>,

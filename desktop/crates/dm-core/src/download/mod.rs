@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Fetching a file over several connections at once, and putting it back
 //! together.
 //!
@@ -22,7 +27,7 @@ use crate::control::Control;
 use crate::limit::Limiter;
 use crate::metalink::{self, Metalink};
 use crate::plan::{self, Segment};
-use crate::probe::{probe, Probe};
+use crate::probe::{probe_get, Probe, ProbeWithBody};
 use crate::progress::{Meter, Progress};
 use crate::retry;
 use crate::stream::{self, Quality};
@@ -34,6 +39,7 @@ mod files;
 mod hls;
 mod http;
 mod mirrors;
+mod plain;
 mod ranged;
 mod space;
 
@@ -48,6 +54,7 @@ pub use space::*;
 /// How a download should be carried out.
 #[derive(Debug, Clone)]
 pub struct Options {
+    /// How many connections one file may use at most.
     pub connections: usize,
     /// Somewhere to ask this download to stop. Shared, so a caller keeps its
     /// own clone; the default never stops anything.
@@ -70,6 +77,9 @@ pub struct Options {
     /// A digest the finished file must have. A Metalink supplies its own
     /// where the caller gave none.
     pub checksum: Option<Checksum>,
+    /// What only a torrent's download reads: the files chosen, the peers
+    /// blocked.
+    pub torrent: crate::torrent::TorrentOptions,
     /// Which rendition to take from an adaptive stream.
     pub quality: Quality,
     /// The address of a separate sound track for the picture at the download's
@@ -88,23 +98,28 @@ pub struct Options {
     /// The finished part saved as a GIF (`crate::gif`).
     pub gif: bool,
     /// Media was asked for (a player's video, from the browser's panel or
-    /// media menu): a page yt-dlp cannot read fails, rather than being
-    /// fetched as the document its address ends like (a
-    /// `player.html` was saved as its HTML and called complete).
+    /// media menu): a non-YouTube page fails, rather than being fetched as
+    /// the document its address ends like.
     pub media: bool,
     /// The page a download came from, sent as `Referer`. Set for a download a
     /// browser handed over, where the file is served only to a request that
     /// names its page; `None` for one typed in, which needs no such thing.
     pub referrer: Option<String>,
     /// The proxy, as a URL, for a tool dm runs on its behalf. The client
-    /// already carries it for every request of dm's own; yt-dlp makes its own
-    /// connections and has to be told, or a page it fetches goes out directly
-    /// on a machine where nothing may.
+    /// already carries it for every request of dm's own.
     pub proxy: Option<String>,
     /// The container a video from the browser's panel was listed in ("mp4",
-    /// "webm"), preferred when yt-dlp chooses among the formats at its
-    /// height, so what arrives is what the list said.
+    /// "webm"), preferred when choosing among the formats at its height,
+    /// so what arrives is what the list said.
     pub container: Option<String>,
+    /// The frame rate a video from the panel was listed at, where its height
+    /// has two lines ("720p HD" and "720p HD 60 fps", as reference A): above
+    /// 30 asks for the faster picture, 30 or less for the other.
+    pub frame_rate: Option<u32>,
+    /// The caption track a list line named (`Quality::caption_of`): its
+    /// language and whether it is the speech-recognised one. The download is
+    /// that caption file alone.
+    pub caption: Option<(String, bool)>,
     /// How many times one connection tries a range (or the probe) before
     /// the download fails, where the failure is the kind waiting can fix.
     /// Zero keeps trying until it gets through, or is paused or cancelled.
@@ -115,8 +130,7 @@ pub struct Options {
     /// Sites `proxy` is not used for; see `Proxy::bypass`. The client
     /// already knows them; the tools and the FTP client are told here.
     pub proxy_bypass: Vec<String>,
-    /// Ask yt-dlp for a video's subtitles and carry them inside the video,
-    /// put there by dm (`subtitles`).
+    /// Carry a video's subtitles inside it, put there by dm (`subtitles`).
     pub subtitles: bool,
     /// The site's sign-in the browser handed over with this download, sent
     /// to that server only.
@@ -126,6 +140,12 @@ pub struct Options {
     /// it held that name for a moment and pushed a download of the same
     /// file finishing then to "name (1)".
     pub save_name: Option<String>,
+    /// The title of the page the link came from: names the file when the name found says nothing (`naming`).
+    pub title_hint: Option<String>,
+    /// A page that answers for a file (a sign-in, an expired link) is saved as
+    /// an HTML page, named `<name>.html`, rather than failing the download:
+    /// what a person who was asked and said yes has chosen (reference A asks).
+    pub accept_page: bool,
     /// The proxy is the computer's own settings. dm's HTTP client reads
     /// them, but where they name no address the environment carries (the
     /// macOS and Windows network settings), FTP and BitTorrent, which
@@ -151,8 +171,23 @@ pub struct Options {
 /// (`example.com` covers `dl.example.com`), and how many it takes.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HostLimit {
+    /// The host, or a suffix of it, the limit is for.
     pub host: String,
+    /// How many connections that site takes.
     pub connections: usize,
+}
+
+/// Whether a connection of dm's own is refused under the computer's proxy
+/// settings: they are chosen, they gave no address, the site is not
+/// bypassed, and the computer has a proxy in force (asked last, as it may
+/// run `scutil`).
+fn refuses_unrouted(
+    system: bool,
+    has_address: bool,
+    bypassed: bool,
+    in_force: impl FnOnce() -> bool,
+) -> bool {
+    system && !has_address && !bypassed && in_force()
 }
 
 impl Options {
@@ -165,8 +200,9 @@ impl Options {
     }
 
     /// The proxy a download of `url` goes through, for the tools and the
-    /// FTP client: `proxy`, unless the site is on the bypass list.
-    pub fn proxy_for(&self, url: &str) -> Option<&str> {
+    /// FTP client: `proxy`, unless the site is on the bypass list; where a
+    /// configuration script chooses, what it says for the site.
+    pub fn proxy_for(&self, url: &str) -> Option<String> {
         let host = category::host_of(url);
         let bypassed = crate::proxy::Proxy {
             bypass: self.proxy_bypass.clone(),
@@ -176,23 +212,31 @@ impl Options {
         if bypassed {
             None
         } else {
-            self.proxy.as_deref()
+            crate::proxy::route_for(self.proxy.as_deref(), url)
         }
     }
 
     /// Why a connection of dm's own (FTP, a torrent's swarm) to `url` may
     /// not be made: the computer's proxy is in force and names no address
     /// such a connection could use, and the site is not on the bypass list.
+    /// A computer with no proxy at all goes direct (it refused every FTP
+    /// download and torrent until 2026-11-06).
     pub fn no_route_through_system_proxy(&self, url: &str, what: &str) -> Option<String> {
         let bypassed = crate::proxy::Proxy {
             bypass: self.proxy_bypass.clone(),
             ..Default::default()
         }
         .bypasses(&category::host_of(url));
-        (self.system_proxy && self.proxy.is_none() && !bypassed).then(|| {
+        refuses_unrouted(
+            self.system_proxy,
+            self.proxy.is_some(),
+            bypassed,
+            crate::proxy::system_proxy_in_force,
+        )
+        .then(|| {
             format!(
                 "dm cannot send {what} through the computer's proxy settings, and does not go \
-                 around them — name the proxy's address in Options › Proxy"
+                 around them — name the proxy's address in Options › Advanced"
             )
         })
     }
@@ -221,8 +265,11 @@ impl Options {
 /// What happened, once it stopped happening.
 #[derive(Debug)]
 pub struct Finished {
+    /// Where the finished file is.
     pub path: PathBuf,
+    /// Its size in bytes.
     pub bytes: u64,
+    /// How many connections it used.
     pub connections: usize,
     /// What it was sorted as, whether or not sorting was on.
     pub category: category::Category,
@@ -250,12 +297,15 @@ struct Source {
 /// Shared state for one download.
 struct Job {
     segments: Mutex<Vec<Segment>>,
-    /// For each range after the first, the byte just before it, fetched as
-    /// a one-byte overlap with the range before; `NO_OVERLAP` until fetched.
-    /// Checked at assembly against the previous range's last byte, which is
-    /// the only way to see a server that labels bytes from the wrong offset
-    /// with the right Content-Range.
-    overlaps: Vec<std::sync::atomic::AtomicU16>,
+    /// Set when a finished range's last bytes, asked for again, were other
+    /// bytes than the ones on disk: the connections did not get one file.
+    disagreed: std::sync::atomic::AtomicBool,
+    /// For each range after the first, the bytes just before it (up to 64)
+    /// fetched as an overlap with the range before. `None` until fetched;
+    /// compared at assembly against the same bytes on disk, which is the only
+    /// way to catch a server that labels bytes from the wrong offset with the
+    /// right Content-Range.
+    overlaps: Vec<std::sync::Mutex<Option<Vec<u8>>>>,
     limiter: Limiter,
     /// Best first. More than one only when a Metalink named mirrors that
     /// agree about the file.
@@ -327,9 +377,14 @@ const DISK_LOOK_EVERY: u64 = 32 * 1024 * 1024;
 /// The most ranges a download can end up with, splits included.
 const MAX_RANGES: usize = 256;
 
-/// A range is halved only if each half would be at least this (128 KB: 256 KB
-/// left a 1.5 MB file on a connection-capped server a third slower).
-const MIN_SPLIT: u64 = 128 * 1024;
+/// A range is halved only if each half would be at least this. 16 KB:
+/// reference A halved a 100 KB file from a slow server into four, pieces
+/// down to about 14 KB, where 128 KB left dm on one connection for it
+/// (`docs/reference-behavior.md`, measured 2026-10-31); 256 KB had left a
+/// 1.5 MB file on a connection-capped server a third slower. A fast server
+/// never sees the halving of a small file: the helpers that do it wait
+/// first (`HELP_AFTER`).
+const MIN_SPLIT: u64 = 16 * 1024;
 
 impl Job {
     /// The one file every range of this download is written into, each at
@@ -369,22 +424,19 @@ impl Job {
 }
 
 tokio::task_local! {
-    /// Set while one stream of a video page is fetched (`ytdlp::fetch`): the
+    /// Set while one stream of a video page is fetched (`videopage::fetch`): the
     /// address is the file, so a refusal or a page in its place is the
-    /// stream's failure, not a page for yt-dlp to try. Handed to it as one,
-    /// each of a video's streams cost two more yt-dlp runs (about 1.4 s on
-    /// YouTube, which refuses dm's own requests for its streams) before the
-    /// helper downloaded the video from its reading as it was always going to.
+    /// stream's failure, not a page to try reading.
     static STREAM: ();
 
-    /// What yt-dlp's reading says about how one stream of a video page is
-    /// served, set beside [`STREAM`]. Kept here rather than on `Options`,
-    /// which callers build field by field.
+    /// How one stream of a video page is served, from the reading, set
+    /// beside [`STREAM`]. Kept here rather than on `Options`, which callers
+    /// build field by field.
     static HINTS: StreamHints;
 }
 
-/// How the server of a stream wants to be asked, as yt-dlp's reading of the
-/// page gave it. Data only: nothing here names a site.
+/// How the server of a stream wants to be asked, as the reading of the page
+/// gave it. Data only: nothing here names a site.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct StreamHints {
     /// The rest of the headers its reading says the server is asked with.
@@ -393,18 +445,6 @@ pub(crate) struct StreamHints {
     /// `http_chunk_size`): a server that slows or cuts any one response
     /// after that is asked for the next slice on a fresh one.
     pub chunk: Option<u64>,
-}
-
-/// [`download_reporting`] for one stream of a video page (`ytdlp::fetch`):
-/// the address is the file, so what the server refuses, or answers with a
-/// page, is that stream's failure and nothing is handed to yt-dlp.
-pub async fn download_video_stream(
-    client: &reqwest::Client,
-    url: &str,
-    options: &Options,
-    report: Option<tokio::sync::mpsc::Sender<Update>>,
-) -> Result<Finished, Error> {
-    download_video_stream_with(client, url, options, report, StreamHints::default()).await
 }
 
 /// Headers a video site's reading gives for one stream (`http_headers`),
@@ -484,7 +524,9 @@ pub(crate) fn stream_headers() -> Headers {
         .unwrap_or_default()
 }
 
-/// [`download_video_stream`] for a stream the reading says how to ask for.
+/// [`download_reporting`] for one stream of a video page (`videopage::fetch`),
+/// asked for as its reading says: the address is the file, so what the
+/// server refuses, or answers with a page, is that stream's failure.
 pub(crate) async fn download_video_stream_with(
     client: &reqwest::Client,
     url: &str,
@@ -493,7 +535,7 @@ pub(crate) async fn download_video_stream_with(
     hints: StreamHints,
 ) -> Result<Finished, Error> {
     // Boxed: a video page's streams are downloads that may themselves meet a
-    // page (`ytdlp::download_page`), which an async fn cannot be recursive in.
+    // page (`videopage::download_page`), which an async fn cannot be recursive in.
     Box::pin(HINTS.scope(
         hints,
         STREAM.scope((), download_reporting(client, url, options, report)),
@@ -506,6 +548,8 @@ fn is_stream() -> bool {
     STREAM.try_with(|()| ()).is_ok()
 }
 
+/// Downloads `url` into the folder in `options` and returns what came of it;
+/// [`download_reporting`] also reports progress as it goes.
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
@@ -528,17 +572,26 @@ pub enum Update {
     /// list that can be filtered by kind has to know the kind of every row,
     /// not only the finished ones.
     Named {
+        /// The filename the server or URL gives to the file.
         name: String,
+        /// Which category the file falls into.
         category: category::Category,
     },
+    /// How far the download has got.
     Progress(Progress),
+    /// A torrent's swarm at this sample: its peers and what was sent to them.
+    Swarm(crate::torrent::Swarm),
+    /// A torrent's files, once its metadata is known.
+    Files(Vec<crate::torrent::TorrentFile>),
     /// The server's ETag or Last-Modified for the file being fetched.
     Validator(String),
     /// A range failed and is about to be tried again: attempt `attempt`
     /// (the first try is 1) of `of`, 0 being "keep trying". Over once bytes
     /// arrive again.
     Retrying {
+        /// Which attempt this is; the first try is 1.
         attempt: u32,
+        /// Total attempts allowed; 0 means keep trying indefinitely.
         of: u32,
         /// What failed, in the engine's words, so the row can say why.
         why: String,
@@ -691,9 +744,8 @@ async fn fetch_reporting(
         let paired = dash::download_media_pair(client, url, sound, options, report.clone()).await;
         /* Addresses taken from a player can stop serving anyone but that
          * player (YouTube's ask for a proof-of-origin token after about a
-         * megabyte): the page they came from is read by the video helper
-         * instead, and its streams fetched by dm all the same, rather than
-         * the row failing on what the browser could play. */
+         * megabyte): a YouTube page is read by dm itself, and its streams
+         * fetched by dm all the same. */
         let page = options
             .referrer
             .as_deref()
@@ -701,7 +753,7 @@ async fn fetch_reporting(
         return match (paired, page) {
             (Err(why), Some(page))
                 if !matches!(why, Error::Paused | Error::Cancelled)
-                    && crate::tools::for_video(client).await.is_ok() =>
+                    && crate::youtube::video_id(page).is_some() =>
             {
                 eprintln!("dm: the player's streams were refused ({why}); reading {page} instead");
                 discard_staged(&options.parts_dir).await;
@@ -709,7 +761,7 @@ async fn fetch_reporting(
                     sound: None,
                     ..options.clone()
                 };
-                crate::ytdlp::download_page(client, page, &page_options, report).await
+                crate::videopage::download_page(client, page, &page_options, report).await
             }
             (outcome, _) => outcome,
         };
@@ -754,7 +806,7 @@ async fn fetch_reporting(
     let probed = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {
         or_stop(
             &options.control,
-            probe(
+            probe_get(
                 client,
                 url,
                 options.referrer.as_deref(),
@@ -763,45 +815,44 @@ async fn fetch_reporting(
         )
     })
     .await;
-    /* A page refused to dm's own request (a 429 bot check, a 403 to a
-     * client that is not a browser) is yt-dlp's to try: it gets through
-     * where a plain request does not, and a video site's watch page failed
-     * at the probe though yt-dlp could fetch it (seen with YouTube). Only an
-     * address that names no file; if yt-dlp makes nothing of it either, the
-     * refusal is what is said. */
-    let mut info = match probed {
+    /* A YouTube page refused to dm's own request (a 429 bot check, a 403
+     * to a client that is not a browser) is read by dm's YouTube reader,
+     * which asks as a different client. Only YouTube; other sites' videos
+     * come from the browser extension's caught requests. */
+    let (mut info, mut first_response) = match probed {
         Err(
             refused @ Error::Refused {
                 status: 403 | 429, ..
             },
-        ) if !is_stream()
-            && !names_a_document(url)
-            && crate::tools::for_video(client).await.is_ok() =>
-        {
-            return match crate::ytdlp::download_page(client, url, options, report.clone()).await {
+        ) if !is_stream() && !names_a_document(url) && crate::youtube::video_id(url).is_some() => {
+            return match crate::videopage::download_page(client, url, options, report.clone()).await
+            {
                 Ok(done) => Ok(done),
                 Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
-                // A site yt-dlp does not know: the page's own refusal says
-                // more. Anything else is why the video did not come, which
-                // the refusal hid (an old yt-dlp, a bot check), and which
-                // is not tried ten times over as the refusal was.
-                Err(e) if e.to_string().contains(crate::ytdlp::UNKNOWN_SITE) => Err(refused),
-                Err(e) => Err(e),
+                Err(_) => Err(refused),
             };
         }
-        other => other?,
+        other => {
+            let ProbeWithBody { probe, response } = other?;
+            (probe, Some(response))
+        }
     };
 
-    // A part of a video is cut from a video page's streams (`clip`); an
-    // address that is a file is not one, and is not fetched whole in its
-    // place without a word.
+    // A part of a video is cut from a video page's streams (`clip`), from an
+    // HLS or DASH stream's segments, or from a plain MP4 by its sample
+    // tables (`plain`); any other file is not fetched whole in its place
+    // without a word.
     if options.span.is_some()
         && !is_stream()
-        && !crate::ytdlp::is_page(info.content_type.as_deref())
+        && !crate::videopage::is_page(info.content_type.as_deref())
         && crate::youtube::video_id(url).is_none()
+        && stream::kind_of(url, info.content_type.as_deref()).is_none()
     {
+        if plain::is_mp4(&info.filename, info.content_type.as_deref()) {
+            return plain::download_mp4_part(client, url, &info, options, report).await;
+        }
         return Err(Error::Internal(
-            "a part can be cut only from a video page (YouTube's today); this address is a file"
+            "a part can be cut only from a video page, an HLS or DASH stream or an MP4 file;              this address is another kind of file"
                 .into(),
         ));
     }
@@ -825,19 +876,15 @@ async fn fetch_reporting(
         None => {}
     }
 
-    /* A web page, not a file — a video site's watch URL, say. There is no
-     * body to fetch: the media's address is minted by the site's own player.
-     * Where yt-dlp is there to make sense of that (installed, or fetched by
-     * dm), the page is handed to it rather than saved as its own HTML, which
-     * is never the download
-     * anyone meant. */
-    /* Unless the address names a file. A `.zip` link answered as text/html
-     * is either the zip with a careless type, which is fetched as the file
-     * it is, or a page standing in for it — a sign-in, an expired link —
-     * which is said for what it is rather than handed to yt-dlp, which
-     * would save the page as a "video" or fail about an unknown site. The
-     * first bytes tell the two apart. */
-    let page = crate::ytdlp::is_page(info.content_type.as_deref());
+    /* A web page, not a file — a video site's watch URL, say. YouTube
+     * pages are read by dm itself; every other site's video comes from the
+     * browser extension's caught player requests, not from reading the
+     * page. */
+    /* A `.zip` link answered as text/html is either the zip with a careless
+     * type, which is fetched as the file it is, or a page standing in for
+     * it — a sign-in, an expired link. The first bytes tell the two
+     * apart. */
+    let page = crate::videopage::is_page(info.content_type.as_deref());
     if page && is_stream() {
         return Err(Error::Internal(
             "the stream answered with a web page rather than the file".into(),
@@ -845,49 +892,50 @@ async fn fetch_reporting(
     }
     if page && names_a_file(url) {
         if starts_as_html(client, url, options).await {
-            return Err(Error::Internal(
-                "that link answered with a web page rather than the file — it may have expired, \
-                 or need a sign-in"
-                    .into(),
-            ));
+            if options.accept_page {
+                info.filename = html_name(&info.filename);
+            } else {
+                return Err(Error::Internal(
+                    "that link answered with a web page rather than the file — it may have \
+                     expired, or need a sign-in"
+                        .into(),
+                ));
+            }
         }
     } else if page {
-        /* An address that names a document — `notes.html`, `feed.xml` —
-         * may be the document itself, or a video site's watch page that
-         * happens to end in `.html`. yt-dlp is asked first, and if it
-         * cannot make a video of it, for whatever reason (an unknown site,
-         * a 403 to a request without the page's sign-in, a 429), dm's own
-         * client fetches the document with the row's cookies and referrer.
-         * A watch address with no extension, or a script's (`.php?v=`), is
-         * yt-dlp's alone: its HTML is never the download anyone meant. */
+        /* A YouTube page is read by dm itself; every other site's video
+         * comes from the browser extension's caught player requests. An
+         * address that names a document (`.html`, `.xml`) may be the
+         * document itself, so a non-YouTube page that looks like one falls
+         * through to be fetched as the file it literally is. */
         let document = names_a_document(url);
-        // A YouTube page is read by dm itself (`crate::youtube`): it does
-        // not wait for the helper's first fetch, which goes on behind it
-        // for the videos dm cannot read.
-        let own = crate::youtube::video_id(url).is_some();
-        if own {
-            let client = client.clone();
-            tokio::spawn(async move {
-                let _ = crate::tools::for_video(&client).await;
-            });
-        }
-        if own || crate::tools::for_video(client).await.is_ok() {
-            match crate::ytdlp::download_page(client, url, options, report.clone()).await {
+        let youtube = crate::youtube::video_id(url).is_some();
+        if youtube {
+            match crate::videopage::download_page(client, url, options, report.clone()).await {
                 Err(e)
                     if document
                         && !options.media
                         && !matches!(e, Error::Paused | Error::Cancelled) => {}
                 outcome => return outcome,
             }
+        } else if !document && options.media {
+            /* A page the browser's panel handed over for its video (gaps row 155): dm reads
+             * YouTube's pages only, and this site's video comes from its player's own files,
+             * which the browser had not seen. Not an expired link, and not a page to save. */
+            return Err(Error::Internal(crate::PAGE_NOT_READ.into()));
         } else if !document {
-            /* No yt-dlp, so nothing can turn this page into a file. Saving
-             * the page's own HTML and calling it the download is how
-             * "YouTube does not download" looks like success — refused
-             * plainly instead, with the one thing that fixes it. */
-            return Err(Error::Internal(
-                "that is a web page, not a file, and dm's video helper, which finds the video in a page, could not be got ready"
-                    .into(),
-            ));
+            /* Asked about in the window as an address that ends like a file is (contract row
+             * B40, gaps row 136): a person who typed a page may want it, and Yes saves it as
+             * HTML. The words say the asking's phrase, and where a video comes from. */
+            if options.accept_page {
+                info.filename = html_name(&info.filename);
+            } else {
+                return Err(Error::Internal(
+                    "that address answered with a web page rather than the file; its video, if \
+                     any, comes from the browser's Download video button when the page plays"
+                        .into(),
+                ));
+            }
         }
     }
 
@@ -902,13 +950,23 @@ async fn fetch_reporting(
      * yet, so everything gathered so far is replaced by what the document
      * names. */
     if metalink::is_metalink(url, info.content_type.as_deref()) {
+        first_response = None;
         let listed = fetch_metalink(client, &info.final_url, options).await?;
         let (mirrors, agreed) =
             or_stop(&options.control, agreeing_mirrors(client, &listed)).await?;
 
         let _ = MIRRORS.try_with(|n| n.store(mirrors.len(), Ordering::SeqCst));
         sources = match ONLY_MIRROR.try_with(|only| *only) {
-            Ok(only) => mirrors.get(only).cloned().into_iter().collect(),
+            // The mirror counted on the first try may have stopped answering,
+            // or stopped agreeing, since: that try fails as any other.
+            Ok(only) => match mirrors.get(only) {
+                Some(mirror) => vec![mirror.clone()],
+                None => {
+                    return Err(Error::Connection(
+                        "that mirror no longer answers, or no longer agrees about the file".into(),
+                    ))
+                }
+            },
             Err(_) => mirrors,
         };
         info = agreed;
@@ -935,13 +993,12 @@ async fn fetch_reporting(
     let live = segments.clone();
 
     let job = Arc::new(Job {
+        disagreed: std::sync::atomic::AtomicBool::new(false),
         segments: Mutex::new(segments),
         limiter: options.limiter.clone(),
         sources,
         attempts: (0..capacity).map(|_| AtomicU64::new(0)).collect(),
-        overlaps: (0..capacity)
-            .map(|_| std::sync::atomic::AtomicU16::new(NO_OVERLAP))
-            .collect(),
+        overlaps: (0..capacity).map(|_| std::sync::Mutex::new(None)).collect(),
         live: (0..capacity)
             .map(|i| {
                 std::sync::Mutex::new(live.get(i).map_or(Live::default(), |s| Live {
@@ -973,6 +1030,18 @@ async fn fetch_reporting(
     // the files rather than remembered, because the files are the truth.
     adopt_staged(&job).await?;
 
+    // A resume that already has bytes for segment 0 cannot use the probe's
+    // response: it streams from byte 0, and the bytes on disk started there.
+    // A capped stream (chunk) makes many small requests on purpose — each
+    // under the cap — so the probe's full-file body defeats it. Several ranges under a speed
+    // limit would have the body read ahead of the pacing, and the shown speed
+    // overshoots; one range keeps it.
+    if first_response.is_some()
+        && (job.ledger(0) > 0 || job.chunk.is_some() || (job.limiter.is_limited() && planned > 1))
+    {
+        first_response = None;
+    }
+
     let claimed = match info.size {
         Some(size) => Some(room_for(size, &job.downloaded, options)?),
         None => None,
@@ -1003,7 +1072,16 @@ async fn fetch_reporting(
     } else {
         0
     };
-    let outcome = run(client, &job, planned, workers, helpers, info.resumable).await;
+    let outcome = run(
+        client,
+        &job,
+        planned,
+        workers,
+        helpers,
+        info.resumable,
+        first_response,
+    )
+    .await;
 
     if let Some((handle, finished)) = reporter {
         // Ask for a closing sample, then wait for it to be sent.
@@ -1028,6 +1106,36 @@ async fn fetch_reporting(
     }
     outcome?;
 
+    /* A range's last bytes, asked for again, were not the bytes on disk: the
+     * connections did not all get the same file. Fetched again from the
+     * start on one connection, where there is no seam, and the row says why. */
+    if job.disagreed.load(std::sync::atomic::Ordering::SeqCst)
+        && options.connections > 1
+        && workers > 1
+    {
+        let mut listing = fs::read_dir(&options.parts_dir).await?;
+        while let Some(entry) = listing.next_entry().await? {
+            let _ = fs::remove_file(entry.path()).await;
+        }
+        if let Some(to) = &again {
+            let _ = to
+                .send(Update::Retrying {
+                    attempt: 1,
+                    of: 1,
+                    why: "the pieces fetched over several connections did not agree when                           checked again, so the file is fetched again over one"
+                        .into(),
+                    wait: std::time::Duration::ZERO,
+                })
+                .await;
+        }
+        let one = Options {
+            connections: 1,
+            ..options.clone()
+        };
+        drop(claimed);
+        return Box::pin(download_reporting(client, url, &one, again)).await;
+    }
+
     /* A Metalink supplies its own digest where the caller gave none, so the
      * options handed to assembly carry whichever applies — one place decides
      * whether a file is the file. */
@@ -1036,7 +1144,33 @@ async fn fetch_reporting(
         checksum,
         ..options.clone()
     };
-    let (path, bytes, category) = assemble(&job, &info, options).await?;
+    let assembled = assemble(client, &job, &info, options).await;
+    /* Bytes that differ across a seam when asked for a second time: the
+     * connections did not all get the same file, or a server answers ranges
+     * with other bytes. The parts are gone (`assemble` removed them); the
+     * file is fetched again from the start on one connection, where there
+     * is no seam, and the row says why. */
+    if matches!(assembled, Err(Error::DishonestRanges)) && options.connections > 1 && workers > 1 {
+        if let Some(to) = &again {
+            let _ = to
+                .send(Update::Retrying {
+                    attempt: 1,
+                    of: 1,
+                    why: "the pieces fetched over several connections did not agree when \
+                          checked again, so the file is fetched again over one"
+                        .into(),
+                    wait: std::time::Duration::ZERO,
+                })
+                .await;
+        }
+        let one = Options {
+            connections: 1,
+            ..options.clone()
+        };
+        drop(claimed);
+        return Box::pin(download_reporting(client, url, &one, again)).await;
+    }
+    let (path, bytes, category) = assembled?;
     // The server's date on the file, where asked: a file a person sorts by
     // date then sorts by when it was made, not when it was fetched.
     if options.server_dates {
@@ -1061,11 +1195,48 @@ async fn fetch_reporting(
     })
 }
 
+/// `name` as an HTML page's: its extension replaced by `.html`, so a `.zip`
+/// that was a page is saved as the page it is.
+pub(crate) fn html_name(name: &str) -> String {
+    let path = std::path::Path::new(name);
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("html") || ext.eq_ignore_ascii_case("htm") => {
+            name.to_string()
+        }
+        _ => {
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+            format!("{stem}.html")
+        }
+    }
+}
+
 #[cfg(test)]
 mod capped_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn under_the_computers_proxy_only_a_proxy_in_force_with_no_address_refuses() {
+        // A proxy in force (a configuration script alone) and no address: refused.
+        assert!(super::refuses_unrouted(true, false, false, || true));
+        // No proxy on the computer: direct.
+        assert!(!super::refuses_unrouted(true, false, false, || false));
+        // An address to go through, a bypassed site, or settings of dm's own:
+        // the computer is not asked.
+        for (system, address, bypassed) in [
+            (true, true, false),
+            (true, false, true),
+            (false, false, false),
+        ] {
+            assert!(!super::refuses_unrouted(
+                system,
+                address,
+                bypassed,
+                || panic!("asked")
+            ));
+        }
+    }
+
     #[test]
     fn a_ts_name_loses_its_extension_in_any_case() {
         assert_eq!(super::ts_stem("show.ts"), "show");
@@ -1170,9 +1341,14 @@ mod tests {
             server_dates: false,
             retry_wait: 0,
             record_limit: None,
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
+            accept_page: false,
+            torrent: Default::default(),
             system_proxy: false,
+            title_hint: None,
         }
     }
 

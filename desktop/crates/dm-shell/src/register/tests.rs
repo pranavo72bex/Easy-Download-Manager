@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /* Found by profile folder alone, as before: these tests run on
@@ -539,6 +544,95 @@ fn on_windows_a_key_that_cannot_be_written_is_said_and_unregistering_removes_all
     assert!(missing.is_err(), "a relative program is not registered");
 }
 
+/// Windows' magnet handler: dm's keys are the protocol, a marker and the command, and dm
+/// writes them only where no other program owns the key.
+#[test]
+fn on_windows_dm_becomes_the_magnet_handler_unless_another_program_is() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+
+    let keys = magnet_keys(&exe);
+    assert_eq!(keys.len(), 4);
+    assert!(keys
+        .iter()
+        .all(|a| a[0] == "add" && a.last().map(String::as_str) == Some("/f")));
+    assert_eq!(keys[1][3], "URL Protocol");
+    assert_eq!(keys[2][3], "dm", "a marker says the key is dm's own");
+    let command = format!("\"{}\" \"%1\"", exe.display());
+    assert_eq!(
+        keys[3][1],
+        r"HKCU\Software\Classes\magnet\shell\open\command"
+    );
+    assert_eq!(keys[3][6], command);
+
+    // No magnet key at all: dm's four are written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_magnet_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert!(wrote);
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 4);
+
+    // Another program's key (it exists, and carries no marker): nothing is written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_magnet_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        // `query KEY` finds it; `query KEY /v dm` does not.
+        if args.len() > 3 {
+            Err("no such value".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert!(!wrote);
+    assert!(ran.iter().all(|a| a[0] == "query"), "{ran:?}");
+
+    // dm's own key (the marker is there): rewritten, so a moved program is followed.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(register_magnet_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    })
+    .unwrap());
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 4);
+
+    // A relative program is refused.
+    assert!(register_magnet_windows(Path::new("dm.exe"), |_| Ok(())).is_err());
+}
+
+#[test]
+fn on_windows_only_a_magnet_key_that_is_dms_is_removed() {
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(unregister_magnet_windows(|args| {
+        ran.push(args.to_vec());
+        Ok(())
+    }));
+    assert!(ran
+        .iter()
+        .any(|a| a[0] == "delete" && a[1] == r"HKCU\Software\Classes\magnet" && a[2] == "/f"));
+
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(!unregister_magnet_windows(|args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("no such value".into())
+        } else {
+            Ok(())
+        }
+    }));
+    assert!(
+        ran.iter().all(|a| a[0] != "delete"),
+        "another program's key is not deleted"
+    );
+}
+
 #[test]
 fn only_the_two_flags_are_taken_as_registering() {
     assert_eq!(from_args(&[]), None);
@@ -549,4 +643,284 @@ fn only_the_two_flags_are_taken_as_registering() {
         from_args(&["--register".into(), "not-an-id".into()]),
         Some(2)
     );
+}
+
+/// `.torrent` files on Windows (spec T2): dm's ProgId with a marker and the command, then the
+/// extension pointing at it; never over another program's, and removed only when it is dm's.
+#[test]
+fn on_windows_a_torrent_file_opens_with_dm_unless_another_program_has_it() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+    let command = format!("\"{}\" \"%1\"", exe.display());
+
+    let keys = torrent_keys(&exe);
+    assert_eq!(keys.len(), 5);
+    assert!(keys
+        .iter()
+        .all(|a| a[0] == "add" && a.last().map(String::as_str) == Some("/f")));
+    assert_eq!(keys[1][1], r"HKCU\Software\Classes\dm.torrent");
+    assert_eq!(keys[1][3], "dm", "a marker says the ProgId is dm's own");
+    assert_eq!(
+        keys[2][1],
+        r"HKCU\Software\Classes\dm.torrent\shell\open\command"
+    );
+    assert_eq!(keys[2][6], command, "the program and the file, both quoted");
+    assert_eq!(keys[3][1], r"HKCU\Software\Classes\.torrent");
+    assert_eq!(keys[3][6], "dm.torrent");
+    assert_eq!(keys[4][3], "Content Type");
+    assert_eq!(keys[4][7], "application/x-bittorrent");
+
+    let adds = |ran: &[Vec<String>]| ran.iter().filter(|a| a[0] == "add").count();
+
+    // No `.torrent` key at all: dm's five are written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_torrent_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert_eq!(wrote, Ok(true));
+    assert_eq!(adds(&ran), 5);
+
+    // Another program's: `.torrent` is there, dm's marker is not. Nothing written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_torrent_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" && args[1].ends_with(r"\dm.torrent") {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert_eq!(wrote, Ok(false));
+    assert_eq!(adds(&ran), 0, "another program's extension is left alone");
+
+    // dm's own: rewritten, so a program that moved is followed.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert_eq!(
+        register_torrent_windows(&exe, |args| {
+            ran.push(args.to_vec());
+            Ok(())
+        }),
+        Ok(true)
+    );
+    assert_eq!(adds(&ran), 5);
+
+    // A program named without its folder is not one Windows could start.
+    assert!(register_torrent_windows(Path::new("dm.exe"), |_| Ok(())).is_err());
+}
+
+#[test]
+fn on_windows_only_a_torrent_registration_that_is_dms_is_removed() {
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(unregister_torrent_windows(|args| {
+        ran.push(args.to_vec());
+        Ok(())
+    }));
+    let deleted: Vec<&str> = ran
+        .iter()
+        .filter(|a| a[0] == "delete")
+        .map(|a| a[1].as_str())
+        .collect();
+    assert_eq!(
+        deleted,
+        [
+            r"HKCU\Software\Classes\.torrent",
+            r"HKCU\Software\Classes\dm.torrent"
+        ]
+    );
+
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(!unregister_torrent_windows(|args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("no such value".into())
+        } else {
+            Ok(())
+        }
+    }));
+    assert!(
+        ran.iter().all(|a| a[0] != "delete"),
+        "another program's registration is not deleted"
+    );
+}
+
+/// An update installed over a version that wrote no handlers: the browsers' manifests are
+/// current, yet the magnet and `.torrent` registrations are written; once they are dm's, a
+/// start only asks.
+#[test]
+fn a_start_writes_the_windows_handlers_an_older_version_never_wrote() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+    // Nothing registered yet: every query fails, so both are written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    refresh_windows_handlers(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    });
+    let added: Vec<&str> = ran
+        .iter()
+        .filter(|a| a[0] == "add")
+        .map(|a| a[1].as_str())
+        .collect();
+    assert!(added.contains(&r"HKCU\Software\Classes\magnet"));
+    assert!(added.contains(&r"HKCU\Software\Classes\.torrent"));
+    assert_eq!(added.len(), 4 + 5);
+
+    // Both are dm's already: nothing written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    refresh_windows_handlers(&exe, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    });
+    assert!(ran.iter().all(|a| a[0] == "query"), "{ran:?}");
+}
+
+/// Who opens magnet links and `.torrent` files is read from the keys:
+/// Windows' own choice first, then dm's marker, another program's key, or none.
+#[test]
+fn who_opens_magnet_links_and_torrent_files_is_read_from_the_keys() {
+    // Windows' Default apps choice decides over every registration.
+    assert_eq!(magnet_owner(|_| Ok(())), Owner::WindowsChoice);
+    let only = |found: &'static [&'static str]| {
+        move |args: &[String]| {
+            let key = args[1].as_str();
+            let wanted = if args.len() > 3 && args[2] == "/v" {
+                format!("{key} /v {}", args[3])
+            } else {
+                key.to_string()
+            };
+            if found.iter().any(|f| *f == wanted) {
+                Ok(())
+            } else {
+                Err("not found".to_string())
+            }
+        }
+    };
+    assert_eq!(
+        magnet_owner(only(&[
+            r"HKCU\Software\Classes\magnet",
+            r"HKCU\Software\Classes\magnet /v dm"
+        ])),
+        Owner::Dm
+    );
+    assert_eq!(
+        magnet_owner(only(&[r"HKCU\Software\Classes\magnet"])),
+        Owner::Other
+    );
+    assert_eq!(magnet_owner(only(&[])), Owner::Nobody);
+    assert_eq!(
+        torrent_owner(only(&[
+            r"HKCU\Software\Classes\.torrent",
+            r"HKCU\Software\Classes\dm.torrent /v dm"
+        ])),
+        Owner::Dm
+    );
+    assert_eq!(
+        torrent_owner(only(&[r"HKCU\Software\Classes\.torrent"])),
+        Owner::Other
+    );
+    assert_eq!(torrent_owner(only(&[])), Owner::Nobody);
+}
+
+/// Taken at a person's asking from another program, magnet links and
+/// `.torrent` files are kept first (`reg export`), and given back from it.
+#[test]
+fn magnet_links_and_torrent_files_taken_from_another_program_can_be_given_back() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+    let backup = elsewhere.path().join("magnet-before-dm.reg");
+    // Another program's key: kept, removed, then dm's written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    take_magnet_windows(&exe, &backup, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" && args.len() > 2 {
+            Err("no marker".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert_eq!(ran[1][0], "query", "{ran:?}");
+    let export = ran
+        .iter()
+        .position(|a| a[0] == "export")
+        .expect("kept first");
+    let delete = ran
+        .iter()
+        .position(|a| a[0] == "delete")
+        .expect("then removed");
+    let first_add = ran.iter().position(|a| a[0] == "add").expect("then dm's");
+    assert!(export < delete && delete < first_add, "{ran:?}");
+    assert_eq!(ran[export][2], backup.display().to_string());
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 4);
+    // Nobody's: nothing kept, dm's written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    take_magnet_windows(&exe, &backup, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("none".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert!(
+        !ran.iter().any(|a| a[0] == "export" || a[0] == "delete"),
+        "{ran:?}"
+    );
+    // Given back: dm's removed, the kept one imported.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    give_back_magnet_windows(&backup, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    })
+    .unwrap();
+    let delete = ran.iter().position(|a| a[0] == "delete").unwrap();
+    let import = ran.iter().position(|a| a[0] == "import").unwrap();
+    assert!(delete < import);
+    assert_eq!(ran[import][1], backup.display().to_string());
+    // The same for .torrent files, both of dm's keys removed on giving back.
+    let backup = elsewhere.path().join("torrent-before-dm.reg");
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    take_torrent_windows(&exe, &backup, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" && args[1].ends_with("dm.torrent") {
+            Err("no marker".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert!(
+        ran.iter()
+            .any(|a| a[0] == "export" && a[1] == r"HKCU\Software\Classes\.torrent"),
+        "{ran:?}"
+    );
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 5);
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    give_back_torrent_windows(&backup, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(ran.iter().filter(|a| a[0] == "delete").count(), 2);
+    assert!(ran.iter().any(|a| a[0] == "import"));
+    // A program that cannot be started is refused before anything is written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(
+        take_magnet_windows(std::path::Path::new("dm.exe"), &backup, |args| {
+            ran.push(args.to_vec());
+            Ok(())
+        })
+        .is_err()
+    );
+    assert!(ran.is_empty());
 }

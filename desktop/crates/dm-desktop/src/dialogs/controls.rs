@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 /// A number typed into a box, as a desktop's number fields are: not
 /// changed by dragging across it, with the text cursor over it. The drag
@@ -395,8 +400,10 @@ pub(super) fn choice_look(ui: &mut egui::Ui, checked: bool) {
     if !t.modern {
         return;
     }
-    // WinUI's 20 px box; the window's own icon width is a drop-down's.
-    ui.spacing_mut().icon_width = 20.0;
+    // One size for every choice (`theme::CHOICE`), its mark half of it; the
+    // window's own icon width is a drop-down's.
+    ui.spacing_mut().icon_width = crate::theme::CHOICE;
+    ui.spacing_mut().icon_width_inner = crate::theme::CHOICE / 2.0;
     // ControlAltFillColorSecondary, Tertiary and Quarternary behind an
     // empty box.
     let alt = |light: u8, dark: u8| {
@@ -521,7 +528,12 @@ pub(super) fn entered(field: &egui::Response) -> bool {
 /// own that has the keyboard takes Enter for itself instead.
 pub(super) fn enter_free(ui: &egui::Ui) -> bool {
     let ctx = ui.ctx();
-    let in_front = ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id());
+    // In a window of its own, the dialog the system says has the keyboard.
+    let in_front = if super::apart::in_own_window(ctx) {
+        ctx.input(|i| i.viewport().focused) != Some(false)
+    } else {
+        ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id())
+    };
     let own = ctx
         .memory(|m| m.focused())
         .and_then(|id| ctx.read_response(id))
@@ -615,9 +627,9 @@ pub(super) fn browse_button(
 }
 
 /// A row of settings as WinUI's toggle switch draws it: the words at the
-/// left, a 40 by 20 pill at the right that is the accent when on and an
-/// outline when off, the thumb sliding to the side that is chosen. The
-/// classic look keeps its check box.
+/// left, a pill at the right as tall as a check box (`theme::CHOICE`) and
+/// twice as wide, the accent when on and an outline when off, the thumb
+/// sliding to the side that is chosen. The classic look keeps its check box.
 pub(crate) fn toggle_row(
     ui: &mut egui::Ui,
     on: &mut bool,
@@ -635,7 +647,7 @@ pub(crate) fn toggle_row(
         f32::INFINITY,
         egui::TextStyle::Body,
     );
-    let size = egui::vec2(ui.available_width().max(120.0), 36.0);
+    let size = egui::vec2(ui.available_width().max(120.0), crate::theme::CONTROL + 6.0);
     let (rect, mut response) = ui.allocate_exact_size(size, egui::Sense::click());
     if response.clicked() {
         *on = !*on;
@@ -652,11 +664,12 @@ pub(crate) fn toggle_row(
         galley,
         t.text,
     );
+    let tall = crate::theme::CHOICE;
     let pill = egui::Rect::from_center_size(
-        egui::pos2(rect.right() - 4.0 - 20.0, rect.center().y),
-        egui::vec2(40.0, 20.0),
+        egui::pos2(rect.right() - 4.0 - tall, rect.center().y),
+        egui::vec2(tall * 2.0, tall),
     );
-    let round = 10.0;
+    let round = tall / 2.0;
     if *on {
         painter.rect_filled(pill, round, if enabled { t.brand } else { t.disabled });
     } else {
@@ -672,10 +685,12 @@ pub(crate) fn toggle_row(
     } else {
         0.0
     };
+    // The thumb as WinUI sizes it against its pill: 12 and 10 across in a
+    // 20-tall one, so 5 and 4 in radius here.
     let (x, radius, colour) = if *on {
-        (pill.right() - 10.0, 6.0 + grow, t.on_brand)
+        (pill.right() - round, round - 3.0 + grow, t.on_brand)
     } else {
-        (pill.left() + 10.0, 5.0 + grow, t.text2)
+        (pill.left() + round, round - 4.0 + grow, t.text2)
     };
     painter.circle_filled(egui::pos2(x, pill.center().y), radius, colour);
     if response.has_focus() {
@@ -742,8 +757,12 @@ pub(crate) fn setting_row(
 /// on it, and to a screen reader.
 pub(crate) fn theme_segments(ui: &mut egui::Ui, current: &mut String) -> egui::Response {
     let t = crate::theme::Tokens::get(ui.ctx());
-    let side = 32.0;
+    // Each button a control's height (`theme::CONTROL`), its drawing 16
+    // across as a check box is: at 32 a side the tray stood out over every
+    // other control on the page (maintainer, 2026-11-05); at a drop-down's
+    // height whole, the drawings filled their buttons.
     let pad = 2.0;
+    let side = crate::theme::CONTROL;
     let count = crate::dialogs::THEMES.len() as f32;
     let (tray, mut whole) = ui.allocate_exact_size(
         egui::vec2(count * side + (count + 1.0) * pad, side + 2.0 * pad),

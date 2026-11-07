@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// The ◀ ▶ pair that moves a column or a toolbar button a place earlier or
@@ -32,10 +37,17 @@ pub(super) fn move_buttons(
 
 /// How wide a modern toolbar button is: its name beside its picture, or
 /// (`stacked`) under it in smaller type.
+/// The widest a toolbar button with its name under its picture grows.
+const STACKED_MOST: f32 = 64.0;
+
 pub(super) fn modern_width(ui: &egui::Ui, label: &str, stacked: bool) -> f32 {
     // The size the words are drawn at (`modern_tool`): measured at 11.5,
     // a long name stood wider than the room kept for it.
-    let size = if stacked { 12.0 } else { 14.0 };
+    let size = if stacked {
+        crate::theme::CAPTION
+    } else {
+        crate::theme::BODY
+    };
     let text = ui
         .painter()
         .layout_no_wrap(
@@ -46,7 +58,10 @@ pub(super) fn modern_width(ui: &egui::Ui, label: &str, stacked: bool) -> f32 {
         .size()
         .x;
     if stacked {
-        (text + 14.0).max(46.0)
+        // Reference A's buttons: one width for every name, a long one
+        // shortened ("Delete C…"), so eleven fit an 800-pixel window with
+        // their words; as wide as each name, they fell to pictures alone.
+        (text + 12.0).clamp(46.0, STACKED_MOST)
     } else {
         12.0 + 20.0 + 8.0 + text + 12.0
     }
@@ -119,7 +134,11 @@ pub(super) fn modern_tool(
     t: &crate::theme::Tokens,
     stacked: bool,
 ) -> egui::Response {
-    let font = egui::FontId::proportional(if stacked { 12.0 } else { 14.0 });
+    let font = egui::FontId::proportional(if stacked {
+        crate::theme::CAPTION
+    } else {
+        crate::theme::BODY
+    });
     let text_color = if !enabled {
         t.disabled
     } else if primary {
@@ -127,14 +146,16 @@ pub(super) fn modern_tool(
     } else {
         t.text
     };
-    let galley = ui
-        .painter()
-        .layout_no_wrap(label.to_string(), font, text_color);
     let size = if stacked {
         egui::vec2(modern_width(ui, widest, true), 44.0)
     } else {
-        egui::vec2(modern_width(ui, widest, false), 32.0)
+        egui::vec2(modern_width(ui, widest, false), 30.0)
     };
+    // A name longer than the button is shortened with "…", whole on hover
+    // (the toolbar's own hover text says it).
+    let mut job = egui::text::LayoutJob::simple_singleline(label.to_string(), font, text_color);
+    job.wrap = egui::text::TextWrapping::truncate_at_width(size.x - 6.0);
+    let galley = ui.fonts_mut(|f| f.layout_job(job));
     let (rect, response) = ui.allocate_exact_size(
         size,
         if enabled {
@@ -266,7 +287,10 @@ pub(super) fn nav_group(
     let key = egui::Id::unique(("dm-nav-group", id));
     let mut open = ui.ctx().data_mut(|d| *d.get_persisted_mut_or(key, true));
     let width = ui.available_width().max(120.0);
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 32.0), egui::Sense::click());
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(width, crate::theme::NAV_ITEM),
+        egui::Sense::click(),
+    );
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
     if response.clicked() {
         open = !open;
@@ -295,7 +319,7 @@ pub(super) fn nav_group(
         egui::pos2(rect.left() + 12.0, rect.center().y),
         egui::Align2::LEFT_CENTER,
         label,
-        egui::FontId::proportional(14.0),
+        egui::FontId::proportional(crate::theme::BODY),
         t.text,
     );
     // ChevronUp open, ChevronDown shut, as a navigation view turns it.
@@ -357,7 +381,10 @@ pub(super) fn nav_item(
 ) -> egui::Response {
     let width = ui.available_width().max(120.0);
     // NavigationViewItemOnLeftMinHeight, compact.
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 32.0), egui::Sense::click());
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(width, crate::theme::NAV_ITEM),
+        egui::Sense::click(),
+    );
     let name = format!("{label} ({count})");
     response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, &name));
     let fill = if response.is_pointer_button_down_on() {
@@ -377,7 +404,7 @@ pub(super) fn nav_item(
         painter.rect_filled(pill, 2.0, t.brand);
     }
     let icon_rect = egui::Rect::from_center_size(
-        egui::pos2(rect.left() + 20.0, rect.center().y),
+        egui::pos2(rect.left() + 16.0, rect.center().y),
         egui::vec2(16.0, 14.0),
     );
     // As a navigation view's item: the selection is the fill and the
@@ -388,10 +415,10 @@ pub(super) fn nav_item(
     }
     let family = egui::FontFamily::Proportional;
     // A long name is shortened with "…" before the count, never over it.
-    let room = (rect.width() - 36.0 - 34.0).max(20.0);
+    let room = (rect.width() - 30.0 - 28.0).max(20.0);
     let mut job = egui::text::LayoutJob::simple_singleline(
         label.to_string(),
-        egui::FontId::new(14.0, family),
+        egui::FontId::new(crate::theme::BODY, family),
         t.text,
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(room);
@@ -404,15 +431,15 @@ pub(super) fn nav_item(
     };
     let painter = ui.painter();
     painter.galley(
-        egui::pos2(rect.left() + 36.0, rect.center().y - galley.size().y / 2.0),
+        egui::pos2(rect.left() + 30.0, rect.center().y - galley.size().y / 2.0),
         galley,
         t.text,
     );
     painter.text(
-        egui::pos2(rect.right() - 10.0, rect.center().y),
+        egui::pos2(rect.right() - 8.0, rect.center().y),
         egui::Align2::RIGHT_CENTER,
         count.to_string(),
-        egui::FontId::proportional(12.0),
+        egui::FontId::proportional(crate::theme::CAPTION),
         t.weak,
     );
     response
@@ -423,18 +450,18 @@ pub(super) const TOOLBAR: [(Command, Icon, &str); 11] = [
     (Command::AddUrl, Icon::Add, "Add URL"),
     (Command::DownloadNow, Icon::Resume, "Resume"),
     (Command::StopDownload, Icon::Stop, "Stop"),
-    (Command::StopAll, Icon::StopAll, "Stop all"),
-    (Command::Remove, Icon::Delete, "Remove"),
+    (Command::StopAll, Icon::StopAll, "Stop All"),
+    (Command::Remove, Icon::Delete, "Delete"),
     (
         Command::DeleteCompleted,
         Icon::DeleteCompleted,
-        "Clear finished",
+        "Delete Completed",
     ),
     (Command::Options, Icon::Options, "Options"),
     (Command::Scheduler, Icon::Scheduler, "Scheduler"),
-    (Command::StartQueue, Icon::StartQueue, "Start queue"),
-    (Command::StopQueue, Icon::StopQueue, "Stop queue"),
-    (Command::SiteFiles, Icon::SiteFiles, "Site files"),
+    (Command::StartQueue, Icon::StartQueue, "Start Queue"),
+    (Command::StopQueue, Icon::StopQueue, "Stop Queue"),
+    (Command::SiteFiles, Icon::SiteFiles, "Grabber"),
 ];
 
 /// The toolbar's buttons in the order a person chose (by command id), with
@@ -460,12 +487,17 @@ pub fn toolbar_in(order: &[String]) -> Vec<(Command, Icon, &'static str)> {
 /// The toolbar styles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolStyle {
+    /// Icons with their words.
     Both,
+    /// Icons only.
     Icons,
+    /// Words only.
     Text,
 }
 
 impl ToolStyle {
+    /// The style called `name`; the default for any other word.
+    #[must_use]
     pub fn named(name: &str) -> ToolStyle {
         match name {
             "icons" => ToolStyle::Icons,
@@ -474,6 +506,8 @@ impl ToolStyle {
         }
     }
 
+    /// The word the style is saved under.
+    #[must_use]
     pub fn name(self) -> &'static str {
         match self {
             ToolStyle::Both => "both",
@@ -548,8 +582,8 @@ pub(super) fn tool(
     };
     let size = match style {
         ToolStyle::Icons => egui::vec2(34.0, 30.0),
-        ToolStyle::Text => egui::vec2(fits(12.0) + 18.0, 28.0),
-        ToolStyle::Both => egui::vec2((fits(11.0) + 12.0).max(72.0), 52.0),
+        ToolStyle::Text => egui::vec2(fits(crate::theme::BODY) + 18.0, 28.0),
+        ToolStyle::Both => egui::vec2((fits(crate::theme::CAPTION) + 12.0).max(72.0), 52.0),
     };
     let (rect, response) = ui.allocate_exact_size(
         size,
@@ -586,7 +620,7 @@ pub(super) fn tool(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             label,
-            egui::FontId::proportional(12.0),
+            egui::FontId::proportional(crate::theme::BODY),
             color,
         );
         return response;
@@ -618,7 +652,7 @@ pub(super) fn tool(
         egui::Align2::CENTER_CENTER,
         label,
         // Nothing under 12 points, the smallest step of the type ramp.
-        egui::FontId::proportional(12.0),
+        egui::FontId::proportional(crate::theme::BODY),
         color,
     );
     response
@@ -724,7 +758,7 @@ mod toolbar_tests {
         let torrent = dir.path().join("a set.torrent");
         std::fs::write(&torrent, b"d4:infodee").unwrap();
         let taken = dropped_links(&Dropped(torrent.clone()));
-        assert_eq!(taken, [dm_core::torrent::file_url(&torrent).unwrap()]);
-        assert!(dm_core::is_torrent(&taken[0]) && dm_core::queue::accepted(&taken[0]));
+        assert_eq!(taken, [dm_core::file_url(&torrent).unwrap()]);
+        assert!(dm_core::is_torrent(&taken[0]) && dm_core::accepted(&taken[0]));
     }
 }

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! dm's window, in Rust.
 //!
 //! `commands` is every action by name; `app` holds the window's state and
@@ -15,10 +20,11 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 // From Google's Rust style guide, checked in CI: an `unsafe` block says why it
-// is sound (`// SAFETY:`; not on Windows, whose blocks are not all written up
-// yet), and a string is built with `format!` rather than `+`, and a loop is a
-// loop rather than `for_each`.
-#![cfg_attr(not(windows), warn(clippy::undocumented_unsafe_blocks))]
+// is sound (`// SAFETY:`, on every platform, Windows included), and a string is
+// built with `format!` rather than `+`, and a loop is a loop rather than
+// `for_each`.
+#![warn(missing_docs)]
+#![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod accent;
 pub mod app;
@@ -31,6 +37,7 @@ pub mod cli;
 pub mod commands;
 pub mod contrast;
 pub mod control;
+pub mod details;
 pub mod dialogs;
 pub mod drops;
 pub mod format;

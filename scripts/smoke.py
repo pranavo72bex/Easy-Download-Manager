@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """Smoke test of an installed dm, the same on Linux, Windows and macOS:
 
     python3 scripts/smoke.py /path/to/installed/dm-desktop
@@ -172,7 +177,7 @@ def main():
         ok("starts with no window")
 
         control = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = control.makefile("r")
+        replies = control.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             control.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())

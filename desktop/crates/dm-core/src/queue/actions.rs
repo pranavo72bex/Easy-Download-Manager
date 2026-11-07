@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl Queue {
@@ -45,6 +50,83 @@ impl Queue {
         Ok(())
     }
 
+    /// Where a download begun while its Download details was still open goes, once the person
+    /// chose (reference A's "start downloading while the dialog is open"; gaps row 85): its
+    /// folder and name, its description, and whether it waits in `queue` (`later`) or goes on.
+    /// One already finished is renamed and moved as Move/Rename does; one still under way is
+    /// stopped a moment, given its place, and put back in line keeping what it has (held, for
+    /// later).
+    pub async fn settle_early(
+        &self,
+        id: Id,
+        dir: Option<PathBuf>,
+        name: Option<String>,
+        description: &str,
+        queue: &str,
+        later: bool,
+    ) -> Result<(), String> {
+        self.set_description(id, description).await;
+        if !queue.is_empty() {
+            self.set_queue(id, queue).await;
+        }
+        let name = name.filter(|n| !n.trim().is_empty());
+        let finished = |e: &Entry| e.state == State::Completed;
+        let entry = self
+            .get(id)
+            .await
+            .ok_or("that download is no longer listed")?;
+        if !finished(&entry) {
+            self.pause(id).await;
+            // Its run winds down before its place can change.
+            for _ in 0..200 {
+                let stopping = self
+                    .inner
+                    .slots
+                    .lock()
+                    .await
+                    .get(&id)
+                    .is_some_and(Slot::still_stopping);
+                if !stopping {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
+        }
+        let entry = self
+            .get(id)
+            .await
+            .ok_or("that download is no longer listed")?;
+        if finished(&entry) {
+            if let Some(name) = name.filter(|n| *n != entry.filename) {
+                self.rename(id, &name).await?;
+            }
+            if let Some(dir) = dir {
+                self.move_to(id, &dir).await?;
+            }
+            return Ok(());
+        }
+        self.edit(id, |slot| {
+            slot.entry_mut().save_name = name.clone();
+            true
+        })
+        .await;
+        let elsewhere = dir
+            .as_ref()
+            .is_some_and(|d| entry.save_dir.as_deref().map(PathBuf::from).as_ref() != Some(d));
+        match dir {
+            Some(dir) if elsewhere => {
+                self.relocate(id, dir).await?;
+                if later {
+                    self.pause(id).await;
+                }
+            }
+            _ if !later => self.resume(id).await,
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Sets the hash the finished file is checked against, or clears it.
     pub async fn set_checksum(&self, id: Id, checksum: Option<Checksum>) {
         if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
             slot.entry_mut().checksum = checksum;
@@ -240,6 +322,7 @@ impl Queue {
         true
     }
 
+    /// Cancels the download for good.
     pub async fn cancel(&self, id: Id) {
         let mut slots = self.inner.slots.lock().await;
         let Some(slot) = slots.get_mut(&id) else {
@@ -313,6 +396,7 @@ impl Queue {
                         task: None,
                         outside_schedule: false,
                         retrying: None,
+                        swarm: None,
                         own_limit,
                     },
                 );
@@ -355,6 +439,10 @@ impl Queue {
         // where a row begun before a change staged its parts.
         let default_parts = self.inner.options.lock().await.parts_dir.clone();
         for (id, slot) in taken {
+            // A finished torrent still shared stops with its row (gaps row 147).
+            if !slot.entry.path.is_empty() {
+                crate::torrent::stop_sharing(std::path::Path::new(&slot.entry.path));
+            }
             let parts = if slot.entry.parts_dir.is_empty() {
                 default_parts.join(id.to_string())
             } else {

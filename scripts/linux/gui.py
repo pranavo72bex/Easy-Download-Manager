@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """Real mouse and keyboard on dm's window and tray, under X11.
 
 Runs inside the Linux container (scripts/linux-gui-check.sh), where X11
@@ -184,7 +189,32 @@ def where(role, name, contains=False):
     AT-SPI as a screen reader reads it: its centre, or None. With
     `contains`, a name that starts with `name` counts (menu items)."""
     out = x(sys.executable, "-c", WHERE, role, name, "1" if contains else "0").stdout.strip().splitlines()
-    return json.loads(out[-1]).get("at") if out else None
+    at = json.loads(out[-1]).get("at") if out else None
+    # A control in one of dm's dialogs, each a window of its own that AT-SPI does not reach
+    # (eframe gives only the main window to the accessibility bus; gaps row 160): where dm
+    # itself says it drew those words. A field is reached by its focus, not here.
+    if at is None and not contains and role not in ("text", "entry", "spin button", "slider"):
+        at = dialog_point(ORACLE, name)
+    return at
+
+
+def dialog_point(call, words):
+    """Where on screen the words `words` are drawn in one of dm's dialogs, each a window of
+    its own (contract row B42), whose controls AT-SPI does not reach: the dialog window's
+    place (`ui.windows`) plus the words' place inside it (`ui.texts`), both dm's own account.
+    Only where to aim; the click itself is the real pointer's. None where it is not shown."""
+    if not call:
+        return None
+    try:
+        dialogs = [d for d in (call("ui.windows") or {}).get("dialogs") or [] if d.get("inner")]
+        texts = [t for t in (call("ui.texts") or {}).get("texts") or []
+                 if t.get("window") == "dialog" and t.get("text") == words]
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if len(dialogs) != 1 or not texts:
+        return None
+    inner, r = dialogs[0]["inner"], texts[0]["rect"]
+    return [int(inner[0] + (r[0] + r[2]) / 2), int(inner[1] + (r[1] + r[3]) / 2)]
 
 
 def click(role, name, seconds=10, contains=False):
@@ -442,6 +472,11 @@ def click_field(name):
     """Clicks into the field labelled `name` and selects what it holds."""
     at = wait_for(lambda: field_at(name), 10)
     if not at:
+        # In a dialog's own window (see `where`): the field a dialog opens with has the
+        # keyboard, as Add URL's Address has; what it holds is selected, as below.
+        if dialog_point(ORACLE, name):
+            key("ctrl+a")
+            return True
         return False
     x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
     x("xdotool", "click", "1")
@@ -686,9 +721,11 @@ def options_by_hand(home):
     read back from the settings file."""
     print("\nOptions, tab by tab, with the real pointer")
     recording = "Stop recording after (minutes, 0 for no limit)"
+    # The six tabs of contract row B43: the network's and the proxy's settings are parts of
+    # Advanced's page, not tabs of their own.
     tabs = [("General", "Language"), ("Browser", "File types"), ("Folders", "Download folder"),
-            ("Downloads", recording), ("Network", "Speed limit, KB/s (0 for none)"),
-            ("Proxy", "Proxy type"), ("Sign-ins", "Add a login")]
+            ("Downloads", recording), ("Advanced", "Network"), ("Advanced", "Proxy type"),
+            ("Sign-ins", "Add a login")]
     key("ctrl+comma")
     check("Ctrl+, opens Options", bool(wait_for(lambda: where("*", "General"), 10)))
 
@@ -1117,9 +1154,21 @@ def main():
         # kept the keyboard grabbed, and a tray menu cannot open under
         # another client's grab.
         closed = x("wmctrl", "-i", "-c", window)
+        # The first close asks whether dm keeps running in the tray (asked once, the
+        # answer kept in Options): a person answers Keep running.
+        keep = wait_for(lambda: dialog_point(ORACLE, "Keep running"), 10)
+        if keep:
+            x("xdotool", "mousemove", "--sync", str(keep[0]), str(keep[1]))
+            time.sleep(0.2)
+            x("xdotool", "click", "1")
+        asked = bool(keep)
         gone = closed.returncode == 0 and wait_for(lambda: not dm_windows(), 10)
+        check("the first close asks whether to keep running in the tray, and Keep running is clicked",
+              asked, "no question, or no Keep running button")
         check("closing the window hides it into the tray, and dm keeps running",
               gone and app.poll() is None, closed.stderr.strip())
+        check("and the answer is kept: closing next time does not ask",
+              settings_of(home).get("on_close") == "tray", str(settings_of(home).get("on_close")))
 
         tray_menu(SHOW)
         check("the tray menu's Show dm brings the window back", wait_for(dm_windows, 10))

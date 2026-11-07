@@ -1,7 +1,7 @@
 [package]
 name = "dm-shell"
 version = "0.8.7"
-license = "MIT"
+license = "GPL-3.0-or-later"
 edition = "2021"
 description = "What every dm window shares: the settings, the browser host, the one-instance lock, startup and the inbox"
 
@@ -9,6 +9,8 @@ description = "What every dm window shares: the settings, the browser host, the 
 # so what a download manager does at startup, on a browser hand-off and on a
 # settings change is written once, whichever window is drawing it.
 [dependencies]
+# A form's raw body, which the extension sends as base64 (dm-core's version).
+base64 = "0.22"
 dm-core = { path = "../dm-core" }
 dm-protocol = { path = "../dm-protocol" }
 serde = { version = "1", features = ["derive"] }
@@ -33,4 +35,4 @@ axum = "0.8"
 # A browser's pipes to the native host, kept from the dm it starts
 # (`host::launch_desktop`): inherited, they held the host's answer open.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_System_Diagnostics_ToolHelp"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Console", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }

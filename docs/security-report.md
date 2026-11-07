@@ -3,7 +3,7 @@
 An authorized black-box and source test of dm on this computer, by a
 testing agent working for the maintainer: the application only, servers of
 its own on loopback, no real folder or credential touched, nothing outside
-reached. Debug build 0.8.4 on branch `ytdlp-gaps`. Denial of service out
+reached. Debug build 0.8.4 on branch its file. Denial of service out
 of scope. What was done about each finding is noted under it.
 
 **Counts:** critical 0, high 0, medium 1, low 3.
@@ -21,8 +21,8 @@ the one that counts for L3.
 ---
 
 
-Authorized black-box + source review. Target: `/Users/pranav.jha/Easy-Download-Manager`
-(branch `ytdlp-gaps`), debug build `desktop/target/debug/dm-desktop` (dm 0.8.4).
+Authorized black-box + source review. Target: this repository
+(branch its file), debug build `desktop/target/debug/dm-desktop` (dm 0.8.4).
 All testing on 127.0.0.1 against local servers; download_dir pointed at a temp folder
 (`scratchpad/pentest/downloads`); DM_HOME = `scratchpad/pentest/dmhome`.
 DoS/resource-exhaustion out of scope and not reported.
@@ -168,7 +168,7 @@ to /tmp was ignored — file landed in download_dir as normal_download.bin, noth
 validated before any write: `safe_path` rejects empty/NUL/absolute/`..`/drive/backslash names and double
 -checks the zip crate's enclosed_name() (`extract.rs:116,199-205`); symlinks/device/pipe/socket and encrypted
 entries refused; case-folded duplicates refused; zip-bomb ratio/size capped; create_new into a new folder.
-yt-dlp unpack (`tools.rs:392`) also gates enclosed_name() and only unpacks the pinned SHA2-256-verified
+The external video tool unpack (`tools.rs:392`) also gates enclosed_name() and only unpacks the pinned SHA2-256-verified
 release — arbitrary downloads are never auto-extracted. Torrent/metalink names sanitized
 (`torrent.rs:509`, `metalink.rs:111`); per-file torrent paths delegated to the torrent library.
 
@@ -184,7 +184,7 @@ clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_brows
 
 ## Notes / scope caveats
 - A concurrent autonomous dev agent was editing tracked files on this branch during the assessment
-  (yt-dlp "preparing_progress" in tools.rs, i18n, docs; mtimes 22:39-22:42). None of those are mine. This
+  (the external video tool "preparing_progress" in tools.rs, i18n, docs; mtimes 22:39-22:42). None of those are mine. This
   pentest made zero edits to tracked files and committed nothing; all artifacts are under scratchpad/pentest/.
 - Not tested dynamically (reasoned from source/tests): https->http downgrade (S4), and Cookie (vs
   Authorization) stripping specifically — both share the mechanism demonstrated in S5.
@@ -195,7 +195,7 @@ clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_brows
 ## Review of the changes since 0.8.4, 2026-10-30
 
 A review of `desktop-v0.8.4..HEAD` (the YouTube and playlist readers, the
-clip fetcher, the shipped yt-dlp's adoption, the native host's new checks,
+clip fetcher, the shipped the external video tool's adoption, the native host's new checks,
 the extension's page-world quality channel, the release workflows), with
 each candidate checked again for false positives. Critical, high, medium:
 none. Three low and four informational findings, all hardened before the
@@ -203,7 +203,7 @@ release (CHANGELOG, "Security hardening from the pre-release review"):
 
 - The solver runs the player's code; QuickJS's command line lets a script
   reach the OS. Attacker: only YouTube itself or a TLS interceptor the
-  user trusts (yt-dlp in 0.8.4 already did the same). Now: the player is
+  user trusts (the external video tool in 0.8.4 already did the same). Now: the player is
   fetched only from YouTube's own player path, and Deno, run with no
   permissions, is preferred.
 - The download-folder write check followed a planted symlink. Attacker: a
@@ -216,3 +216,148 @@ release (CHANGELOG, "Security hardening from the pre-release review"):
   `DM_EJS_RELEASES`) are honoured in release builds; environment variables
   are trusted by this report's model.
 
+
+---
+
+## Windows, 2026-11-07
+
+The stress suite's two security phases had never run on Windows: `control`
+called `lsof` and read the token's Unix mode, `hostile` read `/etc/hosts`.
+Both now ask Windows (`netstat -ano`, `icacls`, the system's hosts file) and
+ran against the debug build on Windows 11 with no finding:
+
+- **hostile:** a redirect to `file:///C:/WINDOWS/System32/drivers/etc/hosts`
+  and one to `ftp://127.0.0.1` are refused ("an address dm does not
+  follow"); a 1 MB header is refused; a 120 KB gzip body that unpacks to 67 MB
+  is stopped as a decompression bomb; a file larger than the free space is
+  held, not started; a login written into an address is masked in the list.
+- **control:** the port listens on `127.0.0.1` only; no token and a wrong
+  token are refused and the connection cut; 1 MB with no line end is cut
+  with no growth in memory; 1500 idle unauthenticated connections are
+  closed by dm; `file:` and `javascript:` addresses, a `folder` outside the
+  download folder and a relative one are refused.
+
+### L4: a dm home outside the account's profile took its drive's access list (Low; fixed)
+
+**What.** On Unix dm makes its home 0700 (`instance.rs` `private`); on Windows
+that was a no-op, and the files in it take the folder's inherited access
+list. The default home, `%LOCALAPPDATA%\dm`, inherits the profile's: this
+account, SYSTEM and the administrators. A home anywhere else (`DM_HOME`, a
+portable copy on a second drive) inherits the drive's, which on this
+computer's D: gives `Authenticated Users: Modify` and `Users: Read`
+(measured with `icacls`). There, another signed-in account could read
+`control.token` (the control port is open by default for MCP, and loopback is
+shared by every account on the computer), the queue and unfinished parts.
+
+**Fix.** `instance/owner_only.rs`: when dm starts, a home whose access list is
+not protected is given one of its own (nothing from its parent): full
+control for this account, SYSTEM and the administrators, inherited by what
+is in it and applied to what is there already. A home already protected is
+left alone; a drive with no access lists (FAT) is not a reason to stop dm.
+Test: `instance::tests::dms_home_is_this_accounts_alone_on_windows_too` (a
+parent that lets every user in; the folder, a file already in it and one
+made after are left with no entry for users, signed-in users or everyone).
+It fails with the fix taken out.
+
+**Not covered.** A home folder another account made beforehand stays that
+account's to change (its owner can always rewrite the list).
+
+## Review of `desktop-v0.8.7..HEAD`, 2026-11-07 (source, on macOS)
+
+A source review of the changes since 0.8.7 (gaps row 157), in three parts
+read independently: the secret store and how a row's sign-in travels; the
+desktop's local surface (control port and MCP, watched folder, native host,
+renewed addresses, site rules, torrents); and the browser extension. Every
+finding was read end to end in the code before it was kept. Counts: medium
+4, low 7, informational 8. Fixed the same day, with a test beside each (the
+tests of M5, M6's script guard and L5 were run with their fix taken out, and
+fail):
+
+- **M5, the browser's request headers read back through `queue.list`
+  (found twice).** `Entry.headers` (a site's `Authorization: Bearer …`, its
+  `X-…-Token`) went out to any control-port or MCP client; only `cookies` was
+  removed. Now removed too (`app/control.rs`;
+  `a_rows_handed_over_sign_in_is_never_read_back_out` adds a bearer header).
+- **M6, an imported settings file could make dm run a program.** A queue's
+  own hours (`queue_schedules`, new since 0.8.7) carry `run_when_done`;
+  `Settings::imported` kept this computer's program for the shared schedule
+  only, and the window's guard against a script ignored the queues' too.
+  Both now keep each queue's program as it was, and a queue the file adds
+  runs none (`a_settings_file_never_sets_the_program_run_at_the_end_of_a_queues_own_hours`,
+  `a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run`).
+- **M7, a page could hand dm any number of torrents after one click.**
+  `content.js` took a script-opened magnet (`dm-magnet`) whenever the page's
+  user activation was live, which lasts seconds and is not used up. Now
+  only within 1.5 s of a trusted pointer or key press seen by the content
+  script itself, and one per press (`chrome-check.py`: "five magnets a page
+  opens for one click hand dm one"; the seven ways still reach dm, pressed
+  with the mouse).
+- **M8, the extension re-read any playlist a page loaded, private networks
+  included.** A page could `fetch('http://192.168.1.1/…m3u8', {mode:
+  'no-cors'})` and have the worker ask it again with the browser's session,
+  no CORS and no private-network check, then the first rendition it named on
+  any host. Now a playlist (or a rendition, or a file read for its track) on
+  this computer or a private network is read again only when the page that
+  loaded it is on that same host (`decide::may_reread`, with a test of eleven
+  inside addresses; `chrome-check.py` 88 of 88).
+- **L5, the browser's headers followed a redirect to another host.** Across
+  hosts dm dropped `Authorization` and cookies but kept a site's own headers
+  (`X-Api-Key`…). Now a hop to another host carries only what every request
+  of dm's does (`redirects.rs` `CARRIED_ACROSS`; the cross-host redirect test
+  checks an `X-Api-Key`).
+- **L6, on macOS no Sign-in's password reached the Keychain.** A Sign-in's
+  secret name has a line break between the site and the user, which
+  `security -i` would split, so the store refused every one and the password
+  stayed in `settings.json` with a notice at each start. A name with
+  whitespace or quotes is now kept under its base64url spelling; plain names
+  (the proxy's) are unchanged (`secretstore::tools`, against a real scratch
+  keychain).
+- **L7, a secrets file that would not open was deleted by the next save.**
+  A locked Keychain or a Secret Service not yet running at login cost every
+  row's sign-in for good. It is now moved aside as `secrets.json.unopened`
+  and the notice says so (`a_file_of_secrets_that_cannot_be_read_is_kept_aside_not_deleted_by_the_next_save`).
+
+Left, each a row in `docs/gaps.md` (row 159):
+
+- **Low: a waiting row takes a fresh address from another customer's host**
+  on shared hosting: `queue/family.rs` keeps a host's last two labels, so
+  `victim.s3.amazonaws.com` and `evil.s3.amazonaws.com` are one family for a
+  row that never learned its name or size. Cookies do not cross (`set_url`).
+  Fixed the same day: a host under one of 30 shared-hosting names (from the
+  public suffix list's private part) is its own family
+  (`two_customers_of_a_shared_host_are_not_one_family`).
+- **Low (Windows): a torrent's file named `D:x`** passes librqbit's check
+  (no `..`, no separator) and `PathBuf::push` makes it a path on another
+  drive; the vendored storage creates the empty files before dm's own check
+  refuses the torrent. No content is written.
+- **Low: the plain-JavaScript panel** (sites whose policy forbids
+  WebAssembly) checks only `isTrusted`, not that it is drawn as dm drew it
+  (`as_drawn`), in an open shadow root a page can restyle; and a panel
+  choice now sends the cookies of whatever host the page's `<video src>`
+  names. The app's Download details dialog is what remains.
+- **Low: a renewal is matched across tabs.** `RequestHeaders::renewed` did
+  not compare the tab or YouTube's `id`, so another tab's video with the same
+  itag on the same edge host could be offered as a renewal. The host cannot
+  change; the file could be the wrong video. Since the same day it compares
+  `id` and `mime` with the `itag` (`another_videos_address_with_the_same_itag_is_not_a_renewal`);
+  the tab is still not compared.
+- **Low: a settings file that fell back to defaults** has an empty proxy
+  password, and `move_passwords_to` then forgot the one in the store. Fixed
+  the same day: a run whose file was not read whole, or whose store did not
+  answer at start, forgets no stored password
+  (`a_password_this_run_did_not_read_back_is_not_forgotten_by_the_next_save`,
+  which fails without it).
+- **Info:** the update check compares the rules and installer addresses by
+  their raw prefix (`%2e%2e` normalises elsewhere; only a forged
+  `latest.json` could use it); "Get it from the browser" takes the next
+  download from any site within ten minutes; the early answer buffer in
+  `document.js` (24 answers) is never released on a site with no rules; the
+  kept headers are not split by private window; `Start.referrer` is the full
+  page address where a browser sends its origin to another host; the panel's
+  `dm-player-*` listeners do not check `event.source`; the Properties and
+  Download complete dialogs' Open buttons have no script guard; with no
+  store at all the notice blames "Windows Credential Manager" on macOS and
+  Linux too.
+- The worker's re-read of a playlist on the public web still carries the
+  browser's session, as the player's own request did; only private hosts are
+  refused.

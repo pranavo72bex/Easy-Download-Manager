@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 pub(super) fn series(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Add numbered series");
@@ -47,7 +52,7 @@ pub(super) fn series(app: &mut DmApp, ctx: &egui::Context) {
             let mut listed = Vec::new();
             match dm_shell::lists::series(&d.template, &d.from, &d.to, d.width) {
                 Ok(urls) => {
-                    listed = urls.clone();
+                    listed.clone_from(&urls);
                     if let Some(first) = urls.first() {
                         count = crate::i18n::tn(
                             "{} address: {}||{} addresses, the first {}",
@@ -143,7 +148,7 @@ pub(super) fn series(app: &mut DmApp, ctx: &egui::Context) {
 
 /// The key a file's kind is remembered under in `last_folders`.
 pub(super) fn kind_key(name: &str) -> &'static str {
-    dm_core::category::by_name(name)
+    dm_core::by_name(name)
         .unwrap_or(dm_core::Category::Other)
         .folder()
 }

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Signing in to a server that asks for NTLM, or for Negotiate and takes
 //! NTLM under it: the sign-in of Windows servers and of company intranets.
 //!
@@ -57,7 +62,9 @@ pub fn negotiate() -> Vec<u8> {
 /// The server's challenge, as read from its message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
+    /// The negotiation flags the server set.
     pub flags: u32,
+    /// The 8 random bytes the answer is computed from.
     pub server_challenge: [u8; 8],
     /// Its target info, sent back inside the answer as it came.
     pub target_info: Vec<u8>,
@@ -282,7 +289,7 @@ mod tests {
     use super::*;
 
     fn bytes(hex: &str) -> Vec<u8> {
-        hex::decode(hex.replace(' ', "")).unwrap()
+        crate::hex::decode(&hex.replace(' ', "")).unwrap()
     }
 
     /// MS-NLMP 4.2.4's target info: NetBIOS domain "Domain", computer

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the extension decides, with no browser in the way.
 //!
 //! Everything here is plain Rust: it compiles for the host and is tested
@@ -10,18 +15,30 @@ use dm_protocol::{Candidate, CatchRules, Hello, Reply, CHROME_EXTENSION_ID, EDGE
 use serde::Deserialize;
 use serde_json::Value;
 
+mod answers;
 mod app;
 mod download;
+pub mod excluded;
+mod headers;
 mod media_panel;
 mod menu;
+mod page_lines;
+/// Whether a playlist or manifest says its media is under DRM.
+pub mod protection;
+mod renewal;
+pub mod rules;
 mod sites;
 mod streams;
 mod timing;
 
+pub use answers::*;
 pub use app::*;
 pub use download::*;
+pub use headers::{RequestHeaders, Sent};
 pub use media_panel::*;
 pub use menu::*;
+pub use page_lines::*;
+pub use renewal::{Handed, Renewal};
 pub use sites::*;
 pub use streams::*;
 pub use timing::*;

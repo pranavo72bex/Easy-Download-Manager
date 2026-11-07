@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The "Download video" panel's markup and the parts of its behaviour that
 //! need no page: what it looks like, what a key does, and whether a player
 //! is visible enough to offer. The page script (`content.rs`, wasm only)
@@ -53,10 +58,16 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .help, .close { width: 28px; flex: none; color: var(--weak); font-size: 13px; border-left: 1px solid var(--line); }
 .help:hover, .close:hover, .help:focus-visible, .close:focus-visible { background: var(--hover); color: var(--text); }
 .list { margin-top: 4px; border-radius: var(--radius); overflow: hidden; background: var(--surface-solid);
-  border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.4); max-height: 260px; overflow-y: auto; }
-.item { display: block; width: 100%; padding: 8px 12px; text-align: left; font-size: 13px; white-space: nowrap; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; border-top: 1px solid var(--line); }
+  border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.4); max-height: 300px; overflow-y: auto;
+  width: 460px; max-width: 90vw; margin-left: -220px; }
+.item { display: block; width: 100%; padding: 5px 10px; text-align: left; font-size: 12px; white-space: normal; color: var(--text);
+  overflow-wrap: anywhere; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
+.part { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; color: var(--text2);
+  border-bottom: 1px solid var(--line); }
+.part input { width: 64px; min-width: 0; padding: 4px 6px; font-size: 13px; color: var(--text); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); }
+.part input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
 .item:hover, .item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
 .sub { margin-top: 4px; padding: 8px 8px; border-radius: var(--radius); background: var(--surface);
   color: var(--text2); font-size: 12px; line-height: 1.4; max-width: 100%; max-height: 160px; overflow-y: auto;
@@ -64,6 +75,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
   clip-path: inset(50%); white-space: nowrap; }
 [hidden] { display: none !important; }
+/* On a narrow video: the download mark and the close mark alone, as reference A's bar. */
+.panel.compact { width: 72px; }
+.panel.compact .title, .panel.compact .caret, .panel.compact .help, .panel.compact .grip { display: none; }
+.panel.compact .go { justify-content: center; padding: 0 4px; }
+.panel.compact .list { margin-left: -388px; }
 "#;
 
 /// The panel's elements. The bar's button is named by its words (the mark
@@ -83,13 +99,21 @@ pub const BODY: &str = r#"<div class="panel" role="group" aria-label="dm">
 /// A key pressed in the panel, as far as the panel cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Key {
+    /// The Escape key.
     Escape,
+    /// The Down arrow.
     Down,
+    /// The Up arrow.
     Up,
+    /// The Home key.
     Home,
+    /// The End key.
     End,
+    /// The Tab key.
     Tab,
+    /// Shift and Tab together.
     ShiftTab,
+    /// Any other key.
     Other,
 }
 
@@ -114,7 +138,9 @@ impl Key {
 pub enum Focus {
     /// The bar's button.
     Go,
+    /// The help button.
     Help,
+    /// The close button.
     Close,
     /// A line of the open list (qualities, or the × menu), by position.
     Item(usize),
@@ -127,12 +153,14 @@ pub enum Act {
     CloseList,
     /// Hide the panel and put the focus back on the player.
     Hide,
+    /// Moves the focus to this place.
     Focus(Focus),
     /// Back to the player, the key's own work stopped (Shift+Tab off the
     /// bar) or let go on from there (Tab off the last button), so Tab
     /// carries on through the page as if the panel sat right after the
     /// player.
     ToPlayer {
+        /// Whether the key's own work is stopped (Shift+Tab off the bar).
         stop: bool,
     },
     /// Nothing: the browser does what it does.
@@ -254,6 +282,13 @@ mod tests {
         let sub = &sub[..sub.find('}').unwrap()];
         assert!(sub.contains("overflow-wrap: anywhere"), "{sub}");
         assert!(sub.contains("max-width"), "{sub}");
+        // A line of the list wraps rather than being cut: its quality is the point of it.
+        let item = STYLE.split(".item {").nth(1).unwrap();
+        let item = &item[..item.find('}').unwrap()];
+        assert!(
+            item.contains("white-space: normal") && !item.contains("ellipsis"),
+            "{item}"
+        );
     }
 
     #[test]

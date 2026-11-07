@@ -1,12 +1,17 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Cookies from a `cookies.txt` file, sent on dm's own requests.
 //!
 //! A download that needs a signed-in session reaches dm with it one of two
 //! ways. The browser hands a site's sign-in over with the download, where
 //! the person asked it to (`SignIn`, carried by that download alone). Or a
 //! person exports a `cookies.txt` (the Netscape format every "get
-//! cookies.txt" add-on writes, and that curl and yt-dlp's `--cookies` read)
+//! cookies.txt" add-on writes, and that curl reads)
 //! and points dm at it; dm then sends the matching cookies with each
-//! request of its own, and hands the same file to yt-dlp.
+//! request of its own.
 //!
 //! The file is read when it is chosen and whenever the settings are applied;
 //! nothing is written back, and the cookies never leave this machine except
@@ -22,12 +27,15 @@ pub struct Cookie {
     pub domain: String,
     /// Sent to the host's subdomains too.
     pub subdomains: bool,
+    /// The path the cookie is sent for, and below it.
     pub path: String,
     /// Sent only over https.
     pub secure: bool,
     /// Seconds since 1970; 0 for a session cookie.
     pub expires: u64,
+    /// The cookie's name.
     pub name: String,
+    /// The cookie's value.
     pub value: String,
 }
 
@@ -130,7 +138,7 @@ pub fn use_file(file: &Path) -> Result<usize, String> {
     Ok(count)
 }
 
-/// The cookies file in use, for a tool dm runs (yt-dlp's `--cookies`).
+/// The cookies file in use.
 pub fn file() -> Option<PathBuf> {
     in_use()
         .read()
@@ -156,6 +164,96 @@ fn host_of(url: &str) -> Option<String> {
 pub struct SignIn {
     host: String,
     header: String,
+    /// Request headers the browser sent for this download (a bearer token, an
+    /// `Origin`, a site's own `X-…` header), sent to the same one server.
+    extra: Vec<(String, String)>,
+    /// The form this download is the answer to, sent again to its one address.
+    post: Option<Posted>,
+}
+
+/// A form a page sent, whose answer is the file: its address, its body and
+/// the body's type. Fetched by sending it again, as the browser did; never
+/// written to disk, as a form can hold what a person typed.
+#[derive(Clone, PartialEq, Eq, Default)]
+pub struct Posted {
+    /// Where the form was sent.
+    pub url: String,
+    /// What it sent.
+    pub body: Vec<u8>,
+    /// The body's type (`application/x-www-form-urlencoded` for a form).
+    pub content_type: String,
+}
+
+impl std::fmt::Debug for Posted {
+    // The body is a person's: its size, not its words, in a log or a panic.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Posted")
+            .field("url", &self.url)
+            .field("body", &format_args!("{} bytes", self.body.len()))
+            .field("content_type", &self.content_type)
+            .finish()
+    }
+}
+
+/// The largest form body carried: an export button's form is a few fields.
+pub const POST_MOST: usize = 64 * 1024;
+
+/// Headers dm sets itself or that belong to one connection, never taken
+/// from the browser's request. `Cookie` keeps its own field.
+const NOT_FORWARDED: [&str; 18] = [
+    "user-agent",
+    "referer",
+    "if-none-match",
+    "if-modified-since",
+    "if-match",
+    "if-unmodified-since",
+    "host",
+    "range",
+    "if-range",
+    "content-length",
+    "content-type",
+    "connection",
+    "accept-encoding",
+    "cookie",
+    "transfer-encoding",
+    "upgrade",
+    "te",
+    "expect",
+];
+
+/// The most headers, and the longest value, taken from one hand-off.
+const MAX_FORWARDED: usize = 32;
+const MAX_FORWARDED_VALUE: usize = 4096;
+
+/// The headers of `headers` dm may send on, in order, valid and bounded.
+pub fn forwardable(headers: &[(String, String)]) -> Vec<(String, String)> {
+    headers
+        .iter()
+        .filter(|(name, value)| {
+            let name = name.trim();
+            !name.is_empty()
+                && !NOT_FORWARDED
+                    .iter()
+                    .any(|own| own.eq_ignore_ascii_case(name))
+                && value.len() <= MAX_FORWARDED_VALUE
+                && reqwest::header::HeaderName::from_bytes(name.as_bytes()).is_ok()
+                && reqwest::header::HeaderValue::from_str(value).is_ok()
+        })
+        .take(MAX_FORWARDED)
+        .map(|(n, v)| (n.trim().to_string(), v.clone()))
+        .collect()
+}
+
+/// Adds the browser's own request headers for `url`'s server to `request`.
+pub fn add_headers(
+    mut request: reqwest::RequestBuilder,
+    sign_in: Option<&SignIn>,
+    url: &str,
+) -> reqwest::RequestBuilder {
+    for (name, value) in sign_in.map_or(&[][..], |s| s.headers_for(url)) {
+        request = request.header(name.as_str(), value.as_str());
+    }
+    request
 }
 
 impl SignIn {
@@ -170,16 +268,66 @@ impl SignIn {
         Some(SignIn {
             host: host_of(url)?,
             header: header.to_string(),
+            extra: Vec::new(),
+            post: None,
         })
+    }
+
+    /// `sign_in` (or none) with the form this download is the answer to,
+    /// for its own address: `None` for an address with no host or a body
+    /// over [`POST_MOST`].
+    pub fn posting(sign_in: Option<SignIn>, post: Posted) -> Option<SignIn> {
+        if post.body.len() > POST_MOST {
+            return sign_in;
+        }
+        let host = host_of(&post.url)?;
+        let mut sign_in = sign_in.unwrap_or(SignIn {
+            host,
+            header: String::new(),
+            extra: Vec::new(),
+            post: None,
+        });
+        sign_in.post = Some(post);
+        Some(sign_in)
+    }
+
+    /// The form to send again, where `url` is its very address.
+    pub fn post_for(&self, url: &str) -> Option<&Posted> {
+        self.post.as_ref().filter(|p| p.url == url)
+    }
+
+    /// The sign-in for `url`'s server with the browser's own request headers
+    /// as well: `None` when there are neither cookies nor a usable header.
+    /// Headers dm sets itself, and any that is not valid, are left out.
+    pub fn with_headers(url: &str, header: &str, headers: &[(String, String)]) -> Option<SignIn> {
+        let extra = forwardable(headers);
+        if extra.is_empty() {
+            return SignIn::new(url, header);
+        }
+        Some(SignIn {
+            host: host_of(url)?,
+            header: header.replace(['\r', '\n'], "").trim().to_string(),
+            extra,
+            post: None,
+        })
+    }
+
+    /// The browser's request headers, where `url` is on the server they are for.
+    pub fn headers_for(&self, url: &str) -> &[(String, String)] {
+        if host_of(url).as_deref() == Some(self.host.as_str()) {
+            &self.extra
+        } else {
+            &[]
+        }
     }
 
     /// The header, where `url` is on the server it is for.
     pub fn for_url(&self, url: &str) -> Option<&str> {
-        (host_of(url).as_deref() == Some(self.host.as_str())).then_some(self.header.as_str())
+        (host_of(url).as_deref() == Some(self.host.as_str()) && !self.header.is_empty())
+            .then_some(self.header.as_str())
     }
 
-    /// The cookies as `cookies.txt` lines for that server, for a tool that
-    /// reads that format (yt-dlp).
+    /// The cookies as `cookies.txt` lines for that server.
     pub fn netscape_lines(&self) -> String {
         let domain = self
             .host

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Signing in to a server that asks for more than a Basic login.
 //!
 //! A user and password in a download's address go out as `Basic` on every
@@ -34,9 +39,13 @@ use crate::Error;
 /// The hash a challenge names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Algorithm {
+    /// MD5, the algorithm a server names when it says none.
     Md5,
+    /// MD5 with the session variant, whose first hash is made once per session.
     Md5Sess,
+    /// SHA-256.
     Sha256,
+    /// SHA-256 with the session variant.
     Sha256Sess,
 }
 
@@ -70,9 +79,9 @@ impl Algorithm {
 
     fn hash(self, text: &str) -> String {
         match self {
-            Algorithm::Md5 | Algorithm::Md5Sess => hex::encode(Md5::digest(text.as_bytes())),
+            Algorithm::Md5 | Algorithm::Md5Sess => crate::hex::encode(Md5::digest(text.as_bytes())),
             Algorithm::Sha256 | Algorithm::Sha256Sess => {
-                hex::encode(Sha256::digest(text.as_bytes()))
+                crate::hex::encode(Sha256::digest(text.as_bytes()))
             }
         }
     }
@@ -81,12 +90,16 @@ impl Algorithm {
 /// What a server's `WWW-Authenticate: Digest` asked for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
+    /// The protection space the server named, which the answer repeats.
     pub realm: String,
+    /// The server's one-time value, which the answer is computed from.
     pub nonce: String,
+    /// The server's opaque string, sent back unchanged where it gave one.
     pub opaque: Option<String>,
     /// Whether `qop=auth` was offered; the older form without it is still
     /// answered, as RFC 2069 servers want.
     pub qop: bool,
+    /// The hash the server asked the answer to be made with.
     pub algorithm: Algorithm,
     /// The server said the nonce it was given has expired, and the login
     /// itself was fine.
@@ -216,7 +229,7 @@ fn cnonce(server_nonce: &str) -> String {
         .map_or(0, |d| d.as_nanos());
     let count = COUNTER.fetch_add(1, Ordering::Relaxed);
     let seed = format!("{nanos}:{count}:{server_nonce}:{}", std::process::id());
-    hex::encode(Sha256::digest(seed.as_bytes()))
+    crate::hex::encode(Sha256::digest(seed.as_bytes()))
 }
 
 /// The `Authorization` value answering `challenge` for `method` on `url`,

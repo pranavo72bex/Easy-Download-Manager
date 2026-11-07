@@ -5,7 +5,7 @@
 #
 # origin     every HTTP condition (qa/origin/origin.py), HTTP 8080, HTTPS 8443-8446
 # toxiproxy  latency, loss, bandwidth limits and resets between dm and origin
-# mockvideo  pages and HLS streams for yt-dlp's generic extractor
+# mockvideo  pages and HLS streams for the video-page checks
 # app        dm (headless) and the scenarios in qa/tests; downloads on a 200 MB tmpfs
 # browser    Chromium with the unpacked extension, the hand-off checks
 name: dm-qa

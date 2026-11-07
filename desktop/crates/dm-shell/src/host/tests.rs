@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 #[test]
@@ -36,10 +41,10 @@ fn the_host_refuses_what_the_queue_would_drop() {
         "file:///etc/passwd",
         "data:text/plain,x",
     ] {
-        assert!(!dm_core::queue::accepted(refused), "{refused}");
+        assert!(!dm_core::accepted(refused), "{refused}");
     }
-    assert!(dm_core::queue::accepted("https://e.com/f.bin"));
-    assert!(dm_core::queue::accepted("ftps://e.com/f.bin"));
+    assert!(dm_core::accepted("https://e.com/f.bin"));
+    assert!(dm_core::accepted("ftps://e.com/f.bin"));
 }
 
 #[test]
@@ -228,7 +233,7 @@ impl World for Pretend {
         _cookies: &str,
     ) -> Result<Vec<Choice>, String> {
         if url.contains("unreadable") {
-            return Err("yt-dlp could not read that page".into());
+            return Err("dm could not read that page".into());
         }
         Ok(vec![
             Choice {
@@ -287,6 +292,21 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
             "https://e.com/b.iso".into(),
         ],
         cookies: "sid=1".into(),
+        texts: [
+            (
+                "https://e.com/a.zip".to_string(),
+                "The A archive".to_string(),
+            ),
+            ("mailto:a@e.com".to_string(), "Write to us".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+        names: [
+            ("https://e.com/a.zip".to_string(), "A.zip".to_string()),
+            ("mailto:a@e.com".to_string(), "us.txt".to_string()),
+        ]
+        .into_iter()
+        .collect(),
     })
     .to_frame();
     let (reply, _) = ask(dir.path(), frame, true, Ok(()));
@@ -305,6 +325,19 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
     assert!(filed.ask);
     // The site's sign-in goes with them, for the dialog to scope.
     assert_eq!(filed.cookies, "sid=1");
+    // And the links' words, of the links sent only.
+    assert_eq!(
+        filed.texts.into_iter().collect::<Vec<_>>(),
+        [(
+            "https://e.com/a.zip".to_string(),
+            "The A archive".to_string()
+        )]
+    );
+    // And the names their `download` attributes give, of the links sent only.
+    assert_eq!(
+        filed.names.into_iter().collect::<Vec<_>>(),
+        [("https://e.com/a.zip".to_string(), "A.zip".to_string())]
+    );
 
     let none = Asked::Batch(Batch {
         id: "links-2".into(),
@@ -351,7 +384,7 @@ fn the_panel_is_told_the_qualities_a_page_comes_in_or_why_not() {
         panic!("no formats answer");
     };
     assert!(choices.is_empty());
-    assert_eq!(reason.as_deref(), Some("yt-dlp could not read that page"));
+    assert_eq!(reason.as_deref(), Some("dm could not read that page"));
 }
 
 #[test]
@@ -505,6 +538,68 @@ fn start(id: &str, url: &str) -> serde_json::Value {
     .to_frame()
 }
 
+/// A browser's hand-off is filed as one, for a row waiting for a fresh address to take; a
+/// renewal (row 121) never asks, is never probed, and never starts dm.
+#[test]
+fn a_renewal_is_filed_for_a_running_dm_only_and_never_asks_or_launches() {
+    let dir = tempfile::tempdir().unwrap();
+    let (hello, _) = ask(
+        dir.path(),
+        dm_protocol::Request::Hello.to_frame(),
+        true,
+        Ok(()),
+    );
+    let Some(Reply::Hello(hello)) = hello else {
+        panic!("no hello")
+    };
+    assert!(hello.renews, "the app does not say it takes renewals");
+
+    let renewal = |id: &str| {
+        dm_protocol::Request::Start(Start {
+            id: id.into(),
+            url: "https://cdn.example/v.mp4?sig=new".into(),
+            referrer: "https://e.com/watch".into(),
+            ask: true,
+            renews: true,
+            ..Start::default()
+        })
+        .to_frame()
+    };
+    let (reply, launched) = ask(dir.path(), renewal("renew-1"), false, Ok(()));
+    assert!(matches!(reply, Some(Reply::Failed { .. })), "{reply:?}");
+    assert!(!launched, "dm was started for a renewal");
+    assert!(!inbox(dir.path()).join("renew-1.json").exists());
+
+    let (reply, launched) = ask(dir.path(), renewal("renew-2"), true, Ok(()));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "renew-2".into()
+        })
+    );
+    assert!(!launched);
+    let filed: Request = serde_json::from_str(
+        &std::fs::read_to_string(inbox(dir.path()).join("renew-2.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        filed.renews && filed.from_browser && !filed.ask,
+        "{filed:?}"
+    );
+
+    let (_, _) = ask(
+        dir.path(),
+        start("plain-1", "https://e.com/a.zip"),
+        true,
+        Ok(()),
+    );
+    let filed: Request = serde_json::from_str(
+        &std::fs::read_to_string(inbox(dir.path()).join("plain-1.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(filed.from_browser && !filed.renews);
+}
+
 #[test]
 fn a_hello_is_remembered_so_the_window_stops_offering_the_extension() {
     let home = tempfile::tempdir().unwrap();
@@ -531,11 +626,43 @@ fn a_hello_says_what_this_app_is() {
         panic!("no hello")
     };
     assert_eq!(hello.engine_version, env!("CARGO_PKG_VERSION"));
-    assert!(hello.ytdlp.is_some(), "the extension is told either way");
     // Said, so the extension hands this app the downloads the browser
     // holds: it judges a sign-in page served in the file's place.
     assert!(hello.judges_pages());
     assert_eq!(hello.protocol, Some(dm_protocol::PROTOCOL_VERSION));
+}
+
+#[test]
+fn a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them() {
+    let dir = tempfile::tempdir().unwrap();
+    let asked = |dir: &std::path::Path| {
+        let (reply, _) = ask(dir, dm_protocol::Request::Hello.to_frame(), true, Ok(()));
+        let Some(Reply::Hello(hello)) = reply else {
+            panic!("no hello")
+        };
+        hello.rules.expect("a hello carries the rules")
+    };
+    let shipped = asked(dir.path());
+    assert_eq!(shipped.format, dm_protocol::RULES_FORMAT);
+    std::fs::write(
+        dir.path().join("rules.json"),
+        format!(
+            r#"{{ "format": 1, "revision": {}, "exclude": {{ "tracker_hosts": ["beacon.example"] }} }}"#,
+            shipped.revision + 1
+        ),
+    )
+    .unwrap();
+    let newer = asked(dir.path());
+    assert_eq!(newer.exclude.tracker_hosts, vec!["beacon.example"]);
+    // The frame the extension reads names the field `rules`.
+    let (reply, _) = ask(
+        dir.path(),
+        dm_protocol::Request::Hello.to_frame(),
+        true,
+        Ok(()),
+    );
+    let frame = reply.expect("a hello").to_frame();
+    assert_eq!(frame["rules"]["revision"], shipped.revision + 1);
 }
 
 #[test]
@@ -603,20 +730,24 @@ fn a_caught_download_asks_where_to_save_only_where_options_say() {
         )
         .unwrap()
     };
-    // A new install starts a download at once.
+    // A new install asks first, as reference A's File Info does.
     let home = tempfile::tempdir().unwrap();
     let new = filed(home.path(), "c1");
-    assert!(new.caught && !new.ask);
-    // So does a settings file from before the choice existed.
+    assert!(new.caught && new.ask);
+    // So does a settings file from an older edition of the defaults.
     std::fs::write(home.path().join("settings.json"), r#"{"connections":4}"#).unwrap();
     let old = filed(home.path(), "c2");
-    assert!(old.caught && !old.ask);
+    assert!(old.caught && old.ask);
+    // A person who turned it off since keeps it off.
     std::fs::write(
         home.path().join("settings.json"),
-        r#"{"ask_caught_downloads":true}"#,
+        format!(
+            r#"{{"ask_caught_downloads":false,"popups_version":{}}}"#,
+            crate::settings::POPUPS_VERSION
+        ),
     )
     .unwrap();
-    assert!(filed(home.path(), "c3").ask);
+    assert!(!filed(home.path(), "c3").ask);
 }
 
 #[test]
@@ -1067,25 +1198,6 @@ fn the_rules_the_browser_asks_for_have_the_new_default_types() {
     assert!(catch_rules(home.path()).extensions.is_empty());
 }
 
-/// What the browser's host leaves for the helper that reads a page behind the
-/// panel's list: only an http(s) page is read, and nothing else is made.
-#[test]
-fn the_page_reading_helper_ignores_what_is_not_a_page() {
-    let home = tempfile::tempdir().unwrap();
-    for said in [
-        "not json",
-        "{}",
-        r#"{"url": "file:///etc/passwd"}"#,
-        r#"{"url": "javascript:alert(1)"}"#,
-    ] {
-        warm_page(home.path(), said);
-    }
-    assert!(
-        !home.path().join("readings").exists(),
-        "a reading was made of what is not a page"
-    );
-}
-
 #[cfg(unix)]
 #[test]
 fn a_folder_dm_may_not_write_to_is_said_before_a_download_is_taken() {
@@ -1099,6 +1211,13 @@ fn a_folder_dm_may_not_write_to_is_said_before_a_download_is_taken() {
     let locked = dir.path().join("locked");
     std::fs::create_dir(&locked).unwrap();
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).unwrap();
+    // As root (a container's test run) no folder is locked: nothing to see.
+    let probe = locked.join(".probe");
+    if std::fs::File::create(&probe).is_ok() {
+        let _ = std::fs::remove_file(&probe);
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
     let said = unwritable(&locked);
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
     let said = said.expect("refused");
@@ -1122,4 +1241,101 @@ fn each_browser_that_said_hello_is_noted_once() {
     note_browser(home.path(), Some("Firefox"));
     note_browser(home.path(), Some("Microsoft Edge"));
     assert_eq!(browsers_seen(home.path()), ["Microsoft Edge", "Firefox"]);
+}
+
+#[test]
+fn the_part_asked_for_in_the_panel_reaches_the_app_and_a_caught_download_has_none() {
+    let dir = tempfile::tempdir().unwrap();
+    let frame = Asked::Start(Start {
+        id: "part-1".into(),
+        url: "https://video.example/stream.m3u8".into(),
+        ask: true,
+        from: " 1:30 ".into(),
+        to: "2:00".into(),
+        ..Start::default()
+    })
+    .to_frame();
+    let (_, _) = ask(dir.path(), frame, true, Ok(()));
+    let filed: Request = serde_json::from_str(
+        &std::fs::read_to_string(inbox(dir.path()).join("part-1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!((filed.from.as_str(), filed.to.as_str()), ("1:30", "2:00"));
+    // None asked for: nothing is written, and an older file reads as none.
+    let frame = Asked::Start(Start {
+        id: "part-2".into(),
+        url: "https://video.example/b.mp4".into(),
+        ask: true,
+        ..Start::default()
+    })
+    .to_frame();
+    let (_, _) = ask(dir.path(), frame, true, Ok(()));
+    let text = std::fs::read_to_string(inbox(dir.path()).join("part-2.json")).unwrap();
+    assert!(
+        !text.contains("\"from\"") && !text.contains("\"to\""),
+        "{text}"
+    );
+    let old: Request = serde_json::from_str(r#"{"url":"https://e.com/a"}"#).unwrap();
+    assert!(old.from.is_empty() && old.to.is_empty());
+}
+
+/// A caught download that is a form's answer is taken without asking its
+/// server first (asking would send the form again), and the form is filed
+/// with it for dm to send once.
+#[test]
+fn a_forms_answer_is_taken_without_asking_and_its_form_goes_with_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let frame = Asked::Start(Start {
+        id: "f1".into(),
+        url: "https://files.example/export".into(),
+        referrer: "https://files.example/report".into(),
+        caught: true,
+        post: Some(dm_protocol::Posted {
+            form: "report=7&format=csv".into(),
+            ..dm_protocol::Posted::default()
+        }),
+        ..Start::default()
+    })
+    .to_frame();
+    let mut world = Pretend {
+        running: true,
+        launches: Ok(()),
+        launched: false,
+        refuses: None,
+        asked: Vec::new(),
+        cookies_seen: Vec::new(),
+        serves: "text/csv",
+        clock: 0,
+        probe_takes_ms: 0,
+        budgets: Vec::new(),
+    };
+    let reply = answer(dir.path(), &frame, &mut world).map(|r| Reply::from_frame(&r).unwrap());
+    assert_eq!(reply, Some(Reply::Started { id: "f1".into() }));
+    assert!(
+        world.asked.is_empty(),
+        "the form's address was asked: {:?}",
+        world.asked
+    );
+    let filed: Request =
+        serde_json::from_str(&std::fs::read_to_string(inbox(dir.path()).join("f1.json")).unwrap())
+            .unwrap();
+    let form = crate::shell::posted(&filed.url, filed.post.as_ref()).expect("the form was filed");
+    assert_eq!(form.body, b"report=7&format=csv");
+    assert_eq!(form.content_type, "application/x-www-form-urlencoded");
+    assert_eq!(form.url, "https://files.example/export");
+    // A raw body arrives as base64, with the type the browser's request named.
+    let raw = dm_protocol::Posted {
+        raw: "eyJhIjoxfQ==".into(),
+        content_type: "application/json".into(),
+        ..dm_protocol::Posted::default()
+    };
+    let form = crate::shell::posted("https://e.com/api", Some(&raw)).unwrap();
+    assert_eq!(form.body, br#"{"a":1}"#);
+    assert_eq!(form.content_type, "application/json");
+    // A body that is not base64 is no form to send.
+    let bad = dm_protocol::Posted {
+        raw: "not base64!".into(),
+        ..dm_protocol::Posted::default()
+    };
+    assert!(crate::shell::posted("https://e.com/api", Some(&bad)).is_none());
 }

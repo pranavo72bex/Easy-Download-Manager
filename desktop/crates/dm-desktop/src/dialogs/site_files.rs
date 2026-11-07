@@ -1,6 +1,11 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
-    let focus = app.dialogs.take_focus("Site files");
+    let focus = app.dialogs.take_focus("Grabber");
     // Nothing more is worked out for a dialog that is not open: its client
     // was built and every row's address parsed on every frame.
     if app.dialogs.site_files.is_none() {
@@ -20,25 +25,72 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let mut run_saved: Option<dm_shell::lists::Search> = None;
     let mut delete_saved: Option<String> = None;
     let saved = app.applied.site_searches.clone();
-    window(ctx, "Site files")
+    let keep_layout = d.keep_layout;
+    // Whether Options › Sign-ins keeps a login for the start page's site, said
+    // in the dialog: the search uses it (gaps row 92).
+    let signed_in = {
+        let page = d.page.trim();
+        !page.is_empty() && app.applied.with_login(page) != page
+    };
+    window(ctx, "Grabber")
         .open(&mut open)
         .show(ctx, |ui| {
             look |= entered(&focused(
                 field(ui, t("Start page"), &mut d.page, 420.0),
                 focus,
             ));
+            if signed_in {
+                ui.label(
+                    RichText::new(t("Signed in with the login Options › Sign-ins keeps for this site."))
+                        .small()
+                        .weak(),
+                );
+            }
+            // Reference A's project templates: the kinds of file a search is
+            // usually for, filling in the types (gaps row 92).
+            ui.horizontal_wrapped(|ui| {
+                let name = ui.label(t("Template"));
+                combo("grabber-template")
+                    .selected_text(t("Choose…"))
+                    .show_ui(ui, |ui| {
+                        for (words, types) in [
+                            (t("Pictures"), "jpg jpeg png gif webp bmp tif tiff svg"),
+                            (t("Documents"), "pdf doc docx xls xlsx ppt pptx odt ods odp rtf txt epub"),
+                            (t("Videos and music"), "mp4 mkv avi mov wmv webm flv m4v mp3 m4a aac wav flac ogg opus"),
+                            (t("Archives and programs"), "zip rar 7z gz tar bz2 xz exe msi iso dmg apk"),
+                            (t("Every file"), ""),
+                        ] {
+                            if ui.selectable_label(false, words).clicked() {
+                                d.types = types.to_string();
+                            }
+                        }
+                    })
+                    .response
+                    .labelled_by(name.id);
+            });
             field(ui, t("File types"), &mut d.types, 420.0);
             ui.horizontal(|ui| {
                 let name = ui.label(t("Page depth (0 for the start page only)"));
                 ui.add(number_box(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
                     .labelled_by(name.id);
             });
+            ui.checkbox(&mut d.other_sites, t("Also follow links to other sites"));
+            ui.checkbox(&mut d.keep_layout, t("Keep the site's folders"));
             ui.horizontal(|ui| {
                 let name = ui.label(t("Stop reading pages after (minutes)"));
                 ui.add(
                     number_box(&mut d.stop_after_minutes).range(0..=dm_shell::lists::MOST_MINUTES),
                 )
                 .labelled_by(name.id);
+            });
+            // Reference A's size filters (gaps row 92).
+            ui.horizontal_wrapped(|ui| {
+                let name = ui.label(t("Files at least (KB, 0 for any)"));
+                ui.add(number_box(&mut d.min_kb).range(0..=u64::from(u32::MAX)))
+                    .labelled_by(name.id);
+                let name = ui.label(t("and at most (KB, 0 for any)"));
+                ui.add(number_box(&mut d.max_kb).range(0..=u64::from(u32::MAX)))
+                    .labelled_by(name.id);
             });
             field(ui, t("Only paths containing"), &mut d.include, 420.0);
             field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);
@@ -124,14 +176,15 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         open = false;
     }
     if look {
-        let search = d.search();
+        let mut search = d.search();
+        // The login Options > Sign-ins keeps for the site, where it keeps one.
+        search.page = app.applied.with_login(&search.page);
         let state = Arc::clone(&d.state);
         *dm_core::lock(&state) = Grab::Looking;
         let ctx = ctx.clone();
-        // Those already in the list offered unticked, as the links dialog
-        // offers them: all were ticked, and Add for later queued them again
-        // without asking.
-        let listed = listed.clone();
+        // Those already in the list (`listed`, moved into the task below)
+        // offered unticked, as the links dialog offers them: all were ticked,
+        // and Add for later queued them again without asking.
         let queue = app.backend.queue.clone();
         app.backend.runtime.spawn(async move {
             let options = queue.options().await;
@@ -176,7 +229,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 .iter()
                 .find(|s| s.name == search.name)
             {
-                search.seen = before.seen.clone();
+                search.seen.clone_from(&before.seen);
                 search.last_run = before.last_run;
             }
             settings.site_searches.retain(|s| s.name != search.name);
@@ -207,7 +260,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             queue: MAIN_QUEUE.into(),
             ..AddOptions::default()
         };
-        if let Ok(n) = app.add(&chosen, with) {
+        if let Ok(n) = app.add_found(&chosen, with, keep_layout) {
             app.said = crate::i18n::Said::counting_naming(
                 "Added {} download to {}.||Added {} downloads to {}.",
                 n as u64,

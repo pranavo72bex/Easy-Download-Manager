@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Stress run of the extension in Brave on CachyOS against real YouTube, for the
 # old (use_dynamic_url) and the fixed manifest. ROUNDS, SEED choose the run.
 #   ROUNDS=60 SEED=3 sh scripts/linux/cachyos-brave/stress.sh

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The shell's readers of outside input — what a browser sends the native
 //! host, lists and pages people import, settings files people edit — fed
 //! random and hostile input. `PROPTEST_CASES=200000` for a deep hunt.
@@ -117,7 +122,7 @@ proptest! {
         ], 0..20).prop_map(|l| l.join("\r\n")),
     ]) {
         for row in lists::from_list(&text) {
-            prop_assert!(dm_core::queue::accepted(&row.url), "{}", row.url);
+            prop_assert!(dm_core::accepted(&row.url), "{}", row.url);
         }
         // What is written reads back as itself.
         let rows = lists::from_list(&text);
@@ -139,7 +144,7 @@ proptest! {
         base in prop_oneof![Just("https://e.com/dir/page.html".to_string()), any::<String>()],
     ) {
         for link in lists::links_on_page(&base, &html) {
-            prop_assert!(dm_core::queue::accepted(&link), "{link}");
+            prop_assert!(dm_core::accepted(&link), "{link}");
             let _ = lists::has_extension(&link, &["zip".into()]);
         }
     }

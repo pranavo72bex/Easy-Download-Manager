@@ -13,6 +13,43 @@ can load. The JavaScript extension (popup, options, in-browser downloader)
 was removed on 2026-10-12 and is in git history.
 
 ## Core downloader
+- [x] A browser download whose signed address expired waits for a fresh one (`Entry::fresh_link`, saved with the row) and the browser's next hand-over of the same file, matched by name, exact size and family of servers, takes its place and resumes from the staged parts (`Queue::adopt_fresh_link`; `fresh_link.rs`)
+- [x] The seams between ranges are fetched again over fresh requests and compared (up to eight, 2 KiB a side); bytes that differ restart the file on one connection and the row says why (`download/assemble.rs`; `seam_check.rs`)
+- [x] After each segment of a multi-connection download completes, its last 4 KB are re-fetched and compared byte-for-byte with the staged file (ENG-D12, clean-room); a mismatch clears the staged file and restarts the download on one connection (`download/ranged.rs` `spot_check_segment`; covered by `seam_check.rs`)
+- [x] Each piece's lead re-reads 64 bytes across the seam (`ranged.rs` `LEAD_BYTES`; `seam_check.rs` `a_corrupt_seam_interior_is_caught_by_the_64_byte_overlap`); a cut connection or a short outage is retried at once (`tests/errors.rs` `a_dropped_connection_is_retried_and_the_file_still_arrives`, `a_server_back_after_a_short_outage_is_reached_quickly`)
+- [x] The files of a ZIP listed from its end by range requests, without the archive (`zipinfo.rs`; `zip_contents.rs`); listed as a Contents section in Download details before the file is fetched, and in a finished ZIP's Properties (`dialogs/zip_list.rs`; `tests/window/zip.rs`; contract row B44)
+- [ ] A part (From/To) cut from an HLS stream, a DASH stream and a plain MP4 (`stream::cover`, `dash::cut`, `download/hls.rs`, `download/dash.rs`, `download/plain.rs`, `mp4mux/part.rs`; gaps row 45): written, not yet built or tested
+- [x] A small picture of the file's kind before each row's name, told apart by shape (play mark, note, lines, window, zip, hill and sun; none for other files) and not by colour alone (`icons.rs` `kind_shapes`; two unit tests; contract row B45)
+- [x] A double-click on a download that is running, waiting or stopped opens its progress window, whose title starts with how far it is (`37% Download progress — name`) and counts as it runs (`table.rs`; `dialogs/progress.rs` `title_with_percent`, three unit tests; `tests/window/dialogs.rs`; contract row B46)
+- [x] Add URL's Recent list keeps no address that carries a token, signature, key, password or session in its query, and offers none already kept (`dialogs/add.rs` `query_carries_a_secret`; contract row B47)
+- [x] Downloads that are a form's answer (POST): the form kept by the extension and sent again once by dm, in memory only (`cookies::Posted`, `SignIn::posting`, `download::with_form`, `decide::Forms`)
+- [x] A link's `download` attribute names its file, from the page's links (`Batch.names`, `decide::link_names`)
+- [x] YouTube lines at two frame rates for one height, as reference A's (`choices`, `page_data::choices_of_player`, `Quality::frame_rate_of`, `youtube::choose`)
+- [x] A page with no title names its video from `og:title` (`decide::page_title`)
+- [x] Download links: Add for later to the queue chosen (`LinksImport::queue`)
+- [x] Windows' firewall question at the first torrent said on the row (`dm_shell::firewall::may_ask`), and what it is for in Options
+- [x] Options › Browser: the browsers dm takes from and the right-click menu's items, each chosen (`CatchRules::off_browsers`, `hidden_menus`, `browser_named`)
+- [x] Grabber: size filters, templates, the saved sign-in said, a Grabber projects node (`Search::min_kb`/`max_kb`, `lists::within_sizes`, `Dialogs::open_site_files_with`)
+- [x] Caption files as list lines: YouTube's tracks fetched as TTML, a page's own caption files (`page_data::caption_lines`, `youtube::caption_reading`, `Quality::caption_of`, `decide::page_lines` `add_captions`)
+- [x] The video bar below a fixed header and compact on narrow videos (`decide::visible_box`, `panel_size`, `show::bar_over_top`)
+- [x] Help menu with reference A's items and a Tip of the day dialog; a user guide (`docs/user-guide.md`)
+- [x] Start downloading while Download details is open (`Settings::start_while_asking`, `Queue::settle_early`)
+- [x] Edge checks for the seven magnet variants and a master playlist's line (`DM_NO_SWARM` keeps the check's torrents off the network)
+- [x] Served site rules name a title element (`SiteProfile::title`, `Rules::title_for`, `content.js` `dmTitleRule`)
+- [x] "Download links" as reference A's: Save to column and choice, Hide images, Hide repeated files, Edit (`dialogs/links.rs`, `LinksImport::visible`, `SaveTo`)
+- [x] Who opens magnet links and `.torrent` files, shown in Options › Browser on Windows, with Use dm (the other program's keys kept by `reg export`) and Give back (`register.rs` `magnet_owner`, `take_magnet_windows`, `give_back_magnet_windows`); a copied link taken at once where that is on (`app/clipboard.rs`)
+- [x] macOS: `magnet:` links and `.torrent` files open dm (Info.plist `CFBundleURLTypes` and `CFBundleDocumentTypes`; `opened.rs` takes the `GURL` and `odoc` Apple events from the event manager once AppKit says the app will finish launching; `shell::opened_by_system`, tested in `shell/tests.rs`). Clicked on a Mac with dm.app installed in /Applications on 2026-11-07: a magnet and a `.torrent` each started a download, with dm closed and with it running (gaps row 105, closed)
+- [x] Torrents: peers connected and known and the bytes sent in the progress window; files chosen in Properties (`only_files`), those left out not moved in; a peer blocklist in Options › Advanced › BitTorrent, fetched through the proxy, failing closed (`torrent.rs` `Swarm`, `TorrentFile`, `blocklist_file`; `tests/torrent_features.rs`)
+- [x] The Scheduler lists the queues, each with hours of its own or the Main queue's, weekly or once on a date, with Start now and Stop; Start Queue and Stop Queue list the queues in the Downloads menu and beside the toolbar buttons (`dialogs/speed_schedule.rs` `SchedulerDraft`, `app/menus.rs` `queue_items`; `tests/window/speed_schedule.rs`, `tests/window/commands.rs`; contract rows B64, B65)
+- [x] The Scheduler chooses what dm does when the scheduled downloads are done (nothing, exit, sleep, hibernate, shut down, through the cancellable countdown) and how many times a failed download is tried again (`app/scheduled.rs`, four unit tests; `tests/window/choices.rs`; contract row B49)
+- [x] A listed address asks Show it / Resume it, Download again, Replace the old file, Cancel, with Remember my choice kept in Options › General (`dialogs/add.rs` `Dup`; `tests/window/choices.rs`; contract row B50)
+- [x] Options › Advanced shows the name dm sends to servers with an Identify as dm only switch (`dm_core::set_identify_as_dm`; `dm-core/tests/identify_as.rs`; contract row B51)
+- [x] The tray's Speed menu has Settings… (contract row B52); the Downloads menu's Speed limiter On/Off and Settings… already existed
+- [x] A running download's Connections section names each piece's own speed (contract row B53), and a failed download's window and Properties say one next step under the reason where the reason stops at what went wrong (row B54). Written 2026-11-01, not yet built or run.
+- [x] The browser panel's video list takes a part of the video: a "Part" line (start and end) whose times reach Download details filled in (contract row B59). Evidence: unit tests (`dm-protocol` `a_start_carries_the_part_of_a_video_and_an_older_one_has_none`, `dm-shell` host `the_part_asked_for_in_the_panel_reaches_the_app...`, `browser` `the_panels_part_line_hands_over_a_time_and_nothing_else`) and the window test `a_part_asked_for_in_the_browsers_panel_fills_download_details`; written, not yet run.
+- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `desktop/crates/dm-desktop/src/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
+- [x] Site rules served by the app (gaps rows 68, 69): `Rules::parse`, `Rules::newest`, `answers_for` (`dm-protocol/src/rules.rs` tests), the shipped and the home `rules.json` (`dm-shell/src/host/served.rs` tests, `host/tests.rs` `a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them`), the extension's merge (`browser/src/decide/excluded.rs` and `rules.rs` tests) and the answer reader (`browser/src/decide/answers.rs` tests). The update check fetches a `rules` entry of `latest.json` (`dm-desktop/src/update.rs` `rules_in`, `fetch_rules`; `dm-shell` `served::adopt`; tests in both). Written, not yet built or tested; no site has a rule yet.
+- [x] Find previous, Shift-F3, in the Downloads menu beside Find next, wrapping round from the first row to the last (`app/search.rs` `next_match`, five unit tests; `tests/window/lists.rs`; contract row B48)
 - [x] HTTP/HTTPS downloading
 - [x] Multi-connection downloading — and a limit of a site's own (Options ›
       Network) for a server that refuses a second connection, never above
@@ -30,14 +67,16 @@ was removed on 2026-10-12 and is in git history.
       last byte that agrees (`download.rs`, whole and half parts). The queue
       and settings are synced to disk before they replace the old copy. A
       real `kill -9` mid-download, restarted, completes byte-exact
-- [x] Range request support
+- [x] Range request support — the probe sends `Range: bytes=0-` and its
+      response body streams as the download's first piece, saving a round trip
+      before the first byte (`probe.rs` `probe_get`, `ranged.rs` `first_body`)
 - [x] Automatic retry
 - [x] Connection failure recovery — with a connect and a read timeout on the
       one client, because a server that sent its headers and then nothing
       held a task forever with the pause flag never read; the backoff
       between attempts is cut short by a pause or a cancel rather than sat out.
       The attempts (0 to keep trying) and the read timeout are settings
-      (Options › Network, `limits.rs`)
+      (Options › Advanced › Network, `limits.rs`)
 - [x] Speed calculation
 - [x] Download queue
 - [x] Pause/resume
@@ -58,6 +97,7 @@ was removed on 2026-10-12 and is in git history.
       directory and fails at anything approaching 2x
 
 ## Browser integration
+- [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`browser/src/decide/excluded.rs`)
 State of the Rust extension, 2026-10-12. What the JavaScript one had
 verified (Firefox 145 install, its own Chrome suite) was of different code
 and is not carried over.
@@ -115,8 +155,8 @@ and is not carried over.
       `tests/auth.rs`), and NTLMv2 where it asks for NTLM or for Negotiate
       (a `DOMAIN\user` login; `ntlm.rs` checked against MS-NLMP's worked
       example, `tests/ntlm.rs` against a server that signs each connection
-      in, the file fetched over several). Kerberos is not offered; a `cookies.txt` chosen in Options › Network is sent
-      and handed to yt-dlp. The browser's own cookies stay with the browser
+      in, the file fetched over several). Kerberos is not offered; a `cookies.txt` chosen in Options › Advanced › Network is sent
+      to the site it belongs to. The browser's own cookies stay with the browser
       unless the popup's "Hand over this site's sign-in" is on for the site,
       when they travel with the hand-off and the row keeps them
       (`tests/cookies.rs`, `host.rs`); a hand-off
@@ -132,18 +172,18 @@ and is not carried over.
 ## Media
 - [x] Video detection — the extension extracts no video. "Download media with
       dm" on a `blob:` (Media Source) player hands the page to the client,
-      which runs yt-dlp. The toolbar button only brings dm's window up
+      which reads a YouTube page itself. The toolbar button only brings dm's window up
       (2026-10-14: it used to hand the page over too, downloading a video
       nobody asked for)
       (driven in `app-check.py`). With no app the notification names the fix;
-      an app that said it has no yt-dlp gets the page and a notification
+      an app that said it cannot read video pages gets the page and a notification
       saying a video page needs it. "No app" is believed for ten seconds, so
       an app registered since is found without a browser restart. The
       "Download video" panel shows over players, specified line by line
       with its tests in `docs/video-panel.md`. It
       is a compact bar (dm's mark, "Download video", ▾ on a player page,
       ? and ×) in the player's top corner. A click on a player page lists the
-      qualities the app's yt-dlp finds (`media.formats`, `yt-dlp -J`), one
+      qualities dm reads from the page (`media.formats`), one
       line per height with its size, then the sound alone. The line picked
       reaches the app with its quality and container, so an "MP4" line
       arrives as .mp4. The app then opens "Download details"
@@ -154,13 +194,13 @@ and is not carried over.
       pages (an overlay over the video, a MediaSource player, a 96px clip
       that gets none). `scripts/youtube-check.py` drives it by hand on a real
       YouTube watch page: hover, rest five seconds, click, and the video is
-      in dm's folder through yt-dlp. That run found the panel vanishing
+      in dm's folder. That run found the panel vanishing
       under a resting pointer, because YouTube puts `pointer-events: none`
       on its player as the controls fade. A site whose CSP forbids
       WebAssembly gets no panel; its right-click menu still works
 - [x] Generic media downloads — a direct media file still downloads directly
 - [x] Playlist handling where technically supported — HLS in the client;
-      a player page's stream is resolved by the client's yt-dlp
+      a YouTube page's streams are read by dm itself
 - [x] Filename detection — the client's, held to the cases in
       `shared/naming-cases.json`. The extension names nothing any more
 
@@ -170,6 +210,7 @@ and is not carried over.
       on 2026-10-11. It calls the queue directly, and `tests/window.rs` drives
       every control through its accessibility tree against a real queue on
       loopback
+- [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `desktop/vendor/README.md`). Contract row B42.
 - [x] The window — menu bar (Program, File, Downloads, View, Help),
       toolbar, category tree with Everything, In progress, Done and Queues,
       a sortable table (Name, Queue, Size, Status, Time left, Speed, Date,
@@ -278,6 +319,13 @@ and is not carried over.
       save
 - [x] Download history — the client keeps finished rows with the time they
       finished, persisted, filterable and clearable
+- [x] Three questions as reference A asks them (maintainer's word, 2026-11-01; contract rows B39 to B41):
+      the server's name when it is not the address's (Yes keeps it, No gives the address's,
+      renamed as the file finishes), a web page that answered for a file (Yes saves `<name>.html`
+      through `Options::accept_page`, No removes the row), and a 404 told once in a window of its
+      own. Asked one at a time, in order (`app/sync.rs` `watch_asks`, `dialogs/asks.rs`); not asked
+      for rows already in the list at start, for a name a person typed, or for links added together.
+      Where nothing can ask (the command line, an AI client) a page for a file still fails as before
 
 ## Reliability
 - [x] Unit tests — all Rust: the desktop workspace and the extension's host
@@ -398,21 +446,22 @@ of them.
 - [x] Speed limiting — client. One ceiling shared by every connection of
       every download dm fetches itself, and a limit of a download's own,
       set in its progress window and kept with its row, held beside it.
-      A torrent or yt-dlp run, which dm cannot meter chunk by chunk, holds a
+      A torrent or a video run, which dm cannot meter chunk by chunk, holds a
       share while it runs: with n of them the ceiling is split n+1 ways, one
       part for dm's own downloads (`limit.rs` tests). A torrent re-reads its
-      part every tick; a yt-dlp run keeps the part it started with
+      part every tick; a video run keeps the part it started with
 - [x] Scheduler (download between set hours) — client. Local time, wraps past
       midnight, and does not restart what a person paused on purpose; and
       a named queue can start on its own each day at a time of its own
       (Options › Downloads)
 - [x] Checksum verification — client. A mismatch fails the download and
       removes the file rather than reporting success beside a warning
+- [x] Proxy: an automatic configuration script (PAC) and per-protocol proxies, in Options › Advanced › Proxy (`pac::way_to`, `Proxy::script`, `Proxy::per_scheme`, `proxy::route_for` for the tools; `tests/proxy.rs`)
 - [x] Proxy support — client. HTTP, HTTPS, SOCKS4 and SOCKS5, with credentials,
       or the computer's own settings; a list of sites fetched directly. FTP
       goes through SOCKS or HTTP CONNECT (`tests/ftp.rs`); an HTTPS proxy
       refuses FTP rather than being gone around.
-      Every request of dm's own, yt-dlp's connections, and a torrent's
+      Every request of dm's own, and a torrent's
       trackers and peers over SOCKS5; a torrent under any other kind of proxy
       is refused with the reason rather than sent out around it. A saved
       proxy that no longer parses is turned off for every route at startup,
@@ -436,7 +485,7 @@ of them.
       are discarded rather than spliced in after a quality change. The page's
       referrer goes on every request of the stream, not only the probe; a
       test serves a stream only to its page and gets it. DASH is read by dm itself
-      (2026-10-25, `dash.rs`, `download/dash.rs`): templates (number, time,
+      (2026-10-25, `download/dash.rs`): templates (number, time,
       timeline), segment lists with byte ranges, and single files; the picture
       and sound are chosen by the quality and container asked for, each fetched
       piece by piece (a byte range a server does not honour is an error, not
@@ -488,33 +537,18 @@ of them.
       fetched over HTTP carries the page's referrer. A test stands up a
       one-seeder swarm on loopback and fetches a file through it, so the
       bytes really cross a BitTorrent connection rather than being copied
-- [x] Player-only sites via yt-dlp — the client hands a page it cannot fetch
-      itself (a video site's watch URL, where the media address is minted by
-      the site's own player) to an installed yt-dlp, the sanctioned way:
-      dm runs the tool the user installed and places what it produces like
-      any other download — no site logic, token minting or signature work of
-      dm's own. Routed only when the probe found a web page rather than a
-      file and a yt-dlp is on the machine. Progress, quality and the shared
-      speed limit are passed through, and so are the proxy and the page's
-      referrer, which every request of dm's own already carried and yt-dlp's
-      own connections did not; a row's checksum is checked over what it
-      produced like any other download; a test drives the real yt-dlp
-      against a loopback server end to end. The packaging already listed yt-dlp as an
-      optional dependency; now the client actually uses it. Found even when
-      launched from the Dock or by a browser's native host, whose minimal
-      `PATH` hides `/opt/homebrew/bin` and `~/.local/bin` — the usual homes
-      are searched and the tool is spawned by its resolved path. yt-dlp
-      (and QuickJS, its JavaScript engine) are fetched by dm, an MP4 picture and M4A sound
-      are joined by dm itself (`mp4mux.rs`) and an HLS transport stream put
-      into an MP4 by dm (`tsmux.rs`; with packed-AAC sound kept apart, `tsmux/packed.rs`, 2026-10-26, shown by a test with `DM_YTDLP` empty); a real 720p YouTube video arrived that
-      way, decoded identical (2026-10-21). Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
-      as one merged file. Before this, that same launch quietly saved the
-      page's HTML as a "completed" download named `watch`. Since 2026-10-21 nothing has to be installed:
-      with no yt-dlp on the computer, dm fetches the official yt-dlp and
-      QuickJS builds from GitHub into its own folder the first time a video
-      page needs them, checked against their checksums, and fetches yt-dlp
-      afresh weekly (`tools.rs`); the row says "Getting ready for videos
-      (first time only)" meanwhile. Since 2026-10-22 picture, sound and
-      subtitles are joined by dm itself on every computer alike, with no
-      other tool, an installed one included; a page
-      refused to dm's own request (a 429 bot check) is yt-dlp's to try
+- [x] Player-only sites — a YouTube watch page is read by dm itself
+      (`youtube.rs`): the page, the player API as a TV client and the player
+      script, whose challenges run in QuickJS or Deno, and its picture and
+      sound are fetched by dm's own engine and joined by dm (`mp4mux.rs`; an
+      HLS transport stream is put into an MP4 by `tsmux.rs`). Another site's
+      video comes from the browser extension's caught player requests; the
+      panel names such a stream by what its playlist says (a master playlist
+      is one line, named by its best picture and frame rate or bandwidth, and
+      its renditions are no lines of their own; a DASH manifest by its tallest
+      picture; the list is tallest first, and a small clip beside a video is
+      left out): `decide/streams.rs`, `web/streams.rs`, offline tests in
+      `decide/tests.rs`; the playlist read runs in a browser and is looked at
+      on real pages in the final QA (gaps row 64).
+      The external video tool was used here until 2026-10-31, when it was removed
+      (`docs/decisions.md`).

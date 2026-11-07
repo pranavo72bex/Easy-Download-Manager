@@ -39,7 +39,7 @@ jobs:
       NOTES: ${{ inputs.notes }}
       API: https://api.addons.microsoftedge.microsoft.com/v1/products
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable

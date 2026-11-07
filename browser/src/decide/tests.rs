@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 #[test]
 fn a_clicked_magnet_is_taken_and_named_by_its_dn() {
     use super::{magnet_name, magnet_url, PanelClick, MAGNET_MESSAGE};
@@ -305,6 +310,7 @@ fn seen(url: &str, kind: &str, headers: &[(&str, &str)]) -> Seen {
                 value: Some((*v).into()),
             })
             .collect(),
+        ..Default::default()
     }
 }
 
@@ -410,6 +416,145 @@ fn pieces_of_something_else_are_not_streams() {
     assert!(stream_seen(&refused).is_none());
 }
 
+/// A response from a social site's CDN: a piece, as the player asked for it.
+fn cdn_piece(host: &str, id: &str, efg: &str, from: u64, to: u64, mime: &str) -> Seen {
+    seen(
+        &format!(
+            "https://{host}/o1/v/t2/f2/{id}.mp4?_nc_cat=1&efg={efg}&oh=sig&bytestart={from}&byteend={to}"
+        ),
+        "media",
+        &[("Content-Type", mime), ("Content-Length", &(to - from + 1).to_string())],
+    )
+}
+
+#[test]
+fn a_social_sites_pieces_are_one_picture_and_one_sound_each_whole() {
+    const VIDEO: &str =
+        "eyJ2ZW5jb2RlX3RhZyI6ICJpZy14cHZkcy5jbGlwcy5pZ3d3dy1DMy5kYXNoX2Jhc2VsaW5lXzFfdjEifQ";
+    const AUDIO: &str = "eyJ2ZW5jb2RlX3RhZyI6ICJpZy14cHZkcy5jbGlwcy5pZ3d3dy1DMy5kYXNoX2xuX2hlYWFjX3ZicjNfYXVkaW8ifQ";
+    let mut streams = Streams::default();
+    // The player asks for each file in pieces, picture and sound apart, each
+    // piece far under the size of anything worth offering.
+    for (from, to) in [(0, 891), (892, 1031), (1032, 296_383), (296_384, 1_002_715)] {
+        streams.absorb(&cdn_piece(
+            "instagram.fktm18-1.fna.fbcdn.net",
+            "AQvid",
+            VIDEO,
+            from,
+            to,
+            "video/mp4",
+        ));
+    }
+    for (from, to) in [(0, 823), (824, 1107), (1108, 20_467)] {
+        streams.absorb(&cdn_piece(
+            "instagram.fktm18-1.fna.fbcdn.net",
+            "AQaud",
+            AUDIO,
+            from,
+            to,
+            "video/mp4",
+        ));
+    }
+    let list = streams.of(7);
+    assert_eq!(list.len(), 1, "{list:?}");
+    let line = &list[0];
+    assert_eq!(line.label, "video + sound");
+    // The files are asked for whole: the piece's two parameters are gone,
+    // the rest (which carry the signature) is kept.
+    assert_eq!(
+        line.url,
+        format!("https://instagram.fktm18-1.fna.fbcdn.net/o1/v/t2/f2/AQvid.mp4?_nc_cat=1&efg={VIDEO}&oh=sig")
+    );
+    assert_eq!(
+        line.sound.as_deref(),
+        Some(format!("https://instagram.fktm18-1.fna.fbcdn.net/o1/v/t2/f2/AQaud.mp4?_nc_cat=1&efg={AUDIO}&oh=sig").as_str())
+    );
+}
+
+#[test]
+fn a_social_sites_picture_says_its_height_and_a_missing_tag_falls_back_to_the_type() {
+    const FB: &str = "eyJ2ZW5jb2RlX3RhZyI6ICJkYXNoX2gyNjQtYmFzaWMtZ2VuMl83MjBwIn0";
+    let picture = stream_seen(&cdn_piece(
+        "video-sjc.xx.fbcdn.net",
+        "v",
+        FB,
+        0,
+        99,
+        "video/mp4",
+    ))
+    .unwrap();
+    assert_eq!(
+        (picture.kind, picture.label.as_str()),
+        (StreamKind::Picture, "720p video")
+    );
+    // No tag: what the server called the piece decides.
+    let no_tag = |mime: &str| {
+        stream_seen(&seen(
+            "https://scontent.cdninstagram.com/v/x.mp4?bytestart=0&byteend=99",
+            "media",
+            &[("Content-Type", mime)],
+        ))
+        .unwrap()
+        .kind
+    };
+    assert_eq!(no_tag("audio/mp4"), StreamKind::Sound);
+    assert_eq!(no_tag("video/mp4"), StreamKind::Picture);
+    // Only the social CDNs name their pieces this way.
+    assert!(pieces_of(
+        "https://notfbcdn.net/v.mp4?bytestart=0&byteend=9",
+        "video/mp4"
+    )
+    .is_none());
+    assert!(pieces_of("https://a.fbcdn.net/v.mp4?x=1", "video/mp4").is_none());
+}
+
+#[test]
+fn a_clip_the_browser_plays_is_offered_under_the_floor_a_script_fetch_is_not() {
+    // X's GIF-style clips are ~100 KB: the post's own media.
+    let clip = |kind: &str| {
+        stream_seen(&seen(
+            "https://video.twimg.com/tweet_video/Gi.mp4",
+            kind,
+            &[
+                ("Content-Type", "video/mp4"),
+                ("Content-Range", "bytes 0-80763/103807"),
+            ],
+        ))
+    };
+    assert_eq!(clip("media").map(|s| s.size), Some(Some(103_807)));
+    assert!(clip("xmlhttprequest").is_none());
+}
+
+#[test]
+fn a_playlists_address_names_its_height_and_sound_alone_is_not_offered_beside_a_picture() {
+    let playlist = |path: &str| {
+        seen(
+            &format!("https://video.e.com{path}?tag=1"),
+            "xmlhttprequest",
+            &[("Content-Type", "application/x-mpegURL")],
+        )
+    };
+    let mut streams = Streams::default();
+    for path in [
+        "/pl/Ab12.m3u8",
+        "/pl/avc1/1280x720/Ab12.m3u8",
+        "/pl/avc1/640x360/Ab12.m3u8",
+        "/pl/mp4a/128000/Ab12.m3u8",
+    ] {
+        streams.absorb(&playlist(path));
+    }
+    let labels: Vec<String> = streams.of(7).into_iter().map(|s| s.label).collect();
+    assert_eq!(
+        labels,
+        ["HLS stream", "720p HLS stream", "360p HLS stream"],
+        "the master first; no line that would save a sound alone"
+    );
+    // A tab with only a sound playlist still offers it.
+    let mut only = Streams::default();
+    only.absorb(&playlist("/pl/mp4a/128000/Ab12.m3u8"));
+    assert_eq!(only.of(7).len(), 1);
+}
+
 #[test]
 fn a_tab_keeps_its_streams_until_it_loads_another_page() {
     let mut streams = Streams::default();
@@ -451,6 +596,230 @@ fn a_tab_keeps_its_streams_until_it_loads_another_page() {
         kept.iter().any(|s| s.url.ends_with("/19.m3u8")),
         "and the latest"
     );
+}
+
+/// A master playlist shaped like Vimeo's: renditions and a sound track on
+/// addresses relative to the playlist's own.
+const VIMEO_MASTER: &str = r#"#EXTM3U
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-high",NAME="Original",LANGUAGE="en",DEFAULT=YES,URI="../../a/audio-high/playlist.m3u8?pathsig=8c"
+#EXT-X-STREAM-INF:BANDWIDTH=3500000,AVERAGE-BANDWIDTH=3200000,RESOLUTION=1920x1080,FRAME-RATE=29.970,CODECS="avc1.640028,mp4a.40.2",AUDIO="audio-high"
+../../v/1080p/playlist.m3u8?pathsig=8c
+#EXT-X-STREAM-INF:BANDWIDTH=1800000,RESOLUTION=1280x720,FRAME-RATE=29.970,CODECS="avc1.64001f,mp4a.40.2",AUDIO="audio-high"
+../../v/720p/playlist.m3u8?pathsig=8c
+#EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,CODECS="avc1.4d401e,mp4a.40.2",AUDIO="audio-high"
+../../v/360p/playlist.m3u8?pathsig=8c
+"#;
+
+const VIMEO_URL: &str = "https://vod.example.net/p/x/y/playlist.m3u8?pathsig=9";
+
+/// One shaped like TikTok's: portrait pictures on absolute addresses, and a
+/// rendition that is sound alone.
+const TIKTOK_MASTER: &str = r#"#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=576x1024,CODECS="avc1.4d401f,mp4a.40.2"
+https://v16.example-cdn.com/a/576.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2600000,RESOLUTION=720x1280,CODECS="avc1.64001f,mp4a.40.2"
+https://v16.example-cdn.com/a/720.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=64000,CODECS="mp4a.40.2"
+https://v16.example-cdn.com/a/audio.m3u8
+"#;
+
+#[test]
+fn a_master_playlist_is_named_by_the_best_picture_it_lists() {
+    let renditions = hls_renditions(VIMEO_URL, VIMEO_MASTER);
+    assert_eq!(renditions.len(), 4, "three pictures and a sound track");
+    assert_eq!(
+        renditions[1].url, "https://vod.example.net/p/v/1080p/playlist.m3u8?pathsig=8c",
+        "relative addresses are made absolute against the playlist's own"
+    );
+    assert_eq!(
+        (
+            renditions[1].height,
+            renditions[1].frame_rate,
+            renditions[1].bandwidth
+        ),
+        (Some(1080), Some(30), Some(3_200_000)),
+        "the average bandwidth where it is said"
+    );
+    assert!(renditions[0].sound_only, "the EXT-X-MEDIA sound track");
+    assert_eq!(
+        hls_master_label(&renditions).as_deref(),
+        Some("1080p HLS stream")
+    );
+
+    // A portrait clip is named by its smaller side, as the address rule does.
+    let tiktok = hls_renditions("https://v16.example-cdn.com/a/master.m3u8", TIKTOK_MASTER);
+    assert_eq!(tiktok.len(), 3);
+    assert!(tiktok[2].sound_only, "no picture and only an AAC codec");
+    assert_eq!(
+        hls_master_label(&tiktok).as_deref(),
+        Some("720p HLS stream")
+    );
+}
+
+#[test]
+fn a_playlist_says_its_frame_rate_bandwidth_or_that_it_is_sound() {
+    let master = |inf: &str| format!("#EXTM3U\n{inf}\nhttps://e.com/x.m3u8\n");
+    let label = |text: &str| hls_master_label(&hls_renditions("https://e.com/m.m3u8", text));
+    // 50 frames a second or more is part of the name; 30 is not.
+    let both = format!(
+        "{}{}",
+        master("#EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080,FRAME-RATE=60.000"),
+        master("#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080,FRAME-RATE=30.000"),
+    );
+    assert_eq!(label(&both).as_deref(), Some("1080p60 HLS stream"));
+    // No resolution: the bandwidth names it.
+    assert_eq!(
+        label(&master(
+            "#EXT-X-STREAM-INF:BANDWIDTH=2500000,CODECS=\"avc1.4d401e,mp4a.40.2\""
+        ))
+        .as_deref(),
+        Some("2.5 Mbps HLS stream")
+    );
+    // Nothing but sound.
+    assert_eq!(
+        label(&master(
+            "#EXT-X-STREAM-INF:BANDWIDTH=64000,CODECS=\"mp4a.40.2\""
+        ))
+        .as_deref(),
+        Some("HLS sound")
+    );
+    // A media playlist lists no renditions: nothing to name it by.
+    let media = "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\nseg0.ts\n#EXTINF:6.0,\nseg1.ts\n#EXT-X-ENDLIST\n";
+    assert!(hls_renditions("https://e.com/media.m3u8", media).is_empty());
+    assert_eq!(label(media), None);
+    // Tags in any case, and a quoted comma, do not confuse the reading.
+    assert_eq!(
+        label("#ext-x-stream-inf:CODECS=\"avc1.4d401e,mp4a.40.2\",RESOLUTION=1280x720,BANDWIDTH=1\nv.m3u8\n")
+            .as_deref(),
+        Some("720p HLS stream")
+    );
+}
+
+#[test]
+fn a_dash_manifest_is_named_by_its_tallest_picture() {
+    let mpd = r#"<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static"><Period>
+<AdaptationSet contentType="video" mimeType="video/mp4">
+<Representation id="v1" bandwidth="800000" width="640" height="360" codecs="avc1.4d401e"/>
+<Representation id="v2" bandwidth="3000000" width="1920" height="1080" codecs="avc1.640028"/>
+</AdaptationSet>
+<AdaptationSet contentType="audio" mimeType="audio/mp4">
+<Representation id="a1" bandwidth="128000" codecs="mp4a.40.2"/>
+</AdaptationSet></Period></MPD>"#;
+    assert_eq!(dash_label(mpd).as_deref(), Some("1080p DASH stream"));
+    let sound = r#"<MPD><Period><AdaptationSet mimeType="audio/mp4"><Representation id="a" bandwidth="96000" codecs="mp4a.40.2"/></AdaptationSet></Period></MPD>"#;
+    assert_eq!(dash_label(sound).as_deref(), Some("DASH sound"));
+    assert_eq!(dash_label("<MPD><Period/></MPD>"), None);
+    assert_eq!(dash_label("not a manifest"), None);
+}
+
+fn playlist_seen(url: &str) -> Seen {
+    seen(
+        url,
+        "xmlhttprequest",
+        &[("Content-Type", "application/vnd.apple.mpegurl")],
+    )
+}
+
+#[test]
+fn a_read_master_playlist_is_the_line_and_its_renditions_are_not() {
+    let variant = "https://vod.example.net/p/v/720p/playlist.m3u8?pathsig=8c";
+    let mut streams = Streams::default();
+    // The player fetched the master, then the rendition it chose.
+    streams.absorb(&playlist_seen(VIMEO_URL));
+    streams.absorb(&playlist_seen(variant));
+    assert_eq!(streams.of(7).len(), 2, "before it is read: a line each");
+
+    assert!(streams.wants_description(7, VIMEO_URL));
+    assert!(
+        !streams.wants_description(7, VIMEO_URL),
+        "once: a player that fetches it again does not have it read again"
+    );
+    assert!(streams.describe(7, VIMEO_URL, VIMEO_MASTER));
+    let listed = streams.of(7);
+    assert_eq!(listed.len(), 1, "the rendition is no line of its own");
+    assert_eq!(listed[0].label, "1080p HLS stream");
+    assert_eq!(listed[0].url, VIMEO_URL);
+
+    // A rendition heard after the master is not a line either.
+    streams.absorb(&playlist_seen(
+        "https://vod.example.net/p/v/360p/playlist.m3u8?pathsig=8c",
+    ));
+    streams.absorb(&playlist_seen(
+        "https://vod.example.net/p/a/audio-high/playlist.m3u8?pathsig=8c",
+    ));
+    assert_eq!(streams.of(7).len(), 1);
+
+    // What is kept for a sleeping worker keeps it so, in either order of
+    // hearing the two.
+    let kept = streams.raw(7);
+    let mut woken = Streams::default();
+    woken.absorb(&playlist_seen(variant));
+    woken.restore(7, kept);
+    let listed = woken.of(7);
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(listed[0].label, "1080p HLS stream");
+
+    // A line already named by its address, or a media playlist, is not read
+    // or changed.
+    let mut other = Streams::default();
+    other.absorb(&playlist_seen("https://e.com/pl/avc1/1280x720/a.m3u8"));
+    assert!(!other.wants_description(7, "https://e.com/pl/avc1/1280x720/a.m3u8"));
+    other.absorb(&playlist_seen("https://e.com/media.m3u8"));
+    assert!(other.wants_description(7, "https://e.com/media.m3u8"));
+    assert!(!other.describe(7, "https://e.com/media.m3u8", "#EXTM3U\n#EXTINF:6,\ns.ts\n"));
+    assert!(other.of(7).iter().any(|s| s.label == "HLS stream"));
+
+    // A new page forgets what was asked, with the streams.
+    streams.forget(7);
+    streams.absorb(&playlist_seen(VIMEO_URL));
+    assert!(streams.wants_description(7, VIMEO_URL));
+}
+
+#[test]
+fn a_dash_manifest_line_takes_its_name_from_the_manifest() {
+    let mut streams = Streams::default();
+    let manifest = seen(
+        "https://cdn.e.com/v/manifest.mpd",
+        "xmlhttprequest",
+        &[("Content-Type", "application/dash+xml")],
+    );
+    streams.absorb(&manifest);
+    assert!(streams.wants_description(7, "https://cdn.e.com/v/manifest.mpd"));
+    let mpd = r#"<MPD><Period><AdaptationSet contentType="video"><Representation height="720" bandwidth="2000000"/></AdaptationSet></Period></MPD>"#;
+    assert!(streams.describe(7, "https://cdn.e.com/v/manifest.mpd", mpd));
+    assert_eq!(streams.of(7)[0].label, "720p DASH stream");
+}
+
+#[test]
+fn the_list_is_best_first_and_a_small_clip_beside_a_video_is_not_in_it() {
+    let mut streams = Streams::default();
+    streams.absorb(&playlist_seen("https://e.com/pl/avc1/640x360/a.m3u8"));
+    streams.absorb(&playlist_seen("https://e.com/pl/avc1/1920x1080/a.m3u8"));
+    streams.absorb(&playlist_seen("https://e.com/pl/avc1/1280x720/a.m3u8"));
+    let labels: Vec<String> = streams.of(7).into_iter().map(|s| s.label).collect();
+    assert_eq!(
+        labels,
+        ["1080p HLS stream", "720p HLS stream", "360p HLS stream"],
+        "the tallest picture first"
+    );
+
+    // TikTok's own sign-in clip (193 KB) beside the video (4 MB).
+    let file = |url: &str, bytes: &str| {
+        seen(
+            url,
+            "media",
+            &[("Content-Type", "video/mp4"), ("Content-Length", bytes)],
+        )
+    };
+    let mut tab = Streams::default();
+    tab.absorb(&file("https://v.example.com/playback1.mp4", "197632"));
+    assert_eq!(tab.of(7).len(), 1, "alone, a small clip is the post");
+    tab.absorb(&file("https://v.example.com/video.mp4", "4194304"));
+    let listed = tab.of(7);
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert!(listed[0].url.ends_with("video.mp4"));
 }
 
 #[test]
@@ -767,7 +1136,7 @@ fn media_with_a_real_source_is_a_file_and_a_blob_source_is_its_page() {
     click.src_url = Some("blob:https://e.com/5c1d".into());
     let page = menu_target(&click, false).unwrap();
     assert_eq!(page.url, "https://e.com/watch?v=1");
-    assert!(page.page, "a player page goes to the app's yt-dlp");
+    assert!(page.page, "a player page goes to the app");
 
     // In a frame, the frame is the player's page.
     click.frame_url = Some("https://player.e.com/embed/1".into());
@@ -888,7 +1257,7 @@ fn an_answer_about_the_app_lasts_as_long_as_it_should() {
 }
 
 fn hello() -> Value {
-    json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1.0", "ytdlp": true })
+    json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1.0" })
 }
 
 #[test]
@@ -904,7 +1273,7 @@ fn a_handshake_is_whole_with_a_hello_and_the_rules() {
     let Some(App::Present { hello, rules }) = probe.finished() else {
         panic!("not present")
     };
-    assert_eq!(hello.ytdlp, Some(true));
+    assert_eq!(hello.engine_version, "0.1.0");
     assert_eq!(rules.extensions, vec!["bin".to_string()]);
 }
 
@@ -917,8 +1286,9 @@ fn a_host_too_old_to_send_rules_gets_the_defaults_and_no_host_is_absent() {
         App::Present {
             hello: Hello {
                 engine_version: "0.1.0".into(),
-                ytdlp: Some(true),
                 protocol: None,
+                rules: None,
+                renews: false,
             },
             rules: CatchRules::default(),
         }
@@ -973,14 +1343,14 @@ fn a_download_the_browser_holds_goes_only_to_an_app_that_judges_pages() {
     let mut probe = Probe::default();
     probe.absorb(&json!({
         "protocolVersion": 1, "type": "engine.hello", "engineVersion": "3.0.1",
-        "ytdlp": false, "protocol": 2,
+        "protocol": 2,
     }));
     let App::Present { hello: new, .. } = probe.give_up("no rules") else {
         panic!("not present")
     };
     assert_eq!(takes_caught(&new), Ok(()));
     let (line, bad) = status_line(&new);
-    assert!(!bad && line.contains("update the dm app"), "{line}");
+    assert!(!bad && !line.contains("update the dm app"), "{line}");
 }
 
 #[test]
@@ -1096,6 +1466,30 @@ fn the_panel_sits_in_the_players_corner_and_stays_on_screen() {
         panel_at((f64::NAN, 0.0, 10.0, 10.0), (1.0, 1.0), (10.0, 10.0)).0,
         8.0
     );
+}
+
+/// The bar sits on the part of the video a person sees: below a page's fixed
+/// header over the video's top, and inside the window; on a video narrower than
+/// 400 px it is the compact bar (gaps row 76).
+#[test]
+fn the_bar_sits_on_the_seen_part_of_the_video_and_is_compact_on_a_narrow_one() {
+    // A header 60 px tall over a video starting at 20: the bar goes under it.
+    let seen = visible_box((100.0, 20.0, 640.0, 360.0), (1200.0, 800.0), Some(60.0));
+    assert_eq!(seen, (100.0, 60.0, 640.0, 320.0));
+    let size = panel_size(640.0);
+    assert_eq!(size, (240.0, 30.0));
+    assert_eq!(panel_at(seen, size, (1200.0, 800.0)), (492.0, 68.0));
+    // A video running past the window's right edge: clipped to the window.
+    let seen = visible_box((900.0, 100.0, 640.0, 360.0), (1200.0, 800.0), None);
+    assert_eq!(seen, (900.0, 100.0, 300.0, 360.0));
+    // Nothing of it seen: its own box, not an empty one.
+    let gone = (100.0, -900.0, 640.0, 360.0);
+    assert_eq!(visible_box(gone, (1200.0, 800.0), None), gone);
+    // A 292 px reel: the compact bar, in its top right.
+    let size = panel_size(292.0);
+    assert_eq!(size, (COMPACT_WIDTH, 30.0));
+    let (x, _) = panel_at((10.0, 10.0, 292.0, 520.0), size, (1200.0, 800.0));
+    assert_eq!(x, 10.0 + 292.0 - COMPACT_WIDTH - 8.0);
 }
 
 #[test]
@@ -1281,6 +1675,25 @@ fn only_a_video_servers_playback_addresses_are_read_as_tracks() {
     assert!(track_of("https://evil.example/videoplayback?itag=137&mime=video%2Fmp4").is_none());
     assert!(track_of("https://notgooglevideo.com/videoplayback?itag=137").is_none());
     assert!(track_of("https://a.googlevideo.com/other?itag=137").is_none());
+    // A host another URL parser would read differently is not the suffix it ends with.
+    assert!(
+        track_of("https://evil.example#.googlevideo.com/videoplayback?itag=22&mime=video/mp4")
+            .is_none()
+    );
+    assert!(track_of(
+        "https://evil.example\\@a.googlevideo.com/videoplayback?itag=22&mime=video/mp4"
+    )
+    .is_none());
+    // Built here, so no tracked file holds a login in an address.
+    let userinfo = ["a.googlevideo.com", "8080"].join(":");
+    assert!(track_of(&format!(
+        "https://{userinfo}@evil.example.googlevideo.com/videoplayback?itag=22&mime=video/mp4"
+    ))
+    .is_none());
+    assert!(
+        track_of("https://rr1---sn-abc.googlevideo.com/videoplayback?itag=22&mime=video/mp4")
+            .is_some()
+    );
     assert!(track_of("https://a.googlevideo.com/videoplayback?itag=9999").is_none());
 }
 
@@ -1344,4 +1757,876 @@ fn youtubes_player_answers_for_watch_and_shorts_pages_alone() {
     .map(|s| s.to_string())
     .collect();
     assert_eq!(player_heights(&levels), [1080, 720, 480, 360, 144]);
+}
+
+#[test]
+fn media_on_the_built_in_exclusion_list_is_not_offered_but_an_ordinary_file_is() {
+    // An ad server naming itself, an ad network's host, an ad stub in
+    // Windows media: all left alone.
+    assert!(stream_seen(&seen(
+        "https://cdn.e.com/promo.mp4",
+        "media",
+        &[
+            ("Content-Type", "video/mp4"),
+            ("Server", "DCLK-AdSvr"),
+            ("Content-Length", "9000000")
+        ],
+    ))
+    .is_none());
+    assert!(stream_seen(&seen(
+        "https://ad.doubleclick.net/spot.mp4",
+        "media",
+        &[("Content-Type", "video/mp4"), ("Content-Length", "9000000")],
+    ))
+    .is_none());
+    assert!(stream_seen(&seen(
+        "https://cdn.e.com/stub.asf",
+        "media",
+        &[
+            ("Content-Type", "video/x-ms-asf"),
+            ("Content-Length", "50000")
+        ],
+    ))
+    .is_none());
+    // A file a page plays that nothing on the list names is still found.
+    let found = stream_seen(&seen(
+        "https://cdn.e.com/clip.mp4",
+        "media",
+        &[("Content-Type", "video/mp4"), ("Content-Length", "9000000")],
+    ));
+    assert!(found.is_some(), "an ordinary media file was left out");
+}
+
+#[test]
+fn the_panels_part_line_hands_over_a_time_and_nothing_else() {
+    use super::part_text;
+    assert_eq!(part_text(" 1:30 "), "1:30");
+    assert_eq!(part_text("90"), "90");
+    assert_eq!(part_text("1m30s"), "1m30s");
+    assert_eq!(part_text("1:02:03.5"), "1:02:03.5");
+    assert_eq!(part_text("<b>x</b>"), "");
+    assert_eq!(part_text("1:30; rm -rf /"), "1:30m");
+    assert_eq!(part_text("   "), "");
+    assert_eq!(part_text(&"1".repeat(40)).len(), 16);
+    // What the page script sends is read, a Part line or not.
+    let click: PanelClick =
+        serde_json::from_str(r#"{"type":"dm.panel","src":"u","from":"1:00","to":"2:00"}"#).unwrap();
+    assert_eq!(
+        (click.from.as_deref(), click.to.as_deref()),
+        (Some("1:00"), Some("2:00"))
+    );
+    let plain: PanelClick = serde_json::from_str(r#"{"type":"dm.panel","src":"u"}"#).unwrap();
+    assert!(plain.from.is_none() && plain.to.is_none());
+}
+
+#[test]
+fn a_picture_whose_tag_is_padded_with_an_escaped_equals_sign_still_says_its_height() {
+    // Facebook writes the padding of efg as %3D: "dash_h264-basic-gen2_720p".
+    const PADDED: &str = "eyJ2ZW5jb2RlX3RhZyI6ImRhc2hfaDI2NC1iYXNpYy1nZW4yXzcyMHAifQ%3D%3D";
+    const AUDIO: &str = "eyJ2ZW5jb2RlX3RhZyI6ImRhc2hfbG5faGVhYWNfdmJyM19hdWRpbyJ9";
+    let picture = stream_seen(&cdn_piece(
+        "scontent.fktm18-1.fna.fbcdn.net",
+        "m366/AQpic",
+        PADDED,
+        0,
+        99,
+        "video/mp4",
+    ))
+    .unwrap();
+    assert_eq!(
+        (picture.kind, picture.label.as_str()),
+        (StreamKind::Picture, "720p video")
+    );
+    let sound = stream_seen(&cdn_piece(
+        "scontent.fktm18-1.fna.fbcdn.net",
+        "m412/AQsnd",
+        AUDIO,
+        0,
+        99,
+        "audio/mp4",
+    ))
+    .unwrap();
+    assert_eq!(sound.kind, StreamKind::Sound);
+}
+
+#[test]
+fn a_pages_own_video_files_are_offered_for_the_video_that_is_playing() {
+    const ID: &str = "AQOEmnf_c2TGtpRirhIDnZXgky_nEeo1jZFNmFMiNXegAa3MHxF6";
+    // The page's data for two videos, far apart; the player fetched the first.
+    let page = format!(
+        r#"<script>{{"dash_manifests":[{{"manifest_xml":"<MPD><BaseURL>https:\/\/v.fbcdn.net\/o1\/v\/m366\/{ID}.mp4</BaseURL></MPD>"}}],"dash_manifest_urls":[{{"manifest_url":"https:\/\/v.fbcdn.net\/m\/first.mpd?x=1&y=2","failure_reason":null}}],"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/first-sd.mp4?a=1&b=2","failure_reason":null,"metadata":{{"quality":"SD"}}}},{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/first-hd.mp4","failure_reason":null,"metadata":{{"quality":"HD"}}}}]}}</script>{pad}<script>{{"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/other-sd.mp4","failure_reason":null,"metadata":{{"quality":"SD"}}}}]}}</script>"#,
+        pad = "x".repeat(400_000)
+    );
+    let seen = vec![format!(
+        "https://v.fbcdn.net/o1/v/m366/{ID}.mp4?_nc_cat=1&efg=e30%3D"
+    )];
+    let lines = page_lines(&page, &seen);
+    let said: Vec<(&str, &str)> = lines
+        .iter()
+        .map(|l| (l.label.as_str(), l.url.as_str()))
+        .collect();
+    assert_eq!(
+        said,
+        [
+            (
+                "MP4 file, quality SD",
+                "https://v.fbcdn.net/v/first-sd.mp4?a=1&b=2"
+            ),
+            ("MP4 file, quality HD", "https://v.fbcdn.net/v/first-hd.mp4"),
+            ("DASH stream", "https://v.fbcdn.net/m/first.mpd?x=1&y=2"),
+        ]
+    );
+    // A video the player has not been seen to fetch is not offered, and a page
+    // that names nothing offers nothing.
+    assert!(page_lines(
+        &page,
+        &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]
+    )
+    .is_empty());
+    assert!(page_lines("<p>no video here</p>", &seen).is_empty());
+    assert!(page_lines(&page, &[]).is_empty());
+}
+
+/// The video's caption files in its record are lines after its files, named by their kind as
+/// reference A names them ("SRT file"); a picture under a caption key is not one (gaps row 72c).
+#[test]
+fn a_videos_caption_files_in_the_page_are_lines_after_its_files() {
+    const ID: &str = "AQOEmnf_c2TGtpRirhIDnZXgky_nEeo1jZFNmFMiNXegAa3MHxF6";
+    let page = format!(
+        r#"<script>{{"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/{ID}.mp4","metadata":{{"quality":"HD"}}}}],"video_available_captions_locales":[{{"locale":"en_US","captions_url":"https:\/\/l.fbcdn.net\/captions\/en_US"}}],"tracks":[{{"src":"https:\/\/cdn.example\/subs\/talk.vtt"}}],"caption_thumbnail":"https:\/\/cdn.example\/thumb.jpg"}}</script>"#
+    );
+    let seen = vec![format!("https://v.fbcdn.net/v/{ID}.mp4?x=1")];
+    let said: Vec<(String, String)> = page_lines(&page, &seen)
+        .into_iter()
+        .map(|l| (l.label, l.url))
+        .collect();
+    assert!(
+        said.contains(&(
+            "SRT file".to_string(),
+            "https://l.fbcdn.net/captions/en_US".to_string()
+        )),
+        "{said:?}"
+    );
+    assert!(
+        said.contains(&(
+            "VTT file".to_string(),
+            "https://cdn.example/subs/talk.vtt".to_string()
+        )),
+        "{said:?}"
+    );
+    assert!(
+        !said.iter().any(|(_, url)| url.ends_with("thumb.jpg")),
+        "{said:?}"
+    );
+    let first_caption = said
+        .iter()
+        .position(|(l, _)| l.ends_with(" file") && !l.starts_with("MP4"));
+    let last_file = said.iter().rposition(|(l, _)| l.starts_with("MP4"));
+    assert!(first_caption > last_file, "{said:?}");
+}
+
+#[test]
+fn a_pages_dash_manifest_gives_each_rendition_its_height_bitrate_and_length() {
+    const ID: &str = "AQOEmnf_c2TGtpRirhIDnZXgky_nEeo1jZFNmFMiNXegAa3MHxF6";
+    // The shape of a manifest Facebook's page holds, addresses shortened.
+    let xml = format!(
+        "<?xml version=\"1.0\"?><MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" mediaPresentationDuration=\"PT22.185099S\">         <Period id=\"0\"><AdaptationSet id=\"0\" contentType=\"video\">         <Representation id=\"1v\" bandwidth=\"2075447\" mimeType=\"video/mp4\" width=\"720\" height=\"1280\" FBQualityClass=\"hd\" FBQualityLabel=\"720p\">         <BaseURL>https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&amp;b=2</BaseURL></Representation>         <Representation id=\"2v\" bandwidth=\"353028\" mimeType=\"video/mp4\" width=\"360\" height=\"640\" FBQualityClass=\"sd\" FBQualityLabel=\"360p\">         <BaseURL>https://v.fbcdn.net/o1/v/m84/low.mp4</BaseURL></Representation></AdaptationSet>         <AdaptationSet id=\"1\" contentType=\"audio\"><Representation id=\"3a\" bandwidth=\"59194\" mimeType=\"audio/mp4\">         <BaseURL>https://v.fbcdn.net/o1/v/m412/sound.mp4</BaseURL></Representation></AdaptationSet></Period></MPD>"
+    );
+    let manifests = serde_json::json!([{ "manifest_xml": xml }]).to_string();
+    let page = format!(
+        r#"{{"dash_manifests":{manifests},"dash_manifest_urls":[{{"manifest_url":"https://v.fbcdn.net/m/x.mpd","failure_reason":null}}],"progressive_urls":[{{"progressive_url":"https://v.fbcdn.net/v/sd.mp4","failure_reason":null,"metadata":{{"quality":"SD"}}}},{{"progressive_url":"https://v.fbcdn.net/v/hd.mp4","failure_reason":null,"metadata":{{"quality":"HD"}}}}]}}"#
+    );
+    let seen = vec![format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?x=1")];
+    let lines = page_lines(&page, &seen);
+    let said: Vec<&str> = lines.iter().map(|l| l.label.as_str()).collect();
+    // As the other manager lists them: each rendition, then the page's own SD and HD
+    // files; the manifest is not a line of its own when its renditions are.
+    assert_eq!(
+        said,
+        [
+            "MP4 file, 22 sec, quality 1280p HD, 2075 kbps",
+            "MP4 file, 22 sec, quality 640p, 353 kbps",
+            "MP4 file, quality SD",
+            "MP4 file, quality HD",
+        ]
+    );
+    // A picture goes with the best sound, joined; a whole file needs none.
+    assert_eq!(
+        lines[0].url,
+        format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&b=2")
+    );
+    assert_eq!(
+        lines[0].sound.as_deref(),
+        Some("https://v.fbcdn.net/o1/v/m412/sound.mp4")
+    );
+    assert_eq!(lines[2].sound, None);
+}
+
+#[test]
+fn instagrams_manifest_and_files_give_the_reels_qualities() {
+    const ID: &str = "AQMgO65IBSO4D1Fg1v8qWRLjCR7N-LaX4H_sPQeyoyjFQE149o094RW";
+    let xml = format!(
+        "<?xml version=\"1.0\"?><MPD mediaPresentationDuration=\"PT41S\"><Period><AdaptationSet contentType=\"video\"><Representation id=\"1\" bandwidth=\"1500000\" width=\"720\" height=\"1280\"><BaseURL>https://i.fbcdn.net/o1/v/{ID}.mp4?a=1&amp;b=2</BaseURL></Representation><Representation id=\"2\" bandwidth=\"500000\" width=\"360\" height=\"640\"><BaseURL>https://i.fbcdn.net/o1/v/low.mp4</BaseURL></Representation></AdaptationSet><AdaptationSet contentType=\"audio\"><Representation id=\"3\" bandwidth=\"60000\"><BaseURL>https://i.fbcdn.net/o1/v/sound.mp4</BaseURL></Representation></AdaptationSet></Period></MPD>"
+    );
+    let page = format!(
+        r#"{{"video_versions":[{{"type":101,"url":"https:\/\/i.fbcdn.net\/o1\/v\/{ID}.mp4?x=1","width":720,"height":1280}}],"video_dash_manifest":{}}}"#,
+        serde_json::Value::String(xml)
+    );
+    let seen = vec![format!(
+        "https://i.fbcdn.net/o1/v/{ID}.mp4?x=1&bytestart=0&byteend=9"
+    )];
+    let lines = page_lines(&page, &seen);
+    let said: Vec<&str> = lines.iter().map(|l| l.label.as_str()).collect();
+    assert_eq!(
+        said,
+        [
+            "MP4 file, 41 sec, quality 1280p, 1500 kbps",
+            "MP4 file, 41 sec, quality 640p, 500 kbps",
+            "MP4 file, quality 1280p",
+        ]
+    );
+    assert_eq!(
+        lines[0].sound.as_deref(),
+        Some("https://i.fbcdn.net/o1/v/sound.mp4")
+    );
+    assert!(page_lines(
+        &page,
+        &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]
+    )
+    .is_empty());
+}
+
+#[test]
+fn tiktoks_bitrate_info_gives_the_clips_qualities() {
+    const ID: &str = "o4DPxfQfIIk3KMBHYxVIEGxCCEuyk9deAAzL6j";
+    let page = format!(
+        r#"{{"bitrateInfo":[{{"Bitrate":811768,"PlayAddr":{{"Height":1280,"UrlList":["https://v16.tiktok.com/video/tos/{ID}/?a=1&sig=2"]}}}},{{"Bitrate":400000,"PlayAddr":{{"Height":960,"UrlList":["https://v16.tiktok.com/video/tos/lowlowlowlowlowlowlowlowlowlow/?a=1"]}}}}]}}"#
+    );
+    let seen = vec![format!("https://v16.tiktok.com/video/tos/{ID}/?")];
+    let said: Vec<String> = page_lines(&page, &seen)
+        .into_iter()
+        .map(|l| l.label)
+        .collect();
+    assert_eq!(
+        said,
+        [
+            "MP4 file, quality 1280p, 811 kbps",
+            "MP4 file, quality 960p, 400 kbps"
+        ]
+    );
+    assert!(page_lines(
+        &page,
+        &["https://x.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]
+    )
+    .is_empty());
+}
+
+#[test]
+fn a_site_nobody_wrote_a_reader_for_still_lists_its_renditions() {
+    const ID: &str = "clip9f3a7c21d4e84b6a9c0d1e2f3a4b5c6d";
+    // Another site's shape: sources with a label and a bitrate, and a poster that is not a video.
+    let page = format!(
+        r#"<html><script>window.__STATE__ = {{"poster":"https://img.example/p.jpg","player":{{"sources":[{{"label":"360p","bitrate":500000,"src":"https://cdn.example/v/{ID}_360.mp4"}},{{"label":"720p","bitrate":1500000,"src":"https://cdn.example/v/{ID}_720.mp4"}},{{"label":"1080p","bitrate":3000000,"src":"https://cdn.example/v/{ID}_1080.mp4"}}]}}}};</script><script>var other = {{"sources":[{{"label":"240p","src":"https://cdn.example/v/another_240.mp4"}}]}};</script></html>"#
+    );
+    let seen = vec![format!("https://cdn.example/v/{ID}_720.mp4?token=1")];
+    let said: Vec<(String, String)> = page_lines(&page, &seen)
+        .into_iter()
+        .map(|l| (l.label, l.url))
+        .collect();
+    assert_eq!(
+        said,
+        [
+            (
+                "MP4 file, quality 1080p, 3000 kbps".to_string(),
+                format!("https://cdn.example/v/{ID}_1080.mp4")
+            ),
+            (
+                "MP4 file, quality 720p, 1500 kbps".to_string(),
+                format!("https://cdn.example/v/{ID}_720.mp4")
+            ),
+            (
+                "MP4 file, quality 360p, 500 kbps".to_string(),
+                format!("https://cdn.example/v/{ID}_360.mp4")
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_caught_download_is_named_by_the_title_of_the_tab_it_came_from() {
+    let tabs = vec![
+        (
+            "https://news.example/a".to_string(),
+            "Other page".to_string(),
+        ),
+        (
+            "https://x.example/nasa/status/1#top".to_string(),
+            "NASA on X: \"Everybody, wave!\"".to_string(),
+        ),
+        (
+            "https://bare.example/".to_string(),
+            "https://bare.example/".to_string(),
+        ),
+        ("https://blank.example/".to_string(), "  ".to_string()),
+    ];
+    assert_eq!(
+        referrer_title(&tabs, "https://x.example/nasa/status/1"),
+        Some("NASA on X: \"Everybody, wave!\"".to_string())
+    );
+    // A tab whose title is only its address, or empty, names nothing.
+    assert_eq!(referrer_title(&tabs, "https://bare.example/"), None);
+    assert_eq!(referrer_title(&tabs, "https://blank.example/"), None);
+    // No referrer, or no open tab at it.
+    assert_eq!(referrer_title(&tabs, ""), None);
+    assert_eq!(referrer_title(&tabs, "https://gone.example/"), None);
+}
+
+#[test]
+fn a_players_id_from_a_site_finder_picks_its_videos_lines_out_of_a_feed() {
+    // A feed's data holds two videos; the finder said the player is the second.
+    let page = r#"<script>{"videos":[
+        {"videoFBID":"1111111111","progressive_urls":[{"progressive_url":"https:\/\/v.example\/v\/one-sd.mp4","metadata":{"quality":"SD"}}]},
+        {"videoFBID":"2222222222","progressive_urls":[{"progressive_url":"https:\/\/v.example\/v\/two-sd.mp4","metadata":{"quality":"SD"}},{"progressive_url":"https:\/\/v.example\/v\/two-hd.mp4","metadata":{"quality":"HD"}}]}
+    ]}</script>"#;
+    let lines = page_lines_for_player(page, "2222222222");
+    let urls: Vec<&str> = lines.iter().map(|l| l.url.as_str()).collect();
+    assert!(urls.contains(&"https://v.example/v/two-hd.mp4"), "{urls:?}");
+    assert!(!urls.iter().any(|u| u.contains("one-sd")), "{urls:?}");
+    // An id too short to be told from any number, or one the page lacks, offers nothing.
+    assert!(page_lines_for_player(page, "12").is_empty());
+    assert!(page_lines_for_player(page, "9999999999").is_empty());
+}
+
+#[test]
+fn a_players_byte_range_pieces_of_a_picture_and_a_sound_become_one_line_on_any_site() {
+    let piece = |url: &str, mime: &str, range: &str| {
+        let seen = Seen {
+            url: url.into(),
+            tab_id: 1,
+            kind: "media".into(),
+            status_code: 206,
+            response_headers: vec![
+                Header {
+                    name: "Content-Type".into(),
+                    value: Some(mime.into()),
+                },
+                Header {
+                    name: "Content-Range".into(),
+                    value: Some(range.into()),
+                },
+            ],
+            ..Default::default()
+        };
+        stream_seen(&seen)
+    };
+    let low = piece(
+        "https://cdn.example/v/a.mp4?id=7&bytestart=0&byteend=999",
+        "video/mp4",
+        "bytes 0-999/3000000",
+    )
+    .unwrap();
+    assert_eq!(low.url, "https://cdn.example/v/a.mp4?id=7");
+    assert_eq!(low.kind, StreamKind::Picture);
+    assert_eq!(low.size, Some(3_000_000));
+    let high = piece(
+        "https://cdn.example/v/b.mp4?id=8&range=0-999",
+        "video/mp4",
+        "bytes 0-999/9000000",
+    )
+    .unwrap();
+    let sound = piece(
+        "https://cdn.example/v/c.m4a?id=9&bytestart=5&byteend=9",
+        "audio/mp4",
+        "bytes 5-9/700000",
+    )
+    .unwrap();
+    assert_eq!(sound.kind, StreamKind::Sound);
+    let mut streams = Streams::default();
+    streams.restore(1, vec![low, high, sound]);
+    let lines = streams.of(1);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(
+        lines[0].url, "https://cdn.example/v/b.mp4?id=8",
+        "the largest picture"
+    );
+    assert_eq!(
+        lines[0].sound.as_deref(),
+        Some("https://cdn.example/v/c.m4a?id=9")
+    );
+    assert_eq!(lines[0].size, Some(9_700_000));
+    // Not a piece of a file: a segment of a stream, a type that is neither, or no range at all.
+    assert!(piece(
+        "https://cdn.example/s/1.m4s?bytestart=0",
+        "video/mp4",
+        "bytes 0-9/10"
+    )
+    .is_none());
+    assert!(piece(
+        "https://cdn.example/s/x?bytestart=0",
+        "application/octet-stream",
+        "bytes 0-9/10"
+    )
+    .is_none());
+    assert!(piece(
+        "https://cdn.example/v/a.mp4?id=7",
+        "video/mp4",
+        "bytes 0-9/10"
+    )
+    .is_none());
+}
+
+#[test]
+fn the_media_types_reference_a_knows_are_read_the_same_way() {
+    let kind = |url: &str, mime: &str| {
+        stream_seen(&seen(url, "xmlhttprequest", &[("Content-Type", mime)])).map(|s| s.kind)
+    };
+    // Manifests and playlists by their type alone: the address says nothing.
+    assert_eq!(
+        kind(
+            "https://e.com/playlist?id=3",
+            "application/octet-stream-m3u8"
+        ),
+        Some(StreamKind::Hls)
+    );
+    assert_eq!(
+        kind("https://e.com/playlist?id=3", "audio/x-mpegurl"),
+        Some(StreamKind::Hls)
+    );
+    assert_eq!(
+        kind("https://e.com/manifest?id=3", "video/vnd.mpeg.dash.mpd"),
+        Some(StreamKind::Dash)
+    );
+    // Transport-stream pieces, picture or sound, are not files.
+    assert_eq!(kind("https://e.com/s?n=1", "audio/mp2t"), None);
+    assert_eq!(kind("https://e.com/s?n=1", "video/mp2t"), None);
+    // Subtitles are not media, and HDS (an old Flash format) is not read: see docs/decisions.md.
+    assert_eq!(kind("https://e.com/c.vtt", "text/vtt"), None);
+    assert_eq!(kind("https://e.com/c.xml", "application/ttml+xml"), None);
+    assert_eq!(kind("https://e.com/m.f4m", "video/f4m"), None);
+    // Older containers a player may still load whole are files.
+    let big = |url: &str, mime: &str| {
+        stream_seen(&seen(
+            url,
+            "media",
+            &[("Content-Type", mime), ("Content-Length", "9000000")],
+        ))
+        .map(|s| s.kind)
+    };
+    for (url, mime) in [
+        ("https://e.com/a.flv", "video/x-flv"),
+        ("https://e.com/a.3gp", "video/3gpp"),
+        ("https://e.com/a.mov", "video/quicktime"),
+        ("https://e.com/a.wmv", "video/x-ms-wmv"),
+    ] {
+        assert_eq!(big(url, mime), Some(StreamKind::File), "{url}");
+    }
+}
+
+#[test]
+fn an_advert_loaded_by_the_player_never_reaches_the_list() {
+    let advert = |url: &str, kind: &str, headers: &[(&str, &str)]| {
+        stream_seen(&seen(url, kind, headers)).is_none()
+    };
+    // A pre-roll from an ad server named in the `Server` header, whatever its address.
+    assert!(advert(
+        "https://cdn.example/preroll.mp4",
+        "media",
+        &[
+            ("Content-Type", "video/mp4"),
+            ("Content-Length", "9000000"),
+            ("Server", "DCLK-AdSvr")
+        ]
+    ));
+    // The IMA SDK's and DoubleClick's hosts.
+    assert!(advert(
+        "https://pubads.g.doubleclick.net/ondemand/hls/content/1/master.m3u8",
+        "xmlhttprequest",
+        &[("Content-Type", "application/vnd.apple.mpegurl")]
+    ));
+    // A Windows media stub of 100 KB or less.
+    assert!(advert(
+        "https://cdn.example/ad.wmv",
+        "media",
+        &[
+            ("Content-Type", "video/x-ms-wmv"),
+            ("Content-Length", "90000")
+        ]
+    ));
+}
+
+/// Reference A's list lines (gaps row 72a), from its panel on a YouTube
+/// video watched on 2026-11-04.
+#[test]
+fn a_quality_line_is_worded_as_reference_a_words_it() {
+    let title = "What Happened To FIRST YOUTUBE Video Guy";
+    assert_eq!(
+        reference_line(2, title, "720p"),
+        "2. What Happened To FIRST YOUTUBE Video Guy… MP4 file, quality 720p HD"
+    );
+    assert_eq!(
+        reference_line(4, title, "480p"),
+        "4. What Happened To FIRST YOUTUBE Video Guy… MP4 file, quality 480p"
+    );
+    // A page's own line is kept; a long title is cut at forty characters.
+    let long = "A title that runs on far past the forty characters kept";
+    assert_eq!(
+        reference_line(1, long, "MP4 file, quality SD"),
+        "1. A title that runs on far past the forty… MP4 file, quality SD"
+    );
+    // With its size, once dm's reading has come.
+    assert_eq!(
+        reference_line(1, "Clip", "1080p — 50.1 MB"),
+        "1. Clip… MP4 file, quality 1080p HD — 50.1 MB"
+    );
+    // dm's own reading names the container.
+    assert_eq!(
+        reference_line(1, "Clip", "1080p MP4 — 252 MB"),
+        "1. Clip… MP4 file, quality 1080p HD — 252 MB"
+    );
+    assert_eq!(
+        reference_line(2, "Clip", "360p WebM"),
+        "2. Clip… WebM file, quality 360p"
+    );
+    // A line of more words is not a quality to reword.
+    assert_eq!(
+        reference_line(1, "Clip", "720p video + sound"),
+        "1. Clip… 720p video + sound"
+    );
+    // No title: the number and the line alone.
+    assert_eq!(reference_line(3, "  ", "HLS stream"), "3. HLS stream");
+    // A height at two frame rates: the faster line says its rate after the
+    // quality, as reference A's "720p HD 60 fps" (gaps row 72d).
+    assert_eq!(
+        reference_line(1, "Clip", "720p MP4 60 fps — 14 MB"),
+        "1. Clip… MP4 file, quality 720p HD 60 fps — 14 MB"
+    );
+    assert_eq!(
+        reference_line(2, "Clip", "720p MP4 — 9 MB"),
+        "2. Clip… MP4 file, quality 720p HD — 9 MB"
+    );
+}
+
+/// The words a page gives its links go with the links sent, keyed as they
+/// are, spaces closed up; words for an address not sent are dropped.
+#[test]
+fn a_links_words_are_kept_for_the_link_sent() {
+    let urls = vec![
+        "https://e.com/a.zip".to_string(),
+        "https://e.com/b.iso".to_string(),
+    ];
+    let texts: std::collections::BTreeMap<String, String> = [
+        ("https://e.com/a.zip#mirror", "  The   A\n archive "),
+        ("https://e.com/b.iso", ""),
+        ("mailto:me@e.com", "Write to us"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect();
+    let kept = link_texts(&texts, &urls);
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept["https://e.com/a.zip"], "The A archive");
+    let long: std::collections::BTreeMap<String, String> =
+        [("https://e.com/a.zip".to_string(), "x".repeat(500))]
+            .into_iter()
+            .collect();
+    assert_eq!(link_texts(&long, &urls)["https://e.com/a.zip"].len(), 200);
+}
+
+/// A link's `download` attribute names its file: the name's last part only
+/// (a page does not choose the folder), for a link sent, and nothing for a
+/// name that is none.
+#[test]
+fn a_links_download_attribute_names_its_file_and_never_its_folder() {
+    let urls = vec![
+        "https://e.com/get?id=7".to_string(),
+        "https://e.com/b.iso".to_string(),
+        "https://e.com/c.zip".to_string(),
+    ];
+    let given: std::collections::BTreeMap<String, String> = [
+        ("https://e.com/get?id=7#x", "Report 2026.pdf"),
+        ("https://e.com/b.iso", "../../Windows\\system32\\evil.dll"),
+        ("https://e.com/c.zip", " .. "),
+        ("https://e.com/not-sent.zip", "kept.zip"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect();
+    let names = link_names(&given, &urls);
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert_eq!(names["https://e.com/get?id=7"], "Report 2026.pdf");
+    assert_eq!(names["https://e.com/b.iso"], "evil.dll");
+}
+
+/// A form a page sent is kept for the download it starts at the same address,
+/// once; not for one sent on to another address, nor after two minutes.
+#[test]
+fn a_forms_body_goes_with_the_download_that_is_its_answer() {
+    let form = |text: &str| dm_protocol::Posted {
+        form: text.into(),
+        ..dm_protocol::Posted::default()
+    };
+    let mut forms = Forms::default();
+    forms.keep("https://e.com/export#top", form("report=7"), 1_000.0);
+    // Sent on to another address: that one is asked for plainly.
+    assert!(forms
+        .take("https://e.com/export", "https://cdn.e.com/r.csv", 2_000.0)
+        .is_none());
+    let taken = forms.take("https://e.com/export", "https://e.com/export", 2_000.0);
+    assert_eq!(taken.map(|p| p.form), Some("report=7".to_string()));
+    assert!(
+        forms.take("https://e.com/export", "", 2_500.0).is_none(),
+        "taken twice"
+    );
+    forms.keep("https://e.com/export", form("report=8"), 3_000.0);
+    assert!(
+        forms
+            .take("https://e.com/export", "", 3_000.0 + FORM_KEPT_MS)
+            .is_none(),
+        "kept too long"
+    );
+    for n in 0..30 {
+        forms.keep(&format!("https://e.com/{n}"), form("x"), 4_000.0);
+    }
+    assert!(
+        forms.take("https://e.com/0", "", 4_000.0).is_none(),
+        "more than twenty kept"
+    );
+    assert!(forms.take("https://e.com/29", "", 4_000.0).is_some());
+}
+
+/// The menu items Options lists are the ones the extension makes, by id and
+/// words, so leaving one out in Options leaves out that one (gaps row 86).
+#[test]
+fn the_menu_items_options_lists_are_the_ones_made() {
+    let made: Vec<(&str, &str)> = MENUS.iter().map(|(id, title, _)| (*id, *title)).collect();
+    assert_eq!(made, dm_protocol::MENU_ITEMS.to_vec());
+}
+
+#[test]
+fn a_streams_line_says_how_long_it_plays() {
+    // The words, as reference A's lines say a file's length.
+    assert_eq!(length_words(41.4).as_deref(), Some("41 sec"));
+    assert_eq!(length_words(252.0).as_deref(), Some("4 min 12 sec"));
+    assert_eq!(length_words(600.0).as_deref(), Some("10 min"));
+    assert_eq!(length_words(3725.0).as_deref(), Some("1 h 2 min"));
+    assert_eq!(length_words(7200.0).as_deref(), Some("2 h"));
+    assert_eq!(length_words(0.2), None);
+    assert_eq!(length_words(f64::NAN), None);
+
+    // An HLS media playlist that ends: its segments summed; a live one has no length.
+    let vod = "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\na.ts\n#EXTINF:5.5,\nb.ts\n#EXT-X-ENDLIST\n";
+    assert_eq!(hls_length(vod), Some(11.5));
+    assert_eq!(hls_length("#EXTM3U\n#EXTINF:6,\na.ts\n"), None);
+    assert_eq!(hls_length("#EXTM3U\n#EXT-X-ENDLIST\n"), None);
+
+    // A DASH manifest's own duration; a live one names none.
+    let mpd = r#"<MPD type="static" mediaPresentationDuration="PT4M12.5S"><Period/></MPD>"#;
+    assert_eq!(dash_length(mpd), Some(252.5));
+    assert_eq!(
+        dash_length(r#"<MPD mediaPresentationDuration="P1DT1H"/>"#),
+        Some(90_000.0)
+    );
+    assert_eq!(dash_length(r#"<MPD type="dynamic"><Period/></MPD>"#), None);
+    assert_eq!(
+        dash_length(r#"<MPD mediaPresentationDuration="P1Y"/>"#),
+        None
+    );
+
+    // A master playlist's line takes its length from a rendition, once.
+    let mut streams = Streams::default();
+    streams.absorb(&playlist_seen(VIMEO_URL));
+    assert!(streams.describe(7, VIMEO_URL, VIMEO_MASTER));
+    let rendition = streams
+        .rendition_for_length(7, VIMEO_URL)
+        .expect("a rendition to read");
+    assert!(rendition.starts_with("https://"), "{rendition}");
+    assert!(streams.lengthen(7, VIMEO_URL, 252.0));
+    assert_eq!(streams.of(7)[0].label, "1080p HLS stream, 4 min 12 sec");
+    assert!(!streams.lengthen(7, VIMEO_URL, 99.0), "once");
+    assert_eq!(streams.rendition_for_length(7, VIMEO_URL), None);
+
+    // A DASH manifest says both at once.
+    let mut streams = Streams::default();
+    streams.absorb(&seen(
+        "https://cdn.e.com/v/manifest.mpd",
+        "xmlhttprequest",
+        &[("Content-Type", "application/dash+xml")],
+    ));
+    let mpd = r#"<MPD mediaPresentationDuration="PT41S"><Period><AdaptationSet contentType="video"><Representation height="720" bandwidth="2000000"/></AdaptationSet></Period></MPD>"#;
+    assert!(streams.describe(7, "https://cdn.e.com/v/manifest.mpd", mpd));
+    assert_eq!(streams.of(7)[0].label, "720p DASH stream, 41 sec");
+
+    // A media playlist that ends keeps its name and says its length.
+    let mut streams = Streams::default();
+    streams.absorb(&playlist_seen("https://e.com/media.m3u8"));
+    assert!(streams.describe(7, "https://e.com/media.m3u8", vod));
+    assert_eq!(streams.of(7)[0].label, "HLS stream, 12 sec");
+}
+
+#[test]
+fn a_playlist_is_read_again_from_the_public_web_and_from_a_private_host_only_for_its_own_page() {
+    // The public web: whoever asked.
+    assert!(may_reread(
+        "https://cdn.example/master.m3u8",
+        "https://video.example"
+    ));
+    assert!(may_reread("https://cdn.example/master.m3u8", ""));
+    // A page of this computer's (a check's local server) loading its own playlist.
+    assert!(may_reread(
+        "http://127.0.0.1:8123/master.m3u8",
+        "http://127.0.0.1:8123"
+    ));
+    // A public page aiming the worker at this computer, a router or a link-local address.
+    for inside in [
+        "http://127.0.0.1:8123/m.m3u8",
+        "http://localhost/m.m3u8",
+        "http://192.168.1.1/cgi?a=1",
+        "http://10.0.0.5/m.mpd",
+        "http://172.20.1.1/m.mpd",
+        "http://169.254.169.254/latest/meta-data",
+        "http://[::1]:80/m.m3u8",
+        "http://[fd00::1]/m.m3u8",
+        "http://[::ffff:192.168.0.1]/m.m3u8",
+        "http://printer.local/m.m3u8",
+        "http://100.64.0.1/m.m3u8",
+    ] {
+        assert!(!may_reread(inside, "https://evil.example"), "{inside}");
+        assert!(!may_reread(inside, ""), "{inside}");
+    }
+    // A rendition a private master names on another private host.
+    assert!(!may_reread(
+        "http://192.168.1.1/x",
+        "http://127.0.0.1:8123/master.m3u8"
+    ));
+}
+
+/// The first bytes of an MP4 holding one track: `ftyp`, then a `moov` whose `trak` has a
+/// track header (with `height` in its last four bytes) and a handler of `handler`.
+fn mp4_start(handler: &[u8; 4], height: u32) -> Vec<u8> {
+    fn boxed(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+        let mut out = ((body.len() + 8) as u32).to_be_bytes().to_vec();
+        out.extend_from_slice(kind);
+        out.extend_from_slice(body);
+        out
+    }
+    let mut tkhd = vec![0u8; 84];
+    tkhd[80..84].copy_from_slice(&(height << 16).to_be_bytes());
+    let mut hdlr = vec![0u8; 8];
+    hdlr.extend_from_slice(handler);
+    hdlr.extend_from_slice(&[0u8; 13]);
+    let mdia = boxed(b"mdia", &boxed(b"hdlr", &hdlr));
+    let trak = boxed(b"trak", &[boxed(b"tkhd", &tkhd), mdia].concat());
+    let moov = boxed(b"moov", &[boxed(b"mvhd", &[0u8; 100]), trak].concat());
+    [boxed(b"ftyp", b"iso5\0\0\x02\0iso5iso6mp41dash"), moov].concat()
+}
+
+#[test]
+fn an_mp4s_first_bytes_say_whether_it_is_a_picture_or_a_sound() {
+    assert_eq!(
+        mp4_track(&mp4_start(b"vide", 480)),
+        Some((false, Some(480)))
+    );
+    assert_eq!(mp4_track(&mp4_start(b"soun", 0)), Some((true, None)));
+    // Cut before the handler, not an MP4 at all, or a handler of neither kind.
+    let whole = mp4_start(b"vide", 480);
+    assert_eq!(mp4_track(&whole[..whole.len() - 20]), None);
+    assert_eq!(mp4_track(b"<!doctype html><title>x</title>"), None);
+    assert_eq!(mp4_track(&mp4_start(b"text", 0)), None);
+    assert_eq!(mp4_track(&[]), None);
+}
+
+fn ranged_answer(url: &str, mime: &str, range: &str) -> Seen {
+    Seen {
+        url: url.into(),
+        tab_id: 3,
+        kind: "xmlhttprequest".into(),
+        status_code: 206,
+        response_headers: vec![
+            Header {
+                name: "Content-Type".into(),
+                value: Some(mime.into()),
+            },
+            Header {
+                name: "Content-Range".into(),
+                value: Some(range.into()),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+/// Bilibili's player (gaps row 155): a picture and a sound, each one whole `.m4s` file fetched
+/// in ranges its requests' `Range` header asks for, both answered `206 video/mp4`. Once the
+/// sound's first bytes are read, they are one line, as a picture and a sound fetched apart are.
+#[test]
+fn a_picture_and_a_sound_fetched_whole_by_ranged_requests_become_one_line_once_read() {
+    let picture =
+        "https://upos-hz.akamaized.net/upgcxcode/77/66/4336/4336-1-30032.m4s?e=ig8e&deadline=1";
+    let sound =
+        "https://upos-hz.akamaized.net/upgcxcode/77/66/4336/4336-1-30216.m4s?e=ig8e&deadline=1";
+    let mut streams = Streams::default();
+    streams.absorb(&ranged_answer(
+        picture,
+        "video/mp4",
+        "bytes 1024-200000/5651664",
+    ));
+    streams.absorb(&ranged_answer(
+        sound,
+        "video/mp4",
+        "bytes 1024-90000/547149",
+    ));
+    // Both said to be video: before they are read, the larger is a file on its own.
+    assert!(streams.wants_track_read(3, picture));
+    assert!(streams.wants_track_read(3, sound));
+    assert!(!streams.wants_track_read(3, sound), "read once");
+    assert!(streams.read_track(3, picture, false, Some(480)));
+    assert!(streams.read_track(3, sound, true, None));
+    let lines = streams.of(3);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0].label, "480p video file + sound");
+    assert_eq!(lines[0].url, picture);
+    assert_eq!(lines[0].sound.as_deref(), Some(sound));
+    assert_eq!(lines[0].size, Some(5651664 + 547149));
+}
+
+#[test]
+fn whole_files_by_ranges_are_not_lines_beside_a_manifest_nor_change_a_plain_mp4() {
+    // A page whose DASH manifest names single-file renditions fetched by range.
+    let mut streams = Streams::default();
+    let mut manifest = seen(
+        "https://cdn.example/v/manifest.mpd",
+        "xmlhttprequest",
+        &[("Content-Type", "application/dash+xml")],
+    );
+    manifest.tab_id = 3;
+    streams.absorb(&manifest);
+    streams.absorb(&ranged_answer(
+        "https://cdn.example/v/video-720.m4s",
+        "video/mp4",
+        "bytes 900-90000/9000000",
+    ));
+    let lines = streams.of(3);
+    assert!(lines.iter().all(|s| !s.by_ranges), "{lines:?}");
+    // A plain MP4 a <video> fetches from its first byte stays the file it always was.
+    let plain = ranged_answer(
+        "https://cdn.example/clip.mp4",
+        "video/mp4",
+        "bytes 0-/9000000",
+    );
+    let mut plain = plain;
+    plain.kind = "media".into();
+    let found = stream_seen(&plain).unwrap();
+    assert_eq!((found.kind, found.by_ranges), (StreamKind::File, false));
+    assert_eq!(found.label, "MP4 video file");
+    // A whole 200 answer of a segment is still a segment; so is a tiny one.
+    let mut whole = ranged_answer("https://cdn.example/v/seg-1.m4s", "video/mp4", "");
+    whole.status_code = 200;
+    whole.response_headers.pop();
+    assert!(stream_seen(&whole).is_none());
+    let tiny = ranged_answer(
+        "https://cdn.example/v/a.m4s",
+        "video/mp4",
+        "bytes 10-20/30000",
+    );
+    assert!(stream_seen(&tiny).is_none());
 }

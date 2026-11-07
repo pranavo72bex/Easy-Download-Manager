@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 /// Asked before Remove, however it was asked for — the Delete key, the
 /// toolbar, the menus: the Delete key took finished rows off at once while
@@ -146,6 +151,8 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             let failed: Vec<String> = files
                 .iter()
                 .filter_map(|path| {
+                    // A finished torrent still shared lets go of its files first (gaps row 147).
+                    dm_core::stop_sharing(std::path::Path::new(path));
                     app.backend
                         .platform
                         .trash(path)
@@ -160,7 +167,7 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         // The selection goes to the row after those removed, or the one
         // before where they were the last: it was lost, and the keys had
         // nowhere to go on from.
-        let shown: Vec<Id> = app.visible().iter().map(|r| r.id).collect();
+        let shown: Vec<Id> = app.visible_shared().iter().map(|r| r.id).collect();
         let next = shown
             .iter()
             .rposition(|id| ids.contains(id))

@@ -1,14 +1,27 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A sound file read to 16-bit samples by the system's own decoder, for the
-//! MP3 encoder: on macOS AudioToolbox's ExtAudioFile, which reads AAC in an
-//! M4A or MP4 (and turns another sample rate into one MP3 has). Elsewhere
-//! there is none dm can use yet, and that is said in words.
+//! MP3 encoder: on macOS AudioToolbox's ExtAudioFile, on Windows Media
+//! Foundation's source reader (`win.rs`), which both read AAC in an M4A or
+//! MP4 (and turn another sample rate into one MP3 has). Elsewhere (Linux) the
+//! built-in AAC decoder, `crate::aac`.
 
 use std::path::Path;
 
+#[cfg(windows)]
+mod win;
+
 /// Interleaved 16-bit samples, their channels and their rate.
+#[derive(Debug)]
 pub struct Pcm {
+    /// The samples, left and right interleaved.
     pub samples: Vec<i16>,
+    /// How many channels the samples have.
     pub channels: usize,
+    /// Samples per second, per channel.
     pub rate: u32,
 }
 
@@ -18,13 +31,13 @@ pub fn read(path: &Path) -> Result<Pcm, String> {
     {
         mac::read(path)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
     {
-        let _ = path;
-        Err(
-            "saving as MP3 needs the system's sound decoder, which dm uses on macOS only so far"
-                .into(),
-        )
+        win::read(path)
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        crate::aac::read(path)
     }
 }
 

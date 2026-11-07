@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
@@ -48,7 +53,7 @@ impl DmApp {
                     .and_then(|n| n.as_str())
                     .unwrap_or("dm")
                     .to_string();
-                let name = dm_core::probe::sanitize(&name);
+                let name = dm_core::sanitize_name(&name);
                 let name = if name.is_empty() { "dm".into() } else { name };
                 let path = dm_shell::home()
                     .join("screenshots")
@@ -167,7 +172,7 @@ impl DmApp {
                 let mut categories = self.applied.categories();
                 let before = self.earlier_of_the_same_name();
                 let rows: Vec<_> = self
-                    .visible()
+                    .visible_shared()
                     .iter()
                     .map(|r| {
                         json!({
@@ -206,9 +211,11 @@ impl DmApp {
                     // A site's sign-in, handed over by the browser, is the
                     // row's to send to that server and nobody's to read: not
                     // a script's, and not an AI client's through MCP. Said
-                    // only as whether there is one.
+                    // only as whether there is one. The browser's request
+                    // headers are the same (a bearer token rides in them).
                     if let Some(row) = value.as_object_mut() {
                         row.remove("cookies");
+                        row.remove("headers");
                         row.insert("signed_in".into(), json!(!r.cookies.is_empty()));
                     }
                     value

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The download list: one row a download, in columns, sorted by clicking a heading, selected by clicking a row (Ctrl or Cmd to
 //! add, Shift for a run), a menu on the right button, and a double-click to
 //! open a row's progress, or its properties once finished.
@@ -15,6 +20,7 @@ use crate::app::{status_of, Column, DmApp};
 use crate::commands::Command;
 use crate::format;
 
+/// Draws the downloads table into `ui`.
 pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // A click on a row's text selects the row. Selectable text took the
     // click for itself, so clicking a file's name selected nothing.
@@ -73,18 +79,15 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         .iter()
         .copied()
         .filter(|c| !app.hidden_columns.contains(c))
-        // Queue is empty for a download with no queue of its own, which is
-        // most; drawn then, it only pushed the sixth column half out of the
-        // window, its heading cut to a letter beside the sideways bar.
-        .filter(|c| *c != Column::Queue || app.rows.iter().any(|r| !r.queue.is_empty()))
         .collect();
     // Plain rows; the modern look's are taller.
     let striped = false;
-    // ListViewItemMinHeight, compact.
+    // Reference A's rows are 17 apart; dm's are as tall as a control,
+    // which a row's cells hold (`theme::ROW`).
     let row_height = if crate::theme::Tokens::get(ui.ctx()).modern {
-        32.0
+        crate::theme::ROW
     } else {
-        22.0
+        crate::theme::ROW_CLASSIC
     };
     // In a narrow window the file name gives up width first, down to
     // 120 points, so Status is still in view beside it: the name took its
@@ -493,13 +496,20 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         app.anchor = Some(id);
         // What Options › General says a double-click does: Properties by
         // default, for any download; Open or its folder for a finished
-        // one, Properties still for one that is not.
+        // one. A download that is running, waiting or stopped shows its
+        // progress window instead, which is what a person looking at one
+        // that is still going wants to see; Properties for a failed or
+        // cancelled one, as before.
         let finished = rows
             .iter()
             .any(|r| r.id == id && r.state == State::Completed);
+        let going = rows.iter().any(|r| {
+            r.id == id && matches!(r.state, State::Running | State::Queued | State::Paused)
+        });
         app.queued.push(match app.applied.double_click.as_str() {
             "open" if finished => Command::OpenFile,
             "folder" if finished => Command::OpenFolder,
+            _ if going => Command::ShowProgress,
             _ => Command::Properties,
         });
     }

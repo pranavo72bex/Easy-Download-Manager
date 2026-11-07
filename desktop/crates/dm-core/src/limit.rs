@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A ceiling on how fast bytes are allowed to arrive.
 //!
 //! The cap is shared across every connection of every download, because that
@@ -6,8 +11,8 @@
 //! leave the link usable for something else, and that is a statement about
 //! the link, not about any one transfer.
 //!
-//! A torrent and a yt-dlp run are fetched by engines dm cannot meter chunk
-//! by chunk; each can only be handed a rate. So while one runs it holds a
+//! A torrent is fetched by an engine dm cannot meter chunk by chunk; it
+//! can only be handed a rate. So while one runs it holds a
 //! [`Share`]: with `n` of them running, the ceiling is split `n + 1` ways,
 //! one part each and one for every download dm fetches itself, and the
 //! total stays under the ceiling.
@@ -136,6 +141,7 @@ impl Limiter {
             || self.also.as_ref().is_some_and(|own| own.is_limited())
     }
 
+    /// The rate now in force, in bytes per second; 0 is no limit.
     pub async fn rate(&self) -> u64 {
         self.inner.lock().await.rate
     }
@@ -407,7 +413,7 @@ mod tests {
         // One of dm's own downloads taking bytes: halves.
         limiter.take(1).await;
         assert_eq!(limiter.part().await, 450, "a torrent and dm's own, halves");
-        let ytdlp = limiter.share();
+        let video = limiter.share();
         assert_eq!(
             limiter.part().await,
             300,
@@ -415,7 +421,7 @@ mod tests {
         );
         drop(torrent);
         assert_eq!(limiter.part().await, 450);
-        drop(ytdlp);
+        drop(video);
         assert_eq!(limiter.part().await, 900, "every share given back");
 
         let unlimited = Limiter::unlimited();

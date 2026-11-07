@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dm fixture: the seven ways a page reads an answer (gaps row 117)</title>
+<!-- Serve this folder (python -m http.server 8099) and open http://127.0.0.1:8099/answers.html.
+     Each line below reads manifest.m3u8 a different way; every one must reach `dm-page-body`
+     (the panel's list on a player page then offers the manifest). -->
+<pre id="log"></pre>
+<script>
+  const log = (m) => { document.getElementById('log').textContent += m + '\n'; };
+  const url = 'manifest.m3u8?x=';
+  (async () => {
+    log('text: ' + (await (await fetch(url + 1)).text()).length);
+    log('json: ' + (await (await fetch('manifest.json?x=2')).json()).hlsUrl);
+    log('arrayBuffer: ' + (await (await fetch(url + 3)).arrayBuffer()).byteLength);
+    log('blob: ' + (await (await fetch(url + 4)).blob()).size);
+    const body = (await fetch(url + 5)).body.getReader();
+    let n = 0;
+    for (;;) { const { done, value } = await body.read(); if (done) break; n += value.length; }
+    log('body stream: ' + n);
+    for (const type of ['json', 'arraybuffer', 'blob']) {
+      await new Promise((resolve) => {
+        const x = new XMLHttpRequest();
+        x.open('GET', (type === 'json' ? 'manifest.json?x=' : url) + type);
+        x.responseType = type;
+        x.onload = () => { log('xhr ' + type + ': ' + x.status); resolve(); };
+        x.send();
+      });
+    }
+  })();
+</script>

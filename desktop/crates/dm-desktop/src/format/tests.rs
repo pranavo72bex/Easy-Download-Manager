@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 #[test]
 fn a_file_uri_escapes_what_an_address_cannot_hold() {
     crate::region::pin(None);
@@ -184,22 +189,22 @@ fn common_failures_have_plain_reasons() {
             Some("the site is busy and turning downloads away. Try again in a few minutes")
         );
     assert_eq!(
-            reason("yt-dlp could not download that: ERROR: [youtube] x: Sign in to confirm you're not a bot"),
+            reason("YouTube says: Sign in to confirm you're not a bot"),
             Some("the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it")
         );
     assert_eq!(
-        reason("yt-dlp could not download that: ERROR: [youtube] x: Video unavailable"),
+        reason("YouTube says: Video unavailable"),
         Some(
             "this video isn't available. It may be private, removed, or not shown in your country"
         )
     );
     assert_eq!(
-        reason("yt-dlp could not download that: ERROR: Requested format is not available"),
+        reason("no stream at that quality"),
         Some("dm couldn't get the video from this page")
     );
     assert_eq!(
             reason("dm's video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
-            Some("dm couldn't get ready for videos. Check that you're online, or install yt-dlp yourself, then click Retry")
+            Some("dm couldn't get ready for videos. Check that you're online, then click Retry")
         );
     assert_eq!(
         reason("could not write C:\\Users\\me\\no space left\\a.zip"),
@@ -345,34 +350,38 @@ fn a_pattern_names_several_files_and_keeps_their_endings() {
 }
 
 #[test]
-fn yt_dlps_own_words_follow_the_vague_video_sentence() {
-    use super::ytdlp_said;
-    // Its last error line, without the extractor and the id.
+fn dms_own_words_follow_the_vague_video_sentence() {
+    use super::video_said;
+    // Its first line, whole.
     assert_eq!(
-        ytdlp_said("yt-dlp could not download that: ERROR: [youtube] jNQXAC9IVRw: Requested format is not available").as_deref(),
-        Some("Requested format is not available")
+        video_said("the solver failed: no such function").as_deref(),
+        Some("the solver failed: no such function")
     );
-    // The last of several, past a warning, and an address (a signed one
-    // included) left out.
-    let many = "yt-dlp could not download that: WARNING: [youtube] x: no JS runtime\nERROR: [youtube] x: Unable to download https://rr1.googlevideo.com/v?sig=SECRET: HTTP Error 403: Forbidden";
-    let said = ytdlp_said(many).unwrap();
-    assert!(said.contains("HTTP Error 403"), "{said}");
+    // An address (a signed one included) left out.
+    let said =
+        video_said("the solver would not start: https://rr1.example/v?sig=SECRET went wrong")
+            .unwrap();
     assert!(
-        !said.contains("SECRET") && !said.contains("googlevideo"),
+        !said.contains("SECRET") && !said.contains("rr1.example"),
         "{said}"
     );
-    // Words with no extractor prefix are kept whole.
-    assert_eq!(
-        ytdlp_said("yt-dlp could not download that: ERROR: Unsupported URL").as_deref(),
-        Some("Unsupported URL")
-    );
-    // Long ones are cut; what is not yt-dlp's is not touched.
-    let long = format!(
-        "yt-dlp could not download that: ERROR: {}",
-        "word ".repeat(80)
-    );
-    let cut = ytdlp_said(&long).unwrap();
+    // Long ones are cut.
+    let long = "word ".repeat(80);
+    let cut = video_said(&long).unwrap();
     assert!(cut.chars().count() <= 121 && cut.ends_with('…'), "{cut}");
-    assert_eq!(ytdlp_said("the server answered 404"), None);
-    assert_eq!(ytdlp_said("yt-dlp could not download that:"), None);
+    assert_eq!(video_said(""), None);
+}
+
+#[test]
+fn a_failure_that_only_says_what_went_wrong_says_what_to_do() {
+    // Every next step is keyed by plain words that exist, and the steps are
+    // found from the raw message.
+    for (plain, step) in NEXT_STEPS {
+        assert!(REASONS.iter().any(|(_, said)| *said == plain), "{plain}");
+        assert!(!step.is_empty());
+    }
+    let step = next_step("No space left on device (os error 28)");
+    assert_eq!(step, Some(NEXT_STEPS[0].1));
+    // A failure that already says what to do, and one not known, have none.
+    assert_eq!(next_step("something nobody has seen before"), None);
 }

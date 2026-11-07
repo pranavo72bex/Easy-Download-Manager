@@ -1,9 +1,13 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A link to a document that is itself a page — `notes.html`, `feed.xml` —
-//! is that document, whether or not yt-dlp is installed; a watch page with
-//! no extension is still yt-dlp's.
+//! is that document; a watch page with no extension that is not YouTube is
+//! refused (its video comes from the browser's caught player requests).
 //!
-//! One test at a time: whether yt-dlp is there is said by an environment
-//! variable, which is process-wide.
+//! One test at a time: the tests here share one server's state.
 
 mod common;
 
@@ -27,9 +31,8 @@ async fn site() -> std::net::SocketAddr {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_page_named_as_a_document_is_saved_without_yt_dlp() {
+async fn a_page_named_as_a_document_is_saved() {
     let _turn = ONE_AT_A_TIME.lock().await;
-    std::env::set_var("DM_YTDLP", "");
     let addr = site().await;
     let dir = tempdir();
     let done = dm_core::download(
@@ -43,7 +46,7 @@ async fn a_page_named_as_a_document_is_saved_without_yt_dlp() {
     assert_eq!(done.path.file_name().unwrap(), "notes.html");
 
     // A watch page, with no extension or a script's, is not a document:
-    // without yt-dlp it is refused, not saved as its HTML.
+    // it is refused, not saved as its HTML.
     for watch in ["watch", "view.php?v=1"] {
         let dir = tempdir();
         let err = dm_core::download(
@@ -53,84 +56,52 @@ async fn a_page_named_as_a_document_is_saved_without_yt_dlp() {
         )
         .await
         .unwrap_err();
-        assert!(err.to_string().contains("video helper"), "{watch}: {err}");
+        assert!(
+            err.to_string().contains("web page rather than the file"),
+            "{watch}: the words the window asks about (B40): {err}"
+        );
+        // Said yes to, it is saved as the page it is (gaps row 136).
+        let dir = tempdir();
+        let mut yes = options(dir.path());
+        yes.accept_page = true;
+        let done = dm_core::download(&dm_core::client(), &format!("http://{addr}/{watch}"), &yes)
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read(&done.path).unwrap(), PAGE.as_bytes());
+        let name = done.path.file_name().unwrap().to_string_lossy().to_string();
+        assert!(name.ends_with(".html"), "{watch}: saved as {name}");
     }
 }
 
-#[cfg(unix)]
+/// A page the browser's panel handed over for its video (media asked for), on a site dm does
+/// not read: refused in words that say why and what to do, not as an expired link (which
+/// would leave the row waiting for a hand-off that never comes) and not as a page to save
+/// (gaps row 155).
 #[tokio::test(flavor = "multi_thread")]
-async fn a_page_named_as_a_document_is_saved_when_yt_dlp_does_not_know_the_site() {
-    use std::os::unix::fs::PermissionsExt;
+async fn a_page_handed_over_for_its_video_is_refused_in_words_not_as_an_expired_link() {
     let _turn = ONE_AT_A_TIME.lock().await;
-    let dir = tempdir();
-    let script = dir.path().join("yt-dlp");
-    std::fs::write(
-        &script,
-        "#!/bin/sh\necho \"ERROR: Unsupported URL: $1\" >&2\nexit 1\n",
-    )
-    .unwrap();
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
-    std::env::set_var("DM_YTDLP", &script);
     let addr = site().await;
-
-    let done = dm_core::download(
-        &dm_core::client(),
-        &format!("http://{addr}/docs/notes.html"),
-        &options(dir.path()),
-    )
-    .await
-    .unwrap();
-    assert_eq!(std::fs::read(&done.path).unwrap(), PAGE.as_bytes());
-
-    // Asked for as media (the browser's panel or media menu), the page is
-    // not saved as its HTML in place of the video.
-    let media = dm_core::Options {
-        media: true,
-        ..options(&dir.path().join("media"))
-    };
-    let err = dm_core::download(
-        &dm_core::client(),
-        &format!("http://{addr}/docs/notes.html"),
-        &media,
-    )
-    .await
-    .unwrap_err();
-    assert!(err.to_string().contains("does not know"), "{err}");
-
-    // A watch page yt-dlp does not know is still its refusal to report.
-    let err = dm_core::download(
-        &dm_core::client(),
-        &format!("http://{addr}/watch"),
-        &options(dir.path()),
-    )
-    .await
-    .unwrap_err();
-    assert!(err.to_string().contains("does not know"), "{err}");
+    let dir = tempdir();
+    let mut media = options(dir.path());
+    media.media = true;
+    let err = dm_core::download(&dm_core::client(), &format!("http://{addr}/watch"), &media)
+        .await
+        .unwrap_err();
+    assert_eq!(err.to_string(), dm_core::PAGE_NOT_READ);
+    assert!(!err.link_expired(), "{err}");
+    assert!(
+        !err.to_string().contains("web page rather than the file"),
+        "the window would ask to save it as a page: {err}"
+    );
 }
 
-#[cfg(unix)]
 #[tokio::test(flavor = "multi_thread")]
-async fn a_page_named_as_a_document_is_fetched_by_dm_when_yt_dlp_is_refused() {
-    /* yt-dlp goes first — some video sites end a watch page in `.html` —
-     * but only its "unknown site" used to fall back to dm's own client: a
-     * page served only to a request naming its referrer, which yt-dlp was
-     * refused (a 403), failed the row. Any refusal now falls back. */
+async fn a_page_named_as_a_document_behind_a_referrer_is_fetched_by_dm() {
+    /* A page served only to a request naming its referrer is fetched by
+     * dm's own client with the referrer it was handed. */
     use axum::http::{HeaderMap, StatusCode};
-    use std::os::unix::fs::PermissionsExt;
     let _turn = ONE_AT_A_TIME.lock().await;
     let dir = tempdir();
-    let ran = dir.path().join("ran");
-    let script = dir.path().join("yt-dlp");
-    std::fs::write(
-        &script,
-        format!(
-            "#!/bin/sh\ntouch '{}'\necho 'ERROR: HTTP Error 403: Forbidden' >&2\nexit 1\n",
-            ran.display()
-        ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
-    std::env::set_var("DM_YTDLP", &script);
     const PAGE_URL: &str = "http://example.test/reports";
     let gated = |headers: HeaderMap| async move {
         if headers.get("referer").and_then(|r| r.to_str().ok()) != Some(PAGE_URL) {
@@ -153,5 +124,4 @@ async fn a_page_named_as_a_document_is_fetched_by_dm_when_yt_dlp_is_refused() {
     .await
     .unwrap();
     assert_eq!(std::fs::read(&done.path).unwrap(), PAGE.as_bytes());
-    assert!(ran.exists(), "yt-dlp was not asked first");
 }

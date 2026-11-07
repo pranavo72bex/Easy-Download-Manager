@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the schedule or the download limit held is started again by the
 //! app itself when they let it go, with no person touching the queue: the
 //! scheduler stops once nothing is queued or running, and a held row is
@@ -26,7 +31,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             limiter: Limiter::unlimited(),
             categories: Categories::default(),
             checksum: None,
-            quality: dm_core::stream::Quality::Best,
+            quality: dm_core::Quality::Best,
             sound: None,
             span: None,
             shape: None,
@@ -45,9 +50,14 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             server_dates: false,
             retry_wait: 0,
             record_limit: None,
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
+            accept_page: false,
+            torrent: Default::default(),
             system_proxy: false,
+            title_hint: None,
         },
         1,
     );

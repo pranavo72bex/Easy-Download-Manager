@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the extension knows of the app: the handshake and what to say when it is absent.
 
 use super::*;
@@ -57,9 +62,6 @@ pub fn status_line(hello: &Hello) -> (String, bool) {
     if !hello.judges_pages() {
         line.push_str(" · update the dm app: until then the browser keeps its downloads");
         return (line, true);
-    }
-    if hello.ytdlp == Some(false) {
-        line.push_str(" · update the dm app to download from video sites");
     }
     (line, false)
 }
@@ -134,25 +136,39 @@ fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str, get: &str)
     }
 }
 
-/// Said alongside a page sent to an app that has no yt-dlp.
-pub const NO_YTDLP: &str = "Sent to dm. If this is a video page rather than a file, update the \
-                            dm app: the newest gets video sites ready by itself.";
-
 /// What the extension knows of the app.
 #[derive(Debug, Clone, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "one value, kept for the session; boxing it buys nothing"
+)]
 pub enum App {
-    Present { hello: Hello, rules: CatchRules },
-    Absent { reason: String },
+    /// The app answered: its hello, and the rules it serves for what to catch.
+    Present {
+        /// What the app said of itself.
+        hello: Hello,
+        /// The rules it serves for what to catch.
+        rules: CatchRules,
+    },
+    /// The app did not answer, and why.
+    Absent {
+        /// Why, in words.
+        reason: String,
+    },
 }
 
 /// An answer about the app, and when it was given.
 #[derive(Debug, Clone)]
 pub struct Known {
+    /// What was learned of the app.
     pub app: App,
+    /// When it was learned, in milliseconds.
     pub at_ms: f64,
 }
 
 impl Known {
+    /// Whether the answer is recent enough to rely on at `now_ms`.
+    #[must_use]
     pub fn fresh(&self, now_ms: f64) -> bool {
         let lasts = match self.app {
             App::Present { .. } => PRESENT_FOR_MS,
@@ -185,6 +201,8 @@ impl Probe {
         }
     }
 
+    /// Whether the app has said hello.
+    #[must_use]
     pub fn has_hello(&self) -> bool {
         self.hello.is_some()
     }
@@ -245,6 +263,7 @@ pub struct Released {
 }
 
 impl Released {
+    /// Notes that the app took the download of this address, so a repeat is not handed over again for a while.
     pub fn remember(&mut self, url: &str, now_ms: f64) {
         self.urls.retain(|(_, at)| now_ms - *at < RELEASED_FOR_MS);
         self.urls.push((url.to_string(), now_ms));

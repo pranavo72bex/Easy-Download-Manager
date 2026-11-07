@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Builds dm for Windows (x86_64) in a container, from any machine with
 # Docker, and lays it out as the release's portable zip: dm-desktop.exe, the
 # empty file named `portable`, and the README.

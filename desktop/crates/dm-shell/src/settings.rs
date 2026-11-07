@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the person using dm has chosen, and where it is kept.
 //!
 //! Written on every change rather than on exit. A preferences file that only
@@ -9,7 +14,7 @@
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 use std::path::PathBuf;
 
-use dm_core::stream::Quality;
+use dm_core::Quality;
 use dm_core::{AddOptions, Categories, Category, Limiter, Options, Proxy, Schedule};
 use serde::{Deserialize, Serialize};
 
@@ -46,6 +51,21 @@ pub struct Settings {
     /// on — in this run or the next — restores it. Zero for never set.
     #[serde(default)]
     pub last_speed_limit: u64,
+    /// A lower speed limit for set hours of every day (when others share
+    /// the link), beside the one for the rest of the day.
+    #[serde(default)]
+    pub slow_hours: SlowHours,
+
+    /// Send dm's own name to servers first, not the browser-like one
+    /// (Options › Advanced › Identify as dm only). A site that refuses the
+    /// first name is still asked again with the others.
+    #[serde(default)]
+    pub identify_as_dm: bool,
+    /// What to do when an address typed in or caught is already in the list,
+    /// remembered from the question's tick: `""` asks, or `"show"`,
+    /// `"again"`, `"replace"`. Options › General undoes it.
+    #[serde(default)]
+    pub duplicate_choice: String,
 
     /// Addresses typed into Add URL, newest first, without any login in
     /// them, for picking again; cleared from the dialog.
@@ -83,6 +103,10 @@ pub struct Settings {
     #[serde(deserialize_with = "lenient::schedule")]
     pub schedule: Schedule,
 
+    /// A schedule of its own for a named queue, by the queue's name; a queue
+    /// with none uses `schedule`.
+    pub queue_schedules: std::collections::BTreeMap<String, Schedule>,
+
     /// Where downloads connect through.
     #[serde(deserialize_with = "lenient::proxy")]
     pub proxy: Proxy,
@@ -91,6 +115,23 @@ pub struct Settings {
     /// default: people copy URLs constantly, so this asks rather than grabs.
     #[serde(default)]
     pub watch_clipboard: bool,
+    /// Set when this run could not read its passwords back (the store refused, or the file
+    /// was read only in part or not at all, so its defaults stand in): an empty password then
+    /// says nothing about what the person wants, and the one in the store is not forgotten on
+    /// the next save (security review, 2026-11-07). Never written to the file.
+    #[serde(skip)]
+    pub keep_stored_passwords: bool,
+    /// A link copied while the clipboard is watched is taken at once, its
+    /// Download details opened (several, the list of them), rather than
+    /// offered in a bar first. Off by default, as reference A's.
+    #[serde(default)]
+    pub start_copied: bool,
+
+    /// A download shown in Download details starts fetching at once, while the person still
+    /// chooses where it goes; Start now places it, Cancel removes it. Off by default, as
+    /// reference A's "Start downloading immediately while displaying" (gaps row 85).
+    #[serde(default)]
+    pub start_while_asking: bool,
 
     /// Start with the computer, so a browser hand-off has an app to land in
     /// without anyone opening it first. On for a new install, in the tray
@@ -114,6 +155,24 @@ pub struct Settings {
     /// moved into a `done` folder inside it. Empty is off.
     #[serde(default)]
     pub watch_folder: String,
+    /// Where the list of peers a torrent never connects to is: an address on
+    /// the web or a file on this computer, in the P2P format, plain or
+    /// gzipped. Empty for none.
+    #[serde(default)]
+    pub peer_blocklist: String,
+    /// Keep a finished torrent shared with other peers (gaps row 147). Off unless
+    /// turned on: it sends from the person's connection.
+    #[serde(default)]
+    pub torrent_share: bool,
+    /// Shared until it has sent this many times its size.
+    #[serde(default = "default_share_ratio")]
+    pub torrent_share_ratio: f64,
+    /// Shared for at most this many minutes.
+    #[serde(default = "default_share_minutes")]
+    pub torrent_share_minutes: u64,
+    /// The most a shared torrent sends, in KB a second; 0 for no limit of its own.
+    #[serde(default)]
+    pub torrent_upload_limit: u64,
     /// Look for a newer dm about once a week. Off unless turned on: it asks
     /// GitHub, and dm otherwise contacts nothing but what is downloaded.
     pub check_updates: bool,
@@ -123,20 +182,18 @@ pub struct Settings {
     /// When dm last looked for a newer version, in seconds since 1970.
     pub update_checked: u64,
 
-    /// Which edition of the pop-up defaults the two switches below were
-    /// last brought up to. Zero is a file from before they were off by
-    /// default, whose `true` was the default, not a choice: it is read as
-    /// off once (`clamped`), and from then on a person's choice stands.
+    /// Which edition of the pop-up defaults the four switches below were
+    /// last brought up to. A file from an older edition is brought up to
+    /// this one's defaults once (`clamped`); from then on a person's choice
+    /// stands.
     #[serde(default)]
     pub popups_version: u32,
-    /// Open a progress window for a download as it starts. Off unless turned
-    /// on: the list already shows progress, and a window opening over the
-    /// work on every download was in the way.
+    /// Open a progress window for a download as it starts, as reference A
+    /// does (on by default since edition 2).
     #[serde(default)]
     pub show_progress: bool,
     /// Say so in a window when a download finishes, with Open and Open
-    /// folder. Off unless turned on: a download just starts and finishes
-    /// in the list.
+    /// folder, as reference A does (on by default since edition 2).
     #[serde(default)]
     pub show_complete: bool,
     /// Play the system's short sound when a download finishes.
@@ -145,7 +202,8 @@ pub struct Settings {
     /// to name it and choose where it goes, before it starts.
     pub ask_panel_downloads: bool,
     /// A download caught from the browser: "Download details" opens for it
-    /// too, rather than it starting at once. Off by default, since 2026-10-26.
+    /// too, rather than it starting at once, as reference A's File Info
+    /// does (on by default since edition 2).
     #[serde(default)]
     pub ask_caught_downloads: bool,
     /// The window's look: "system" (the modern look, light or dark as the
@@ -208,8 +266,7 @@ pub struct Settings {
     pub catch: dm_protocol::CatchRules,
 
     /// A `cookies.txt` (Netscape format) whose cookies dm sends with its own
-    /// requests and hands to yt-dlp, for downloads that need a signed-in
-    /// session. Empty for none.
+    /// requests, for downloads that need a signed-in session. Empty for none.
     #[serde(default)]
     pub cookies_file: String,
 
@@ -236,7 +293,7 @@ pub struct Settings {
     /// Sites that take fewer connections at once than `connections`.
     #[serde(default, deserialize_with = "lenient::host_limits")]
     pub host_limits: Vec<dm_core::HostLimit>,
-    /// A folder and a speed limit for a site's downloads (Options › Network).
+    /// A folder and a speed limit for a site's downloads (Options › Advanced).
     #[serde(default, deserialize_with = "lenient::site_rules")]
     pub site_rules: Vec<SiteRule>,
     /// Hours between the recheck queue asking its servers again on its
@@ -246,11 +303,16 @@ pub struct Settings {
     /// Play the system's short failure sound when a download fails.
     #[serde(default)]
     pub sound_on_failure: bool,
+    /// A sound file of the person's own for an event (`complete`, `failed`, `queue_started`,
+    /// `queue_done`); an event with no entry, or an empty one, keeps the system's sound. Only `.wav`
+    /// is promised. The switches above still decide whether the finish and failure sounds play.
+    #[serde(default)]
+    pub sounds: std::collections::BTreeMap<String, String>,
     /// Start the Main queue as dm opens, so what was added for later goes
     /// at the next launch without a click.
     #[serde(default)]
     pub start_queue_on_launch: bool,
-    /// Have yt-dlp fetch a video's subtitles, carried inside the video.
+    /// Carry a video's subtitles inside it.
     #[serde(default)]
     pub subtitles: bool,
     /// "Site files" searches saved to run again, by hand or on a timer.
@@ -268,9 +330,9 @@ pub struct Settings {
     /// driver can draw black.
     #[serde(default)]
     pub mica: bool,
-    /// Fetch yt-dlp and QuickJS from their GitHub releases the first time a
-    /// video page needs them (and keep the fetched yt-dlp current). Off,
-    /// only a yt-dlp the person installed is used.
+    /// Fetch video tools (QuickJS) from their GitHub releases the first
+    /// time a video page needs them. Off, only tools the person installed
+    /// are used.
     #[serde(default = "yes")]
     pub fetch_tools: bool,
     /// Queues that start on their own each day at a time of their own.
@@ -338,6 +400,14 @@ fn default_attempts() -> u32 {
     15
 }
 
+fn default_share_ratio() -> f64 {
+    1.0
+}
+
+fn default_share_minutes() -> u64 {
+    120
+}
+
 fn default_read_timeout() -> u64 {
     30
 }
@@ -351,9 +421,12 @@ fn yes() -> bool {
     true
 }
 
-/// The edition of the pop-up defaults now (1: progress and finished windows
-/// off until turned on).
-pub const POPUPS_VERSION: u32 = 1;
+/// The edition of the pop-up defaults now. 1 (2026-10-26): the progress and
+/// finished windows off. 2 (2026-11-04): the progress and finished windows
+/// on, and Download details before a caught or a panel download, as
+/// reference A does them (`docs/decisions.md`, "dm works exactly like
+/// reference A").
+pub const POPUPS_VERSION: u32 = 2;
 
 impl Settings {
     /// The settings as a file to carry to another computer: every choice,
@@ -372,7 +445,7 @@ impl Settings {
 
     /// Settings read from such a file, in place of these: the passwords
     /// this computer already has for the same site and name, and for the
-    /// same proxy user, are kept, as are its history and the command it
+    /// same proxy (host, port and user), are kept, as are its history and the command it
     /// runs after a download, which a file never sets.
     pub fn imported(&self, text: &str) -> Result<Settings, String> {
         let mut read: Settings = serde_json::from_str(text)
@@ -386,15 +459,32 @@ impl Settings {
                 login.password = known.password.clone();
             }
         }
-        if read.proxy.username == self.proxy.username {
-            read.proxy.password = self.proxy.password.clone();
+        // For the same proxy: a user name alone is guessable, and a file naming
+        // another proxy must not be handed this computer's password for it.
+        if read.proxy.username == self.proxy.username
+            && read.proxy.host == self.proxy.host
+            && read.proxy.port == self.proxy.port
+        {
+            read.proxy.password.clone_from(&self.proxy.password);
         }
-        read.recent_urls = self.recent_urls.clone();
+        read.recent_urls.clone_from(&self.recent_urls);
         read.last_folders = self.last_folders.clone();
         // Never a program to run from someone else's file: the command run
         // after every download stays this computer's own, so a settings file
         // passed around cannot make dm start something.
-        read.on_complete = self.on_complete.clone();
+        read.on_complete.clone_from(&self.on_complete);
+        read.schedule
+            .run_when_done
+            .clone_from(&self.schedule.run_when_done);
+        // A queue's own hours run a program too: each keeps this computer's,
+        // and a queue the file adds runs none.
+        for (name, schedule) in &mut read.queue_schedules {
+            schedule.run_when_done = self
+                .queue_schedules
+                .get(name)
+                .map(|mine| mine.run_when_done.clone())
+                .unwrap_or_default();
+        }
         Ok(read.clamped())
     }
 }
@@ -423,6 +513,50 @@ fn default_folders() -> Vec<String> {
         .collect()
 }
 
+/// A lower speed limit for set hours of every day.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SlowHours {
+    /// Whether the slow hours are used.
+    pub enabled: bool,
+    /// `HH:MM`, local time: when they start.
+    pub from: String,
+    /// `HH:MM`, local time: when they end; before `from`, past midnight.
+    pub to: String,
+    /// The limit in those hours, in KB/s.
+    pub limit: u64,
+}
+
+impl Default for SlowHours {
+    fn default() -> Self {
+        SlowHours {
+            enabled: false,
+            from: "08:00".into(),
+            to: "18:00".into(),
+            limit: 256,
+        }
+    }
+}
+
+impl SlowHours {
+    /// Whether the slow hours are in force on a weekday (0 = Sunday) at a
+    /// minute past midnight: every day, as the Scheduler's window reads.
+    pub fn open_at(&self, weekday: u8, minute: u32) -> bool {
+        self.enabled
+            && self.limit > 0
+            && dm_core::is_time(&self.from)
+            && dm_core::is_time(&self.to)
+            && Schedule {
+                enabled: true,
+                from: self.from.clone(),
+                to: self.to.clone(),
+                days: Vec::new(),
+                ..Schedule::default()
+            }
+            .open_at(weekday, minute)
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
@@ -433,6 +567,7 @@ impl Default for Settings {
             site_rules: Vec::new(),
             recheck_hours: 0,
             sound_on_failure: false,
+            sounds: Default::default(),
             start_queue_on_launch: false,
             subtitles: false,
             site_searches: Vec::new(),
@@ -456,6 +591,9 @@ impl Default for Settings {
                 .join("dm"),
             speed_limit: 0,
             last_speed_limit: 0,
+            slow_hours: SlowHours::default(),
+            identify_as_dm: false,
+            duplicate_choice: String::new(),
             recent_urls: Vec::new(),
             last_folders: Default::default(),
             limit_mb: 0,
@@ -465,21 +603,37 @@ impl Default for Settings {
             custom_categories: Vec::new(),
             stream_quality: default_quality(),
             schedule: Schedule::default(),
-            proxy: Proxy::default(),
+            queue_schedules: std::collections::BTreeMap::new(),
+            // The computer's proxy settings, as a browser takes them: with none set it goes
+            // direct as before; behind one, a new dm works where the browser does
+            // (docs/decisions.md, 2026-11-06, in place of gaps row 80).
+            proxy: Proxy {
+                enabled: true,
+                kind: dm_core::ProxyKind::System,
+                ..Proxy::default()
+            },
             watch_clipboard: false,
+            keep_stored_passwords: false,
+            start_copied: false,
+            start_while_asking: false,
             start_on_login: true,
             allow_command_line: false,
             allow_mcp: true,
             watch_folder: String::new(),
+            peer_blocklist: String::new(),
+            torrent_share: false,
+            torrent_share_ratio: default_share_ratio(),
+            torrent_share_minutes: default_share_minutes(),
+            torrent_upload_limit: 0,
             check_updates: false,
             language: String::new(),
             update_checked: 0,
             popups_version: POPUPS_VERSION,
-            show_progress: false,
-            show_complete: false,
+            show_progress: true,
+            show_complete: true,
             sound_on_complete: false,
-            ask_panel_downloads: false,
-            ask_caught_downloads: false,
+            ask_panel_downloads: true,
+            ask_caught_downloads: true,
             theme: "system".into(),
             double_click: "open".into(),
             on_close: "ask".into(),
@@ -522,11 +676,13 @@ impl Settings {
             self.double_click = "properties".into();
         }
         self.catch.bring_up_to_date();
-        // Both pop-ups were on for everyone before they were off by default:
-        // a saved `true` from then is the old default, so it is let go once.
+        // A file from an older edition takes this edition's defaults once
+        // (reference A's: every pop-up on); a choice saved since stands.
         if self.popups_version < POPUPS_VERSION {
-            self.show_progress = false;
-            self.show_complete = false;
+            self.show_progress = true;
+            self.show_complete = true;
+            self.ask_caught_downloads = true;
+            self.ask_panel_downloads = true;
             self.popups_version = POPUPS_VERSION;
         }
         // The click keys are one of those the extension knows, or (to take)
@@ -605,8 +761,7 @@ impl Settings {
     pub fn refusal(&self, previous: &Settings) -> Option<String> {
         if self.schedule != previous.schedule
             && self.schedule.enabled
-            && !(dm_core::schedule::is_time(&self.schedule.from)
-                && dm_core::schedule::is_time(&self.schedule.to))
+            && !(dm_core::is_time(&self.schedule.from) && dm_core::is_time(&self.schedule.to))
         {
             return Some(format!(
                 "the schedule's times must be HH:MM in 24 hours, not {:?} and {:?}",
@@ -614,11 +769,7 @@ impl Settings {
             ));
         }
         if self.queue_starts != previous.queue_starts {
-            if let Some(bad) = self
-                .queue_starts
-                .iter()
-                .find(|s| !dm_core::schedule::is_time(&s.at))
-            {
+            if let Some(bad) = self.queue_starts.iter().find(|s| !dm_core::is_time(&s.at)) {
                 return Some(format!(
                     "a queue's start time must be HH:MM in 24 hours, not {:?}",
                     bad.at
@@ -649,7 +800,7 @@ impl Settings {
             if previous.custom_categories.iter().any(|p| p.name == c.name) {
                 continue;
             }
-            if let Err(why) = dm_core::category::portable_folder(&c.name) {
+            if let Err(why) = dm_core::portable_folder(&c.name) {
                 return Some(format!(
                     "a category's name is also its folder, so it cannot be {:?}: {why}",
                     c.name
@@ -660,7 +811,7 @@ impl Settings {
             if folder.trim().is_empty() || previous.category_folders.get(at) == Some(folder) {
                 continue;
             }
-            if let Err(why) = dm_core::category::portable_folder(folder) {
+            if let Err(why) = dm_core::portable_folder(folder) {
                 return Some(format!("a folder cannot be called {folder:?}: {why}"));
             }
         }
@@ -699,6 +850,19 @@ impl Settings {
             // Per download, not a setting: the queue fills this in from the
             // row when it starts one.
             checksum: None,
+            torrent: dm_core::TorrentOptions {
+                // Per download: the queue fills these in from the row.
+                only: None,
+                tiers: Vec::new(),
+                blocklist: self.peer_blocklist(),
+                share: self.torrent_share.then(|| dm_core::Share {
+                    ratio: self.torrent_share_ratio.clamp(0.1, 100.0),
+                    minutes: self.torrent_share_minutes.clamp(1, 7 * 24 * 60),
+                    upload_kbps: self.torrent_upload_limit,
+                }),
+                // Peers through the DHT and local discovery as well as trackers.
+                no_public_discovery: false,
+            },
             quality: self.quality(),
             sound: None,
             span: None,
@@ -719,15 +883,25 @@ impl Settings {
             retry_wait: self.retry_wait,
             record_limit: (self.record_minutes > 0)
                 .then(|| std::time::Duration::from_secs(self.record_minutes * 60)),
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
-            system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,
+            title_hint: None,
+            accept_page: false,
+            system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::ProxyKind::System,
             proxy_bypass: if self.proxy.enabled {
                 self.proxy.bypass.clone()
             } else {
                 Vec::new()
             },
         }
+    }
+
+    /// The peer blocklist's address, where one is set.
+    pub fn peer_blocklist(&self) -> Option<String> {
+        let address = self.peer_blocklist.trim();
+        (!address.is_empty()).then(|| address.to_string())
     }
 
     /// How often the recheck queue asks its servers again, if on its own.
@@ -749,7 +923,7 @@ impl Settings {
     pub fn queue_start_list(&self) -> Vec<(String, u32)> {
         self.queue_starts
             .iter()
-            .filter_map(|s| Some((s.queue.clone(), dm_core::schedule::minutes(&s.at)?)))
+            .filter_map(|s| Some((s.queue.clone(), dm_core::minutes_of(&s.at)?)))
             .collect()
     }
 
@@ -789,6 +963,28 @@ impl Settings {
         self.speed_limit.saturating_mul(1024)
     }
 
+    /// The speed limit in force now, in bytes a second: the lower of the
+    /// two in the slow hours, the speed limit the rest of the day.
+    pub fn speed_limit_bytes_now(&self) -> u64 {
+        let (weekday, minute) = dm_core::weekday_now();
+        self.speed_limit_bytes_at(weekday, minute)
+    }
+
+    /// `speed_limit_bytes_now` on a given weekday (0 = Sunday) and minute
+    /// past midnight.
+    pub fn speed_limit_bytes_at(&self, weekday: u8, minute: u32) -> u64 {
+        let normal = self.speed_limit_bytes();
+        if !self.slow_hours.open_at(weekday, minute) {
+            return normal;
+        }
+        let slow = self.slow_hours.limit.saturating_mul(1024);
+        if normal == 0 {
+            slow
+        } else {
+            normal.min(slow)
+        }
+    }
+
     /// The engine's view of the stream quality.
     ///
     /// Anything unrecognised means the best available — a typo in a settings
@@ -817,37 +1013,87 @@ impl Settings {
     }
 
     fn load_from(path: &std::path::Path) -> (Self, Option<String>) {
+        let (mut settings, mut notice) = Self::load_file(path);
+        // A file not read whole: its empty passwords may be defaults standing in.
+        settings.keep_stored_passwords = notice.is_some();
+        if let Some(store) = secrets::store() {
+            let ns = dm_core::secretstore::namespace(path);
+            let (moved, note) = settings.take_passwords_from(store, &ns);
+            if note.is_some() {
+                settings.keep_stored_passwords = true;
+            }
+            if moved {
+                // Passwords the file held in clear are in the store now: write it again
+                // without them.
+                if let Err(io) = settings.save_to(path) {
+                    notice = Some(join_notice(
+                        notice,
+                        format!("the passwords moved to the store are still in the settings file ({io})"),
+                    ));
+                }
+            }
+            if let Some(note) = note {
+                notice = Some(join_notice(notice, note));
+            }
+        }
+        (settings, notice)
+    }
+
+    /// A settings file's text as dm reads it: whole, or, where one entry is
+    /// odd, field by field (that entry costs only itself), with the names of
+    /// what was left out. The error is the whole read's, where even the
+    /// field-by-field one fails. One reader for the window and the browser's
+    /// host: the host read strictly, so one odd field put every default in
+    /// force there while the window kept the rest.
+    fn parse(text: &str) -> Result<(Self, Vec<String>), serde_json::Error> {
+        lenient::take();
+        let parsed = match serde_json::from_str::<Settings>(text) {
+            Ok(settings) => Ok((settings, Vec::new())),
+            Err(e) => lenient::settings(text).ok_or(e),
+        };
+        parsed.map(|(read, mut dropped)| {
+            // What the lenient readers inside left out: a proxy type, a field
+            // of a schedule, an entry of a list or a field of one.
+            dropped.extend(lenient::take());
+            dropped.dedup();
+            (read, dropped)
+        })
+    }
+
+    /// The settings at `path` as [`Settings::load`] reads them, every value
+    /// brought into range, but read only: nothing is moved aside or copied,
+    /// and the store of secrets is not asked. For a process with no window
+    /// to say what it did: the browser's host.
+    pub fn read_only(path: &std::path::Path) -> Self {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|text| Self::parse(&text).ok())
+            .map(|(read, _)| read.readable().0)
+            .unwrap_or_else(|| Settings::default().clamped())
+    }
+
+    fn load_file(path: &std::path::Path) -> (Self, Option<String>) {
         let Ok(text) = std::fs::read_to_string(path) else {
             return (Settings::default().clamped(), None);
         };
-        lenient::take();
-        let (read, mut dropped) = match serde_json::from_str::<Settings>(&text) {
-            Ok(settings) => (settings, Vec::new()),
-            // One odd entry costs that entry: the rest is read, field by
-            // field, and what was left out is named below.
-            Err(e) => match lenient::settings(&text) {
-                Some(read) => read,
-                None => {
-                    let aside = path.with_extension("json.unreadable");
-                    let notice = match std::fs::rename(path, &aside) {
-                        Ok(()) => format!(
-                            "the saved settings could not be read ({e}); they were kept as {} \
+        let (read, dropped) = match Self::parse(&text) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                let aside = path.with_extension("json.unreadable");
+                let notice = match std::fs::rename(path, &aside) {
+                    Ok(()) => format!(
+                        "the saved settings could not be read ({e}); they were kept as {} \
                              and the defaults are in use",
-                            aside.display()
-                        ),
-                        Err(io) => format!(
-                            "the saved settings could not be read ({e}) or moved aside ({io}); \
+                        aside.display()
+                    ),
+                    Err(io) => format!(
+                        "the saved settings could not be read ({e}) or moved aside ({io}); \
                              the defaults are in use and the next change will replace them"
-                        ),
-                    };
-                    return (Settings::default().clamped(), Some(notice));
-                }
-            },
+                    ),
+                };
+                return (Settings::default().clamped(), Some(notice));
+            }
         };
-        // What the lenient readers inside left out: a proxy type, a field
-        // of a schedule, an entry of a list or a field of one.
-        dropped.extend(lenient::take());
-        dropped.dedup();
         let (settings, mut notes) = read.readable();
         if !dropped.is_empty() {
             notes.insert(
@@ -880,9 +1126,7 @@ impl Settings {
         let mut settings = self.clamped();
         let mut notes = Vec::new();
         let schedule = &mut settings.schedule;
-        if schedule.enabled
-            && !(dm_core::schedule::is_time(&schedule.from)
-                && dm_core::schedule::is_time(&schedule.to))
+        if schedule.enabled && !(dm_core::is_time(&schedule.from) && dm_core::is_time(&schedule.to))
         {
             schedule.enabled = false;
             notes.push(format!(
@@ -893,7 +1137,7 @@ impl Settings {
         }
         let (kept, bad): (Vec<_>, Vec<_>) = std::mem::take(&mut settings.custom_categories)
             .into_iter()
-            .partition(|c| dm_core::category::one_folder(&c.name));
+            .partition(|c| dm_core::one_folder(&c.name));
         settings.custom_categories = kept;
         if !bad.is_empty() {
             let names: Vec<String> = bad.iter().map(|c| format!("{:?}", c.name)).collect();
@@ -909,7 +1153,7 @@ impl Settings {
         let unusable: Vec<String> = settings
             .category_folders
             .iter()
-            .filter(|f| !f.trim().is_empty() && !dm_core::category::one_folder(f))
+            .filter(|f| !f.trim().is_empty() && !dm_core::one_folder(f))
             .map(|f| format!("{f:?}"))
             .collect();
         if !unusable.is_empty() {
@@ -925,10 +1169,26 @@ impl Settings {
     /// Writes the settings to [`Settings::path`] at once, readable by this
     /// account alone; a stop mid-write leaves the file before it whole.
     pub fn save(&self) -> std::io::Result<()> {
-        dm_core::write_atomic(
-            &Self::path(),
-            serde_json::to_string_pretty(self)?.as_bytes(),
-        )
+        self.save_to(&Self::path())
+    }
+
+    /// [`Settings::save`] to `path`. Where the operating system's store works the Sign-ins' and
+    /// the proxy's passwords go there and the file keeps them empty (`secrets.rs`).
+    fn save_to(&self, path: &std::path::Path) -> std::io::Result<()> {
+        let mut file = self.clone();
+        if let Some(store) = secrets::store() {
+            // A refusal leaves the password in the file, as before; the next read says so.
+            let _ = file.move_passwords_to(store, &dm_core::secretstore::namespace(path));
+        }
+        dm_core::write_atomic(path, serde_json::to_string_pretty(&file)?.as_bytes())
+    }
+}
+
+/// `more` after what was already to be said.
+fn join_notice(first: Option<String>, more: String) -> String {
+    match first {
+        Some(first) => format!("{first}; {more}"),
+        None => more,
     }
 }
 
@@ -940,7 +1200,7 @@ impl Settings {
     /// The rule of the site `url` is on, the most specific host that covers
     /// it.
     pub fn site_rule_for(&self, url: &str) -> Option<&SiteRule> {
-        let host = dm_core::category::host_of(url);
+        let host = dm_core::host_of(url);
         self.site_rules
             .iter()
             .filter(|rule| {
@@ -952,6 +1212,12 @@ impl Settings {
                 !want.is_empty() && (host == want || host.ends_with(&format!(".{want}")))
             })
             .max_by_key(|rule| rule.host.trim().len())
+    }
+
+    /// The schedule that governs the queue called `name`: its own, or the
+    /// one every queue shares.
+    pub fn schedule_for(&self, name: &str) -> &Schedule {
+        self.queue_schedules.get(name).unwrap_or(&self.schedule)
     }
 
     /// `with`, given its site's folder and speed limit where it was not given
@@ -1266,6 +1532,8 @@ pub fn enter_portable() -> Option<PathBuf> {
     std::env::set_var("DM_HOME", &home);
     Some(home)
 }
+
+mod secrets;
 
 #[cfg(test)]
 mod tests;

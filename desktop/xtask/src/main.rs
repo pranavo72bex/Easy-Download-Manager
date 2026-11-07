@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! dm's own checks, run as `cargo xtask <job>` from `desktop/`.
 //!
 //! - `scorecard` writes `docs/scorecard.md`: what is done, partial and
@@ -10,7 +15,12 @@
 //!   reporting crate anywhere in the build, and no address in shipped code
 //!   but the project's own release page, which is fetched only when asked.
 //!
+//! - `headers` holds every source file of dm's own to its copyright and
+//!   licence header (`headers.rs`); `headers fix` writes the missing ones.
+//!
 //! Each is also a test, so `cargo test --workspace` runs them.
+
+mod headers;
 
 use std::path::{Path, PathBuf};
 
@@ -24,7 +34,15 @@ fn main() {
             parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
         }
         "secrets" => secrets().map(|()| "no credential is written into a tracked file".to_string()),
-        _ => Err("usage: cargo xtask <scorecard|layers|privacy|parity|secrets>".to_string()),
+        "headers" if std::env::args().nth(2).as_deref() == Some("fix") => headers::fix(&root())
+            .map(|n| format!("a copyright and licence header written into {n} files")),
+        "headers" => {
+            licence_headers().map(|()| "every source file carries its licence header".to_string())
+        }
+        _ => Err(
+            "usage: cargo xtask <scorecard|layers|privacy|parity|secrets|headers [fix]>"
+                .to_string(),
+        ),
     };
     match result {
         Ok(said) => println!("{said}"),
@@ -33,6 +51,21 @@ fn main() {
             std::process::exit(1);
         }
     }
+}
+
+/// Every source file of dm's own carries the copyright and licence header
+/// (`headers.rs`), so a copy of any one of them says whose it is and on what terms.
+fn licence_headers() -> Result<(), String> {
+    let missing = headers::missing(&root())?;
+    if missing.is_empty() {
+        return Ok(());
+    }
+    let names: Vec<_> = missing.iter().map(|(n, _)| n.as_str()).collect();
+    Err(format!(
+        "{} source files have no copyright and licence header (run `cargo xtask headers fix` in desktop/):\n{}",
+        names.len(),
+        names.join("\n")
+    ))
 }
 
 /// The repository root.
@@ -674,6 +707,13 @@ mod tests {
     #[test]
     fn nothing_phones_home() {
         if let Err(why) = privacy() {
+            panic!("{why}");
+        }
+    }
+
+    #[test]
+    fn every_source_file_carries_its_licence_header() {
+        if let Err(why) = licence_headers() {
             panic!("{why}");
         }
     }

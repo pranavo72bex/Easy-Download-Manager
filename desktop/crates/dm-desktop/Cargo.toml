@@ -1,8 +1,8 @@
 [package]
 name = "dm-desktop"
 version = "0.8.7"
-authors = ["pranavo72bex <pranavj304@gmail.com>"]
-license = "MIT"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
 edition = "2021"
 description = "dm — a download manager, with a window drawn in Rust"
 
@@ -26,6 +26,8 @@ raw-window-handle = "0.6"
 # collection is 20 MB, of which a window draws a few glyphs.
 memmap2 = "0.9"
 dm-core = { path = "../dm-core" }
+# The catch rules' lists Options shows (the browsers, the menu items).
+dm-protocol = { path = "../dm-protocol" }
 # Checks the ed25519 signature on the update manifest; already in the tree
 # through rustls.
 dm-shell = { path = "../dm-shell" }
@@ -36,6 +38,9 @@ egui = { version = "0.37", features = ["monochrome_emoji_fonts"] }
 # A login launch's event loop, which makes the window only when it is first
 # shown (`run_hidden` in main.rs). The version eframe runs on.
 winit = { version = "0.30", default-features = false }
+# The windows eframe makes, to give the dialogs' own windows the input a control
+# client sends (`app::human`); the copy in `vendor/egui-winit`.
+egui-winit = { version = "0.37", default-features = false }
 # Arabic and Hebrew names put into the order they are read, which egui's
 # text layout does not do (src/bidi.rs).
 unicode-bidi = "0.3"
@@ -60,6 +65,8 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # since an app opened from the Dock or a login item has no LANG.
 sys-locale = "0.3"
 trash = "5.2.9"
+# The digest of a rules document the update manifest lists (update.rs).
+sha2 = "0.11.0"
 
 # Dragging a finished file out of the window, into Finder, Explorer, a mail
 # or a chat. It starts the drag from the window's native handle, which it
@@ -96,6 +103,8 @@ windows = { version = "0.62", features = [
 ] }
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
+  # A sound file of the person's own (power.rs, play_file).
+  "Win32_Media_Audio",
   # The title bar dark, and in the window's colour (chrome.rs).
   "Win32_Graphics_Dwm",
   "Win32_System_Console",
@@ -136,14 +145,12 @@ embed-resource = "3"
 
 [dev-dependencies]
 proptest = "1"
-dm-protocol = { path = "../dm-protocol" }
 # The window driven the way a person drives it, through its accessibility
 # tree, and rendered offscreen for a picture of what it draws.
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 tempfile = "3"
 # The digest a test works out for itself, to hold the window's to.
 sha2 = "0.11.0"
-hex = "0.4.3"
 # A real archive for the extraction test.
 zip = { version = "9", default-features = false, features = ["deflate"] }
 # The window's memory written out as eframe writes it, for a relaunch.
@@ -165,11 +172,6 @@ category = "Utility"
 beforePackagingCommand = "cargo build --release -p dm-desktop"
 outDir = "../../target/release/bundle"
 binaries = [{ path = "dm-desktop", main = true }]
-# yt-dlp's unpacked build, fetched into resources/yt-dlp by
-# scripts/fetch-ytdlp.py before packaging (the desktop workflow does), so a
-# fresh install plays its first video with nothing to fetch; absent, dm
-# fetches it at the first video as before (docs/RELEASING.md).
-resources = ["resources/yt-dlp"]
 icons = [
   "icons/32x32.png",
   "icons/128x128.png",
@@ -187,6 +189,11 @@ minimumSystemVersion = "11.0"
 # System Settings › Privacy & Security lets a person open anyway. A real
 # Developer ID, when there is one, replaces "-" (docs/RELEASING.md).
 signingIdentity = "-"
+# Merged into the bundle's Info.plist: dm opens magnet: links and .torrent
+# files (src/opened.rs). Here rather than the packager's own deep-link and
+# file-type keys, which the Windows installer would also write, taking the
+# keys from another program; on Windows dm registers itself (register.rs).
+infoPlistPath = "macos/Info.plist"
 
 # What the binary loads at run time on Linux, none of it linked, so the
 # package must name it: the X11 libraries winit opens before any window

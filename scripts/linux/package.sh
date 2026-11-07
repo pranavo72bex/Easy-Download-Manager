@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Runs inside the container: builds the Linux packages the release would,
 # installs the .deb the way a person would, and drives what it installed.
 #
@@ -28,7 +33,7 @@ FORMATS="${DM_FORMATS:-deb,appimage}"
 echo "== building: $FORMATS"
 cd desktop/crates/dm-desktop
 # AppImage tools are themselves AppImages, and a container has no FUSE.
-APPIMAGE_EXTRACT_AND_RUN=1 cargo packager --release --formats "$FORMATS" \
+APPIMAGE_EXTRACT_AND_RUN=1 CARGO_BUILD_RUSTFLAGS="$(sh "$(dirname "$0")/../release-flags.sh")" cargo packager --release --formats "$FORMATS" \
   --out-dir /target/release/bundle
 cd /work
 

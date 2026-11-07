@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The part of the desktop app that is not the window.
 //!
 //! Everything a download manager is judged on lives in dm-core, which has no
@@ -16,11 +21,12 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 // From Google's Rust style guide, checked in CI: an `unsafe` block says why it
-// is sound (`// SAFETY:`; not on Windows, whose blocks are not all written up
-// yet), and a string is built with `format!` rather than `+`, and a loop is a
-// loop rather than `for_each`.
-#![cfg_attr(not(windows), warn(clippy::undocumented_unsafe_blocks))]
+// is sound (`// SAFETY:`, on every platform, Windows included), and a string is
+// built with `format!` rather than `+`, and a loop is a loop rather than
+// `for_each`.
+#![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
+pub mod firewall;
 pub mod host;
 pub mod instance;
 pub mod lists;

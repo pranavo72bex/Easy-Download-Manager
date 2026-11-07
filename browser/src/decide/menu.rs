@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What a context menu click or the toolbar button hands over, and the page's links.
 
 use super::*;
@@ -14,9 +19,13 @@ pub const MENUS: &[(&str, &str, &[&str])] = &[
         &["selection"],
     ),
 ];
+/// The id of the context menu entry for a link.
 pub const MENU_LINK: &str = "dm-link";
+/// The id of the context menu entry for a video or audio element.
 pub const MENU_MEDIA: &str = "dm-media";
+/// The id of the context menu entry that downloads all links on a page.
 pub const MENU_ALL_LINKS: &str = "dm-all-links";
+/// The id of the context menu entry that downloads the selected links.
 pub const MENU_SELECTED_LINKS: &str = "dm-selected-links";
 
 /// What the background asks the page script for: the page's links, or only
@@ -41,6 +50,102 @@ pub fn links_from(hrefs: &[String], page: &str) -> Vec<String> {
         .filter(|h| seen.insert(h.clone()))
         .take(MOST_LINKS)
         .collect()
+}
+
+/// The forms pages sent lately, by address: the body of the last form sent
+/// to each, for a download that turns out to be its answer. Kept two minutes,
+/// and twenty at most.
+#[derive(Debug, Default)]
+pub struct Forms {
+    sent: Vec<(String, dm_protocol::Posted, f64)>,
+}
+
+/// How long a form is kept for the download it may start.
+pub const FORM_KEPT_MS: f64 = 120_000.0;
+
+impl Forms {
+    /// A form sent to `url` at `at` (milliseconds).
+    pub fn keep(&mut self, url: &str, post: dm_protocol::Posted, at: f64) {
+        let url = url.split('#').next().unwrap_or(url).to_string();
+        self.sent
+            .retain(|(u, _, when)| *u != url && at - *when < FORM_KEPT_MS);
+        self.sent.push((url, post, at));
+        if self.sent.len() > 20 {
+            self.sent.remove(0);
+        }
+    }
+
+    /// The form a download from `url` is the answer to, where one was sent
+    /// there lately and the download was not sent on elsewhere (`final_url`):
+    /// a form answered with a redirect is fetched at the redirect's address
+    /// with an ordinary request. Taken, so it goes with one download.
+    pub fn take(&mut self, url: &str, final_url: &str, at: f64) -> Option<dm_protocol::Posted> {
+        let url = url.split('#').next().unwrap_or(url);
+        let landed = final_url.split('#').next().unwrap_or(final_url);
+        if !landed.is_empty() && landed != url {
+            return None;
+        }
+        let at_index = self
+            .sent
+            .iter()
+            .rposition(|(u, _, when)| u == url && at - *when < FORM_KEPT_MS)?;
+        Some(self.sent.remove(at_index).1)
+    }
+}
+
+/// The file names the links' `download` attributes give, keyed as
+/// `links_from` keys their addresses: the last part of the name only (a
+/// page cannot choose the folder), with no control characters, cut to 200
+/// characters; a name that is nothing, `.` or `..` is none.
+pub fn link_names(
+    given: &std::collections::BTreeMap<String, String>,
+    urls: &[String],
+) -> std::collections::BTreeMap<String, String> {
+    let sent: std::collections::HashSet<&str> = urls.iter().map(String::as_str).collect();
+    let mut out = std::collections::BTreeMap::new();
+    for (href, name) in given {
+        let href = href.trim();
+        let key = href.split('#').next().unwrap_or(href);
+        let last = name.rsplit(['/', '\\']).next().unwrap_or_default();
+        let name: String = last
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(200)
+            .collect::<String>()
+            .trim()
+            .to_string();
+        if !matches!(name.as_str(), "" | "." | "..") && sent.contains(key) && !out.contains_key(key)
+        {
+            out.insert(key.to_string(), name);
+        }
+    }
+    out
+}
+
+/// The words of the links sent, keyed as `links_from` keys their addresses
+/// (no fragment, no spaces around), their spaces closed up and cut to 200
+/// characters; the first words given an address win.
+pub fn link_texts(
+    texts: &std::collections::BTreeMap<String, String>,
+    urls: &[String],
+) -> std::collections::BTreeMap<String, String> {
+    let sent: std::collections::HashSet<&str> = urls.iter().map(String::as_str).collect();
+    let mut out = std::collections::BTreeMap::new();
+    for (href, words) in texts {
+        let href = href.trim();
+        let key = href.split('#').next().unwrap_or(href);
+        let words: String = words
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(200)
+            .collect();
+        if !words.is_empty() && sent.contains(key) && !out.contains_key(key) {
+            out.insert(key.to_string(), words);
+        }
+    }
+    out
 }
 
 /// Whether the browser lets an extension run a script in a page at `url`,
@@ -68,9 +173,11 @@ pub const NO_LINKS_HERE: &str =
 /// What a context menu click or the toolbar button asks for.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Target {
+    /// The address to download.
     pub url: String,
+    /// The page it was found on.
     pub referrer: String,
-    /// A page rather than a file: the app hands it to yt-dlp if it turns out
+    /// A page rather than a file: the app reads it as a video page if it turns out
     /// to be a player page.
     pub page: bool,
 }
@@ -79,10 +186,15 @@ pub struct Target {
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MenuClick {
+    /// Which menu entry was clicked.
     pub menu_item_id: Value,
+    /// The link clicked, if any.
     pub link_url: Option<String>,
+    /// The media element's address, if any.
     pub src_url: Option<String>,
+    /// The address of the page.
     pub page_url: Option<String>,
+    /// The address of the frame the click was in.
     pub frame_url: Option<String>,
 }
 
@@ -121,7 +233,7 @@ pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
     let target = match item {
         MENU_LINK => Target {
             url: text(&click.link_url),
-            referrer: page.clone(),
+            referrer: page,
             page: false,
         },
         MENU_MEDIA => {
@@ -129,19 +241,15 @@ pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
             if handable(&src) {
                 Target {
                     url: src,
-                    referrer: page.clone(),
+                    referrer: page,
                     page: false,
                 }
             } else {
                 // A `blob:` source is a Media Source player assembling the
                 // video from pieces; the file does not exist anywhere to be
-                // fetched. The page does, and the app's yt-dlp reads it.
+                // fetched. The page does, and the app reads it.
                 Target {
-                    url: if frame.is_empty() {
-                        page.clone()
-                    } else {
-                        frame
-                    },
+                    url: if frame.is_empty() { page } else { frame },
                     referrer: String::new(),
                     page: true,
                 }

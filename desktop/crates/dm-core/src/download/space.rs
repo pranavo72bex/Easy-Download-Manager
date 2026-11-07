@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// Disk space promised to the downloads under way. Each download that
@@ -340,6 +345,7 @@ pub fn largest_file(dir: &Path) -> Option<u64> {
     matches!(name.as_str(), "FAT32" | "FAT").then_some(FAT32_MOST)
 }
 
+/// The largest file the folder's disk allows; unknown on this system.
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn largest_file(_dir: &Path) -> Option<u64> {
     None
@@ -375,6 +381,7 @@ pub fn free_space(dir: &Path) -> Option<u64> {
     reported_free(free, total)
 }
 
+/// The free space of the folder's disk; unknown on this system.
 #[cfg(not(any(unix, windows)))]
 pub fn free_space(_dir: &Path) -> Option<u64> {
     None

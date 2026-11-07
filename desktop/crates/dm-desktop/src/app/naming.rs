@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
@@ -35,8 +40,8 @@ impl DmApp {
         } else {
             row.filename.clone()
         };
-        categories.site = dm_core::category::host_of(&row.url);
-        let kind = match kind_of(row).or_else(|| dm_core::category::by_name(&name)) {
+        categories.site = dm_core::host_of(&row.url);
+        let kind = match kind_of(row).or_else(|| dm_core::by_name(&name)) {
             Some(kind) => kind,
             None if categories.custom_for(&name, &categories.site).is_some() => {
                 dm_core::Category::Other
@@ -69,6 +74,8 @@ impl DmApp {
         before
     }
 
+    /// The name the row's file will get in its folder.
+    #[must_use]
     pub fn name_it_will_get(&self, row: &Entry, categories: &mut dm_core::Categories) -> String {
         self.name_it_will_get_after(row, categories, None)
     }
@@ -123,8 +130,7 @@ impl DmApp {
                     })
                     .count()
             });
-            let said =
-                dm_core::download::nth_free_name(std::path::Path::new(&folder), &name, before);
+            let said = dm_core::nth_free_name(std::path::Path::new(&folder), &name, before);
             free.insert(key, (Instant::now(), said.clone()));
             said
         })

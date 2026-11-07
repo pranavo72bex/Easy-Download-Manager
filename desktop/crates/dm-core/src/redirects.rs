@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Redirects, followed by dm itself rather than by reqwest.
 //!
 //! reqwest follows a redirect with the headers it was given, drops the
@@ -24,6 +29,23 @@ use crate::Error;
 /// How many times an address may be sent on before dm gives up on it: a
 /// loop is a server problem that should not become a hang.
 pub const MOST_HOPS: usize = 10;
+
+/// The headers a hop to another host keeps: those any request of dm's
+/// carries, whatever it is for (`Referer` is cut to its origin below). Every
+/// other header was set for the first host, by the browser that handed the
+/// download over or by a site's own player, and stays there.
+const CARRIED_ACROSS: [&str; 10] = [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "range",
+    "if-range",
+    "referer",
+    "origin",
+    "content-type",
+    "pragma",
+];
 
 /// Sends the request and follows what it is sent on to, by dm's rules.
 ///
@@ -100,6 +122,17 @@ pub async fn execute(
                 headers.remove(name);
             }
             headers.remove("cookie2");
+            // The browser's own request headers (`SignIn::extra`: a site's
+            // `X-Api-Key`, `X-Auth-Token` …) are the first host's, as its
+            // cookies are: only what any request of dm's carries goes on.
+            let dropped: Vec<_> = headers
+                .keys()
+                .filter(|name| !CARRIED_ACROSS.contains(&name.as_str()))
+                .cloned()
+                .collect();
+            for name in dropped {
+                headers.remove(name);
+            }
             let origin = headers
                 .get(REFERER)
                 .and_then(|page| referer_across(page, &to));

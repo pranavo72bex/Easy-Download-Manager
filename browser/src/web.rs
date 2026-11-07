@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The browser side: extension APIs, native messaging, and the handlers the
 //! loader forwards events to.
 //!
@@ -34,6 +39,20 @@ thread_local! {
     static TAKEN: RefCell<Released> = RefCell::new(Released::default());
     /// Media each tab has loaded, for the panel's list.
     static STREAMS: RefCell<decide::Streams> = RefCell::new(decide::Streams::default());
+    /// The last request headers per address, for the hand-off that address
+    /// begins. In memory only: never stored, never logged.
+    static SENT: RefCell<decide::RequestHeaders> = RefCell::new(decide::RequestHeaders::default());
+    /// The forms pages sent lately, for a download that is a form's answer.
+    static FORMS: RefCell<decide::Forms> = RefCell::new(decide::Forms::default());
+    /// Whether the kept request headers were read back from the session's storage, and whether a
+    /// write of them is already waiting.
+    static SENT_LOADED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static SENT_WRITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Streams handed to dm, for a newer address of one the page asks for (gaps row 121), with
+    /// whether they were read back from the session's storage and when they were last looked at.
+    static HANDED: RefCell<decide::Handed> = RefCell::new(decide::Handed::default());
+    static HANDED_LOADED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static HANDED_LOOKED: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
     /// Which page each tab is on, so an `Add` that outlives its page is dropped.
     static PAGES: RefCell<decide::Pages> = RefCell::new(decide::Pages::default());
     /// Whether "update the dm app" has been said in this worker's life: once

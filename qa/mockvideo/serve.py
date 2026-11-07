@@ -1,4 +1,9 @@
-"""Serves the mock video site with ranges (yt-dlp and dm both ask for them)."""
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+"""Serves the mock video site with ranges (dm asks for them)."""
 import http.server
 import os
 import re

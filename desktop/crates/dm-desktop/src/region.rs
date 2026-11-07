@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The computer's regional formats: the decimal mark, the order a date is
 //! written in, and a 12- or 24-hour clock. They are the person's choice in
 //! the system's settings, apart from the language dm speaks: someone who
@@ -20,8 +25,11 @@ pub enum Order {
 /// How numbers and dates are written where this computer is set up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Region {
+    /// The character that separates a number's whole part from its fraction.
     pub decimal: char,
+    /// The order a date's day, month and year are written in.
     pub order: Order,
+    /// Whether the clock shows 12 hours with am and pm rather than 24.
     pub hour12: bool,
 }
 

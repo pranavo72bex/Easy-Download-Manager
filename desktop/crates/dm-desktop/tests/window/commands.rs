@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use crate::support::*;
 
 fn is_there(h: &Harness<'_, DmApp>, name: &str) -> bool {
@@ -23,7 +28,7 @@ fn every_dialog_in_every_language_is_translated() {
         dm_desktop::i18n::set(code);
         dm_desktop::i18n::record_missing();
         harness.run_steps(3);
-        for menu in ["Program", "File", "Downloads", "View", "Help"] {
+        for menu in ["Tasks", "File", "Downloads", "View", "Help"] {
             harness.get_by_label(dm_desktop::i18n::t(menu)).click();
             harness.run_steps(3);
             harness.key_press(egui::Key::Escape);
@@ -86,8 +91,7 @@ fn every_dialog_in_every_language_is_translated() {
             dm_desktop::dialogs::Tab::FileTypes,
             dm_desktop::dialogs::Tab::SaveTo,
             dm_desktop::dialogs::Tab::Downloads,
-            dm_desktop::dialogs::Tab::Connection,
-            dm_desktop::dialogs::Tab::Proxy,
+            dm_desktop::dialogs::Tab::Advanced,
             dm_desktop::dialogs::Tab::SiteLogins,
         ] {
             if let Some(options) = harness.state_mut().dialogs.options.as_mut() {
@@ -241,23 +245,23 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.run_steps(2);
 
     // Tasks
-    press(&mut h, &["Program", "Add URL"]);
+    press(&mut h, &["Tasks", "Add URL"]);
     assert!(
         h.state().dialogs.add_url.is_some(),
         "Program › Add new download"
     );
     h.state_mut().dialogs.add_url = None;
-    press(&mut h, &["Program", "Add numbered series"]);
+    press(&mut h, &["Tasks", "Add numbered series"]);
     assert!(
         h.state().dialogs.series.is_some(),
         "Program › Add numbered series"
     );
     h.state_mut().dialogs.series = None;
     *world.fake.clipboard.lock().unwrap() = Some(world.url("clip.bin"));
-    press(&mut h, &["Program", "Add links from clipboard"]);
+    press(&mut h, &["Tasks", "Add links from clipboard"]);
     assert!(h.state().dialogs.clip_links.is_some(), "… from clipboard");
     h.state_mut().dialogs.clip_links = None;
-    press(&mut h, &["Program", "Site files"]);
+    press(&mut h, &["Tasks", "Grabber"]);
     assert!(
         h.state().dialogs.site_files.is_some(),
         "Program › Site files"
@@ -265,7 +269,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.state_mut().dialogs.site_files = None;
     let list = world.dir.path().join("list.dmlist");
     *world.fake.chosen.lock().unwrap() = Some(list.clone());
-    press(&mut h, &["Program", "Export"]);
+    press(&mut h, &["Tasks", "Export"]);
     let exported = std::fs::read_to_string(&list).unwrap();
     assert!(
         ["file.zip", "stalled.bin", "other.pdf"]
@@ -389,8 +393,8 @@ fn every_menu_item_clicked_does_what_it_says() {
     });
 
     // Downloads
-    press(&mut h, &["Downloads", "Stop all"]);
-    until(&mut h, "Stop all", |app| {
+    press(&mut h, &["Downloads", "Stop All"]);
+    until(&mut h, "Stop All", |app| {
         app.rows().iter().all(|r| r.state != State::Running)
     });
     press(&mut h, &["Downloads", "Resume all"]);
@@ -477,14 +481,15 @@ fn every_menu_item_clicked_does_what_it_says() {
         "nothing slept"
     );
     h.state_mut().place = dm_desktop::app::Place::Queue(dm_core::MAIN_QUEUE.into());
-    press(&mut h, &["Downloads", "Start queue"]);
+    // Each a list of the queues, as reference A's menu has.
+    press(&mut h, &["Downloads", "Start Queue", "Main queue"]);
     assert!(
         h.state().said.english().starts_with("Started")
             || h.state().said.english().starts_with("Nothing in"),
         "Start queue: {:?}",
         h.state().said
     );
-    press(&mut h, &["Downloads", "Stop queue"]);
+    press(&mut h, &["Downloads", "Stop Queue", "Main queue"]);
     assert!(
         h.state().said.english().starts_with("Stopped"),
         "Stop queue: {:?}",
@@ -514,7 +519,7 @@ fn every_menu_item_clicked_does_what_it_says() {
         std::path::Path::new(&done.path).exists(),
         "the first copy is kept"
     );
-    press(&mut h, &["Downloads", "Clear finished"]);
+    press(&mut h, &["Downloads", "Delete Completed"]);
     assert!(
         h.state().rows().iter().all(|r| r.state != State::Completed),
         "Downloads › Clear all finished"
@@ -523,8 +528,8 @@ fn every_menu_item_clicked_does_what_it_says() {
     // Remove waits for a download to stop, then asks first.
     select(&mut h, "stalled.bin");
     assert!(
-        greyed(&mut h, &["File", "Remove"]),
-        "Remove while it is downloading"
+        greyed(&mut h, &["File", "Delete"]),
+        "Delete while it is downloading"
     );
     press(&mut h, &["File", "Stop download"]);
     until(&mut h, "it to stop", |app| {
@@ -532,7 +537,7 @@ fn every_menu_item_clicked_does_what_it_says() {
             .iter()
             .all(|r| r.filename != "stalled.bin" || r.state == State::Paused)
     });
-    press(&mut h, &["File", "Remove"]);
+    press(&mut h, &["File", "Delete"]);
     assert!(
         h.state().dialogs.confirm_remove.is_some(),
         "File › Remove asks first"
@@ -545,7 +550,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     // Import what Export wrote at the start: its rows come back.
     *world.fake.chosen.lock().unwrap() = Some(list.clone());
     let rows = h.state().rows().len();
-    press(&mut h, &["Program", "Import"]);
+    press(&mut h, &["Tasks", "Import"]);
     assert!(
         h.state().said.english().starts_with("Imported"),
         "Program › Import: {:?}",
@@ -560,7 +565,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     // With nothing downloading, Exit quits; with something, it asks.
     h.state_mut().run(Command::StopAll);
     h.state_mut().refresh();
-    press(&mut h, &["Program", "Exit"]);
+    press(&mut h, &["Tasks", "Exit"]);
     assert!(h.state().quit_asked, "Program › Exit");
 }
 
@@ -592,8 +597,8 @@ fn every_toolbar_button_clicked_does_what_it_says() {
     tool(&mut h, "Scheduler");
     assert!(h.state().dialogs.scheduler.is_some(), "Scheduler");
     h.state_mut().dialogs.scheduler = None;
-    tool(&mut h, "Site files");
-    assert!(h.state().dialogs.site_files.is_some(), "Site files");
+    tool(&mut h, "Grabber");
+    assert!(h.state().dialogs.site_files.is_some(), "Grabber");
     h.state_mut().dialogs.site_files = None;
 
     select(&mut h, "stalled.bin");
@@ -609,36 +614,36 @@ fn every_toolbar_button_clicked_does_what_it_says() {
             .iter()
             .any(|r| r.filename == "stalled.bin" && r.state != State::Paused)
     });
-    tool(&mut h, "Stop all");
-    until(&mut h, "Stop all", |app| {
+    tool(&mut h, "Stop All");
+    until(&mut h, "Stop All", |app| {
         app.rows().iter().all(|r| r.state != State::Running)
     });
 
     h.state_mut().place = dm_desktop::app::Place::Queue(dm_core::MAIN_QUEUE.into());
-    tool(&mut h, "Start queue");
+    tool(&mut h, "Start Queue");
     assert!(
         h.state().said.english().starts_with("Started")
             || h.state().said.english().starts_with("Nothing in"),
-        "Start queue"
+        "Start Queue"
     );
-    tool(&mut h, "Stop queue");
+    tool(&mut h, "Stop Queue");
     assert!(
         h.state().said.english().starts_with("Stopped"),
-        "Stop queue"
+        "Stop Queue"
     );
     h.state_mut().place = dm_desktop::app::Place::All;
     h.run_steps(3);
 
-    tool(&mut h, "Clear finished");
-    assert!(!is_there(&h, "file.zip"), "Clear finished");
+    tool(&mut h, "Delete Completed");
+    assert!(!is_there(&h, "file.zip"), "Delete Completed");
     select(&mut h, "stalled.bin");
-    tool(&mut h, "Remove");
+    tool(&mut h, "Delete");
     assert!(
         h.state().dialogs.confirm_remove.is_some(),
         "Delete asks first for an unfinished one"
     );
     click(&mut h, "Yes, remove");
-    until(&mut h, "Remove", |app| {
+    until(&mut h, "Delete", |app| {
         app.rows().iter().all(|r| r.filename != "stalled.bin")
     });
 }
@@ -730,14 +735,14 @@ fn every_row_menu_item_clicked_does_what_it_says() {
             .iter()
             .any(|r| r.id == stalled.id && r.state == State::Paused)
     });
-    right(&mut h, "stalled.bin", "Remove");
+    right(&mut h, "stalled.bin", "Delete");
     assert_eq!(
         h.state().dialogs.confirm_remove,
         Some(vec![stalled.id]),
         "Remove asks first"
     );
     click(&mut h, "Yes, remove");
-    until(&mut h, "Remove", |app| {
+    until(&mut h, "Delete", |app| {
         app.rows().iter().all(|r| r.id != stalled.id)
     });
 
@@ -808,7 +813,7 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
         (2.0, egui::vec2(960.0, 660.0)),
     ] {
         for (command, title, button) in [
-            (Command::SiteFiles, "Site files", "Find files"),
+            (Command::SiteFiles, "Grabber", "Find files"),
             (Command::AddUrl, "Add URL", "OK"),
             (Command::AddSeries, "Add numbered series", "Cancel"),
             (Command::Scheduler, "Scheduler", "Cancel"),
@@ -844,7 +849,7 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
             );
             // Below the menu bar, which dialogs opened over.
             let bar = harness
-                .query_all_by_label("Program")
+                .query_all_by_label("Tasks")
                 .map(|n| n.rect())
                 .find(|at| at.top() < 40.0)
                 .expect("the menu bar");
@@ -879,4 +884,60 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
             );
         }
     }
+}
+
+/// Start Queue and Stop Queue each have an arrow that lists the queues, as
+/// reference A's toolbar does: the queue chosen there is started or stopped,
+/// whatever the list shows; the button itself keeps to the list's queue.
+#[test]
+fn the_queue_arrows_start_and_stop_the_queue_chosen() {
+    let world = world();
+    let mut h = world.harness();
+    add_url(&mut h, &world.url("file.zip"), "Add for later");
+    h.state_mut().refresh();
+    let id = row(&h, "file.zip").id;
+    h.state().backend.set_queue(id, "Night");
+    until(&mut h, "the row to be in the Night queue", |app| {
+        app.rows().iter().any(|r| r.queue == "Night")
+    });
+    // The list shows every download, so the button would act on the Main
+    // queue; the arrow's choice is Night.
+    h.state_mut().place = dm_desktop::app::Place::All;
+    h.run_steps(3);
+    click(&mut h, "Choose the queue to start");
+    press_last(&mut h, "Night");
+    assert_eq!(
+        h.state().said.english(),
+        "Started 1 download in Night.",
+        "the arrow did not start the queue chosen"
+    );
+    until(&mut h, "the Night queue's download to complete", |app| {
+        app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    // Stop Queue's arrow on Night: nothing is left there to stop.
+    click(&mut h, "Choose the queue to stop");
+    press_last(&mut h, "Night");
+    assert_eq!(h.state().said.english(), "Stopped 0 downloads in Night.");
+    // The choice was for that one command: the button itself acts on the
+    // list's queue again.
+    assert!(h.state().queue_chosen.is_none());
+    h.query_all_by_label("Start Queue")
+        .next()
+        .expect("the toolbar's Start Queue")
+        .click();
+    h.run_steps(3);
+    assert_eq!(
+        h.state().said.english(),
+        "Nothing in Main queue was waiting to start."
+    );
+}
+
+/// Clicks the last button on screen with exactly this name: an item of the
+/// menu just opened (a row's Q cell carries the same name, as a label).
+fn press_last(h: &mut Harness<'_, DmApp>, name: &str) {
+    h.query_all_by_label(name)
+        .rfind(|n| n.accesskit_node().role() == egui::accesskit::Role::Button)
+        .unwrap_or_else(|| panic!("{name:?} is not on screen"))
+        .click();
+    h.run_steps(3);
 }

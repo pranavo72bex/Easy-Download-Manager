@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use crate::support::*;
 use crate::test_secrets;
 
@@ -44,10 +49,7 @@ fn a_newer_release_offers_its_installer_as_a_download_in_dm() {
     std::fs::write(&sample, payload()).unwrap();
     let sha256 = tokio::runtime::Runtime::new()
         .unwrap()
-        .block_on(dm_core::checksum::digest(
-            &sample,
-            dm_core::checksum::Algorithm::Sha256,
-        ))
+        .block_on(dm_core::digest(&sample, dm_core::Algorithm::Sha256))
         .unwrap();
     let offer = |harness: &mut Harness<'_, DmApp>, url: String, sha256: String| {
         *harness.state().update.lock().unwrap() = dm_desktop::update::Update::Newer(
@@ -406,7 +408,7 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
     harness.run_steps(2);
     assert!(
         harness.query_by_label("Main queue").is_some(),
-        "the Queue column does not name the queue"
+        "the Q column does not name the queue"
     );
     harness.get_by_label_contains("Main queue (").click();
     harness.run_steps(3);
@@ -414,7 +416,7 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
         harness.state().place,
         Place::Queue(dm_core::MAIN_QUEUE.into())
     );
-    click(&mut harness, "Start queue");
+    click(&mut harness, "Start Queue");
     until(&mut harness, "the queue's download to complete", |app| {
         app.rows().iter().all(|r| r.state == State::Completed)
     });
@@ -1111,7 +1113,7 @@ fn the_small_things_of_round_eight() {
         let mut harness = world.harness();
         harness.run_steps(3);
         let heading = harness
-            .get_by_label("Name")
+            .get_by_label("File Name")
             .accesskit_node()
             .bounding_box()
             .unwrap();
@@ -1180,7 +1182,7 @@ fn the_small_things_of_round_eight() {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
     let delete_at = |h: &Harness<'_, DmApp>| {
-        h.get_by_label("Remove")
+        h.get_by_label("Delete")
             .accesskit_node()
             .bounding_box()
             .unwrap()
@@ -1205,10 +1207,7 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
     let mut harness = world.harness();
     let first = world.url("file.zip");
     let second = world.url("other.pdf");
-    harness
-        .state_mut()
-        .dialogs
-        .open_add_url(Some(first.clone()));
+    harness.state_mut().dialogs.open_add_url(Some(&first));
     harness.run_steps(4);
     harness.event(egui::Event::Text(second.clone()));
     harness.run_steps(2);
@@ -1543,7 +1542,7 @@ fn a_file_added_again_is_listed_under_the_name_it_will_get() {
         .collect();
     assert!(names.contains(&"file (1).zip"), "{names:?}");
     // And it is placed there once fetched.
-    click(&mut harness, "Start queue");
+    click(&mut harness, "Start Queue");
     until(&mut harness, "the second copy to finish", |app| {
         app.rows()
             .iter()
@@ -1630,7 +1629,7 @@ fn add_url_takes_a_torrent_on_this_computer() {
         .as_ref()
         .map(|d| d.urls.clone())
         .expect("Download details did not open");
-    assert_eq!(urls, [dm_core::torrent::file_url(&file).unwrap()]);
+    assert_eq!(urls, [dm_core::file_url(&file).unwrap()]);
 }
 
 /// A stream server's address goes in through Add URL like any other, is
@@ -1893,7 +1892,7 @@ fn properties_show_the_files_sha256_and_check_a_given_digest() {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
     let finished = row(&harness, "file.zip");
-    let expected = hex::encode(Sha256::digest(std::fs::read(&finished.path).unwrap()));
+    let expected = dm_core::hex::encode(Sha256::digest(std::fs::read(&finished.path).unwrap()));
     let id = finished.id;
     harness.state_mut().dialogs.open_properties(&finished);
     until(&mut harness, "its SHA-256 to be shown", |_| true);
@@ -2015,7 +2014,7 @@ fn the_hovered_row_offers_stop_and_remove_on_itself() {
     harness.run_steps(3);
     let name = dm_desktop::app::name_of(&harness.state().rows()[0].clone());
     assert!(
-        harness.query_by_label(&format!("Remove {name}")).is_some(),
+        harness.query_by_label(&format!("Delete {name}")).is_some(),
         "no buttons on the hovered row"
     );
     // A progress window no longer opens by itself: Details is how a person
@@ -2049,7 +2048,7 @@ fn a_finished_rows_buttons_open_the_file_and_its_folder() {
     harness.hover_at(rect.center());
     harness.run_steps(3);
     let name = dm_desktop::app::name_of(&row);
-    for button in ["Open", "Open folder", "Remove"] {
+    for button in ["Open", "Open folder", "Delete"] {
         assert!(
             harness
                 .query_by_label(&format!("{button} {name}"))

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The Windows program's own description: its icon, and the product name
 //! and version Explorer, SmartScreen and a code signature read off it.
 //! Nothing is done for any other system.
@@ -39,7 +44,7 @@ BEGIN
       VALUE "FileDescription", "dm download manager"
       VALUE "FileVersion", "{version}"
       VALUE "InternalName", "dm-desktop"
-      VALUE "LegalCopyright", "Copyright (c) 2026 dm contributors. MIT License."
+      VALUE "LegalCopyright", "Copyright (C) 2026 pranavo72bex and the dm contributors. GPL-3.0-or-later."
       VALUE "OriginalFilename", "dm-desktop.exe"
       VALUE "ProductName", "dm"
       VALUE "ProductVersion", "{version}"

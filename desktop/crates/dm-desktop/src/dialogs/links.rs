@@ -1,6 +1,27 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 /// The "Download links" dialog.
 pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
+    if app.dialogs.links.is_none() {
+        return;
+    }
+    // Where each link goes, for the Save to column and the choice of one
+    // category: the settings' folders and categories.
+    let root = app.applied.download_dir.clone();
+    let categories = app.applied.categories();
+    let customs: Vec<String> = app
+        .applied
+        .custom_categories
+        .iter()
+        .map(|c| c.name.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .collect();
+    let platform = &app.backend.platform;
+    let queues = app.queues();
     let Some(d) = app.dialogs.links.as_mut() else {
         return;
     };
@@ -20,7 +41,7 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             } else {
                 0
             };
-            let hidden = d.items.iter().filter(|(u, _)| !d.shown(u)).count();
+            let hidden = d.visible().iter().filter(|listed| !**listed).count();
             ui.label(tf(
                 "{} links on {}",
                 &[&(d.items.len() - hidden), &format::shown_url(&d.page)],
@@ -44,10 +65,15 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                 )
                 .labelled_by(name.id);
             });
-            ui.horizontal(|ui| {
+            // What is left out, as reference A offers it.
+            ui.horizontal_wrapped(|ui| {
                 check(ui, &mut d.hide_html, t("Hide HTML files"));
+                check(ui, &mut d.hide_images, t("Hide images"));
+                check(ui, &mut d.hide_repeats, t("Hide repeated files"));
+            });
+            ui.horizontal(|ui| {
                 // Check all and Uncheck all act on what is listed.
-                let listed: Vec<bool> = d.items.iter().map(|(u, _)| d.shown(u)).collect();
+                let listed = d.visible();
                 if ui.button(t("Check all")).clicked() {
                     for (l, shown) in d.items.iter_mut().zip(&listed) {
                         if *shown {
@@ -71,27 +97,37 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                     *on = false;
                 }
             }
-            let listed: Vec<bool> = d.items.iter().map(|(u, _)| d.shown(u)).collect();
+            let listed = d.visible();
+            let mut edit_asked: Option<usize> = None;
             egui::ScrollArea::vertical()
                 .max_height(320.0)
                 .show(ui, |ui| {
                     egui::Grid::new("links")
-                        .num_columns(3)
+                        .num_columns(6)
                         .striped(true)
                         .show(ui, |ui| {
                             ui.strong(t("File name"));
                             ui.strong(t("Type"));
                             ui.strong(t("Size"));
+                            ui.strong(t("Save to"));
+                            ui.strong(t("Link text"));
+                            ui.label("");
                             ui.end_row();
-                            for ((url, on), shown) in d.items.iter_mut().zip(listed) {
+                            let names: Vec<String> =
+                                d.items.iter().map(|(url, _)| d.name_of(url)).collect();
+                            let texts = d.texts.clone();
+                            let folders: Vec<String> = d
+                                .items
+                                .iter()
+                                .map(|(url, _)| d.folder_of(url, &root, &categories))
+                                .collect();
+                            for (n, (((url, on), shown), name)) in
+                                d.items.iter_mut().zip(listed).zip(names).enumerate()
+                            {
                                 if !shown {
                                     continue;
                                 }
                                 let what = found.get(url.as_str());
-                                let name = what
-                                    .map(|f| f.name.clone())
-                                    .filter(|n| !n.is_empty())
-                                    .unwrap_or_else(|| format::provisional(url));
                                 let name = if d.listed.contains(&bare(url)) {
                                     tf("{} (already in the list)", &[&name])
                                 } else {
@@ -122,10 +158,120 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                                     .map(format::bytes)
                                     .unwrap_or_default();
                                 ui.label(crate::table::digits(ui, size));
+                                // The folder's own name, its whole path on hover:
+                                // cut to the room, a path said only its drive.
+                                let folder = folders.get(n).cloned().unwrap_or_default();
+                                let last = std::path::Path::new(&folder)
+                                    .file_name()
+                                    .map(|f| f.to_string_lossy().into_owned())
+                                    .unwrap_or_else(|| folder.clone());
+                                ui.add(egui::Label::new(RichText::new(last).weak()).truncate())
+                                    .on_hover_text(&folder);
+                                // Its words on the page, as reference A's Link Text.
+                                let words = texts.get(url.as_str()).cloned().unwrap_or_default();
+                                ui.add(egui::Label::new(RichText::new(&words).weak()).truncate())
+                                    .on_hover_text(&words);
+                                // Its name and address changed before it is added.
+                                if ui.small_button(t("Edit")).clicked() {
+                                    edit_asked = Some(n);
+                                }
                                 ui.end_row();
                             }
                         });
                 });
+            if let Some(n) = edit_asked {
+                d.editing = Some(n);
+            }
+            // The row being edited: its name and its address.
+            if let Some(n) = d.editing.filter(|n| *n < d.items.len()) {
+                let url = d.items[n].0.clone();
+                // As typed, spaces and all; trimmed where it is used.
+                let mut name = d
+                    .names
+                    .get(&url)
+                    .cloned()
+                    .unwrap_or_else(|| d.name_of(&url));
+                let mut address = url.clone();
+                ui.horizontal_wrapped(|ui| {
+                    field(ui, t("File name"), &mut name, 160.0);
+                    field(ui, t("Address"), &mut address, 200.0);
+                    if ui.button(t("Done")).clicked() {
+                        d.editing = None;
+                    }
+                });
+                let address = address.trim().to_string();
+                if !address.is_empty() && address != url {
+                    if let Some(given) = d.names.remove(&url) {
+                        d.names.insert(address.clone(), given);
+                    }
+                    d.items[n].0 = address.clone();
+                }
+                let key = if address.is_empty() { url } else { address };
+                // Kept once it differs from the name it would have, and while
+                // it is being typed after that.
+                if d.names.contains_key(&key) || name.trim() != d.name_of(&key) {
+                    d.names.insert(key, name);
+                }
+            }
+            // Each link's words on the page kept as its download's description.
+            check(ui, &mut d.use_texts, t("Use link texts as descriptions"));
+            // Where the ticked links go, as reference A offers it.
+            ui.label(RichText::new(t("Save to")).strong());
+            if radio_flag(
+                ui,
+                d.save_to == SaveTo::ByCategory,
+                t("Each file to the folder of its category"),
+            )
+            .clicked()
+            {
+                d.save_to = SaveTo::ByCategory;
+            }
+            ui.horizontal(|ui| {
+                if radio_flag(
+                    ui,
+                    d.save_to == SaveTo::OneCategory,
+                    t("Every file to this category"),
+                )
+                .clicked()
+                {
+                    d.save_to = SaveTo::OneCategory;
+                }
+                ui.add_enabled_ui(d.save_to == SaveTo::OneCategory, |ui| {
+                    let shown = |word: &str| crate::i18n::name(&format::titled(word));
+                    combo("links-category")
+                        .selected_text(shown(&d.category))
+                        .show_ui(ui, |ui| {
+                            for kind in dm_core::Category::ALL {
+                                let word = crate::app::category_word(kind);
+                                pick(ui, &mut d.category, word.clone(), shown(&word));
+                            }
+                            for own in &customs {
+                                pick(ui, &mut d.category, own.clone(), own.clone());
+                            }
+                        });
+                });
+            });
+            ui.horizontal(|ui| {
+                if radio_flag(
+                    ui,
+                    d.save_to == SaveTo::OneFolder,
+                    t("Every file to this folder"),
+                )
+                .clicked()
+                {
+                    d.save_to = SaveTo::OneFolder;
+                }
+                ui.add_enabled_ui(d.save_to == SaveTo::OneFolder, |ui| {
+                    let wide = (ui.available_width() - 120.0).clamp(120.0, 320.0);
+                    let name = t("Every file to this folder");
+                    let typed =
+                        ui.add(egui::TextEdit::singleline(&mut d.folder).desired_width(wide));
+                    typed.widget_info(|| {
+                        egui::WidgetInfo::labeled(egui::Role::TextInput, true, name)
+                    });
+                    browse(ui, &**platform, &mut d.folder);
+                });
+            });
             footer(ui, |ui| {
                 if primary(ui, "Start now").clicked() || enter_free(ui) {
                     chosen = Some(false);
@@ -133,19 +279,37 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                 if ui.button(t("Add for later")).clicked() {
                     chosen = Some(true);
                 }
+                // The queue they wait in, as reference A asks on closing a
+                // batch dialog and as Download details offers (gaps row 85).
+                let to = ui.label(t("queue:to").trim_start_matches("queue:"));
+                combo("links-queue")
+                    .selected_text(crate::i18n::name(&d.queue))
+                    .show_ui(ui, |ui| {
+                        for q in queues.iter() {
+                            pick(ui, &mut d.queue, q.clone(), crate::i18n::name(q));
+                        }
+                    })
+                    .response
+                    .labelled_by(to.id);
                 cancel = ui.button(t("Cancel")).clicked();
             });
         });
     if let Some(later) = chosen {
+        if d.save_to == SaveTo::OneFolder && d.folder.trim().is_empty() {
+            app.said = crate::i18n::Said::new("Choose the folder every file goes to.", &[]);
+            return;
+        }
         let chosen = d.chosen();
+        let queue = if d.queue.trim().is_empty() {
+            MAIN_QUEUE.to_string()
+        } else {
+            d.queue.clone()
+        };
         let with = AddOptions {
             later,
-            queue: if later {
-                MAIN_QUEUE.into()
-            } else {
-                String::new()
-            },
+            queue: if later { queue.clone() } else { String::new() },
             referrer: d.page.clone(),
+            save_dir: d.save_dir(&root, &categories),
             ..AddOptions::default()
         };
         // The sizes the servers already told, kept on the rows until each
@@ -154,31 +318,45 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             .iter()
             .filter_map(|(url, found)| found.size.map(|size| (url.clone(), size)))
             .collect();
-        // The page's sign-in goes with the links on its own server, and with
-        // no others.
-        let (signed, plain): (Vec<String>, Vec<String>) = chosen.into_iter().partition(|link| {
-            d.sign_in
-                .as_ref()
-                .is_some_and(|s| s.for_url(link).is_some())
-        });
-        let signed_with = AddOptions {
-            cookies: d.cookies.clone(),
-            ..with.clone()
-        };
+        // Each link with what is its own: the page's sign-in for the links on
+        // its own server and no others, a name given with Edit, and its words
+        // on the page as its description where that is asked for.
+        let items: Vec<(String, AddOptions)> = chosen
+            .into_iter()
+            .map(|url| {
+                let signed = d
+                    .sign_in
+                    .as_ref()
+                    .is_some_and(|s| s.for_url(&url).is_some());
+                let own = AddOptions {
+                    cookies: if signed {
+                        d.cookies.clone()
+                    } else {
+                        String::new()
+                    },
+                    save_name: d
+                        .names
+                        .get(&url)
+                        .map(|n| n.trim().to_string())
+                        .filter(|n| !n.is_empty()),
+                    description: if d.use_texts {
+                        d.texts.get(&url).cloned().unwrap_or_default()
+                    } else {
+                        String::new()
+                    },
+                    ..with.clone()
+                };
+                (url, own)
+            })
+            .collect();
         app.dialogs.links = None;
-        let added = match (
-            app.add_sized(&signed, signed_with, &sizes),
-            app.add_sized(&plain, with, &sizes),
-        ) {
-            (Ok(a), Ok(b)) => Ok(a + b),
-            (Err(e), _) | (_, Err(e)) => Err(e),
-        };
+        let added = app.add_items(items, &sizes);
         match added {
             Ok(n) if later => {
                 app.said = crate::i18n::Said::counting_naming(
                     "Added {} download to {}.||Added {} downloads to {}.",
                     n as u64,
-                    &[&n, &MAIN_QUEUE],
+                    &[&n, &crate::i18n::name(&queue)],
                 )
             }
             Ok(n) => {

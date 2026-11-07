@@ -1,0 +1,38 @@
+{
+ "format": 1,
+ "revision": 3,
+ "exclude": {},
+ "sites": [
+  { "host": "facebook.com", "finders": [
+   { "player": "video", "id_path": "*.return.return.memoizedProps.coreVideoPlayerMetaData.videoFBID" }
+  ], "answers": [
+   { "url_contains": "/api/graphql", "keys": ["browser_native_hd_url", "browser_native_sd_url", "playable_url", "playable_url_quality_hd"] },
+   { "url_contains": "/graphql/query", "keys": ["browser_native_hd_url", "browser_native_sd_url", "playable_url", "playable_url_quality_hd"] }
+  ] },
+  { "host": "instagram.com", "answers": [
+   { "url_contains": "/api/graphql", "keys": ["browser_native_hd_url", "browser_native_sd_url", "video_url"] },
+   { "url_contains": "/graphql/query", "keys": ["browser_native_hd_url", "browser_native_sd_url", "video_url"] },
+   { "url_contains": "/api/v1/media/", "keys": ["url"] }
+  ] },
+  { "host": "vimeo.com", "finders": [
+   { "player": "div.vp-video, video", "id_from_url": "vimeo\\.com/(?:video/)?(\\d{2,})" }
+  ], "answers": [
+   { "url_contains": "/config", "keys": ["url"] }
+  ] },
+  { "host": "tiktok.com", "answers": [
+   { "url_contains": "/api/item/detail", "keys": ["playAddr", "downloadAddr"] },
+   { "url_contains": "/api/recommend/item_list", "keys": ["playAddr", "downloadAddr"] }
+  ] },
+  { "host": "x.com", "answers": [
+   { "url_contains": "/tweetdetail", "keys": ["url"] },
+   { "url_contains": "/videos/tweet/config", "keys": ["playbackUrl", "url"] }
+  ] },
+  { "host": "twitter.com", "answers": [
+   { "url_contains": "/tweetdetail", "keys": ["url"] },
+   { "url_contains": "/videos/tweet/config", "keys": ["playbackUrl", "url"] }
+  ] },
+  { "host": "reddit.com", "answers": [
+   { "url_contains": "/comments/", "keys": ["fallback_url", "dash_url", "hls_url"] }
+  ] }
+ ]
+}

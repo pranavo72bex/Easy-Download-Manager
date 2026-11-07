@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use crate::support::*;
 
 /// "When done" waited for nothing Running or Queued, so a queue a
@@ -59,6 +64,11 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
         .queue
         .set_schedule(dm_core::Schedule {
             wake: false,
+            when_done: String::new(),
+            retries: 0,
+            run_when_done: String::new(),
+            once_at: None,
+            force: false,
             enabled: true,
             from: "00:00".into(),
             to: "23:59".into(),
@@ -104,12 +114,19 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
     let mut harness = world.harness();
     harness.state_mut().run(Command::Scheduler);
     harness.run_steps(2);
-    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+    if let Some(schedule) = harness
+        .state_mut()
+        .dialogs
+        .scheduler
+        .as_mut()
+        .map(|d| &mut d.schedule)
+    {
         schedule.enabled = true;
         schedule.from = "25:00".into();
         schedule.to = "1am".into();
     }
-    harness.run_steps(2);
+    // Where the dialog has settled: it is centred again as it grows.
+    harness.run_steps(6);
     click(&mut harness, "OK");
     assert!(
         harness.state().dialogs.scheduler.is_some(),
@@ -122,7 +139,13 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
 
     // No day ticked is refused where it was unticked: every day is shown,
     // and kept, as seven ticks.
-    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+    if let Some(schedule) = harness
+        .state_mut()
+        .dialogs
+        .scheduler
+        .as_mut()
+        .map(|d| &mut d.schedule)
+    {
         schedule.from = "01:00".into();
         schedule.to = "07:00".into();
         schedule.days.clear();
@@ -131,7 +154,13 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
     click(&mut harness, "OK");
     assert!(harness.query_by_label("Tick at least one day.").is_some());
     assert!(!harness.state().backend().settings().schedule.enabled);
-    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+    if let Some(schedule) = harness
+        .state_mut()
+        .dialogs
+        .scheduler
+        .as_mut()
+        .map(|d| &mut d.schedule)
+    {
         schedule.days = (0..=6).collect();
     }
     harness.run_steps(2);
@@ -393,6 +422,11 @@ fn start_now_under_a_shut_schedule_offers_to_start_outside_it() {
     let mut wanted = harness.state().applied.clone();
     wanted.schedule = dm_core::Schedule {
         wake: false,
+        when_done: String::new(),
+        retries: 0,
+        run_when_done: String::new(),
+        once_at: None,
+        force: false,
         enabled: true,
         from: format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute()),
         to: format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute()),
@@ -435,4 +469,170 @@ fn the_speed_presets_set_and_lift_the_limit() {
             .block_on(harness.state().backend().queue.speed_limit());
         assert_eq!(in_force, kb * 1024, "{item} not in force");
     }
+}
+
+/// Each queue keeps hours of its own, chosen in the Scheduler's queue list
+/// as reference A's: the Main queue's are the ones every other queue
+/// follows until it is given its own; a queue can start once on a date; and
+/// Start now starts the queue chosen there.
+#[test]
+fn two_queues_keep_their_own_hours_in_the_scheduler() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.state_mut().refresh();
+    let id = row(&harness, "file.zip").id;
+    harness.state().backend.set_queue(id, "Night");
+    until(&mut harness, "the row to be in the Night queue", |app| {
+        app.rows().iter().any(|r| r.queue == "Night")
+    });
+
+    harness.state_mut().run(Command::Scheduler);
+    harness.run_steps(2);
+    if let Some(d) = harness.state_mut().dialogs.scheduler.as_mut() {
+        assert_eq!(d.queue, dm_core::MAIN_QUEUE, "opened on the list's queue");
+        d.schedule.enabled = true;
+        d.schedule.from = "01:00".into();
+        d.schedule.to = "07:00".into();
+    }
+    harness.run_steps(2);
+    pick_queue(&mut harness, "Night");
+    assert_eq!(
+        harness.state().dialogs.scheduler.as_ref().unwrap().queue,
+        "Night"
+    );
+    assert!(
+        harness
+            .query_by_label("This queue follows the Main queue's hours.")
+            .is_some(),
+        "a queue with no hours of its own says whose it follows"
+    );
+    click(&mut harness, "Hours of its own for this queue");
+    if let Some(d) = harness.state_mut().dialogs.scheduler.as_mut() {
+        assert!(d.own);
+        d.schedule.enabled = true;
+        d.schedule.from = "22:00".into();
+        d.schedule.to = "23:00".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(harness.state().dialogs.scheduler.is_none(), "OK kept them");
+    let settings = harness.state().backend().settings();
+    assert!(settings.schedule.enabled);
+    assert_eq!(settings.schedule.from, "01:00");
+    assert_eq!(settings.queue_schedules["Night"].from, "22:00");
+    assert_eq!(settings.schedule_for("Night").to, "23:00");
+    assert_eq!(settings.schedule_for(dm_core::MAIN_QUEUE).to, "07:00");
+
+    // Opened again: each queue shows what it kept.
+    harness.state_mut().run(Command::Scheduler);
+    harness.run_steps(2);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .scheduler
+            .as_ref()
+            .unwrap()
+            .schedule
+            .from,
+        "01:00"
+    );
+    pick_queue(&mut harness, "Night");
+    {
+        let d = harness.state().dialogs.scheduler.as_ref().unwrap();
+        assert!(d.own && d.schedule.from == "22:00");
+    }
+    // Once, on a date: a date that is not one is refused where it was typed.
+    click(&mut harness, "Once, on this date");
+    if let Some(d) = harness.state_mut().dialogs.scheduler.as_mut() {
+        d.date = "tomorrow".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(harness.query_by_label_contains("is not a date").is_some());
+    if let Some(d) = harness.state_mut().dialogs.scheduler.as_mut() {
+        d.date = "2026-12-31".into();
+    }
+    harness.run_steps(2);
+    // Start now acts on the queue chosen in the list, not the list's.
+    click(&mut harness, "Start now");
+    let said = harness.state().said.english();
+    assert!(said.contains("Night"), "Start now: {said:?}");
+    click(&mut harness, "OK");
+    let night = harness.state().backend().settings().queue_schedules["Night"].clone();
+    assert_eq!(night.once_at.as_deref(), Some("2026-12-31 22:00"));
+
+    // A queue given back to the Main queue's hours loses its own.
+    harness.state_mut().run(Command::Scheduler);
+    harness.run_steps(2);
+    pick_queue(&mut harness, "Night");
+    click(&mut harness, "Hours of its own for this queue");
+    click(&mut harness, "OK");
+    let mut back = harness.state().backend().settings();
+    assert!(!back.queue_schedules.contains_key("Night"));
+    back.schedule.enabled = false;
+    harness.state_mut().apply_settings(back).unwrap();
+}
+
+/// Clicks a queue in the Scheduler's list (the list's Q cell carries the
+/// same name, as a label).
+fn pick_queue(h: &mut Harness<'_, DmApp>, name: &str) {
+    // Where the dialog has settled: it is centred again as it grows.
+    h.run_steps(4);
+    h.query_all_by_label(name)
+        .rfind(|n| n.accesskit_node().role() != egui::accesskit::Role::Label)
+        .unwrap_or_else(|| panic!("no queue {name:?} in the Scheduler"))
+        .click();
+    h.run_steps(3);
+}
+
+/// The Speed limiter's settings keep the slow hours, refuse a time that is
+/// not one, and the window puts the slow limit in force in its hours.
+#[test]
+fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::SpeedLimiterSettings);
+    harness.run_steps(3);
+    click(&mut harness, "Slower between set hours");
+    if let Some(limiter) = harness.state_mut().dialogs.limiter.as_mut() {
+        assert!(limiter.4.enabled);
+        limiter.4.from = "7pm".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(harness
+        .query_by_label_contains("times are HH:MM in 24 hours")
+        .is_some());
+    assert!(!harness.state().backend().settings().slow_hours.enabled);
+    // Hours that hold every minute of the day, so the test is in them.
+    if let Some(limiter) = harness.state_mut().dialogs.limiter.as_mut() {
+        limiter.4.from = "00:00".into();
+        limiter.4.to = "23:59".into();
+        limiter.4.limit = 64;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let kept = harness.state().backend().settings().slow_hours;
+    assert!(kept.enabled && kept.from == "00:00" && kept.limit == 64);
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    let in_force = harness.state().limit_in_force;
+    let (weekday, minute) = dm_core::weekday_now();
+    if minute < 23 * 60 + 59 {
+        assert_eq!(
+            in_force,
+            Some(64 * 1024),
+            "not put in force in its hours (day {weekday})"
+        );
+    }
+    // Put back for the other tests.
+    let mut back = harness.state().backend().settings();
+    back.slow_hours.enabled = false;
+    harness.state_mut().apply_settings(back).unwrap();
+    harness.state_mut().limit_in_force = None;
+    harness.state_mut().refresh();
 }

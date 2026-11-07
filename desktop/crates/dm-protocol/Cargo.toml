@@ -1,7 +1,7 @@
 [package]
 name = "dm-protocol"
 version = "0.8.7"
-license = "MIT"
+license = "GPL-3.0-or-later"
 edition = "2021"
 description = "What the browser extension and the desktop app say to each other, written once for both"
 

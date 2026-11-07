@@ -1,0 +1,9 @@
+<html><body style="font:16px sans-serif"><h3>Magnet button variants (made-up hashes)</h3>
+<p><a id="m1" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00a&dn=plain">1 Plain link</a></p>
+<p><a id="m2" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00b&dn=onclick" onclick="window.location=this.href; return false;">2 Link with a script handler</a></p>
+<p><button id="m3" onclick="window.location.href='magnet:?xt=urn:btih:0000000000000000000000000000000000abc00c&dn=button'">3 Button with script</button></p>
+<p><a id="m4" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00d&dn=blank" target="_blank">4 Link, new tab</a></p>
+<p><a id="m5" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00e&dn=icon"><span style="background:#e33;color:#fff;padding:4px"><i>&#9733;</i> 5 Icon inside link</span></a></p>
+<p><a id="m6" href="#" onclick="window.open('magnet:?xt=urn:btih:0000000000000000000000000000000000abc00f&dn=windowopen'); return false;">6 window.open</a></p>
+<p><a id="m7" href="#" onclick="var a=document.createElement('a');a.href='magnet:?xt=urn:btih:0000000000000000000000000000000000abc010&dn=synthetic';document.body.appendChild(a);a.click();return false;">7 Script makes a link and clicks it</a></p>
+</body></html>

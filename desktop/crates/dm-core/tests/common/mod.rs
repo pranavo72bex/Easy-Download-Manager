@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What every integration test needs to stand a download up.
 //!
 //! `Options` gained four fields in one round of work, and each one had to be
@@ -24,7 +29,7 @@ pub fn options(dir: &Path) -> Options {
         limiter: Limiter::unlimited(),
         categories: Categories::default(),
         checksum: None,
-        quality: dm_core::stream::Quality::Best,
+        quality: dm_core::Quality::Best,
         sound: None,
         span: None,
         shape: None,
@@ -43,14 +48,26 @@ pub fn options(dir: &Path) -> Options {
         server_dates: false,
         retry_wait: 0,
         record_limit: None,
+        frame_rate: None,
+        caption: None,
         sign_in: None,
         save_name: None,
+        accept_page: false,
+        // On loopback only: no DHT or local discovery, which would announce
+        // this computer to the public network from a test.
+        torrent: dm_core::TorrentOptions {
+            no_public_discovery: true,
+            ..Default::default()
+        },
         system_proxy: false,
+        title_hint: None,
     }
 }
 
 /// A temporary directory that cleans up after itself.
 pub fn tempdir() -> tempfile::TempDir {
+    // A throw-away home leaves nothing in the person's own store of secrets.
+    std::env::set_var("DM_NO_SECRET_STORE", "1");
     tempfile::tempdir().expect("a temporary directory")
 }
 

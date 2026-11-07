@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The muxers against real encoder output: H.264 with B-frames and AAC,
 //! fragmented as DASH serves them and plain; transport streams of H.264 or
 //! HEVC with AAC, MP3, MP2, AC-3 or E-AC-3; VP9, AV1 and Opus in WebM. The

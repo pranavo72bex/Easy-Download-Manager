@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Keeping the computer awake while a download is running: a 25 GB file on a
 //! machine set to sleep after ten minutes would otherwise stop at the first
 //! idle spell, every socket dropped. Windows is asked not to sleep for as

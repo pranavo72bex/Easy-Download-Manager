@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The window, driven the way a person drives it — through the names a
 //! screen reader reads, the words on its buttons and dialogs — against a real queue fetching from a real server on loopback.
 //! Nothing is stubbed but the operating system: the login item,
@@ -9,6 +14,10 @@
 #[path = "../../../test-support/secrets.rs"]
 mod test_secrets;
 
+#[path = "window/asks.rs"]
+mod asks;
+#[path = "window/choices.rs"]
+mod choices;
 #[path = "window/commands.rs"]
 mod commands;
 #[path = "window/control.rs"]
@@ -29,3 +38,5 @@ mod options;
 mod speed_schedule;
 #[path = "window/support.rs"]
 mod support;
+#[path = "window/zip.rs"]
+mod zip;

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Extracting a finished ZIP into a folder of its own.
 //!
 //! An archive is outside input, so it is read before it is trusted: every
@@ -29,6 +34,7 @@ pub struct Limits {
     /// Extracted size over stored size, for an archive past `ratio_floor`
     /// bytes (a small file may compress very well without being a bomb).
     pub max_ratio: u64,
+    /// Bytes an archive may have before the ratio limit is applied.
     pub ratio_floor: u64,
 }
 
@@ -46,27 +52,39 @@ impl Default for Limits {
 /// What an extraction made.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Extracted {
+    /// The new folder the files were put in.
     pub folder: PathBuf,
+    /// How many files were extracted.
     pub files: usize,
+    /// How many bytes they came to.
     pub bytes: u64,
 }
 
+/// Why an archive was not extracted.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The file is not a ZIP archive dm can read.
     #[error("this is not a ZIP archive that can be read: {0}")]
     Unreadable(String),
+    /// An entry would land outside the folder.
     #[error("the archive has an entry that would leave its folder: {0}")]
     Escapes(String),
+    /// An entry is a link or a special file.
     #[error("the archive holds a link or special file, which dm does not extract: {0}")]
     Special(String),
+    /// An entry is protected by a password.
     #[error("the archive is password-protected, which dm does not extract: {0}")]
     Encrypted(String),
+    /// Two entries have the same name.
     #[error("the archive lists the same name twice: {0}")]
     Duplicate(String),
+    /// The archive is past a limit; the text names which.
     #[error("the archive is larger than dm will extract ({0})")]
     TooBig(&'static str),
+    /// The person stopped it.
     #[error("the archive was stopped")]
     Cancelled,
+    /// The disk refused; the text says how.
     #[error("{0}")]
     Io(String),
 }
@@ -112,7 +130,7 @@ fn plain_mode(mode: Option<u32>) -> bool {
 
 /// A path inside the archive that stays inside the folder: relative, with
 /// no `..`, no drive, no stream suffix, no empty or NUL-bearing part, under
-/// either slash.
+/// either slash; and on Windows no device name or trailing dot or space.
 fn safe_path(raw: &str) -> Option<PathBuf> {
     if raw.is_empty() || raw.contains('\0') || raw.starts_with('/') || raw.starts_with('\\') {
         return None;
@@ -123,6 +141,15 @@ fn safe_path(raw: &str) -> Option<PathBuf> {
             "" | "." => continue,
             ".." => return None,
             p if p.contains(':') => return None,
+            // Names Windows reads as devices, or strips a trailing dot or space
+            // from, are not files it can write under that name.
+            p if cfg!(windows)
+                && (crate::probe::reserved_on_windows(p)
+                    || p.ends_with('.')
+                    || p.ends_with(' ')) =>
+            {
+                return None;
+            }
             p => out.push(p),
         }
     }
@@ -322,6 +349,17 @@ fn write_all(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn windows_device_names_and_trailing_dots_are_not_extracted() {
+        assert!(super::safe_path("docs/readme.txt").is_some());
+        assert!(super::safe_path("docs/COM1").is_none());
+        assert!(super::safe_path("aux.txt").is_none());
+        assert!(super::safe_path("nul/x").is_none());
+        assert!(super::safe_path("a/b.").is_none());
+        assert!(super::safe_path("a/b ").is_none());
+    }
+
     use super::*;
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;

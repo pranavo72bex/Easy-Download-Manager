@@ -1,10 +1,15 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """dm against real sites, signed in nowhere, and everything it made removed.
 
     python3 scripts/real-sites.py                   # every site
     SITES=youtube,wikimedia python3 scripts/real-sites.py
 
 Starts the real binary headless on a throwaway home, download folder and
-cache (yt-dlp's included), hands it one link per site through the control
+cache, hands it one link per site through the control
 protocol, waits for each row to settle, checks what landed, then stops dm
 and deletes all of it. A file served directly is compared byte for byte
 with curl's copy, a video's structure is read by media_check.py (its
@@ -13,7 +18,7 @@ sign-in or blocks anonymous visitors must be refused with a reason rather
 than saved as a "completed" page.
 
 Not in CI: it fetches about 220 MB from real sites, which change. Run by
-hand before a release (needs yt-dlp and curl). First run, 2026-10-13,
+hand before a release (needs curl). First run, 2026-10-13,
 found Wikimedia refusing dm's user agent and then serving several ranges at
 once as the whole file; both are fixed and pinned by tests.
 """
@@ -29,8 +34,8 @@ BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debu
 
 # (site, url, what should happen, how the result is checked)
 CASES = [
-    # An MP4, not the WebM yt-dlp picks by itself.
-    ("YouTube (via yt-dlp)", "https://www.youtube.com/watch?v=jNQXAC9IVRw", "file", "mp4"),
+    # An MP4.
+    ("YouTube", "https://www.youtube.com/watch?v=jNQXAC9IVRw", "file", "mp4"),
     ("Internet Archive (redirect, 27 MB)", "https://archive.org/download/Popeye_forPresident/Popeye_forPresident_512kb.mp4", "file", "same-as-curl"),
     ("GitHub release (redirect to CDN)", "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-apple-darwin.tar.gz", "file", "same-as-curl"),
     ("GNU FTP (anonymous, 10 MB in REST ranges)", "ftp://ftp.gnu.org/gnu/bash/bash-5.2.tar.gz", "file", "same-as-curl"),
@@ -45,8 +50,6 @@ CASES = [
     ("BitTorrent (.torrent, Sintel)", "https://webtorrent.io/torrents/sintel.torrent", "file", "video"),
     ("Reddit, anonymous (blocked)", "https://www.reddit.com/r/aww/top/", "refused", None),
     ("Vimeo, needs sign-in", "https://vimeo.com/76979871", "refused", None),
-    # Read and fetched by yt-dlp, which runs in the system's sandbox.
-    ("Dailymotion video (via yt-dlp)", "https://www.dailymotion.com/video/x9tdqqm", "file", "video"),
 ]
 
 
@@ -67,7 +70,6 @@ def main():
         "show_progress": False, "show_complete": False,
     }))
     env = dict(os.environ, DM_HOME=str(home), XDG_CACHE_HOME=str(cache))
-    yt_cache_before = (pathlib.Path.home() / ".cache/yt-dlp").exists()
     app = subprocess.Popen([str(BINARY), "--headless", "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
@@ -77,7 +79,7 @@ def main():
                 break
             time.sleep(0.2)
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=60)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
@@ -123,8 +125,6 @@ def main():
         shutil.rmtree(root, ignore_errors=True)
         print(f"cleaned: removed {size / 1e6:.1f} MB of downloads, parts, settings and cache "
               f"({'gone' if not root.exists() else 'STILL THERE: ' + str(root)})")
-        made = not yt_cache_before and (pathlib.Path.home() / ".cache/yt-dlp").exists()
-        print("yt-dlp's own cache in ~/.cache untouched" if not made else "yt-dlp wrote ~/.cache/yt-dlp")
 
 
 def verify(expect, how, url, kind, path, downloads, root):

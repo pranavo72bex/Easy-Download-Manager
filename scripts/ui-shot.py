@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """A picture of dm's window, for checking a visual change by eye.
 
 It starts the real binary on a throwaway home, with a
@@ -67,7 +72,11 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     origin = f"http://127.0.0.1:{server.server_address[1]}"
 
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-ui-shot-"))
+    # Under /tmp, not the system's per-user temporary folder: the window
+    # shows the download folder, and that folder's path is unique to the
+    # computer and its user (/var/folders/xx/<id>/T on macOS), which the
+    # README's pictures carried.
+    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-ui-shot-", dir="/tmp" if os.path.isdir("/tmp") else None))
     (home / "downloads").mkdir()
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "categorize": True, "show_progress": False,
@@ -87,7 +96,7 @@ def main():
                 break
             time.sleep(0.1)
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())

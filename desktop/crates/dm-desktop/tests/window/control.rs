@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use crate::support::*;
 
 #[test]
@@ -288,6 +293,26 @@ fn the_control_protocol_refuses_nothing_to_add_and_a_queue_that_is_not_there() {
         .is_ok());
 }
 
+/// `ui.window` puts the window where a person would: the tray and back
+/// through the window's own asks, and nowhere it does not name.
+#[test]
+fn the_window_is_put_in_the_tray_and_shown_again_over_the_control_protocol() {
+    let world = world();
+    let mut harness = world.harness();
+    let ctx = egui::Context::default();
+    let app = harness.state_mut();
+    let mut call = |to: &str| {
+        app.human_call("ui.window", &serde_json::json!({ "to": to }), Some(&ctx))
+            .expect("ui.window is a call of its own")
+    };
+    assert!(call("tray").is_ok());
+    assert!(call("minimized").is_ok());
+    assert!(call("shown").is_ok());
+    assert!(call("away").is_err());
+    let app = harness.state();
+    assert!(app.hide_asked && app.show_asked);
+}
+
 /// Opening a file runs it if it is a program: never at a script's word.
 #[test]
 fn opening_a_file_is_refused_over_the_control_protocol() {
@@ -331,12 +356,17 @@ fn a_batch_runs_its_steps_in_order() {
 ///
 ///     DM_SHOTS=docs cargo test -p dm-desktop --test window shots
 ///
-/// Writes screenshot.png, screenshot-dark.png and settings.png there.
+/// Writes screenshot.png, progress.png and settings.png there, each with its
+/// -dark twin, with the download folder shown as ~/Downloads: nothing of the
+/// computer that made them.
 #[test]
 fn shots() {
     let Some(dir) = std::env::var_os("DM_SHOTS").map(std::path::PathBuf::from) else {
         return;
     };
+    // As every test that adds downloads: the shared settings file held, or
+    // a first-run question's own OK stood beside Add URL's.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -344,13 +374,20 @@ fn shots() {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
     add_url(&mut harness, &world.url("stalled.bin"), "Start now");
-    add_url(&mut harness, &world.url("gone.iso"), "Start now");
     add_url(&mut harness, &world.url("later.mkv"), "Add for later");
+    // Added last: a link that answers 404 opens a window of its own with an
+    // OK, which stood beside Add URL's for the next one added, and is
+    // closed so that the pictures show the window as a person leaves it.
+    add_url(&mut harness, &world.url("gone.iso"), "Start now");
     until(&mut harness, "a failed row", |app| {
         app.rows()
             .iter()
             .any(|r| matches!(r.state, State::Failed(_)))
     });
+    harness.run_steps(6);
+    if harness.query_by_label("OK").is_some() {
+        click(&mut harness, "OK");
+    }
     select(&mut harness, "stalled.bin");
     harness.run_steps(4);
 
@@ -373,10 +410,15 @@ fn shots() {
     render(&mut harness, "light", "progress.png");
     render(&mut harness, "dark", "progress-dark.png");
     harness.state_mut().dialogs.progress.clear();
-    let settings = harness.state().applied.clone();
-    harness.state_mut().dialogs.open_options(&settings);
-    render(&mut harness, "light", "settings.png");
-    render(&mut harness, "dark", "settings-dark.png");
+    // Options previews its own copy of the settings, the look included: it
+    // is opened afresh for each look.
+    for (look, name) in [("light", "settings.png"), ("dark", "settings-dark.png")] {
+        let mut settings = harness.state().applied.clone();
+        settings.theme = look.into();
+        harness.state_mut().dialogs.options = None;
+        harness.state_mut().dialogs.open_options(&settings);
+        render(&mut harness, look, name);
+    }
 }
 
 /// What a client asks of the window as a person would waits for frames, so
@@ -553,4 +595,33 @@ fn a_resume_straight_after_a_pause_is_not_refused_by_a_stale_list() {
             .iter()
             .any(|r| r.id == id && r.state == State::Running)
     });
+}
+
+/// A program run at the end of a queue's own hours is a person's to set, as
+/// the shared schedule's is: settings put in force a moment after a script
+/// drove the window keep the program the queue had.
+#[test]
+fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
+    let world = world();
+    let mut harness = world.harness();
+    let key = serde_json::json!({ "key": "Escape" });
+    assert!(matches!(
+        harness.state_mut().human_call("ui.key", &key, None),
+        Some(Ok(_))
+    ));
+    harness.run_steps(2);
+    let mut wanted = harness.state().applied.clone();
+    let hours = dm_core::Schedule {
+        enabled: true,
+        run_when_done: "sh -c 'evil'".into(),
+        ..dm_core::Schedule::default()
+    };
+    wanted.queue_schedules.insert("Main queue".into(), hours);
+    harness.state_mut().apply_settings(wanted).unwrap();
+    let saved = harness.state().backend().settings();
+    let kept = saved
+        .queue_schedules
+        .get("Main queue")
+        .map(|s| s.run_when_done.as_str());
+    assert_eq!(kept, Some(""), "{kept:?}");
 }

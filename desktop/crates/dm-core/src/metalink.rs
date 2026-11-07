@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Reading a Metalink, which is a list of places one file can be fetched from.
 //!
 //! A single server puts a ceiling on a download that no amount of segmenting
@@ -81,6 +86,7 @@ pub fn parse(xml: &str) -> Option<Metalink> {
     /// A tuple carried a rank only `url` used and a name only `hash` used,
     /// so two of the three slots were dead in every arm.
     enum Collecting {
+        /// The next text is the file's size.
         Size,
         Hash(String),
         Url(i64),

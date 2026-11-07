@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 impl Dialogs {
     /// Gives the keyboard to `title`'s first field when it is next drawn.
@@ -15,13 +20,12 @@ impl Dialogs {
     }
 
     /// Add URL, offering a link already on the clipboard.
-    pub fn open_add_url(&mut self, clipboard: Option<String>) {
+    pub fn open_add_url(&mut self, clipboard: Option<&str>) {
         self.focus_on("Add URL");
         if self.keep("Add URL", self.add_url.is_some()) {
             return;
         }
         let address = clipboard
-            .as_deref()
             .and_then(crate::app::looks_downloadable)
             .unwrap_or_default();
         self.add_url = Some(AddUrl {
@@ -30,6 +34,7 @@ impl Dialogs {
         });
     }
 
+    /// Opens Download details for these addresses.
     pub fn open_file_info(&mut self, urls: Vec<String>) {
         // The keyboard comes off the list behind it.
         self.focus_on("Download details");
@@ -50,18 +55,18 @@ impl Dialogs {
     ) {
         self.focus_on("Playlist");
         let slot: PlaylistRead = Default::default();
-        let client = dm_core::proxy::client_with(&backend.settings().proxy)
-            .unwrap_or_else(|_| dm_core::client());
+        let client =
+            dm_core::client_with(&backend.settings().proxy).unwrap_or_else(|_| dm_core::client());
         let (page, read) = (url.clone(), slot.clone());
         let proxy = backend.settings().proxy.url_for_tools();
         backend.runtime.spawn(async move {
-            // YouTube's read by dm itself; any other site's by yt-dlp.
+            // YouTube's read by dm itself; no other site is read from its page.
             let got = if dm_core::youtube::playlist_id(&page).is_some() {
                 dm_core::youtube::read_playlist(&client, &page, None)
                     .await
                     .map_err(|e| e.to_string())
             } else {
-                match dm_core::ytdlp::read_playlist(&page, None, proxy.as_deref(), None).await {
+                match dm_core::videopage::read_playlist(&page, None, proxy.as_deref(), None).await {
                     Ok(Some(list)) => Ok(list),
                     Ok(None) => Err("That page is one video, not a playlist.".to_string()),
                     Err(e) => Err(e.to_string()),
@@ -100,6 +105,8 @@ impl Dialogs {
     /// The dialog for a video the browser's panel handed over.
     pub fn open_handed(&mut self, request: dm_shell::host::Request) {
         self.focus_on("Download details");
+        // The form for the address it was sent to, before that is moved below.
+        let post = dm_shell::shell::posted(&request.url, request.post.as_ref());
         self.file_info = Some(FileInfo {
             urls: vec![request.url],
             referrer: request.referrer,
@@ -111,8 +118,18 @@ impl Dialogs {
             handed: true,
             cookies: request.cookies,
             cookies_once: request.cookies_once,
+            post,
+            headers: request.headers,
             browser: request.browser,
             caught: request.caught,
+            // The panel's "Part" line: the dialog opens with the part on.
+            part: !(request.from.is_empty() && request.to.is_empty()),
+            part_from: if request.from.is_empty() && !request.to.is_empty() {
+                "0:00".to_string()
+            } else {
+                request.from
+            },
+            part_to: request.to,
             ..FileInfo::default()
         });
     }
@@ -126,8 +143,8 @@ impl Dialogs {
     ) {
         let found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>> =
             Default::default();
-        let client = dm_core::proxy::client_with(&backend.settings().proxy)
-            .unwrap_or_else(|_| dm_core::client());
+        let client =
+            dm_core::client_with(&backend.settings().proxy).unwrap_or_else(|_| dm_core::client());
         let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(6));
         let sign_in = dm_core::cookies::SignIn::new(&request.url, &request.cookies);
         for url in request.links.clone() {
@@ -140,7 +157,7 @@ impl Dialogs {
                 };
                 let asked = tokio::time::timeout(
                     std::time::Duration::from_secs(20),
-                    dm_core::probe::probe(
+                    dm_core::probe(
                         &client,
                         &url,
                         Some(&page).filter(|p| !p.is_empty()).map(String::as_str),
@@ -163,15 +180,14 @@ impl Dialogs {
                         },
                     );
                 } else if let Ok(Ok(probe)) = asked {
-                    let kind =
-                        dm_core::category::classify(&probe.filename, probe.content_type.as_deref());
+                    let kind = dm_core::classify(&probe.filename, probe.content_type.as_deref());
                     dm_core::lock(&found).insert(
                         url,
                         Found {
                             name: probe.filename,
                             kind: crate::app::category_word(kind),
                             size: probe.size,
-                            html: dm_core::ytdlp::is_page(probe.content_type.as_deref()),
+                            html: dm_core::videopage::is_page(probe.content_type.as_deref()),
                             failed: None,
                         },
                     );
@@ -201,9 +217,21 @@ impl Dialogs {
             types: String::new(),
             hide_html: true,
             found,
+            hide_images: true,
+            hide_repeats: true,
+            save_to: SaveTo::ByCategory,
+            category: crate::app::category_word(dm_core::Category::Archives),
+            folder: String::new(),
+            editing: None,
+            // The names the page's `download` attributes give, as Edit would.
+            names: request.names.into_iter().collect(),
+            texts: request.texts,
+            use_texts: true,
+            queue: dm_core::MAIN_QUEUE.to_string(),
         });
     }
 
+    /// Opens Properties for this row.
     pub fn open_properties(&mut self, row: &dm_core::Entry) {
         self.focus_on("File properties");
         if self.properties.contains_key(&row.id) {
@@ -222,6 +250,9 @@ impl Dialogs {
                 says: String::new(),
                 sums: Default::default(),
                 check: String::new(),
+                zip: None,
+                files: row.torrent_files.iter().map(|f| f.wanted).collect(),
+                priorities: row.torrent_files.iter().map(|f| f.priority).collect(),
             },
         );
     }
@@ -236,6 +267,7 @@ impl Dialogs {
         open
     }
 
+    /// Opens the Series dialog.
     pub fn open_series(&mut self) {
         self.focus_on("Add numbered series");
         if !self.keep("Add numbered series", self.series.is_some()) {
@@ -243,9 +275,30 @@ impl Dialogs {
         }
     }
 
+    /// Opens the Grabber with a saved search filled in, to run or change.
+    pub fn open_site_files_with(&mut self, search: &dm_shell::lists::Search) {
+        self.focus_on("Grabber");
+        self.site_files = Some(SiteFiles {
+            page: search.page.clone(),
+            types: search.types.join(" "),
+            depth: search.depth,
+            include: search.include.join(" "),
+            exclude: search.exclude.join(" "),
+            name: search.name.clone(),
+            every_hours: search.every_hours,
+            stop_after_minutes: search.stop_after_minutes,
+            other_sites: search.other_sites,
+            keep_layout: search.keep_layout,
+            min_kb: search.min_kb,
+            max_kb: search.max_kb,
+            ..Default::default()
+        });
+    }
+
+    /// Opens the Site files dialog.
     pub fn open_site_files(&mut self) {
-        self.focus_on("Site files");
-        if !self.keep("Site files", self.site_files.is_some()) {
+        self.focus_on("Grabber");
+        if !self.keep("Grabber", self.site_files.is_some()) {
             self.site_files = Some(Default::default());
         }
     }
@@ -262,6 +315,9 @@ impl Dialogs {
             || self.confirm_outside.is_some()
             || self.confirm_cancel.is_some()
             || self.duplicate.is_some()
+            || self.name_ask.is_some()
+            || self.page_ask.is_some()
+            || self.not_found.is_some()
             || self.import_ask.is_some()
             || self.skip_offer.is_some()
     }
@@ -278,6 +334,9 @@ impl Dialogs {
             ),
             (self.confirm_cancel.is_some(), "Cancel this download?"),
             (self.duplicate.is_some(), "Already in the list"),
+            (self.name_ask.is_some(), "Name sent by the server"),
+            (self.page_ask.is_some(), "Web page instead of the file"),
+            (self.not_found.is_some(), "The file doesn't exist"),
             (self.import_ask.is_some(), "Some are already in the list"),
             (self.skip_offer.is_some(), "Leave this site to the browser?"),
         ]
@@ -317,6 +376,9 @@ impl Dialogs {
             ),
             (self.confirm_cancel.is_some(), "Cancel this download?"),
             (self.duplicate.is_some(), "Already in the list"),
+            (self.name_ask.is_some(), "Name sent by the server"),
+            (self.page_ask.is_some(), "Web page instead of the file"),
+            (self.not_found.is_some(), "The file doesn't exist"),
             (self.import_ask.is_some(), "Some are already in the list"),
             (
                 self.list_file.as_ref().is_some_and(|f| !f.save),
@@ -332,7 +394,7 @@ impl Dialogs {
             (self.series.is_some(), "Add numbered series"),
             (self.clip_links.is_some(), "Links on the clipboard"),
             (self.links.is_some(), "Download links"),
-            (self.site_files.is_some(), "Site files"),
+            (self.site_files.is_some(), "Grabber"),
             (self.update_link.is_some(), "Update download link"),
             (self.move_to_queue.is_some(), "Move to queue"),
             (self.rename.is_some(), "Move/Rename"),
@@ -340,6 +402,7 @@ impl Dialogs {
             (self.limiter.is_some(), "Speed limiter"),
             (self.options.is_some(), "Options"),
             (self.about_open, "About dm"),
+            (self.tip.is_some(), "Tip of the day"),
             (self.welcome.is_some(), "Add dm to your browser"),
         ]
         .into_iter()
@@ -356,18 +419,15 @@ impl Dialogs {
             .collect()
     }
 
-    pub fn open_scheduler(&mut self, settings: &Settings) {
+    /// Opens the scheduler, over these settings, on `queue`'s hours.
+    pub fn open_scheduler(&mut self, settings: &Settings, queue: &str) {
         if self.keep("Scheduler", self.scheduler.is_some()) {
             return;
         }
-        // No days kept means every day, shown as every day ticked.
-        let mut schedule = settings.schedule.clone();
-        if schedule.days.is_empty() {
-            schedule.days = (0..=6).collect();
-        }
-        self.scheduler = Some((schedule, String::new()));
+        self.scheduler = Some(SchedulerDraft::new(settings, queue));
     }
 
+    /// Opens the speed limiter's settings, over these settings.
     pub fn open_limiter(&mut self, settings: &Settings) {
         self.focus_on("Speed limiter");
         if self.keep("Speed limiter", self.limiter.is_some()) {
@@ -378,9 +438,11 @@ impl Dialogs {
             String::new(),
             settings.limit_mb,
             settings.limit_hours,
+            settings.slow_hours.clone(),
         ));
     }
 
+    /// Opens Options, over these settings.
     pub fn open_options(&mut self, settings: &Settings) {
         if self.keep("Options", self.options.is_some()) {
             return;
@@ -401,6 +463,9 @@ impl Dialogs {
                 .collect(),
             fresh: false,
             fresh_tab: 3,
+            to_proxy: false,
+            handlers: Handlers::default(),
+            handlers_asked: false,
         });
     }
 
@@ -429,6 +494,9 @@ impl Dialogs {
         // Every dialog by its title (this one was never named).
         say(self.links.is_some(), "Download links");
         say(self.duplicate.is_some(), "Already in the list");
+        say(self.name_ask.is_some(), "Name sent by the server");
+        say(self.page_ask.is_some(), "Web page instead of the file");
+        say(self.not_found.is_some(), "The file doesn't exist");
         say(self.import_ask.is_some(), "Some are already in the list");
         say(
             self.list_file.as_ref().is_some_and(|f| !f.save),
@@ -446,7 +514,7 @@ impl Dialogs {
         say(!self.properties.is_empty(), "File properties");
         say(self.series.is_some(), "Add numbered series");
         say(self.clip_links.is_some(), "Links on the clipboard");
-        say(self.site_files.is_some(), "Site files");
+        say(self.site_files.is_some(), "Grabber");
         say(self.update_link.is_some(), "Update download link");
         say(self.move_to_queue.is_some(), "Move to queue");
         say(self.rename.is_some(), "Move/Rename");
@@ -455,6 +523,7 @@ impl Dialogs {
         say(self.limiter.is_some(), "Speed limiter");
         say(self.options.is_some(), "Options");
         say(self.about_open, "About dm");
+        say(self.tip.is_some(), "Tip of the day");
         say(self.welcome.is_some(), "Add dm to your browser");
         open
     }
@@ -471,11 +540,59 @@ impl Dialogs {
             || self.confirm_outside.take().is_some()
             || self.confirm_cancel.take().is_some()
             || self.duplicate.take().is_some()
+            || self.name_ask.take().is_some()
+            || self.page_ask.take().is_some()
+            || self.not_found.take().is_some()
             || self.import_ask.take().is_some()
             || self.skip_offer.take().is_some()
         {
             return true;
         }
+        self.close_front(back_to_front, false)
+    }
+
+    /// Closes the dialog whose window has `id`, as its close button and Escape
+    /// do when it is a window of its own; true if one closed.
+    pub fn close_window(&mut self, id: egui::Id) -> bool {
+        if id == window_id("Exit dm?") {
+            return std::mem::take(&mut self.confirm_exit);
+        }
+        if id == window_id("Keep running in the tray?") {
+            return std::mem::take(&mut self.confirm_close);
+        }
+        if id == window_id("Delete unfinished downloads") {
+            return self.confirm_remove.take().is_some();
+        }
+        if id == window_id("Start outside the schedule?") {
+            return self.confirm_outside.take().is_some();
+        }
+        if id == window_id("Cancel this download?") {
+            return self.confirm_cancel.take().is_some();
+        }
+        if id == window_id("Already in the list") {
+            return self.duplicate.take().is_some();
+        }
+        if id == window_id("Name sent by the server") {
+            return self.name_ask.take().is_some();
+        }
+        if id == window_id("Web page instead of the file") {
+            return self.page_ask.take().is_some();
+        }
+        if id == window_id("The file doesn't exist") {
+            return self.not_found.take().is_some();
+        }
+        if id == window_id("Some are already in the list") {
+            return self.import_ask.take().is_some();
+        }
+        if id == window_id("Leave this site to the browser?") {
+            return self.skip_offer.take().is_some();
+        }
+        self.close_front(&[id], true)
+    }
+
+    /// Closes the window in front of the ones open beside each other; with
+    /// `strict`, only one that `back_to_front` names.
+    fn close_front(&mut self, back_to_front: &[egui::Id], strict: bool) -> bool {
         /* Then the window in front. Find opens over Download details, and
          * Download complete and the progress windows stand beside the
          * rest, so a fixed order closed one behind the window in front.
@@ -498,6 +615,7 @@ impl Dialogs {
             FileInfo,
             Options,
             About,
+            Tip,
             Welcome,
             Properties(Id),
             Complete,
@@ -531,10 +649,11 @@ impl Dialogs {
             ),
             (self.series.is_some(), "Add numbered series", Shut::Series),
             (self.links.is_some(), "Download links", Shut::Links),
-            (self.site_files.is_some(), "Site files", Shut::SiteFiles),
+            (self.site_files.is_some(), "Grabber", Shut::SiteFiles),
             (self.file_info.is_some(), "Download details", Shut::FileInfo),
             (self.options.is_some(), "Options", Shut::Options),
             (self.about_open, "About dm", Shut::About),
+            (self.tip.is_some(), "Tip of the day", Shut::Tip),
             (
                 self.welcome.is_some(),
                 "Add dm to your browser",
@@ -555,7 +674,7 @@ impl Dialogs {
             open.push((egui::Id::unique(("progress", *id)), Shut::Progress(*id)));
         }
         let place = |id: &egui::Id| back_to_front.iter().position(|w| w == id);
-        let Some((_, front)) = open
+        let Some((front_id, front)) = open
             .into_iter()
             .enumerate()
             .max_by_key(|(n, (id, _))| (place(id), std::cmp::Reverse(*n)))
@@ -563,6 +682,9 @@ impl Dialogs {
         else {
             return false;
         };
+        if strict && place(&front_id).is_none() {
+            return false;
+        }
         match front {
             Shut::Find => self.find_open = false,
             Shut::Limiter => self.limiter = None,
@@ -579,6 +701,7 @@ impl Dialogs {
             Shut::FileInfo => self.file_info = None,
             Shut::Options => self.options = None,
             Shut::About => self.about_open = false,
+            Shut::Tip => self.tip = None,
             Shut::Welcome => self.welcome = None,
             Shut::Properties(id) => {
                 self.properties.remove(&id);
@@ -601,5 +724,44 @@ impl Dialogs {
         self.complete.remove(&id);
         self.properties.remove(&id);
         self.resumable_seen.remove(&id);
+        self.conn_rates.remove(&id);
+    }
+}
+
+#[cfg(test)]
+mod close_window_tests {
+    use super::*;
+
+    /// A dialog's own window, closed with its close button or Escape, closes
+    /// that dialog and no other.
+    #[test]
+    fn a_dialog_is_closed_by_its_own_window_and_no_other() {
+        let mut dialogs = Dialogs {
+            find_open: true,
+            about_open: true,
+            ..Dialogs::default()
+        };
+        assert!(dialogs.close_window(window_id("About dm")));
+        assert!(!dialogs.about_open);
+        assert!(dialogs.find_open, "Find was not the window closed");
+        // A window that is not open closes nothing.
+        assert!(!dialogs.close_window(window_id("About dm")));
+        assert!(dialogs.find_open);
+    }
+
+    /// A question open beside another window keeps asking when that window
+    /// is closed: only its own window answers it, as Cancel.
+    #[test]
+    fn a_question_is_answered_by_its_own_window_only() {
+        let mut dialogs = Dialogs {
+            confirm_exit: true,
+            about_open: true,
+            ..Dialogs::default()
+        };
+        assert!(dialogs.close_window(window_id("About dm")));
+        assert!(dialogs.confirm_exit, "closing About answered the question");
+        assert!(dialogs.close_window(window_id("Exit dm?")));
+        assert!(!dialogs.confirm_exit);
+        assert!(!dialogs.close_window(window_id("Exit dm?")));
     }
 }

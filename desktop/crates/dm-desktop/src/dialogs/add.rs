@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 /// An address without its login, for telling two rows apart.
 pub(crate) fn bare(url: &str) -> String {
@@ -124,7 +129,7 @@ pub fn sites(words: &[String]) -> Vec<String> {
 /// is there.
 pub fn local_torrent(text: &str) -> Option<String> {
     let text = text.trim();
-    let path = match dm_core::torrent::local_file(text) {
+    let path = match dm_core::local_file(text) {
         Some(path) => path,
         None if !text.contains("://") => dm_shell::settings::full_path(text)?,
         None => return None,
@@ -132,7 +137,7 @@ pub fn local_torrent(text: &str) -> Option<String> {
     if !dm_core::is_torrent(&path.to_string_lossy()) || !path.is_file() {
         return None;
     }
-    dm_core::torrent::file_url(&path)
+    dm_core::file_url(&path)
 }
 
 /// Where Export offers to write the list when its path is typed.
@@ -166,42 +171,184 @@ pub(crate) fn worth_keeping(app: &DmApp, address: &str) -> Option<Id> {
         .map(|r| r.id)
 }
 
-/// Asked when an address typed in is already a row: download it again,
-/// show the row, or leave it.
+/// How an address already in the list is answered: show its row (and go on
+/// with it if it is stopped), download it again as a numbered copy, or have
+/// the new download take the old file's place once it is whole. Kept as a
+/// word in the settings (`duplicate_choice`) when the person ticks
+/// "Remember my choice"; Options › General undoes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Dup {
+    Show,
+    Again,
+    Replace,
+}
+
+impl Dup {
+    pub(crate) fn word(self) -> &'static str {
+        match self {
+            Dup::Show => "show",
+            Dup::Again => "again",
+            Dup::Replace => "replace",
+        }
+    }
+
+    pub(crate) fn from_word(word: &str) -> Option<Dup> {
+        [Dup::Show, Dup::Again, Dup::Replace]
+            .into_iter()
+            .find(|d| d.word() == word.trim())
+    }
+}
+
+/// The finished file of row `id` as (path, folder, name), where it is on the
+/// disk to be replaced.
+fn replaceable(app: &DmApp, id: Id) -> Option<(String, String, String)> {
+    let row = app.row(id)?;
+    if row.state != State::Completed || row.path.is_empty() {
+        return None;
+    }
+    let path = std::path::Path::new(&row.path);
+    if !path.exists() {
+        return None;
+    }
+    Some((
+        row.path.clone(),
+        path.parent()?.to_string_lossy().into_owned(),
+        path.file_name()?.to_string_lossy().into_owned(),
+    ))
+}
+
+/// Whether the row is stopped, or failed: one that "Show it" can also go on
+/// with.
+fn can_go_on(app: &DmApp, id: Id) -> bool {
+    app.row(id)
+        .is_some_and(|r| matches!(r.state, State::Paused | State::Failed(_)))
+}
+
+/// Carries out an answer: asked, or remembered.
+pub(crate) fn answer_duplicate(app: &mut DmApp, address: String, id: Id, how: Dup) {
+    match how {
+        Dup::Show => {
+            app.selected.clear();
+            app.selected.insert(id);
+            // A stopped or failed row goes on, so the person who clicked the
+            // link again is not left to find the button.
+            let failed = app
+                .row(id)
+                .is_some_and(|r| matches!(r.state, State::Failed(_)));
+            if can_go_on(app, id) {
+                if failed {
+                    app.backend.retry(id);
+                } else {
+                    app.backend.resume(id);
+                }
+            }
+        }
+        Dup::Again => app.dialogs.open_file_info(vec![address]),
+        Dup::Replace => match replaceable(app, id) {
+            Some((path, dir, name)) => {
+                let with = dm_core::AddOptions {
+                    replaces: Some(path),
+                    save_dir: Some(dir),
+                    save_name: Some(name),
+                    ..Default::default()
+                };
+                if let Err(e) = app.add(&[address], with) {
+                    app.said = e.into();
+                }
+            }
+            // Nothing finished to replace: a numbered copy, as before.
+            None => app.dialogs.open_file_info(vec![address]),
+        },
+    }
+}
+
+/// Asked when an address typed in is already a row: show it (or go on with
+/// it), download it again, replace the old file, or leave it.
 pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
     let Some((address, id)) = app.dialogs.duplicate.clone() else {
         return;
     };
     let status = app.row(id).map(crate::app::status_of).unwrap_or_default();
-    let (mut again, mut show, mut cancel) = (false, false, false);
+    let go_on = can_go_on(app, id);
+    let can_replace = replaceable(app, id).is_some();
+    let tick = egui::Id::unique("duplicate-remember");
+    let mut remember = ctx.data(|d| d.get_temp::<bool>(tick)).unwrap_or(false);
+    let (mut again, mut show, mut replace, mut cancel) = (false, false, false, false);
     window(ctx, "Already in the list").show(ctx, |ui| {
         ui.label(RichText::new(format::shown_url(&address)).weak());
         ui.label(tf("This address is already in the list ({}).", &[&status]));
+        toggle_row(ui, &mut remember, t("Remember my choice"));
         footer(ui, |ui| {
             // Enter presses it, as in every other dialog.
             // Enter shows the row, which changes nothing: an Enter pressed
             // for Download details, a moment before this asked, fetched the
             // file a second time.
-            show = primary(ui, "Show it").clicked() || enter_free(ui);
+            show = if go_on {
+                primary(ui, "Resume it").clicked()
+            } else {
+                primary(ui, "Show it").clicked()
+            } || enter_free(ui);
             again = ui.button(t("Download again")).clicked();
+            if can_replace {
+                replace = ui.button(t("Replace the old file")).clicked();
+            }
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
-    if again {
-        app.dialogs.duplicate = None;
-        app.dialogs.open_file_info(vec![address]);
+    ctx.data_mut(|d| d.insert_temp(tick, remember));
+    let how = if replace {
+        Some(Dup::Replace)
+    } else if again {
+        Some(Dup::Again)
     } else if show {
+        Some(Dup::Show)
+    } else {
+        None
+    };
+    if let Some(how) = how {
         app.dialogs.duplicate = None;
-        app.selected.clear();
-        app.selected.insert(id);
+        ctx.data_mut(|d| d.insert_temp(tick, false));
+        if remember {
+            let mut wanted = app.applied.clone();
+            wanted.duplicate_choice = how.word().to_string();
+            if let Err(e) = app.apply_settings(wanted) {
+                app.said = e.into();
+            }
+        }
+        answer_duplicate(app, address, id, how);
     } else if cancel {
         app.dialogs.duplicate = None;
+        ctx.data_mut(|d| d.insert_temp(tick, false));
     }
+}
+
+/// Whether an address's query carries something secret: a token, a signature,
+/// a key, a password or a session. Such an address is not remembered for Add
+/// URL's list of recent ones (the list is kept in the settings file in the
+/// clear, and a signed link has expired by the next time), and one already
+/// remembered is not offered.
+pub(crate) fn query_carries_a_secret(address: &str) -> bool {
+    const SECRET: [&str; 8] = [
+        "token", "sig", "key", "auth", "pass", "pwd", "secret", "session",
+    ];
+    let Ok(url) = url::Url::parse(address) else {
+        return false;
+    };
+    url.query_pairs().any(|(name, _)| {
+        let name = name.to_ascii_lowercase();
+        SECRET.iter().any(|word| name.contains(word)) || name.contains("credential")
+    })
 }
 
 pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Add URL");
-    let recent = app.applied.recent_urls.clone();
+    let recent: Vec<String> = app
+        .applied
+        .recent_urls
+        .iter()
+        .filter(|url| !query_carries_a_secret(url))
+        .cloned()
+        .collect();
     let Some(d) = app.dialogs.add_url.as_mut() else {
         return;
     };
@@ -234,7 +381,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
                     .show_ui(ui, |ui| {
                         for url in &recent {
                             if ui.selectable_label(false, format::shown_url(url)).clicked() {
-                                d.address = url.clone();
+                                d.address.clone_from(url);
                             }
                         }
                     })
@@ -327,7 +474,8 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     app.dialogs.add_url = None;
     // Remembered for Add URL's list, without any login.
     let remembered = bare(&address);
-    if app.applied.recent_urls.first() != Some(&remembered) {
+    if !query_carries_a_secret(&remembered) && app.applied.recent_urls.first() != Some(&remembered)
+    {
         let mut recent = app.applied.recent_urls.clone();
         recent.retain(|u| *u != remembered);
         recent.insert(0, remembered);
@@ -338,6 +486,11 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     }
     // Already a row: asked, rather than a second row nobody meant.
     if let Some(id) = already_listed(app, &address) {
+        // Answered at once where the person ticked "Remember my choice".
+        if let Some(how) = Dup::from_word(&app.applied.duplicate_choice) {
+            answer_duplicate(app, address, id, how);
+            return;
+        }
         app.dialogs.duplicate = Some((address, id));
         return;
     }
@@ -348,6 +501,27 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     app.dialogs.open_file_info(vec![address]);
+}
+
+#[cfg(test)]
+mod recent_tests {
+    use super::query_carries_a_secret as secret;
+
+    /// A signed or token-bearing address is not kept in the settings file for
+    /// Add URL's list; a plain one is.
+    #[test]
+    fn an_address_with_a_secret_in_its_query_is_not_remembered() {
+        assert!(secret("https://cdn.example/f.zip?token=abc"));
+        assert!(secret(
+            "https://cdn.example/f.zip?X-Amz-Signature=1&X-Amz-Credential=2"
+        ));
+        assert!(secret("https://example.com/get?id=7&api_key=9"));
+        assert!(secret("https://example.com/get?Password=x"));
+        assert!(secret("https://example.com/get?sessionid=x"));
+        assert!(!secret("https://example.com/files/a.zip"));
+        assert!(!secret("https://example.com/get?id=7&name=report"));
+        assert!(!secret("not an address"));
+    }
 }
 
 #[cfg(test)]

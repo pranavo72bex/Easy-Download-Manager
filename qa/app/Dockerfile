@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # dm built from this checkout, run headless by the QA suite; Chromium with the
 # unpacked extension for the hand-off checks. Built from the repository root:
 #   docker build -f qa/app/Dockerfile .
@@ -23,15 +28,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     env -u CARGO_TARGET_DIR sh scripts/package.sh && mkdir -p /out && cp -R dist /out/dist
 
 FROM debian:bookworm-slim
-ARG YTDLP=2026.10.26
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 procps lsof ca-certificates curl unzip xvfb xauth dbus chromium \
       libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri libx11-6 libxcursor1 libx11-xcb1 libxi6 \
       libxkbcommon0 libwayland-client0 libwayland-egl1 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
-# yt-dlp pinned: the release zipapp, run by the system's Python.
-RUN curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP}/yt-dlp \
-    && chmod +x /usr/local/bin/yt-dlp && yt-dlp --version
 COPY --from=build /usr/local/bin/dm-desktop /usr/local/bin/dm-desktop
 COPY --from=build /out/dist /repo/dist
 COPY scripts /repo/scripts
@@ -39,6 +40,6 @@ COPY qa /repo/qa
 # Not root: a folder made read-only must be read-only to dm.
 RUN useradd -m -u 1000 qa && mkdir -p /downloads /reports && chown qa /downloads /reports
 USER qa
-ENV DM_BINARY=/usr/local/bin/dm-desktop DM_YTDLP=/usr/local/bin/yt-dlp CHROME_PATH=/usr/bin/chromium
+ENV DM_BINARY=/usr/local/bin/dm-desktop CHROME_PATH=/usr/bin/chromium
 WORKDIR /repo
 CMD ["python3", "-u", "qa/tests/run.py"]

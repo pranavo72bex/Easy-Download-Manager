@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 use serde_json::json;
 
@@ -50,12 +55,40 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
     assert_eq!(failed["failure"]["message"], "no");
     let hello = Reply::Hello(Hello {
         engine_version: "1.2".into(),
-        ytdlp: Some(false),
         protocol: None,
+        rules: None,
+        renews: false,
     })
     .to_frame();
     assert_eq!(hello["engineVersion"], "1.2");
-    assert_eq!(hello["ytdlp"], false);
+    assert!(hello.get("renews").is_none(), "said only when true");
+}
+
+/// An app that takes renewals says so; an older one, saying nothing, does not, and the
+/// extension sends it none (it would add each as another download).
+#[test]
+fn a_hello_says_whether_the_app_takes_renewed_addresses() {
+    let old: Hello =
+        serde_json::from_str(r#"{ "engineVersion": "0.8.7", "protocol": 2 }"#).unwrap();
+    assert!(!old.renews);
+    let new: Hello =
+        serde_json::from_str(r#"{ "engineVersion": "0.8.8", "protocol": 2, "renews": true }"#)
+            .unwrap();
+    assert!(new.renews);
+    let start = Start {
+        id: "r".into(),
+        url: "https://cdn.example/v.mp4?sig=new".into(),
+        renews: true,
+        ..Start::default()
+    };
+    let frame = crate::Request::Start(start.clone()).to_frame();
+    assert_eq!(frame["renews"], true);
+    let plain = crate::Request::Start(Start {
+        renews: false,
+        ..start
+    })
+    .to_frame();
+    assert!(plain.get("renews").is_none());
 }
 
 #[test]
@@ -163,12 +196,12 @@ fn an_app_that_does_not_say_its_protocol_does_not_judge_pages() {
 }
 
 #[test]
-fn a_hello_from_a_host_too_old_to_mention_ytdlp_says_unknown() {
-    let frame = json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1" });
+fn a_hello_from_an_older_host_with_a_field_no_longer_read_is_still_read() {
+    let frame = json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1", "old": true });
     let Ok(Reply::Hello(hello)) = Reply::from_frame(&frame) else {
         panic!("not read")
     };
-    assert_eq!(hello.ytdlp, None);
+    assert_eq!(hello.engine_version, "0.1");
 }
 
 #[test]
@@ -185,6 +218,8 @@ fn the_rules_cross_as_written_and_read_from_either_spelling() {
             once_hosts: Vec::new(),
             video_panel: false,
             sign_in_everywhere: true,
+            off_browsers: vec!["Brave".into()],
+            hidden_menus: vec!["dm-media".into()],
         },
     });
     let frame = reply.to_frame();
@@ -279,6 +314,48 @@ fn a_list_written_by_hand_is_read_generously() {
         rules.catches(&file("https://e.com/f.exe")),
         Err(Left::NotAFileType)
     );
+}
+
+/// Each browser is named as Options lists it, from the brands a Chromium
+/// browser gives (with the generic ones beside), and one left unticked is
+/// taken from no more.
+#[test]
+fn a_browser_is_named_from_its_brands_and_one_unticked_is_not_taken_from() {
+    let brands = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(
+        browser_named(
+            &brands(&["Not)A;Brand", "Microsoft Edge", "Chromium"]),
+            false
+        ),
+        "Microsoft Edge"
+    );
+    assert_eq!(
+        browser_named(&brands(&["Chromium", "Google Chrome"]), false),
+        "Google Chrome"
+    );
+    assert_eq!(
+        browser_named(&brands(&["Opera GX", "Chromium"]), false),
+        "Opera"
+    );
+    assert_eq!(browser_named(&brands(&["Chromium"]), false), "Chromium");
+    assert_eq!(browser_named(&[], true), "Firefox");
+    let rules = CatchRules {
+        off_browsers: vec!["google chrome".into()],
+        ..Default::default()
+    };
+    assert!(!rules.takes_from("Google Chrome"));
+    assert!(rules.takes_from("Microsoft Edge"));
+    assert!(CatchRules::default().takes_from("Firefox"));
+    // The menu items chosen off are not made; the rest are.
+    let menus = CatchRules {
+        hidden_menus: vec!["dm-all-links".into()],
+        ..Default::default()
+    };
+    assert!(!menus.shows_menu("dm-all-links"));
+    assert!(menus.shows_menu("dm-link"));
+    assert!(MENU_ITEMS
+        .iter()
+        .all(|(id, _)| CatchRules::default().shows_menu(id)));
 }
 
 #[test]
@@ -610,4 +687,25 @@ fn an_unchosen_list_from_an_earlier_edition_becomes_every_type_and_a_chosen_one_
     let mut again = old(vec!["zip".into()], CATCH_DEFAULTS_VERSION);
     again.bring_up_to_date();
     assert_eq!(again.extensions, ["zip"]);
+}
+
+#[test]
+fn a_start_carries_the_part_of_a_video_and_an_older_one_has_none() {
+    let start = Start {
+        id: "p".into(),
+        url: "https://e.com/v".into(),
+        from: "1:30".into(),
+        to: "90".into(),
+        ..Start::default()
+    };
+    let text = serde_json::to_string(&start).unwrap();
+    let back: Start = serde_json::from_str(&text).unwrap();
+    assert_eq!((back.from.as_str(), back.to.as_str()), ("1:30", "90"));
+    let plain = serde_json::to_string(&Start::default()).unwrap();
+    assert!(
+        !plain.contains("from") && !plain.contains("\"to\""),
+        "{plain}"
+    );
+    let old: Start = serde_json::from_str(r#"{"id":"x","url":"https://e.com/v"}"#).unwrap();
+    assert!(old.from.is_empty() && old.to.is_empty());
 }

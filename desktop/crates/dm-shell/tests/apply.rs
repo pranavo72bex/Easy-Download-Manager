@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A settings change is in force whole or not at all, and a cookies file
 //! is read as dm opens and does not hold other changes hostage once gone.
 
@@ -49,6 +54,7 @@ async fn the_cookies_file_is_read_at_launch_and_its_loss_blocks_nothing() {
     let mut broken = again.clone();
     broken.connections = before + 1;
     broken.proxy.enabled = true;
+    broken.proxy.kind = dm_core::ProxyKind::Http;
     broken.proxy.host = "not a host name".into();
     assert!(shell::apply(&broken, Some(&again), &queue).await.is_err());
     assert_eq!(queue.options().await.connections, before);

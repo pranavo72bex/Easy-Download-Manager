@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Streams served over RTMP, RTSP and MMS: the protocols of media servers
 //! and older players, which no HTTP request reaches.
 //!
@@ -81,6 +86,7 @@ pub fn name_for(url: &str) -> String {
     format!("{stem}.{ext}")
 }
 
+/// Records a live stream into the folder in `options` until it ends or is stopped; returns what came of it.
 pub async fn download_live(
     url: &str,
     options: &Options,
@@ -92,7 +98,7 @@ pub async fn download_live(
     {
         return Err(Error::Internal(format!(
             "a {scheme}:// stream cannot go through a proxy, and dm does not send it around one: \
-             turn the proxy off for this site (Options › Proxy) to fetch it"
+             turn the proxy off for this site (Options › Advanced) to fetch it"
         )));
     }
     // RTMPE is not dm's: Flash's encrypted RTMP, a protection dm does not

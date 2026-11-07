@@ -11,10 +11,10 @@ Differences found and left, and why. Anything here that changes is moved to
   4; dm's default comes from its settings. Left: changing the default changes
   a setting people see, which is a UI matter.
 - **Videos on pages.** Reference A reads a player's own requests and needs no helper;
-  dm has yt-dlp read the page (`docs/decisions.md`, "Why not without
-  yt-dlp"). Same files result where both work; YouTube needs yt-dlp.
-- **A video yt-dlp downloads itself.** When dm cannot fetch a page's streams
-  and yt-dlp downloads them instead, the file keeps yt-dlp's name, so a page's
+  dm has the external video tool read the page (`docs/decisions.md`, "Why not without
+  the external video tool"). Same files result where both work; YouTube needs the external video tool.
+- **A video the external video tool downloads itself.** When dm cannot fetch a page's streams
+  and the external video tool downloads them instead, the file keeps the external video tool's name, so a page's
   only `<video>` is still numbered "(1)" on that path. Only the path where dm
   fetches the streams, the usual one, drops the number.
 - **YouTube without a helper.** Reference A reads YouTube's player and
@@ -24,7 +24,7 @@ Differences found and left, and why. Anything here that changes is moved to
   the format and whose answer is framed (measured 2026-10-29, 13 of 13 media
   requests). A YouTube client of dm's own would need its protocol, its
   proof-of-origin tokens and keeping up with every change, which is the
-  upkeep the maintainer wants none of; yt-dlp, kept up by many and fetched
+  upkeep the maintainer wants none of; the external video tool, kept up by many and fetched
   by dm afresh each week, is kept instead (`decisions.md`, 2026-10-29). The
   one helper-free way left, saving what the player plays as it plays, gives
   only the quality the player picked at the speed it plays; weighed and not

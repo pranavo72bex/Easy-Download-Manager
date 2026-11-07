@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The window's words in the language a person picked in View › Language.
 //!
 //! Keyed by the English text itself: English needs no catalog, a string
@@ -546,6 +551,7 @@ impl Said {
         }
     }
 
+    /// Whether the text is empty.
     pub fn is_empty(&self) -> bool {
         match &self.0 {
             Sentence::Plain(plain) => plain.is_empty(),

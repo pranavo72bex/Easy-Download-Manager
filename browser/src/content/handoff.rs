@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A click on the panel: asking the background and handing the media over.
 
 use super::*;
@@ -131,6 +136,82 @@ pub(super) fn player_answer() -> Promise {
             PLAYER_PATIENCE_MS,
         );
     })
+}
+
+thread_local! {
+    /// Who is waiting for the page to say which video the player is: the
+    /// ask's token and the promise's resolve.
+    static ID_ASKED: RefCell<Option<(String, Function)>> = const { RefCell::new(None) };
+    /// Whether the page's id answers are listened for yet.
+    static ID_LISTENING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Which video the player under the panel is, by the finders the app's
+/// rules give this site (`document.js` reads them): its id, or empty where
+/// the site has no finder, the player matches none, or the page does not
+/// answer in a moment.
+async fn player_id() -> String {
+    let Some(window) = window() else {
+        return String::new();
+    };
+    let Some(Some(element)) = with_panel(|p| p.current.clone()) else {
+        return String::new();
+    };
+    if !ID_LISTENING.with(|l| l.replace(true)) {
+        listen(&window, "message", |event| {
+            let Ok(event) = event.dyn_into::<web_sys::MessageEvent>() else {
+                return;
+            };
+            let data = event.data();
+            if text_of(&data, "source") != "dm-player-id" {
+                return;
+            }
+            let token = text_of(&data, "token");
+            let waiting = ID_ASKED.with(|a| {
+                let mut a = a.borrow_mut();
+                match a.as_ref() {
+                    Some((asked, _)) if *asked == token => a.take(),
+                    _ => None,
+                }
+            });
+            if let Some((_, resolve)) = waiting {
+                let _ = resolve.call1(&JsValue::NULL, &data);
+            }
+        });
+    }
+    let token = format!("f{}", js_sys::Date::now() as u64);
+    let origin = window.location().origin().unwrap_or_else(|_| "*".into());
+    // The element is marked for the page script to find, for this one ask.
+    let _ = element.set_attribute("data-dm-find", &token);
+    let asked = Promise::new(&mut |resolve, _reject| {
+        ID_ASKED.with(|a| *a.borrow_mut() = Some((token.clone(), resolve.clone())));
+        let ask = js_sys::Object::new();
+        let _ = Reflect::set(&ask, &"source".into(), &"dm-find-id".into());
+        let _ = Reflect::set(&ask, &"token".into(), &token.clone().into());
+        let _ = window.post_message(&ask, &origin);
+        let token = token.clone();
+        set_timeout(
+            move || {
+                let late = ID_ASKED.with(|a| {
+                    let mut a = a.borrow_mut();
+                    match a.as_ref() {
+                        Some((asked, _)) if *asked == token => a.take(),
+                        _ => None,
+                    }
+                });
+                if let Some((_, resolve)) = late {
+                    let _ = resolve.call1(&JsValue::NULL, &JsValue::NULL);
+                }
+            },
+            PLAYER_PATIENCE_MS,
+        );
+    });
+    let answer = JsFuture::from(asked).await.unwrap_or(JsValue::NULL);
+    element.remove_attribute("data-dm-find").ok();
+    if answer.is_null() {
+        return String::new();
+    }
+    text_of(&answer, "id")
 }
 
 /// The heights the player's answer names for the video `id`, tallest
@@ -295,6 +376,7 @@ pub(super) fn clicked() {
             .ok()
             .and_then(|v| v.dyn_into().ok())
             .unwrap_or_default();
+        let choices = with_page_lines(choices, &player_id().await);
         with_panel(|p| {
             p.settled = false;
             say(p, "");
@@ -307,21 +389,131 @@ pub(super) fn clicked() {
     });
 }
 
+/// The video files the page lists in its own data, added to the lines the background
+/// gave: for the video whose file the player has been seen to fetch, the page's SD and
+/// HD files and its DASH stream, as a site that names them all shows them.
+fn with_page_lines(choices: Array, player: &str) -> Array {
+    let seen: Vec<String> = choices
+        .iter()
+        .flat_map(|c| [text_of(&c, "url"), text_of(&c, "sound")])
+        .filter(|u| !u.is_empty())
+        .collect();
+    let Some(mut text) = document()
+        .and_then(|d| d.document_element())
+        .map(|e| e.outer_html())
+    else {
+        return choices;
+    };
+    // Then what the page's own answers said about media, newest first (kept by the page
+    // script): each as a script of its own, a bare manifest as a JSON string.
+    for body in super::bodies::kept_texts().into_iter().rev() {
+        let body = if body.trim_start().starts_with('<') {
+            serde_json::to_string(&body).unwrap_or_default()
+        } else {
+            body
+        };
+        if !body.contains("</script") {
+            text.push_str("<script>");
+            text.push_str(&body);
+            text.push_str("</script>");
+        }
+    }
+    // The video a site's finder named for this player comes first; the lines found by the file
+    // the player was seen to fetch follow.
+    let mut lines = decide::page_lines_for_player(&text, player);
+    lines.extend(decide::page_lines(&text, &seen));
+    for line in lines {
+        if choices.iter().any(|c| text_of(&c, "url") == line.url) {
+            continue;
+        }
+        let item = js_sys::Object::new();
+        let _ = Reflect::set(&item, &"url".into(), &line.url.as_str().into());
+        let _ = Reflect::set(&item, &"label".into(), &line.label.as_str().into());
+        if let Some(sound) = &line.sound {
+            let _ = Reflect::set(&item, &"sound".into(), &sound.as_str().into());
+        }
+        let _ = Reflect::set(
+            &item,
+            &"line".into(),
+            &decide::choice_line(&line.label, None).into(),
+        );
+        choices.push(&item);
+    }
+    choices
+}
+
+/// The video's title as the page gives it: the element the site's rule names,
+/// else the page's title, else its `og:title` (gaps row 124), cleaned of the
+/// site's name. It heads each line of the list and names a file whose own name
+/// says nothing (gaps row 75).
+fn video_title(document: &web_sys::Document) -> String {
+    let page = window()
+        .and_then(|w| w.location().href().ok())
+        .unwrap_or_default();
+    let og = document
+        .query_selector("meta[property='og:title']")
+        .ok()
+        .flatten()
+        .and_then(|m| m.get_attribute("content"))
+        .unwrap_or_default();
+    let ruled = Reflect::get(&js_sys::global(), &"dmTitleRule".into())
+        .ok()
+        .and_then(|v| v.as_string())
+        .filter(|s| !s.is_empty())
+        .and_then(|selector| document.query_selector(&selector).ok().flatten())
+        .and_then(|e| e.text_content())
+        .map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default();
+    let own = if ruled.is_empty() {
+        document.title()
+    } else {
+        ruled
+    };
+    decide::clean_title(decide::page_title(&own, &og), &page)
+}
+
 /// The list: one line per quality, with its size.
 pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     let Some(document) = document() else {
         return;
     };
+    // Each line as reference A words it: its number, the video's title, the
+    // kind and quality (gaps row 72a).
+    let title = video_title(&document);
     let first = with_panel(|p| {
         set_title(p, "Download video");
         close_list(p);
-        for choice in choices.iter() {
+        // Reference A's first line: every quality listed, handed over at
+        // once; the app asks about each in turn (gaps row 72b).
+        if choices.length() > 1 {
+            if let Ok(all) = document.create_element("button") {
+                // Looks as a line does; told apart from the qualities.
+                all.set_class_name("item all");
+                let _ = all.set_attribute("role", "menuitem");
+                all.set_text_content(Some(decide::DOWNLOAD_ALL));
+                let (src, frame, every) = (src.to_string(), frame.to_string(), choices.clone());
+                listen(&all, "click", move |event| {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    for choice in every.iter() {
+                        hand_choice(&src, &frame, &choice);
+                    }
+                });
+                let _ = p.list.append_child(&all);
+            }
+        }
+        part_line(&document, p);
+        for (number, choice) in choices.iter().enumerate() {
             let Ok(item) = document.create_element("button") else {
                 continue;
             };
             item.set_class_name("item");
             let _ = item.set_attribute("role", "menuitem");
-            item.set_text_content(Some(&text_of(&choice, "line")));
+            item.set_text_content(Some(&decide::reference_line(
+                number + 1,
+                &title,
+                &text_of(&choice, "line"),
+            )));
             let (src, frame) = (src.to_string(), frame.to_string());
             listen(&item, "click", move |event| {
                 event.prevent_default();
@@ -336,8 +528,61 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     focus(first);
 }
 
+/// The list's "Part" line: where a part of the video starts and ends, both
+/// optional, as "1:30" or seconds. Whichever line is clicked is handed over
+/// with them; the app opens "Download details" with the part filled in.
+fn part_line(document: &web_sys::Document, p: &Panel) {
+    let Ok(row) = document.create_element("div") else {
+        return;
+    };
+    row.set_class_name("part");
+    let mut fields = Vec::new();
+    for (word, class, name) in [("Part", "from", "Part start"), ("to", "to", "Part end")] {
+        let Ok(label) = document.create_element("span") else {
+            return;
+        };
+        label.set_text_content(Some(word));
+        let Ok(input) = document.create_element("input") else {
+            return;
+        };
+        input.set_class_name(class);
+        let _ = input.set_attribute("type", "text");
+        let _ = input.set_attribute("placeholder", "m:ss");
+        let _ = input.set_attribute("aria-label", name);
+        let _ = input.set_attribute("autocomplete", "off");
+        let _ = input.set_attribute("spellcheck", "false");
+        let _ = input.set_attribute("maxlength", "16");
+        // A page's shortcuts (a player's space, arrows, f, m) must not take
+        // what is typed here.
+        for event in ["keydown", "keyup", "keypress"] {
+            listen(&input, event, |event| event.stop_propagation());
+        }
+        fields.push((label, input));
+    }
+    for (label, input) in fields {
+        let _ = row.append_child(&label);
+        let _ = row.append_child(&input);
+    }
+    let _ = p.list.append_child(&row);
+}
+
+/// What the "Part" line holds, as typed, cleaned of anything but a time.
+fn part_typed(class: &str) -> Option<String> {
+    with_panel(|p| {
+        let input = p
+            .list
+            .query_selector(&format!(".part .{class}"))
+            .ok()
+            .flatten()?
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .ok()?;
+        Some(decide::part_text(&input.value())).filter(|s| !s.is_empty())
+    })
+    .flatten()
+}
+
 /// One line of the list, handed over: a quality of the page the app's
-/// yt-dlp reads, or a stream the page loaded, which goes by its own address.
+/// the app reads, or a stream the page loaded, which goes by its own address.
 pub(super) fn hand_choice(src: &str, frame: &str, choice: &JsValue) {
     let label = Some(text_of(choice, "label")).filter(|l| !l.is_empty());
     let url = text_of(choice, "url");
@@ -384,6 +629,21 @@ pub(super) fn hand_with(
     if let Some(label) = &label {
         let _ = Reflect::set(&message, &"label".into(), &label.into());
     }
+    // The page's title goes with it: the app names a file by it when the
+    // file's own name says nothing (gaps row 75). It was read for the list
+    // and never sent, so X's videos kept names such as "GiFPAi8WYAEgiBu".
+    if let Some(title) = document()
+        .map(|d| video_title(&d))
+        .filter(|t| !t.is_empty())
+    {
+        let _ = Reflect::set(&message, &"title".into(), &title.into());
+    }
+    // Read before the list closes: the "Part" line is part of it.
+    for (key, class) in [("from", "from"), ("to", "to")] {
+        if let Some(text) = part_typed(class) {
+            let _ = Reflect::set(&message, &key.into(), &text.into());
+        }
+    }
     with_panel(|p| {
         p.settled = true;
         close_list(p);
@@ -415,6 +675,11 @@ pub(super) fn hand_with(
             "Downloading in the browser"
         } else {
             "Sent to dm"
+        };
+        // The quality it was sent at, where the page said one, ahead of what the app said.
+        let said = match label.as_deref().filter(|l| !l.is_empty()) {
+            Some(label) if title == "Sent to dm" => format!("{label}: {said}"),
+            _ => said,
         };
         with_panel(|p| {
             p.wrap.set_class_name("wrap done");

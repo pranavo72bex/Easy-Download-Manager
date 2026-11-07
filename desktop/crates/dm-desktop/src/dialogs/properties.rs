@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
     let ids: Vec<Id> = app.dialogs.properties.keys().copied().collect();
@@ -45,7 +50,7 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         } else {
             row.path.clone()
         };
-        let (mut ok, mut cancel, mut open_file) = (false, false, false);
+        let (mut ok, mut cancel, mut open_file, mut copy_details) = (false, false, false, false);
         let focus = app.dialogs.take_focus("File properties");
         let runtime = app.backend.runtime.clone();
         let Some(d) = app.dialogs.properties.get_mut(&id) else {
@@ -137,6 +142,15 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                     None => said(ui, &status),
                                 }
                                 ui.end_row();
+                                // What a person can do, under a failure that
+                                // only says what went wrong.
+                                if let State::Failed(why) = &row.state {
+                                    if let Some(step) = format::next_step(why) {
+                                        ui.label("");
+                                        said(ui, t(step));
+                                        ui.end_row();
+                                    }
+                                }
                                 ui.label(t("Size"));
                                 said(ui, &size);
                                 ui.end_row();
@@ -202,11 +216,43 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                     .labelled_by(name.id);
                                 ok |= entered(&focused(note, focus && !editable));
                                 ui.end_row();
+                                // A torrent's files, each with a tick: those
+                                // left out are not fetched.
+                                if !row.torrent_files.is_empty() {
+                                    torrent_files(ui, &row, d);
+                                    ui.end_row();
+                                }
                                 // A finished file's digest, worked out beside
                                 // the window, and a box to check it against
                                 // one the person was given.
                                 if row.state == State::Completed && !crate::table::gone(&row) {
                                     digest_rows(ui, ctx, &runtime, &row.path, d, value);
+                                    // A finished ZIP's files, by name and
+                                    // size, read from the file beside the
+                                    // window: text only, never opened.
+                                    if zip_list::is_zip_address(&row.path) {
+                                        zip_list::read_file(
+                                            &runtime,
+                                            ctx,
+                                            &mut d.zip,
+                                            std::path::PathBuf::from(&row.path),
+                                        );
+                                    }
+                                    match zip_list::listing(&d.zip) {
+                                        zip_list::Listing::Nothing => {}
+                                        zip_list::Listing::Reading => {
+                                            ui.label(t("Contents"));
+                                            ui.label(
+                                                RichText::new(zip_list::reading_words()).weak(),
+                                            );
+                                            ui.end_row();
+                                        }
+                                        zip_list::Listing::Files(files, more) => {
+                                            ui.label(t("Contents"));
+                                            ui.vertical(|ui| zip_list::show(ui, &files, more));
+                                            ui.end_row();
+                                        }
+                                    }
                                 }
                             });
                     });
@@ -221,6 +267,11 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                     open_file = ui
                         .add_enabled(can_open, egui::Button::new(t("Open")))
                         .clicked();
+                    // For a row that failed: what a person can paste to whoever helps, with
+                    // nothing secret in it.
+                    if matches!(row.state, State::Failed(_)) {
+                        copy_details = ui.button(t("Copy details")).clicked();
+                    }
                     cancel = ui.button(t("Cancel")).clicked();
                 });
             });
@@ -230,6 +281,20 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                 d.says = e;
             }
         }
+        if copy_details {
+            if let Some((text, count)) = crate::details::blocks_for(
+                &[dm_core::Entry::clone(&row)],
+                app.applied.connections,
+                &app.applied.download_dir,
+            ) {
+                app.copied = Some(text);
+                app.said = crate::i18n::Said::counting(
+                    "Copied the details of {} download.||Copied the details of {} downloads.",
+                    count as u64,
+                    &[&count],
+                );
+            }
+        }
         let (description, address) = (
             d.description.clone(),
             join_login(&d.address, &d.login, &d.password),
@@ -237,6 +302,14 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         if cancel {
             app.dialogs.properties.remove(&id);
         }
+        let files = app.dialogs.properties.get(&id).map(|d| d.files.clone());
+        let ok = ok && files.is_none_or(|files| choose_files(app, id, &row, &files));
+        let priorities = app
+            .dialogs
+            .properties
+            .get(&id)
+            .map(|d| d.priorities.clone());
+        let ok = ok && priorities.is_none_or(|p| choose_priorities(app, id, &row, &p));
         if ok {
             if description != row.description {
                 app.backend.set_description(id, &description);
@@ -272,6 +345,133 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// A torrent's files as Properties lists them: a tick, the name and the
+/// size each; ticks only while it is stopped, as the queue takes a change
+/// then.
+fn torrent_files(ui: &mut egui::Ui, row: &dm_core::Entry, d: &mut Properties) {
+    if d.files.len() != row.torrent_files.len() {
+        d.files = row.torrent_files.iter().map(|f| f.wanted).collect();
+    }
+    if d.priorities.len() != row.torrent_files.len() {
+        d.priorities = row.torrent_files.iter().map(|f| f.priority).collect();
+    }
+    ui.label(t("Files"));
+    ui.vertical(|ui| {
+        let can = !matches!(row.state, State::Running | State::Queued | State::Completed);
+        ui.add_enabled_ui(can, |ui| {
+            let several = row.torrent_files.len() > 1;
+            for (i, (file, on)) in row.torrent_files.iter().zip(d.files.iter_mut()).enumerate() {
+                let label = format!("{} ({})", file.name, format::bytes(file.size));
+                ui.horizontal(|ui| {
+                    check(ui, on, &label);
+                    // When it is fetched beside the others: a choice only
+                    // where there are others.
+                    if let (true, Some(priority)) = (several, d.priorities.get_mut(i)) {
+                        ui.add_enabled_ui(*on, |ui| {
+                            crate::dialogs::combo(("torrent-priority", row.id, i))
+                                .selected_text(priority_words(*priority))
+                                .show_ui(ui, |ui| {
+                                    for p in [
+                                        dm_core::TorrentPriority::High,
+                                        dm_core::TorrentPriority::Normal,
+                                        dm_core::TorrentPriority::Low,
+                                    ] {
+                                        ui.selectable_value(priority, p, priority_words(p));
+                                    }
+                                })
+                                .response
+                                // Named for a screen reader: one a file.
+                                .widget_info(|| {
+                                    egui::WidgetInfo::labeled(
+                                        egui::Role::ComboBox,
+                                        true,
+                                        tf("Priority of {}", &[&file.name]),
+                                    )
+                                });
+                        });
+                    }
+                });
+            }
+        });
+        if matches!(row.state, State::Running | State::Queued) {
+            ui.label(
+                RichText::new(t("Stop the download to change which files are fetched.")).weak(),
+            );
+        }
+    });
+}
+
+/// A priority in the window's words.
+fn priority_words(p: dm_core::TorrentPriority) -> &'static str {
+    match p {
+        dm_core::TorrentPriority::High => t("High"),
+        dm_core::TorrentPriority::Normal => t("Normal"),
+        dm_core::TorrentPriority::Low => t("Low"),
+    }
+}
+
+/// Keeps changed priorities of a torrent's files; false, with the reason
+/// said in the dialog, where they cannot be kept.
+fn choose_priorities(
+    app: &mut DmApp,
+    id: Id,
+    row: &dm_core::Entry,
+    priorities: &[dm_core::TorrentPriority],
+) -> bool {
+    let now: Vec<_> = row.torrent_files.iter().map(|f| f.priority).collect();
+    if priorities.is_empty() || priorities == now.as_slice() {
+        return true;
+    }
+    match app.backend.set_torrent_priorities(id, priorities) {
+        Ok(()) => true,
+        Err(e) => {
+            if let Some(d) = app.dialogs.properties.get_mut(&id) {
+                d.says = files_refusal(&e);
+            }
+            false
+        }
+    }
+}
+
+/// Keeps a changed choice of a torrent's files; false, with the reason
+/// said in the dialog, where it cannot be kept.
+fn choose_files(app: &mut DmApp, id: Id, row: &dm_core::Entry, files: &[bool]) -> bool {
+    let now: Vec<bool> = row.torrent_files.iter().map(|f| f.wanted).collect();
+    if files.is_empty() || files == now.as_slice() {
+        return true;
+    }
+    let refused = if !files.iter().any(|w| *w) {
+        Some(t("Tick at least one file.").to_string())
+    } else {
+        app.backend
+            .set_torrent_files(id, files)
+            .err()
+            .map(|e| files_refusal(&e))
+    };
+    match refused {
+        None => true,
+        Some(why) => {
+            if let Some(d) = app.dialogs.properties.get_mut(&id) {
+                d.says = why;
+            }
+            false
+        }
+    }
+}
+
+/// The queue's refusal of a choice of files, in the language in force.
+fn files_refusal(why: &str) -> String {
+    match why {
+        "Tick at least one file." => t("Tick at least one file."),
+        "Stop the download to change which files are fetched." => {
+            t("Stop the download to change which files are fetched.")
+        }
+        "The torrent's files are not known yet." => t("The torrent's files are not known yet."),
+        other => other,
+    }
+    .to_string()
+}
+
 /// Starts hashing `path` with `algorithm` unless that is already under way
 /// or done, on the app's runtime: a large file takes a while, and the window
 /// must not.
@@ -279,7 +479,7 @@ fn start_sum(
     runtime: &tokio::runtime::Handle,
     sums: &Sums,
     path: &str,
-    algorithm: dm_core::checksum::Algorithm,
+    algorithm: dm_core::Algorithm,
 ) {
     let name = algorithm.name();
     {
@@ -291,7 +491,7 @@ fn start_sum(
     }
     let (sums, path) = (Arc::clone(sums), std::path::PathBuf::from(path));
     runtime.spawn(async move {
-        let found = dm_core::checksum::digest(&path, algorithm)
+        let found = dm_core::digest(&path, algorithm)
             .await
             .map_err(|e| e.to_string());
         dm_core::lock(&sums).insert(name, Some(found));
@@ -299,7 +499,7 @@ fn start_sum(
 }
 
 /// What has been found for `algorithm`: still working, the digest, or why not.
-fn sum_of(sums: &Sums, algorithm: dm_core::checksum::Algorithm) -> Option<Result<String, String>> {
+fn sum_of(sums: &Sums, algorithm: dm_core::Algorithm) -> Option<Result<String, String>> {
     dm_core::lock(sums).get(algorithm.name()).cloned().flatten()
 }
 
@@ -313,7 +513,7 @@ fn digest_rows(
     d: &mut Properties,
     value: f32,
 ) {
-    use dm_core::checksum::{Algorithm, Checksum};
+    use dm_core::{Algorithm, Checksum};
     let waiting = |ui: &mut egui::Ui| {
         ui.label(RichText::new(t("Working it out…")).weak());
         ctx.request_repaint_after(std::time::Duration::from_millis(200));

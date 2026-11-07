@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The computer's own fonts for other scripts.
 
 use super::*;
@@ -10,14 +15,20 @@ use super::*;
 pub enum Script {
     /// Chinese characters, and Japanese with its kana.
     Cjk,
+    /// Korean Hangul.
     Hangul,
+    /// Arabic script.
     Arabic,
+    /// Hebrew script.
     Hebrew,
+    /// Thai script.
     Thai,
+    /// Devanagari script.
     Devanagari,
 }
 
 impl Script {
+    /// Every script dm loads a font for, in a fixed order.
     pub const ALL: [Script; 6] = [
         Script::Cjk,
         Script::Hangul,

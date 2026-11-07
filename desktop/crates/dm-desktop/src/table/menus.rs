@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The menu on a row.
 
 use super::*;
@@ -26,7 +31,8 @@ pub(super) fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
     menu_item(app, ui, Command::StopDownload, t("Stop download"));
     menu_item(app, ui, Command::UpdateLink, t("Update download link"));
     menu_item(app, ui, Command::CopyLink, t("Copy link"));
-    menu_item(app, ui, Command::Remove, t("Remove"));
+    menu_item(app, ui, Command::CopyDetails, t("Copy details"));
+    menu_item(app, ui, Command::Remove, t("Delete"));
     menu_item(app, ui, Command::DeleteFile, Command::DeleteFile.title());
     delete_after_menu(app, ui);
     ui.separator();

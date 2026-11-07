@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 /// What the window offers to queue on its own: the first word of some text,
 /// if it is a link. The queue is the authority on what it accepts.
 pub fn looks_downloadable(text: &str) -> Option<String> {
@@ -168,7 +173,7 @@ pub fn dropped_links(file: &dyn egui::DroppedFile) -> Vec<String> {
     if kind.as_deref() == Some("torrent") && path.is_file() {
         return std::path::absolute(path)
             .ok()
-            .and_then(|full| dm_core::torrent::file_url(&full))
+            .and_then(|full| dm_core::file_url(&full))
             .into_iter()
             .collect();
     }
@@ -241,7 +246,7 @@ mod two_addresses_tests {
     fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
         let said = worded_problem(
             "the saved proxy could not be used (the proxy has no host), so it is turned off and downloads \
-             go out directly. Fix it under Options › Proxy and tick it again.",
+             go out directly. Fix it under Options › Advanced and tick it again.",
         );
         assert!(
             said.starts_with("The proxy can't be used (the proxy has no host)"),

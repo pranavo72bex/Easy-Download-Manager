@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Taking a download from the browser.
 //!
 //! The browser launches this as a native messaging host: a short-lived
@@ -52,6 +57,13 @@ pub struct Request {
     /// video from the browser's panel.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ask: bool,
+    /// The part of a video the panel's "Part" line asked for: its start and
+    /// end as typed, either empty. "Download details" opens with them filled.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub from: String,
+    /// Where that part ends, as typed; see `from`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub to: String,
     /// Caught by the browser extension, rather than asked for from its
     /// panel or menu: which of Options' two "ask" settings governs it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -59,6 +71,15 @@ pub struct Request {
     /// A page's links, for the app's "Download all links" dialog.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
+    /// The form the download is the answer to, where the page sent one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post: Option<dm_protocol::Posted>,
+    /// Each of those links' words on the page, by address, where it has any.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub texts: std::collections::BTreeMap<String, String>,
+    /// The file names those links' `download` attributes give, by address.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub names: std::collections::BTreeMap<String, String>,
     /// The browser's cookies for the site, as a `Cookie` header, where the
     /// person switched that on for the site in the toolbar popup.
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -66,14 +87,30 @@ pub struct Request {
     /// Those cookies are a video page's session, for this download alone.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The request headers the browser sent for it (`Start::headers`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
+    /// The title of the page it came from, to name a file whose own name says nothing.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
     /// The browser it came from ("Microsoft Edge"), as the host's parent
     /// process is named, for the dialog to say; `None` where that cannot
     /// be told.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub browser: Option<String>,
+    /// Handed over by the browser's extension, not given on a command line:
+    /// it may take the place of a row waiting for a fresh address for the
+    /// same file (`Queue::adopt_fresh_link`) rather than be added again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub from_browser: bool,
+    /// Only a newer address for a row waiting for one (`Start::renews`):
+    /// dropped where no row takes it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub renews: bool,
 }
 
 mod parent;
+pub mod served;
 /// The browser this host was started by, by its parent process's program
 /// name (past the `cmd` Chrome and Edge start it through on Windows), in the
 /// words a person knows it by. `None` where it cannot be told.
@@ -330,10 +367,10 @@ pub fn catch_rules(home: &Path) -> CatchRules {
 }
 
 pub(crate) fn saved(home: &Path) -> crate::Settings {
-    std::fs::read_to_string(home.join("settings.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<crate::Settings>(&text).ok())
-        .unwrap_or_default()
+    // Read as the window reads it, so the two never disagree (an older
+    // edition of the pop-up defaults, one odd field), and read only: this
+    // process has no window to say it moved a file aside.
+    crate::Settings::read_only(&home.join("settings.json"))
 }
 
 /// What answering needs from outside this process. A trait so a test can
@@ -356,7 +393,19 @@ pub trait World {
         cookies: &str,
         within_ms: u64,
     ) -> Result<String, String>;
-    /// The qualities a page's video comes in, as yt-dlp reads them.
+    /// [`World::reachable`] with the request headers the browser sent. A
+    /// world that does not use them asks without.
+    fn reachable_with(
+        &mut self,
+        url: &str,
+        referrer: &str,
+        cookies: &str,
+        _headers: &[(String, String)],
+        within_ms: u64,
+    ) -> Result<String, String> {
+        self.reachable(url, referrer, cookies, within_ms)
+    }
+    /// The qualities a page's video comes in.
     fn formats(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<Vec<Choice>, String>;
     /// Milliseconds since the Unix epoch, the clock the extension's
     /// deadline is read against.
@@ -402,6 +451,17 @@ impl World for Here<'_> {
         cookies: &str,
         within_ms: u64,
     ) -> Result<String, String> {
+        self.reachable_with(url, referrer, cookies, &[], within_ms)
+    }
+
+    fn reachable_with(
+        &mut self,
+        url: &str,
+        referrer: &str,
+        cookies: &str,
+        headers: &[(String, String)],
+        within_ms: u64,
+    ) -> Result<String, String> {
         if !(url.starts_with("http://") || url.starts_with("https://")) {
             return Ok(String::new());
         }
@@ -412,7 +472,7 @@ impl World for Here<'_> {
         // Never around the proxy: a proxy that cannot be built here must
         // not turn into a direct request, which is the server seeing the
         // address the person set a proxy to hide. The browser keeps it.
-        let client = dm_core::proxy::client_with(&settings.proxy).map_err(|e| {
+        let client = dm_core::client_with(&settings.proxy).map_err(|e| {
             format!("dm's proxy setting cannot be used ({e}), so it did not ask the server")
         })?;
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -423,14 +483,14 @@ impl World for Here<'_> {
         runtime.block_on(async {
             match tokio::time::timeout(
                 std::time::Duration::from_millis(within_ms),
-                dm_core::probe::probe(
+                dm_core::probe(
                     &client,
                     // A site's saved sign-in (Options › Sign-ins), as the
                     // app will use it: asked without it, such a link was
                     // refused and always left with the browser.
                     &settings.with_login(url),
                     referrer,
-                    dm_core::cookies::SignIn::new(url, cookies).as_ref(),
+                    dm_core::cookies::SignIn::with_headers(url, cookies, headers).as_ref(),
                 ),
             )
             .await
@@ -445,13 +505,12 @@ impl World for Here<'_> {
         })
     }
 
-    /// yt-dlp's reading of the page, through the saved proxy, bounded.
+    /// The qualities a page offers: YouTube from its own player data.
     fn formats(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<Vec<Choice>, String> {
         if !(url.starts_with("http://") || url.starts_with("https://")) {
             return Err("only a web page has qualities to list".into());
         }
-        // What was read a few minutes ago, by this very host or another the
-        // browser started since, is not read again: yt-dlp takes seconds.
+        // What was read a few minutes ago is not read again.
         let key = formats_key(url, cookies);
         if let Some(listed) = recalled_formats(self.home, &key, now_secs()) {
             return Ok(listed);
@@ -462,40 +521,17 @@ impl World for Here<'_> {
             .build()
             .map_err(|e| e.to_string())?;
         let referrer = (!referrer.is_empty()).then_some(referrer);
-        let settings = saved(self.home);
         let sign_in = dm_core::cookies::SignIn::new(url, cookies);
-        // A YouTube watch page lists its own qualities: no yt-dlp for that,
-        // which can take seconds and, where dm has none yet, a fetch of it.
-        // yt-dlp reads the page for the download at the same time, not after
-        // the list: it takes about three seconds, and a click on a quality
-        // is likely sooner than that after the list.
-        let watch = dm_core::ytdlp::is_watch_page(url);
-        if watch {
-            dm_core::ytdlp::mark_reading(url);
-            warm_in_background(url, referrer.unwrap_or(""), cookies);
-        }
-        let fast = runtime.block_on(dm_core::ytdlp::list_choices_fast(
+        let fast = runtime.block_on(dm_core::videopage::list_choices_fast(
             url,
             proxy.as_deref(),
             sign_in.as_ref(),
         ));
-        // Where the page gave no list, the reading being made gives one: the
-        // same yt-dlp run, not a second.
-        let fast = match fast {
-            Some(listed) => Some(listed),
-            None if watch => runtime.block_on(dm_core::ytdlp::kept_choices(url)),
-            None => None,
-        };
         let listed = if let Some(listed) = fast {
             listed
         } else {
-            // yt-dlp found, or fetched now by dm where the computer has
-            // none, through the same proxy the download will take.
-            if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
-                runtime.block_on(dm_core::tools::for_video(&client))?;
-            }
             runtime
-                .block_on(dm_core::ytdlp::read_choices(
+                .block_on(dm_core::videopage::list_choices(
                     url,
                     referrer,
                     proxy.as_deref(),
@@ -653,20 +689,20 @@ pub fn answer(
     world: &mut dyn World,
 ) -> Option<serde_json::Value> {
     let reply = match Asked::from_frame(frame) {
-        // What this app can do, said up front: a player page handed to an
-        // app with no yt-dlp fails in the app, where the browser never hears
-        // of it. Told now, the extension can say so.
+        // What this app can do, said up front.
         Ok(Asked::Hello) => {
             // Remembered, so the window stops offering the extension to
             // someone who has it (`browser_seen`).
             mark_browser_seen(home);
             Reply::Hello(Hello {
                 engine_version: env!("CARGO_PKG_VERSION").into(),
-                // There, or fetched by dm when a page needs it (`tools`).
-                ytdlp: Some(dm_core::tools::video_possible()),
                 // The extension hands a download the browser holds only to an
                 // app that says it judges what it is served.
                 protocol: Some(dm_protocol::PROTOCOL_VERSION),
+                // The site rules the extension adds to its compiled tables: a fix for
+                // a site reaches it with the app, not with a store release.
+                rules: Some(served::served(home)),
+                renews: true,
             })
         }
 
@@ -681,11 +717,13 @@ pub fn answer(
             page,
             urls,
             cookies,
+            texts,
+            names,
         })) => {
             let links: Vec<String> = urls
                 .into_iter()
                 .map(|u| u.trim().to_string())
-                .filter(|u| dm_core::queue::accepted(u))
+                .filter(|u| dm_core::accepted(u))
                 .take(2000)
                 .collect();
             if links.is_empty() {
@@ -698,6 +736,15 @@ pub fn answer(
                         url: page.clone(),
                         referrer: page,
                         ask: true,
+                        // The words of the links sent, no others.
+                        texts: texts
+                            .into_iter()
+                            .filter(|(url, _)| links.contains(url))
+                            .collect(),
+                        names: names
+                            .into_iter()
+                            .filter(|(url, _)| links.contains(url))
+                            .collect(),
                         links,
                         // Scoped to the page's site by the dialog's sign-in.
                         cookies,
@@ -769,16 +816,26 @@ pub fn answer(
             sound,
             label,
             ask,
+            from,
+            to,
             cookies,
             cookies_once,
+            headers,
+            title,
             mime,
             deadline,
+            post,
+            renews,
             ..
         })) => {
             let url = url.trim().to_string();
             if url.is_empty() {
                 Reply::failed(&id, "no URL was given")
-            } else if !dm_core::queue::accepted(&url)
+            } else if renews && !world.app_running() {
+                // Nothing waits for it with no app running, and dm is not
+                // started for a renewal the person did not ask for.
+                Reply::failed(&id, "no dm is running to take a renewed address")
+            } else if !dm_core::accepted(&url)
                 // A file on this computer is dm's to read only when the
                 // person opens it with dm, never at a web page's word.
                 || url.get(..5).is_some_and(|s| s.eq_ignore_ascii_case("file:"))
@@ -801,10 +858,14 @@ pub fn answer(
                 // Not asked about first where the person said the site's
                 // links work once (Options › Browser): the asking spent the
                 // link before dm's own download could use it.
-                caught && !saved(home).catch.works_once(&url, &referrer),
-                &url,
-                &referrer,
-                &cookies,
+                // Nor a form's answer: asking would send the form again.
+                caught && post.is_none() && !saved(home).catch.works_once(&url, &referrer),
+                Asking {
+                    url: &url,
+                    referrer: &referrer,
+                    cookies: &cookies,
+                    headers: &headers,
+                },
                 &mime,
                 deadline,
             ) {
@@ -826,12 +887,30 @@ pub fn answer(
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty()),
                         label,
-                        // A caught download asks too, where Options says so.
-                        ask: ask || (caught && saved(home).ask_caught_downloads),
+                        // A caught download asks too, where Options says so;
+                        // a renewal never does.
+                        ask: !renews && (ask || (caught && saved(home).ask_caught_downloads)),
+                        // Only a video asked for from the panel has a part.
+                        from: if caught {
+                            String::new()
+                        } else {
+                            from.trim().to_string()
+                        },
+                        to: if caught {
+                            String::new()
+                        } else {
+                            to.trim().to_string()
+                        },
                         caught,
                         cookies: cookies.trim().to_string(),
-                        cookies_once: cookies_once && !cookies.trim().is_empty(),
+                        cookies_once: cookies_once
+                            && (!cookies.trim().is_empty() || !headers.is_empty()),
+                        headers: dm_core::cookies::forwardable(&headers),
+                        title: title.trim().chars().take(300).collect(),
                         browser: parent_browser(),
+                        post,
+                        from_browser: true,
+                        renews,
                         ..Request::default()
                     },
                 ) {
@@ -911,6 +990,15 @@ pub(crate) fn unwritable(folder: &Path) -> Option<String> {
     })
 }
 
+/// The request a hand-off would make: its address and what the browser sent with it.
+#[derive(Clone, Copy)]
+struct Asking<'a> {
+    url: &'a str,
+    referrer: &'a str,
+    cookies: &'a str,
+    headers: &'a [(String, String)],
+}
+
 /// Why a hand-off must not be taken, or `None` when it can be filed.
 ///
 /// Too late first: past the extension's deadline it has given the download
@@ -923,12 +1011,16 @@ pub(crate) fn unwritable(folder: &Path) -> Option<String> {
 fn checked(
     world: &mut dyn World,
     caught: bool,
-    url: &str,
-    referrer: &str,
-    cookies: &str,
+    asking: Asking<'_>,
     mime: &str,
     deadline: Option<u64>,
 ) -> Option<String> {
+    let Asking {
+        url,
+        referrer,
+        cookies,
+        headers,
+    } = asking;
     let late = "the browser stopped waiting for dm, so it keeps the download";
     let Some(within) = dm_protocol::time_left(world.now_ms(), deadline) else {
         return Some(late.into());
@@ -936,7 +1028,7 @@ fn checked(
     if !caught {
         return None;
     }
-    match world.reachable(url, referrer, cookies, within) {
+    match world.reachable_with(url, referrer, cookies, headers, within) {
         Err(why) => Some(format!("dm cannot fetch this without the browser: {why}")),
         Ok(served) if dm_protocol::page_instead_of_file(mime, url, &served) => Some(format!(
             "dm cannot fetch this without the browser: the site answers dm with a page \
@@ -952,46 +1044,7 @@ fn checked(
 /// (`warm_main`).
 pub const WARM_FLAG: &str = "--warm-reading";
 
-/// Has yt-dlp read a page behind the panel's list, for the download a click
-/// on it starts, in a process of its own. The browser ends this host soon
-/// after it has its answer (seen: within three seconds, with yt-dlp still
-/// reading), and a reading made inside it was ended too and never there for
-/// the download to use. The page and the session travel on its standard
-/// input, not on a command line anyone can read.
-fn warm_in_background(url: &str, referrer: &str, cookies: &str) {
-    // A YouTube page is read by dm itself at the download, in a second or
-    // two; a reading by yt-dlp made now would go unused.
-    if dm_core::youtube::video_id(url).is_some() {
-        return;
-    }
-    let Ok(executable) = std::env::current_exe() else {
-        return;
-    };
-    let start = |breakaway: bool| {
-        let mut command = Command::new(&executable);
-        command
-            .arg(WARM_FLAG)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        detach(&mut command, breakaway);
-        command.spawn()
-    };
-    let Ok(mut child) = start(true).or_else(|_| start(false)) else {
-        return;
-    };
-    if let Some(mut input) = child.stdin.take() {
-        let said = serde_json::json!({ "url": url, "referrer": referrer, "cookies": cookies });
-        let _ = input.write_all(said.to_string().as_bytes());
-    }
-    // Not waited for: it outlives this host, which is the point. Reaped by
-    // the system once this process is gone.
-    drop(child);
-}
-
-/// Makes `command` outlive its parent: in a process group of its own where
-/// the browser ends only the host's, and outside a job where Firefox on
-/// Windows ends the host's whole job (as `launch_desktop` does for the app).
+#[allow(dead_code)]
 fn detach(command: &mut Command, breakaway: bool) {
     #[cfg(unix)]
     {
@@ -1012,61 +1065,13 @@ fn detach(command: &mut Command, breakaway: bool) {
     }
 }
 
-/// What `--warm-reading` does: reads the page and session on standard input
-/// and has yt-dlp read the page into dm's readings, then ends.
-pub fn warm_main(home: &Path) {
-    let mut said = String::new();
-    if std::io::stdin().read_to_string(&mut said).is_ok() {
-        warm_page(home, &said);
-    }
-}
-
-/// The page and session `said` names (JSON: `url`, `referrer`, `cookies`),
-/// read by yt-dlp into dm's readings. Anything that is not an http(s) page
-/// is left alone.
-fn warm_page(home: &Path, said: &str) {
-    let Ok(said) = serde_json::from_str::<serde_json::Value>(said) else {
-        return;
-    };
-    let text = |key: &str| said.get(key).and_then(|v| v.as_str()).unwrap_or("");
-    let (url, referrer, cookies) = (text("url"), text("referrer"), text("cookies"));
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return;
-    }
-    dm_core::tools::set_folder(home.join("tools"));
-    dm_core::ytdlp::keep_readings_in(home.join("readings"));
-    let settings = saved(home);
-    dm_core::tools::allow_fetching(settings.fetch_tools);
-    let _ = dm_core::cookies::use_file(std::path::Path::new(settings.cookies_file.trim()));
-    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    else {
-        return;
-    };
-    if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
-        if runtime
-            .block_on(dm_core::tools::for_video(&client))
-            .is_err()
-        {
-            return;
-        }
-    }
-    let proxy = settings.proxy.url_for_tools();
-    let sign_in = dm_core::cookies::SignIn::new(url, cookies);
-    runtime.block_on(dm_core::ytdlp::warm_reading(
-        url,
-        (!referrer.is_empty()).then_some(referrer),
-        proxy.as_deref(),
-        sign_in.as_ref(),
-    ));
-}
+/// What `--warm-reading` does: no longer needed since YouTube is read by
+/// dm itself and non-YouTube sites have no page reader.
+pub fn warm_main(_home: &Path) {}
 
 /// Runs as the browser's native messaging host until the browser closes it.
 pub fn run(home: &Path) {
     dm_core::tools::set_folder(home.join("tools"));
-    // The panel's readings of pages, kept for the app's download of them.
-    dm_core::ytdlp::keep_readings_in(home.join("readings"));
     dm_core::tools::allow_fetching(saved(home).fetch_tools);
     let mut input = std::io::stdin();
     let mut output = std::io::stdout();

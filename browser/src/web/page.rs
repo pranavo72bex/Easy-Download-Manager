@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the page script and the panel ask: hand-offs, quality lists and links.
 
 use super::*;
@@ -5,7 +10,7 @@ use super::*;
 /// A file the person asked dm for that dm could not take, downloaded by the
 /// browser instead: the
 /// person asked for the file, and gets it either way. A page (a player for
-/// yt-dlp) has nothing the browser could save, so its reason stands.
+/// the video reader) has nothing the browser could save, so its reason stands.
 pub(super) async fn in_browser_instead(target: &Target, why: &str) -> Result<String, String> {
     // Only what the browser downloads: a magnet given to its downloader was
     // accepted and failed, said as taken, and nothing was opened.
@@ -35,12 +40,16 @@ pub(super) async fn in_browser_instead(target: &Target, why: &str) -> Result<Str
 /// Hands something a person asked for. `Ok` carries a word for whoever
 /// asked; `Err` why it could not be done.
 pub(super) async fn hand_target(target: Target, store: Option<String>) -> Result<String, String> {
-    hand_chosen(target, store, None, None, None, false).await
+    hand_chosen(target, store, None, None, None, false, (None, None), None).await
 }
 
 /// Hands one download over, with the quality picked from the panel's list
 /// and, as for a video from the panel, asking the app to show
 /// "Download details" before it starts.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "each is one field of the panel's click, passed straight into Start"
+)]
 pub(super) async fn hand_chosen(
     target: Target,
     store: Option<String>,
@@ -48,22 +57,38 @@ pub(super) async fn hand_chosen(
     label: Option<String>,
     sound: Option<String>,
     ask: bool,
+    part: (Option<String>, Option<String>),
+    title: Option<String>,
 ) -> Result<String, String> {
     let (app, port) = app().await;
-    let hello = match app {
-        App::Absent { reason } => {
-            let why = absent_text(&reason, &own_id(), is_firefox());
-            return in_browser_instead(&target, &why).await;
-        }
-        App::Present { hello, .. } => hello,
+    if let App::Absent { reason } = app {
+        let why = absent_text(&reason, &own_id(), is_firefox());
+        return in_browser_instead(&target, &why).await;
+    }
+    // A stream chosen from the panel (`ask`) is a video the page is playing:
+    // its session goes with it, for this download alone, as a video page's
+    // does. TikTok's and others' CDN refuse a signed address without it.
+    let (cookies, cookies_once) =
+        sign_in_for(&target.url, store.as_deref(), target.page || ask).await;
+    // A signed address runs out: the newest one the player has asked for goes, not the first seen.
+    let address = if target.page {
+        target.url.clone()
+    } else {
+        renewed(&target.url).await
     };
-    let (cookies, cookies_once) = sign_in_for(&target.url, store.as_deref(), target.page).await;
     let start = Start {
         id: hand_id("m", 0, now()),
-        url: target.url.clone(),
+        url: address.clone(),
         referrer: target.referrer.clone(),
         cookies,
         cookies_once,
+        // A file or stream the page's own request fetched, with the headers
+        // that request carried; a page has none that matter.
+        headers: if target.page {
+            Vec::new()
+        } else {
+            sent_to(&address).await
+        },
         // Not checked first, as a caught download is: this one was asked of
         // dm, by name, so dm takes it and says if it fails, rather than
         // handing it back to start in the browser when dm's own request is
@@ -71,30 +96,35 @@ pub(super) async fn hand_chosen(
         caught: false,
         // A page is handed over for its media, picked or not: with a
         // quality the app never saves the page itself in the video's place
-        // when yt-dlp cannot read it.
+        // when the app cannot read it.
         quality: quality.or_else(|| target.page.then(|| "best".to_string())),
         label,
         sound: sound.filter(|s| s.starts_with("https://") || s.starts_with("http://")),
         ask,
+        // The panel's "Part" line; the app checks what was typed.
+        from: part.0.map(|s| decide::part_text(&s)).unwrap_or_default(),
+        to: part.1.map(|s| decide::part_text(&s)).unwrap_or_default(),
+        title: title
+            .map(|t| decide::clean_title(&t, &target.referrer))
+            .unwrap_or_default(),
         ..Start::default()
     };
     if let Err(why) = hand(port, start).await {
         return in_browser_instead(&target, &why).await;
     }
     log("info", &format!("handed {} to the dm app", target.url));
-    if target.page && hello.ytdlp == Some(false) {
-        return Ok(decide::NO_YTDLP.to_string());
-    }
-    Ok(if ask {
+    // A page goes to the app to be read for its video, which it may not be able to do (it
+    // reads YouTube's pages; gaps row 155): said as that, never as the app having the video.
+    Ok(if target.page {
+        "the dm app is reading this page for its video".into()
+    } else if ask {
         "the dm app has it".into()
-    } else if target.page {
-        "the dm app is fetching it with yt-dlp".into()
     } else {
         "the dm app is downloading it".into()
     })
 }
 
-/// The qualities a player page's video comes in, from the app's yt-dlp. A
+/// The qualities a player page's video comes in, from the app. A
 /// file is one quality, so it has no list.
 pub(super) async fn formats_of(
     target: &Target,
@@ -104,18 +134,14 @@ pub(super) async fn formats_of(
         return Ok(Vec::new());
     }
     let (app, port) = app().await;
-    let hello = match app {
-        App::Absent { reason } => return Err(absent_text(&reason, &own_id(), is_firefox())),
-        App::Present { hello, .. } => hello,
-    };
-    if hello.ytdlp == Some(false) {
-        return Err(decide::NO_YTDLP.to_string());
+    if let App::Absent { reason } = app {
+        return Err(absent_text(&reason, &own_id(), is_firefox()));
     }
     let mut port = match port {
         Some(port) => port,
         None => Port::open()?,
     };
-    // The page's session, for this one reading: a video site asks yt-dlp
+    // The page's session, for this one reading: a video site asks the app
     // to "confirm you're not a bot" without it.
     let (cookies, _) = sign_in_for(&target.url, store, true).await;
     port.send(&Request::Formats(dm_protocol::FormatsAsked {
@@ -123,7 +149,7 @@ pub(super) async fn formats_of(
         referrer: target.referrer.clone(),
         cookies,
     }))?;
-    // yt-dlp reads a page in a few seconds; the app gives it thirty.
+    // The app reads a page in a few seconds and gives it thirty.
     let deadline = now() + 40_000.0;
     loop {
         match port.next(deadline).await {
@@ -150,7 +176,6 @@ pub(super) async fn hand_asked(target: Target, store: Option<String>) {
         decide::taken_name("", &target.url)
     };
     match hand_target(target, store).await {
-        Ok(said) if said == decide::NO_YTDLP => notify("dm", &said),
         // Left to the browser, which is downloading it: said so, not as
         // dm's.
         Ok(said) if said.starts_with("the browser is downloading it") => notify("dm", &said),
@@ -187,6 +212,44 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         }
         return answer(true, "noted");
     }
+    // The page script asking which requests of its site have answers to read
+    // (the app's rules for the site; none for most sites).
+    if get(&message, "type").as_string().as_deref() == Some(decide::PAGE_RULES_MESSAGE) {
+        ensure_served().await;
+        let page = get(&sender, "url").as_string().unwrap_or_default();
+        return to_js(&serde_json::json!({
+            "ok": true,
+            "urls": decide::rules::watched_for(&page),
+            "finders": decide::rules::finders_for(&page),
+            "privateFetches": decide::rules::private_fetches_for(&page),
+            "title": decide::rules::title_for(&page),
+        }));
+    }
+    // The answer to one of those requests: read for the streams a page builds
+    // itself, only where the app's rules for the page's site name the request,
+    // and only as JSON, so a page that sends anything else gets nothing taken.
+    if get(&message, "type").as_string().as_deref() == Some(decide::PAGE_ANSWER_MESSAGE) {
+        ensure_served().await;
+        let tab = get(&sender, "tab.id").as_f64().unwrap_or(-1.0);
+        let page = get(&sender, "url").as_string().unwrap_or_default();
+        let asked = get(&message, "url").as_string().unwrap_or_default();
+        let body = get(&message, "body").as_string().unwrap_or_default();
+        if tab >= 0.0 {
+            if let Some(keys) = decide::rules::keys_for(&page, &asked) {
+                for address in decide::addresses_in(&body, &keys) {
+                    let details = to_js(&serde_json::json!({
+                        "url": address,
+                        "tabId": tab,
+                        "type": "xmlhttprequest",
+                        "statusCode": 200,
+                        "responseHeaders": [],
+                    }));
+                    on_response_started(details).await;
+                }
+            }
+        }
+        return answer(true, "noted");
+    }
     // The toolbar popup: how the app is, and bringing it up.
     match get(&message, "type").as_string().as_deref() {
         Some(decide::STATUS_MESSAGE) => {
@@ -197,7 +260,6 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
                     serde_json::json!({
                         "ok": true,
                         "version": hello.engine_version,
-                        "ytdlp": hello.ytdlp,
                         "line": line,
                         "bad": bad,
                     })
@@ -361,8 +423,8 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         Err(why) => return answer(false, &why),
     };
     // What the video comes in, for the panel's list: the qualities the
-    // app's yt-dlp reads from the page, then the streams the page loaded.
-    // A site yt-dlp does not know still offers what its player fetched.
+    // app reads from the page, then the streams the page loaded.
+    // A site the app cannot read still offers what its player fetched.
     if click.kind == decide::FORMATS_MESSAGE {
         let tab = get(&sender, "tab.id").as_f64().map_or(-1, |id| id as i64);
         let streams = streams_of(tab).await;
@@ -417,6 +479,8 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         click.label,
         click.sound,
         true,
+        (click.from, click.to),
+        click.title,
     )
     .await
     {
@@ -485,6 +549,12 @@ pub(super) async fn page_links(
     let hrefs: Vec<String> =
         serde_json::from_value(from_js(&get(&answer, "links"))).unwrap_or_default();
     let urls = decide::links_from(&hrefs, page);
+    let words: std::collections::BTreeMap<String, String> =
+        serde_json::from_value(from_js(&get(&answer, "texts"))).unwrap_or_default();
+    let texts = decide::link_texts(&words, &urls);
+    let given: std::collections::BTreeMap<String, String> =
+        serde_json::from_value(from_js(&get(&answer, "names"))).unwrap_or_default();
+    let names = decide::link_names(&given, &urls);
     if urls.is_empty() {
         return Err(if selected {
             "the selection has no links".into()
@@ -511,6 +581,8 @@ pub(super) async fn page_links(
         page: page.to_string(),
         urls,
         cookies,
+        texts,
+        names,
     }))?;
     let deadline = now() + decide::TAKEN_WITHIN_MS;
     loop {

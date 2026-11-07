@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 pub(super) fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Update download link");
@@ -32,7 +37,7 @@ pub(super) fn update_link(app: &mut DmApp, ctx: &egui::Context) {
             ok = entered(&focused(field(ui, t("New address"), address, 420.0), focus));
             // Or the page it came from opened again in the browser, and the
             // next download clicked there taken as the link.
-            if !row.referrer.is_empty() {
+            if is_web_page(&row.referrer) {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new(t("Or:")).weak());
                     if ui.button(t("Get it from the browser")).clicked() {
@@ -55,7 +60,9 @@ pub(super) fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     if from_browser {
         let row_id = *id;
         app.dialogs.update_link = None;
-        app.open_file(&row.referrer);
+        if is_web_page(&row.referrer) {
+            app.open_file(&row.referrer);
+        }
         app.await_link(row_id);
         return;
     }
@@ -94,7 +101,7 @@ pub(super) fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Move to queue")
         .open(&mut open)
         .show(ctx, |ui| {
-            for q in &known {
+            for q in known.iter() {
                 let shown = crate::i18n::name(q);
                 let picked = new.trim().is_empty() && *queue == shown;
                 if radio_flag(ui, picked, shown.clone()).clicked() {
@@ -287,4 +294,27 @@ pub(super) fn find(app: &mut DmApp, ctx: &egui::Context) {
         app.find_next();
     }
     app.dialogs.find_open = open;
+}
+
+/// Whether a row's referrer is a web page. It can come from an imported list, so
+/// only an address the browser would open is handed to the system's opener: a
+/// file path there would open a local or network file instead.
+fn is_web_page(referrer: &str) -> bool {
+    let lower = referrer.trim_start().to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+#[cfg(test)]
+mod web_page_tests {
+    use super::is_web_page;
+
+    #[test]
+    fn only_a_web_address_is_opened_as_the_page_a_row_came_from() {
+        assert!(is_web_page("https://site.example/page"));
+        assert!(is_web_page("HTTP://site.example/"));
+        assert!(!is_web_page(""));
+        assert!(!is_web_page("C:\\Windows\\System32\\calc.exe"));
+        assert!(!is_web_page("\\\\host\\share\\x.exe"));
+        assert!(!is_web_page("file:///etc/passwd"));
+    }
 }

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A download the browser started: deciding whether the app takes it.
 
 use super::*;
@@ -55,6 +60,15 @@ pub async fn on_download_created(item: JsValue) {
         let mut taken = t.borrow_mut();
         taken.take(&found.url, now()) || taken.take(&asked_for, now())
     });
+    // An advert, a beacon, a page's own sound or furniture is never taken,
+    // whatever the settings: nobody came for it. A click with the take key
+    // held is a person asking for this one.
+    if !clicked {
+        ensure_served().await;
+        if let Some(why) = decide::excluded::address(&found.url) {
+            return log("debug", &format!("left with the browser: {}", why.reason()));
+        }
+    }
     // A site the popup has paused is the browser's, unless a click with the
     // take key held asked for this one.
     if !clicked && decide::paused_download(&paused_sites().await, &found) {
@@ -64,13 +78,19 @@ pub async fn on_download_created(item: JsValue) {
         );
     }
     let forced = clicked || forced_for(&found).await;
-    let early = remembered_rules()
-        .await
-        .is_none_or(|rules| rules.takes(&found.candidate(), forced).is_ok());
+    // A browser unticked in dm's Options is taken from no more, as reference A's list of the
+    // browsers it captures from (gaps row 86); its menus still hand things over.
+    let browser = this_browser();
+    let early = remembered_rules().await.is_none_or(|rules| {
+        rules.takes_from(browser) && rules.takes(&found.candidate(), forced).is_ok()
+    });
     let mut paused = early && pause().await;
 
     let (app, port) = app().await;
     let verdict = match &app {
+        App::Present { rules, .. } if !rules.takes_from(browser) => Err(format!(
+            "dm takes no downloads from {browser} (Options › Browser)"
+        )),
         App::Present { rules, hello } => rules
             .takes(&found.candidate(), forced)
             .map_err(|left| left.reason().to_string())
@@ -122,11 +142,32 @@ pub async fn on_download_created(item: JsValue) {
         held: true,
         cookies,
         cookies_once,
+        // The headers the browser's own request carried (a token a site
+        // checks), kept when the request went out.
+        headers: sent_to(&found.url).await,
         // What the browser is being sent, so the app can tell a sign-in
         // page served to it in the file's place, and refuse.
         mime: found.mime.clone(),
+        // The page's title, so the app can name a file whose own name says
+        // nothing (a hash, `video`); the app keeps a real name.
+        title: tab_title(&found.referrer).await.unwrap_or_default(),
+        // A form's answer: the form, for dm to send again. Its type goes
+        // with the browser's own request headers above.
+        post: FORMS.with(|f| f.borrow_mut().take(&found.asked_url, &found.url, now())),
         ..Start::default()
     };
+    // The form's type, as the browser's request named it.
+    let mut start = start;
+    if let Some(post) = start.post.as_mut() {
+        if post.content_type.is_empty() {
+            post.content_type = start
+                .headers
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default();
+        }
+    }
     // dm refused for want of the browser's session (a link only a signed-in
     // browser can fetch): handed over again with that session, for this one
     // download, rather than left to download in the browser.
@@ -311,4 +352,31 @@ pub(super) async fn give_back(id: &JsValue, url: &str) {
             &format!("Neither dm nor the browser could carry on with {url}: {why}"),
         );
     }
+}
+
+/// The title of the open tab at `referrer`, the page a caught download was
+/// started from. A browser's `DownloadItem` names no tab, so the tabs are
+/// matched by address; reading a tab's title needs the host permission the
+/// extension already has for every page.
+async fn tab_title(referrer: &str) -> Option<String> {
+    if referrer.trim().is_empty() {
+        return None;
+    }
+    let found = call("tabs", "query", &[js_sys::Object::new().into()])
+        .await
+        .ok()?;
+    let tabs: Vec<(String, String)> = from_js(&found)
+        .as_array()?
+        .iter()
+        .map(|tab| {
+            let field = |k: &str| {
+                tab.get(k)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            };
+            (field("url"), field("title"))
+        })
+        .collect();
+    decide::referrer_title(&tabs, referrer).map(|title| decide::clean_title(&title, referrer))
 }

@@ -19,7 +19,7 @@ jobs:
     name: Extension (Rust, WebAssembly)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -51,7 +51,7 @@ jobs:
       - name: Build both store zips
         run: sh scripts/package.sh
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: extension-zips
           path: dist/*.zip
@@ -60,7 +60,7 @@ jobs:
     name: In Chrome for Testing, handing off to dm
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -78,12 +78,6 @@ jobs:
             libnss3 libgbm1 libxkbcommon0 libxkbcommon-x11-0 libxdamage1 libxfixes3 libxrandr2 \
             libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
-
-      # The toolbar check hands a page with a video to dm, which fetches it
-      # with yt-dlp; without one the row fails, as it would for a person.
-      # pipx puts it in ~/.local/bin, which dm searches.
-      - name: yt-dlp
-        run: pipx install yt-dlp
 
       - name: Build dm and the extension
         run: |

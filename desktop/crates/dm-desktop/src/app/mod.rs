@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The window: a menu bar and a toolbar across the top, the category tree
 //! down the left, the downloads as a sortable table, and its dialogs — Add
 //! URL, Download details, progress, properties, numbered series, files on a
@@ -28,13 +33,14 @@ mod commands;
 mod control;
 mod drops;
 mod files;
-mod human;
+pub(crate) mod human;
 mod links;
 mod lists;
 mod menus;
 mod naming;
 mod places;
 mod rows;
+mod scheduled;
 mod search;
 mod sync;
 mod tree;
@@ -104,25 +110,38 @@ struct VisibleKey {
 /// A place in the category tree: a filter over the one list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Place {
+    /// Every download.
     All,
+    /// One built-in category.
     Kind(Category),
     /// A category a person made, by name.
     Custom(String),
+    /// The downloads not yet finished.
     Unfinished,
+    /// The finished downloads.
     Finished,
+    /// The downloads in the queue of this name.
     Queue(String),
 }
 
 /// A column of the download table, in its default order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Column {
+    /// The file's name.
     Name,
+    /// The queue the download is in.
     Queue,
+    /// The size.
     Size,
+    /// The status.
     Status,
+    /// The time left.
     TimeLeft,
+    /// The transfer rate.
     Rate,
+    /// The time of the last try.
     LastTry,
+    /// The description.
     Description,
     /// The page a browser handed the download over from.
     Referrer,
@@ -131,16 +150,16 @@ pub enum Column {
 }
 
 impl Column {
-    /// In the order a new window shows them: Name, Size, Status, Time
-    /// left and Speed fit a 960-point window whole; Queue, empty for most
-    /// rows, comes after them (Speed was off to the right).
+    /// In the order a new window shows them, reference A's: File Name, Q
+    /// (narrow), Size, Status, Time left, Transfer rate, Last Try Date and
+    /// Description (decisions.md, "dm works exactly like reference A").
     pub const ALL: [Column; 10] = [
         Column::Name,
+        Column::Queue,
         Column::Size,
         Column::Status,
         Column::TimeLeft,
         Column::Rate,
-        Column::Queue,
         Column::LastTry,
         Column::Description,
         Column::Referrer,
@@ -163,6 +182,8 @@ impl Column {
         }
     }
 
+    /// The column saved under `key`, if there is one.
+    #[must_use]
     pub fn from_key(key: &str) -> Option<Column> {
         Column::ALL.into_iter().find(|c| c.key() == key)
     }
@@ -192,14 +213,16 @@ impl Column {
     /// Its heading in English, which the catalogs are keyed by.
     pub fn english(self) -> &'static str {
         match self {
-            Column::Name => "Name",
+            Column::Name => "File Name",
+            // Its heading draws the queue's mark; this is its name in the
+            // columns menu and for a screen reader.
             Column::Queue => "Queue",
             Column::Size => "Size",
             Column::Status => "Status",
             Column::TimeLeft => "Time left",
-            Column::Rate => "Speed",
-            Column::LastTry => "Date",
-            Column::Description => "Note",
+            Column::Rate => "Transfer rate",
+            Column::LastTry => "Last Try Date",
+            Column::Description => "Description",
             Column::Referrer => "Referrer",
             Column::Folder => "Folder",
         }
@@ -223,7 +246,9 @@ const HANDED_TWICE_WITHIN: std::time::Duration = std::time::Duration::from_secs(
 /// listed, otherwise the README's steps for loading it.
 pub const EXTENSION_EDGE: &str =
     "https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej";
+/// Where the add-on is listed for Firefox.
 pub const EXTENSION_FIREFOX: &str = "https://addons.mozilla.org/firefox/addon/dm-download-manager/";
+/// Where the add-on is listed for Chrome.
 pub const EXTENSION_CHROME: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager#chrome-brave-vivaldi-and-opera";
 
@@ -252,20 +277,27 @@ pub fn drop_hint() -> &'static str {
 /// and nothing offered for what was copied before it was turned on.
 #[derive(Default)]
 pub struct Clipboard {
+    /// Whether the watch is on.
     pub on: bool,
+    /// The last text seen on the clipboard.
     pub last: Option<String>,
+    /// The address now offered to the person, if any.
     pub offered: Option<String>,
     /// Every link offered, when the clipboard holds several and nothing
     /// else: only the first was offered and the rest dropped.
     pub offered_all: Vec<String>,
+    /// The addresses the person turned away.
     pub dismissed: HashSet<String>,
+    /// When the clipboard was last read.
     pub polled: Option<Instant>,
 }
 
 /// The rows the table shows, shared between frames and with the queue.
 pub type SharedRows = std::rc::Rc<Vec<Arc<Entry>>>;
 
+/// The window's state: the list, the selection, the dialogs and the settings in force.
 pub struct DmApp {
+    /// The engine the window works through.
     pub backend: Backend,
     /// The list as last read, each row shared with the queue: a row that
     /// did not change since the read before is the same allocation.
@@ -274,7 +306,9 @@ pub struct DmApp {
     /// What each row was at the last refresh, to notice a finish.
     last_state: HashMap<Id, State>,
 
+    /// The place in the category tree the list is filtered to.
     pub place: Place,
+    /// The rows selected.
     pub selected: BTreeSet<Id>,
     /// The row a shift-click extends the selection from: the last one
     /// clicked without shift.
@@ -288,8 +322,11 @@ pub struct DmApp {
     pub keyboard: bool,
     /// Where the focus ring was drawn last frame, if anywhere.
     pub focus_ring: Option<egui::Rect>,
+    /// The column sorted by and whether the order is ascending.
     pub sort: Option<(Column, bool)>,
+    /// Whether the category list is shown.
     pub show_categories: bool,
+    /// Whether the toolbar is shown.
     pub show_toolbar: bool,
     /// Columns turned off under View › Columns. The file name always shows.
     pub hidden_columns: HashSet<Column>,
@@ -316,6 +353,12 @@ pub struct DmApp {
 
     /// Commands asked for while drawing, run once the frame is drawn.
     pub queued: Vec<Command>,
+    /// The queue a Start Queue or Stop Queue drop-down chose, for the next
+    /// of those commands in place of the queue the list shows.
+    pub queue_chosen: Option<String>,
+    /// The shared speed limit last put in force, in bytes a second, so the
+    /// slow hours' beginning and end are each seen once.
+    pub limit_in_force: Option<u64>,
     /// Finished files a drag out of the list has asked to carry, for the
     /// window to hand to the system's drag: only it has the native handle.
     pub drag_out: Vec<std::path::PathBuf>,
@@ -336,21 +379,26 @@ pub struct DmApp {
     pub list_drawn: bool,
     /// How many rows Page Up and Page Down move: a screenful, less one.
     pub list_page: usize,
+    /// The dialogs that are open.
     pub dialogs: Dialogs,
 
+    /// Problems found at start-up, said in the window.
     pub problems: Vec<String>,
     /// Completions already announced, so a notification fires once as each
     /// finishes — and never for the history there when the window opened.
     notified: HashSet<Id>,
     notify_ready: bool,
 
+    /// The settings as last applied to the window.
     pub applied: Settings,
+    /// The clipboard watcher's memory.
     pub clipboard: Clipboard,
     /// When the watched folder was last read (Options › Downloads).
     watched_at: Option<Instant>,
     /// Files in it left where they lie, because no link was found in them or
     /// they could not be moved aside: not read again every few seconds.
     watch_skip: HashSet<std::path::PathBuf>,
+    /// What the update check has found.
     pub update: Arc<Mutex<Update>>,
     /// A weekly check is waiting for its answer, to open About on a newer dm.
     weekly_pending: bool,
@@ -364,6 +412,7 @@ pub struct DmApp {
     pub copied: Option<String>,
     /// Whether the look drawn last was dark, for the control protocol.
     pub dark: bool,
+    /// Whether a quit was asked for (by the control port or when all downloads finished): the window closes.
     pub quit_asked: bool,
     /// The look last put in force, so a change in Options is applied once.
     theme_in_force: Option<crate::theme::Theme>,
@@ -374,11 +423,26 @@ pub struct DmApp {
     fonts_ready: bool,
     /// What to do when the queue runs dry, for this session only.
     pub when_done: crate::power::WhenDone,
+    /// The schedule window as the last read of the list found it (`scheduled.rs`).
+    pub(crate) schedule_watch: scheduled::Watch,
+    /// The same for each named queue with a schedule of its own (key: its name).
+    pub(crate) queue_watches: std::collections::BTreeMap<String, scheduled::Watch>,
     /// Words typed over the list: only rows whose name, address or note
     /// holds them all are shown, in whatever place is chosen.
     pub filter: String,
     /// Rows whose failure has been sounded, so one failure is one sound.
     failed_told: HashSet<Id>,
+    /// Questions the rows raised (the server's name, a page for a file, a 404),
+    /// waiting for the dialogs to be free: one is asked at a time.
+    asks: std::collections::VecDeque<sync::Ask>,
+    /// Each row's name, and whether it had failed, at the last read: what is new
+    /// since is what is asked about.
+    ask_seen: std::collections::HashMap<Id, (String, bool)>,
+    /// Whether the first read of the list is over (what it held is not asked about).
+    asks_primed: bool,
+    /// Names to give a file once it has finished: the address's, where a person
+    /// said no to the server's while it was still coming.
+    pending_renames: std::collections::HashMap<Id, String>,
     /// What saved site searches found, by name, waiting to be added.
     search_results: Arc<std::sync::Mutex<Vec<SearchResult>>>,
     /// How many searches are out, so the window keeps drawing to take
@@ -462,7 +526,7 @@ pub struct DmApp {
     counts_cache: std::cell::RefCell<(u64, HashMap<String, usize>)>,
     /// The queues the list names, for the generation they were read at
     /// ([`DmApp::queues`]).
-    queues_cache: std::cell::RefCell<Option<(u64, Vec<String>)>>,
+    queues_cache: std::cell::RefCell<Option<(u64, std::rc::Rc<[String]>)>>,
     /// What each row's kind, own category and filter text were made from, so
     /// a read of the list makes them again only for a row that changed.
     /// With the row they were made from: the same allocation again means
@@ -513,6 +577,7 @@ const SAID_FOR: Duration = Duration::from_secs(12);
 const UNDO_FOR: Duration = Duration::from_secs(5);
 
 impl DmApp {
+    /// Creates the window's state over `backend`, reading the settings in force.
     pub fn new(backend: Backend) -> Self {
         let settings = backend.settings();
         crate::i18n::set(crate::i18n::chosen(&settings.language));
@@ -539,6 +604,8 @@ impl DmApp {
                 .collect(),
             column_order: Column::ordered(&settings.column_order),
             queued: Vec::new(),
+            queue_chosen: None,
+            limit_in_force: None,
             drag_out: Vec::new(),
             reordering: None,
             row_rects: HashMap::new(),
@@ -579,7 +646,13 @@ impl DmApp {
             accent_in_force: None,
             fonts_ready: false,
             when_done: Default::default(),
+            schedule_watch: Default::default(),
+            queue_watches: Default::default(),
             failed_told: HashSet::new(),
+            asks: Default::default(),
+            ask_seen: Default::default(),
+            asks_primed: false,
+            pending_renames: Default::default(),
             search_results: Arc::default(),
             filter: String::new(),
             searches_running: 0,
@@ -639,6 +712,8 @@ impl DmApp {
         app
     }
 
+    /// The engine the window works through.
+    #[must_use]
     pub fn backend(&self) -> &Backend {
         &self.backend
     }
@@ -646,7 +721,7 @@ impl DmApp {
     /// A client built the way the settings say: through the proxy, with
     /// the timeout. For the window's own fetches, which are not downloads.
     pub fn client(&self) -> dm_core::reqwest::Client {
-        dm_core::proxy::client_with_timeout(&self.applied.proxy, self.applied.read_timeout())
+        dm_core::client_with_timeout(&self.applied.proxy, self.applied.read_timeout())
             .unwrap_or_else(|_| dm_core::client())
     }
 
@@ -660,23 +735,29 @@ impl DmApp {
 
     /// The queues, as the queue lists them, worked out from the list as
     /// last read: once a read, and with no lock on the queue. The side
-    /// rail, the tree and the dialogs ask several times a frame.
-    pub fn queues(&self) -> Vec<String> {
+    /// rail, the tree and the dialogs ask several times a frame, so the
+    /// list is shared, not copied: each ask costs a count, not every name.
+    pub fn queues(&self) -> std::rc::Rc<[String]> {
         let mut cache = self.queues_cache.borrow_mut();
         match &*cache {
-            Some((generation, names)) if *generation == self.rows_gen => names.clone(),
+            Some((generation, names)) if *generation == self.rows_gen => std::rc::Rc::clone(names),
             _ => {
-                let names = dm_core::queue_names(self.rows.iter().map(|r| &**r));
-                *cache = Some((self.rows_gen, names.clone()));
+                let names: std::rc::Rc<[String]> =
+                    dm_core::queue_names(self.rows.iter().map(|r| &**r)).into();
+                *cache = Some((self.rows_gen, std::rc::Rc::clone(&names)));
                 names
             }
         }
     }
 
+    /// The rows as last read.
+    #[must_use]
     pub fn rows(&self) -> &[Arc<Entry>] {
         &self.rows
     }
 
+    /// The row with this id, if it is in the list.
+    #[must_use]
     pub fn row(&self, id: Id) -> Option<&Entry> {
         self.rows.iter().find(|r| r.id == id).map(|r| &**r)
     }
@@ -691,7 +772,7 @@ pub fn worded_problem(problem: &str) -> String {
         .and_then(|rest| rest.split_once("), so it is turned off"));
     match proxy {
         Some((why, _)) => crate::i18n::tf(
-            "The proxy can't be used ({}) and is off. Fix it in Options › Proxy.",
+            "The proxy can't be used ({}) and is off. Fix it in Options › Advanced.",
             &[&why],
         ),
         None => problem.to_string(),
@@ -712,6 +793,7 @@ pub fn as_shown(problem: &str) -> String {
 /// What a right-click on a place in the category tree can ask for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeAction {
+    /// Runs this command.
     Run(Command),
     /// Options › Folders, where categories are added, edited and deleted.
     EditCategories,
@@ -746,6 +828,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::format::MONTHS);
     words.push(DROP_HINT);
     words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
+    words.extend(format::NEXT_STEPS.iter().map(|(_, step)| *step));
     words.extend(format::RETRY_CAUSES);
     for place in [
         Place::All,
@@ -767,12 +850,15 @@ pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
         ],
         Place::Unfinished => vec![
             ("Resume all", TreeAction::Run(Command::ResumeAll)),
-            ("Stop all", TreeAction::Run(Command::StopAll)),
+            ("Stop All", TreeAction::Run(Command::StopAll)),
         ],
-        Place::Finished => vec![("Clear finished", TreeAction::Run(Command::DeleteCompleted))],
+        Place::Finished => vec![(
+            "Delete Completed",
+            TreeAction::Run(Command::DeleteCompleted),
+        )],
         Place::Queue(_) => vec![
-            ("Start queue", TreeAction::Run(Command::StartQueue)),
-            ("Stop queue", TreeAction::Run(Command::StopQueue)),
+            ("Start Queue", TreeAction::Run(Command::StartQueue)),
+            ("Stop Queue", TreeAction::Run(Command::StopQueue)),
             ("Scheduler…", TreeAction::Run(Command::Scheduler)),
         ],
     }
@@ -984,23 +1070,18 @@ mod superseded_tests {
 mod disk_full_tests {
     use super::*;
 
-    /// A video page yt-dlp failed on says what yt-dlp said, after the sentence
-    /// that was all a person had; the specific failures keep their own words.
+    /// A video page that failed says why after the sentence that was all a
+    /// person had; the specific failures keep their own words.
     #[test]
     fn a_video_page_that_failed_says_why_after_the_sentence() {
         let mut row = rows::status_tests::paused(false);
-        row.state = State::Failed(
-            "yt-dlp could not download that: ERROR: [youtube] x: Requested format is not available"
-                .into(),
-        );
+        row.state = State::Failed("no stream at that quality".into());
         assert_eq!(
             status_in_english(&row),
-            "Error: dm couldn't get the video from this page (Requested format is not available)"
+            "Error: dm couldn't get the video from this page (no stream at that quality)"
         );
         // A failure with its own plain words is not given a second one.
-        row.state = State::Failed(
-            "yt-dlp could not download that: ERROR: [youtube] x: Video unavailable".into(),
-        );
+        row.state = State::Failed("YouTube says: Video unavailable".into());
         assert_eq!(
             status_in_english(&row),
             "Error: this video isn't available. It may be private, removed, or not shown in your country"

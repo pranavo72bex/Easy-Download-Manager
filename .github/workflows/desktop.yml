@@ -50,7 +50,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -76,6 +76,9 @@ jobs:
       - name: Dependency layering
         run: cargo xtask layers
 
+      - name: Every source file carries its licence header
+        run: cargo xtask headers
+
       # nextest runs the test binaries side by side (cargo test runs them
       # one after another) and fails a test that hangs; doctests, which it
       # does not run, follow.
@@ -92,19 +95,6 @@ jobs:
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci
 
-      # A yt-dlp the person installed is found (and used rather
-      # than one dm fetches) though pip's Scripts folder is off the PATH, as
-      # for a dm started by a browser or the Start menu.
-      - name: yt-dlp where a Windows install puts it
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          python -m pip install --user --quiet yt-dlp
-          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -and ($_ -notlike '*Python*') -and ($_ -notlike '*yt-dlp*') }) -join ';'
-          if (Get-Command yt-dlp -ErrorAction SilentlyContinue) { throw 'yt-dlp is still on the PATH: the check would prove nothing' }
-          $env:DM_EXPECT_YTDLP = '1'
-          cargo test -p dm-core --test tools --locked an_installed_yt_dlp_is_found
-
       - name: Doctests
         run: cargo test --doc --workspace --locked
 
@@ -117,7 +107,7 @@ jobs:
       run:
         working-directory: .
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Shell scripts
         run: shellcheck -f gcc scripts/*.sh scripts/*/*.sh
       - name: Workflows
@@ -161,7 +151,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -179,15 +169,6 @@ jobs:
 
       - name: cargo-packager
         run: cargo install cargo-packager --version 0.11.8 --locked
-
-      # yt-dlp inside every package, the release and digest pinned in
-      # packaging/yt-dlp.pin.json: a package without it, or with another
-      # build, is not made.
-      # From the checkout's root: the job's default directory is desktop/,
-      # where scripts/ is not (desktop-v0.8.5 failed here, every platform).
-      - name: yt-dlp for the package
-        working-directory: .
-        run: python3 scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp
 
       # CI is set on every runner, which is what tells the .dmg step to skip
       # the Finder AppleScript a headless machine cannot run.
@@ -207,13 +188,30 @@ jobs:
             if [ -n "${!value_name}" ]; then export "$name=${!value_name}"; fi
             unset "$value_name"
           done
+          # Without the runner's paths in the binary (scripts/release-flags.sh);
+          # Windows keeps its own target flags, which this does not replace.
+          # Set, then exported: `export X="$(…)"` hides the command's failure
+          # (shellcheck SC2155, which failed the packaging lint).
+          CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
+          export CARGO_BUILD_RUSTFLAGS
           cargo packager --release --formats ${{ matrix.formats }}
+        # This step's own: the check below was put between its run and its env,
+        # and took the signing secrets from it.
         env:
           SECRET_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           SECRET_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           SECRET_APPLE_ID: ${{ secrets.APPLE_ID }}
           SECRET_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: No build paths in what ships
+        if: runner.os != 'Windows'
+        working-directory: desktop
+        shell: bash
+        run: |
+          found=$(strings target/release/dm-desktop | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
+          echo "paths of this runner in the binary: $found"
+          test "$found" = 0
 
       # Fedora, openSUSE and their kin: the same binary, laid out as the
       # Arch package is (desktop/packaging/nfpm.yaml).
@@ -258,7 +256,7 @@ jobs:
           Get-ChildItem desktop/target/release/bundle
 
       - name: Keep the installers
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-${{ matrix.artifact }}
           path: |
@@ -290,8 +288,8 @@ jobs:
         working-directory: .
         shell: bash
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: dm-${{ matrix.artifact }}
           path: installers
@@ -392,7 +390,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/desktop-v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -400,7 +398,7 @@ jobs:
       - name: Build the Chrome and Firefox zips
         working-directory: .
         run: sh scripts/package.sh
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-extension
           path: dist/*.zip
@@ -417,8 +415,8 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: installers
           merge-multiple: true
@@ -463,7 +461,7 @@ jobs:
     container:
       image: archlinux:base-devel
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       # On every push, not only for a tag: the release PKGBUILD through
       # makepkg from this checkout (build, its check(), package), installed
@@ -486,7 +484,7 @@ jobs:
           chown -R builder:builder "$GITHUB_WORKSPACE"
           su builder -c "makepkg --cleanbuild --nodeps --noconfirm"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-arch-package-from-checkout
           path: /home/builder/pkg/*.pkg.tar.*
@@ -494,7 +492,7 @@ jobs:
 
       - name: Upload the Arch package
         if: startsWith(github.ref, 'refs/tags/desktop-v')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-arch-package
           path: desktop/packaging/*.pkg.tar.zst

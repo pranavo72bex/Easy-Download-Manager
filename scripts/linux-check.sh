@@ -1,11 +1,16 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Builds and drives the client on Linux, in a container, from any machine.
 #
 #   sh scripts/linux-check.sh
 #
 # What the Rust and JS suites cannot see: the client as a Linux process —
 # the tray library it loads at startup, the instance lock, the inbox, a
-# browser's native-messaging hand-off, yt-dlp found by its Linux home. The
+# browser's native-messaging hand-off. The
 # build's target directory lives in a named volume so a second run is
 # minutes, not the first run's half hour; the cargo registry is the host's.
 #

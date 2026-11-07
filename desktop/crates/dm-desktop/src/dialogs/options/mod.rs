@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 mod tabs;
@@ -69,8 +74,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::FileTypes => tab_file_types(ui, d, &env),
             Tab::SaveTo => tab_save_to(ui, d, &env),
             Tab::Downloads => tab_downloads(ui, d, &env),
-            Tab::Connection => tab_connection(ui, d, &env),
-            Tab::Proxy => tab_proxy(ui, d, &env),
+            Tab::Advanced => tab_advanced(ui, d, &env),
             Tab::SiteLogins => tab_site_logins(ui, d, &env),
         }
         // Each tab's own settings back to a new install's, in the draft: OK
@@ -249,7 +253,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
         // A proxy turned on with nowhere to connect to was taken, and every
         // download then went out directly without a word.
         {
-            use dm_core::proxy::Kind;
+            use dm_core::ProxyKind as Kind;
             let p = &wanted.proxy;
             if p.enabled && p.kind != Kind::System {
                 let host = p.host.trim();
@@ -274,7 +278,8 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
                 };
                 if let Some(why) = why {
                     d.says = why;
-                    d.tab = Tab::Proxy;
+                    d.tab = Tab::Advanced;
+                    d.to_proxy = true;
                     return;
                 }
             }

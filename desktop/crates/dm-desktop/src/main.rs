@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 // dm, with its window drawn in Rust.
 //
 // The same program as the Tauri one — the same startup, browser host, lock,
@@ -15,6 +20,8 @@ use dm_shell::{host, instance, settings, shell};
 
 #[cfg(target_os = "macos")]
 mod dock;
+#[cfg(target_os = "macos")]
+mod opened;
 
 mod hidden;
 mod login;
@@ -312,6 +319,12 @@ fn main() {
     // `--when-done`, for the window this launch starts to take up.
     shell::leave_when_done(&settings::home(), &handed);
     shell::leave_new_download(&settings::home(), &handed);
+    // A magnet link or a .torrent file the system opens with dm arrives as an
+    // Apple event, not a command line: handed to the window as one.
+    #[cfg(target_os = "macos")]
+    opened::listen(|words| {
+        shell::opened_by_system(&settings::home(), &words);
+    });
 
     // Made before the signals are listened for, so one arriving during
     // startup still reaches the window once there is one.
@@ -461,7 +474,7 @@ fn main() {
             handle
                 .block_on(queue.list())
                 .iter()
-                .any(|row| row.state == dm_core::queue::State::Running)
+                .any(|row| row.state == dm_core::State::Running)
         });
     }
     let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
@@ -478,8 +491,8 @@ fn main() {
                 .into_iter()
                 .map(|(_, at)| at)
                 .collect();
-            let (weekday, minute) = dm_core::schedule::weekday_now();
-            dm_core::schedule::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
+            let (weekday, minute) = dm_core::weekday_now();
+            dm_core::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
         });
     }
     backend.handed = handed;
@@ -506,7 +519,8 @@ fn main() {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("dm")
         .with_app_id("dm")
-        .with_inner_size([960.0, 660.0])
+        // Reference A opens 800 by 458; a little more for dm's side panel.
+        .with_inner_size([820.0, 500.0])
         // Half the smallest at first: eframe applies this before the saved
         // text size, so at 200% the full one forced a 1440×920 window over
         // the size it was left at. The window sets the real
@@ -599,6 +613,9 @@ fn main() {
             browsers_said,
         }
     };
+    // The dialogs' own windows take the clicks and keys a control client sends
+    // (`dialogs/apart.rs`; `vendor/egui-winit`).
+    let _ = egui_winit::OTHER_WINDOWS_INPUT.set(dm_desktop::dialogs::apart::feed);
     let result = if hidden {
         run_hidden(options, make)
     } else {

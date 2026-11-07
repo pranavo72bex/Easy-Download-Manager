@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// Set when the system asks dm to end: SIGTERM, SIGINT or SIGHUP (a
@@ -7,7 +12,7 @@ pub(super) static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
 /// Ends dm as Program › Exit does when the system asks, rather than being
 /// cut off where it stood: its downloads were stopped by nothing, a
-/// yt-dlp run under it went on alone, and `control.port` was left naming a
+/// video run under it went on alone, and `control.port` was left naming a
 /// port nobody listened on. A second signal while closing ends it at once.
 pub(super) fn on_signal(
     runtime: &tokio::runtime::Runtime,
@@ -73,9 +78,6 @@ pub(super) fn on_signal(
 pub(super) fn quit_on_signal() -> bool {
     if SIGNALLED.swap(true, Ordering::SeqCst) {
         dm_desktop::control::forget_port(&settings::home());
-        // Leaving without unwinding: what yt-dlp runs is ended here, or it
-        // would go on downloading with nobody to stop it.
-        dm_core::ytdlp::end_all();
         std::process::exit(130);
     }
     true

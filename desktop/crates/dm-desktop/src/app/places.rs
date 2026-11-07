@@ -1,6 +1,13 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
+    /// Whether the list shows `row` in the place chosen and under the filter typed.
+    #[must_use]
     pub fn shows(&self, row: &Entry) -> bool {
         self.within(&self.place, row) && self.matches_filter(row)
     }
@@ -60,7 +67,7 @@ impl DmApp {
         let categories = self.applied.categories();
         let name = name_of(row);
         categories
-            .custom_for(&name, &dm_core::category::host_of(&row.url))
+            .custom_for(&name, &dm_core::host_of(&row.url))
             .map(|c| c.name.clone())
     }
 
@@ -115,10 +122,10 @@ impl DmApp {
                 None
             } else {
                 categories
-                    .custom_for(&name, &dm_core::category::host_of(&row.url))
+                    .custom_for(&name, &dm_core::host_of(&row.url))
                     .map(|c| c.name.clone())
             };
-            let kind = dm_core::category::by_name(&name).or(row.category);
+            let kind = dm_core::by_name(&name).or(row.category);
             self.haystacks.insert(row.id, haystack_named(&name, row));
             self.placed.insert(row.id, (kind, custom));
             self.place_fingerprints
@@ -156,7 +163,9 @@ impl DmApp {
             .or_insert_with(|| self.rows.iter().filter(|r| self.within(place, r)).count())
     }
 
-    /// The rows the table shows, in the order it shows them.
+    /// The rows the table shows, in the order it shows them, as a list of
+    /// the caller's own. To read them, [`Self::visible_shared`] shares the
+    /// one the table keeps rather than copying it.
     pub fn visible(&self) -> Vec<Arc<Entry>> {
         self.visible_shared().as_ref().clone()
     }
@@ -244,6 +253,15 @@ impl DmApp {
             Place::Queue(name) => name.clone(),
             _ => MAIN_QUEUE.to_string(),
         }
+    }
+
+    /// The queue Start Queue or Stop Queue acts on: the one a drop-down
+    /// chose for it, else the one the list shows. Taken, so the choice is
+    /// for that one command.
+    pub fn chosen_queue(&mut self) -> String {
+        self.queue_chosen
+            .take()
+            .unwrap_or_else(|| self.current_queue())
     }
 
     /* --------------------------------------------------------- commands */

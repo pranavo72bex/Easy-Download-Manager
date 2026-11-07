@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the browser extension and the desktop app say to each other.
 //!
 //! The two used to be written in two languages, each with its own copy of
@@ -28,7 +33,7 @@
 //!
 //! | extension sends   | host answers                                  |
 //! |-------------------|-----------------------------------------------|
-//! | `engine.hello`    | `engine.hello` with `engineVersion`, `ytdlp`  |
+//! | `engine.hello`    | `engine.hello` with `engineVersion`           |
 //! | `settings.get`    | `settings.get` with `catch` ([`CatchRules`])  |
 //! | `download.start`  | `download.started`, or `download.failed`      |
 //! | `media.formats`   | `media.formats` with `choices`, or a `reason` |
@@ -50,13 +55,18 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 // From Google's Rust style guide, checked in CI: an `unsafe` block says why it
-// is sound (`// SAFETY:`; not on Windows, whose blocks are not all written up
-// yet), and a string is built with `format!` rather than `+`, and a loop is a
-// loop rather than `for_each`.
-#![cfg_attr(not(windows), warn(clippy::undocumented_unsafe_blocks))]
+// is sound (`// SAFETY:`, on every platform, Windows included), and a string is
+// built with `format!` rather than `+`, and a loop is a loop rather than
+// `for_each`.
+#![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+mod rules;
+pub use rules::{
+    AnswerRule, ExcludeRules, Finder, Rules, SiteProfile, MAX_RULES_BYTES, RULES_FORMAT,
+};
 
 /// The newest version this side reads and writes. A frame of a version
 /// outside [`OLDEST_PROTOCOL`]`..=PROTOCOL_VERSION` is not read.
@@ -105,6 +115,11 @@ pub mod kind {
 }
 
 /// What the extension asks.
+// `Start` outgrew the rest once it carried the page's request headers (gaps
+// row 116). A request is one message, read and dropped, never kept in bulk,
+// so its size costs nothing; boxing it would change every place, in the
+// app and the extension, that builds or reads one.
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type")]
 pub enum Request {
@@ -146,6 +161,48 @@ pub struct Batch {
     /// download. Empty from an extension that sends none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cookies: String,
+    /// Each link's own words on the page (its text, an image's `alt`), by
+    /// address, where it has any: the app shows them beside the links and
+    /// keeps them as the downloads' descriptions. Empty from an extension
+    /// that sends none.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub texts: std::collections::BTreeMap<String, String>,
+    /// The file name a link's `download` attribute gives, by address, where
+    /// it gives one: the download is saved under it, as the browser would.
+    /// Empty from an extension that sends none.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub names: std::collections::BTreeMap<String, String>,
+}
+
+/// A form a page sent whose answer is the file (`Start::post`): sent again
+/// by dm, once, to fetch it.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Default)]
+pub struct Posted {
+    /// The form's fields as `application/x-www-form-urlencoded` text, where
+    /// the browser gave them as fields.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub form: String,
+    /// Or the request's raw body, base64, where it gave bytes.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub raw: String,
+    /// The body's type, where the browser's request named one.
+    #[serde(
+        default,
+        rename = "contentType",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub content_type: String,
+}
+
+impl std::fmt::Debug for Posted {
+    // A person's own words may be in a form: their size, never them.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Posted")
+            .field("form", &format_args!("{} bytes", self.form.len()))
+            .field("raw", &format_args!("{} bytes", self.raw.len()))
+            .field("content_type", &self.content_type)
+            .finish()
+    }
 }
 
 /// A page to list the qualities of.
@@ -171,7 +228,7 @@ pub struct Choice {
     pub label: String,
     /// The quality to fetch it at: "audio", a height such as "720", or "best".
     pub quality: String,
-    /// Its size in bytes, where yt-dlp's reading of the page says.
+    /// Its size in bytes, where the reading of the page says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
 }
@@ -182,6 +239,10 @@ pub struct Start {
     /// The extension's name for this hand-off, echoed in the answer. The host
     /// files the request under it, so it holds it to a plain name.
     pub id: String,
+    /// The form this download is the answer to, where the page sent one to
+    /// the download's own address: dm sends it again to fetch the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post: Option<Posted>,
     /// The download's address, or the page's for a video page.
     pub url: String,
     /// The page the download came from. A media URL alone is often not
@@ -192,7 +253,7 @@ pub struct Start {
     /// that dm can fetch it before taking it, because a refusal now leaves
     /// it with the browser and a failure later loses it. A file asked for
     /// from the panel or a menu is checked too: refused, the extension has
-    /// the browser download it instead. A page for yt-dlp is not checked.
+    /// the browser download it instead. A video page is not checked.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub caught: bool,
     /// The quality picked in the panel's list; absent is the app's setting.
@@ -208,17 +269,35 @@ pub struct Start {
     /// A video from the panel: the app opens "Download details" for it, to name it and choose where it goes, before starting.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ask: bool,
+    /// A part of the video rather than the whole, as the panel's "Part"
+    /// line has it: where it starts and where it ends, as typed ("1:30",
+    /// "90"), either left empty. The app opens "Download details" with
+    /// them filled; an older app ignores them.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub from: String,
+    /// Where the wanted part ends, as typed ("2:00"), left empty for the end of the video.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub to: String,
     /// The browser's cookies for the download's site, as the `Cookie`
     /// header it would send, where the person switched "hand over this
     /// site's sign-in" on in the toolbar popup. Empty otherwise.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cookies: String,
     /// The cookies are for this download alone: a video page's session,
-    /// handed over with every video so the site lets yt-dlp in, rather than
+    /// handed over with every video so the site lets dm in, rather than
     /// a sign-in the person asked dm to keep. The row drops them once it
     /// finishes. False from an extension that sends only kept ones.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The headers the browser sent with the request that began this
+    /// download (a bearer token, `Origin`, a site's own `X-…`), minus the
+    /// ones that belong to one connection and `Cookie`, which has its own
+    /// field. Kept like cookies and never logged; absent from an older extension.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
+    /// The title of the page the download was found on: names a file whose own name says nothing. An older app ignores it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
     /// What the browser said the download was (its `DownloadItem.mime`), for
     /// a download it had started. A server that sends the browser a zip and
     /// dm, without the browser's sign-in, a login page is not one dm can
@@ -239,6 +318,14 @@ pub struct Start {
     /// never started, is checked (`caught`) at version 1 as before.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub held: bool,
+    /// A newer signed address of a stream already handed to dm, seen as the
+    /// page's player asked for it: for a row whose address ran out (403 or
+    /// 410) to go on with, and nothing else. No row waiting for it, it is
+    /// dropped: never a new download, never a dialog, and the app is not
+    /// started for it. An older app takes it as an ordinary hand-off, so
+    /// the extension sends it only to an app whose hello says `renews`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub renews: bool,
 }
 
 /// The longest the host spends asking a server about a caught download.
@@ -323,7 +410,7 @@ pub enum Reply {
         failure: Option<Failure>,
     },
     /// The qualities on offer, best first; empty with a `reason` when the
-    /// page could not be read (no yt-dlp, an unsupported site).
+    /// page could not be read.
     #[serde(rename = "media.formats")]
     Formats {
         /// The qualities, best first.
@@ -348,14 +435,19 @@ pub struct Hello {
     /// The app's version, such as "0.8.4".
     #[serde(rename = "engineVersion", default)]
     pub engine_version: String,
-    /// Whether the app has a yt-dlp to hand a player page to. Absent from a
-    /// host too old to say, which is not the same as `false`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ytdlp: Option<bool>,
     /// The newest protocol version the app reads. Absent from an app of
     /// version 1, which said nothing of it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<u64>,
+    /// The site rules the app serves (what is never caught, and which answers of a site's own
+    /// requests name streams), which the extension adds to the tables it was built with. Absent
+    /// from an app that serves none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rules: Option<Rules>,
+    /// The app takes a newer address of a stream it was handed (`Start::renews`) for a row whose
+    /// address ran out. False from an older app, which would add it as another download.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub renews: bool,
 }
 
 impl Hello {
@@ -552,6 +644,56 @@ pub struct CatchRules {
     /// on in the toolbar popup. Off unless chosen: a sign-in is the site's.
     #[serde(alias = "sign_in_everywhere")]
     pub sign_in_everywhere: bool,
+    /// The browsers dm takes no downloads from, by [`BROWSERS`]' names (reference A's list of
+    /// the browsers it captures from, each ticked or not). Their menus and panel still hand
+    /// things over when asked.
+    #[serde(alias = "off_browsers", skip_serializing_if = "Vec::is_empty")]
+    pub off_browsers: Vec<String>,
+    /// The items of the browser's right-click menu dm does not add, by [`MENU_ITEMS`]' ids
+    /// (reference A lets its menu items be chosen).
+    #[serde(alias = "hidden_menus", skip_serializing_if = "Vec::is_empty")]
+    pub hidden_menus: Vec<String>,
+}
+
+/// The items dm adds to the browser's right-click menu: id and words, as the extension makes
+/// them and Options lists them.
+pub const MENU_ITEMS: [(&str, &str); 4] = [
+    ("dm-link", "Download link with dm"),
+    ("dm-media", "Download media with dm"),
+    ("dm-all-links", "Download all links with dm"),
+    ("dm-selected-links", "Download selected links with dm"),
+];
+
+/// The browsers the extension tells apart, as Options lists them: what a Chromium browser
+/// names itself in `navigator.userAgentData`, Firefox, and the rest of the Chromium family.
+pub const BROWSERS: [&str; 7] = [
+    "Microsoft Edge",
+    "Google Chrome",
+    "Firefox",
+    "Brave",
+    "Opera",
+    "Vivaldi",
+    "Chromium",
+];
+
+/// Which of [`BROWSERS`] this is, from the brands a Chromium browser names in
+/// `navigator.userAgentData` (or a Firefox): the first one known, else "Chromium".
+pub fn browser_named(brands: &[String], firefox: bool) -> &'static str {
+    if firefox {
+        return "Firefox";
+    }
+    BROWSERS
+        .iter()
+        .copied()
+        .filter(|b| *b != "Firefox" && *b != "Chromium")
+        .find(|known| {
+            brands.iter().any(|brand| {
+                brand.eq_ignore_ascii_case(known)
+                    // Opera names itself "Opera" or "Opera GX".
+                    || (*known == "Opera" && brand.to_ascii_lowercase().starts_with("opera"))
+            })
+        })
+        .unwrap_or("Chromium")
 }
 
 /// Whether any of `urls` is served from a host on `list`, each entry
@@ -628,6 +770,8 @@ impl Default for CatchRules {
             once_hosts: Vec::new(),
             video_panel: true,
             sign_in_everywhere: false,
+            off_browsers: Vec::new(),
+            hidden_menus: Vec::new(),
         }
     }
 }
@@ -682,6 +826,19 @@ impl CatchRules {
     /// links work once, so dm takes it without asking the server first.
     pub fn works_once(&self, url: &str, referrer: &str) -> bool {
         listed(&self.once_hosts, &[url, referrer])
+    }
+
+    /// Whether the browser's right-click menu has dm's item `id` (one of [`MENU_ITEMS`]).
+    pub fn shows_menu(&self, id: &str) -> bool {
+        !self.hidden_menus.iter().any(|hidden| hidden.trim() == id)
+    }
+
+    /// Whether dm takes downloads from `browser` (one of [`BROWSERS`]) at all.
+    pub fn takes_from(&self, browser: &str) -> bool {
+        !self
+            .off_browsers
+            .iter()
+            .any(|off| off.trim().eq_ignore_ascii_case(browser))
     }
 
     /// Whether the app wants this download.

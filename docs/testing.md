@@ -77,11 +77,43 @@ installed). In sight, never headless; about half an hour. It fails when any
 row fails or was not checked, and `--save-baseline` records the window's
 pictures once a change to them is approved. This is what "QA" means here.
 
+## Real sites, beside reference A
+
+[site-list.md](site-list.md) lists the sites reference A is known to work on (the maintainer's list, 2026-11-05),
+with what to try on each and columns for what reference A and dm did. A person runs it in the
+final human QA, in Microsoft Edge with both extensions; a place where dm does less is a row in
+`gaps.md` (row 152).
+
+## Video sites: the compatibility test plan
+
+`python scripts/video-sites-check.py` runs the video website compatibility test plan (the
+maintainer's, 2026-11-07) against the real dm, signed out first and in this order:
+
+1. `engine`: CORE-08 to CORE-14 and ENG-01 to ENG-08 against a server on loopback that the
+   script runs (ranges and none, redirects, pause and resume, Exit and a kill mid-download,
+   dropped connections, 429/503 with Retry-After, an outage, an address that expires, a
+   destination that is not a folder, a file bigger than the disk, a file past 4 GiB), every byte
+   compared with what was served.
+2. `public-url`: real public sites through Add URL, headless: YouTube (best, 360, 480 as a
+   picture-and-sound pair, sound only), Internet Archive (MD5 from the item's metadata), Wikimedia
+   Commons (SHA-1 from its API), NASA's library, Test-Videos.co.uk, an HLS and a DASH test stream,
+   and refusals.
+3. `public-panel`: YouTube, Vimeo, Dailymotion, Rumble, Reddit, TikTok, Twitch, Bilibili and
+   PeerTube through the browser panel (`sites-check.py`), in Edge with a new profile.
+4. `--auth youtube,reddit,…`: optional and outside the release gate. A visible Edge waits while
+   the tester signs in by hand with an account of their own; the script creates no account and
+   never types, reads or keeps a password.
+
+dm gets no cookies file and no login in the public phases, and each row's `signed_in` is read
+back to show it. A login wall or bot check is BLOCKED, never a signed-in retry counted as a
+public pass. The report (`report.md`, `report.json`) has the plan's evidence fields for each
+test and the release gate. `--phases engine` runs one phase; `--list` prints every test.
+
 ## The built program, driven
 
 | Check | What it proves | Run |
 |---|---|---|
-| `scripts/app-check.py` | The real binary as a process: the one-instance lock, a browser hand-off, downloads sorted, HLS, a player page handed to yt-dlp, a proxy not gone around, a speed limit, a schedule, the login launch in the tray, the command line (`list`, `status`, `pause`…, exit codes), the control protocol, headless and MCP | `python3 scripts/app-check.py` (`DM_BINARY=` for a packaged one) |
+| `scripts/app-check.py` | The real binary as a process: the one-instance lock, a browser hand-off, downloads sorted, HLS, a player page handed to the external video tool, a proxy not gone around, a speed limit, a schedule, the login launch in the tray, the command line (`list`, `status`, `pause`…, exit codes), the control protocol, headless and MCP | `python3 scripts/app-check.py` (`DM_BINARY=` for a packaged one) |
 | `scripts/smoke.py` | An *installed* dm starts, answers as the browsers' native host, opens a window, runs headless and downloads byte-exact. The same on Linux, Windows and macOS | `python3 scripts/smoke.py /path/to/dm-desktop` |
 | `scripts/chrome-check.py` | The extension in Chrome for Testing handing off to a real dm: byte-exact files, the browser's copy gone, cookie-gated files left to the browser, no host | `sh scripts/package.sh` then `python3 scripts/chrome-check.py` |
 | `scripts/firefox-check.py` | The same in a real Firefox | `python3 scripts/firefox-check.py native` |
@@ -89,11 +121,11 @@ pictures once a change to them is approved. This is what "QA" means here.
 | `scripts/panel-check.py` | The "Download video" panel's hard cases in Chromium | `python3 scripts/panel-check.py` |
 | `scripts/ui-shot.py` | A picture of the window for checking a visual change by eye | `python3 scripts/ui-shot.py` |
 | `scripts/launch-latency.py` | How long from a browser click (a `download.start` to the native host) to dm's first request for the file, with dm closed (cold) and running (warm). Numbers for comparing two builds, not a pass or a fail | `xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-desktop` |
-| `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s; `video_helper` compares yt-dlp fetching a page's stream against dm fetching it (needs yt-dlp). Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
+| `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s; `video_helper` compares the external video tool fetching a page's stream against dm fetching it (needs the external video tool). Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
 
 By hand only (they reach real sites, so they are not in CI):
 `scripts/youtube-check.py`, `scripts/live-panel-check.py`,
-`scripts/real-sites.py`, `scripts/out-of-box-check.py`.
+`scripts/real-sites.py`, `scripts/out-of-box-check.py`, `scripts/video-sites-check.py`.
 
 ## On Linux, in Docker
 
@@ -164,3 +196,7 @@ privacy check reads comments in every crate, and a change in `dm-desktop`
 can break it. The pre-commit hook (`scripts/pre-commit`; install with
 `ln -sf ../../scripts/pre-commit .git/hooks/pre-commit`) refuses a commit that
 writes a credential into a tracked file.
+
+## Memory at rest (Windows)
+
+`python scripts/memory-check.py` starts the release build (`DM_BINARY` for another) with a home of its own, waits for its window to settle, samples it for twenty seconds and prints the working set, private bytes, threads and handles; it fails over `DM_MEMORY_BUDGET_MB` (100) or `DM_PRIVATE_BUDGET_MB` (60). Nothing of the person's is read or written: a dm with its own `DM_HOME` claims no browser and no file type.

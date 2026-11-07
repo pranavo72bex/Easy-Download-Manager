@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! An RTMP client of dm's own, for `rtmp://`, `rtmps://` and `rtmpt://`
 //! streams.
 //!
@@ -30,8 +35,11 @@ use crate::Error;
 /// The parts of an `rtmp://` address a player uses.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
+    /// The server's host.
     pub host: String,
+    /// The server's port.
     pub port: u16,
+    /// Whether the connection is encrypted (`rtmps`).
     pub tls: bool,
     /// RTMPT: the same conversation carried in HTTP requests, for networks
     /// that let only the web through.
@@ -40,6 +48,7 @@ pub struct Target {
     pub app: String,
     /// The stream's name: the last part, with its query.
     pub play: String,
+    /// The `tcUrl` the server is told: the address up to the application.
     pub tc_url: String,
 }
 
@@ -95,14 +104,12 @@ pub fn target(url: &str) -> Result<Target, String> {
     if app.is_empty() || play.is_empty() {
         return Err("the address names no application and stream".into());
     }
-    let tc_url = format!(
-        "{scheme}://{}:{port}/{app}",
-        if host.contains(':') {
-            format!("[{host}]")
-        } else {
-            host.clone()
-        }
-    );
+    // An IPv6 address in brackets; any other host borrowed as it is.
+    let tc_url = if host.contains(':') {
+        format!("{scheme}://[{host}]:{port}/{app}")
+    } else {
+        format!("{scheme}://{host}:{port}/{app}")
+    };
     Ok(Target {
         host,
         port,

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Checking that what arrived is what was published.
 //!
 //! Worth having precisely because everything else in the engine is about
@@ -16,11 +21,15 @@ use tokio::io::AsyncReadExt;
 
 use crate::Error;
 
+/// A hash a download can be checked against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Algorithm {
+    /// MD5 (128 bits).
     Md5,
+    /// SHA-256.
     Sha256,
+    /// SHA-512.
     Sha512,
 }
 
@@ -36,6 +45,8 @@ impl Algorithm {
         }
     }
 
+    /// The algorithm's name as a person writes it (`SHA-256`).
+    #[must_use]
     pub fn name(self) -> &'static str {
         match self {
             Algorithm::Md5 => "md5",
@@ -48,6 +59,7 @@ impl Algorithm {
 /// A digest a download is expected to have.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Checksum {
+    /// The hash that was used.
     pub algorithm: Algorithm,
     /// Lower-case hex, without any `sha256:` prefix.
     pub expected: String,
@@ -110,7 +122,7 @@ pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> 
                 }
                 hasher.update(buffer.get(..read).unwrap_or_default());
             }
-            hex::encode(hasher.finalize())
+            crate::hex::encode(hasher.finalize())
         }};
     }
 

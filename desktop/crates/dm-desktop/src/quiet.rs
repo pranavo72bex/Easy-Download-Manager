@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Not while the person is busy with something else: a fullscreen app or
 //! game, a presentation, or Focus Assist. What dm would say then is held, and
 //! said once the computer accepts notifications again; a sound is not held,
@@ -20,14 +25,21 @@ pub fn is_quiet_state(code: i32) -> bool {
     matches!(code, 2..=4 | 6)
 }
 
-/// Whether the computer is in such a state now.
+/// What Windows says of the person's attention now (`QUERY_USER_NOTIFICATION_STATE`, 1 to 7),
+/// or `None` where it does not answer.
 #[cfg(windows)]
-pub fn quiet_now() -> bool {
+pub fn notification_state() -> Option<i32> {
     let mut state = 0;
     // SAFETY: a pointer to a local the call fills in; the call has no other
     // input.
     let result = unsafe { windows_sys::Win32::UI::Shell::SHQueryUserNotificationState(&mut state) };
-    result >= 0 && is_quiet_state(state)
+    (result >= 0).then_some(state)
+}
+
+/// Whether the computer is in such a state now.
+#[cfg(windows)]
+pub fn quiet_now() -> bool {
+    notification_state().is_some_and(is_quiet_state)
 }
 
 /// Nothing says so here, so nothing is held.
@@ -105,7 +117,9 @@ impl<T> Hold<T> {
 /// A toast dm wanted to show.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Note {
+    /// The toast's heading.
     pub title: String,
+    /// The toast's text.
     pub body: String,
     /// The finished file a click opens, when there is one.
     pub path: Option<String>,
@@ -136,6 +150,16 @@ pub fn due_notes() -> Vec<Note> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Asked of Windows itself (gaps row 14): it answers with one of its states, and a
+    /// computer running these tests in a window of its own is not busy with a game or a
+    /// presentation.
+    #[cfg(windows)]
+    #[test]
+    fn windows_says_what_the_person_is_doing() {
+        let state = notification_state().expect("Windows answered");
+        assert!((1..=7).contains(&state), "{state}");
+    }
 
     #[test]
     fn only_a_busy_computer_is_quiet() {

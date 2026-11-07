@@ -1,16 +1,17 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A download that needs a signed-in session, made with a `cookies.txt`.
 //!
 //! The extension leaves the browser's cookies alone, so such a download used
 //! to finish in the browser. With a cookies file exported from the browser,
-//! dm sends the matching cookies itself, and hands the file to yt-dlp. A
-//! test binary of its own: the cookies in use are the process's.
-
-// The stand-in yt-dlp is a shell script.
-#![cfg(unix)]
+//! dm sends the matching cookies itself. A test binary of its own: the
+//! cookies in use are the process's.
 
 mod common;
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 use axum::body::Body;
@@ -25,59 +26,30 @@ use common::{options, serve, tempdir};
 static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn signed_in_only() -> axum::Router {
-    axum::Router::new()
-        .route(
-            "/private.bin",
-            get(|headers: HeaderMap| async move {
-                let cookie = headers
-                    .get("cookie")
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or("");
-                if !cookie.split("; ").any(|c| c == "session=1") {
-                    return Response::builder()
-                        .status(403)
-                        .body(Body::from("sign in"))
-                        .unwrap();
-                }
-                Response::builder()
-                    .status(200)
-                    .header("content-length", 11)
-                    .body(Body::from("only for me"))
-                    .unwrap()
-            }),
-        )
-        .route(
-            "/watch",
-            get(|| async {
-                Response::builder()
-                    .status(200)
-                    .header("content-type", "text/html")
-                    .body(Body::from("<html></html>"))
-                    .unwrap()
-            }),
-        )
-}
-
-fn fake_ytdlp(dir: &Path, record: &Path) -> std::path::PathBuf {
-    let script = dir.join("yt-dlp");
-    std::fs::write(
-        &script,
-        format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nprev=\"\"\nfor a in \"$@\"; do\n  \
-             [ \"$prev\" = \"after_move:filepath\" ] && result=\"$a\"\n  \
-             [ \"$prev\" = \"-o\" ] && template=\"$a\"\n  prev=\"$a\"\ndone\n\
-             out=\"$(dirname \"$template\")/v [id].mp4\"\nprintf 'video' > \"$out\"\n\
-             printf '%s\\n' \"$out\" > \"$result\"\n",
-            record.display()
-        ),
+    axum::Router::new().route(
+        "/private.bin",
+        get(|headers: HeaderMap| async move {
+            let cookie = headers
+                .get("cookie")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            if !cookie.split("; ").any(|c| c == "session=1") {
+                return Response::builder()
+                    .status(403)
+                    .body(Body::from("sign in"))
+                    .unwrap();
+            }
+            Response::builder()
+                .status(200)
+                .header("content-length", 11)
+                .body(Body::from("only for me"))
+                .unwrap()
+        }),
     )
-    .unwrap();
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
-    script
 }
 
 #[tokio::test]
-async fn a_cookies_file_signs_dms_requests_and_yt_dlps_in() {
+async fn a_cookies_file_signs_dms_requests_in() {
     let _one = ONE_AT_A_TIME.lock().await;
     let addr = serve(signed_in_only()).await;
     let dir = tempdir();
@@ -101,31 +73,6 @@ async fn a_cookies_file_signs_dms_requests_and_yt_dlps_in() {
         .await
         .expect("the cookies file did not sign the download in");
     assert_eq!(std::fs::read(&done.path).unwrap(), b"only for me");
-
-    // And yt-dlp is handed the same file.
-    let record = dir.path().join("argv");
-    std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path(), &record));
-    download(
-        &client(),
-        &format!("http://{addr}/watch"),
-        &options(dir.path()),
-    )
-    .await
-    .expect("the hand-off to yt-dlp failed");
-    let argv: Vec<String> = std::fs::read_to_string(&record)
-        .unwrap()
-        .lines()
-        .map(str::to_owned)
-        .collect();
-    let given = argv
-        .iter()
-        .position(|a| a == "--cookies")
-        .map(|i| argv[i + 1].clone());
-    assert_eq!(
-        given.as_deref(),
-        Some(file.to_str().unwrap()),
-        "yt-dlp was not given the cookies"
-    );
 
     // A file that cannot be read is said, and changes nothing.
     assert!(dm_core::cookies::use_file(&dir.path().join("missing.txt")).is_err());
@@ -213,36 +160,4 @@ async fn a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone()
         "",
         "kept for another server"
     );
-
-    // yt-dlp is given them in a private file of its own run, never on its
-    // command line, and the file is gone when the run ends.
-    let record = dir.path().join("argv2");
-    std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path(), &record));
-    let page = format!("http://{addr}/watch");
-    download(
-        &client(),
-        &page,
-        &dm_core::Options {
-            sign_in: dm_core::cookies::SignIn::new(&page, "session=1"),
-            ..options(dir.path())
-        },
-    )
-    .await
-    .expect("the hand-off to yt-dlp failed");
-    let argv: Vec<String> = std::fs::read_to_string(&record)
-        .unwrap()
-        .lines()
-        .map(str::to_owned)
-        .collect();
-    assert!(
-        !argv.iter().any(|a| a.contains("session=1")),
-        "on the command line: {argv:?}"
-    );
-    let given = argv
-        .iter()
-        .position(|a| a == "--cookies")
-        .map(|i| std::path::PathBuf::from(&argv[i + 1]))
-        .expect("yt-dlp was not given the sign-in");
-    assert!(given.ends_with("sign-in.cookies.txt"), "{given:?}");
-    assert!(!given.exists(), "the private cookies file outlived the run");
 }

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 /// A new install's welcome: what the extension does, and a button for each
 /// browser on the computer that opens its extension page there.
@@ -70,7 +75,7 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
                 }
             });
         });
-    app.dialogs.welcome_dir = dir.clone();
+    app.dialogs.welcome_dir.clone_from(&dir);
     if done || later || !open {
         let chosen = std::path::PathBuf::from(dir.trim());
         if !dir.trim().is_empty() && chosen != app.applied.download_dir {
@@ -96,6 +101,65 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// Tips about dm, one shown at a time in Tip of the day (gaps row 91).
+pub fn tips() -> [&'static str; 8] {
+    [
+        t("Hold Alt while you click a link to leave that download with the browser."),
+        t("Right-click a page and choose Download all links with dm to pick from every link on it."),
+        t("Downloads › Scheduler starts a queue at set hours, and can shut the computer down when it is done."),
+        t("Move the mouse over a playing video and click Download video to choose a quality."),
+        t("Drag a link from the browser onto dm's window to download it."),
+        t("The Grabber lists the files a website links to, by type and size; save a search to run it again."),
+        t("Options › Advanced › Network sets a speed limit and the number of attempts for a failed download."),
+        t("Properties shows a finished file's SHA-256 and checks it against a digest you were given."),
+    ]
+}
+
+/// An email that tells someone about dm, written in the person's own mail program for them to
+/// send or not: nothing leaves the computer unless they send it.
+pub fn tell_a_friend() -> String {
+    let subject = t("A free download manager");
+    let body = tf(
+        "I use dm to download files. It is free: {}",
+        &[&crate::update::SOURCE],
+    );
+    // Spaces as %20, which every mail program reads; `+` is a plus sign in a mailto body.
+    let encode = |s: &str| {
+        url::form_urlencoded::byte_serialize(s.as_bytes())
+            .collect::<String>()
+            .replace('+', "%20")
+    };
+    format!("mailto:?subject={}&body={}", encode(subject), encode(&body))
+}
+
+/// Tip of the day: one tip, Next tip and Close.
+pub(super) fn tip_of_the_day(app: &mut DmApp, ctx: &egui::Context) {
+    let Some(at) = app.dialogs.tip else {
+        return;
+    };
+    let tips = tips();
+    let mut open = true;
+    let mut next = false;
+    let mut close = false;
+    window(ctx, "Tip of the day")
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.set_max_width(420.0);
+            ui.add(egui::Label::new(tips[at % tips.len()]).wrap());
+            footer(ui, |ui| {
+                next = primary(ui, "Next tip").clicked();
+                close = ui.button(t("Close")).clicked();
+            });
+        });
+    app.dialogs.tip = if !open || close {
+        None
+    } else if next {
+        Some((at + 1) % tips.len())
+    } else {
+        Some(at)
+    };
+}
+
 pub(super) fn about(app: &mut DmApp, ctx: &egui::Context) {
     if !app.dialogs.about_open {
         return;
@@ -108,7 +172,7 @@ pub(super) fn about(app: &mut DmApp, ctx: &egui::Context) {
         ui.horizontal_wrapped(|ui| {
             for (words, page) in [
                 (t("Source code"), crate::update::SOURCE),
-                (t("Licence (MIT)"), crate::update::LICENCE),
+                (t("Licence (GPL v3)"), crate::update::LICENCE),
                 (t("Privacy"), crate::update::PRIVACY),
                 (t("Code signing policy"), crate::update::SIGNING),
             ] {
@@ -170,5 +234,5 @@ pub(super) fn about(app: &mut DmApp, ctx: &egui::Context) {
 /// A folder name every computer can make: what a category made or renamed
 /// in Options is held to, since settings travel between computers.
 pub(super) fn portable_folder(name: &str) -> bool {
-    dm_core::category::portable_folder(name).is_ok()
+    dm_core::portable_folder(name).is_ok()
 }

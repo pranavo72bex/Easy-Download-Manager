@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The window's readers of outside input — the control protocol, from the
 //! socket to the handler, and the helpers that show addresses — fed random
 //! and hostile input. `PROPTEST_CASES=20000` for a deep hunt.

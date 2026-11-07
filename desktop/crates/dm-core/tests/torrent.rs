@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A torrent, downloaded end to end, without touching the public network.
 //!
 //! `torrent::is_torrent` and the queue's acceptance of a magnet are unit
@@ -14,8 +19,8 @@
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::time::Duration;
 
-use dm_core::download::Options;
-use dm_core::torrent::download_torrent;
+use dm_core::download_torrent;
+use dm_core::Options;
 use dm_core::{client, Categories, Control, Limiter};
 
 use librqbit::spawn_utils::BlockingSpawner;
@@ -169,7 +174,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         limiter: Limiter::unlimited(),
         categories: Categories::default(),
         checksum: None,
-        quality: dm_core::stream::Quality::Best,
+        quality: dm_core::Quality::Best,
         sound: None,
         span: None,
         shape: None,
@@ -188,9 +193,19 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         server_dates: false,
         retry_wait: 0,
         record_limit: None,
+        frame_rate: None,
+        caption: None,
         sign_in: None,
         save_name: None,
+        accept_page: false,
+        // On loopback only: no DHT or local discovery, which would announce
+        // this computer to the public network from a test.
+        torrent: dm_core::TorrentOptions {
+            no_public_discovery: true,
+            ..Default::default()
+        },
         system_proxy: false,
+        title_hint: None,
     };
 
     let finished = tokio::time::timeout(
@@ -224,8 +239,8 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
     let here = tempdir();
     let file = here.path().join("payload copy.torrent");
     std::fs::write(&file, &torrent_bytes).unwrap();
-    let local = dm_core::torrent::file_url(&file).unwrap();
-    assert!(dm_core::is_torrent(&local) && dm_core::queue::accepted(&local));
+    let local = dm_core::file_url(&file).unwrap();
+    assert!(dm_core::is_torrent(&local) && dm_core::accepted(&local));
     let out2 = tempdir();
     let options = Options {
         control: Control::new(),

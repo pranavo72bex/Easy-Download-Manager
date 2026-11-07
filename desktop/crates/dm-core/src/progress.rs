@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! How fast a download is going, and how long is left.
 //!
 //! Kept apart from the fetching because it is arithmetic over samples, and
@@ -9,6 +14,7 @@ use std::time::Duration;
 /// What a caller needs to draw a row.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Progress {
+    /// Bytes on disk so far.
     pub downloaded: u64,
     /// `None` where the server never said how big the file is.
     pub total: Option<u64>,
@@ -46,6 +52,8 @@ pub struct Meter {
 const WEIGHT: f64 = 0.3;
 
 impl Meter {
+    /// A meter for a file of `total` bytes (unknown where `None`), started at `started_at` seconds.
+    #[must_use]
     pub fn new(total: Option<u64>, started_at: u64) -> Self {
         Meter {
             last_bytes: started_at,

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A Metalink's mirrors measured against the document that lists them.
 
 mod common;
@@ -33,7 +38,7 @@ async fn the_documents_length_outranks_a_stale_first_mirror() {
     .await;
 
     let dir = tempdir();
-    let done = dm_core::download::download(
+    let done = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing}/f.meta4"),
         &options(dir.path()),
@@ -67,7 +72,7 @@ async fn no_mirror_agreeing_with_the_document_is_refused() {
     ))
     .await;
     let dir = tempdir();
-    let err = dm_core::download::download(
+    let err = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing}/f.meta4"),
         &options(dir.path()),
@@ -119,7 +124,7 @@ async fn a_mirror_serving_other_bytes_is_passed_over_for_one_that_matches_the_di
     let size = 6 * 1024 * 1024;
     let good: Vec<u8> = (0..size).map(|i| (i * 7 % 251) as u8).collect();
     let wrong: Vec<u8> = (0..size).map(|i| (i * 11 % 241) as u8).collect();
-    let digest = hex::encode(Sha256::digest(&good));
+    let digest = dm_core::hex::encode(Sha256::digest(&good));
     let app = Router::new()
         .route("/m1/f.bin", get(ranged(wrong, "\"wrong\"")))
         .route("/m2/f.bin", get(ranged(good.clone(), "\"good\"")));
@@ -146,7 +151,7 @@ async fn a_mirror_serving_other_bytes_is_passed_over_for_one_that_matches_the_di
         connections: 6,
         ..options(dir.path())
     };
-    let done = dm_core::download::download(
+    let done = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing_addr}/f.meta4"),
         &opts,
@@ -166,11 +171,66 @@ async fn a_mirror_serving_other_bytes_is_passed_over_for_one_that_matches_the_di
         connections: 6,
         ..options(dir.path())
     };
-    let refused = dm_core::download::download(
+    let refused = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing_addr}/f.meta4"),
         &opts,
     )
     .await;
     assert!(refused.is_err(), "bytes that fail the digest were kept");
+}
+
+/// A mirror that leaves the document between the first try and the one where
+/// each mirror is tried alone: that pass fails as any other, the download
+/// fails with a reason, and nothing panics.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_mirror_gone_by_the_one_at_a_time_pass_is_a_failure_not_a_panic() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    let size = 2 * 1024 * 1024;
+    let wrong: Vec<u8> = (0..size).map(|i| (i * 11 % 241) as u8).collect();
+    let other: Vec<u8> = (0..size).map(|i| (i * 13 % 239) as u8).collect();
+    let app = Router::new()
+        .route("/m1/f.bin", get(ranged(wrong, "\"wrong\"")))
+        .route("/m2/f.bin", get(ranged(other, "\"other\"")));
+    let mirrors = serve(app).await;
+    let doc = |urls: String| {
+        format!(
+            r#"<metalink xmlns="urn:ietf:params:xml:ns:metalink"><file name="f.bin"><size>{size}</size>
+            <hash type="sha-256">{}</hash>{urls}</file></metalink>"#,
+            "0".repeat(64)
+        )
+    };
+    let both = doc(format!(
+        r#"<url priority="1">http://{mirrors}/m1/f.bin</url><url priority="2">http://{mirrors}/m2/f.bin</url>"#
+    ));
+    let one = doc(format!(r#"<url>http://{mirrors}/m1/f.bin</url>"#));
+    let read = Arc::new(AtomicUsize::new(0));
+    let listing = serve(Router::new().route(
+        "/f.meta4",
+        get(move || {
+            // Read twice on the first try (the probe, then the mirrors).
+            let doc = if read.fetch_add(1, Ordering::SeqCst) < 2 {
+                both.clone()
+            } else {
+                one.clone()
+            };
+            async move { ([("content-type", "application/metalink4+xml")], doc) }
+        }),
+    ))
+    .await;
+    let dir = tempdir();
+    let outcome = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{listing}/f.meta4"),
+        &options(dir.path()),
+    )
+    .await;
+    let Err(e) = outcome else {
+        panic!("bytes that fail the digest were kept");
+    };
+    assert!(
+        !e.to_string().contains("panicked"),
+        "a worker panicked: {e}"
+    );
 }

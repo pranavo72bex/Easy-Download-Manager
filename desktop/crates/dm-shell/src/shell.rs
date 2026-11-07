@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What the app does around its window: how it starts, how it takes a
 //! browser's hand-off, how a settings change is put into force.
 //!
@@ -150,7 +155,7 @@ fn is_link(arg: &str) -> bool {
         || arg.starts_with("https://")
         || arg.starts_with("magnet:")
         || dm_core::ftp::is_ftp(arg)
-        || dm_core::torrent::local_file(arg).is_some() && dm_core::is_torrent(arg)
+        || dm_core::local_file(arg).is_some() && dm_core::is_torrent(arg)
 }
 
 /// A `.torrent` on this computer named by its path, as a shell gives it,
@@ -162,7 +167,7 @@ fn local_torrent(arg: &str) -> Option<String> {
         return None;
     }
     let full = std::path::absolute(path).ok()?;
-    dm_core::torrent::file_url(&full)
+    dm_core::file_url(&full)
 }
 
 /// Reads the command line: links, each taking the options given before it,
@@ -253,6 +258,35 @@ pub fn unrecognised(args: &[String]) -> Vec<String> {
     words
 }
 
+/// The form a hand-over's download is the answer to, as the engine sends it:
+/// `None` for none, or a body that is not base64 or is too big to be a form.
+pub fn posted(url: &str, post: Option<&dm_protocol::Posted>) -> Option<dm_core::cookies::Posted> {
+    use base64::Engine;
+    let post = post?;
+    let (body, content_type) = if post.raw.is_empty() {
+        (
+            post.form.clone().into_bytes(),
+            if post.content_type.is_empty() {
+                "application/x-www-form-urlencoded".to_string()
+            } else {
+                post.content_type.clone()
+            },
+        )
+    } else {
+        (
+            base64::engine::general_purpose::STANDARD
+                .decode(post.raw.trim())
+                .ok()?,
+            post.content_type.clone(),
+        )
+    };
+    (body.len() <= dm_core::cookies::POST_MOST).then(|| dm_core::cookies::Posted {
+        url: url.trim().to_string(),
+        body,
+        content_type,
+    })
+}
+
 /// What a request from the command line or a browser asks the queue for.
 pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
     dm_core::AddOptions {
@@ -264,6 +298,9 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         sound: request.sound.clone(),
         cookies: request.cookies.clone(),
         cookies_once: request.cookies_once,
+        headers: request.headers.clone(),
+        post: posted(&request.url, request.post.as_ref()),
+        title_hint: Some(request.title.clone()).filter(|t| !t.is_empty()),
         queue: if request.later {
             dm_core::MAIN_QUEUE.to_string()
         } else {
@@ -289,6 +326,19 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
     leave_when_done(home, orders);
     leave_new_download(home, orders);
     let _ = std::fs::write(host::inbox(home).join("show"), b"");
+}
+
+/// What the system opened with this dm (macOS: a `magnet:` link clicked
+/// anywhere, a `.torrent` file opened from Finder), each a link or a file's
+/// path, handed to the window through the inbox as a command-line link is.
+/// Anything that is neither a link nor a `.torrent` is passed by. Returns
+/// how many downloads were handed.
+pub fn opened_by_system(home: &Path, opened: &[String]) -> usize {
+    let handed = orders(opened);
+    if !handed.downloads.is_empty() {
+        hand_to_running(home, &handed);
+    }
+    handed.downloads.len()
 }
 
 /// `--new-download`, left in the inbox for the window to take up: the one
@@ -334,7 +384,7 @@ pub fn hand_off(
 /// that must not go out directly. A proxy that cannot be built is said out
 /// loud rather than quietly bypassed, and turned off for everything — the
 /// tools dm runs are told the proxy from the same settings, and a client
-/// going direct beside a yt-dlp handed a proxy that does not parse is two
+/// going direct beside a tool handed a proxy that does not parse is two
 /// routes disagreeing about one setting.
 pub struct Started {
     /// The queue, its saved downloads read back and the settings applied.
@@ -350,21 +400,18 @@ pub struct Started {
 /// downloads back and applies the settings to it, and adds what `orders`
 /// names.
 pub async fn start(orders: &Orders) -> Started {
-    // yt-dlp and QuickJS, fetched into dm's own folder when a video page
-    // needs them; a yt-dlp fetched before is kept current.
+    // Video tools (QuickJS), fetched into dm's own folder when needed.
     dm_core::tools::set_folder(settings::home().join("tools"));
-    // Readings of video pages the browser's host made, for downloads to reuse.
-    dm_core::ytdlp::keep_readings_in(settings::home().join("readings"));
     let (mut saved, unreadable) = Settings::load();
     dm_core::tools::allow_fetching(saved.fetch_tools);
     let mut notices: Vec<String> = unreadable.into_iter().collect();
 
-    let client = match dm_core::proxy::client_with_timeout(&saved.proxy, saved.read_timeout()) {
+    let client = match dm_core::client_with_timeout(&saved.proxy, saved.read_timeout()) {
         Ok(client) => client,
         Err(why) => {
             notices.push(format!(
                 "the saved proxy could not be used ({why}), so it is turned off and downloads \
-                 go out directly. Fix it under Options › Proxy and tick it again."
+                 go out directly. Fix it under Options › Advanced and tick it again."
             ));
             saved.proxy.enabled = false;
             // Saved turned off, as the notice says: the browser's native
@@ -377,8 +424,6 @@ pub async fn start(orders: &Orders) -> Started {
             dm_core::client()
         }
     };
-    // A yt-dlp dm fetched itself, a week old, is fetched afresh.
-    tokio::spawn(dm_core::tools::freshen(client.clone()));
     // The cookies file, read now rather than at the first change of a
     // setting: before, a download that needed it failed until then.
     notices.extend(use_cookies(&saved));
@@ -396,6 +441,7 @@ pub async fn start(orders: &Orders) -> Started {
     // Before anything can serve the queue: applying it from a spawned task
     // raced the scheduler, and a scheduled queue ran at launch.
     queue.set_schedule(saved.schedule.clone());
+    queue.set_queue_schedules(saved.queue_schedules.clone());
     queue.set_allowance(saved.allowance());
     queue.set_recheck_every(saved.recheck_every());
     queue.set_queue_limits(saved.queue_limit_map());
@@ -442,7 +488,7 @@ pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), Str
         return Err(why);
     }
     if new_client(settings, previous) {
-        dm_core::proxy::client_with_timeout(&settings.proxy, settings.read_timeout())?;
+        dm_core::client_with_timeout(&settings.proxy, settings.read_timeout())?;
     }
     Ok(())
 }
@@ -468,7 +514,7 @@ pub fn use_cookies(settings: &Settings) -> Option<String> {
             *said = Some(why.clone());
             Some(format!(
                 "{why}; downloads go without its cookies until it is back or another is \
-                 chosen in Options › Network"
+                 chosen in Options › Advanced"
             ))
         }
     }
@@ -497,6 +543,7 @@ pub async fn apply(
     // The second network, where one is chosen and no proxy is on: through
     // a proxy every connection must go by it, and one that did not would
     // be seen by the site from this computer's own address.
+    dm_core::set_identify_as_dm(settings.identify_as_dm);
     let second = (!settings.proxy.enabled).then_some(settings.second_path.as_str());
     if let Err(why) = dm_core::set_second_path(second) {
         problems.push(format!("downloads use one network: {why}"));
@@ -511,8 +558,12 @@ pub async fn apply(
         .await;
 
     queue.set_concurrency(settings.concurrency);
-    queue.set_speed_limit(settings.speed_limit_bytes()).await;
+    // The slow hours' limit where they are in force now.
+    queue
+        .set_speed_limit(settings.speed_limit_bytes_now())
+        .await;
     queue.set_schedule(settings.schedule.clone());
+    queue.set_queue_schedules(settings.queue_schedules.clone());
     queue.set_allowance(settings.allowance());
     queue.set_recheck_every(settings.recheck_every());
     queue.set_queue_limits(settings.queue_limit_map());
@@ -540,7 +591,7 @@ pub fn watch_rules(queue: &Queue) {
                 queue.run().await;
             }
             // Queues that start on their own at a time of day.
-            let (day, minute) = dm_core::schedule::now_local();
+            let (day, minute) = dm_core::now_local();
             for name in queue.starts_due(day, minute) {
                 if queue.start_queue(&name).await > 0 {
                     wake(&queue);
@@ -1017,6 +1068,18 @@ pub async fn watch_inbox(
             }
 
             match serde_json::from_str::<host::Request>(&text) {
+                // The browser's newer address for a file whose row waits for
+                // one (its address ran out): that row takes it and goes on,
+                // and a renewal is nothing more (`take_from_browser`).
+                Ok(request) if request.from_browser || request.renews => {
+                    let saved = host::saved(&settings::home());
+                    let asks = request.ask || routed_to_window();
+                    if let Taken::Ask(request) =
+                        take_from_browser(&queue, &saved, request, asks).await
+                    {
+                        ask(*request);
+                    }
+                }
                 // A video from the browser's panel, or any hand-off while the
                 // window waits for one: the window asks first.
                 Ok(request) if request.ask || routed_to_window() => ask(request),
@@ -1050,6 +1113,45 @@ pub async fn watch_inbox(
         }
         wait_for_inbox(bell.as_ref()).await;
     }
+}
+
+/// What became of a browser's hand-off ([`take_from_browser`]).
+#[derive(Debug, PartialEq)]
+pub enum Taken {
+    /// A row waiting for a fresh address for the same file took it and goes on.
+    Adopted(dm_core::Id),
+    /// A renewal no row waits for: nothing is done with it.
+    Dropped,
+    /// For the window to ask about first.
+    Ask(Box<host::Request>),
+    /// Added to the queue as a download of its own.
+    Added(Option<dm_core::Id>),
+}
+
+/// A hand-off from the browser's extension. One the window asks about
+/// (`asks`) is asked about first, as contract row B63 has it. Otherwise it
+/// is first offered to a row whose signed address ran out and that waits for
+/// the browser's next one for the same file (`Queue::adopt_fresh_link`), and
+/// added where none takes it; a renewal (`Request::renews`) never asks and is
+/// nothing more.
+pub async fn take_from_browser(
+    queue: &Queue,
+    saved: &Settings,
+    request: host::Request,
+    asks: bool,
+) -> Taken {
+    if asks && !request.renews {
+        return Taken::Ask(Box::new(request));
+    }
+    let with = saved.with_site_rule(&request.url, add_options(&request));
+    if let Some(id) = queue.adopt_fresh_link(&request.url, &with).await {
+        return Taken::Adopted(id);
+    }
+    if request.renews {
+        return Taken::Dropped;
+    }
+    let url = saved.with_login(&request.url);
+    Taken::Added(queue.add_with(&url, with).await)
 }
 
 /// How often the inbox is looked at with no bell rung.
@@ -1138,6 +1240,28 @@ pub fn words(command: &str) -> Vec<String> {
         out.push(word);
     }
     out
+}
+
+/// Runs `command` as it is, with no file: started and left running, no shell, its
+/// words split as `run_after`'s are. An error says why it could not start.
+pub fn run_program(command: &str) -> Result<(), String> {
+    let mut parts = words(command);
+    if parts.is_empty() {
+        return Ok(());
+    }
+    let program = parts.remove(0);
+    std::process::Command::new(&program)
+        .args(parts)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| {
+            format!(
+                "\"{program}\", to run when the scheduled downloads are done, could not start: {e}"
+            )
+        })
 }
 
 /// Runs `command` on a finished file, its path added as the last argument

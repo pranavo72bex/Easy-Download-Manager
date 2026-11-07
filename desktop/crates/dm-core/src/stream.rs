@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Adaptive streams: a manifest listing segments rather than one file.
 //!
 //! An HLS playlist is not a download in the sense the rest of this engine
@@ -16,7 +21,9 @@ use crate::Error;
 /// What a manifest URL turns out to be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
+    /// An HLS playlist (`.m3u8`).
     Hls,
+    /// A DASH manifest (`.mpd`).
     Dash,
 }
 
@@ -45,6 +52,7 @@ pub fn kind_of(url: &str, content_type: Option<&str>) -> Option<Kind> {
 /// The AES-128 key every segment of a playlist needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key {
+    /// Where the key is fetched from.
     pub uri: String,
     /// The playlist's own IV, where it declared one. Hex, `0x` optional.
     pub iv: Option<String>,
@@ -53,6 +61,7 @@ pub struct Key {
 /// One piece of the stream.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Part {
+    /// The piece's address.
     pub url: String,
     /// An initialisation segment, which must lead the file or nothing decodes.
     pub init: bool,
@@ -62,26 +71,34 @@ pub struct Part {
     /// The bytes of `url` this piece is, first and last, both included, where
     /// the stream is cut from one file by `#EXT-X-BYTERANGE`.
     pub range: Option<(u64, u64)>,
+    /// How long the piece plays, in seconds, as the playlist's `#EXTINF`
+    /// says; 0 for an initialisation segment or where it said nothing.
+    pub duration: f64,
 }
 
 /// Everything needed to fetch a stream as one file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stream {
+    /// The pieces, in playing order.
     pub parts: Vec<Part>,
+    /// The key they are locked with, if any.
     pub key: Option<Key>,
     /// `ts`, `mp4`, `m4a` or `aac` — what the concatenation will actually be.
     pub container: String,
+    /// The name to save the stream under.
     pub filename: String,
 }
 
 /// One rendition a master playlist offers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variant {
+    /// The playlist of this rendition.
     pub url: String,
     /// The picture's shorter side, which is what a quality names: its
     /// height, or a portrait video's width (720 for 720x1280). 0 where the
     /// playlist did not say, which is how audio-only is spotted.
     pub height: u32,
+    /// Bits per second the rendition needs.
     pub bandwidth: u64,
     /// The audio group it plays with (`AUDIO=`), where its sound is listed
     /// apart from it.
@@ -117,9 +134,34 @@ impl Quality {
 
     /// The container in a panel's quality word ("720/mp4" is "mp4"), if any.
     pub fn container_of(word: &str) -> Option<String> {
-        word.split_once('/')
-            .map(|(_, c)| c.trim().to_ascii_lowercase())
+        word.split('/')
+            .nth(1)
+            .map(|c| c.trim().to_ascii_lowercase())
             .filter(|c| !c.is_empty() && c.chars().all(|ch| ch.is_ascii_alphanumeric()))
+    }
+
+    /// The caption track a panel's quality word names ("caption/en" or
+    /// "caption/en/asr", the second YouTube's own made by speech recognition):
+    /// the language and whether it is the recognised one.
+    pub fn caption_of(word: &str) -> Option<(String, bool)> {
+        let rest = word.trim().strip_prefix("caption/")?;
+        let mut parts = rest.split('/');
+        let language = parts.next()?.trim();
+        let ok = !language.is_empty()
+            && language.len() <= 20
+            && language
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        ok.then(|| (language.to_string(), parts.next() == Some("asr")))
+    }
+
+    /// The frame rate in a panel's quality word ("720/mp4/60" is 60), where
+    /// its height is listed twice, at two frame rates.
+    pub fn frame_rate_of(word: &str) -> Option<u32> {
+        word.split('/')
+            .nth(2)
+            .and_then(|r| r.trim().parse::<u32>().ok())
+            .filter(|r| *r > 0)
     }
 
     /// The word `named` reads back.
@@ -196,8 +238,8 @@ fn lines(text: &str) -> Vec<&str> {
 /// Why dm should not assemble this stream itself, where it should not: a
 /// shape whose segments, joined in order, are not the file. Each of these
 /// was saved as the wrong file and reported Completed — the whole source
-/// repeated, a silent film, ciphertext — so they go to yt-dlp, which reads
-/// them properly, or are refused. `master` is the master playlist where
+/// repeated, a silent film, ciphertext — so they are refused, not saved
+/// as a file that is not one. `master` is the master playlist where
 /// there was one; `media` the media playlist that would be fetched, and
 /// `media_url` where it was served from, which its entries are relative to.
 pub fn beyond_dm(
@@ -408,6 +450,8 @@ pub fn media_playlist(
     // where it starts unless it goes on from the last piece of the same file.
     let mut cut: Option<(u64, Option<u64>)> = None;
     let mut ended_at: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+    // `#EXTINF`'s seconds, for the segment that follows it.
+    let mut pending = 0.0f64;
 
     for row in lines(text) {
         /* Segment URLs are the overwhelming majority of a media playlist and
@@ -433,6 +477,7 @@ pub fn media_playlist(
             parts.push(Part {
                 url,
                 range,
+                duration: std::mem::take(&mut pending),
                 init: false,
                 /* Numbered by media segments only.
                  *
@@ -445,6 +490,16 @@ pub fn media_playlist(
             continue;
         }
         let upper = row.to_ascii_uppercase();
+
+        if upper.starts_with("#EXTINF") {
+            pending = row
+                .split_once(':')
+                .and_then(|(_, rest)| rest.split(',').next())
+                .and_then(|seconds| seconds.trim().parse::<f64>().ok())
+                .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
+                .unwrap_or(0.0);
+            continue;
+        }
 
         if upper.starts_with("#EXT-X-MEDIA-SEQUENCE") {
             sequence = row
@@ -496,7 +551,7 @@ pub fn media_playlist(
             if let Some(uri) = attribute(row, "URI") {
                 // Restated, it is the same one: `beyond_dm` has already
                 // sent a stream whose initialisation segment changes to
-                // yt-dlp, so the first is the only one.
+                // refused, so the first is the only one.
                 if init.is_none() {
                     let range = match attribute(row, "BYTERANGE") {
                         Some(text) => match byte_range(&text)? {
@@ -514,6 +569,7 @@ pub fn media_playlist(
                         init: true,
                         sequence: 0,
                         range,
+                        duration: 0.0,
                     });
                 }
                 container = "mp4";
@@ -566,6 +622,42 @@ pub fn media_playlist(
         parts,
         key,
         container: container.to_string(),
+    })
+}
+
+/// The part of `stream` that plays between `from` and `to` seconds: its
+/// initialisation segments, then every segment whose playing time overlaps
+/// the span, in order. With the second where the first segment taken
+/// begins and the second where the last ends (a segment is taken whole, so
+/// a part is cut at the nearest pieces unless the container can be trimmed
+/// afterwards). `None` where no segment overlaps, or the playlist gave no
+/// lengths (`#EXTINF`) to place them by.
+pub fn cover(stream: &Stream, from: f64, to: f64) -> Option<(Stream, f64, f64)> {
+    let mut parts: Vec<Part> = stream.parts.iter().filter(|p| p.init).cloned().collect();
+    let (mut at, mut starts, mut ends, mut any) = (0.0f64, 0.0f64, 0.0f64, false);
+    for part in stream.parts.iter().filter(|p| !p.init) {
+        let end = at + part.duration;
+        if part.duration > 0.0 && at < to && end > from {
+            if !any {
+                starts = at;
+                any = true;
+            }
+            ends = end;
+            parts.push(part.clone());
+        }
+        at = end;
+    }
+    any.then(|| {
+        (
+            Stream {
+                parts,
+                key: stream.key.clone(),
+                container: stream.container.clone(),
+                filename: stream.filename.clone(),
+            },
+            starts,
+            ends,
+        )
     })
 }
 

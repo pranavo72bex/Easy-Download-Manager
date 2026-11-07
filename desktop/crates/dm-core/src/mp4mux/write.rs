@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Writing the joined file: chunks, sample tables and the movie box.
 
 use super::*;
@@ -99,12 +104,6 @@ pub(super) fn shown(track: &Track) -> (i64, i64) {
     }
 }
 
-/// The edit list written for a track: an empty edit kept as it is; a
-/// track's own start (an AAC encoder's priming) kept, with its length
-/// worked out where a fragmented file left it at zero. A DASH picture has
-/// none and its first frame shown a frame or two in, which played that
-/// much behind its sound: it is given one that starts it at that frame, as
-/// a joined file from any other tool would have.
 /// A part's one edit for a track: from `skip_ms` into it (past its own
 /// start, an AAC track's priming), for `length_ms` or what is left of the
 /// track, whichever is shorter. The media time, and the length in
@@ -132,6 +131,12 @@ pub(super) fn presented_ms(track: &Track, lead_ms: u64, trim: Option<(u64, u64)>
     }
 }
 
+/// The edit list written for a track: an empty edit kept as it is; a
+/// track's own start (an AAC encoder's priming) kept, with its length
+/// worked out where a fragmented file left it at zero. A DASH picture has
+/// none and its first frame shown a frame or two in, which played that
+/// much behind its sound: it is given one that starts it at that frame, as
+/// a joined file from any other tool would have.
 pub(super) fn edit_list(track: &Track, lead_ms: u64, trim: Option<(u64, u64)>) -> Option<Vec<u8>> {
     let (first, last) = shown(track);
     let edits_scale = if track.edits_timescale > 0 {

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! FTP, taken over from a link as HTTP is.
 //!
 //! A client of dm's own rather than a library: what a download needs of FTP
@@ -248,7 +253,7 @@ mod tls_tests {
         let size = describe(&target).await.unwrap().size.unwrap();
         let whole = fetched(&target, 0).await;
         assert_eq!(whole.len() as u64, size);
-        assert_eq!(hex::encode(sha2::Sha256::digest(&whole)), sha256);
+        assert_eq!(crate::hex::encode(sha2::Sha256::digest(&whole)), sha256);
         let half = size / 2;
         assert_eq!(fetched(&target, half).await, whole[half as usize..]);
     }

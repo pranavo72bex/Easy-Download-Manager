@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Servers that want a sign-in: a Digest challenge answered, a wrong
 //! password refused, and a scheme dm does not speak said rather than hung
 //! on. Each stands up a loopback server that checks the sign-in the way a
@@ -34,8 +39,8 @@ enum Hash {
 impl Hash {
     fn of(self, text: &str) -> String {
         match self {
-            Hash::Md5 => hex::encode(md5::Md5::digest(text.as_bytes())),
-            Hash::Sha256 => hex::encode(sha2::Sha256::digest(text.as_bytes())),
+            Hash::Md5 => dm_core::hex::encode(md5::Md5::digest(text.as_bytes())),
+            Hash::Sha256 => dm_core::hex::encode(sha2::Sha256::digest(text.as_bytes())),
         }
     }
     fn name(self) -> &'static str {
@@ -198,9 +203,10 @@ async fn a_server_that_wants_a_digest_login_gets_one_and_the_file_downloads() {
         1,
         "ranges were challenged one by one"
     );
-    // The probe and each of the two 1 MiB ranges the planner makes of it.
+    // The probe, which carries the first piece, and the second 1 MiB range
+    // the planner makes of it.
     assert!(
-        g.authorized.load(Ordering::SeqCst) >= 3,
+        g.authorized.load(Ordering::SeqCst) >= 2,
         "{} authorized",
         g.authorized.load(Ordering::SeqCst)
     );

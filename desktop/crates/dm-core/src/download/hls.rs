@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// Fetches an adaptive stream as one file.
@@ -24,22 +29,38 @@ pub(super) async fn download_stream(
         Resolved::Live(playlist) => {
             return record_live(client, &playlist, url, options, report).await
         }
-        // As a DASH stream is: yt-dlp reads these shapes properly; without
-        // it the stream is refused rather than saved wrong and called done.
-        Resolved::Beyond(_) if crate::tools::for_video(client).await.is_ok() => {
-            return crate::ytdlp::download_ytdlp(url, options, report).await;
-        }
         Resolved::Beyond(why) => {
             return Err(Error::Internal(format!(
-                "{why}, which needs dm's video helper, and it could not be got ready"
+                "{why}: this stream shape is not supported yet"
             )));
         }
     };
+
+    /* A part of the stream: only the segments whose cumulative lengths
+     * (EXTINF) overlap the span are fetched. A fragmented MP4 is then trimmed
+     * exactly, by the muxer's edit lists; a transport stream is joined whole
+     * at the nearest segments, as it has no frame index to trim by here. */
+    let mut rendition = rendition;
+    if let Some(span) = options.span {
+        let (covered, _, _) = stream::cover(&listed, span.from, span.to).ok_or_else(|| {
+            Error::Internal("that part is outside the stream's length".to_string())
+        })?;
+        rendition = format!("{rendition}|{}", span.words());
+        listed = covered;
+    }
 
     fs::create_dir_all(&options.parts_dir).await?;
     keep_only_parts_of(&options.parts_dir, &rendition).await?;
     if let Some(found) = first_segment_is(client, &listed, options).await {
         listed.found_to_be(found, url, options.quality);
+    }
+    // Trimmed exactly only where the muxer can: a fragmented MP4.
+    let cut = options
+        .span
+        .filter(|_| listed.container == "mp4" || listed.container == "m4a")
+        .map(|span| span.millis());
+    if let Some(span) = options.span {
+        listed.filename = named_for_span(&listed.filename, span);
     }
 
     if let Some(tx) = &report {
@@ -114,6 +135,10 @@ pub(super) async fn download_stream(
     let (parts, filename) = match remux_ts(&listed.filename, &parts, options).await {
         Some((mp4, name)) => (vec![mp4], name),
         None => (parts, listed.filename.clone()),
+    };
+    let parts = match cut {
+        Some(window) => vec![cut_fragments(&parts, window, options).await?],
+        None => parts,
     };
     let (path, bytes, category) = finish(&filename, None, &parts, options).await?;
 
@@ -719,6 +744,7 @@ async fn fetch_one_segment(
     options.control.check()?;
 
     let staging = done.with_extension("partial");
+    let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
     let fetched = retry::run_up_to(&options.control, options.tries(), || {
         fetch_segment_range(client, &part.url, part.range, options)
     })
@@ -798,4 +824,53 @@ pub(super) async fn fetch_segment_range(
         }
     }
     Ok(body)
+}
+
+/// A file name with the span it holds before its extension:
+/// "show.mp4" -> "show (1m30s-2m05s).mp4".
+pub(super) fn named_for_span(name: &str, span: crate::clip::Span) -> String {
+    match name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() && ext.len() <= 5 => {
+            format!("{stem} ({}).{ext}", span.words())
+        }
+        _ => format!("{name} ({})", span.words()),
+    }
+}
+
+/// The fetched fragments of a fragmented MP4 (its initialisation segment
+/// first) joined, then cut to `window` (milliseconds) by the muxer's edit
+/// lists, into one file in the parts directory.
+async fn cut_fragments(
+    parts: &[PathBuf],
+    window: (u64, u64),
+    options: &Options,
+) -> Result<PathBuf, Error> {
+    let whole = options.parts_dir.join("cut-input.mp4");
+    let out = options.parts_dir.join("cut-output.mp4");
+    let _ = fs::remove_file(&whole).await;
+    let _ = fs::remove_file(&out).await;
+    join_parts_copy(parts, &whole).await?;
+    crate::mp4mux::join_cut_async(
+        vec![whole.clone()],
+        Vec::new(),
+        out.clone(),
+        Some(window),
+        options.shape,
+    )
+    .await
+    .map_err(Error::Internal)?;
+    let _ = fs::remove_file(&whole).await;
+    Ok(out)
+}
+
+/// The files one after another into `into`, leaving them in place.
+pub(super) async fn join_parts_copy(parts: &[PathBuf], into: &Path) -> Result<(), Error> {
+    use tokio::io::AsyncWriteExt;
+    let mut out = tokio::io::BufWriter::new(fs::File::create(into).await?);
+    for part in parts {
+        let mut input = fs::File::open(part).await?;
+        tokio::io::copy(&mut input, &mut out).await?;
+    }
+    out.flush().await?;
+    Ok(())
 }

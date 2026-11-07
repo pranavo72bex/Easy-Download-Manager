@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The computer's accent colour, for the modern look's accent brushes: the
 //! primary button, the selection indicator, a checked box, the progress bar
 //! and words in the accent, as Fluent draws them from the system's accent.
@@ -18,12 +23,19 @@ use crate::theme::Tokens;
 /// The accent and the shades the accent brushes are drawn from.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Palette {
+    /// The palest tint, three steps lighter than `base`.
     pub light3: Color32,
+    /// A tint two steps lighter than `base`.
     pub light2: Color32,
+    /// A tint one step lighter than `base`.
     pub light1: Color32,
+    /// The accent itself.
     pub base: Color32,
+    /// A shade one step darker than `base`.
     pub dark1: Color32,
+    /// A shade two steps darker than `base`.
     pub dark2: Color32,
+    /// The darkest shade, three steps darker than `base`.
     pub dark3: Color32,
 }
 

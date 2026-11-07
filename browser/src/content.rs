@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The page script: the floating "Download video" panel.
 //!
 //! It raises a panel at the top right of a video or audio player when the
@@ -97,6 +102,7 @@ thread_local! {
         const { std::cell::Cell::new(None) };
 }
 
+mod bodies;
 mod build;
 mod dom;
 mod events;

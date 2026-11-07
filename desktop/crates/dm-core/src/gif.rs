@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! An animated GIF writer of dm's own, for a part of a video saved as GIF.
 //!
 //! Frames come in as RGB pictures of one size. One palette of 256 colours
@@ -6,9 +11,33 @@
 //! and the frames are written as a GIF89a that loops for ever.
 
 /// Whether dm can make a GIF here: the system has a video decoder dm
-/// reads H.264 with (macOS for now).
+/// reads H.264 with (VideoToolbox on macOS; on Windows Media Foundation's,
+/// which a Windows "N" edition lacks until the Media Feature Pack is added).
 pub fn possible() -> bool {
-    cfg!(target_os = "macos")
+    #[cfg(target_os = "macos")]
+    {
+        true
+    }
+    #[cfg(windows)]
+    {
+        crate::mf::h264_decoder()
+    }
+    // From the video's AV1 stream, decoded by dm's own reader (`frames/av1.rs`).
+    #[cfg(target_os = "linux")]
+    {
+        true
+    }
+    #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
+    {
+        false
+    }
+}
+
+/// Whether a part of the video at `url` can be made a GIF here. On Linux it
+/// is made from the video's AV1 stream, which only YouTube's pages are read
+/// for by dm itself; a stream caught elsewhere is H.264.
+pub fn possible_for(url: &str) -> bool {
+    possible() && (!cfg!(target_os = "linux") || crate::youtube::video_id(url).is_some())
 }
 
 /// Frames a second, and the most pixels across, of a GIF made of a part.
@@ -38,6 +67,7 @@ pub async fn from_video_async(
 
 /// One picture: `width` by `height` pixels, RGB, row by row.
 pub struct Frame {
+    /// The pixels: three bytes (red, green, blue) each, row by row.
     pub rgb: Vec<u8>,
     /// How long it shows, in hundredths of a second.
     pub delay: u16,
@@ -294,6 +324,20 @@ fn lzw(indices: &[u8], min_size: u32) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_gif_is_offered_where_the_part_can_be_decoded() {
+        let youtube = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+        let stream = "https://cdn.example/live/index.m3u8";
+        if cfg!(target_os = "linux") {
+            // From YouTube's AV1 stream only: a stream caught elsewhere is H.264.
+            assert!(possible_for(youtube));
+            assert!(!possible_for(stream));
+        } else {
+            assert_eq!(possible_for(youtube), possible());
+            assert_eq!(possible_for(stream), possible());
+        }
+    }
+
     use super::*;
 
     /// An LZW stream read back as GIF's decoder reads it.

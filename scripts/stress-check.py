@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """Stress and reliability check of dm's download engine and control protocol.
 
     python3 scripts/stress-check.py [phase ...]       # all phases, or those named
@@ -37,6 +42,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -45,8 +51,41 @@ MIN_FREE_GB = float(os.environ.get("DM_STRESS_MIN_FREE_GB", "8"))
 MAX_SERVE_GB = float(os.environ.get("DM_STRESS_MAX_SERVE_GB", "3"))     # per phase
 MB = 1024 * 1024
 BLOCK = 65536
+# The computer's own hosts file, which a file:// redirect must never bring into the folder.
+HOSTS = (pathlib.Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "drivers" / "etc" / "hosts"
+         if sys.platform == "win32" else pathlib.Path("/etc/hosts"))
 
 FINDINGS = []
+
+
+def listening(pid):
+    """The TCP sockets `pid` listens on, one per line, as `address:port`."""
+    if sys.platform == "win32":
+        out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True).stdout
+        return "\n".join(f.split()[1] for f in out.splitlines()
+                         if f.split()[-1:] == [str(pid)] and "LISTENING" in f)
+    return subprocess.run(["lsof", "-nP", "-a", "-p", str(pid), "-iTCP", "-sTCP:LISTEN"],
+                          capture_output=True, text=True).stdout
+
+
+def token_readers(path):
+    """Who other than this account (and the system, and administrators) may read `path`: a
+    Unix file's group and others, or a Windows file's other entries in its access list."""
+    if sys.platform == "win32":
+        out = subprocess.run(["icacls", str(path)], capture_output=True, text=True).stdout
+        me = os.environ.get("USERNAME", "").lower()
+        mine = ("nt authority\\system", "builtin\\administrators", "owner rights")
+        others = []
+        for line in out.splitlines():
+            entry = line.replace(str(path), "").strip()
+            if ":" not in entry or entry.lower().startswith("successfully"):
+                continue
+            who = entry.split(":")[0].strip()
+            if who and who.lower() not in mine and not who.lower().endswith("\\" + me):
+                others.append(who)
+        return ", ".join(others)
+    mode = path.stat().st_mode & 0o777
+    return "" if mode & 0o077 == 0 else f"mode {oct(mode)}"
 
 
 def finding(severity, phase, what):
@@ -416,7 +455,10 @@ class DM:
         self.out.mkdir(parents=True, exist_ok=True)
         self.settings = {"download_dir": str(self.out), "categorize": False,
                          "show_progress": False, "show_complete": False,
-                         "check_updates": False, "watch_clipboard": False, **(settings or {})}
+                         "check_updates": False, "watch_clipboard": False,
+                         # This edition's mark: without it dm takes the file for an older
+                         # edition's and turns every pop-up on again.
+                         "popups_version": 2, **(settings or {})}
         self.proc = None
         LIVE_DMS.append(self)
         self.conn = None
@@ -448,7 +490,7 @@ class DM:
     def connect(self):
         port = int((self.home / "control.port").read_text())
         self.conn = socket.create_connection(("127.0.0.1", port), timeout=120)
-        self.replies = self.conn.makefile("r")
+        self.replies = self.conn.makefile("r", encoding="utf-8")
         r = self.call("auth", token=(self.home / "control.token").read_text().strip())
         assert r["ok"], r
 
@@ -491,6 +533,20 @@ class DM:
 
 def proc_stats(pid):
     """RSS in MB, CPU percent, open files, threads."""
+    if sys.platform == "win32":
+        # Windows has no ps or lsof: the working set, the seconds of processor time over the
+        # process's life (as a percentage of it), open handles and threads, as memory-check.py
+        # reads them. Without this every reading was zero and the memory checks passed unmeasured.
+        script = (f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; if ($p) {{ "
+                  "'{0} {1} {2} {3}' -f $p.WorkingSet64, "
+                  "[math]::Round(100 * $p.TotalProcessorTime.TotalSeconds / [math]::Max(1, ((Get-Date) - $p.StartTime).TotalSeconds) / [Environment]::ProcessorCount, 1), "
+                  "$p.HandleCount, $p.Threads.Count }")
+        try:
+            out = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True,
+                                 text=True, timeout=30).stdout.split()
+            return float(out[0]) / MB, float(out[1]), int(out[2]), int(out[3])
+        except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+            return 0.0, 0.0, 0, 0
     try:
         out = subprocess.run(["ps", "-o", "rss=,pcpu=", "-p", str(pid)], capture_output=True, text=True).stdout.split()
         rss, cpu = float(out[0]) / 1024, float(out[1])
@@ -693,7 +749,7 @@ def p_concurrency(ctx):
 def p_flaky(ctx):
     """Servers that cut connections, rate-limit, lie about length, stall."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8, "concurrency": 8, "retries": 10}, name="flaky").start()
+    dm = DM(root, {"connections": 8, "concurrency": 8, "attempts": 10}, name="flaky").start()
     try:
         size = 8 * MB
         cases = {
@@ -710,7 +766,9 @@ def p_flaky(ctx):
         }
         for k, (u, _) in cases.items():
             dm.add([u])
-        wait_for(lambda: len(dm.rows()) >= len(cases) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 240, every=2)
+        # 429 and 503 with Retry-After: the wait grows to 60 s (retry.rs `backoff`,
+        # decisions.md 2026-11-04), so ten retries take about 250 s before the row fails.
+        wait_for(lambda: len(dm.rows()) >= len(cases) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 420, every=2)
         rows = dm.rows()
         by = {}
         for r in rows:
@@ -743,7 +801,7 @@ def p_flaky(ctx):
             elif must:
                 finding("high", "flaky", f"{k}: expected to complete through retries, ended {kind}: {r and r['state']}")
             if kind == "running" or kind == "queued":
-                finding("medium", "flaky", f"{k}: still {kind} after 240 s")
+                finding("medium", "flaky", f"{k}: still {kind} after 420 s, past its retries")
         rss, cpu, fds, th = dm.peak()
         measure("flaky", f"peak rss {rss:.0f} MB, fds {fds}")
     finally:
@@ -793,9 +851,13 @@ def p_crash(ctx):
             finding("high", "crash", f"{st['failed']} downloads failed to resume after kill -9: {[r['state'] for r in rows if r['state']['kind'] == 'failed'][:2]}")
         check("crash", "all resumed byte-exact", ok == n)
         # Leftovers: staged parts of finished downloads.
-        parts = list(dm2.home.rglob("*.part")) + [p for p in (dm2.home / "parts").rglob("*") if p.is_file()] if (dm2.home / "parts").exists() else []
+        def leftovers():
+            return list(dm2.home.rglob("*.part")) + [p for p in (dm2.home / "parts").rglob("*") if p.is_file()] if (dm2.home / "parts").exists() else []
+        # A finished download's parts go a moment after its row says so.
+        wait_for(lambda: not leftovers(), 5, every=0.5)
+        parts = leftovers()
         if parts:
-            finding("low", "crash", f"{len(parts)} staged files left behind after every download finished")
+            finding("low", "crash", f"{len(parts)} staged files left behind after every download finished: {[str(p.relative_to(dm2.home)) for p in parts[:3]]}")
     finally:
         dm2.stop()
         shutil.rmtree(dm.out, ignore_errors=True)
@@ -915,7 +977,7 @@ def p_hostile(ctx):
     dm = DM(root, {"connections": 4, "concurrency": 8}, name="hostile").start()
     try:
         cases = {
-            "to_file": f"{base}/to?u=file:///etc/hosts",
+            "to_file": f"{base}/to?u={HOSTS.as_uri()}",
             "to_ftp_local": f"{base}/to?u=ftp://127.0.0.1:1/x",
             "bighead": f"{base}/bighead?kb=1024",
             "stall": f"{base}/stall?s=40",
@@ -946,7 +1008,7 @@ def p_hostile(ctx):
         # Whatever a file:// redirect saved is compared with the real file:
         # a link to /etc/hosts that ends as an empty or error page is not
         # the same as one that carries the computer's file.
-        hosts = pathlib.Path("/etc/hosts").read_bytes()
+        hosts = HOSTS.read_bytes()
         for r in rows:
             if "/to?u=file" in r["url"] and r["state"]["kind"] == "completed":
                 p = pathlib.Path(r["path"])
@@ -991,14 +1053,14 @@ def p_control(ctx):
     try:
         port = int((dm.home / "control.port").read_text())
         # Bound to loopback only?
-        lsof = subprocess.run(["lsof", "-nP", "-a", "-p", str(dm.proc.pid), "-iTCP", "-sTCP:LISTEN"], capture_output=True, text=True).stdout
+        lsof = listening(dm.proc.pid)
         measure("control", f"listening: {lsof.strip().splitlines()[-1] if lsof.strip() else 'none'}")
-        if "*:" in lsof or "0.0.0.0" in lsof:
+        if "*:" in lsof or "0.0.0.0" in lsof or "[::]:" in lsof:
             finding("critical", "control", "the control port listens on every interface")
-        mode = oct((dm.home / "control.token").stat().st_mode & 0o777)
-        check("control", f"token file mode {mode}", mode == "0o600")
-        if mode != "0o600":
-            finding("high", "control", f"control.token is {mode}, readable by other users")
+        readers = token_readers(dm.home / "control.token")
+        check("control", f"control.token readable only by this account ({readers or 'nobody else'})", not readers)
+        if readers:
+            finding("high", "control", f"control.token is readable by {readers}")
         # No token, bad token.
         def raw(lines, timeout=10, read=True):
             s = socket.create_connection(("127.0.0.1", port), timeout=timeout)
@@ -1021,7 +1083,7 @@ def p_control(ctx):
         # Many wrong guesses: is there any lockout / delay?
         t0 = time.time()
         s = socket.create_connection(("127.0.0.1", port), timeout=10)
-        rf = s.makefile("r")
+        rf = s.makefile("r", encoding="utf-8")
         guesses = 0
         try:
             for i in range(300):
@@ -1360,7 +1422,7 @@ def p_outage(ctx):
 def p_expired(ctx):
     """A link that stops working after a few requests, as expiring links do."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8, "retries": 3}, name="expired").start()
+    dm = DM(root, {"connections": 8, "attempts": 3}, name="expired").start()
     try:
         size = 16 * MB
         dm.add([f"{base}/f/exp/{size}/exp.bin?expire=3&rate={2 * MB}"])
@@ -1499,16 +1561,216 @@ def p_window(ctx):
 
 
 @phase
+def p_holds(ctx):
+    """A download held by the schedule or the download limit, in the window: Start now, its question, Keep waiting."""
+    base, root = ctx["base"], ctx["root"]
+
+    def kind(dm, rid):
+        row = next((r for r in dm.rows() if r["id"] == rid), None)
+        return (row["state"]["kind"] if row and isinstance(row["state"], dict) else None), row
+
+    def dialogs(dm):
+        r = dm.call("ui.inspect")
+        return (r.get("result") or {}).get("dialogs") or [] if r.get("ok") else []
+
+    def click(dm, text, nth=0):
+        r = dm.call("ui.click", text=text, nth=nth)
+        time.sleep(0.6)                      # a frame or two for the click to land
+        return r
+
+    def held_rows(dm, n):
+        return wait_for(lambda: (lambda rows: rows if len(rows) >= n else None)(
+            [r for r in dm.rows() if r["state"]["kind"] == "paused" and r.get("paused_by_schedule")]), 20)
+
+    def start_now_and_answer(dm, label, rid, answer):
+        """Select the held row, click the toolbar's Start now and answer its question."""
+        dm.call("ui.select", ids=[rid])
+        time.sleep(0.6)
+        texts = [t["text"] for t in (dm.call("ui.texts").get("result") or {}).get("texts", [])]
+        check("holds", f"{label}: the toolbar's Resume says Start now for a held row", "Start now" in texts,
+              f"some of what is shown: {texts[:25]}")
+        clicked = click(dm, "Start now")
+        asked = wait_for(lambda: any("outside the schedule" in d.lower() or "Start outside" in d for d in dialogs(dm)), 10)
+        check("holds", f"{label}: Start now asks first", clicked.get("ok") and asked,
+              f"{clicked.get('error') or ''} dialogs {dialogs(dm)}")
+        if not asked:
+            return
+        # The question's own button, not the toolbar's of the same name: the
+        # first of those words drawn in a dialog's window (nearest the front first).
+        texts = (dm.call("ui.texts").get("result") or {}).get("texts", [])
+        named = [t for t in texts if t["text"] == answer]
+        nth = next((i for i, t in enumerate(named) if t.get("window") == "dialog"), 0)
+        click(dm, answer, nth)
+        gone = wait_for(lambda: not any("outside" in d.lower() for d in dialogs(dm)), 10)
+        check("holds", f"{label}: {answer} closes the question", gone, f"dialogs {dialogs(dm)}")
+
+    # 1. The schedule: a window that opens two hours from now, every day.
+    now = time.localtime()
+    opens = f"{(now.tm_hour + 2) % 24:02d}:00"
+    closes = f"{(now.tm_hour + 3) % 24:02d}:00"
+    dm = DM(root, {"connections": 2, "schedule": {"enabled": True, "from": opens, "to": closes, "days": []}},
+            name="holds", window=True).start()
+    try:
+        dm.add([f"{base}/f/hold1/{2 * MB}/hold1.bin", f"{base}/f/hold2/{2 * MB}/hold2.bin"])
+        held = held_rows(dm, 2)
+        check("holds", "schedule: two added outside its hours are held, not started", held,
+              f"{states(dm.rows())}")
+        if held:
+            first, second = sorted(r["id"] for r in held)
+            start_now_and_answer(dm, "schedule", second, "Keep waiting")
+            time.sleep(2)
+            still, _ = kind(dm, second)
+            check("holds", "schedule: Keep waiting leaves it held", still == "paused", f"state {still}")
+            start_now_and_answer(dm, "schedule", first, "Start now")
+            done = wait_for(lambda: kind(dm, first)[0] == "completed", 30)
+            check("holds", "schedule: Start now in its question starts that one and it finishes", done,
+                  f"state {kind(dm, first)[0]}")
+            other, _ = kind(dm, second)
+            check("holds", "schedule: only the selection starts; the other stays held", other == "paused",
+                  f"state {other}")
+            ok, bad = verify([r for r in dm.rows() if r["id"] == first], {"hold1.bin": ("hold1", 2 * MB)})
+            check("holds", "schedule: the file started outside it is whole", ok == 1, f"{bad}")
+    finally:
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+
+    # 2. The download limit: 1 MB an hour, spent by the first file.
+    dm = DM(root, {"connections": 2, "limit_mb": 1, "limit_hours": 1}, name="limit", window=True).start()
+    try:
+        dm.add([f"{base}/f/cap1/{2 * MB}/cap1.bin"])
+        wait_for(lambda: any(r["state"]["kind"] in ("completed", "paused") for r in dm.rows()), 30)
+        dm.add([f"{base}/f/cap2/{2 * MB}/cap2.bin"])
+        held = held_rows(dm, 1)
+        check("holds", "limit: a download once the limit is spent is held", held, f"{states(dm.rows())}")
+        if held:
+            rid = held[-1]["id"]
+            start_now_and_answer(dm, "limit", rid, "Start now")
+            done = wait_for(lambda: kind(dm, rid)[0] == "completed", 30)
+            check("holds", "limit: Start now in its question starts it past the limit and it finishes", done,
+                  f"state {kind(dm, rid)[0]}")
+            ok, bad = verify([r for r in dm.rows() if r["id"] == rid], {"cap2.bin": ("cap2", 2 * MB)})
+            check("holds", "limit: the file started past it is whole", ok == 1, f"{bad}")
+    finally:
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+
+
+@phase
+def p_hidden(ctx):
+    """The window in the tray or minimized (its slower wakes): answered, downloads go on, and shown again it is current."""
+    base, root = ctx["base"], ctx["root"]
+    for where in ("tray", "minimized"):
+        dm = DM(root, {"connections": 2}, name=f"hidden-{where}", window=True).start()
+        try:
+            files = {f"{where}{i}.bin": (f"{where}{i}", 4 * MB) for i in range(2)}
+            dm.add([f"{base}/f/{seed}/{size}/{name}?rate={128 * 1024}" for name, (seed, size) in files.items()])
+            wait_for(lambda: len(dm.rows()) == 2, 10)
+            put = dm.call("ui.window", to=where)
+            check("hidden", f"{where}: the window can be put there", put.get("ok"), str(put))
+            time.sleep(1.5)
+            lat = []
+            for _ in range(10):
+                t = time.time()
+                dm.call("commands.list")       # one turn of the window's loop
+                lat.append(time.time() - t)
+                time.sleep(0.2)
+            measure("hidden", f"{where}: a call answered in worst {max(lat) * 1000:.0f} ms")
+            check("hidden", f"{where}: calls are answered within a second", max(lat) < 1.0, f"worst {max(lat):.2f}s")
+            first = sorted(r["id"] for r in dm.rows())[0]
+            dm.call("downloads.pause", ids=[first])
+            paused = wait_for(lambda: next(r for r in dm.rows() if r["id"] == first)["state"]["kind"] == "paused", 3)
+            check("hidden", f"{where}: a pause takes hold", paused, f"{states(dm.rows())}")
+            dm.call("downloads.resume", ids=[first])
+            resumed = wait_for(lambda: next(r for r in dm.rows() if r["id"] == first)["state"]["kind"]
+                               in ("running", "completed", "queued"), 3)
+            check("hidden", f"{where}: a resume takes hold", resumed, f"{states(dm.rows())}")
+            done = wait_for(lambda: all(r["state"]["kind"] == "completed" for r in dm.rows()), 90)
+            check("hidden", f"{where}: both finish while the window is out of sight", done, f"{states(dm.rows())}")
+            ok, bad = verify(dm.rows(), files)
+            check("hidden", f"{where}: and are whole", ok == 2, f"{bad}")
+            # A change made while out of sight is on the window when it comes back.
+            dm.add([f"{base}/f/{where}2/{MB}/{where}2.bin"], later=True)
+            late = wait_for(lambda: max((r["id"] for r in dm.rows()), default=None) if len(dm.rows()) == 3 else None, 5)
+            time.sleep(1)
+            dm.call("ui.window", to="shown")
+            t = time.time()
+            current = wait_for(lambda: (lambda rows: len(rows) == 3 and any(x["id"] == late for x in rows)
+                                        and sum(x["status"] == "Complete" for x in rows) == 2)(
+                (dm.call("ui.inspect").get("result") or {}).get("rows", [])), 5, every=0.05)
+            measure("hidden", f"{where}: shown again, the window read the list in {time.time() - t:.2f}s")
+            seen = (dm.call("ui.inspect").get("result") or {})
+            check("hidden", f"{where}: shown again, its rows say what the queue says", current and not seen.get("hidden"),
+                  f"rows {[(x['id'], x['status']) for x in seen.get('rows', [])]}; hidden {seen.get('hidden')}")
+        finally:
+            dm.stop()
+            shutil.rmtree(dm.out, ignore_errors=True)
+
+
+@phase
+def p_details(ctx):
+    """Several progress windows open at once while their downloads change: each shows its own row's state."""
+    base, root = ctx["base"], ctx["root"]
+    dm = DM(root, {"connections": 2}, name="details", window=True).start()
+
+    def words():
+        """How many times each button's words are drawn in the dialogs' windows."""
+        texts = (dm.call("ui.texts").get("result") or {}).get("texts", [])
+        said = [t["text"] for t in texts if t.get("window") == "dialog"]
+        return {w: said.count(w) for w in ("Stop download", "Resume", "Cancel download")}
+
+    def windows():
+        return [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])]
+
+    def shows(stop, resume, seconds=2):
+        return wait_for(lambda: (lambda w: w["Stop download"] == stop and w["Resume"] == resume)(words()),
+                        seconds, every=0.05)
+
+    try:
+        files = {f"det{i}.bin": (f"det{i}", 4 * MB) for i in range(3)}
+        dm.add([f"{base}/f/{seed}/{size}/{name}?rate={128 * 1024}" for name, (seed, size) in files.items()])
+        wait_for(lambda: len(dm.rows()) == 3 and all(r["state"]["kind"] == "running" for r in dm.rows()), 10)
+        ids = sorted(r["id"] for r in dm.rows())
+        dm.call("ui.select", ids=ids)
+        ran = dm.call("command.run", id="file.show_progress")
+        opened = wait_for(lambda: len(windows()) == 3, 5)
+        check("details", "Show progress on three running downloads opens a window for each", opened,
+              f"{ran.get('error') or ''} windows {windows()}")
+        check("details", "each says Stop download", shows(3, 0), f"{words()}")
+        dm.call("downloads.pause", ids=ids[:2])
+        check("details", "two paused: their two say Resume, the third Stop download", shows(1, 2), f"{words()}")
+        dm.call("downloads.resume", ids=[ids[0]])
+        check("details", "one resumed: it says Stop download again, the other paused one Resume", shows(2, 1),
+              f"{words()}")
+        done = wait_for(lambda: [r["state"]["kind"] for r in sorted(dm.rows(), key=lambda r: r["id"])]
+                        == ["completed", "paused", "completed"], 90)
+        check("details", "the two running finish while their windows are open", done, f"{states(dm.rows())}")
+        closed = wait_for(lambda: len(windows()) == 1, 5)
+        check("details", "the finished ones' windows close; the paused one's stays, saying Resume",
+              closed and shows(0, 1), f"windows {windows()}; {words()}")
+        dm.call("downloads.resume", ids=[ids[1]])
+        done = wait_for(lambda: all(r["state"]["kind"] == "completed" for r in dm.rows()), 90)
+        ok, bad = verify(dm.rows(), files)
+        check("details", "resumed from its window's state, the last finishes and all three are whole",
+              done and ok == 3, f"{states(dm.rows())} {bad}")
+        check("details", "and no progress window is left", wait_for(lambda: not windows(), 5), f"{windows()}")
+    finally:
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+
+
+@phase
 def p_speedlimit(ctx):
     """A speed limit is kept, and lifting it is felt."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8}, name="limit").start()
+    # A home of its own: `holds` keeps one called "limit", and its finished rows here
+    # read as this file finished at once (a 1024 KB/s limit "let 235517 KB/s through").
+    dm = DM(root, {"connections": 8}, name="speedlimit").start()
     try:
         dm.call("downloads.speed_limit", kb=1024)
         size = 12 * MB
         dm.add([f"{base}/f/limit/{size}/limit.bin"])
         t0 = time.time()
-        wait_for(lambda: any(r["state"]["kind"] == "completed" for r in dm.rows()), 60, every=0.5)
+        wait_for(lambda: any(r["state"]["kind"] == "completed" and r["url"].endswith("/limit.bin") for r in dm.rows()), 60, every=0.5)
         took = time.time() - t0
         rate = size / took / 1024
         measure("speedlimit", f"limit 1024 KB/s: {rate:.0f} KB/s over {took:.1f}s")
@@ -1585,6 +1847,13 @@ def p_leak(ctx):
 # ----------------------------------------------------------------- main
 
 def main():
+    # A hostile server's names (right-to-left marks, other scripts) are printed as they came:
+    # as UTF-8, not the Windows code page, which cannot write them and ended the run there.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     args = sys.argv[1:]
     if "--list" in args:
         for k, f in PHASES.items():
@@ -1611,6 +1880,7 @@ def main():
                 PHASES[name](ctx)
             except Exception as e:  # a phase that breaks is itself a result
                 import traceback
+                traceback.print_exc()
                 traceback.print_exc()
                 finding("high", name, f"the check itself failed: {e!r}")
             print(f"   ({time.time() - t0:.0f}s, {free_gb(tempfile.gettempdir()):.1f} GB free)", flush=True)

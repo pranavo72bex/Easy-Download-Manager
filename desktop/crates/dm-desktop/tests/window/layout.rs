@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use crate::support::*;
 
 fn last_row_reached(clipboard_bar: bool) {
@@ -293,7 +298,7 @@ fn a_dialog_at_the_edge_of_scrolling_still_takes_clicks() {
             .with_size(egui::vec2(1100.0, height as f32))
             .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
         harness.run_steps(2);
-        click(&mut harness, "Site files");
+        click(&mut harness, "Grabber");
         type_into(&mut harness, "Start page", &world.url("page.html"));
         click(&mut harness, "Find files");
         let started = harness
@@ -372,10 +377,10 @@ fn view_language_puts_the_window_in_another_language_and_back() {
     let world = world();
     let mut harness = world.harness();
     harness.run_steps(2);
-    assert!(harness.query_by_label("Program").is_some());
+    assert!(harness.query_by_label("Tasks").is_some());
     // Everything shut stays shut in another language.
     assert!(harness.query_by_label("All (0)").is_some());
-    click(&mut harness, "Everything");
+    click(&mut harness, "All Downloads");
     assert!(
         harness.query_by_label("All (0)").is_none(),
         "Everything did not shut"
@@ -387,18 +392,18 @@ fn view_language_puts_the_window_in_another_language_and_back() {
     harness.run_steps(3);
     assert_eq!(harness.state().backend().settings().language, "de");
     harness.run_steps(10);
-    assert!(harness.query_by_label("Alles").is_some());
+    assert!(harness.query_by_label("Alle Downloads").is_some());
     assert!(
         harness.query_by_label("Alle (0)").is_none(),
         "the language switch opened Everything again"
     );
-    click(&mut harness, "Alles");
+    click(&mut harness, "Alle Downloads");
     assert!(
-        harness.query_by_label("Programm").is_some() && harness.query_by_label("Program").is_none(),
+        harness.query_by_label("Aufgaben").is_some() && harness.query_by_label("Tasks").is_none(),
         "the menu is not in German"
     );
     assert!(
-        harness.query_by_label("Geschwindigkeit").is_some(),
+        harness.query_by_label("Übertragungsrate").is_some(),
         "nor the list's headings"
     );
     click(&mut harness, "Ansicht");
@@ -407,7 +412,7 @@ fn view_language_puts_the_window_in_another_language_and_back() {
     harness.get_by_label("English").click();
     harness.run_steps(3);
     assert!(
-        harness.query_by_label("Program").is_some(),
+        harness.query_by_label("Tasks").is_some(),
         "not back in English"
     );
     assert_eq!(harness.state().backend().settings().language, "en");
@@ -814,8 +819,11 @@ fn the_lists_sideways_bar_is_dragged() {
         .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
     add_url(&mut harness, &world.url("file.zip"), "Add for later");
     harness.run_steps(3);
-    let name_at =
-        |h: &Harness<'_, DmApp>| h.get_by_role_and_label(Role::Button, "Name").rect().left();
+    let name_at = |h: &Harness<'_, DmApp>| {
+        h.get_by_role_and_label(Role::Button, "File Name")
+            .rect()
+            .left()
+    };
     let before = name_at(&harness);
     // The bar runs along the list's foot, a little over the status bar.
     let foot = harness
@@ -931,7 +939,9 @@ fn the_columns_follow_the_window_until_one_is_dragged() {
     harness.run_steps(3);
     let name_width = |h: &Harness<'_, DmApp>| {
         h.get_by_role_and_label(Role::Button, "Queue").rect().left()
-            - h.get_by_role_and_label(Role::Button, "Name").rect().left()
+            - h.get_by_role_and_label(Role::Button, "File Name")
+                .rect()
+                .left()
     };
     let narrow = name_width(&harness);
     harness.set_size(egui::vec2(1600.0, 800.0));
@@ -1039,7 +1049,7 @@ fn the_places_are_reachable_when_they_give_way_at_large_text() {
     harness.ctx.set_zoom_factor(2.0);
     harness.run_steps(3);
     assert!(
-        harness.query_by_label("Everything").is_none(),
+        harness.query_by_label("All Downloads").is_none(),
         "the places did not give way"
     );
     harness
@@ -1193,5 +1203,29 @@ fn a_list_with_room_for_one_row_stays_where_it_was_scrolled() {
     assert!(
         (first - later).abs() < 0.5,
         "the list moved from {first} to {later} by itself"
+    );
+}
+
+/// The queue column's heading is the queue's mark, a list (it said "Q",
+/// which read as a search glass; the maintainer, 2026-11-06): named "Queue"
+/// for a screen reader and in the columns menu, and a click on it still sorts
+/// the list by queue.
+#[test]
+fn the_queue_columns_heading_is_named_and_sorts() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_role_and_label(Role::Button, "Q").is_none(),
+        "the heading still says Q"
+    );
+    harness.get_by_role_and_label(Role::Button, "Queue").click();
+    harness.run_steps(3);
+    assert!(
+        matches!(harness.state().sort, Some((Column::Queue, _))),
+        "a click on the heading did not sort by queue: {:?}",
+        harness.state().sort
     );
 }

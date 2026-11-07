@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """The "Download video" panel on a real YouTube page, by hand only.
 
 Every other check runs against servers on loopback; this one goes to
@@ -14,7 +19,7 @@ step with a real watch page ("Me at the zoo", 19 seconds):
 It hovers the playing player, checks the panel is there and in its corner,
 rests the pointer for five seconds (YouTube restarts playback and fades its
 controls beneath it, which once hid the panel), clicks it, checks the list
-of qualities the app's yt-dlp found, picks the first, and waits for the
+of qualities the app found, picks the first, and waits for the
 video to land in dm's folder.
 """
 import base64
@@ -89,11 +94,17 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     cc.check("YouTube: it stays while the pointer rests on the playing video",
              (cc.panel(tab) or {}).get("shown"), str(cc.panel(tab)))
     cc.click_panel(tab, rect)
-    # The qualities the video comes in, from the app's yt-dlp.
+    # The qualities the video comes in, from the app.
     listed = cc.wait_for(lambda: len((cc.panel(tab) or {}).get("lines") or []) >= 2 and cc.panel(tab), 60) or {}
     cc.check("YouTube: its click lists the video's qualities with their sizes",
              bool(listed.get("lines")), str(cc.panel(tab)))
     print("  listed:", listed.get("lines"))
+    # The list's Part line takes a start and an end; left empty again so the whole video is fetched.
+    part = tab.evaluate("(() => { const r = document.querySelector('dm-panel')?.shadowRoot;"
+                        " const a = r?.querySelector('.part .from'), b = r?.querySelector('.part .to');"
+                        " if (!a || !b) return 'none'; a.value = '0:02'; b.value = '0:06';"
+                        " const typed = a.value + '-' + b.value; a.value = ''; b.value = ''; return typed; })()")
+    cc.check("YouTube: its list has a Part line that takes a start and an end", part == "0:02-0:06", str(part))
     if SHOT:
         SHOT.write_bytes(base64.b64decode(tab.call("Page.captureScreenshot", format="png")["data"]))
     if listed.get("at"):
@@ -105,7 +116,7 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     cc.check("YouTube: its click is taken by the app", bool(said), str(cc.panel(tab)))
     got = cc.wait_for(lambda: [p for p in engine_dl.rglob("*")
                                if p.is_file() and p.suffix in (".mp4", ".webm", ".mkv")], 240)
-    cc.check("YouTube: the video lands in dm's folder, fetched by yt-dlp", bool(got), str(got))
+    cc.check("YouTube: the video lands in dm's folder, fetched by dm itself", bool(got), str(got))
     played = cc.plays(got[0]) if got else None
     cc.check("YouTube: the downloaded video is whole (media_check)", bool(played and played[0] > 0 and played[1]),
              f"{played[0]}s, {played[1]}p" if played else "not a playable video")

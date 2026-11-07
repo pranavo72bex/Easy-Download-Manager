@@ -1,4 +1,30 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use crate::support::*;
+
+/// A proxy of the person's own. A new dm has the proxy on, following the
+/// computer's settings (docs/decisions.md, 2026-11-06), so its kind is picked
+/// from the list, as a person does.
+fn own_proxy(harness: &mut Harness<'_, DmApp>) {
+    use egui::accesskit::Role;
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Proxy type")
+        .scroll_to_me();
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Proxy type")
+        .click();
+    harness.run_steps(3);
+    assert!(
+        harness.ctx.any_popup_open(),
+        "the proxy's list did not open"
+    );
+    harness.get_by_label("HTTP").click();
+    harness.run_steps(3);
+}
 
 #[test]
 fn options_are_put_into_force_on_ok_and_written_down() {
@@ -111,11 +137,25 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
         "Sites whose links work only once",
         "*.once.example",
     );
+    // The browsers dm takes from, each ticked at first (gaps row 86): one
+    // unticked is kept in the rules the extension is sent.
+    harness.get_by_label("Brave").scroll_to_me();
+    harness.run();
+    click(&mut harness, "Brave");
+    // A menu item left out of the browser's right-click menu.
+    harness
+        .get_by_label("Download media with dm")
+        .scroll_to_me();
+    harness.run();
+    click(&mut harness, "Download media with dm");
     click(&mut harness, "OK");
     let catch = harness.state().backend().settings().catch;
     assert_eq!(catch.extensions, ["zip", "iso", "mkv"]);
     assert_eq!(catch.skip_hosts, ["intranet.example"]);
     assert_eq!(catch.once_hosts, ["*.once.example"]);
+    assert_eq!(catch.off_browsers, ["Brave"]);
+    assert_eq!(catch.hidden_menus, ["dm-media"]);
+    assert!(!catch.takes_from("Brave") && catch.takes_from("Microsoft Edge"));
     // What the extension is sent is what was typed.
     let rules = dm_protocol::CatchRules { ..catch };
     assert!(rules.enabled);
@@ -127,7 +167,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     assert!(harness
         .query_by_label("Attempts per connection (0 to keep trying)")
         .is_some());
@@ -172,7 +212,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     assert_eq!(saved["host_limits"][0]["host"], "slow.example");
     // The limit can be taken off again.
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Delete site limit");
     click(&mut harness, "OK");
     assert!(harness.state().backend().settings().host_limits.is_empty());
@@ -216,8 +256,8 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Proxy");
-    click(&mut harness, "Connect through a proxy");
+    click(&mut harness, "Advanced");
+    own_proxy(&mut harness);
     type_into(&mut harness, "Host", "proxy.example");
     type_into(
         &mut harness,
@@ -244,7 +284,54 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     assert!(options.proxy_for("http://outside.example/a").is_some());
     // Put back, so the other tests' downloads do not go looking for it.
     click(&mut harness, "Options");
-    click(&mut harness, "Proxy");
+    click(&mut harness, "Advanced");
+    click(&mut harness, "Connect through a proxy");
+    click(&mut harness, "OK");
+    assert!(!harness.state().backend().settings().proxy.enabled);
+}
+
+/// Reference A's per-protocol proxies and its automatic configuration script, in the proxy
+/// section (gaps row 80).
+#[test]
+fn a_proxy_of_its_own_for_https_and_a_configuration_script_are_set_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    own_proxy(&mut harness);
+    type_into(&mut harness, "Host", "proxy.example");
+    click(&mut harness, "A proxy of its own for HTTPS downloads");
+    type_into(&mut harness, "Its host", "secure-proxy.example");
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let settings = harness.state().backend().settings();
+    let https = &settings.proxy.per_scheme["https"];
+    assert_eq!(https.host, "secure-proxy.example");
+    assert_eq!(https.port, 8080);
+    assert!(!settings.proxy.per_scheme.contains_key("http"));
+    assert!(settings.proxy.script.is_empty());
+
+    let script = "Automatic configuration script address (it chooses each site's proxy, in place of the above)";
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    type_into(&mut harness, script, "http://wpad.example/proxy.pac");
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert_eq!(
+        harness.state().backend().settings().proxy.script,
+        "http://wpad.example/proxy.pac"
+    );
+    let saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(Settings::path()).unwrap()).unwrap();
+    assert_eq!(saved["proxy"]["script"], "http://wpad.example/proxy.pac");
+    assert_eq!(
+        saved["proxy"]["per_scheme"]["https"]["host"],
+        "secure-proxy.example"
+    );
+    // Put back, so the other tests' downloads do not go looking for it.
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Connect through a proxy");
     click(&mut harness, "OK");
     assert!(!harness.state().backend().settings().proxy.enabled);
@@ -677,7 +764,7 @@ fn the_sort_survives_a_restart_and_options_keeps_its_place() {
             .bounding_box()
     };
     let first = ok(&harness);
-    for tab in ["Folders", "Network", "Sign-ins", "Downloads", "General"] {
+    for tab in ["Folders", "Advanced", "Sign-ins", "Downloads", "General"] {
         // The tab, not the menu of that name: Options is drawn after it.
         harness.query_all_by_label(tab).last().unwrap().click();
         harness.run_steps(3);
@@ -689,15 +776,15 @@ fn the_sort_survives_a_restart_and_options_keeps_its_place() {
 }
 
 /// OK refuses a proxy turned on with no host, or with an address
-/// where its host goes, and says why on the Proxy tab; nothing is put in force.
+/// where its host goes, and says why on the Advanced page, at its proxy section; nothing is put in force.
 #[test]
 fn options_refuses_a_proxy_with_no_host() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Proxy");
-    click(&mut harness, "Connect through a proxy");
+    click(&mut harness, "Advanced");
+    own_proxy(&mut harness);
     click(&mut harness, "OK");
     assert!(
         harness.state().dialogs.options.is_some(),
@@ -706,13 +793,17 @@ fn options_refuses_a_proxy_with_no_host() {
     assert!(harness
         .query_by_label_contains("Enter the proxy's host")
         .is_some());
-    assert!(!harness.state().backend().settings().proxy.enabled);
+    // Nothing was put in force: the proxy still follows the computer's settings.
+    let untouched = |h: &Harness<'_, DmApp>| {
+        h.state().backend().settings().proxy.kind == dm_core::ProxyKind::System
+    };
+    assert!(untouched(&harness));
     type_into(&mut harness, "Host", "http://proxy.example:3128");
     click(&mut harness, "OK");
     assert!(harness
         .query_by_label_contains("isn't a valid proxy host")
         .is_some());
-    assert!(!harness.state().backend().settings().proxy.enabled);
+    assert!(untouched(&harness));
     click(&mut harness, "Cancel");
 }
 
@@ -903,7 +994,9 @@ fn options_tabs_fit_at_150_percent() {
         "Sign-ins ends at {} past {edge}",
         last.right()
     );
-    assert!(first.left() >= 40.0, "General moved: {first:?}");
+    // The dialog is padded 12 points (reference A's density), 18 at this
+    // zoom, and the tabs start inside that.
+    assert!(first.left() >= 22.0, "General moved: {first:?}");
 }
 
 #[test]
@@ -927,7 +1020,7 @@ fn the_command_line_setting_is_in_options_off_by_default_and_saved() {
     assert_eq!(saved["allow_command_line"], true);
 }
 
-/// Options › Network: a site's rule gives its downloads a folder and a speed
+/// Options › Advanced: a site's rule gives its downloads a folder and a speed
 /// limit of their own, from the moment they are added by any way in.
 #[test]
 fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_speed() {
@@ -936,7 +1029,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     let mut harness = world.harness();
     let folder = tempfile::tempdir().unwrap();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     assert!(harness.query_by_label("Add a site rule").is_some());
     click(&mut harness, "Add a site rule");
     if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
@@ -966,7 +1059,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
 
     // The rule can be deleted again.
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Delete site rule");
     click(&mut harness, "OK");
     assert!(harness.state().backend().settings().site_rules.is_empty());
@@ -1043,6 +1136,9 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
         custom: Vec::new(),
         fresh: false,
         fresh_tab: 0,
+        to_proxy: false,
+        handlers: Default::default(),
+        handlers_asked: false,
     };
     dialog.restore_defaults();
     let defaults = dm_shell::settings::Settings::default();
@@ -1059,14 +1155,14 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
     assert_eq!(dialog.types, defaults.catch.extensions.join(" "));
 }
 
-/// Options › Network says how to have a phone as the second network, in
+/// Options › Advanced says how to have a phone as the second network, in
 /// steps folded away until asked for.
 #[test]
 fn the_second_network_says_how_to_use_a_phone_step_by_step() {
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     harness.run_steps(2);
     assert!(harness
         .query_by_label_contains("Turn on its hotspot")
@@ -1081,4 +1177,245 @@ fn the_second_network_says_how_to_use_a_phone_step_by_step() {
         assert!(harness.query_by_label_contains(step).is_some(), "{step}");
     }
     click(&mut harness, "Cancel");
+}
+
+/// Options has one Advanced page for what were the Connection and Proxy tabs:
+/// both groups of settings are on it, and neither tab is in the list any more.
+#[test]
+fn advanced_holds_the_connection_and_the_proxy_settings_on_one_page() {
+    use dm_desktop::dialogs::{Tab, TABS};
+    assert!(TABS.iter().any(|(tab, _)| *tab == Tab::Advanced));
+    assert!(
+        !TABS
+            .iter()
+            .any(|(_, name)| *name == "Network" || *name == "Proxy"),
+        "the Connection and Proxy tabs are still in the list"
+    );
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    for name in [
+        "Speed limit, KB/s (0 for none)",
+        "Attempts per connection (0 to keep trying)",
+        "Wait between attempts (seconds, 0 for automatic)",
+        "Time out a silent connection after (seconds)",
+        "Second network",
+        "Connect through a proxy",
+    ] {
+        assert!(
+            harness.query_by_label(name).is_some(),
+            "{name:?} is not on the Advanced page"
+        );
+    }
+    click(&mut harness, "Cancel");
+}
+
+/// A proxy that cannot be one, found by OK on another tab, is shown where it
+/// is said: Advanced opens at its proxy section.
+#[test]
+fn a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section() {
+    use dm_desktop::dialogs::Tab;
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    // Another tab, as a person leaves the proxy for another page and presses OK.
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.tab = Tab::Downloads;
+        d.draft.proxy.enabled = true;
+        d.draft.proxy.kind = dm_core::ProxyKind::Http;
+        d.draft.proxy.host = String::new();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let options = harness
+        .state()
+        .dialogs
+        .options
+        .as_ref()
+        .expect("OK took a proxy with no host");
+    assert_eq!(options.tab, Tab::Advanced);
+    assert!(
+        !options.to_proxy,
+        "the page did not scroll to the proxy section"
+    );
+    assert!(harness
+        .query_by_label_contains("Enter the proxy's host")
+        .is_some());
+    assert!(harness.query_by_label("Connect through a proxy").is_some());
+    click(&mut harness, "Cancel");
+}
+
+/// OK keeps every setting the Advanced page holds, as the two tabs did.
+#[test]
+fn ok_keeps_every_setting_of_the_advanced_page() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.speed_limit = 321;
+        d.draft.attempts = 7;
+        d.draft.retry_wait = 9;
+        d.draft.read_timeout = 45;
+        d.draft.proxy.enabled = true;
+        d.draft.proxy.kind = dm_core::ProxyKind::Http;
+        d.draft.proxy.host = "proxy.example".into();
+        d.draft.proxy.port = 3128;
+        d.draft.proxy.username = "someone".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(
+        harness.state().dialogs.options.is_none(),
+        "OK did not close Options"
+    );
+    let s = harness.state().backend().settings();
+    assert_eq!(
+        (s.speed_limit, s.attempts, s.retry_wait, s.read_timeout),
+        (321, 7, 9, 45)
+    );
+    assert!(s.proxy.enabled);
+    assert_eq!(
+        (
+            s.proxy.host.as_str(),
+            s.proxy.port,
+            s.proxy.username.as_str()
+        ),
+        ("proxy.example", 3128, "someone")
+    );
+    let saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(Settings::path()).unwrap()).unwrap();
+    assert_eq!(saved["speed_limit"], 321);
+    assert_eq!(saved["proxy"]["host"], "proxy.example");
+}
+
+/// Options › General › Sounds names a sound file for each event, kept with
+/// the settings, and an empty one is the usual sound again.
+#[test]
+fn a_sound_file_is_chosen_for_each_event_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(3);
+    for words in [
+        "Download complete",
+        "Download failed",
+        "Queue started",
+        "Queue finished",
+    ] {
+        assert!(
+            harness.query_all_by_label(words).count() > 0,
+            "no sound row for {words}"
+        );
+    }
+    if let Some(options) = harness.state_mut().dialogs.options.as_mut() {
+        options
+            .draft
+            .sounds
+            .insert("queue_done".into(), r"C:\Windows\Media\tada.wav".into());
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let kept = harness.state().backend().settings().sounds;
+    assert_eq!(
+        kept.get("queue_done").map(String::as_str),
+        Some(r"C:\Windows\Media\tada.wav")
+    );
+    // Emptied, the event's entry goes, and the usual sound is back.
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(3);
+    if let Some(options) = harness.state_mut().dialogs.options.as_mut() {
+        options
+            .draft
+            .sounds
+            .insert("queue_done".into(), String::new());
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(!harness
+        .state()
+        .backend()
+        .settings()
+        .sounds
+        .contains_key("queue_done"));
+}
+
+/// Options > File types says who opens magnet links and .torrent files on
+/// this computer, read from Windows' keys (read only: the test clicks no
+/// button that would write them).
+#[cfg(target_os = "windows")]
+#[test]
+fn file_types_says_who_opens_magnet_links_and_torrent_files() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(3);
+    if let Some(options) = harness.state_mut().dialogs.options.as_mut() {
+        options.tab = dm_desktop::dialogs::Tab::FileTypes;
+    }
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Magnet links open with:").is_some());
+    assert!(harness
+        .query_by_label(".torrent files open with:")
+        .is_some());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        let read = harness
+            .state()
+            .dialogs
+            .options
+            .as_ref()
+            .and_then(|o| *o.handlers.lock().unwrap());
+        if read.is_some() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the keys were never read"
+        );
+        harness.step();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    harness.run_steps(2);
+    assert!(
+        harness.query_by_label("Looking…").is_none(),
+        "still looking once read"
+    );
+    harness.state_mut().dialogs.options = None;
+}
+
+/// Options › Advanced › BitTorrent turns on keeping a finished torrent shared,
+/// with its ratio, time and upload limit (gaps row 147); off in a new dm.
+#[test]
+fn keeping_a_finished_torrent_shared_is_set_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    assert!(!harness.state().backend().settings().torrent_share);
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    click(&mut harness, "Keep sharing a finished torrent");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.torrent_share_ratio = 2.0;
+        d.draft.torrent_share_minutes = 30;
+        d.draft.torrent_upload_limit = 100;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let settings = harness.state().backend().settings();
+    assert!(settings.torrent_share);
+    assert_eq!(settings.torrent_share_ratio, 2.0);
+    assert_eq!(settings.torrent_share_minutes, 30);
+    assert_eq!(settings.torrent_upload_limit, 100);
+    // Put back, so the other tests' torrents stop when whole.
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    click(&mut harness, "Keep sharing a finished torrent");
+    click(&mut harness, "OK");
+    assert!(!harness.state().backend().settings().torrent_share);
 }

@@ -34,5 +34,10 @@ Thumbs.db
 
 # What `make build` made
 /build/
-# yt-dlp fetched for packaging (scripts/fetch-ytdlp.py)
-desktop/crates/dm-desktop/resources/yt-dlp/
+engine/
+
+# Local-only engine requirements (never committed)
+docs/engine-local/
+
+# Graphify knowledge graph (local analysis only)
+graphify-out/

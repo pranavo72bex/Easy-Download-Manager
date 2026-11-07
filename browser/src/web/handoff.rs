@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Handing a download to the app, and telling the person what became of it.
 
 use super::*;
@@ -21,9 +26,8 @@ pub fn app_status() -> String {
             app: App::Present { hello, rules },
             ..
         }) => format!(
-            "present: dm {} (yt-dlp: {}), catching {}",
+            "present: dm {}, catching {}",
             hello.engine_version,
-            hello.ytdlp.map_or("unknown".into(), |y| y.to_string()),
             if rules.enabled {
                 format!("{} file types", rules.extensions.len())
             } else {
@@ -40,6 +44,9 @@ pub(super) async fn hand(port: Option<Port>, start: Start) -> Result<(), String>
         None => Port::open()?,
     };
     let id = start.id.clone();
+    // What the app took is remembered, for a newer address of it later; a
+    // renewal is not a hand-off of its own.
+    let handed = (!start.renews).then(|| (start.url.clone(), start.referrer.clone()));
     // The app is told when this stops waiting, so it does not take what has
     // been given back to the browser by then.
     let deadline = now() + decide::TAKEN_WITHIN_MS;
@@ -61,6 +68,10 @@ pub(super) async fn hand(port: Option<Port>, start: Start) -> Result<(), String>
     if outcome.is_err() {
         // Whatever went wrong may be the app going away; ask again next time.
         forget_app();
+    } else if let Some((url, referrer)) = handed {
+        load_handed().await;
+        HANDED.with(|h| h.borrow_mut().keep(&url, &referrer));
+        store_handed().await;
     }
     outcome
 }
@@ -95,6 +106,21 @@ pub(super) fn tab_store(from: &JsValue, path: &str) -> Option<String> {
 
 pub(super) fn own_id() -> String {
     api("runtime.id").as_string().unwrap_or_default()
+}
+
+/// Which browser this is, as Options lists them (`dm_protocol::BROWSERS`): from the brands a
+/// Chromium browser names in `navigator.userAgentData`, or Firefox.
+pub(super) fn this_browser() -> &'static str {
+    let navigator = get(&js_sys::global().into(), "navigator");
+    let brands: Vec<String> = from_js(&get(&navigator, "userAgentData.brands"))
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter_map(|b| b.get("brand").and_then(|v| v.as_str()).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    dm_protocol::browser_named(&brands, is_firefox())
 }
 
 pub(super) fn is_firefox() -> bool {

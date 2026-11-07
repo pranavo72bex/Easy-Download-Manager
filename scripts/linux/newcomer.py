@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """dm as someone new meets it: a fresh dm home, nothing set, real X11
 input. Run by scripts/linux-newcomer-check.sh inside the Linux container.
 
@@ -117,8 +122,6 @@ def newcomer():
         early = row_text(home, VIDEO)
         print(f"        the video's row, 4 s in: {early!r}", flush=True)
         check("the first video says what it waits for", early and early != "Starting…", early)
-        # The container has Debian's own yt-dlp, months old: dm is to pass
-        # it over for its own, as for anyone who installed it with apt.
         done = finished(home, VIDEO, 300)
         shot("07-video-done")
         check("the video finishes with nothing installed", done,

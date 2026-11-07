@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """A window that offers a link to drag, as a browser offers one, and takes
 files dropped on it, as a file manager does: run under Wayland by
 wayland_drag_check.py. GTK sends the link as text/uri-list and as text (the

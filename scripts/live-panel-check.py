@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """The "Download video" panel on a real site's HTML5 player, by hand only.
 
     python3 scripts/live-panel-check.py [page-url]
@@ -7,7 +12,7 @@ Like youtube-check.py, it runs chrome-check.py's setup and its local
 checks, then replaces the panel step with a live page: by default
 W3Schools' HTML5 video example, a plain `<video>` with an MP4 source. It
 plays the video, hovers it, checks the panel is there, clicks it, and waits
-for the file in dm's folder; on a page whose player yt-dlp reads, it picks
+for the file in dm's folder; on a page whose player the app reads, it picks
 the smallest quality listed. Not in CI: it goes to a real site.
 """
 import importlib.util
@@ -65,7 +70,7 @@ def live(base, origin, engine_dl, engine_home, worker):
     cc.check("it sits in the player's top corner", inside, f"{shown} over {rect}")
     before = {p.name for p in engine_dl.rglob("*") if p.is_file()}
     cc.click_panel(tab)
-    # A player page lists its qualities (the app's yt-dlp reads them); the
+    # A player page lists its qualities (the app reads them); the
     # smallest is picked, to keep the download short.
     listed = cc.wait_for(lambda: ((cc.panel(tab) or {}).get("lines") or (cc.panel(tab) or {}).get("title") == "Sent to dm")
                          and cc.panel(tab), 60) or {}
@@ -80,6 +85,13 @@ def live(base, origin, engine_dl, engine_home, worker):
                 return float("inf")
         pick = min(range(len(listed["lines"])), key=lambda i: size(listed["lines"][i]))
         cc.check("its click lists the video's qualities with their sizes", True, str(listed["lines"]))
+        # The list's Part line takes a start and an end; left empty for this run, so
+        # the whole video is fetched and checked below.
+        part = tab.evaluate("(() => { const r = document.querySelector('dm-panel')?.shadowRoot;"
+                            " const a = r?.querySelector('.part .from'), b = r?.querySelector('.part .to');"
+                            " if (!a || !b) return 'none'; a.value = '0:02'; b.value = '0:06';"
+                            " const typed = a.value + '-' + b.value; a.value = ''; b.value = ''; return typed; })()")
+        cc.check("its list has a Part line that takes a start and an end", part == "0:02-0:06", str(part))
         cc.click_at(tab, *listed["at"][pick])
     said = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to dm" and cc.panel(tab), 30)
     cc.check("its click is taken by the app", bool(said), str(cc.panel(tab)))

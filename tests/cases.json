@@ -27,7 +27,7 @@
   {
     "id": "single-page-video-name",
     "reference": "reference A and reference B: a page's video is named by the page; numbers only tell clashing files apart (Reported)",
-    "test": "desktop/crates/dm-core/src/ytdlp/fetch.rs a_pages_only_video_is_named_without_the_number_ytdlp_gives_it; qa/tests/scenarios.py video_page",
+    "test": "desktop/crates/dm-core/src/videopage/fetch.rs a_pages_only_video_is_named_without_a_number; qa/tests/scenarios.py video_page",
     "acceptance": "a page with one <video> titled 'QA clip' saves as 'QA clip [watch？v=ok].mp4'; a page with two keeps '(1)'",
     "status": "match"
   }

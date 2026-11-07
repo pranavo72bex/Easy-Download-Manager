@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! FTP against a server on loopback that speaks enough of it: sign-in,
 //! SIZE, MDTM, REST, EPSV and PASV, RETR. Bytes are compared, as for HTTP.
 
@@ -32,6 +37,9 @@ struct Quirks {
     at: Option<&'static str>,
     /// No MLSD, so a folder is listed with LIST.
     no_mlsd: bool,
+    /// The first session hangs up right after answering REST, as a server
+    /// that drops a control connection left waiting does.
+    first_session_hangs_up: bool,
 }
 
 #[derive(Clone)]
@@ -41,6 +49,9 @@ struct Server {
     /// Every REST offset a RETR started at.
     starts: Arc<Mutex<Vec<u64>>>,
     transfers: Arc<AtomicUsize>,
+    /// Sessions opened, and sign-ins let in.
+    sessions: Arc<AtomicUsize>,
+    sign_ins: Arc<AtomicUsize>,
 }
 
 async fn serve(body: Vec<u8>, quirks: Quirks) -> (String, Server) {
@@ -49,6 +60,8 @@ async fn serve(body: Vec<u8>, quirks: Quirks) -> (String, Server) {
         quirks,
         starts: Arc::default(),
         transfers: Arc::default(),
+        sessions: Arc::default(),
+        sign_ins: Arc::default(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -80,6 +93,7 @@ async fn session(stream: TcpStream, s: Server) {
         }
         return;
     }
+    let first = s.sessions.fetch_add(1, Ordering::SeqCst) == 0;
     let _ = say(&mut write, "220-dm's test server\r\n220 ready".into()).await;
     let (mut user, mut offset) = (String::new(), 0u64);
     let mut passive: Option<TcpListener> = None;
@@ -97,6 +111,9 @@ async fn session(stream: TcpStream, s: Server) {
                     None => user == "anonymous",
                 };
                 signed_in = ok;
+                if ok {
+                    s.sign_ins.fetch_add(1, Ordering::SeqCst);
+                }
                 if ok { "230 in" } else { "530 Login incorrect." }.to_string()
             }
             _ if !signed_in => "530 sign in first".to_string(),
@@ -109,6 +126,10 @@ async fn session(stream: TcpStream, s: Server) {
             "SIZE" | "RETR" if arg != s.quirks.at.unwrap_or("f.bin") => "550 No such file.".into(),
             "MDTM" => "213 20260101120000".into(),
             "REST" if s.quirks.bare => "502 no REST here".into(),
+            "REST" if first && s.quirks.first_session_hangs_up => {
+                let _ = say(&mut write, "350 restarting".into()).await;
+                return;
+            }
             "REST" => {
                 offset = arg.parse().unwrap_or(0);
                 "350 restarting".into()
@@ -232,6 +253,47 @@ async fn an_ftp_file_is_fetched_over_several_connections() {
         starts.iter().any(|&s| s > 0),
         "no range began past the start"
     );
+}
+
+/// ftp.gnu.org takes about 3.4 s to sign in; dm signed in once to describe
+/// the file and again to fetch it, 11.7 s for a 1 MB file where reference A
+/// took 8.2 s. The session that described it now fetches it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_small_ftp_file_is_fetched_on_the_session_that_described_it() {
+    let data = body(300 * 1024);
+    let (addr, server) = serve(data.clone(), Quirks::default()).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("ftp://{addr}/f.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the FTP download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "not the file");
+    assert_eq!(server.sign_ins.load(Ordering::SeqCst), 1, "signed in again");
+}
+
+/// The kept session gone by the time the first range wants it: a fresh one
+/// is signed in, and the download does not fail or wait for it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_kept_ftp_session_the_server_dropped_is_replaced_at_once() {
+    let data = body(300 * 1024);
+    let quirks = Quirks {
+        first_session_hangs_up: true,
+        ..Quirks::default()
+    };
+    let (addr, server) = serve(data.clone(), quirks).await;
+    let dir = tempdir();
+    let once = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("ftp://{addr}/f.bin"), &once)
+        .await
+        .expect("a fresh session should have been signed in");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "not the file");
+    assert_eq!(server.sign_ins.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -446,7 +508,7 @@ async fn a_sign_in_comes_from_the_address_and_a_wrong_one_is_said() {
 
 #[test]
 fn the_queue_takes_ftp_addresses() {
-    assert!(dm_core::queue::accepted(
+    assert!(dm_core::accepted(
         "ftp://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz"
     ));
 }
@@ -738,37 +800,28 @@ async fn a_bypassed_site_is_fetched_directly_and_an_https_proxy_is_refused() {
     );
 }
 
+/// Under "the computer's proxy settings" (a new install's default) on a
+/// computer that has no proxy, FTP goes direct, as the computer's own
+/// programs do: it was refused with "cannot send FTP through the computer's
+/// proxy settings" until 2026-11-06. Where a proxy is in force, the refusal
+/// is checked by `download::tests` (it reads the computer's settings).
 #[tokio::test]
-async fn under_the_computers_proxy_with_no_address_ftp_is_refused_not_sent_direct() {
+async fn under_the_computers_proxy_settings_with_no_proxy_ftp_goes_direct() {
+    if dm_core::system_proxy_in_force() {
+        eprintln!("this computer has a proxy in force: nothing to check");
+        return;
+    }
     let data = body(16 * 1024);
-    let (addr, server) = serve(data.clone(), Quirks::default()).await;
+    let (addr, _server) = serve(data.clone(), Quirks::default()).await;
     let dir = tempdir();
     let system = dm_core::Options {
+        torrent: Default::default(),
         system_proxy: true,
+        title_hint: None,
         proxy: None,
         ..options(dir.path())
     };
-    let outcome = download(&client(), &format!("ftp://{addr}/f.bin"), &system).await;
-    assert!(
-        matches!(&outcome, Err(Error::Internal(said)) if said.contains("computer's proxy")),
-        "{outcome:?}"
-    );
-    assert!(
-        server.starts.lock().unwrap().is_empty(),
-        "the server was reached directly"
-    );
-    // On the bypass list, it goes direct, as asked.
-    let dir = tempdir();
-    let bypassed = dm_core::Options {
-        proxy_bypass: vec!["127.0.0.1".into()],
-        ..system.clone()
-    };
-    let bypassed = dm_core::Options {
-        dest_dir: dir.path().join("out"),
-        parts_dir: dir.path().join("parts"),
-        ..bypassed
-    };
-    let done = download(&client(), &format!("ftp://{addr}/f.bin"), &bypassed)
+    let done = download(&client(), &format!("ftp://{addr}/f.bin"), &system)
         .await
         .unwrap();
     assert_eq!(std::fs::read(&done.path).unwrap(), data);

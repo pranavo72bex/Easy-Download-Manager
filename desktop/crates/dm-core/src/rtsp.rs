@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! RTSP streams (`rtsp://`), recorded by dm itself.
 //!
 //! RTSP is what IP cameras and media servers speak. The session — DESCRIBE,

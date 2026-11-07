@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! How fast the engine moves bytes when nothing else holds it back.
 //!
 //! `speed.rs` asks whether one slow connection holds a download up; this asks
@@ -323,48 +328,5 @@ async fn throughput() {
             0,
         )
         .await;
-    }
-}
-
-/// A video page through the helper: yt-dlp downloading the stream itself,
-/// against yt-dlp reading the page and dm fetching it (`download_page`),
-/// from a server holding each connection to 1 MB/s, 40 ms away. Needs the
-/// real yt-dlp, which reads a plain file as a page with one format.
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "a benchmark: run by hand"]
-async fn video_helper() {
-    if !dm_core::ytdlp::usable() {
-        eprintln!("no yt-dlp: skipped");
-        return;
-    }
-    const MB: usize = 1024 * 1024;
-    for size in [8 * MB, 32 * MB] {
-        let data = body(size);
-        let addr = server(data.clone(), Duration::ZERO).await;
-        let addr = distant(addr, Duration::from_millis(40), MB as u64).await;
-        let url = format!("http://{addr}/file.bin");
-        for own in [false, true] {
-            let dir = tempdir();
-            let opts = options(dir.path());
-            let started = Instant::now();
-            let done = if own {
-                dm_core::ytdlp::download_page(&client(), &url, &opts, None).await
-            } else {
-                dm_core::ytdlp::download_ytdlp(&url, &opts, None).await
-            }
-            .expect("the download failed");
-            let took = started.elapsed().as_secs_f64();
-            assert!(std::fs::read(&done.path).unwrap() == data[..]);
-            println!(
-                "{:>3} MB, {:<28} {took:>6.2}s  {:>5.1} MB/s",
-                size / MB,
-                if own {
-                    "yt-dlp reads, dm fetches"
-                } else {
-                    "yt-dlp fetches"
-                },
-                size as f64 / took / 1e6
-            );
-        }
     }
 }

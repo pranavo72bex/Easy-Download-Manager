@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Downloading a file in parts, and resuming them.
 
 use super::*;
@@ -15,14 +20,22 @@ pub async fn download_ftp(
     if let Some(why) = options.no_route_through_system_proxy(url, "FTP") {
         return Err(Error::Internal(why));
     }
-    target.route = Route::parse(options.proxy_for(url))?;
+    target.route = Route::parse(options.proxy_for(url).as_deref())?;
     let target = target;
     let options = &Options {
         connections: options.connections_for(url),
         ..options.clone()
     };
+    // The session that described the file, kept signed in for the first
+    // range rather than closed and signed in again (`describe_keeping`).
+    let spare: Arc<std::sync::Mutex<Option<Session>>> = Arc::default();
     let described = retry::run_up_to(&options.control, options.tries(), || {
-        or_stop(&options.control, describe(&target))
+        let (target, spare) = (&target, &spare);
+        or_stop(&options.control, async move {
+            let (described, session) = describe_keeping(target).await?;
+            *crate::lock(spare) = Some(session);
+            Ok(described)
+        })
     })
     .await?;
     let target = Target {
@@ -90,12 +103,13 @@ pub async fn download_ftp(
     let next = Arc::new(AtomicUsize::new(0));
     let mut running = Vec::new();
     for _ in 0..workers {
-        let (target, ranges, next, downloaded, options) = (
+        let (target, ranges, next, downloaded, options, spare) = (
             target.clone(),
             Arc::clone(&ranges),
             Arc::clone(&next),
             Arc::clone(&downloaded),
             options.clone(),
+            Arc::clone(&spare),
         );
         let resumable = described.resumable;
         running.push(tokio::spawn(async move {
@@ -124,7 +138,15 @@ pub async fn download_ftp(
                     }
                 }
                 retry::run_making_progress(&options.control, options.tries(), on_disk, || {
-                    fetch_range(&target, segment, part, resumable, &options, &downloaded)
+                    fetch_range(
+                        &target,
+                        segment,
+                        part,
+                        resumable,
+                        &options,
+                        &downloaded,
+                        &spare,
+                    )
                 })
                 .await?;
             }
@@ -278,6 +300,7 @@ pub(super) async fn fetch_range(
     resumable: bool,
     options: &Options,
     downloaded: &AtomicU64,
+    spare: &std::sync::Mutex<Option<Session>>,
 ) -> Result<(), Error> {
     let span = segment.span();
     let mut already = fs::metadata(part)
@@ -297,7 +320,19 @@ pub(super) async fn fetch_range(
         already = 0;
     }
 
+    let kept = crate::lock(spare).take();
     let (mut session, mut data) = or_stop(&options.control, async {
+        // The session kept from describing the file, where there is one. A
+        // server may have dropped it while it waited; then a fresh one is
+        // signed in within this same attempt, so keeping it never costs one.
+        if let Some(mut session) = kept {
+            if let Ok(data) = session
+                .retrieve(&target.path, segment.start + already)
+                .await
+            {
+                return Ok((session, data));
+            }
+        }
         let mut session = Session::open(target).await?;
         let data = session
             .retrieve(&target.path, segment.start + already)

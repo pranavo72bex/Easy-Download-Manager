@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 use crate::dash::{self, Medium, Track};
 
@@ -64,6 +69,7 @@ pub(super) async fn download_pair(
         bandwidth: 0,
         height: 0,
         webm: false,
+        indexed: None,
         pieces: s
             .parts
             .iter()
@@ -77,6 +83,7 @@ pub(super) async fn download_pair(
                     }),
                     _ => None,
                 },
+                millis: (p.duration * 1000.0).round() as u64,
             })
             .collect(),
     };
@@ -138,6 +145,7 @@ pub(super) async fn download_media_pair(
         bandwidth: 0,
         height: 0,
         webm: query_of(url, "mime").is_some_and(|m| m.contains("webm")),
+        indexed: None,
         pieces: pieces_of(url, total, PIECE),
     };
     let (picture_size, sound_size) = tokio::try_join!(
@@ -189,6 +197,7 @@ pub(crate) fn pieces_of(url: &str, total: u64, piece: u64) -> Vec<dash::Piece> {
             url: url.to_string(),
             range: None,
             lock: None,
+            millis: 0,
         }];
     }
     let mut pieces = Vec::new();
@@ -199,6 +208,7 @@ pub(crate) fn pieces_of(url: &str, total: u64, piece: u64) -> Vec<dash::Piece> {
             url: url.to_string(),
             range: Some((first, last)),
             lock: None,
+            millis: 0,
         });
         first = last + 1;
     }
@@ -230,7 +240,20 @@ async fn total_of(client: &reqwest::Client, url: &str, options: &Options) -> Res
         .and_then(|n| n.trim().parse::<u64>().ok())
         .filter(|n| *n > 0)
         .ok_or_else(|| Error::Internal(format!("{url} did not say how long it is")))
+        .and_then(|n| {
+            // The file is cut into a list of requests by this number before
+            // a byte arrives: one past any real picture or sound is refused.
+            if n > TRACK_MOST {
+                return Err(Error::Internal(format!(
+                    "{url} says it is {n} bytes long, more than a video's picture or sound is"
+                )));
+            }
+            Ok(n)
+        })
 }
+
+/// The longest picture or sound fetched apart that is believed: 1 TiB.
+const TRACK_MOST: u64 = 1 << 40;
 
 /// The tracks fetched, gathered one file each, and joined into the file
 /// named `filename`, placed where downloads go. `signature` says what is
@@ -246,7 +269,41 @@ async fn join_tracks(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    let filename = filename.to_string();
+    let mut filename = filename.to_string();
+    let mut signature = signature.to_string();
+    /* A part of the stream: each track reduced to the pieces that overlap the
+     * span (a one-file track is cut by its own index when it is fetched), and
+     * the joined file trimmed exactly by the muxer's edit lists. */
+    let cut_tracks: Vec<Track>;
+    let tracks: Vec<&Track> = match options.span {
+        Some(span) => {
+            let mut reduced = Vec::new();
+            for track in tracks {
+                if track.indexed.is_some() {
+                    reduced.push((*track).clone());
+                } else {
+                    let (cut, _, _) = dash::cut(track, span.from, span.to).ok_or_else(|| {
+                        Error::Internal(
+                            "that part is outside the stream, or the stream does not say how                              long its pieces are"
+                                .to_string(),
+                        )
+                    })?;
+                    reduced.push(cut);
+                }
+            }
+            cut_tracks = reduced;
+            signature = format!(
+                "{signature}
+{}",
+                span.words()
+            );
+            filename = hls::named_for_span(&filename, span);
+            cut_tracks.iter().collect()
+        }
+        None => tracks.to_vec(),
+    };
+    let tracks = tracks.as_slice();
+    let signature = signature.as_str();
     fs::create_dir_all(&options.parts_dir).await?;
     hls::keep_only_parts_of(&options.parts_dir, signature).await?;
 
@@ -292,10 +349,10 @@ async fn join_tracks(
                 crate::tsmux::join_packed_async(picture.clone(), sound.clone(), partial.clone())
                     .await
             } else {
-                crate::mp4mux::join_async(files.clone(), partial.clone()).await
+                join_mp4(files.clone(), partial.clone(), options).await
             }
         } else {
-            crate::mp4mux::join_async(files.clone(), partial.clone()).await
+            join_mp4(files.clone(), partial.clone(), options).await
         };
         if let Err(why) = made {
             let _ = fs::remove_file(&partial).await;
@@ -319,6 +376,23 @@ async fn join_tracks(
         verified: options.checksum.is_some(),
         mirrors: 1,
     })
+}
+
+/// The tracks joined into one MP4, cut to the span where there is one.
+async fn join_mp4(files: Vec<PathBuf>, out: PathBuf, options: &Options) -> Result<u64, String> {
+    match options.span {
+        Some(span) => {
+            crate::mp4mux::join_cut_async(
+                files,
+                Vec::new(),
+                out,
+                Some(span.millis()),
+                options.shape,
+            )
+            .await
+        }
+        None => crate::mp4mux::join_async(files, out).await,
+    }
 }
 
 /// Every piece of each track, then each track gathered into a file of its
@@ -361,6 +435,34 @@ async fn fetch_track(
     if fs::metadata(&gathered).await.is_ok_and(|m| m.len() > 0) {
         return Ok(gathered);
     }
+    // One file with an index of its own, for a part of it: the index says
+    // which bytes, and only those are asked for.
+    if let (Some(indexed), Some(span), Some(first_piece)) =
+        (track.indexed, options.span, track.pieces.first())
+    {
+        let url = first_piece.url.clone();
+        let mut pairs = Vec::new();
+        let cookies = crate::cookies::header_with(options.sign_in.as_ref(), &url);
+        if let Some(cookies) = &cookies {
+            pairs.push(("cookie", cookies.as_str()));
+        }
+        if let Some(referrer) = options.referrer.as_deref() {
+            pairs.push(("referer", referrer));
+        }
+        let source = crate::clip::Source {
+            agent: Some(crate::agent_for(&url).to_string()),
+            url,
+            init: indexed.init,
+            index: indexed.index,
+            headers: Headers::of(pairs),
+            chunk: None,
+            target: options.parts_dir.join(format!("track{n}.partial")),
+        };
+        let part = crate::clip::fetch_part(client, &source, span, options, None).await?;
+        downloaded.fetch_add(part.bytes, Ordering::Relaxed);
+        fs::rename(&source.target, &gathered).await?;
+        return Ok(gathered);
+    }
     // As many at once as there are connections, each taking the next piece as
     // it finishes its own: a slow piece holds only the connection it is on.
     let at_once = options.connections.max(1);
@@ -399,6 +501,7 @@ async fn fetch_piece(
     }
     options.control.check()?;
     let staging = done.with_extension("partial");
+    let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
     let body = retry::run_up_to(&options.control, options.tries(), || {
         hls::fetch_segment_range(client, &piece.url, piece.range, options)
     })
@@ -450,9 +553,14 @@ mod tests {
             server_dates: false,
             retry_wait: 0,
             record_limit: None,
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
+            accept_page: false,
+            torrent: Default::default(),
             system_proxy: false,
+            title_hint: None,
         }
     }
 
@@ -823,5 +931,35 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("byte ranges"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_sound_that_claims_a_length_past_any_real_one_is_refused() {
+        /* The claimed length was cut into a request per piece before any
+         * byte arrived: a one-line header could ask for tens of gigabytes. */
+        let dir = tempfile::tempdir().unwrap();
+        let (video, _) = fragmented(dir.path(), "v.mp4", 2);
+        let app = axum::Router::new()
+            .route("/p/picture", ranged(std::fs::read(video).unwrap(), true))
+            .route(
+                "/p/sound",
+                axum::routing::get(|| async {
+                    axum::response::Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes 0-0/{}", u64::MAX))
+                        .body(axum::body::Body::from(vec![0u8]))
+                        .unwrap()
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut options = options(dir.path());
+        options.sound = Some(format!("http://{addr}/p/sound"));
+        let url = format!("http://{addr}/p/picture");
+        let err = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("bytes long"), "{err}");
     }
 }

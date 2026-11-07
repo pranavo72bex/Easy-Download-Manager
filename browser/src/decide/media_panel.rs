@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The "Download video" panel on a video or audio player.
 //!
 //! A panel at the top right of a video or audio player, raised when the pointer
@@ -15,13 +20,16 @@ pub struct Media {
     pub tag: String,
     /// `currentSrc`, falling back to `src`.
     pub src: String,
+    /// The element's width in pixels.
     pub width: f64,
+    /// The element's height in pixels.
     pub height: f64,
 }
 
 /// What the panel offers for one element.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Offer {
+    /// The panel's heading.
     pub title: &'static str,
     /// Where the file comes from, or how it is fetched: the bar's tooltip.
     pub sub: String,
@@ -33,6 +41,7 @@ pub struct Offer {
 /// Below these a media element is decoration — an avatar, a spacer, a muted
 /// background loop — and a download button over it would be noise.
 pub const MIN_VIDEO: (f64, f64) = (200.0, 120.0);
+/// The smallest audio element that gets a panel, in pixels (width, height).
 pub const MIN_AUDIO: (f64, f64) = (160.0, 24.0);
 
 /// Whether a media element gets the panel, and what it says.
@@ -50,7 +59,7 @@ pub fn offer(media: &Media) -> Option<Offer> {
         dm_protocol::host_of(src)
     } else {
         // A `blob:` or Media Source player: no file exists to fetch, so the
-        // page goes to the app, whose yt-dlp reads it.
+        // page goes to the app, which reads it.
         "this page, through the dm app".to_string()
     };
     Some(Offer {
@@ -58,6 +67,46 @@ pub fn offer(media: &Media) -> Option<Offer> {
         sub,
         page: !handable(src),
     })
+}
+
+/// Narrower than this, a video gets the compact bar: the download mark and the close mark
+/// alone, as reference A shrinks its bar on a narrow video (gaps row 76).
+pub const COMPACT_BELOW: f64 = 400.0;
+
+/// The bar's size, whole or compact.
+pub fn panel_size(video_width: f64) -> (f64, f64) {
+    if video_width < COMPACT_BELOW {
+        (COMPACT_WIDTH, 30.0)
+    } else {
+        (240.0, 30.0)
+    }
+}
+
+/// How wide the compact bar is: the mark's button and the close button.
+pub const COMPACT_WIDTH: f64 = 72.0;
+
+/// The part of the element a person sees: inside the viewport and below a page's fixed bar
+/// over its top (`covered_to`, that bar's bottom), so the panel sits on the picture and not
+/// under a sticky header (gaps row 76). The element's own box where nothing of it is seen.
+pub fn visible_box(
+    element: (f64, f64, f64, f64),
+    viewport: (f64, f64),
+    covered_to: Option<f64>,
+) -> (f64, f64, f64, f64) {
+    let (left, top, width, height) = element;
+    let (view_w, view_h) = viewport;
+    let new_left = left.max(0.0);
+    let new_top = top.max(0.0).max(covered_to.unwrap_or(f64::MIN));
+    let right = (left + width).min(view_w);
+    let bottom = (top + height).min(view_h);
+    if !(right > new_left && bottom > new_top)
+        || [new_left, new_top, right, bottom]
+            .iter()
+            .any(|v| !v.is_finite())
+    {
+        return element;
+    }
+    (new_left, new_top, right - new_left, bottom - new_top)
 }
 
 /// Where the panel goes: inside the element's top right corner, kept on
@@ -109,16 +158,25 @@ pub fn dragged(
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PanelClick {
+    /// The kind of click: what the page script reports.
     #[serde(rename = "type")]
     pub kind: String,
+    /// The address of the element's media.
     pub src: String,
     /// The address of the frame the player is in.
     pub frame: String,
     /// The quality picked from the panel's list, and what the list said.
     pub quality: Option<String>,
+    /// What the quality's list entry said.
     pub label: Option<String>,
     /// A sound the player fetched apart from the picture at `src`.
     pub sound: Option<String>,
+    /// The panel's "Part" line: where the part starts, as typed.
+    pub from: Option<String>,
+    /// Where the part ends, as typed.
+    pub to: Option<String>,
+    /// The page's title, to name a file whose own name says nothing.
+    pub title: Option<String>,
 }
 
 /// How long the panel waits for the list of qualities before it gives up
@@ -131,6 +189,69 @@ pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 
 /// The page script asking what qualities a player's video comes in.
 pub const FORMATS_MESSAGE: &str = "dm.formats";
+
+/// What the panel's "Part" line was typed as, ready to hand over: only a
+/// short run of digits, colons, dots and the letters h, m, s ("1:30",
+/// "90", "1m30s") is kept, so nothing else a page might have put in the box
+/// travels to the app.
+pub fn part_text(typed: &str) -> String {
+    typed
+        .trim()
+        .chars()
+        .filter(|c| {
+            c.is_ascii_digit() || matches!(c, ':' | '.' | 'h' | 'm' | 's' | 'H' | 'M' | 'S')
+        })
+        .take(16)
+        .collect()
+}
+
+/// The panel list's first line, as reference A's: every quality listed,
+/// handed over at once (gaps row 72b).
+pub const DOWNLOAD_ALL: &str = "Download all";
+
+/// The most of a video's title a list line carries before "…".
+pub const LINE_TITLE_MOST: usize = 40;
+
+/// A quality line as reference A words it (gaps row 72a): its number, the
+/// video's title and "…", then the kind and quality. A bare height ("1080p",
+/// what the player names) is said as a file, "MP4 file, quality 1080p HD",
+/// HD from 720 up; any other line (a stream, a page's own "MP4 file, …") is
+/// kept as it is.
+pub fn reference_line(number: usize, title: &str, line: &str) -> String {
+    // A size after the quality ("1080p — 50.1 MB", `choice_line`) stays after it.
+    let (head, size) = match line.split_once(" — ") {
+        Some((head, size)) => (head, format!(" — {size}")),
+        None => (line, String::new()),
+    };
+    // "1080p", or dm's reading's "1080p MP4": a height, and the container
+    // where one is named (MP4 where none is, as dm saves the player's).
+    let (height, container) = match head.split_once(' ') {
+        Some((height, container)) => (height, container),
+        None => (head, "MP4"),
+    };
+    // A height listed at two frame rates names the faster ("720p MP4 60 fps"),
+    // said after the quality as reference A says it: "720p HD 60 fps".
+    let (container, rate) = match container.rsplit_once(' ') {
+        Some((front, "fps")) => match front.rsplit_once(' ') {
+            Some((kind, n)) if n.parse::<u32>().is_ok() => (kind, format!(" {n} fps")),
+            _ => (container, String::new()),
+        },
+        _ => (container, String::new()),
+    };
+    let quality = match height.strip_suffix('p').and_then(|h| h.parse::<u32>().ok()) {
+        Some(height) if !container.contains(' ') => format!(
+            "{container} file, quality {height}p{}{rate}{size}",
+            if height >= 720 { " HD" } else { "" }
+        ),
+        _ => line.to_string(),
+    };
+    let title = title.trim();
+    if title.is_empty() {
+        return format!("{number}. {quality}");
+    }
+    let short: String = title.chars().take(LINE_TITLE_MOST).collect();
+    format!("{number}. {}… {quality}", short.trim_end())
+}
 
 /// One line of the panel's list: the format and size.
 pub fn choice_line(label: &str, size: Option<u64>) -> String {
@@ -164,6 +285,7 @@ pub fn human_size(bytes: u64) -> String {
 /// through the browser's DRM, EME): offered nothing, and said so, rather
 /// than handing over something that could only fail or come out scrambled.
 pub const PROTECTED_TITLE: &str = "Protected video";
+/// What the panel says over a protected video.
 pub const PROTECTED_SAID: &str =
     "This video is copy-protected, so only the site's own player can play it. dm does not download protected video.";
 

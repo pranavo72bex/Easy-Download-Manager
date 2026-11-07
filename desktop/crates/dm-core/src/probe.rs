@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Asking a server what it holds, before deciding how to fetch it.
 
 // Reads outside input: an index out of range here is a crash a server or
@@ -12,7 +17,9 @@ use crate::Error;
 pub struct Probe {
     /// `None` where the server would not say, which is not the same as zero.
     pub size: Option<u64>,
+    /// Whether the server answers range requests.
     pub resumable: bool,
+    /// The name the server suggested, or the one in the address; empty if none.
     pub filename: String,
     /// ETag or Last-Modified, whichever the server offered. Sent back as
     /// `If-Range` so a file republished mid-download is noticed rather than
@@ -29,50 +36,84 @@ pub struct Probe {
     pub modified: Option<String>,
 }
 
-/// Learns a URL's length, name and whether it can be resumed.
+/// Learns a URL's length, name and whether it can be resumed, draining the
+/// body so the connection goes back to the pool.
 ///
-/// A one-byte ranged GET rather than HEAD: many servers answer HEAD
-/// inaccurately or not at all, and the status code a range request comes back
-/// with is the only honest answer to "will you serve ranges". A 206 means
-/// yes, from the one party whose opinion counts.
+/// For callers that do not need the body (mirror probes, rechecks). The
+/// main download path calls [`probe_get`] instead and keeps the body
+/// streaming as its first piece.
 pub async fn probe(
     client: &reqwest::Client,
     url: &str,
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Probe, Error> {
-    let ask = |agent: &str| {
-        let mut request = client
-            .get(url)
-            .header(reqwest::header::RANGE, "bytes=0-0")
+    let ProbeWithBody { probe, response } = probe_get(client, url, referrer, sign_in).await?;
+    if response.content_length().is_some_and(|n| n <= REUSE_BELOW) {
+        let _ = tokio::time::timeout(REUSE_WITHIN, response.bytes()).await;
+    }
+    Ok(probe)
+}
+
+/// A probe whose response body has not been read yet.
+pub struct ProbeWithBody {
+    /// What the first request taught.
+    pub probe: Probe,
+    /// The answer, its body not yet read.
+    pub response: reqwest::Response,
+}
+
+/// Learns a URL's length, name and whether it can be resumed, keeping the
+/// body streaming so the caller can read it as the download's first piece.
+///
+/// Sends `Range: bytes=0-` rather than `bytes=0-0`: a 206 confirms ranges
+/// honestly while delivering every byte from the start, and the connection
+/// that learned about the file is the one that fetches its first piece —
+/// no round trip wasted. A 200 (ranges not supported) delivers the whole
+/// file on one connection.
+pub async fn probe_get(
+    client: &reqwest::Client,
+    url: &str,
+    referrer: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<ProbeWithBody, Error> {
+    // A form's answer: sent once, as the browser sent it, with no range and
+    // none of the second tries below, each of which would send it again.
+    let posted = sign_in.and_then(|s| s.post_for(url)).is_some();
+    let ask_as = |agent: &str, ranged: bool| {
+        let mut request = crate::download::with_form(client, url, sign_in)
             .header(reqwest::header::USER_AGENT, agent)
-            // The length of the file itself, as the download will ask for it.
             .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
+        if ranged && !posted {
+            request = request.header(reqwest::header::RANGE, "bytes=0-");
+        }
         let cookies = crate::cookies::header_with(sign_in, url);
-        // What a video site's reading asks one of its streams with, if this
-        // is one; below dm's own `Cookie` and `Referer`.
         request =
             crate::download::stream_headers().onto(request, cookies.is_some(), referrer.is_some());
         if let Some(cookies) = cookies {
             request = request.header(reqwest::header::COOKIE, cookies);
         }
-        // A hotlink-protected server serves the file only to a request that
-        // names the page it came from. Fetch cannot set Referer from a
-        // browser, so the extension records it and hands it over; here it
-        // goes on the wire.
-        if let Some(referrer) = referrer {
-            request = request.header(reqwest::header::REFERER, referrer);
+        match referrer {
+            Some(referrer) => request = request.header(reqwest::header::REFERER, referrer),
+            None => {
+                if let Some(folder) = crate::download::folder_referer(url) {
+                    request = request.header(reqwest::header::REFERER, folder);
+                }
+            }
         }
-        // Signed in as the server asks, where the address carries a login.
+        request = crate::cookies::add_headers(request, sign_in, url);
         crate::auth::send(client, request, url)
     };
+    let ask = |agent: &str| ask_as(agent, true);
     let mut res = ask(crate::agent_for(url)).await?;
-    // Refused for how dm named itself? Asked once more by its name alone,
-    // then as a browser asks; the first that answers is that site's agent
-    // for the rest of the download (see FALLBACK_AGENTS).
-    if res.status() == reqwest::StatusCode::FORBIDDEN && crate::agent_for(url) == crate::USER_AGENT
+    if !posted
+        && res.status() == reqwest::StatusCode::FORBIDDEN
+        && crate::agent_for(url) == crate::first_agent()
     {
-        for agent in crate::FALLBACK_AGENTS {
+        for agent in crate::FALLBACK_AGENTS
+            .into_iter()
+            .filter(|a| *a != crate::first_agent())
+        {
             let again = ask(agent).await?;
             if again.status() != reqwest::StatusCode::FORBIDDEN {
                 crate::prefer_agent(url, agent);
@@ -82,10 +123,67 @@ pub async fn probe(
             }
         }
     }
+    /* A browser's name told "429 Too many requests" at once, where dm's own is
+     * served: Wikimedia's media servers (2026-11-07) gave Internet Explorer's
+     * and Firefox's names `Retry-After: 600` from the first request ("please
+     * contact noc@wikimedia.org to discuss a less disruptive approach") and
+     * dm's name the file, as their policy asks a program to say what it is.
+     * Asked once more by dm's own name, and by its name alone where a site
+     * refuses the full one; a server that limits every name answers 429 to
+     * that too and is waited out as before, one request more than it was. */
+    if !posted
+        && res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+        && crate::agent_for(url) == crate::IE_AGENT
+    {
+        for agent in [crate::USER_AGENT, crate::PLAIN_AGENT] {
+            let again = ask(agent).await?;
+            match again.status() {
+                reqwest::StatusCode::FORBIDDEN => continue,
+                reqwest::StatusCode::TOO_MANY_REQUESTS => break,
+                _ => {
+                    crate::prefer_agent(url, agent);
+                    crate::prefer_agent(again.url().as_str(), agent);
+                    res = again;
+                    break;
+                }
+            }
+        }
+    }
+    // Still refused, with a `Referer` dm made up (none was given): asked once
+    // more without it. A server that refuses any `Referer` but its own pages
+    // (thinkbroadband) served reference A and refused dm on every agent.
+    if !posted
+        && res.status() == reqwest::StatusCode::FORBIDDEN
+        && referrer.is_none()
+        && crate::download::folder_referer(url).is_some()
+    {
+        crate::drop_made_up_referer(url);
+        let again = ask(crate::agent_for(url)).await?;
+        if again.status() == reqwest::StatusCode::FORBIDDEN {
+            crate::forget_dropped_referer(url);
+        } else {
+            crate::drop_made_up_referer(again.url().as_str());
+            res = again;
+        }
+    }
+
+    // A 404 is asked for a second time before it is said, as reference A does.
+    if !posted && res.status() == reqwest::StatusCode::NOT_FOUND {
+        res = ask(crate::agent_for(url)).await?;
+    }
+
+    // Some servers fail a ranged request and serve the plain one, which is how
+    // reference A asks first. Taken only if the plain request succeeds; the
+    // ranged answer's error is what is said otherwise.
+    if !posted && res.status().is_server_error() {
+        if let Ok(plain) = ask_as(crate::agent_for(url), false).await {
+            if plain.status().is_success() {
+                res = plain;
+            }
+        }
+    }
 
     let status = res.status();
-    // `bytes=0-0` of an empty file is unsatisfiable, and the 416 says so
-    // with `Content-Range: bytes */0`. That is a length, not a refusal.
     let empty = status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE
         && res
             .headers()
@@ -106,9 +204,6 @@ pub async fn probe(
             .map(str::to_owned)
     };
 
-    // 206 carries the real length in Content-Range's total, past the slash.
-    // Content-Length on a partial response describes the one byte we asked
-    // for, so reading that instead would report every file as one byte long.
     let (size, resumable) = if empty {
         (Some(0), false)
     } else if status == reqwest::StatusCode::PARTIAL_CONTENT {
@@ -123,29 +218,15 @@ pub async fn probe(
         )
     };
 
-    // A body in a coding is undone as it comes (`decode.rs`): its length is
-    // that of the encoded bytes, and says nothing of the file's.
     let (size, resumable) = if crate::decode::coding_of(&headers).is_some() {
         (None, false)
     } else {
-        (size, resumable)
+        // A form's answer is fetched whole, by sending the form again.
+        (size, resumable && !posted)
     };
 
     let validator =
         header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
-
-    /* The byte asked for is read, so the connection goes back to the pool.
-     *
-     * A response dropped with its body unread is a connection closed: the
-     * download's first range then opened a new one, a TCP and a TLS
-     * handshake — two or three round trips to a distant server — before its
-     * first byte, beside a connection already open to the same server. Only
-     * a small answer, and only for so long: a server that ignored the range
-     * and is sending the whole file is not read here, and its connection
-     * goes as before. */
-    if res.content_length().is_some_and(|n| n <= REUSE_BELOW) {
-        let _ = tokio::time::timeout(REUSE_WITHIN, res.bytes()).await;
-    }
 
     let content_type = header(reqwest::header::CONTENT_TYPE);
     let modified = header(reqwest::header::LAST_MODIFIED);
@@ -158,14 +239,17 @@ pub async fn probe(
         content_type.as_deref(),
     );
 
-    Ok(Probe {
-        modified,
-        size,
-        resumable,
-        filename,
-        validator,
-        final_url,
-        content_type,
+    Ok(ProbeWithBody {
+        probe: Probe {
+            modified,
+            size,
+            resumable,
+            filename,
+            validator,
+            final_url,
+            content_type,
+        },
+        response: res,
     })
 }
 
@@ -225,7 +309,7 @@ pub fn reserved_on_windows(name: &str) -> bool {
 }
 
 /// An extension for a URL that ends in a bare path, from what the server said
-/// it was sending. Matches `MIME_EXTENSION` in `naming.js`.
+/// it was sending.
 const BY_MIME: &[(&str, &str)] = &[
     ("application/pdf", ".pdf"),
     ("application/zip", ".zip"),
@@ -256,9 +340,8 @@ const BY_MIME: &[(&str, &str)] = &[
 /// anything that looks like one is reduced to its final component, so a name
 /// cannot place the file somewhere it was not meant to go.
 ///
-/// The rules are `naming.js`'s, and `shared/naming-cases.json` holds them to
-/// it: the same download saved under two names depending on which half of the
-/// product took it is a bug people report as a lost file.
+/// `shared/naming-cases.json` holds the rules (the extension named files by
+/// the same cases when it was JavaScript; it now leaves naming to dm).
 pub fn filename_for(disposition: Option<&str>, url: &str, content_type: Option<&str>) -> String {
     if let Some(value) = disposition {
         if let Some(name) = from_disposition(value) {
@@ -345,6 +428,8 @@ fn header_text(bytes: &[u8]) -> String {
     }
 }
 
+/// A name made safe to use as a file name: its folder part cut off and characters the disk refuses replaced.
+#[must_use]
 pub fn sanitize(name: &str) -> String {
     let last = name.rsplit(['/', '\\']).next().unwrap_or(name);
     let cleaned: String = last
@@ -405,7 +490,7 @@ pub fn sanitize(name: &str) -> String {
     // hundred bytes, which ext4 and NTFS refuse after the whole download.
     if out.chars().count() > 200 || out.len() > MAX_NAME_BYTES {
         let mut tail = if !extension.is_empty() && extension.chars().count() <= 21 {
-            extension.clone()
+            extension
         } else {
             String::new()
         };
@@ -443,12 +528,16 @@ pub fn sanitize(name: &str) -> String {
 /// sign-in" and Sign-ins put them there — but the address it
 /// reports back has them removed, and every range was fetched from that one:
 /// the probe passed and each range was answered 401. Kept only where the
-/// host is the one the login was given for.
+/// host and port are the ones the login was given for: another port is
+/// another server, as it is for a redirect (`redirects::other_host`).
 fn keep_login(asked: &str, landed: &url::Url) -> String {
     let Ok(asked) = url::Url::parse(asked) else {
         return landed.to_string();
     };
-    if asked.username().is_empty() || asked.host_str() != landed.host_str() {
+    if asked.username().is_empty()
+        || asked.host_str() != landed.host_str()
+        || asked.port_or_known_default() != landed.port_or_known_default()
+    {
         return landed.to_string();
     }
     let mut landed = landed.clone();
@@ -464,8 +553,7 @@ fn keep_login(asked: &str, landed: &url::Url) -> String {
 /// `https://e.com/`, which is a hostname saved as a filename.
 ///
 /// Empty segments are skipped after that, so a URL ending in a slash falls
-/// back to the segment before it — `/downloads/report/` names something, and
-/// `naming.js` has always read it that way.
+/// back to the segment before it — `/downloads/report/` names something.
 fn last_path_segment(url: &str) -> &str {
     let without_query = url.split(['?', '#']).next().unwrap_or(url);
     let path = match without_query.split_once("://") {
@@ -488,14 +576,24 @@ fn extension_of(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_login_is_kept_for_its_own_host_and_port_only() {
+        let landed = |u: &str| url::Url::parse(u).unwrap();
+        let login = ["me", "pw"].join(":");
+        let asked = format!("http://{login}@h.example/f");
+        assert!(super::keep_login(&asked, &landed("http://h.example/g")).contains("me:"));
+        assert!(super::keep_login(&asked, &landed("http://h.example:80/g")).contains("me:"));
+        assert!(!super::keep_login(&asked, &landed("http://h.example:8081/g")).contains("me:"));
+        assert!(!super::keep_login(&asked, &landed("http://other.example/g")).contains("me:"));
+    }
+
     use super::*;
 
-    /* The cases live in `shared/naming-cases.json` and the extension's suite
-     * reads the same file. The two halves of the product were naming the same
-     * download differently — no reserved names here, truncation that cut the
-     * extension off, no MIME fallback — and a rule added to one and not the
-     * other is exactly the sort of thing nobody notices until a file is
-     * missing. Now it fails in whichever language lacks it. */
+    /* The cases live in `shared/naming-cases.json`. They were written when
+     * the extension (then JavaScript) named files too and the two halves
+     * named the same download differently — no reserved names here,
+     * truncation that cut the extension off, no MIME fallback; the extension
+     * now leaves naming to dm, and the file holds dm to the same cases. */
     #[test]
     fn the_naming_rules_are_the_same_as_the_extension_s() {
         let cases: serde_json::Value =

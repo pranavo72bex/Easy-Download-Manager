@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use crate::support::*;
 use crate::test_secrets;
 
@@ -216,13 +221,24 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     });
     harness.run_steps(2);
 
-    // An unfinished one: Properties, with nothing yet to open.
+    // One still going: its progress window, and not Properties.
     double_click(&mut harness, "stalled.bin");
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label_contains("Download progress")
+        .is_some());
+    assert!(
+        harness.state().dialogs.properties.is_empty(),
+        "Properties opened as well"
+    );
+    // Its Properties are still there from the menu, with nothing yet to open.
+    harness.state_mut().run(Command::Properties);
     harness.run_steps(3);
     assert!(harness.query_by_label("File properties").is_some());
     let open = harness.get_by_role_and_label(egui::accesskit::Role::Button, "Open");
     assert!(open.accesskit_node().is_disabled(), "nothing to open yet");
     harness.state_mut().dialogs.properties.clear();
+    harness.state_mut().dialogs.progress.clear();
     harness.run_steps(2);
 
     // A finished one: Properties, whose Open runs the file.
@@ -235,17 +251,50 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
         .unwrap();
     double_click(&mut harness, "file.zip");
     harness.run_steps(3);
+    // Its digests are worked out beside the window and fill their rows when
+    // done, which moves Open: on a loaded machine that fell between finding
+    // the button and clicking it, and the click took nothing.
+    until(&mut harness, "the file's digests to be worked out", |app| {
+        app.dialogs.properties.get(&row.id).is_some_and(|d| {
+            let sums = dm_core::lock(&d.sums);
+            !sums.is_empty() && sums.values().all(Option::is_some)
+        })
+    });
+    harness.run_steps(3);
+    // What the window showed, said if the file is not opened: under a full
+    // run of the window tests this failed now and then and passed alone.
+    let seen = {
+        let open = harness.get_by_role_and_label(egui::accesskit::Role::Button, "Open");
+        format!(
+            "Open disabled: {}; Properties open: {}; row {:?} at {} (exists: {})",
+            open.accesskit_node().is_disabled(),
+            harness.query_by_label("File properties").is_some(),
+            row.state,
+            row.path,
+            std::path::Path::new(&row.path).exists()
+        )
+    };
     harness
         .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
         .click();
-    harness.run_steps(2);
+    // The opener runs off the window's thread: given up to fifteen seconds to record (one
+    // second, then five, failed now and then with every window test running beside it on a
+    // loaded machine, the button enabled and the file there; alone it records at once).
+    for _ in 0..750 {
+        harness.run_steps(1);
+        if !world.fake.opened.lock().unwrap().is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
     assert_eq!(
         *world.fake.opened.lock().unwrap(),
-        std::slice::from_ref(&row.path)
+        std::slice::from_ref(&row.path),
+        "{seen}"
     );
 
     // Options › General's "opens the file": the double-click opens a
-    // finished one straight away; one not finished still shows Properties.
+    // finished one straight away; one still going shows its progress.
     harness.state_mut().dialogs.properties.clear();
     world.fake.opened.lock().unwrap().clear();
     harness.state_mut().applied.double_click = "open".into();
@@ -261,7 +310,9 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     );
     double_click(&mut harness, "stalled.bin");
     harness.run_steps(3);
-    assert!(harness.query_by_label("File properties").is_some());
+    assert!(harness
+        .query_by_label_contains("Download progress")
+        .is_some());
 }
 
 /// Download details offers the folder a kind of file was last put in, and
@@ -445,6 +496,12 @@ fn properties_change_the_description_and_refresh_an_expired_address() {
             .iter()
             .any(|r| matches!(r.state, State::Failed(_)))
     });
+    // A 404 is told in a window of its own (B41), answered before the list is used.
+    until(&mut harness, "the 404 window", |app| {
+        app.dialogs.not_found.is_some()
+    });
+    harness.run_steps(3);
+    click(&mut harness, "OK");
     select(&mut harness, "gone.bin");
     harness.state_mut().run(Command::Properties);
     harness.run_steps(3);
@@ -518,7 +575,7 @@ fn the_series_error_from_start_goes_when_the_range_is_fixed() {
 fn the_site_file_finder_finds_the_files_a_page_links_to() {
     let world = world();
     let mut harness = world.harness();
-    click(&mut harness, "Site files");
+    click(&mut harness, "Grabber");
     type_into(&mut harness, "Start page", &world.url("page.html"));
     let types = harness.get_by_label("File types");
     types.focus();
@@ -560,7 +617,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
-    click(&mut harness, "Site files");
+    click(&mut harness, "Grabber");
     type_into(&mut harness, "Start page", &world.url("page.html"));
     assert!(harness
         .query_by_label("Page depth (0 for the start page only)")
@@ -612,7 +669,9 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
         ("Nightly", 1, 1)
     );
     assert_eq!(saved[0].types, ["zip", "pdf"]);
-    assert!(harness.query_by_label_contains("Nightly").is_some());
+    // In the Grabber's list of saved searches and in the side panel's
+    // Grabber projects.
+    assert_eq!(harness.query_all_by_label_contains("Nightly").count(), 2);
     // Not at once: its first run on the timer is an hour from saving (run at once, its files were queued with nothing said).
     harness.run_steps(5);
     assert!(harness.state().rows().is_empty(), "it ran as it was saved");
@@ -714,7 +773,9 @@ fn an_address_already_in_the_list_is_asked_about_before_it_is_added_again() {
         "a second row was made without asking"
     );
     assert!(harness.query_by_label("Download details").is_none());
-    click(&mut harness, "Show it");
+    // The row is stopped ("Add for later"), so the question offers to go
+    // on with it as well as to show it.
+    click(&mut harness, "Resume it");
     assert!(harness.query_by_label("Already in the list").is_none());
     assert!(
         harness.state().selected.contains(&id),
@@ -1045,7 +1106,7 @@ fn a_dialog_asked_for_while_open_keeps_what_was_typed_in_it() {
     for (command, open) in [
         (Command::Scheduler, "Scheduler"),
         (Command::AddSeries, "Add numbered series"),
-        (Command::SiteFiles, "Site files"),
+        (Command::SiteFiles, "Grabber"),
         (Command::SpeedLimiterSettings, "Speed limiter"),
     ] {
         harness.state_mut().run(command);
@@ -1494,7 +1555,7 @@ fn the_window_behind_a_dialog_takes_no_clicks() {
         "Add URL opened behind Options"
     );
     let before = harness.state().place.clone();
-    harness.get_by_label("Done (0)").click();
+    harness.get_by_label("Finished (0)").click();
     harness.run_steps(3);
     assert_eq!(
         harness.state().place,
@@ -1669,7 +1730,7 @@ fn a_number_box_says_when_what_was_typed_is_not_a_number() {
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     let label = "Time out a silent connection after (seconds)";
     let before = harness
         .state()
@@ -1791,9 +1852,10 @@ fn no_field_is_outlined_in_the_selection_stroke_where_the_look_draws_its_own() {
 }
 
 /// The new install's double-click opens a finished file, as a file manager's
-/// does; one that is not finished shows its Properties.
+/// does; one that is still going shows its progress window, and its title
+/// says how far it is.
 #[test]
-fn the_default_double_click_opens_a_finished_file_and_shows_properties_for_the_rest() {
+fn the_default_double_click_opens_a_finished_file_and_shows_progress_for_one_still_going() {
     let world = world();
     let mut harness = world.quick_harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -1808,7 +1870,23 @@ fn the_default_double_click_opens_a_finished_file_and_shows_properties_for_the_r
     assert_eq!(*world.fake.opened.lock().unwrap(), [path]);
     double_click(&mut harness, "stalled.bin");
     harness.run_steps(3);
-    assert!(harness.query_by_label("File properties").is_some());
+    assert!(harness
+        .query_by_label_contains("Download progress")
+        .is_some());
+    assert!(
+        harness.query_by_label("File properties").is_none(),
+        "Properties opened instead of the progress window"
+    );
+    // The title says how far it is, first: a running download's own size
+    // and progress, read as the progress window reads them.
+    let id = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url.contains("stalled.bin"))
+        .map(|r| r.id)
+        .unwrap();
+    assert!(harness.state().dialogs.progress.contains(&id));
 }
 
 /// The close button asks once whether dm keeps running in the tray, and what
@@ -2066,4 +2144,538 @@ fn delete_file_after_is_chosen_when_saving() {
     harness.run_steps(2);
     let row = harness.state().rows().last().cloned().unwrap();
     assert_eq!(row.delete_after, Some(3600));
+}
+
+/// The part the browser panel's "Part" line asked for: Download details
+/// opens with "Only a part of the video" on and its ends filled in, and a
+/// part given only an end starts from the beginning.
+#[test]
+fn a_part_asked_for_in_the_browsers_panel_fills_download_details() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = true;
+    for (from, to, shown_from) in [("1:30", "2:00", "1:30"), ("", "45", "0:00")] {
+        harness
+            .state()
+            .backend()
+            .handed
+            .lock()
+            .unwrap()
+            .push_back(dm_shell::host::Request {
+                url: world.url("file.zip"),
+                referrer: "https://video.example/watch".into(),
+                ask: true,
+                from: from.into(),
+                to: to.into(),
+                ..Default::default()
+            });
+        harness.state_mut().take_handed();
+        harness.run_steps(3);
+        let d = harness.state().dialogs.file_info.as_ref().unwrap();
+        assert!(d.part, "the part was not switched on");
+        assert_eq!((d.part_from.as_str(), d.part_to.as_str()), (shown_from, to));
+        assert!(harness.query_by_label("Only a part of the video").is_some());
+        click(&mut harness, "Cancel");
+    }
+    // No part asked for: the dialog is as it was.
+    harness
+        .state()
+        .backend()
+        .handed
+        .lock()
+        .unwrap()
+        .push_back(dm_shell::host::Request {
+            url: world.url("file.zip"),
+            ask: true,
+            ..Default::default()
+        });
+    harness.state_mut().take_handed();
+    harness.run_steps(3);
+    let d = harness.state().dialogs.file_info.as_ref().unwrap();
+    assert!(!d.part && d.part_from.is_empty() && d.part_to.is_empty());
+}
+
+/// With "Take a copied link at once" on, a link copied opens its Download
+/// details with no bar first, as reference A's switch does; off, it is
+/// offered as before.
+#[test]
+fn a_copied_link_is_taken_at_once_where_that_is_on() {
+    let _file = settings_file();
+    let world = world();
+    *world.fake.clipboard.lock().unwrap() = Some("nothing yet".into());
+    let mut harness = world.harness();
+    let mut wanted = harness.state().applied.clone();
+    wanted.watch_clipboard = true;
+    wanted.start_copied = true;
+    harness.state_mut().apply_settings(wanted).unwrap();
+    harness.state_mut().set_clipboard_watch(true);
+    let copied = world.url("taken.iso");
+    *world.fake.clipboard.lock().unwrap() = Some(copied.clone());
+    harness.state_mut().check_clipboard();
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().clipboard_offer(),
+        None,
+        "offered, not taken"
+    );
+    let details = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .map(|f| f.urls.clone());
+    assert_eq!(
+        details,
+        Some(vec![copied.clone()]),
+        "Download details did not open for it"
+    );
+    harness.state_mut().dialogs.file_info = None;
+    // Copied again, it is not taken twice.
+    *world.fake.clipboard.lock().unwrap() = Some("other words".into());
+    harness.state_mut().check_clipboard();
+    *world.fake.clipboard.lock().unwrap() = Some(copied);
+    harness.state_mut().check_clipboard();
+    harness.run_steps(2);
+    assert!(harness.state().dialogs.file_info.is_none(), "taken twice");
+    // Off again: offered in the bar, as before.
+    let mut back = harness.state().applied.clone();
+    back.start_copied = false;
+    harness.state_mut().apply_settings(back).unwrap();
+    let fresh = world.url("offered.iso");
+    *world.fake.clipboard.lock().unwrap() = Some(fresh.clone());
+    harness.state_mut().check_clipboard();
+    assert_eq!(harness.state().clipboard_offer(), Some(fresh.as_str()));
+    let mut off = harness.state().applied.clone();
+    off.watch_clipboard = false;
+    harness.state_mut().apply_settings(off).unwrap();
+}
+
+/// "Download links" as reference A's: pictures and an address the page gives
+/// twice are left out (each can be shown again), each link's folder is said,
+/// Edit opens a link's name and address, and every file can be sent to one
+/// folder, a link renamed there keeping its name.
+#[test]
+fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let request = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![
+            world.url("file.zip"),
+            world.url("photo.jpg"),
+            world.url("other.pdf"),
+            world.url("file.zip"),
+        ],
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(request, &backend);
+    harness.run_steps(3);
+    let visible = |h: &Harness<'_, DmApp>| h.state().dialogs.links.as_ref().unwrap().visible();
+    assert_eq!(
+        visible(&harness),
+        [true, false, true, false],
+        "a picture or a repeat was listed"
+    );
+    click(&mut harness, "Hide images");
+    assert_eq!(
+        visible(&harness),
+        [true, true, true, false],
+        "Hide images did not let the picture back"
+    );
+    click(&mut harness, "Hide images");
+    click(&mut harness, "Hide repeated files");
+    assert_eq!(visible(&harness), [true, false, true, true]);
+    click(&mut harness, "Hide repeated files");
+
+    // Edit opens the first listed link's name and address.
+    harness
+        .query_all_by_label("Edit")
+        .next()
+        .expect("an Edit button on each row")
+        .click();
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().dialogs.links.as_ref().unwrap().editing,
+        Some(0)
+    );
+    click(&mut harness, "Done");
+    assert_eq!(
+        harness.state().dialogs.links.as_ref().unwrap().editing,
+        None
+    );
+
+    // Every file to one folder, other.pdf under a name of its own.
+    let folder = tempfile::tempdir().unwrap();
+    let where_to = folder.path().display().to_string();
+    {
+        let d = harness.state_mut().dialogs.links.as_mut().unwrap();
+        d.names.insert(world.url("other.pdf"), "renamed.pdf".into());
+        d.save_to = dm_desktop::dialogs::SaveTo::OneFolder;
+        d.folder.clone_from(&where_to);
+    }
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label_contains("renamed.pdf").is_some(),
+        "the name given is not the one listed"
+    );
+    click(&mut harness, "Check all");
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let rows = harness.state().rows().to_vec();
+    assert_eq!(
+        rows.len(),
+        2,
+        "{:?}",
+        rows.iter().map(|r| &r.url).collect::<Vec<_>>()
+    );
+    assert!(
+        rows.iter()
+            .all(|r| r.save_dir.as_deref() == Some(where_to.as_str())),
+        "not every file goes to the folder chosen"
+    );
+    let pdf = rows.iter().find(|r| r.url.ends_with("/other.pdf")).unwrap();
+    assert_eq!(pdf.save_name.as_deref(), Some("renamed.pdf"));
+}
+
+/// Each link's words on the page show in a Link text column and become its
+/// download's description, as reference A's "Use link texts as
+/// descriptions"; unticked, none is kept.
+#[test]
+fn a_links_words_on_the_page_are_shown_and_kept_as_its_description() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let texts: std::collections::BTreeMap<String, String> = [
+        (world.url("file.zip"), "The whole archive".to_string()),
+        (world.url("other.pdf"), "The manual".to_string()),
+    ]
+    .into_iter()
+    .collect();
+    let request = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![world.url("file.zip"), world.url("other.pdf")],
+        texts,
+        // The page's `download` attribute names the archive's file (row 123).
+        names: [(world.url("file.zip"), "Whole archive.zip".to_string())]
+            .into_iter()
+            .collect(),
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(request, &backend);
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Link text").is_some());
+    assert!(
+        harness.query_by_label("The whole archive").is_some(),
+        "the link's words are not shown"
+    );
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let notes: Vec<String> = harness
+        .state()
+        .rows()
+        .iter()
+        .map(|r| r.description.clone())
+        .collect();
+    assert!(
+        notes.contains(&"The whole archive".to_string()),
+        "{notes:?}"
+    );
+    assert!(notes.contains(&"The manual".to_string()), "{notes:?}");
+    let named = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url.ends_with("/file.zip"))
+        .and_then(|r| r.save_name.clone());
+    assert_eq!(named.as_deref(), Some("Whole archive.zip"));
+
+    // Unticked, the words are shown and not kept.
+    let again = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![world.url("third.bin")],
+        texts: [(world.url("third.bin"), "A third".to_string())]
+            .into_iter()
+            .collect(),
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(again, &backend);
+    harness.run_steps(3);
+    click(&mut harness, "Use link texts as descriptions");
+    click(&mut harness, "Check all");
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let third = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url.ends_with("/third.bin"))
+        .cloned()
+        .expect("the third link was added");
+    assert_eq!(third.description, "");
+}
+
+/// "Add for later" in Download links puts the links in the queue chosen beside
+/// it, as reference A asks on closing a batch dialog (gaps row 85); the Main
+/// queue until another is chosen.
+#[test]
+fn download_links_adds_for_later_to_the_queue_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.state_mut().refresh();
+    let id = row(&harness, "file.zip").id;
+    harness.state().backend.set_queue(id, "Night");
+    until(&mut harness, "the row to be in the Night queue", |app| {
+        app.rows().iter().any(|r| r.queue == "Night")
+    });
+    let request = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![world.url("other.pdf")],
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(request, &backend);
+    harness.run_steps(3);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .links
+            .as_ref()
+            .map(|d| d.queue.clone()),
+        Some(dm_core::MAIN_QUEUE.to_string())
+    );
+    if let Some(d) = harness.state_mut().dialogs.links.as_mut() {
+        d.queue = "Night".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let other = row(&harness, "other.pdf");
+    assert_eq!(other.queue, "Night");
+    assert_eq!(harness.state().said.english(), "Added 1 download to Night.");
+}
+
+/// A saved Grabber search is listed under Grabber projects in the side panel,
+/// as reference A keeps its projects there; clicking it opens the Grabber with
+/// it filled in (gaps row 92).
+#[test]
+fn a_saved_grabber_search_is_a_project_in_the_side_panel() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let mut settings = harness.state().applied.clone();
+    settings.site_searches.push(dm_shell::lists::Search {
+        name: "Manuals".into(),
+        page: world.url("page.html"),
+        types: vec!["pdf".into()],
+        min_kb: 20,
+        ..Default::default()
+    });
+    harness.state_mut().apply_settings(settings).unwrap();
+    harness.run_steps(3);
+    // Open from the start, as the side panel's other groups are: a click on
+    // its heading would shut it.
+    assert!(harness.query_by_label("Grabber projects").is_some());
+    click(&mut harness, "Manuals");
+    harness.run_steps(3);
+    let d = harness
+        .state()
+        .dialogs
+        .site_files
+        .as_ref()
+        .expect("the Grabber opened");
+    assert_eq!(d.page, world.url("page.html"));
+    assert_eq!(d.types, "pdf");
+    assert_eq!(d.min_kb, 20);
+    assert_eq!(d.name, "Manuals");
+}
+
+/// Help has reference A's items (gaps row 91); Tip of the day shows a tip and Next tip the
+/// next; Tell a friend is an email for the person's own mail program, nothing sent by dm.
+#[test]
+fn help_has_reference_as_items_and_tip_of_the_day_shows_the_next_tip() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Help");
+    harness.run_steps(2);
+    for item in [
+        "Tutorials",
+        "Queues and the Scheduler",
+        "Grabber help",
+        "Tip of the day",
+        "Home page",
+        "Contact support",
+        "Tell a friend",
+    ] {
+        assert!(harness.query_by_label(item).is_some(), "no {item} in Help");
+    }
+    click(&mut harness, "Tip of the day");
+    harness.run_steps(3);
+    let tips = dm_desktop::dialogs::tips();
+    assert!(harness.query_by_label(tips[0]).is_some(), "the first tip");
+    click(&mut harness, "Next tip");
+    harness.run_steps(3);
+    assert!(harness.query_by_label(tips[1]).is_some(), "the next tip");
+    click(&mut harness, "Close");
+    harness.run_steps(2);
+    assert!(harness.state().dialogs.tip.is_none());
+    let mail = dm_desktop::dialogs::tell_a_friend();
+    assert!(mail.starts_with("mailto:?subject="), "{mail}");
+    assert!(mail.contains("github.com"), "{mail}");
+}
+
+/// With Options' "Start downloading while Download details is open", a plain file starts
+/// at once and Start now places it under the name chosen; Cancel removes what was begun
+/// (gaps row 85).
+#[test]
+fn a_file_starts_while_download_details_asks_and_lands_where_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let mut settings = harness.state().applied.clone();
+    settings.start_while_asking = true;
+    harness.state_mut().apply_settings(settings).unwrap();
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    harness.run_steps(3);
+    until(&mut harness, "the file to start before Start now", |app| {
+        app.rows().iter().any(|r| r.url.ends_with("/file.zip"))
+    });
+    if let Some(d) = harness.state_mut().dialogs.file_info.as_mut() {
+        d.name = "chosen.zip".into();
+        d.name_typed = true;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Start now");
+    until(
+        &mut harness,
+        "the file to finish under the name chosen",
+        |app| {
+            app.rows()
+                .iter()
+                .any(|r| r.state == dm_core::State::Completed && r.path.ends_with("chosen.zip"))
+        },
+    );
+    assert_eq!(
+        harness
+            .state()
+            .rows()
+            .iter()
+            .filter(|r| r.url.ends_with("/file.zip"))
+            .count(),
+        1,
+        "added once, not again on Start now"
+    );
+
+    // Cancel: what was begun goes.
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("other.pdf")]);
+    harness.run_steps(3);
+    until(&mut harness, "the second file to start", |app| {
+        app.rows().iter().any(|r| r.url.ends_with("/other.pdf"))
+    });
+    click(&mut harness, "Cancel");
+    until(&mut harness, "the begun file to be removed", |app| {
+        !app.rows().iter().any(|r| r.url.ends_with("/other.pdf"))
+    });
+}
+
+/// A stopped torrent's Properties lists its files, a tick and a priority
+/// each (gaps row 149): High set on one is kept on the download, and so the
+/// queue fetches that file first.
+#[test]
+fn a_torrents_file_is_given_a_priority_in_properties() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add_with(
+            &world.url("file.zip"),
+            dm_core::AddOptions {
+                later: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    // The row as a launch reads a paused torrent of three files back.
+    let mut torrent: dm_core::Entry = (*harness.state().rows()[0]).clone();
+    torrent.state = State::Paused;
+    torrent.torrent_files = ["a.bin", "b.bin", "c.bin"]
+        .iter()
+        .map(|name| dm_core::TorrentFile {
+            name: (*name).into(),
+            size: 1024,
+            wanted: true,
+            priority: dm_core::TorrentPriority::Normal,
+        })
+        .collect();
+    let stored = world.dir.path().join("torrent-queue.json");
+    std::fs::write(&stored, serde_json::to_string(&vec![torrent]).unwrap()).unwrap();
+    let mut harness = world.harness();
+    let queue = harness.state().backend().queue.clone();
+    world.runtime.block_on(queue.persist_to(stored));
+    harness.state_mut().refresh();
+    let row = harness.state().rows()[0].clone();
+    assert_eq!(row.torrent_files.len(), 3);
+    harness.state_mut().dialogs.open_properties(&row);
+    harness.run_steps(4);
+
+    // One drop-down a file, each named for its file; the third set to High.
+    use egui::accesskit::Role;
+    for name in ["a.bin", "b.bin", "c.bin"] {
+        let label = format!("Priority of {name}");
+        assert!(
+            harness
+                .query_by_role_and_label(Role::ComboBox, &label)
+                .is_some(),
+            "no {label}"
+        );
+    }
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Priority of c.bin")
+        .click();
+    harness.run_steps(3);
+    harness.get_by_label("High").click();
+    harness.run_steps(3);
+    click(&mut harness, "OK");
+    harness.state_mut().refresh();
+    let kept: Vec<_> = harness.state().rows()[0]
+        .torrent_files
+        .iter()
+        .map(|f| f.priority)
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            dm_core::TorrentPriority::Normal,
+            dm_core::TorrentPriority::Normal,
+            dm_core::TorrentPriority::High
+        ]
+    );
 }

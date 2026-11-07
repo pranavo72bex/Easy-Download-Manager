@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Every action dm's window can take, by name.
 //!
 //! This is dm's registry: the menu bar, the toolbar, the row menu, the
@@ -7,77 +12,144 @@
 /// The speed presets, in KB/s: one click from the tray or Downloads ›
 /// Speed limiter, beside the exact limit Speed limiter settings keeps.
 pub const SPEED_LOW: u64 = 256;
+/// The middle speed preset, in KB/s.
 pub const SPEED_MEDIUM: u64 = 1024;
+/// The highest speed preset, in KB/s.
 pub const SPEED_HIGH: u64 = 4096;
 
 /// One action, as the menu, toolbar, keyboard or control protocol asks for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Command {
     // Program
+    /// Opens the dialog to add a download by its address.
     AddUrl,
+    /// Opens the dialog to add a numbered series of addresses.
     AddSeries,
+    /// Adds the addresses on the clipboard.
     AddFromClipboard,
+    /// Reads a list of downloads from a file.
     Import,
+    /// Writes the list of downloads to a file.
     Export,
+    /// Opens the dialog to download the files a web page links to.
     SiteFiles,
+    /// Closes dm.
     Quit,
     // File (the selected rows)
+    /// Starts the selected downloads at once.
     DownloadNow,
+    /// Stops the selected downloads.
     StopDownload,
+    /// Removes the selected rows from the list, keeping their files.
     Remove,
+    /// Removes the selected rows and deletes their files.
     DeleteFile,
+    /// Downloads the selected files again from the start.
     Redownload,
+    /// Gives the selected download a new address.
     UpdateLink,
+    /// Copies the selected download's address.
     CopyLink,
+    /// Copies the selected download's details, for a support request.
+    CopyDetails,
+    /// Moves the selected downloads into a queue.
     MoveToQueue,
+    /// Takes the selected downloads out of their queue.
     RemoveFromQueue,
+    /// Moves the selected downloads one place up in their queue.
     MoveUp,
+    /// Moves the selected downloads one place down in their queue.
     MoveDown,
+    /// Opens the selected download's properties.
     Properties,
+    /// Opens the selected download's progress window.
     ShowProgress,
+    /// Opens the finished file.
     OpenFile,
+    /// Opens the finished file with a program the person picks.
     OpenWith,
+    /// Opens a preview of the file.
     Preview,
+    /// Opens the folder the file is in.
     OpenFolder,
+    /// Extracts an archive into its own folder.
     ExtractHere,
+    /// Extracts an archive into a folder the person picks.
     ExtractTo,
+    /// Moves or renames the finished file.
     MoveRename,
+    /// Selects every row.
     SelectAll,
     // Downloads
+    /// Resumes every stopped download.
     ResumeAll,
+    /// Stops every running download.
     StopAll,
+    /// Removes every finished download from the list.
     DeleteCompleted,
+    /// Opens the search box.
     Find,
+    /// Goes to the next row that matches the search.
     FindNext,
+    /// Goes to the previous row that matches the search.
+    FindPrevious,
+    /// Opens the scheduler for queues.
     Scheduler,
+    /// Starts the selected queue.
     StartQueue,
+    /// Stops the selected queue.
     StopQueue,
+    /// Turns the speed limit on or off.
     SpeedLimiterToggle,
+    /// Opens the speed limiter's settings.
     SpeedLimiterSettings,
+    /// Sets the speed limit to the low preset.
     SpeedLow,
+    /// Sets the speed limit to the middle preset.
     SpeedMedium,
+    /// Sets the speed limit to the high preset.
     SpeedHigh,
+    /// Removes the speed limit.
     SpeedUnlimited,
+    /// Does nothing when all downloads are finished.
     WhenDoneNothing,
+    /// Closes dm when all downloads are finished.
     WhenDoneQuit,
+    /// Puts the computer to sleep when all downloads are finished.
     WhenDoneSleep,
+    /// Hibernates the computer when all downloads are finished.
     WhenDoneHibernate,
+    /// Shuts the computer down when all downloads are finished.
     WhenDoneShutDown,
+    /// Opens Options.
     Options,
     // View
+    /// Shows or hides the category list.
     ToggleCategories,
+    /// Shows or hides the toolbar.
     ToggleToolbar,
+    /// Shows or hides the drop target.
     ToggleDropTarget,
+    /// Sorts the list by name.
     SortByName,
+    /// Sorts the list by size.
     SortBySize,
+    /// Sorts the list by status.
     SortByStatus,
+    /// Sorts the list by time left.
     SortByTimeLeft,
+    /// Sorts the list by transfer rate.
     SortByRate,
+    /// Sorts the list by date.
     SortByDate,
+    /// Sorts the list by description.
     SortByDescription,
     // Help
+    /// Opens the help.
     Help,
+    /// Opens About.
     About,
+    /// Checks whether a newer version exists.
     CheckForUpdates,
 }
 
@@ -98,6 +170,7 @@ impl Command {
         Command::Redownload,
         Command::UpdateLink,
         Command::CopyLink,
+        Command::CopyDetails,
         Command::MoveToQueue,
         Command::RemoveFromQueue,
         Command::MoveUp,
@@ -117,6 +190,7 @@ impl Command {
         Command::DeleteCompleted,
         Command::Find,
         Command::FindNext,
+        Command::FindPrevious,
         Command::Scheduler,
         Command::StartQueue,
         Command::StopQueue,
@@ -164,6 +238,7 @@ impl Command {
             Command::Redownload => "file.redownload",
             Command::UpdateLink => "file.update_link",
             Command::CopyLink => "file.copy_link",
+            Command::CopyDetails => "file.copy_details",
             Command::MoveToQueue => "file.move_to_queue",
             Command::RemoveFromQueue => "file.remove_from_queue",
             Command::MoveUp => "file.move_up",
@@ -183,6 +258,7 @@ impl Command {
             Command::DeleteCompleted => "downloads.clear_finished",
             Command::Find => "downloads.find",
             Command::FindNext => "downloads.find_next",
+            Command::FindPrevious => "downloads.find_previous",
             Command::Scheduler => "downloads.scheduler",
             Command::StartQueue => "downloads.start_queue",
             Command::StopQueue => "downloads.stop_queue",
@@ -264,15 +340,16 @@ impl Command {
             Command::AddFromClipboard => "Add links from clipboard",
             Command::Import => "Import",
             Command::Export => "Export",
-            Command::SiteFiles => "Site files",
+            Command::SiteFiles => "Grabber",
             Command::Quit => "Exit",
             Command::DownloadNow => "Resume download",
             Command::StopDownload => "Stop download",
-            Command::Remove => "Remove",
+            Command::Remove => "Delete",
             Command::DeleteFile => "Delete file",
             Command::Redownload => "Redownload",
             Command::UpdateLink => "Update download link",
             Command::CopyLink => "Copy link",
+            Command::CopyDetails => "Copy details",
             Command::MoveToQueue => "Move to queue",
             Command::RemoveFromQueue => "Take out of queue",
             Command::MoveUp => "Move up",
@@ -288,13 +365,14 @@ impl Command {
             Command::MoveRename => "Move/Rename",
             Command::SelectAll => "Select all",
             Command::ResumeAll => "Resume all",
-            Command::StopAll => "Stop all",
-            Command::DeleteCompleted => "Clear finished",
+            Command::StopAll => "Stop All",
+            Command::DeleteCompleted => "Delete Completed",
             Command::Find => "Find",
             Command::FindNext => "Find next",
+            Command::FindPrevious => "Find previous",
             Command::Scheduler => "Scheduler",
-            Command::StartQueue => "Start queue",
-            Command::StopQueue => "Stop queue",
+            Command::StartQueue => "Start Queue",
+            Command::StopQueue => "Stop Queue",
             Command::SpeedLimiterToggle => "Limit speed",
             Command::SpeedLimiterSettings => "Speed limiter settings",
             Command::SpeedLow => "Low speed (256 KB/s)",
@@ -343,6 +421,7 @@ impl Command {
             )],
             Command::Find => cmd(Key::F),
             Command::FindNext => plain(Key::F3),
+            Command::FindPrevious => vec![KeyboardShortcut::new(Modifiers::SHIFT, Key::F3)],
             Command::SelectAll => cmd(Key::A),
             Command::Remove if cfg!(target_os = "macos") => vec![
                 KeyboardShortcut::new(Modifiers::COMMAND, Key::Backspace),
@@ -371,6 +450,7 @@ impl Command {
                 | Command::DownloadNow
                 | Command::StopDownload
                 | Command::FindNext
+                | Command::FindPrevious
         )
     }
 

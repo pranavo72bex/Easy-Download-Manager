@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Builds the extension and the store zip for each browser.
 #
 #   sh scripts/package.sh            build, stage and zip
@@ -19,11 +24,25 @@ export PATH="$HOME/.cargo/bin:$PATH"
 version=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$root/extension/manifest.json" | head -1)
 dist="$root/dist"
 pkg="$root/extension/pkg"
+# A Python that runs: on Windows `python3` can be the Microsoft Store's
+# placeholder, which only prints how to install Python, and every check
+# below then failed as though it had found something wrong.
+py=
+for candidate in python3 python; do
+  if "$candidate" -c "import sys; sys.exit(sys.version_info < (3, 8))" >/dev/null 2>&1; then
+    py=$candidate
+    break
+  fi
+done
+if [ -z "$py" ]; then
+  echo "package.sh needs Python 3.8 or newer (python3 or python)" >&2
+  exit 1
+fi
 
 # The stores refuse a description over 132 characters (Edge Add-ons said
 # so on a manual upload); refused here first.
 for manifest in "$root/extension/manifest.json" "$root/extension/manifest.firefox.json"; do
-  if ! python3 -c "import json,sys; d=json.load(open(sys.argv[1]))['description']; sys.exit(len(d) > 132)" "$manifest"; then
+  if ! "$py" -c "import json,sys; d=json.load(open(sys.argv[1]))['description']; sys.exit(len(d) > 132)" "$manifest"; then
     echo "$manifest: the description is over the stores' 132 characters" >&2
     exit 1
   fi
@@ -52,17 +71,20 @@ fi
 # ----------------------------------------------------------------- build
 
 echo "building the extension (dm-catcher, wasm32)"
-(cd "$root/browser" && cargo build --release --target wasm32-unknown-unknown --locked)
+# Without the building computer's paths in the WebAssembly the stores publish
+# (scripts/release-flags.sh).
+(cd "$root/browser" && CARGO_BUILD_RUSTFLAGS="$(sh "$root/scripts/release-flags.sh")" \
+  cargo build --release --target wasm32-unknown-unknown --locked)
 rm -rf "$pkg"
 wasm-bindgen --target web --no-typescript --out-dir "$pkg" \
-  "$root/browser/target/wasm32-unknown-unknown/release/dm_catcher.wasm"
+  "${CARGO_TARGET_DIR:-$root/browser/target}/wasm32-unknown-unknown/release/dm_catcher.wasm"
 # The panel's copy, which the background puts into a page's frame with
 # scripting.executeScript: a script of its own (no module), its WebAssembly
 # written into it, so the page's frame fetches nothing from the extension.
 panel=$(mktemp -d)
 wasm-bindgen --target no-modules --no-typescript --out-dir "$panel" \
-  "$root/browser/target/wasm32-unknown-unknown/release/dm_catcher.wasm"
-python3 - "$panel" "$pkg/panel.js" <<'PY'
+  "${CARGO_TARGET_DIR:-$root/browser/target}/wasm32-unknown-unknown/release/dm_catcher.wasm"
+"$py" - "$panel" "$pkg/panel.js" <<'PY'
 import base64, pathlib, sys
 src = pathlib.Path(sys.argv[1])
 glue = (src / "dm_catcher.js").read_text()
@@ -77,6 +99,20 @@ pathlib.Path(sys.argv[2]).write_text(
     + "__dmPanelCode.catch(() => {});\n})();\n")
 PY
 rm -rf "$panel"
+# The digest of the WebAssembly, in a module the background imports beside the
+# glue. A browser keeps an unpacked extension's worker scripts (background.js,
+# the glue, this) from when the extension was loaded, but fetches the .wasm from
+# the folder each time the worker starts: after a rebuild in place it paired old
+# glue with new WebAssembly and failed with "wasm.__wasm_bindgen_func_elem_… is
+# not a function" (gaps row 114). The background compares the bytes it fetched
+# with this digest and reloads the extension when they differ.
+"$py" - "$pkg/dm_catcher_bg.wasm" "$pkg/build.js" <<'PY'
+import hashlib, pathlib, sys
+digest = hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
+pathlib.Path(sys.argv[2]).write_text(
+    "// Built by scripts/package.sh: the SHA-256 of dm_catcher_bg.wasm from the same build.\n"
+    + f"export const WASM_SHA256 = '{digest}';\n")
+PY
 echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAssembly"
 
 [ "${1:-}" = "--build" ] && exit 0
@@ -107,22 +143,42 @@ pack() {
   (cd "$root/extension" && cp -R $files "$stage/")
   rm -f "$stage/pkg/.gitignore"
   cp "$root/extension/$manifest" "$stage/manifest.json"
+  # The licence and the attribution it requires go with every copy (NOTICE).
+  cp "$root/LICENSE" "$root/NOTICE" "$stage/"
 
   # Every file a manifest names must be in what ships, and so must the
   # module the loader imports and the WebAssembly that module fetches.
   for named in $(sed -n 's/.*"\(icons\/[^"]*\)".*/\1/p; s/.*"\(background\.js\)".*/\1/p; s/.*"\(content\.js\)".*/\1/p; s/.*"\(document\.js\)".*/\1/p; s/.*"\(popup\.html\)".*/\1/p' "$stage/manifest.json") \
-               popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js; do
+               popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js pkg/build.js; do
     if [ ! -f "$stage/$named" ]; then
       echo "the $browser build is missing $named" >&2
       exit 1
     fi
   done
-  if find "$stage" -name '*.js' | grep -v -e '/background.js$' -e '/content.js$' -e '/document.js$' -e '/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' >/dev/null; then
+  if find "$stage" -name '*.js' | grep -v -e '/background.js$' -e '/content.js$' -e '/document.js$' -e '/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' -e '/pkg/build.js$' >/dev/null; then
     echo "the $browser build carries JavaScript that is neither the loader nor wasm-bindgen's" >&2
     exit 1
   fi
 
-  (cd "$stage" && zip -qr "$dist/dm-$browser-$version.zip" .)
+  # Git Bash on Windows has no `zip`: there the store zips came out empty
+  # (0 bytes) and nothing said so. Python's zipfile does the same job.
+  out="$dist/dm-$browser-$version.zip"
+  rm -f "$out"
+  if command -v zip >/dev/null 2>&1; then
+    (cd "$stage" && zip -qr "$out" .)
+  else
+    "$py" - "$stage" "$out" <<'PY'
+import pathlib, sys, zipfile
+stage, out = pathlib.Path(sys.argv[1]), sys.argv[2]
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for f in sorted(p for p in stage.rglob("*") if p.is_file()):
+        z.write(f, f.relative_to(stage).as_posix())
+PY
+  fi
+  if ! "$py" -c "import sys, zipfile; sys.exit('manifest.json' not in zipfile.ZipFile(sys.argv[1]).namelist())" "$out"; then
+    echo "the $browser zip ($out) is empty or has no manifest.json" >&2
+    exit 1
+  fi
   echo "  dist/$browser (unpacked)  dist/dm-$browser-$version.zip"
 }
 

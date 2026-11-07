@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # CachyOS with Brave, Google Chrome, Microsoft Edge and Firefox, and dm and
 # its extension built from this checkout, for the extension hand-off checks
 # (scripts/chrome-check.py, scripts/firefox-check.py native) in each browser.
@@ -23,7 +28,6 @@ RUN --mount=type=cache,id=dm-amd64-registry,target=/usr/local/cargo/registry \
 
 FROM --platform=linux/amd64 cachyos/cachyos:latest
 ARG BRAVE=1.98.62
-ARG YTDLP=2026.10.26
 # pacman's own sandbox and free-space check do not work under emulation.
 RUN sed -i '/^CheckSpace/d; s/^\[options\]/[options]\nDisableSandbox/' /etc/pacman.conf \
  && pacman -Sy --noconfirm --needed python xorg-server-xvfb xorg-xauth mesa gtk3 libxkbcommon-x11 libxcb \
@@ -42,10 +46,8 @@ RUN f=$(curl -fsSL https://packages.microsoft.com/repos/edge/dists/stable/main/b
         | awk '/^Package: microsoft-edge-stable$/{p=1} p&&/^Filename:/{print $2; p=0}' | sort -V | tail -1) \
  && curl -fsSL -o /tmp/e.deb "https://packages.microsoft.com/repos/edge/$f" \
  && cd /tmp && bsdtar -xf e.deb data.tar.xz && bsdtar -xf data.tar.xz -C / && rm -f e.deb data.tar.xz
-RUN curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP}/yt-dlp \
- && chmod +x /usr/local/bin/yt-dlp
 COPY --from=build /usr/local/bin/dm-desktop /usr/local/bin/dm-desktop
 COPY --from=build /out/dist /repo/dist
 COPY scripts /repo/scripts
-ENV DM_BINARY=/usr/local/bin/dm-desktop DM_YTDLP=/usr/local/bin/yt-dlp DM_FIREFOX_CACHE=/opt/ff
+ENV DM_BINARY=/usr/local/bin/dm-desktop DM_FIREFOX_CACHE=/opt/ff
 WORKDIR /repo

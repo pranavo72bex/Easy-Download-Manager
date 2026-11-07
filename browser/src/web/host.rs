@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The native messaging port to the app, and the handshake that finds out what it is.
 
 use super::*;
@@ -127,8 +132,12 @@ pub(super) async fn app() -> (App, Option<Port>) {
     if let App::Absent { reason } = &app {
         log("info", &format!("no app to hand downloads to: {reason}"));
     }
-    if let App::Present { rules, .. } = &app {
+    if let App::Present { rules, hello } = &app {
         remember_rules(rules).await;
+        // The site rules the app serves are added to the built-in tables; an app
+        // that serves none (an older one) leaves the tables as they were built.
+        decide::rules::install(hello.rules.clone());
+        remember_served(decide::rules::held().as_ref()).await;
     }
     KNOWN.with(|k| {
         *k.borrow_mut() = Some(Known {

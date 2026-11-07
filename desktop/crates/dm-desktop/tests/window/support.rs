@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! What every window test stands on: the fake operating system, the world a
 //! test runs in (a real queue fetching from a loopback server), and the
 //! helpers that click, type and wait.
@@ -55,6 +60,8 @@ pub(crate) fn home() -> &'static std::path::Path {
         // SAFETY: set once (`OnceLock`), before any test reads it: they all reach
         // the home through this function.
         unsafe { std::env::set_var("DM_HOME", dir.path()) };
+        // And no secrets left in the person's own store by a throw-away home.
+        unsafe { std::env::set_var("DM_NO_SECRET_STORE", "1") };
         // Sizes and dates as the language writes them, on any machine.
         dm_desktop::region::pin(None);
         dir
@@ -159,6 +166,52 @@ pub(crate) fn payload() -> Vec<u8> {
     (0..PAYLOAD).map(|i| (i * 7 % 251) as u8).collect()
 }
 
+/// A small ZIP, stored: a folder, a 1,000-byte file in it and a 5,000-byte one.
+pub(crate) fn tiny_zip() -> Vec<u8> {
+    use std::io::Write;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut buffer);
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        zip.add_directory("docs/", stored).unwrap();
+        zip.start_file("docs/readme.txt", stored).unwrap();
+        zip.write_all(&[b'a'; 1000]).unwrap();
+        zip.start_file("setup.exe", stored).unwrap();
+        zip.write_all(&[b'b'; 5000]).unwrap();
+        zip.finish().unwrap();
+    }
+    buffer.into_inner()
+}
+
+/// `data` as a server that serves ranges answers for it.
+fn ranged(headers: &axum::http::HeaderMap, data: Vec<u8>) -> Response {
+    let total = data.len();
+    let asked = headers
+        .get("range")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("bytes="))
+        .and_then(|v| v.split_once('-'));
+    match asked {
+        Some((from, to)) => {
+            let from: usize = from.parse().unwrap_or(0);
+            let to: usize = to.parse().unwrap_or(total - 1).min(total - 1);
+            Response::builder()
+                .status(206)
+                .header("content-range", format!("bytes {from}-{to}/{total}"))
+                .header("accept-ranges", "bytes")
+                .header("content-length", to - from + 1)
+                .body(Body::from(data[from..=to].to_vec()))
+                .unwrap()
+        }
+        None => Response::builder()
+            .header("accept-ranges", "bytes")
+            .header("content-length", total)
+            .body(Body::from(data))
+            .unwrap(),
+    }
+}
+
 /// A server with one file that arrives at once and one that never does.
 pub(crate) fn world() -> World {
     home();
@@ -168,6 +221,22 @@ pub(crate) fn world() -> World {
             .route(
                 "/file.zip",
                 axum::routing::get(|| async { Response::new(Body::from(payload())) }),
+            )
+            // A ZIP from a server that serves ranges, one from a server that
+            // does not, and a file named .zip that is none.
+            .route(
+                "/pack.zip",
+                axum::routing::get(|h: axum::http::HeaderMap| async move { ranged(&h, tiny_zip()) }),
+            )
+            .route(
+                "/plain.zip",
+                axum::routing::get(|| async { Response::new(Body::from(tiny_zip())) }),
+            )
+            .route(
+                "/notzip.zip",
+                axum::routing::get(|h: axum::http::HeaderMap| async move {
+                    ranged(&h, b"this is only text, long enough to be read from its end".to_vec())
+                }),
             )
             .route(
                 "/page.html",
@@ -231,6 +300,26 @@ pub(crate) fn world() -> World {
                             "attachment; filename=\"report-2026.pdf\"",
                         )
                         .body(Body::from(payload()))
+                        .unwrap()
+                }),
+            )
+            .route(
+                "/article",
+                axum::routing::get(|| async {
+                    // A page typed into Add URL: neither a file nor a video site's page.
+                    Response::builder()
+                        .header("content-type", "text/html; charset=utf-8")
+                        .body(Body::from("<html><title>An article</title><body>words</body></html>"))
+                        .unwrap()
+                }),
+            )
+            .route(
+                "/pagefile.zip",
+                axum::routing::get(|| async {
+                    // A sign-in page where a file was asked for.
+                    Response::builder()
+                        .header("content-type", "text/html; charset=utf-8")
+                        .body(Body::from("<html><title>Sign in</title><body>expired</body></html>"))
                         .unwrap()
                 }),
             )
@@ -327,7 +416,7 @@ pub(crate) fn world() -> World {
                         .unwrap();
                 }
                 // The engine's first look: one byte, and the size.
-                if headers.get("range").is_some_and(|r| r == "bytes=0-0") {
+                if headers.get("range").is_some_and(|r| r == "bytes=0-0" || r == "bytes=0-") {
                     return Response::builder()
                         .status(206)
                         .header("content-range", "bytes 0-0/1000000")
@@ -415,6 +504,11 @@ impl World {
             connections: 1,
             show_progress: false,
             show_complete: false,
+            // Nor Download details before a caught or a panel download,
+            // which a new install shows as reference A does, unless a test
+            // asks for it.
+            ask_caught_downloads: false,
+            ask_panel_downloads: false,
             // The tests find controls by their English names, whatever the
             // machine running them is set to.
             language: "en".into(),
@@ -469,7 +563,17 @@ impl World {
 
 /// Runs frames until `done` says so, or fails after a few seconds.
 pub(crate) fn until(harness: &mut Harness<'_, DmApp>, what: &str, done: impl Fn(&DmApp) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    until_within(harness, what, Duration::from_secs(10), done);
+}
+
+/// [`until`], failing after `most` rather than a few seconds.
+pub(crate) fn until_within(
+    harness: &mut Harness<'_, DmApp>,
+    what: &str,
+    most: Duration,
+    done: impl Fn(&DmApp) -> bool,
+) {
+    let deadline = Instant::now() + most;
     loop {
         harness.state_mut().refresh();
         harness.step();
@@ -554,14 +658,27 @@ pub(crate) fn add_url(harness: &mut Harness<'_, DmApp>, url: &str, button: &str)
 /// Waits for Download details to hear from the server: its answer can add
 /// a line and move the buttons, so a click under load landed where a
 /// button was a frame before. A person, too, sees the dialog settle.
+///
+/// For a video page, its qualities too: they are read beside the server's
+/// answer and lay the dialog out again when they come, and on Windows a
+/// click on "Vertical 9:16" under a full suite took nothing (gaps row 115).
+/// Each is given up on by the dialog itself (20 s and 40 s), so this waits
+/// longer than `until`.
 pub(crate) fn settle_details(harness: &mut Harness<'_, DmApp>) {
-    until(harness, "Download details to hear from the server", |app| {
-        app.dialogs.file_info.as_ref().is_none_or(|d| {
-            d.probed
+    fn heard<T>(slot: Option<&std::sync::Arc<std::sync::Mutex<Option<T>>>>) -> bool {
+        slot.is_none_or(|s| s.lock().map_or(true, |s| s.is_some()))
+    }
+    until_within(
+        harness,
+        "Download details to hear from the server",
+        Duration::from_secs(45),
+        |app| {
+            app.dialogs
+                .file_info
                 .as_ref()
-                .is_none_or(|p| p.lock().map_or(true, |p| p.is_some()))
-        })
-    });
+                .is_none_or(|d| heard(d.probed.as_ref()) && heard(d.choices.as_ref()))
+        },
+    );
     harness.run_steps(2);
 }
 
@@ -673,9 +790,17 @@ pub(crate) fn greyed(h: &mut Harness<'_, DmApp>, path: &[&str]) -> bool {
         h.run_steps(3);
     }
     let leaf = path[path.len() - 1];
+    // As `press` reads a menu item: its name, or its name and a key after
+    // it, so "Delete" is not "Delete file".
     let disabled = h
         .query_all_by_label_contains(leaf)
-        .last()
+        .rfind(|n| {
+            let label = n.accesskit_node().label().unwrap_or_default();
+            label == leaf
+                || label
+                    .strip_prefix(&format!("{leaf} "))
+                    .is_some_and(|key| !key.starts_with(|c: char| c.is_lowercase()))
+        })
         .unwrap_or_else(|| panic!("{leaf:?} is not on screen"))
         .accesskit_node()
         .is_disabled();

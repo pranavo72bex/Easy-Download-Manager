@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """A portable dm keeps everything beside itself.
 
     python3 scripts/portable-check.py path/to/dm-desktop[.exe]
@@ -72,7 +77,7 @@ try:
           (app.stderr.read().decode(errors="replace")[-300:] if app.poll() is not None else ""))
     if port_file.exists() and (data / "control.token").exists():
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())

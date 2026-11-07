@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A second network path for a download's ranges: another interface (an
 //! iPhone over USB or its hotspot, a second Wi-Fi, a wired port) beside the
 //! one the system routes by. Every other connection of a ranged download
@@ -13,7 +18,9 @@ use std::sync::RwLock;
 /// its address.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Interface {
+    /// The interface's name.
     pub name: String,
+    /// The interface's address.
     pub address: IpAddr,
 }
 
@@ -38,6 +45,26 @@ pub(crate) fn fetched_by(parts: &Path, index: usize, second: bool) {
     }
 }
 
+/// The client for piece `index` of a stream staged in `parts`: every other
+/// piece goes out on the second path where one is chosen, the rest (and all
+/// of them where none is) on `first`. Records which, for `on_second`.
+pub(crate) fn client_for_piece(
+    first: &reqwest::Client,
+    parts: &Path,
+    index: usize,
+) -> reqwest::Client {
+    match second_client() {
+        Some(second) if index % 2 == 1 => {
+            fetched_by(parts, index, true);
+            second
+        }
+        _ => {
+            fetched_by(parts, index, false);
+            first.clone()
+        }
+    }
+}
+
 /// The ranges of the download staged in `parts` last taken on the second
 /// path, in this run.
 pub fn on_second(parts: &Path) -> HashSet<usize> {
@@ -54,10 +81,96 @@ pub fn interfaces() -> Vec<Interface> {
     {
         unix_interfaces()
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        windows_interfaces()
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         Vec::new()
     }
+}
+
+/// Windows' adapters that are up, are not the loopback and have an IPv4 address, each by the
+/// name Windows shows ("Wi-Fi", "Ethernet", "Cellular"): from `GetAdaptersAddresses`. Empty
+/// where they cannot be listed.
+#[cfg(windows)]
+fn windows_interfaces() -> Vec<Interface> {
+    use windows_sys::Win32::Foundation::ERROR_BUFFER_OVERFLOW;
+    use windows_sys::Win32::NetworkManagement::IpHelper::{
+        GetAdaptersAddresses, GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_DNS_SERVER,
+        GAA_FLAG_SKIP_MULTICAST, IF_TYPE_SOFTWARE_LOOPBACK, IP_ADAPTER_ADDRESSES_LH,
+    };
+    use windows_sys::Win32::NetworkManagement::Ndis::IfOperStatusUp;
+    use windows_sys::Win32::Networking::WinSock::{AF_INET, SOCKADDR_IN};
+
+    let mut found = Vec::new();
+    let mut size: u32 = 16 * 1024;
+    for _ in 0..4 {
+        // Eight-byte words, so the list the call writes is aligned as its structures need.
+        let mut buffer = vec![0u64; (size as usize).div_ceil(8)];
+        let list = buffer.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>();
+        // SAFETY: `list` points at `size` writable bytes, which is what the call is told; it
+        // writes a linked list inside them and nothing outside.
+        let result = unsafe {
+            GetAdaptersAddresses(
+                u32::from(AF_INET),
+                GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
+                std::ptr::null(),
+                list,
+                &mut size,
+            )
+        };
+        if result == ERROR_BUFFER_OVERFLOW {
+            continue;
+        }
+        if result != 0 {
+            return found;
+        }
+        let mut at = list.cast_const();
+        while !at.is_null() {
+            // SAFETY: each node, and the addresses and name it points to, live in `buffer`,
+            // which outlives this loop; an address is read as IPv4 only where its family says.
+            unsafe {
+                let adapter = &*at;
+                at = adapter.Next;
+                if adapter.OperStatus != IfOperStatusUp
+                    || adapter.IfType == IF_TYPE_SOFTWARE_LOOPBACK
+                {
+                    continue;
+                }
+                let name = if adapter.FriendlyName.is_null() {
+                    String::new()
+                } else {
+                    let mut len = 0usize;
+                    while *adapter.FriendlyName.add(len) != 0 {
+                        len += 1;
+                    }
+                    String::from_utf16_lossy(std::slice::from_raw_parts(adapter.FriendlyName, len))
+                };
+                if name.is_empty() {
+                    continue;
+                }
+                let mut unicast = adapter.FirstUnicastAddress.cast_const();
+                while !unicast.is_null() {
+                    let address = &*unicast;
+                    unicast = address.Next;
+                    let sockaddr = address.Address.lpSockaddr;
+                    if sockaddr.is_null() || (*sockaddr).sa_family != AF_INET {
+                        continue;
+                    }
+                    let inet = &*sockaddr.cast::<SOCKADDR_IN>();
+                    let ip = std::net::Ipv4Addr::from(u32::from_be(inet.sin_addr.S_un.S_addr));
+                    found.push(Interface {
+                        name: name.clone(),
+                        address: IpAddr::V4(ip),
+                    });
+                }
+            }
+        }
+        break;
+    }
+    found
 }
 
 #[cfg(unix)]
@@ -190,6 +303,22 @@ pub(crate) fn second_client() -> Option<reqwest::Client> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Windows' own adapters are listed (gaps row 47): each named, none the loopback, each
+    /// with an IPv4 address; a computer on any network has at least one.
+    #[cfg(windows)]
+    #[test]
+    fn windows_lists_its_adapters_by_name() {
+        let found = interfaces();
+        assert!(!found.is_empty(), "no adapter listed");
+        for interface in &found {
+            assert!(!interface.name.trim().is_empty(), "{interface:?}");
+            assert!(
+                interface.address.is_ipv4() && !interface.address.is_loopback(),
+                "{interface:?}"
+            );
+        }
+    }
 
     #[test]
     fn the_listed_interfaces_are_up_and_not_the_loopback() {

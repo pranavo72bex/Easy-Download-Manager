@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// An HTTP date (`Sun, 06 Nov 1994 08:49:37 GMT`) as a time a file can
@@ -118,17 +123,67 @@ pub(crate) fn get(
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> reqwest::RequestBuilder {
-    let mut request = client
-        .get(url)
+    let mut request = with_form(client, url, sign_in)
         .header(reqwest::header::USER_AGENT, crate::agent_for(url))
         .header(reqwest::header::ACCEPT_ENCODING, IDENTITY);
     if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
         request = request.header(reqwest::header::COOKIE, cookies);
     }
-    if let Some(referrer) = referrer {
-        request = request.header(reqwest::header::REFERER, referrer);
+    match referrer {
+        Some(referrer) => request = request.header(reqwest::header::REFERER, referrer),
+        None => {
+            if let Some(folder) = folder_referer(url) {
+                request = request.header(reqwest::header::REFERER, folder);
+            }
+        }
     }
-    request
+    crate::cookies::add_headers(request, sign_in, url)
+}
+
+/// A request for `url`: a GET, or where the download is a form's answer and
+/// `url` is the form's address, the same form sent again (its type, unless
+/// the browser's own headers for the request already say it).
+pub(crate) fn with_form(
+    client: &reqwest::Client,
+    url: &str,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> reqwest::RequestBuilder {
+    match sign_in.and_then(|s| s.post_for(url)) {
+        Some(form) => {
+            let typed = sign_in.is_some_and(|s| {
+                s.headers_for(url)
+                    .iter()
+                    .any(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+            });
+            let request = client.post(url).body(form.body.clone());
+            if typed || form.content_type.is_empty() {
+                request
+            } else {
+                request.header(reqwest::header::CONTENT_TYPE, form.content_type.as_str())
+            }
+        }
+        None => client.get(url),
+    }
+}
+
+/// The folder an address lives in, as the page a request with none of its own
+/// is said to come from (`http://host/files/` for `http://host/files/a.bin?x`).
+/// The same host the request goes to, so it tells that server nothing new.
+pub(crate) fn folder_referer(url: &str) -> Option<String> {
+    if crate::made_up_referer_refused(url) {
+        return None;
+    }
+    let parsed = reqwest::Url::parse(url).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    let path = parsed.path();
+    let folder = &path[..=path.rfind('/')?];
+    let mut origin = format!("{}://{}", parsed.scheme(), parsed.host_str()?);
+    if let Some(port) = parsed.port() {
+        origin.push_str(&format!(":{port}"));
+    }
+    Some(format!("{origin}{folder}"))
 }
 
 /// Fetches something small enough to hold: a manifest, a mirror list, a key.
@@ -203,11 +258,15 @@ pub(crate) async fn fetch_capped(
 
 /// Something small fetched whole, and where it was finally served from.
 pub(crate) struct Fetched {
+    /// What the server sent.
     pub body: Vec<u8>,
+    /// The address it was finally served from, after redirects.
     pub landed: String,
 }
 
 impl Fetched {
+    /// The body read as text; bytes that are not UTF-8 become replacement characters.
+    #[must_use]
     pub fn text(&self) -> String {
         String::from_utf8_lossy(&self.body).into_owned()
     }

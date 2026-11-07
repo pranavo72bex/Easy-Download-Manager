@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Torrents under load, on loopback only: parallel swarms, many files, a
 //! torrent that names files outside its folder, a swarm with a piece
 //! missing, a pause and a resume, a magnet with a peer and no tracker.
@@ -13,8 +18,8 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use dm_core::download::Options;
-use dm_core::torrent::download_torrent;
+use dm_core::download_torrent;
+use dm_core::Options;
 use dm_core::{client, Categories, Control, Limiter};
 
 use librqbit::spawn_utils::BlockingSpawner;
@@ -64,7 +69,7 @@ fn pattern(seed: u64, len: usize) -> Vec<u8> {
 }
 
 fn sha(bytes: &[u8]) -> String {
-    hex::encode(Sha256::digest(bytes))
+    dm_core::hex::encode(Sha256::digest(bytes))
 }
 
 fn walk(dir: &Path) -> Vec<PathBuf> {
@@ -156,7 +161,7 @@ fn options(out: &Path) -> Options {
         limiter: Limiter::unlimited(),
         categories: Categories::default(),
         checksum: None,
-        quality: dm_core::stream::Quality::Best,
+        quality: dm_core::Quality::Best,
         sound: None,
         span: None,
         shape: None,
@@ -175,9 +180,19 @@ fn options(out: &Path) -> Options {
         server_dates: false,
         retry_wait: 0,
         record_limit: None,
+        frame_rate: None,
+        caption: None,
         sign_in: None,
         save_name: None,
+        accept_page: false,
+        // On loopback only: no DHT or local discovery, which would announce
+        // this computer to the public network from a test.
+        torrent: dm_core::TorrentOptions {
+            no_public_discovery: true,
+            ..Default::default()
+        },
         system_proxy: false,
+        title_hint: None,
     }
 }
 
@@ -185,7 +200,7 @@ fn file_url(bytes: &[u8]) -> (tempfile::TempDir, String) {
     let dir = tempdir();
     let file = dir.path().join("t.torrent");
     std::fs::write(&file, bytes).unwrap();
-    let url = dm_core::torrent::file_url(&file).unwrap();
+    let url = dm_core::file_url(&file).unwrap();
     (dir, url)
 }
 
@@ -319,7 +334,7 @@ async fn paths_outside_the_folder() {
             .unwrap()
             .to_string_lossy()
             .into_owned();
-        let url = dm_core::torrent::file_url(&torrent_file).unwrap();
+        let url = dm_core::file_url(&torrent_file).unwrap();
         let base = tempdir();
         let out = base.path().join("out");
         std::fs::create_dir_all(&out).unwrap();

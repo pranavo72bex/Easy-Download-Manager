@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The per-site switches kept in the extension's storage, and the cookies that go with a download.
 
 use super::*;
@@ -8,6 +13,7 @@ pub const CATCHING_KEY: &str = "dm.catching";
 
 /// The toolbar popup asking how the app is, and asking it to show itself.
 pub const STATUS_MESSAGE: &str = "dm.status";
+/// The message the popup sends to ask the app to show itself.
 pub const OPEN_MESSAGE: &str = "dm.open";
 
 /// Where the sites the panel is kept off are stored, in the extension's
@@ -93,7 +99,7 @@ pub fn cookies_wanted(sites: &[String], url: &str) -> bool {
 /// whether they are for that download alone: `None` sends none; `Some(false)`
 /// is a site the person listed, whose sign-in the row keeps;
 /// `Some(true)` is a video page, whose session goes with every video —
-/// a video site lets yt-dlp in only with it ("confirm you're not a bot") —
+/// a video site lets the app in only with it ("confirm you're not a bot") —
 /// and is dropped once that download is done. With the app's "every site"
 /// switch on (`everywhere`), any site's sign-in goes, for that download
 /// alone, as a video page's does.
@@ -122,7 +128,9 @@ pub fn cookie_query(url: &str, store: Option<&str>) -> Value {
 #[derive(Deserialize, Default, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct BrowserCookie {
+    /// The cookie's name.
     pub name: String,
+    /// The cookie's value.
     pub value: String,
 }
 
@@ -200,4 +208,95 @@ pub fn with_site(off: &[String], site: &str, keep_off: bool) -> Vec<String> {
     list.dedup();
     list.truncate(1000);
     list
+}
+
+/// The title a page's video is named from, as reference A takes it: the page's own title, else
+/// its `og:title` (a page whose `<title>` is empty, or a player page that sets none).
+pub fn page_title<'a>(title: &'a str, og_title: &'a str) -> &'a str {
+    let own = title.trim();
+    if own.is_empty() {
+        og_title.trim()
+    } else {
+        own
+    }
+}
+
+/// A page's title as a file's name should have it: without the unread-count a site puts in
+/// front of it (`(3) `), the play mark a player puts there, and the site's own name after it
+/// (` - YouTube`, ` | Vimeo`) when that name is the host's. Never left empty.
+pub fn clean_title(title: &str, page_url: &str) -> String {
+    let mut text = title.trim();
+    if text.starts_with('(') {
+        if let Some((count, rest)) = text[1..].split_once(')') {
+            // A few digits (an unread count), not a year.
+            if (1..=3).contains(&count.trim_end_matches('+').len())
+                && count
+                    .trim_end_matches('+')
+                    .chars()
+                    .all(|c| c.is_ascii_digit())
+            {
+                text = rest.trim_start();
+            }
+        }
+    }
+    text = text.trim_start_matches(['▶', '►', '▷']).trim_start();
+    let host = site_of(page_url).unwrap_or_default();
+    let plain = |s: &str| {
+        s.chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect::<String>()
+    };
+    let mut labels = host.split('.').collect::<Vec<_>>();
+    if labels.len() > 1 {
+        labels.pop();
+    }
+    // `youtube` of `m.youtube.com`, `bbc` of `bbc.co.uk`: the label before the ending.
+    let name = labels
+        .iter()
+        .rev()
+        .find(|l| l.len() > 2 && !matches!(**l, "co" | "com" | "org" | "net"))
+        .map(|l| plain(l))
+        .unwrap_or_default();
+    for separator in [" - ", " | ", " – ", " — ", " · ", " • "] {
+        if let Some((front, back)) = text.rsplit_once(separator) {
+            let back = plain(back);
+            if !front.trim().is_empty()
+                && !name.is_empty()
+                && (back == name || back == plain(&host))
+            {
+                text = front.trim_end();
+                break;
+            }
+        }
+    }
+    if text.is_empty() {
+        title.trim().to_string()
+    } else {
+        text.to_string()
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::{clean_title, page_title};
+
+    #[test]
+    fn a_page_with_no_title_is_named_from_its_og_title() {
+        assert_eq!(page_title("  ", " A clip "), "A clip");
+        assert_eq!(page_title("The page", "Its card"), "The page");
+        assert_eq!(page_title("", ""), "");
+    }
+
+    #[test]
+    fn a_titles_noise_is_taken_off_but_not_its_own_words() {
+        let page = "https://www.youtube.com/watch?v=1";
+        assert_eq!(clean_title("(3) Name - YouTube", page), "Name");
+        assert_eq!(clean_title("▶ A talk | YouTube", page), "A talk");
+        assert_eq!(clean_title("Name - Other Site", page), "Name - Other Site");
+        assert_eq!(clean_title("YouTube", page), "YouTube");
+        assert_eq!(clean_title("(2020) A film", page), "(2020) A film");
+        assert_eq!(clean_title("Clip - Vimeo", "https://vimeo.com/12"), "Clip");
+        assert_eq!(clean_title("News - BBC", "https://www.bbc.co.uk/x"), "News");
+    }
 }

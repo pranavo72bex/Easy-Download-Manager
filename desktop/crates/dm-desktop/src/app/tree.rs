@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
@@ -11,19 +16,24 @@ impl DmApp {
                 .iter()
                 .map(|c| crate::i18n::name(&format::titled(&category_word(*c)))),
         );
-        names.extend(["In progress", "Done"].map(|w| t(w).to_string()));
+        names.extend(["Unfinished", "Finished"].map(|w| t(w).to_string()));
         let widest = names
             .into_iter()
             .map(|n| {
                 ui.fonts_mut(|f| {
-                    f.layout_no_wrap(n, egui::FontId::proportional(14.0), egui::Color32::WHITE)
-                        .size()
-                        .x
+                    f.layout_no_wrap(
+                        n,
+                        egui::FontId::proportional(crate::theme::BODY),
+                        egui::Color32::WHITE,
+                    )
+                    .size()
+                    .x
                 })
             })
             .fold(0.0_f32, f32::max);
-        // The icon and count beside it, the branch's indent and the margins.
-        (widest + 36.0 + 34.0 + 18.0 + 16.0).clamp(least, (ui.available_width() / 3.0).max(least))
+        // The icon and count beside it, the branch's indent and the margins:
+        // as compact as reference A's tree, about 145 pixels.
+        (widest + 30.0 + 28.0 + 12.0 + 8.0).clamp(least, (ui.available_width() / 3.0).max(least))
     }
 
     pub(super) fn categories(&mut self, ui: &mut egui::Ui) {
@@ -72,7 +82,7 @@ impl DmApp {
         nav_group(
             ui,
             "tree-everything",
-            t("Everything"),
+            t("All Downloads"),
             in_everything,
             &tokens,
             |ui| {
@@ -89,16 +99,43 @@ impl DmApp {
                 }
             },
         );
-        place(ui, self, Place::Unfinished, t("In progress").into());
-        place(ui, self, Place::Finished, t("Done").into());
+        place(ui, self, Place::Unfinished, t("Unfinished").into());
+        place(ui, self, Place::Finished, t("Finished").into());
         let queues = self.queues();
         let in_queues = matches!(self.place, Place::Queue(_));
         nav_group(ui, "tree-queues", t("Queues"), in_queues, &tokens, |ui| {
-            for name in queues {
-                let label = crate::i18n::name(&name);
+            for name in queues.iter() {
+                let label = crate::i18n::name(name);
                 place(ui, self, Place::Queue(name.clone()), label);
             }
         });
+        // The Grabber's saved searches, as reference A keeps its projects in
+        // the tree (gaps row 92): one clicked opens the Grabber with it.
+        let mut project = None;
+        if !self.applied.site_searches.is_empty() {
+            let projects = &self.applied.site_searches;
+            nav_group(
+                ui,
+                "tree-grabber",
+                t("Grabber projects"),
+                false,
+                &tokens,
+                |ui| {
+                    for search in projects {
+                        if ui
+                            .selectable_label(false, &search.name)
+                            .on_hover_text(&search.page)
+                            .clicked()
+                        {
+                            project = Some(search.clone());
+                        }
+                    }
+                },
+            );
+        }
+        if let Some(search) = project {
+            self.dialogs.open_site_files_with(&search);
+        }
         if let Some(place) = chosen {
             self.place = place;
         }
@@ -124,11 +161,11 @@ impl DmApp {
                 places.push((Place::Custom(name.clone()), name));
             }
         }
-        places.push((Place::Unfinished, t("In progress").into()));
-        places.push((Place::Finished, t("Done").into()));
-        for queue in self.queues() {
-            let label = crate::i18n::name(&queue);
-            places.push((Place::Queue(queue), label));
+        places.push((Place::Unfinished, t("Unfinished").into()));
+        places.push((Place::Finished, t("Finished").into()));
+        for queue in self.queues().iter() {
+            let label = crate::i18n::name(queue);
+            places.push((Place::Queue(queue.clone()), label));
         }
         let shown = |place: &Place, label: &str| format!("{label} ({})", self.count(place));
         let current = places

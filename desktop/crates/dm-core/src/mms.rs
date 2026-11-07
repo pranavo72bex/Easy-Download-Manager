@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! MMS streams (`mms://`, `mmsh://`), fetched by dm itself over HTTP.
 //!
 //! Windows Media servers that speak MMS speak it over HTTP too (MMSH), and
@@ -99,7 +104,9 @@ pub fn header_facts(header: &[u8]) -> (Option<u32>, Vec<u16>) {
 
 /// One MMSH chunk: its kind (`b'H'`, `b'D'`, `b'E'` …) and body.
 pub struct Chunk {
+    /// The chunk's kind letter.
     pub kind: u8,
+    /// The chunk's bytes.
     pub body: Vec<u8>,
 }
 

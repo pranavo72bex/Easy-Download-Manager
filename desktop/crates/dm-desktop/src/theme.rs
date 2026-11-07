@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! dm's looks, as tokens: every colour, radius and shadow the window draws
 //! comes from here.
 //!
@@ -50,6 +55,8 @@ impl Theme {
         }
     }
 
+    /// The colours and radii this look draws with.
+    #[must_use]
     pub fn tokens(self) -> Tokens {
         match self {
             Theme::HighContrast(palette) => high_contrast_tokens(&palette),
@@ -290,9 +297,36 @@ const fn hex(rgb: u32) -> Color32 {
     Color32::from_rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8)
 }
 
+/// The window's density, reference A's (`docs/decisions.md`, "dm works exactly
+/// like reference A"): its text is the system's 9-point face, about 12 pixels,
+/// its list rows 17 apart and its controls about 22 tall. dm's were 14, 28 and
+/// 28, and a new window opened 960 by 660, past the bottom of a 768-pixel
+/// screen, beside reference A's 800 by 458.
+pub const BODY: f32 = 12.0;
+/// Counts, captions and a toolbar button's words.
+pub const CAPTION: f32 = 11.0;
+/// A dialog's title.
+pub const HEADING: f32 = 16.0;
+/// A button's, a field's and a drop-down's height.
+pub const CONTROL: f32 = 22.0;
+/// A check box's box, a radio button's ring and a toggle switch's height:
+/// one size for the three, in proportion to the 12-point text. At WinUI's
+/// 20 (its 14-point text's), with the switch 40 wide, they stood out beside
+/// the words and the 22-point controls (maintainer, 2026-11-05).
+pub const CHOICE: f32 = 16.0;
+/// A place's height in the tree beside the list.
+pub const NAV_ITEM: f32 = 22.0;
+/// A row of the list, in the modern look; the classic look's is `ROW_CLASSIC`.
+/// No less than a control's height, which a row's cells hold: at 20 each row
+/// stood 22 tall and End left the last one under the list's edge.
+pub const ROW: f32 = CONTROL;
+/// A row of the list in the classic look.
+pub const ROW_CLASSIC: f32 = 18.0;
+
 /// Every colour and radius the window draws with.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tokens {
+    /// Whether the look is a dark one.
     pub dark: bool,
     /// The modern layout: a toolbar, a navigation pane with an indicator,
     /// the list on a card, thin progress bars.
@@ -303,6 +337,7 @@ pub struct Tokens {
     pub pane: Color32,
     /// The download list's card.
     pub list: Color32,
+    /// The download list's header row.
     pub header: Color32,
     /// A dialog's body.
     pub dialog: Color32,
@@ -312,46 +347,64 @@ pub struct Tokens {
     pub stroke: Color32,
     /// The soft edge of a button or a field.
     pub edge: Color32,
+    /// Ordinary words.
     pub text: Color32,
+    /// Secondary words.
     pub text2: Color32,
+    /// Words that recede: hints and units.
     pub weak: Color32,
+    /// Words of a control that cannot be used.
     pub disabled: Color32,
     /// The selected place in the navigation pane.
     pub selection: Color32,
+    /// Words on the selected place.
     pub selection_text: Color32,
     /// A selected row of the download list, and its words: a fill that
     /// stands out from the list at 3:1 or more, words on it at 4.5:1.
     pub row_selected: Color32,
+    /// Words on a selected row.
     pub row_selected_text: Color32,
     /// The focus ring: two lines, the outer one in the text colour and an
     /// inner one in the background's, so it shows on any fill.
     pub focus_outer: Color32,
+    /// The inner line of the focus ring.
     pub focus_inner: Color32,
     /// Hover and press on a control without a fill of its own.
     pub hover: Color32,
+    /// A control without a fill of its own, pressed.
     pub pressed: Color32,
     /// A button's or a field's fill, at rest, hovered and pressed.
     pub control: Color32,
+    /// A button's or a field's fill, hovered.
     pub control_hover: Color32,
+    /// A button's or a field's fill, pressed.
     pub control_pressed: Color32,
     /// Links and words in the accent colour.
     pub accent: Color32,
     /// The accent fill: the primary button, the selection indicator, a
     /// checked box, the progress bar.
     pub brand: Color32,
+    /// The accent fill, hovered.
     pub brand_hover: Color32,
+    /// The accent fill, pressed.
     pub brand_pressed: Color32,
+    /// Words and pictures on the accent fill.
     pub on_brand: Color32,
     /// Behind selected words in a field.
     pub text_selection: Color32,
+    /// Error words and marks.
     pub error: Color32,
+    /// Success words and marks.
     pub success: Color32,
+    /// Warning words and marks.
     pub warn: Color32,
     /// The navigation pane's pictures.
     pub folder: Color32,
     /// The classic look draws its toolbar pictures in colour; the modern one in the text colour.
     pub coloured_tools: bool,
+    /// The corner radius of a control.
     pub radius: u8,
+    /// The corner radius of a card.
     pub card_radius: u8,
     /// The system's High Contrast colours: nothing dims, nothing is laid
     /// over a surface.
@@ -407,7 +460,7 @@ mod variable_tests {
         let Some(blob) = font_file(std::path::Path::new("/System/Library/Fonts/SFNS.ttf")) else {
             return;
         };
-        let (regular, semibold) = variable_faces(blob);
+        let (regular, semibold) = variable_faces(&blob);
         let width = |face: egui::FontData| {
             let ctx = egui::Context::default();
             let mut fonts = egui::FontDefinitions::empty();
@@ -597,7 +650,7 @@ mod tests {
     fn going_from_a_modern_look_to_classic_leaves_none_of_its_spacing() {
         let ctx = Context::default();
         apply(&ctx, Theme::Light);
-        assert_eq!(ctx.global_style().spacing.interact_size.y, 32.0);
+        assert_eq!(ctx.global_style().spacing.interact_size.y, CONTROL);
         apply(&ctx, Theme::Classic);
         let fresh = egui::style::Spacing::default();
         let now = ctx.global_style().spacing.clone();

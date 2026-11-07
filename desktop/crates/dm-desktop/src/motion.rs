@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Whether the computer asks for less motion: Windows' "Animation effects"
 //! off, macOS's Reduce motion, GNOME's animations off. Where it does, the
 //! window does not animate: menus, collapsing sections and scrolling to a

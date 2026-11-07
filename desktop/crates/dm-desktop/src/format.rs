@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! How a row's numbers are said. The same words the web window used, so a
 //! person moving between them reads the same thing.
 
@@ -128,6 +133,7 @@ pub fn copyable_url(url: &str) -> String {
     }
 }
 
+/// A download's address as a window shows it: a password in it is replaced by dots, the rest kept.
 pub fn shown_url(url: &str) -> String {
     match url::Url::parse(url) {
         Ok(mut parsed) if parsed.password().is_some() => {
@@ -286,7 +292,13 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 32] = [
+pub const REASONS: [(&[&str], &str); 33] = [
+    // First: the failure text of a row waiting for a fresh address also names
+    // the refusal that expired it (`dm_core::LINK_EXPIRED`).
+    (
+        &["dm is waiting for the browser to hand over a new one"],
+        "this link has expired. dm is waiting for the browser to hand over a new one for the same file",
+    ),
     (
         &[
             "error decoding response body",
@@ -327,7 +339,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
     ),
     (
         &["video helper is not fetched"],
-        "this video needs dm's video helper, which is turned off in Options › Downloads. Turn it on there, or install yt-dlp yourself",
+        "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there",
     ),
     (
         &["cannot be reached (was its drive"],
@@ -377,7 +389,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
             "error connecting to proxy",
             "proxy server",
         ],
-        "the proxy couldn't be reached. Check its address in Options › Proxy",
+        "the proxy couldn't be reached. Check its address in Options › Advanced",
     ),
     // A file's own errors, as `dm_core::file_error` words them.
     (&["it is not there"], "it is not there"),
@@ -408,22 +420,19 @@ pub const REASONS: [(&[&str], &str); 32] = [
         &["the server answered 403"],
         "the site wouldn't give dm the file. It may need you to sign in (Properties › Login)",
     ),
-    // Video pages: yt-dlp and QuickJS are "dm's video helper" to a person,
-    // who never installs them (dm fetches them).
     (
-        &["video helper"],
-        "dm couldn't get ready for videos. Check that you're online, or install yt-dlp yourself, then click Retry",
+        &["video helper", "video tools"],
+        "dm couldn't get ready for videos. Check that you're online, then click Retry",
     ),
     (
         &[
-            "yt-dlp does not know this site",
-            "yt-dlp could not read that page",
+            "that is a web page",
+            "dm found no video",
         ],
         "dm found no video on this page",
     ),
-    // What yt-dlp says most, from YouTube and the like.
     (
-        &["confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm"],
+        &["confirm you're not a bot", "sign in to confirm"],
         "the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it",
     ),
     (
@@ -436,7 +445,20 @@ pub const REASONS: [(&[&str], &str); 32] = [
         ],
         "this video isn't available. It may be private, removed, or not shown in your country",
     ),
-    (&["yt-dlp could not download that"], VIDEO_NOT_GOT),
+    (
+        &[
+            "the player names no stream",
+            "no stream at that quality",
+            "the page names no player script",
+            "the player API answered no JSON",
+            "a stream with no address",
+            "a cipher with no",
+            "the signature was not solved",
+            "the solver",
+            "no JavaScript engine",
+        ],
+        VIDEO_NOT_GOT,
+    ),
     (
         &["an encrypted stream dm cannot record"],
         "dm can't record this kind of encrypted stream",
@@ -448,33 +470,16 @@ pub const REASONS: [(&[&str], &str); 32] = [
     ),
 ];
 
-/// What a video page that yt-dlp failed on is said to be when nothing more
-/// specific is known (`REASONS`), whatever yt-dlp's own words were.
+/// What a video page that failed is said to be when nothing more
+/// specific is known (`REASONS`).
 pub const VIDEO_NOT_GOT: &str = "dm couldn't get the video from this page";
 
-/// yt-dlp's own words for why it could not download a page, for the status to
-/// say after [`VIDEO_NOT_GOT`]: its last `ERROR:` line, without the extractor
-/// and video id it starts with and without any address (one may be signed),
-/// and short enough for a row. `None` for a failure that is not yt-dlp's or
-/// that said nothing.
-pub fn ytdlp_said(raw: &str) -> Option<String> {
-    let rest = raw.strip_prefix("yt-dlp could not download that:")?;
-    let line = rest
-        .lines()
-        .map(str::trim)
-        .rev()
-        .find(|l| l.contains("ERROR:"))
-        .or_else(|| rest.lines().map(str::trim).rev().find(|l| !l.is_empty()))?;
-    let mut said = line.rsplit("ERROR:").next()?.trim();
-    // "[youtube] jNQXAC9IVRw: text": the extractor, then the id, then the words.
-    if let Some(after) = said.strip_prefix('[').and_then(|s| s.split_once(']')) {
-        said = after.1.trim_start();
-        if let Some((id, text)) = said.split_once(": ") {
-            if !id.contains(' ') {
-                said = text;
-            }
-        }
-    }
+/// The video reader's own words for why it could not get a page's video, for
+/// the status to say after [`VIDEO_NOT_GOT`]: its first line, without any
+/// address (one may be signed), and short enough for a row. `None` for a
+/// failure that said nothing.
+pub fn video_said(raw: &str) -> Option<String> {
+    let said = raw.lines().map(str::trim).find(|l| !l.is_empty())?;
     let said: String = said
         .split_whitespace()
         .filter(|word| !word.contains("://"))
@@ -571,6 +576,47 @@ pub fn reason(raw: &str) -> Option<&'static str> {
         .iter()
         .find(|(signs, _)| signs.iter().any(|sign| lower.contains(sign)))
         .map(|(_, plain)| *plain)
+}
+
+/// What a person can do about a failure whose plain words (`REASONS`) stop at
+/// what went wrong: one sentence each, keyed by those words. The failures
+/// whose sentence already says what to do (try again, check the address, add
+/// the login) have none here.
+pub const NEXT_STEPS: [(&str, &str); 6] = [
+    (
+        "the disk is full",
+        "Free some space, or choose a folder on another drive (Options › Folders), then click Retry",
+    ),
+    (
+        "this link no longer works",
+        "Open the page it came from in your browser and download from there, which gives dm a new link",
+    ),
+    (
+        "the server refused the connection. Check the address, or try again later",
+        "If a firewall or security program asks about dm, allow it, then click Retry",
+    ),
+    (
+        "the site keeps redirecting in a loop, so the file can't be reached",
+        "Open the page in your browser and download from there, which hands dm the real link",
+    ),
+    (
+        "something of that name is already there",
+        "Choose another name or folder with Move/Rename, or remove the other file",
+    ),
+    (
+        "the site's security certificate couldn't be checked, so dm didn't connect",
+        "Check that the computer's date and time are right, then click Retry",
+    ),
+];
+
+/// The next step for a failure, in English (look it up with `t`); `None`
+/// where its plain words already say what to do, or are not known.
+pub fn next_step(raw: &str) -> Option<&'static str> {
+    let plain = reason(raw)?;
+    NEXT_STEPS
+        .iter()
+        .find(|(said, _)| *said == plain)
+        .map(|(_, step)| *step)
 }
 
 /// A key shortcut as a menu shows it: the modifiers as egui names them

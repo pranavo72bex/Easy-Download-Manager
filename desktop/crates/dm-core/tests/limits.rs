@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The settings a person reaches for when a site misbehaves: fewer
 //! connections for that one site, more (or endless) attempts on a link that
 //! drops, and a shorter wait on a connection that has gone quiet.
@@ -125,7 +130,9 @@ async fn a_site_with_a_limit_of_its_own_is_fetched_on_that_many_connections() {
     );
 }
 
-/// Refuses the first `fail` requests with 503, then serves the file.
+/// Refuses the first `fail` ranged requests with 503, then serves the file.
+/// A plain request (the engine's one second try of a failed first request) is
+/// refused and not counted, so `seen` counts attempts.
 struct Flaky {
     data: Vec<u8>,
     seen: AtomicUsize,
@@ -133,7 +140,8 @@ struct Flaky {
 }
 
 async fn flaky(State(f): State<Arc<Flaky>>, headers: HeaderMap) -> Response {
-    if f.seen.fetch_add(1, Ordering::SeqCst) < f.fail {
+    let plain = !headers.contains_key("range");
+    if plain || f.seen.fetch_add(1, Ordering::SeqCst) < f.fail {
         return Response::builder()
             .status(503)
             .header("retry-after", "1")
@@ -211,8 +219,7 @@ async fn a_connection_that_sends_nothing_is_given_up_on_within_the_timeout_set()
         attempts: 1,
         ..options(dir.path())
     };
-    let quick =
-        dm_core::proxy::client_with_timeout(&Default::default(), Duration::from_secs(1)).unwrap();
+    let quick = dm_core::client_with_timeout(&Default::default(), Duration::from_secs(1)).unwrap();
     let started = Instant::now();
     let outcome = download(&quick, &format!("http://{addr}/s.bin"), &once).await;
     assert!(outcome.is_err(), "a silent server was called a download");

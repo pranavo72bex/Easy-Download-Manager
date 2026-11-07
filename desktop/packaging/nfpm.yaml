@@ -16,7 +16,7 @@ description: |
   dm splits a file across several connections, resumes what was
   interrupted, and takes over the downloads you start in a browser.
 homepage: https://github.com/pranavo72bex/Easy-Download-Manager
-license: MIT
+license: GPL-3.0-or-later
 
 # What the binary opens at run time (winit and glow load them, so rpm's own
 # scan of the binary does not see them): winit's X11 and Wayland libraries,
@@ -58,3 +58,5 @@ contents:
     dst: /usr/share/icons/hicolor/128x128/apps/dm.png
   - src: LICENSE
     dst: /usr/share/licenses/dm/LICENSE
+  - src: NOTICE
+    dst: /usr/share/licenses/dm/NOTICE

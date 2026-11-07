@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The taskbar button's jump list on Windows: a right-click on dm's icon
 //! offers "Add URL" (which opens that dialog in the running dm) and "Open
 //! downloads folder".
@@ -22,11 +27,12 @@ pub fn publish(new_download: &str, open_folder: &str, folder: &std::path::Path) 
         });
 }
 
+/// Does nothing: only Windows has a jump list.
 #[cfg(not(windows))]
 pub fn publish(_new_download: &str, _open_folder: &str, _folder: &std::path::Path) {}
 
 #[cfg(windows)]
-fn build(
+pub(crate) fn build(
     new_download: &str,
     open_folder: &str,
     folder: &std::path::Path,
@@ -109,5 +115,16 @@ fn build(
         })();
         CoUninitialize();
         made
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    /// Made by Windows itself (gaps row 11): the shell takes the two entries and commits the
+    /// list (this test program's own, which the shell keeps apart from dm's).
+    #[test]
+    fn windows_takes_the_jump_list() {
+        let folder = std::env::temp_dir();
+        super::build("Add URL", "Open downloads folder", &folder).expect("the jump list was made");
     }
 }

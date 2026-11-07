@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Dragging columns and rows, and the widths the columns start at.
 
 use super::*;
@@ -111,34 +116,38 @@ pub fn name_width(columns: &[Column], room: f32) -> f32 {
 /// Where each column but the name starts, in points.
 pub(super) fn initial(column: Column) -> f32 {
     match column {
-        Column::Name => 220.0,
-        // Room for "Main queue" (60 read "Main q…"), and one
-        // width whether or not a row has a queue yet: it started at 96 in
-        // an empty list and 140 in one with a queue, so a relaunch moved
-        // every column after it and cut "Time left".
-        Column::Queue => 116.0,
-        Column::Size => 76.0,
-        // "Waiting for Start queue" whole, with its shape.
-        Column::Status => 196.0,
-        Column::TimeLeft => 88.0,
-        Column::Rate => 92.0,
-        Column::LastTry => 100.0,
-        Column::Description | Column::Referrer | Column::Folder => 160.0,
+        Column::Name => 180.0,
+        // Reference A's Q: a mark for a download in a queue, the queue's
+        // name on hover, so the column takes no room from the rest.
+        Column::Queue => 28.0,
+        // Reference A's widths, near enough: its eight columns fit an
+        // 800-pixel window; dm's Status alone was 196 and pushed Transfer
+        // rate, Last Try Date and Description out of sight.
+        Column::Size => 70.0,
+        Column::Status => 120.0,
+        Column::TimeLeft => 70.0,
+        Column::Rate => 84.0,
+        Column::LastTry => 96.0,
+        Column::Description | Column::Referrer | Column::Folder => 140.0,
     }
 }
 
 /// How wide a column starts.
 pub(super) fn width(column: Column) -> Width {
     match column {
-        Column::Name => Width::initial(220.0).at_least(120.0).clip(true),
-        Column::Queue => Width::initial(initial(Column::Queue)).clip(true),
-        Column::Size => Width::initial(76.0),
+        Column::Name => Width::initial(initial(Column::Name))
+            .at_least(120.0)
+            .clip(true),
+        Column::Queue => Width::initial(initial(Column::Queue))
+            .at_least(24.0)
+            .clip(true),
+        Column::Size => Width::initial(initial(Column::Size)),
         Column::Status => Width::initial(initial(Column::Status)).clip(true),
-        Column::TimeLeft => Width::initial(88.0),
-        Column::Rate => Width::initial(92.0),
-        Column::LastTry => Width::initial(100.0),
-        Column::Description => Width::initial(160.0).clip(true),
-        Column::Referrer => Width::initial(160.0).clip(true),
-        Column::Folder => Width::initial(160.0).clip(true),
+        Column::TimeLeft => Width::initial(initial(Column::TimeLeft)),
+        Column::Rate => Width::initial(initial(Column::Rate)),
+        Column::LastTry => Width::initial(initial(Column::LastTry)),
+        Column::Description => Width::initial(initial(Column::Description)).clip(true),
+        Column::Referrer => Width::initial(initial(Column::Referrer)).clip(true),
+        Column::Folder => Width::initial(initial(Column::Folder)).clip(true),
     }
 }

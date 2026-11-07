@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 /// Where the window keeps the menu bar's foot, for the dialogs.
 pub fn menu_bottom_id() -> egui::Id {
@@ -94,10 +99,23 @@ pub(crate) struct Dialog<'o> {
     least: f32,
     /// The width `fixed_size` gave it, frame and all.
     fixed: Option<f32>,
+    /// The height `fixed_size` gave it: a body that fills it (Options') has
+    /// none of its own to measure.
+    fixed_height: Option<f32>,
     /// Whether its body scrolls, under a title that stays.
     scrolls: bool,
     /// The most it may stand, as `max_height` set it.
     tallest: Option<f32>,
+    /// What its window is known by, as `id` set it.
+    id: Option<egui::Id>,
+    resizable: bool,
+    /// The width it opens at, as `default_width` set it.
+    default_width: Option<f32>,
+    /// Where in the main window it was asked to stand, and the corner of it
+    /// put there, for a dialog opened as a window of its own.
+    pos: Option<egui::Pos2>,
+    pivot: egui::Align2,
+    anchor: Option<(egui::Align2, egui::Vec2)>,
 }
 
 /// Where a dialog keeps, for its title and buttons, how wide its body is:
@@ -137,8 +155,15 @@ impl<'o> Dialog<'o> {
             open: None,
             least: 0.0,
             fixed: None,
+            fixed_height: None,
             scrolls: false,
             tallest: None,
+            id: None,
+            resizable: true,
+            default_width: None,
+            pos: None,
+            pivot: egui::Align2::LEFT_TOP,
+            anchor: None,
         }
     }
 
@@ -155,7 +180,8 @@ impl<'o> Dialog<'o> {
         self
     }
 
-    pub(crate) fn id(self, id: egui::Id) -> Self {
+    pub(crate) fn id(mut self, id: egui::Id) -> Self {
+        self.id = Some(id);
         self.with(|w| w.id(id))
     }
 
@@ -163,7 +189,8 @@ impl<'o> Dialog<'o> {
         self.with(|w| w.collapsible(on))
     }
 
-    pub(crate) fn resizable(self, on: bool) -> Self {
+    pub(crate) fn resizable(mut self, on: bool) -> Self {
+        self.resizable = on;
         self.with(|w| w.resizable(on))
     }
 
@@ -175,21 +202,25 @@ impl<'o> Dialog<'o> {
         self.with(|w| w.constrain_to(rect))
     }
 
-    pub(crate) fn pivot(self, pivot: egui::Align2) -> Self {
+    pub(crate) fn pivot(mut self, pivot: egui::Align2) -> Self {
+        self.pivot = pivot;
         self.with(|w| w.pivot(pivot))
     }
 
-    pub(crate) fn anchor(self, align: egui::Align2, offset: impl Into<egui::Vec2>) -> Self {
+    pub(crate) fn anchor(mut self, align: egui::Align2, offset: impl Into<egui::Vec2>) -> Self {
         let offset = offset.into();
+        self.anchor = Some((align, offset));
         self.with(|w| w.anchor(align, offset))
     }
 
-    pub(crate) fn default_pos(self, pos: impl Into<egui::Pos2>) -> Self {
+    pub(crate) fn default_pos(mut self, pos: impl Into<egui::Pos2>) -> Self {
         let pos = pos.into();
+        self.pos = Some(pos);
         self.with(|w| w.default_pos(pos))
     }
 
-    pub(crate) fn default_width(self, width: f32) -> Self {
+    pub(crate) fn default_width(mut self, width: f32) -> Self {
+        self.default_width = Some(width);
         self.with(|w| w.default_width(width))
     }
 
@@ -218,6 +249,7 @@ impl<'o> Dialog<'o> {
     pub(crate) fn fixed_size(mut self, size: impl Into<egui::Vec2>) -> Self {
         let size = size.into();
         self.fixed = Some(size.x);
+        self.fixed_height = Some(size.y);
         // The least width an earlier call gave it no longer applies.
         self.least = 0.0;
         self.with(|w| w.min_width(0.0).fixed_size(size))
@@ -235,6 +267,62 @@ impl<'o> Dialog<'o> {
         ctx: &egui::Context,
         add: impl FnOnce(&mut egui::Ui) -> R,
     ) -> Option<egui::InnerResponse<Option<R>>> {
+        if self.open.as_deref() == Some(&false) {
+            return None;
+        }
+        // A window of its own wherever the backend has windows to give; the
+        // test harness keeps it drawn in the main window.
+        if apart::separate(ctx) {
+            let Dialog {
+                title,
+                open,
+                least,
+                fixed,
+                fixed_height,
+                scrolls,
+                tallest,
+                id,
+                resizable,
+                default_width,
+                pos,
+                pivot,
+                anchor,
+                ..
+            } = self;
+            let id =
+                id.unwrap_or_else(|| egui::Id::unique(("dm-dialog-window-of", title.as_str())));
+            let shut = apart::show(
+                ctx,
+                apart::Spec {
+                    title: &title,
+                    id,
+                    layout: Layout {
+                        least,
+                        fixed,
+                        scrolls,
+                        tallest,
+                        titled: false,
+                        closable: open.is_some(),
+                    },
+                    resizable,
+                    default_width,
+                    height: fixed_height,
+                    pos,
+                    pivot,
+                    anchor,
+                },
+                add,
+            );
+            if shut {
+                match open {
+                    // As its × does.
+                    Some(open) => *open = false,
+                    // As Escape does: the dialog's state decides.
+                    None => apart::ask_close(id),
+                }
+            }
+            return None;
+        }
         let Dialog {
             window,
             title,
@@ -243,95 +331,164 @@ impl<'o> Dialog<'o> {
             fixed,
             scrolls,
             tallest,
+            ..
         } = self;
-        if open.as_deref() == Some(&false) {
-            return None;
-        }
-        let closable = open.is_some();
+        let layout = Layout {
+            least,
+            fixed,
+            scrolls,
+            tallest,
+            titled: true,
+            closable: open.is_some(),
+        };
         let mut closed = false;
         let shown = window.show(ctx, |ui| {
-            // A dialog's fields, buttons and drop-downs are 32 tall, the
-            // Fluent 2 standard control height. The window's own list and
-            // bars keep their compact 24 (the list sizes itself around
-            // them, and at 300% text with the clipboard's bar above it a
-            // taller control left its last row under the sideways bar).
-            if crate::theme::Tokens::get(ui.ctx()).modern {
-                ui.spacing_mut().interact_size.y = 32.0;
-            }
-            let layer = ui.layer_id();
-            // A dialog of fixed size holds its body to the width inside its
-            // frame: egui offered the body the width it had grown to the
-            // frame before, a scroll area took all of it, and the dialog,
-            // placed by its middle, ran off the window (Options at 200%).
-            let least = match fixed {
-                Some(width) => {
-                    let inner = width - ui.spacing().window_margin.sum().x;
-                    ui.set_max_width(inner);
-                    inner
-                }
-                None => least,
-            }
-            .min(ui.max_rect().width());
-            ui.ctx().data_mut(|d| d.insert_temp(least_id(layer), least));
-            closed = head(ui, &title, closable);
-            let origin = ui.max_rect().min;
-            // The buttons' room kept under the scrolled part, at what they
-            // took last frame; the footer draws them there.
-            let kept = ui
-                .ctx()
-                .data(|d| d.get_temp::<f32>(foot_height_id(layer)))
-                .unwrap_or(0.0);
-            // From the height the dialog may have, less its title and
-            // margins: what egui says is available in a dialog that sizes
-            // itself is not that, and the scrolled part ran under the
-            // buttons (Options at 150%).
-            let spacing = ui.spacing().item_spacing.y;
-            let margins = ui.spacing().window_margin.sum().y;
-            let used = ui.min_rect().height() + spacing;
-            let whole = tallest
-                .map_or(ui.available_height(), |most| most - margins - used)
-                .min(ui.available_height());
-            // Where keeping the buttons in place would leave the body less
-            // than a few rows, the page scrolls whole with its buttons at
-            // the end, as it did: at 150% in the smallest
-            // window Options showed a sliver of its first setting.
-            let fixed_foot = scrolls && whole - kept - spacing >= 120.0;
-            ui.ctx().data_mut(|d| {
-                d.insert_temp(scrolls_id(layer), fixed_foot);
-                d.insert_temp(origin_id(layer), origin);
-            });
-            if scrolls {
-                let room = if fixed_foot {
-                    whole - kept - spacing
-                } else {
-                    whole
-                }
-                .max(48.0);
-                let inner = egui::ScrollArea::vertical()
-                    .id_salt("dm-dialog-body")
-                    .max_height(room)
-                    .show(ui, add)
-                    .inner;
-                if fixed_foot && kept > 0.0 {
-                    let (foot, _) = ui.allocate_exact_size(
-                        egui::vec2(ui.available_width(), kept),
-                        egui::Sense::hover(),
-                    );
-                    // Kept from the dialog's corner, which moves with it.
-                    let foot = foot.translate(-origin.to_vec2());
-                    ui.ctx()
-                        .data_mut(|d| d.insert_temp(foot_rect_id(layer), foot));
-                }
-                inner
-            } else {
-                add(ui)
-            }
+            let (inner, shut) = lay_out(ui, &title, &layout, add);
+            closed = shut;
+            inner
         });
         if let (true, Some(open)) = (closed, open) {
             *open = false;
         }
         shown
     }
+}
+
+/// How a dialog's body is laid out, in the main window or in a window of its
+/// own.
+#[derive(Clone, Copy)]
+pub(super) struct Layout {
+    /// The least width of its body.
+    pub least: f32,
+    /// The width `fixed_size` gave it, frame and all.
+    pub fixed: Option<f32>,
+    /// Whether its body scrolls, under a title that stays.
+    pub scrolls: bool,
+    /// The most it may stand.
+    pub tallest: Option<f32>,
+    /// Whether it carries its own title (and close button): not in a window
+    /// of its own, whose title bar does.
+    pub titled: bool,
+    /// Whether it has a close button.
+    pub closable: bool,
+}
+
+/// Where a dialog keeps what it measures: by its layer in the main window,
+/// by its window in a window of its own (every one of those is drawn on a
+/// panel of the same layer).
+pub(super) fn key_layer(ui: &egui::Ui) -> egui::LayerId {
+    if apart::in_own_window(ui.ctx()) {
+        egui::LayerId::new(
+            egui::Order::Middle,
+            egui::Id::unique(("dm-own-window-layer", ui.ctx().viewport_id())),
+        )
+    } else {
+        ui.layer_id()
+    }
+}
+
+/// A dialog's body, its title above it where it has one. Returns what the
+/// body returned and whether the close button was clicked.
+pub(super) fn lay_out<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    layout: &Layout,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> (R, bool) {
+    let Layout {
+        least,
+        fixed,
+        scrolls,
+        tallest,
+        titled,
+        closable,
+    } = *layout;
+    // A dialog's fields, buttons and drop-downs are 28 tall, a little under
+    // the Fluent 2 standard control height. The window's own list and
+    // bars keep their compact 24 (the list sizes itself around
+    // them, and at 300% text with the clipboard's bar above it a
+    // taller control left its last row under the sideways bar).
+    if crate::theme::Tokens::get(ui.ctx()).modern {
+        ui.spacing_mut().interact_size.y = crate::theme::CONTROL;
+    }
+    let layer = key_layer(ui);
+    // A dialog of fixed size holds its body to the width inside its
+    // frame: egui offered the body the width it had grown to the
+    // frame before, a scroll area took all of it, and the dialog,
+    // placed by its middle, ran off the window (Options at 200%).
+    let least = match fixed {
+        Some(width) => {
+            let inner = width - ui.spacing().window_margin.sum().x;
+            ui.set_max_width(inner);
+            inner
+        }
+        None => least,
+    }
+    .min(ui.max_rect().width());
+    ui.ctx().data_mut(|d| d.insert_temp(least_id(layer), least));
+    let closed = if titled {
+        head(ui, title, closable)
+    } else {
+        false
+    };
+    let origin = ui.max_rect().min;
+    // The buttons' room kept under the scrolled part, at what they
+    // took last frame; the footer draws them there.
+    let kept = ui
+        .ctx()
+        .data(|d| d.get_temp::<f32>(foot_height_id(layer)))
+        .unwrap_or(0.0);
+    // From the height the dialog may have, less its title and
+    // margins: what egui says is available in a dialog that sizes
+    // itself is not that, and the scrolled part ran under the
+    // buttons (Options at 150%).
+    let spacing = ui.spacing().item_spacing.y;
+    let margins = ui.spacing().window_margin.sum().y;
+    let used = ui.min_rect().height() + spacing;
+    // In a window of its own the room is not what the window is now (that is what
+    // it was made to fit last frame): it is what it may grow to.
+    let available = if titled {
+        ui.available_height()
+    } else {
+        f32::MAX
+    };
+    let whole = tallest
+        .map_or(available, |most| most - margins - used)
+        .min(available);
+    // Where keeping the buttons in place would leave the body less
+    // than a few rows, the page scrolls whole with its buttons at
+    // the end, as it did: at 150% in the smallest
+    // window Options showed a sliver of its first setting.
+    let fixed_foot = scrolls && whole - kept - spacing >= 120.0;
+    ui.ctx().data_mut(|d| {
+        d.insert_temp(scrolls_id(layer), fixed_foot);
+        d.insert_temp(origin_id(layer), origin);
+    });
+    let inner = if scrolls {
+        let room = if fixed_foot {
+            whole - kept - spacing
+        } else {
+            whole
+        }
+        .max(48.0);
+        let inner = egui::ScrollArea::vertical()
+            .id_salt("dm-dialog-body")
+            .max_height(room)
+            .show(ui, add)
+            .inner;
+        if fixed_foot && kept > 0.0 {
+            let (foot, _) = ui
+                .allocate_exact_size(egui::vec2(ui.available_width(), kept), egui::Sense::hover());
+            // Kept from the dialog's corner, which moves with it.
+            let foot = foot.translate(-origin.to_vec2());
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(foot_rect_id(layer), foot));
+        }
+        inner
+    } else {
+        add(ui)
+    };
+    (inner, closed)
 }
 
 /// A dialog's title and close button; true when the button was clicked.
@@ -342,7 +499,7 @@ pub(super) fn head(ui: &mut egui::Ui, title: &str, closable: bool) -> bool {
     // and a dialog took that as its width (Options at 200%).
     // Measured without the title and the buttons, which would otherwise
     // hold a dialog at any width it once had.
-    let layer = ui.layer_id();
+    let layer = key_layer(ui);
     let (least, body) = ui.ctx().data(|d| {
         (
             d.get_temp::<f32>(least_id(layer)).unwrap_or(0.0),
@@ -533,7 +690,7 @@ pub(crate) fn footer<R>(
     if !t.modern {
         return ui.horizontal(add);
     }
-    let layer = ui.layer_id();
+    let layer = key_layer(ui);
     let margin = ui.spacing().window_margin;
     let (scrolled, kept) = ui.ctx().data(|d| {
         let origin = d
@@ -634,11 +791,17 @@ pub(super) fn row_on_band<R>(
     // Inside the dialog's hairline edge.
     .shrink2(egui::vec2(1.0, 0.0))
     .with_max_y(row.bottom() + f32::from(margin.bottom) - 1.0);
+    // Square in a window of its own, whose corners the system draws.
+    let round = if apart::in_own_window(ui.ctx()) {
+        0
+    } else {
+        t.card_radius.saturating_sub(1)
+    };
     let radius = egui::CornerRadius {
         nw: 0,
         ne: 0,
-        sw: t.card_radius.saturating_sub(1),
-        se: t.card_radius.saturating_sub(1),
+        sw: round,
+        se: round,
     };
     let painter = ui.painter().with_clip_rect(rect.expand(1.0));
     painter.set(

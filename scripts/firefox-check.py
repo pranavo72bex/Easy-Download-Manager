@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 """Loads the built extension into a real Firefox and reports what Firefox says.
 
     sh scripts/package.sh                         # builds dist/firefox
@@ -498,8 +503,15 @@ def main():
         (engine_home / "settings.json").write_text(json.dumps({
             "download_dir": str(engine_dl), "categorize": False,
             "catch": {"enabled": True, "extensions": ["bin"], "defaultsVersion": 1},
-            # The dialog the app opens for a panel video is the window test's.
+            # The dialogs the app opens for a caught download and a panel video are the window
+            # test's (contract row B63: the browser checks run with both off), and the settings
+            # are of this version, so dm does not turn them on once as for an older file.
             "ask_panel_downloads": False,
+            "ask_caught_downloads": False,
+            # No progress or finished window opens over Firefox, as in chrome-check.py.
+            "show_progress": False,
+            "show_complete": False,
+            "popups_version": 2,
         }))
         shim = engine_home / "host.sh"
         shim.write_text(f"#!/bin/sh\nexport DM_HOME='{engine_home}'\nexec '{host}' \"$@\"\n")

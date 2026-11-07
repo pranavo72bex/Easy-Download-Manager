@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl Queue {
@@ -6,7 +11,7 @@ impl Queue {
     /// there: a different ETag or Last-Modified, or a different length.
     /// Returns how many were checked and which are being fetched again. A
     /// server that cannot be reached, or says nothing to compare, leaves its
-    /// row alone; a row whose address is a page yt-dlp read or a stream's
+    /// row alone; a row whose address is a video page read by dm or a stream's
     /// playlist has nothing to compare and is not counted as checked.
     pub async fn synchronize(&self, queue: &str) -> (usize, Vec<Id>) {
         // One at a time: a second check over the same rows, from a click
@@ -40,7 +45,8 @@ impl Queue {
         let (mut checked, mut changed) = (0, Vec::new());
         for row in &rows {
             let referrer = (!row.referrer.is_empty()).then_some(row.referrer.as_str());
-            let sign_in = crate::cookies::SignIn::new(&row.url, &row.cookies);
+            let sign_in =
+                crate::cookies::SignIn::with_headers(&row.url, &row.cookies, &row.headers);
             let Ok(now) = crate::probe::probe(&client, &row.url, referrer, sign_in.as_ref()).await
             else {
                 continue;
@@ -83,8 +89,8 @@ impl Queue {
     /// counted as checked.
     ///
     /// What the row recorded is of the file, and the address is not always
-    /// the file's: a Metalink row's address is the mirror list, a yt-dlp
-    /// row's is a web page, a stream's is its playlist. Compared with the
+    /// the file's: a Metalink row's address is the mirror list, a video
+    /// page row's is a web page, a stream's is its playlist. Compared with the
     /// file's length and ETag, the document always differed, and every such
     /// row was fetched again on every check.
     pub(super) async fn compare(
@@ -96,9 +102,9 @@ impl Queue {
         sign_in: Option<&crate::cookies::SignIn>,
     ) -> Option<bool> {
         let kind = now.content_type.as_deref();
-        // A page yt-dlp made a video of, or a playlist of segments: what the
+        // A page made into a video, or a playlist of segments: what the
         // address serves says nothing about the file made from it.
-        if crate::ytdlp::is_page(kind) || crate::stream::kind_of(&row.url, kind).is_some() {
+        if crate::videopage::is_page(kind) || crate::stream::kind_of(&row.url, kind).is_some() {
             return None;
         }
         if !crate::metalink::is_metalink(&row.url, kind) {

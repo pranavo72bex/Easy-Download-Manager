@@ -1,3 +1,8 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # dm — clone it and install it, or work on it as with the flutter tool.
 #
 #     make install          build it and put it where your system looks
@@ -46,6 +51,8 @@ BINDIR := $(PREFIX)/bin
 APPDIR ?= /Applications
 
 BINARY := desktop/target/release/dm-desktop
+# The building computer's paths taken out of release builds (scripts/release-flags.sh).
+RELEASE_FLAGS := $(shell sh scripts/release-flags.sh)
 # The version the client says it is, for the installers' names.
 APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
 # Where `make build` puts what it made, one folder a platform.
@@ -179,7 +186,7 @@ doctor:
 
 $(BINARY):
 	@echo "$(BOLD)building the client$(OFF) — a few minutes the first time"
-	@cd desktop && cargo build --release -p dm-desktop
+	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo build --release -p dm-desktop
 
 client: doctor $(BINARY)
 	@install -d "$(BINDIR)"
@@ -204,7 +211,7 @@ endif
 app:
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/dm-desktop && CI=true cargo packager --release
+	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
 	@echo
 	@echo "built desktop/target/release/bundle/"
 ifeq ($(UNAME),Darwin)
@@ -298,7 +305,7 @@ run:
 	@cd desktop && cargo run -p dm-desktop -- $(ARGS)
 
 run-release:
-	@cd desktop && cargo run --release -p dm-desktop -- $(ARGS)
+	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo run --release -p dm-desktop -- $(ARGS)
 
 # Like `flutter build` with no platform named: everything this computer can
 # build, each into build/<platform>/, and a list of what was made. A platform
@@ -330,7 +337,7 @@ endif
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
-	@cd desktop/crates/dm-desktop && CI=true cargo packager --release --formats app,dmg
+	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats app,dmg
 	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
 	@cp -R desktop/target/release/bundle/dm.app $(BUILD)/macos/
 	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/
@@ -342,7 +349,7 @@ ifeq ($(UNAME),Linux)
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF): .deb, AppImage and .rpm"
-	@cd desktop/crates/dm-desktop && cargo packager --release --formats deb,appimage
+	@cd desktop/crates/dm-desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats deb,appimage
 	@sh scripts/linux/nfpm.sh $(BINARY) $(APP_VERSION) desktop/target/release/bundle
 	@for f in desktop/target/release/bundle/*.deb desktop/target/release/bundle/*.AppImage \
 	          desktop/target/release/bundle/*.rpm; do \

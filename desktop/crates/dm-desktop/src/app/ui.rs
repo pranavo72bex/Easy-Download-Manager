@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
@@ -165,7 +170,7 @@ impl DmApp {
             egui::Panel::left("categories")
                 .resizable(true)
                 .show_separator_line(lines)
-                .default_size(self.rail_width(ui, if t.modern { 230.0 } else { 200.0 }))
+                .default_size(self.rail_width(ui, if t.modern { 170.0 } else { 150.0 }))
                 // And never narrower than its longest name needs: a width
                 // kept from English cut German names after a switch and a
                 // relaunch.
@@ -252,10 +257,15 @@ impl DmApp {
     }
 
     pub(super) fn keys(&mut self, ctx: &egui::Context) {
-        // F3 types nothing: it finds the next one even from Find's own field.
+        // F3 types nothing: it finds the next one even from Find's own field,
+        // and Shift-F3 the previous (tried first: a shortcut matches with an
+        // extra Shift held).
         if self.dialogs.find_open && ctx.egui_wants_keyboard_input() {
+            let shift_f3 = egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::F3);
             let f3 = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::F3);
-            if ctx.input_mut(|i| i.consume_shortcut(&f3)) {
+            if ctx.input_mut(|i| i.consume_shortcut(&shift_f3)) {
+                self.queued.push(Command::FindPrevious);
+            } else if ctx.input_mut(|i| i.consume_shortcut(&f3)) {
                 self.queued.push(Command::FindNext);
             }
         }
@@ -292,7 +302,8 @@ impl DmApp {
         let behind = self.dialogs.in_front();
         for command in ctx.input_mut(Command::pressed) {
             // F3 is what Find is open for: it finds behind its own dialog.
-            let finding = command == Command::FindNext && self.dialogs.find_open;
+            let finding = matches!(command, Command::FindNext | Command::FindPrevious)
+                && self.dialogs.find_open;
             if !(behind && command.acts_on_the_list()) || finding {
                 self.queued.push(command);
             }
@@ -328,7 +339,7 @@ impl DmApp {
                 .map(|(_, step)| (step, i.modifiers.shift))
             });
             if let Some((step, shift)) = pressed {
-                let ids: Vec<Id> = self.visible().iter().map(|r| r.id).collect();
+                let ids: Vec<Id> = self.visible_shared().iter().map(|r| r.id).collect();
                 let (selected, anchor, cursor) = crate::table::stepped(
                     &ids,
                     &self.selected,

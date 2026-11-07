@@ -1,8 +1,12 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A picture and a sound a page's player fetched apart (what the extension
 //! catches: `browser/src/decide/streams.rs` `track_of`) are fetched by dm
-//! itself and joined into one file, with no yt-dlp on the computer at all.
-//! Its own test binary: it says through the environment that there is no
-//! yt-dlp, and a home of its own so nothing could be fetched into a real one.
+//! itself and joined into one file, with no helper program on the computer at all.
+//! Its own test binary: a home of its own, so nothing could be fetched into a real one.
 
 mod common;
 
@@ -69,15 +73,9 @@ fn ranged(data: Vec<u8>, seen: Arc<Mutex<Vec<String>>>) -> axum::routing::Method
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_pair_the_player_fetched_apart_is_fetched_and_joined_with_no_yt_dlp_at_all() {
+async fn a_pair_the_player_fetched_apart_is_fetched_and_joined_with_no_helper_at_all() {
     let dir = tempdir();
-    // No yt-dlp anywhere: not installed, none fetched, none to fetch into.
-    std::env::set_var("DM_YTDLP", "");
     std::env::set_var("DM_HOME", dir.path());
-    assert!(
-        !dm_core::ytdlp::available(),
-        "the test is not without yt-dlp"
-    );
 
     let seen = Arc::new(Mutex::new(Vec::new()));
     let app = axum::Router::new()
@@ -114,7 +112,7 @@ async fn a_pair_the_player_fetched_apart_is_fetched_and_joined_with_no_yt_dlp_at
     let seen = seen.lock().unwrap();
     assert!(seen.len() >= 2, "both streams were asked for: {seen:?}");
     assert!(
-        seen.iter().all(|agent| agent.starts_with("dm/")),
+        seen.iter().all(|agent| agent == dm_core::IE_AGENT),
         "fetched by dm itself, not a helper: {seen:?}"
     );
 }

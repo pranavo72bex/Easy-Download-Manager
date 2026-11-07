@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The AMF values a stream's commands are made of.
 
 /// The big-endian integer in the first `n` bytes of `b`; zero where `b`
@@ -12,11 +17,17 @@ pub(super) fn be(b: &[u8], n: usize) -> u32 {
 /// An AMF0 value, as much of one as a player reads.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Amf {
+    /// A number.
     Number(f64),
+    /// A true or false.
     Bool(bool),
+    /// A text.
     String(String),
+    /// An object: names and values, in order.
     Object(Vec<(String, Amf)>),
+    /// Nothing.
     Null,
+    /// Any other kind, which dm does not read.
     Other,
 }
 
@@ -138,5 +149,3 @@ pub(super) fn amf_value(data: &[u8], at: &mut usize, depth: u32) -> Option<Amf> 
         _ => return None,
     })
 }
-
-// ---- the chunk stream ---------------------------------------------------

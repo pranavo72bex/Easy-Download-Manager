@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The watched folder (Options › Downloads): a link saved where dm is told
 //! to look is added, then the file is moved into a `done` folder inside it,
 //! so it is not added twice and nothing is deleted.
@@ -99,6 +104,6 @@ fn still_being_written(meta: &std::fs::Metadata) -> bool {
 fn move_aside(dir: &std::path::Path, path: &std::path::Path, name: &str) -> std::io::Result<()> {
     let done = dir.join(DONE);
     std::fs::create_dir_all(&done)?;
-    let target = done.join(dm_core::download::free_name(&done, name));
+    let target = done.join(dm_core::free_name(&done, name));
     std::fs::rename(path, target)
 }

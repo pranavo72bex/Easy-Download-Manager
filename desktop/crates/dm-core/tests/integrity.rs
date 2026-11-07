@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The cases where a download could finish with the wrong bytes, or not
 //! finish at all, that an audit against the download-manager checklist found.
 //!
@@ -317,6 +322,49 @@ async fn a_file_of_unknown_length_downloads() {
 }
 
 #[tokio::test]
+async fn a_lone_connection_that_runs_out_of_tries_fails_the_download() {
+    /* A server that cuts the only connection and then refuses every try:
+     * the download fails with the server's own answer, not as a short file
+     * or a finished one. */
+    let hits = Arc::new(AtomicUsize::new(0));
+    let counted = hits.clone();
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |h: HeaderMap| {
+            let n = counted.fetch_add(1, Ordering::SeqCst);
+            async move {
+                let resp = ranged(&body(100_000, 4), "\"v1\"", &h);
+                if n > 0 {
+                    return Response::builder().status(503).body(Body::empty()).unwrap();
+                }
+                let (parts, b) = resp.into_parts();
+                let bytes = axum::body::to_bytes(b, usize::MAX).await.unwrap();
+                let s = futures_util::stream::iter(vec![
+                    Ok::<_, std::io::Error>(bytes.slice(..1000)),
+                    Err(std::io::Error::other("dropped")),
+                ]);
+                Response::from_parts(parts, Body::from_stream(s))
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let mut options = options(dir.path());
+    options.connections = 1;
+    options.attempts = 2;
+    let outcome = download(&client(), &format!("http://{addr}/f.bin"), &options).await;
+    assert!(
+        matches!(outcome, Err(dm_core::Error::Refused { status: 503, .. })),
+        "not the server's own refusal: {:?}",
+        outcome.map(|d| d.path)
+    );
+    assert!(
+        hits.load(Ordering::SeqCst) > 2,
+        "the range was not asked for again"
+    );
+}
+
+#[tokio::test]
 async fn a_connection_dropped_mid_range_is_retried() {
     /* A dropped body surfaces as a decode/body error, which was not counted
      * as transient: one reset on one of eight ranges failed the download. */
@@ -554,7 +602,7 @@ async fn a_site_that_refuses_dms_agent_is_asked_again_by_its_name_alone() {
                     .get("user-agent")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("");
-                if agent.to_ascii_lowercase().contains("github") {
+                if agent.to_ascii_lowercase().contains("github") || agent.contains("Trident") {
                     counted.fetch_add(1, Ordering::SeqCst);
                     return Response::builder()
                         .status(403)
@@ -574,8 +622,8 @@ async fn a_site_that_refuses_dms_agent_is_asked_again_by_its_name_alone() {
     assert_eq!(std::fs::read(&done.path).unwrap(), *data);
     assert_eq!(
         refused.load(Ordering::SeqCst),
-        1,
-        "asked with the refused agent more than once"
+        2,
+        "asked with each refused agent (the browser's, then dm's full one) more than once"
     );
 }
 
@@ -595,7 +643,7 @@ async fn a_site_that_takes_only_browsers_is_asked_as_a_browser_last() {
                     .get("user-agent")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("");
-                if !agent.starts_with("Mozilla/") {
+                if !agent.starts_with("Mozilla/") || agent.contains("Trident") {
                     return Response::builder()
                         .status(403)
                         .body(Body::from("browsers only"))
@@ -619,7 +667,7 @@ async fn a_site_that_takes_only_browsers_is_asked_as_a_browser_last() {
 
 #[tokio::test]
 async fn a_file_served_as_a_web_page_is_saved_as_the_file_it_is() {
-    /* A .zip with a careless text/html type went to yt-dlp as a page, and
+    /* A .zip with a careless text/html type went to the video reader as a page, and
      * was saved as "page [html].unknown_video". */
     let data = Arc::new(body(300 * 1024, 7));
     let served = data.clone();
@@ -687,19 +735,24 @@ async fn a_failed_download_leaves_no_connection_still_fetching() {
     let data = Arc::new(body(8 * 1024 * 1024, 3));
     let sent = Arc::new(AtomicUsize::new(0));
     let (served, counted) = (data.clone(), sent.clone());
+    let poisoned = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let poison_flag = poisoned.clone();
     let app = axum::Router::new().route(
         "/f.bin",
         get(move |h: HeaderMap| {
             let (data, counted) = (served.clone(), counted.clone());
+            let poisoned = poison_flag.clone();
             async move {
                 let range = h
                     .get("range")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("")
                     .to_string();
-                // The first connection's range, awaited first, is answered
-                // as another version of the file: a failure for good.
-                if range.starts_with("bytes=0-") && range != "bytes=0-0" {
+                let is_probe = range == "bytes=0-0" || range == "bytes=0-";
+                // Every non-probe data request is answered as another
+                // version of the file: a failure for good, retries included.
+                if !is_probe && range.starts_with("bytes=") {
+                    poisoned.store(true, Ordering::SeqCst);
                     return Response::builder()
                         .status(200)
                         .header("etag", "\"other\"")
@@ -708,7 +761,7 @@ async fn a_failed_download_leaves_no_connection_still_fetching() {
                         .unwrap();
                 }
                 let resp = ranged(&data, "\"v\"", &h);
-                if resp.status() != 206 || range == "bytes=0-0" {
+                if resp.status() != 206 || is_probe {
                     return resp;
                 }
                 let (parts, b) = resp.into_parts();
@@ -790,4 +843,161 @@ async fn a_weak_etag_is_not_sent_as_a_range_condition() {
         "a weak ETag was sent as If-Range"
     );
     assert!(done.connections > 1, "it fell back to one connection");
+}
+
+#[tokio::test]
+async fn a_web_page_that_answered_for_a_file_is_saved_as_html_when_asked_to() {
+    /* Reference A asks whether to save it as an HTML page; a person who said
+     * yes (`Options::accept_page`) has the page kept as `<name>.html`. */
+    let page = "<html><head><title>Sign in</title></head><body>expired</body></html>";
+    let app = axum::Router::new().route(
+        "/files/report.zip",
+        get(move || async move {
+            Response::builder()
+                .header("content-type", "text/html; charset=utf-8")
+                .body(Body::from(page))
+                .unwrap()
+        }),
+    );
+    let at = serve(app).await;
+    let dir = tempdir();
+    let url = format!("http://{at}/files/report.zip");
+
+    let refused = download(&client(), &url, &options(dir.path()))
+        .await
+        .expect_err("a page was saved as the zip without being asked");
+    assert!(refused
+        .to_string()
+        .contains("web page rather than the file"));
+
+    let asked = dm_core::Options {
+        accept_page: true,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &asked)
+        .await
+        .expect("the page was not saved");
+    assert_eq!(done.path.file_name().unwrap(), "report.html");
+    assert_eq!(std::fs::read_to_string(&done.path).unwrap(), page);
+}
+
+/// A server that ignores `If-Range` and republishes the file mid-download:
+/// from the third request on it serves another version, under another ETag,
+/// still as 206 to every range (gaps row 98). Whatever dm does, it must not
+/// finish with a file made of both.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_file_republished_mid_download_under_a_server_ignoring_if_range_is_not_spliced() {
+    const SIZE: usize = 24 * 1024 * 1024;
+    let old = Arc::new(body(SIZE, 1));
+    let new = Arc::new(body(SIZE, 2));
+    let asked = Arc::new(AtomicUsize::new(0));
+    let (served_old, served_new, counter) = (old.clone(), new.clone(), asked.clone());
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |headers: HeaderMap| {
+            let n = counter.fetch_add(1, Ordering::SeqCst);
+            let (data, etag) = if n < 2 {
+                (served_old.clone(), "\"v1\"")
+            } else {
+                (served_new.clone(), "\"v2\"")
+            };
+            async move {
+                let total = data.len();
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        let a: usize = a.parse().unwrap_or(0);
+                        (a, b.parse::<usize>().unwrap_or(total - 1).min(total - 1))
+                    })
+                    .unwrap_or((0, total - 1));
+                // About 8 MB/s a connection, so helpers join while it runs.
+                let chunks: Vec<Vec<u8>> =
+                    data[a..=b].chunks(64 * 1024).map(<[u8]>::to_vec).collect();
+                let stream = futures_util::stream::iter(chunks).then(|c| async move {
+                    tokio::time::sleep(Duration::from_millis(8)).await;
+                    Ok::<_, std::io::Error>(c)
+                });
+                Response::builder()
+                    .status(206)
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .header("accept-ranges", "bytes")
+                    .header("etag", etag)
+                    .body(Body::from_stream(stream))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let outcome = download(
+        &client(),
+        &format!("http://{addr}/f.bin"),
+        &options(dir.path()),
+    )
+    .await;
+    if let Ok(done) = outcome {
+        let saved = std::fs::read(&done.path).unwrap();
+        assert!(
+            saved == *old || saved == *new,
+            "a file of both versions was finished ({} requests)",
+            asked.load(Ordering::SeqCst)
+        );
+    }
+}
+
+/// Behind a redirect, every piece asks the address it landed on, as
+/// reference A does (gaps row 98): the redirecting address is asked once, by
+/// the first request, and never again for a range.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn after_a_redirect_every_piece_asks_the_address_it_landed_on() {
+    let data = Arc::new(body(24 * 1024 * 1024, 7));
+    let at_start = Arc::new(AtomicUsize::new(0));
+    let at_end = Arc::new(AtomicUsize::new(0));
+    let (start_count, end_count, served) = (at_start.clone(), at_end.clone(), data.clone());
+    let app = axum::Router::new()
+        .route(
+            "/go/f.bin",
+            get(move || {
+                start_count.fetch_add(1, Ordering::SeqCst);
+                async {
+                    Response::builder()
+                        .status(302)
+                        .header("location", "/files/f.bin")
+                        .body(Body::empty())
+                        .unwrap()
+                }
+            }),
+        )
+        .route(
+            "/files/f.bin",
+            get(move |headers: HeaderMap| {
+                end_count.fetch_add(1, Ordering::SeqCst);
+                let served = served.clone();
+                async move { ranged(&served, "\"one\"", &headers) }
+            }),
+        );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/go/f.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the download behind a redirect failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+    assert!(
+        done.connections > 1,
+        "one connection only: no pieces to check"
+    );
+    assert_eq!(
+        at_start.load(Ordering::SeqCst),
+        1,
+        "a piece asked the redirecting address"
+    );
+    assert!(at_end.load(Ordering::SeqCst) > 1);
 }

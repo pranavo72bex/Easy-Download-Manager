@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::super::*;
 
 /// What every tab of Options draws with besides the settings being edited:
@@ -8,6 +13,50 @@ pub(super) struct TabEnv<'a> {
     pub(super) queues: &'a [String],
     pub(super) platform: &'a dyn crate::backend::Platform,
     pub(super) first: &'a dyn Fn(egui::Response, bool),
+}
+
+/// The events a sound file can be chosen for, by the settings' key.
+const SOUND_EVENTS: [&str; 4] = ["complete", "failed", "queue_started", "queue_done"];
+
+/// What an event is called beside its sound.
+fn sound_words(event: &str) -> &'static str {
+    match event {
+        "complete" => t("Download complete"),
+        "failed" => t("Download failed"),
+        "queue_started" => t("Queue started"),
+        _ => t("Queue finished"),
+    }
+}
+
+/// One event's sound: its file's path, Choose… and Play.
+fn sound_row(
+    ui: &mut egui::Ui,
+    sounds: &mut std::collections::BTreeMap<String, String>,
+    event: &str,
+    words: &str,
+    platform: &dyn crate::backend::Platform,
+) {
+    let mut path = sounds.get(event).cloned().unwrap_or_default();
+    ui.horizontal_wrapped(|ui| {
+        field(ui, words, &mut path, 220.0);
+        if ui.button(t("Choose…")).clicked() {
+            if let Some(file) = rfd::FileDialog::new()
+                .add_filter("WAV", &["wav"])
+                .pick_file()
+            {
+                path = file.display().to_string();
+            }
+        }
+        let has = !path.trim().is_empty();
+        if ui.add_enabled(has, egui::Button::new(t("Play"))).clicked() {
+            platform.play_file(path.trim());
+        }
+    });
+    if path.trim().is_empty() {
+        sounds.remove(event);
+    } else {
+        sounds.insert(event.to_string(), path);
+    }
 }
 
 /// The General tab of Options.
@@ -74,6 +123,45 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .response
             .labelled_by(name);
     });
+    // What a caught or typed address already in the list does, asked once
+    // and remembered from the question's tick: undone here.
+    setting_row(
+        ui,
+        t("When an address is already in the list"),
+        |ui, name| {
+            let shown = match s.duplicate_choice.as_str() {
+                "show" => t("Show it"),
+                "again" => t("Download again"),
+                "replace" => t("Replace the old file"),
+                _ => t("Ask me"),
+            };
+            combo("duplicate-choice")
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    pick(ui, &mut s.duplicate_choice, String::new(), t("Ask me"));
+                    pick(
+                        ui,
+                        &mut s.duplicate_choice,
+                        "show".to_string(),
+                        t("Show it"),
+                    );
+                    pick(
+                        ui,
+                        &mut s.duplicate_choice,
+                        "again".to_string(),
+                        t("Download again"),
+                    );
+                    pick(
+                        ui,
+                        &mut s.duplicate_choice,
+                        "replace".to_string(),
+                        t("Replace the old file"),
+                    );
+                })
+                .response
+                .labelled_by(name);
+        },
+    );
     toggle_row(
         ui,
         &mut s.allow_command_line,
@@ -104,6 +192,15 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         &mut s.sound_on_failure,
         t("Play a sound when a download fails"),
     );
+    // A sound of one's own for each event, as reference A offers: empty
+    // keeps the system's.
+    hint(
+        ui,
+        t("A sound file of your own for each, or empty for the usual sound (.wav)."),
+    );
+    for event in SOUND_EVENTS {
+        sound_row(ui, &mut s.sounds, event, sound_words(event), platform);
+    }
     // Offered only where it can be drawn.
     if crate::chrome::mica_possible() {
         toggle_row(ui, &mut s.mica, t("Use the Mica backdrop"));
@@ -136,6 +233,13 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         ui,
         t("dm looks at what you copy and offers to download any link."),
     );
+    ui.add_enabled_ui(s.watch_clipboard, |ui| {
+        toggle_row(
+            ui,
+            &mut s.start_copied,
+            t("Take a copied link at once, without offering it first"),
+        );
+    });
     toggle_row(
         ui,
         &mut s.ask_panel_downloads,
@@ -153,6 +257,16 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     hint(
         ui,
         t("Shows Download details before a download from your browser starts."),
+    );
+    // Reference A's "start downloading while the dialog is open" (gaps row 85).
+    toggle_row(
+        ui,
+        &mut s.start_while_asking,
+        t("Start downloading while Download details is open"),
+    );
+    hint(
+        ui,
+        t("The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it."),
     );
     toggle_row(
         ui,
@@ -213,7 +327,7 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             let path = if platform.can_choose_file() {
                 platform.choose_file(false, "dm-settings.json")
             } else {
-                Some(fallback.clone())
+                Some(fallback)
             };
             if let Some(path) = path {
                 d.says = match std::fs::read_to_string(&path)
@@ -231,10 +345,104 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     });
 }
 
+/// Who opens magnet links and `.torrent` files on this computer, each with
+/// a button that makes it dm where it is not, and one that gives it back to
+/// the program that had it; read once, beside the window, as the page opens.
+#[cfg(target_os = "windows")]
+fn handler_rows(ui: &mut egui::Ui, d: &mut OptionsDialog) {
+    use dm_shell::register::{self, Owner};
+    let read = d.handlers.lock().ok().and_then(|h| *h);
+    if read.is_none() && !d.handlers_asked {
+        d.handlers_asked = true;
+        let slot = std::sync::Arc::clone(&d.handlers);
+        let ctx = ui.ctx().clone();
+        std::thread::spawn(move || {
+            let found = (
+                register::magnet_owner(register::run_reg),
+                register::torrent_owner(register::run_reg),
+            );
+            *dm_core::lock(&slot) = Some(found);
+            ctx.request_repaint();
+        });
+    }
+    let home = dm_shell::settings::home();
+    let mut done: Option<Result<(), String>> = None;
+    ui.add_space(8.0);
+    for magnet in [true, false] {
+        let owner = read.map(|(m, t)| if magnet { m } else { t });
+        let backup = if magnet {
+            register::magnet_backup(&home)
+        } else {
+            register::torrent_backup(&home)
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label(if magnet {
+                t("Magnet links open with:")
+            } else {
+                t(".torrent files open with:")
+            });
+            let said = match owner {
+                None => t("Looking…"),
+                Some(Owner::Dm) => "dm",
+                Some(Owner::Other) => t("another program"),
+                Some(Owner::Nobody) => t("nothing yet"),
+                Some(Owner::WindowsChoice) => t("the app chosen in Windows' Default apps"),
+            };
+            ui.label(RichText::new(said).strong());
+            let take = if magnet {
+                t("Use dm for magnet links")
+            } else {
+                t("Use dm for .torrent files")
+            };
+            if matches!(owner, Some(Owner::Other | Owner::Nobody)) && ui.button(take).clicked() {
+                done = Some(
+                    std::env::current_exe()
+                        .map_err(|e| e.to_string())
+                        .and_then(|exe| {
+                            if magnet {
+                                register::take_magnet_windows(&exe, &backup, register::run_reg)
+                            } else {
+                                register::take_torrent_windows(&exe, &backup, register::run_reg)
+                            }
+                        }),
+                );
+            }
+            let give = if magnet {
+                t("Give magnet links back")
+            } else {
+                t("Give .torrent files back")
+            };
+            if owner == Some(Owner::Dm) && backup.is_file() && ui.button(give).clicked() {
+                done = Some(if magnet {
+                    register::give_back_magnet_windows(&backup, register::run_reg)
+                } else {
+                    register::give_back_torrent_windows(&backup, register::run_reg)
+                });
+            }
+        });
+    }
+    hint(
+        ui,
+        t("dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps."),
+    );
+    // Windows' own chooser at a first magnet click is its question, not dm's (gaps row 107).
+    hint(
+        ui,
+        t("The first magnet link you click may make Windows ask which app opens it: choose dm there. dm cannot answer for you."),
+    );
+    // Read again after a change, so the page says what is so now.
+    if let Some(result) = done {
+        if let Err(why) = result {
+            d.says = why;
+        }
+        *dm_core::lock(&d.handlers) = None;
+        d.handlers_asked = false;
+    }
+}
+
 /// The FileTypes tab of Options.
 pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv { platform, .. } = *env;
-    let s = &mut d.draft;
     // The extension, for someone who said not now to the bar over the
     // list, or has a second browser: each browser with whether its
     // extension has talked to dm, and Add where it has not.
@@ -274,8 +482,36 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 ui.end_row();
             }
         });
+    // Who opens magnet links and .torrent files: Windows keeps that, not
+    // the browser.
+    #[cfg(target_os = "windows")]
+    handler_rows(ui, d);
+    let s = &mut d.draft;
     ui.add_space(8.0);
     let c = &mut s.catch;
+    // The items dm adds to the browser's right-click menu, each chosen, as
+    // reference A's (gaps row 86); the extension makes them again on a change.
+    ui.label(t("Items dm adds to the browser's right-click menu"));
+    // One under another: a wrapped row takes the whole width it may have,
+    // which widened Options on this page alone (at 200 % text OK moved).
+    ui.vertical(|ui| {
+        for (id, _) in dm_protocol::MENU_ITEMS {
+            let words = match id {
+                "dm-link" => t("Download link with dm"),
+                "dm-media" => t("Download media with dm"),
+                "dm-all-links" => t("Download all links with dm"),
+                _ => t("Download selected links with dm"),
+            };
+            let mut on = c.shows_menu(id);
+            if check(ui, &mut on, words).changed() {
+                c.hidden_menus.retain(|h| h != id);
+                if !on {
+                    c.hidden_menus.push(id.to_string());
+                }
+            }
+        }
+    });
+    ui.add_space(4.0);
     toggle_row(
         ui,
         &mut c.enabled,
@@ -292,6 +528,25 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                     ui.label(RichText::new(t("Separate types with spaces, no dots. Leave empty for all.")).small().weak());
                     number_row(ui, t("Ignore files smaller than (KB)"), |ui, name| {
                         ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name);
+                    });
+                    // Reference A's list of the browsers it captures from, each ticked
+                    // or not (gaps row 86); an unticked one keeps its downloads.
+                    ui.label(t("Take downloads from these browsers"));
+                    ui.vertical(|ui| {
+                        for browser in dm_protocol::BROWSERS {
+                            let mut on = c.takes_from(browser);
+                            let words = if browser == "Chromium" {
+                                t("Other Chromium browsers")
+                            } else {
+                                browser
+                            };
+                            if check(ui, &mut on, words).changed() {
+                                c.off_browsers.retain(|b| !b.eq_ignore_ascii_case(browser));
+                                if !on {
+                                    c.off_browsers.push(browser.to_string());
+                                }
+                            }
+                        }
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
                     ui.label(RichText::new(t("Separate sites with spaces. example.com covers its subdomains.")).small().weak());
@@ -471,6 +726,19 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
             .labelled_by(name);
     });
     hint(ui, t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(t("Presets:")).small());
+        for (label, count) in [
+            (t("Slow (2)"), 2),
+            (t("Normal (8)"), 8),
+            (t("Fast (16)"), 16),
+            (t("Maximum (32)"), 32),
+        ] {
+            if ui.selectable_label(s.connections == count, label).clicked() {
+                s.connections = count;
+            }
+        }
+    });
     number_row(ui, t("Files at once"), |ui, name| {
         ui.add(number_box(&mut s.concurrency).range(1..=10))
             .labelled_by(name);
@@ -600,7 +868,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
             let name = ui.label(t("Starts at (HH:MM)"));
             ui.add(egui::TextEdit::singleline(&mut start.at).desired_width(60.0))
                 .labelled_by(name.id);
-            if !dm_core::schedule::is_time(&start.at) {
+            if !dm_core::is_time(&start.at) {
                 ui.colored_label(warn(ui), t("Not a time"));
             }
             if ui.button(t("Delete start time")).clicked() {
@@ -645,16 +913,79 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     ui.label(t("When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:"));
     field(ui, t("Command"), &mut s.on_complete, 320.0);
     ui.add_space(8.0);
-    toggle_row(
-        ui,
-        &mut s.fetch_tools,
-        t("Get the video helper (yt-dlp) when needed"),
-    );
-    ui.label(RichText::new(t("Downloaded from its official GitHub release, checked, and kept up to date every week. Off: dm uses only a yt-dlp you installed yourself.")).small().weak());
+    toggle_row(ui, &mut s.fetch_tools, t("Get the video tools when needed"));
+    ui.label(RichText::new(t("Downloaded from their official releases, checked, and kept up to date. Off: dm uses only tools you installed yourself.")).small().weak());
 }
 
-/// The Connection tab of Options.
-pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
+/// The Advanced page of Options: the settings the Connection and Proxy tabs
+/// held, one after the other, each with the words it always had.
+pub(super) fn tab_advanced(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
+    section(ui, t("Network"));
+    tab_connection(ui, d, env);
+    // The name dm gives servers first, and the switch for dm's own.
+    ui.label(t("dm identifies itself to servers as:"));
+    let agent = if d.draft.identify_as_dm {
+        dm_core::USER_AGENT
+    } else {
+        dm_core::IE_AGENT
+    };
+    ui.label(egui::RichText::new(agent).monospace().weak());
+    toggle_row(ui, &mut d.draft.identify_as_dm, t("Identify as dm only"));
+    hint(
+        ui,
+        t("Sends dm's own name first. A site that refuses it is asked again with another name."),
+    );
+    // Where a proxy that cannot be one was said, the page opens at it.
+    if std::mem::take(&mut d.to_proxy) {
+        ui.scroll_to_cursor(Some(egui::Align::TOP));
+    }
+    section(ui, t("Proxy"));
+    tab_proxy(ui, d, env);
+    section(ui, t("BitTorrent"));
+    field(
+        ui,
+        t("Block the peers listed at this address (optional)"),
+        &mut d.draft.peer_blocklist,
+        360.0,
+    );
+    hint(
+        ui,
+        t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read."),
+    );
+    // Off unless turned on: sharing sends from the person's connection (gaps row 147).
+    toggle_row(
+        ui,
+        &mut d.draft.torrent_share,
+        t("Keep sharing a finished torrent"),
+    );
+    hint(
+        ui,
+        t("Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole."),
+    );
+    ui.add_enabled_ui(d.draft.torrent_share, |ui| {
+        let s = &mut d.draft;
+        number_row(ui, t("Until it has sent (times its size)"), |ui, name| {
+            ui.add(number_box(&mut s.torrent_share_ratio).range(0.1..=100.0))
+                .labelled_by(name);
+        });
+        number_row(ui, t("For at most (minutes)"), |ui, name| {
+            ui.add(number_box(&mut s.torrent_share_minutes).range(1..=7 * 24 * 60))
+                .labelled_by(name);
+        });
+        number_row(ui, t("Send at most (KB/s, 0 for no limit)"), |ui, name| {
+            ui.add(number_box(&mut s.torrent_upload_limit).range(0..=1_000_000))
+                .labelled_by(name);
+        });
+    });
+    // What Windows' question at the first torrent is for (gaps row 101).
+    hint(
+        ui,
+        t("The first torrent makes Windows ask whether dm may use public and private networks. Allowed, other peers can reach dm and torrents go faster; refused, dm still downloads, reaching peers itself. Change it later in Windows Security, Firewall, Allow an app through firewall."),
+    );
+}
+
+/// The connection's settings, the first part of the Advanced page.
+fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv {
         first, platform, ..
     } = *env;
@@ -672,6 +1003,10 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 .labelled_by(name);
         },
     );
+    hint(
+        ui,
+        t("How many times dm tries again after a connection fails."),
+    );
     number_row(
         ui,
         t("Wait between attempts (seconds, 0 for automatic)"),
@@ -680,6 +1015,7 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 .labelled_by(name);
         },
     );
+    hint(ui, t("How long dm waits before it tries again."));
     number_row(
         ui,
         t("Time out a silent connection after (seconds)"),
@@ -687,6 +1023,10 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
             ui.add(number_box(&mut s.read_timeout).range(5..=600))
                 .labelled_by(name);
         },
+    );
+    hint(
+        ui,
+        t("How long a connection may say nothing before dm gives up on it."),
     );
     // A second network beside the one the system routes by: every other
     // connection of a download goes out on it.
@@ -705,7 +1045,7 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 for found in dm_core::interfaces() {
                     // The system's name for it where it has one ("iPhone
                     // USB (en5)"), else its address.
-                    let words = match dm_core::second_path::system_name(&found.name) {
+                    let words = match dm_core::system_name(&found.name) {
                         Some(named) => format!("{named} ({})", found.name),
                         None => format!("{} ({})", found.name, found.address),
                     };
@@ -748,15 +1088,6 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 remove = Some(i);
             }
         });
-        hint(
-            ui,
-            t("How long a connection may say nothing before dm gives up on it."),
-        );
-        hint(ui, t("How long dm waits before it tries again."));
-        hint(
-            ui,
-            t("How many times dm tries again after a connection fails."),
-        );
     }
     if let Some(i) = remove {
         s.host_limits.remove(i);
@@ -820,10 +1151,10 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     }
 }
 
-/// The Proxy tab of Options.
-pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
+/// The proxy settings, the second part of the Advanced page.
+fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
     let s = &mut d.draft;
-    use dm_core::proxy::Kind;
+    use dm_core::ProxyKind as Kind;
     let p = &mut s.proxy;
     toggle_row(ui, &mut p.enabled, t("Connect through a proxy"));
     hint(
@@ -871,8 +1202,43 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
                         let name = ui.label(t("Password"));
                         ui.add(egui::TextEdit::singleline(&mut p.password).password(true).desired_width(ui.available_width().min(200.0))).labelled_by(name.id);
                         field(ui, t("Not for these sites (fetched directly)"), &mut d.bypass, 260.0);
+                        // A proxy of its own for one kind of download, as reference A's
+                        // per-protocol settings; the rest go through the one above.
+                        for (scheme, words) in [
+                            ("http", t("A proxy of its own for HTTP downloads")),
+                            ("https", t("A proxy of its own for HTTPS downloads")),
+                        ] {
+                            let mut own = p.per_scheme.contains_key(scheme);
+                            if toggle_row(ui, &mut own, words).changed() {
+                                if own {
+                                    p.per_scheme.insert(
+                                        scheme.to_string(),
+                                        dm_core::SchemeProxy {
+                                            kind: Kind::Http,
+                                            host: String::new(),
+                                            port: 8080,
+                                            username: String::new(),
+                                            password: String::new(),
+                                        },
+                                    );
+                                } else {
+                                    p.per_scheme.remove(scheme);
+                                }
+                            }
+                            if let Some(entry) = p.per_scheme.get_mut(scheme) {
+                                ui.push_id(scheme, |ui| {
+                                    ui.indent(scheme, |ui| {
+                                        field(ui, t("Its host"), &mut entry.host, 220.0);
+                                        number_row(ui, t("Its port"), |ui, name| {
+                                            ui.add(number_box(&mut entry.port).range(1..=65535)).labelled_by(name);
+                                        });
+                                    });
+                                });
+                            }
+                        }
                     });
-                    ui.label(RichText::new(t("Every download of dm's own, yt-dlp and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT.")).small().weak());
+                    field(ui, t("Automatic configuration script address (it chooses each site's proxy, in place of the above)"), &mut p.script, 260.0);
+                    ui.label(RichText::new(t("Every download, the video tools and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT.")).small().weak());
                 });
 }
 

@@ -1,4 +1,30 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
+
+#[test]
+fn a_queue_with_a_schedule_of_its_own_uses_it_and_the_rest_use_the_shared_one() {
+    let mut settings = Settings::default();
+    settings.schedule.from = "01:00".into();
+    settings.queue_schedules.insert(
+        "Night".into(),
+        Schedule {
+            from: "23:00".into(),
+            ..Schedule::default()
+        },
+    );
+    assert_eq!(settings.schedule_for("Night").from, "23:00");
+    assert_eq!(settings.schedule_for("Main").from, "01:00");
+
+    let saved = serde_json::to_string(&settings).unwrap();
+    let read: Settings = serde_json::from_str(&saved).unwrap();
+    assert_eq!(read.schedule_for("Night").from, "23:00");
+    let old: Settings = serde_json::from_str("{}").unwrap_or_default();
+    assert!(old.queue_schedules.is_empty());
+}
 
 #[test]
 fn a_marker_beside_the_program_or_its_app_makes_it_portable() {
@@ -581,7 +607,8 @@ fn settings_written_by_an_earlier_version_still_read() {
         "sorting by kind is on unless turned off"
     );
     assert!(!settings.schedule.enabled);
-    assert!(!settings.proxy.enabled);
+    // A file that never named a proxy follows the computer's, as a new one does.
+    assert!(settings.proxy.enabled && settings.proxy.kind == dm_core::ProxyKind::System);
     assert_eq!(settings.quality(), Quality::Best);
 }
 
@@ -724,23 +751,349 @@ fn a_catch_list_brought_up_to_date_is_left_as_the_person_made_it() {
     assert!(every.catch.extensions.is_empty());
 }
 
-/// Both pop-ups were on for everyone, so a saved `true` from before they
-/// were off by default is the old default and is let go once; a choice made
-/// since (the edition is saved with it) stands.
+/// Reference A's pop-ups, every one on (edition 2): a file from an older
+/// edition, whose `false` was dm's old default and not a choice, takes them
+/// once; a choice made since (the edition is saved with it) stands.
 #[test]
-fn pop_ups_saved_on_before_they_were_off_by_default_are_turned_off_once() {
-    let old = serde_json::from_str::<Settings>(r#"{"show_progress": true, "show_complete": true}"#)
-        .unwrap()
-        .clamped();
-    assert!(!old.show_progress && !old.show_complete);
+fn pop_ups_from_an_older_edition_take_reference_as_defaults_once() {
+    let old = serde_json::from_str::<Settings>(
+        r#"{"popups_version": 1, "show_progress": false, "show_complete": false,
+            "ask_caught_downloads": false, "ask_panel_downloads": false}"#,
+    )
+    .unwrap()
+    .clamped();
+    assert!(old.show_progress && old.show_complete);
+    assert!(old.ask_caught_downloads && old.ask_panel_downloads);
     assert_eq!(old.popups_version, POPUPS_VERSION);
-    // Turned on afterwards and saved: kept through the next read.
+    // Turned off afterwards and saved: kept through the next read.
     let mut chosen = old.clone();
-    chosen.show_progress = true;
+    chosen.show_progress = false;
+    chosen.ask_caught_downloads = false;
     let text = serde_json::to_string(&chosen).unwrap();
     let again = serde_json::from_str::<Settings>(&text).unwrap().clamped();
-    assert!(again.show_progress && !again.show_complete);
-    // A fresh install has them off.
+    assert!(!again.show_progress && again.show_complete);
+    assert!(!again.ask_caught_downloads && again.ask_panel_downloads);
+    // A fresh install has them all on.
     let fresh = Settings::default();
-    assert!(!fresh.show_progress && !fresh.show_complete);
+    assert!(fresh.show_progress && fresh.show_complete);
+    assert!(fresh.ask_caught_downloads && fresh.ask_panel_downloads);
+}
+
+/// A store that refuses everything, for the fallback.
+struct Refusing;
+
+impl dm_core::secretstore::SecretStore for Refusing {
+    fn get(&self, _: &str) -> Result<Option<Vec<u8>>, String> {
+        Err("locked".into())
+    }
+    fn put(&self, _: &str, _: &[u8]) -> Result<(), String> {
+        Err("locked".into())
+    }
+    fn delete(&self, _: &str) -> Result<(), String> {
+        Err("locked".into())
+    }
+}
+
+/// Made up for the run, never written in the code (a scanner read the
+/// literals these tests had as real passwords).
+fn site_password() -> String {
+    crate::test_secrets::secret("site_password")
+}
+
+fn proxy_password() -> String {
+    crate::test_secrets::secret("proxy_password")
+}
+
+fn with_passwords() -> Settings {
+    let mut settings = Settings {
+        site_logins: vec![SiteLogin {
+            host: "example.com".into(),
+            username: "ann".into(),
+            password: site_password(),
+        }],
+        ..Settings::default()
+    };
+    settings.proxy.username = "bob".into();
+    settings.proxy.password = proxy_password();
+    settings
+}
+
+#[test]
+fn passwords_go_to_the_store_and_the_file_keeps_none() {
+    let store = dm_core::secretstore::MemoryStore::default();
+    let mut file = with_passwords();
+    assert_eq!(file.move_passwords_to(&store, "ns"), None);
+    assert!(file.site_logins[0].password.is_empty() && file.proxy.password.is_empty());
+    let text = serde_json::to_string(&file).unwrap();
+    assert!(!text.contains(&site_password()) && !text.contains(&proxy_password()));
+
+    // Read back: an empty field is looked up in the store.
+    let mut read: Settings = serde_json::from_str(&text).unwrap();
+    assert_eq!(read.take_passwords_from(&store, "ns"), (false, None));
+    assert_eq!(read.site_logins[0].password, site_password());
+    assert_eq!(read.proxy.password, proxy_password());
+
+    // Another home's names are not this one's.
+    let mut other: Settings = serde_json::from_str(&text).unwrap();
+    other.take_passwords_from(&store, "elsewhere");
+    assert!(other.site_logins[0].password.is_empty());
+}
+
+#[test]
+fn a_file_with_clear_passwords_is_moved_into_the_store_on_its_first_read() {
+    let store = dm_core::secretstore::MemoryStore::default();
+    let mut read = with_passwords();
+    let (moved, note) = read.take_passwords_from(&store, "ns");
+    assert!(moved && note.is_none());
+    assert_eq!(
+        read.site_logins[0].password,
+        site_password(),
+        "in memory as before"
+    );
+    // What is written next carries none, and a later read finds them in the store.
+    let mut next = read.clone();
+    next.move_passwords_to(&store, "ns");
+    let mut later: Settings = serde_json::from_str(&serde_json::to_string(&next).unwrap()).unwrap();
+    later.take_passwords_from(&store, "ns");
+    assert_eq!(later.proxy.password, proxy_password());
+}
+
+/// An empty password is forgotten in the store when the person cleared it, and kept when this
+/// run never read it back: a settings file read in part, or a store that would not answer at
+/// start (security review, 2026-11-07).
+#[test]
+fn a_password_this_run_did_not_read_back_is_not_forgotten_by_the_next_save() {
+    let store = dm_core::secretstore::MemoryStore::default();
+    let mut first = with_passwords();
+    first.move_passwords_to(&store, "ns");
+
+    let mut fallback = Settings {
+        keep_stored_passwords: true,
+        ..Settings::default()
+    };
+    fallback.move_passwords_to(&store, "ns");
+    let mut read = with_passwords();
+    read.proxy.password.clear();
+    read.take_passwords_from(&store, "ns");
+    assert_eq!(
+        read.proxy.password,
+        proxy_password(),
+        "kept through the fallback"
+    );
+
+    // Cleared by the person, in a run that read it: forgotten.
+    let mut cleared = with_passwords();
+    cleared.proxy.password.clear();
+    cleared.move_passwords_to(&store, "ns");
+    let mut again = with_passwords();
+    again.proxy.password.clear();
+    again.take_passwords_from(&store, "ns");
+    assert!(
+        again.proxy.password.is_empty(),
+        "the person's clearing stands"
+    );
+
+    // A file that cannot be read is a fallback; one that is read whole is not.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    std::fs::write(&path, "{ not json").unwrap();
+    assert!(Settings::load_from(&path).0.keep_stored_passwords);
+    std::fs::write(&path, serde_json::to_string(&Settings::default()).unwrap()).unwrap();
+    assert!(!Settings::load_from(&path).0.keep_stored_passwords);
+}
+
+#[test]
+fn a_store_that_refuses_leaves_the_passwords_in_the_file_and_says_so() {
+    let mut file = with_passwords();
+    let note = file.move_passwords_to(&Refusing, "ns").expect("a notice");
+    assert!(note.contains("locked") && note.contains("settings file"));
+    assert_eq!(file.site_logins[0].password, site_password());
+    assert_eq!(file.proxy.password, proxy_password());
+
+    let mut read = with_passwords();
+    let (moved, note) = read.take_passwords_from(&Refusing, "ns");
+    assert!(!moved && note.is_some());
+    assert_eq!(read.proxy.password, proxy_password(), "nothing is lost");
+}
+
+#[test]
+fn a_proxy_password_stays_only_with_the_proxy_it_was_given_for() {
+    let mut mine = Settings::default();
+    mine.proxy.username = "corp".into();
+    mine.proxy.host = "proxy.corp.example".into();
+    mine.proxy.port = 3128;
+    mine.proxy.password = "kept".into();
+    let file = |host: &str, port: u16| {
+        let mut other = Settings::default();
+        other.proxy.username = "corp".into();
+        other.proxy.host = host.into();
+        other.proxy.port = port;
+        serde_json::to_string(&other).unwrap()
+    };
+    let same = mine.imported(&file("proxy.corp.example", 3128)).unwrap();
+    assert_eq!(same.proxy.password, "kept");
+    let elsewhere = mine.imported(&file("evil.example", 3128)).unwrap();
+    assert_eq!(elsewhere.proxy.password, "");
+    let other_port = mine.imported(&file("proxy.corp.example", 8080)).unwrap();
+    assert_eq!(other_port.proxy.password, "");
+}
+
+#[test]
+fn a_settings_file_never_sets_the_program_run_at_the_end_of_the_schedule() {
+    let mut mine = Settings::default();
+    mine.schedule.run_when_done = "backup --quiet".into();
+    let mut theirs = Settings::default();
+    theirs.schedule.run_when_done = "evil".into();
+    let read = mine
+        .imported(&serde_json::to_string(&theirs).unwrap())
+        .unwrap();
+    assert_eq!(read.schedule.run_when_done, "backup --quiet");
+}
+
+#[test]
+fn a_settings_file_never_sets_the_program_run_at_the_end_of_a_queues_own_hours() {
+    let mut mine = Settings::default();
+    let kept = Schedule {
+        run_when_done: "backup --quiet".into(),
+        ..Schedule::default()
+    };
+    mine.queue_schedules.insert("Nightly".into(), kept);
+    let mut theirs = Settings::default();
+    for name in ["Nightly", "Main queue", "Added by the file"] {
+        let schedule = Schedule {
+            enabled: true,
+            run_when_done: "sh -c 'evil'".into(),
+            ..Schedule::default()
+        };
+        theirs.queue_schedules.insert(name.into(), schedule);
+    }
+    let read = mine
+        .imported(&serde_json::to_string(&theirs).unwrap())
+        .unwrap();
+    assert_eq!(
+        read.queue_schedules["Nightly"].run_when_done,
+        "backup --quiet"
+    );
+    assert_eq!(read.queue_schedules["Main queue"].run_when_done, "");
+    assert_eq!(read.queue_schedules["Added by the file"].run_when_done, "");
+}
+
+#[test]
+fn a_sound_file_chosen_for_an_event_is_kept_and_an_old_file_has_none() {
+    let mut settings = Settings::default();
+    settings
+        .sounds
+        .insert("queue_done".into(), "/sounds/done.wav".into());
+    let saved = serde_json::to_string(&settings).unwrap();
+    let read: Settings = serde_json::from_str(&saved).unwrap();
+    assert_eq!(
+        read.sounds.get("queue_done").map(String::as_str),
+        Some("/sounds/done.wav")
+    );
+    let old: Settings = serde_json::from_str("{}").unwrap_or_default();
+    assert!(old.sounds.is_empty(), "no entry keeps the system's sound");
+}
+
+/// The browser's host reads settings as the window does: one odd field
+/// costs that field, not every choice, and the file is left as it was
+/// (the host has no window to say it moved it).
+#[test]
+fn read_only_keeps_the_rest_of_a_file_with_one_odd_field_and_leaves_it_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    let text = format!(
+        r#"{{"connections": "eight", "ask_caught_downloads": false, "popups_version": {POPUPS_VERSION}}}"#
+    );
+    std::fs::write(&path, &text).unwrap();
+    let read = Settings::read_only(&path);
+    assert!(!read.ask_caught_downloads, "the person's choice was lost");
+    assert_eq!(read.connections, Settings::default().connections);
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        text,
+        "the file was touched"
+    );
+    assert!(!path.with_extension("json.unreadable").exists());
+    // No file at all: the defaults.
+    let none = Settings::read_only(&dir.path().join("absent.json"));
+    assert_eq!(none.connections, Settings::default().connections);
+}
+
+/// The slow hours' limit is in force in its hours, the lower of the two,
+/// and the speed limit outside them; past midnight too; off, never.
+#[test]
+fn the_slow_hours_lower_the_limit_in_their_hours_only() {
+    let mut s = Settings {
+        speed_limit: 1000,
+        slow_hours: SlowHours {
+            enabled: true,
+            from: "22:00".into(),
+            to: "06:00".into(),
+            limit: 100,
+        },
+        ..Settings::default()
+    };
+    assert_eq!(
+        s.speed_limit_bytes_at(1, 23 * 60),
+        100 * 1024,
+        "in its hours"
+    );
+    assert_eq!(
+        s.speed_limit_bytes_at(2, 3 * 60),
+        100 * 1024,
+        "past midnight"
+    );
+    assert_eq!(s.speed_limit_bytes_at(2, 12 * 60), 1000 * 1024, "outside");
+    // No speed limit the rest of the day: the slow one alone in its hours.
+    s.speed_limit = 0;
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 100 * 1024);
+    assert_eq!(s.speed_limit_bytes_at(1, 12 * 60), 0);
+    // A speed limit lower than the slow one stands.
+    s.speed_limit = 50;
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * 1024);
+    // Off, or with a time that is not one, never.
+    s.slow_hours.enabled = false;
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * 1024);
+    s.speed_limit = 0;
+    s.slow_hours.enabled = true;
+    s.slow_hours.from = "25:00".into();
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 0);
+    // An older settings file, without them, reads as off.
+    let read: Settings = serde_json::from_str("{}").unwrap();
+    assert!(!read.slow_hours.enabled);
+}
+
+#[test]
+fn a_finished_torrent_is_kept_shared_only_when_turned_on() {
+    let parts = std::path::PathBuf::from("/tmp/parts");
+    let off = Settings::default();
+    assert!(
+        !off.torrent_share,
+        "sharing sends from the person's connection: off"
+    );
+    assert!(off
+        .options(parts.clone(), dm_core::Limiter::unlimited())
+        .torrent
+        .share
+        .is_none());
+    let on = Settings {
+        torrent_share: true,
+        torrent_share_ratio: 1000.0,
+        torrent_share_minutes: 0,
+        torrent_upload_limit: 50,
+        ..Settings::default()
+    };
+    let share = on
+        .options(parts, dm_core::Limiter::unlimited())
+        .torrent
+        .share
+        .expect("turned on, a finished torrent is shared");
+    assert_eq!(share.ratio, 100.0, "held to a ratio that ends");
+    assert_eq!(share.minutes, 1, "held to at least a minute");
+    assert_eq!(share.upload_kbps, 50);
+    // A file from before it existed reads as off, with the usual ratio and time.
+    let old: Settings = serde_json::from_str(r#"{"connections":4}"#).unwrap();
+    assert!(!old.torrent_share);
+    assert_eq!(old.torrent_share_ratio, 1.0);
+    assert_eq!(old.torrent_share_minutes, 120);
 }

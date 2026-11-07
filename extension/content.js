@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 // The page script. Two small things are plain JavaScript, registered before
 // anything loads, because they must work on a page whose security policy
 // forbids WebAssembly: a click with a key held (Alt leaves a download with
@@ -25,6 +30,98 @@
     if (event.source !== window || data?.source !== 'dm-media-seen' || typeof data.url !== 'string') return;
     try {
       ext.runtime.sendMessage({ type: 'dm.media-seen', url: data.url }).catch(() => {});
+    } catch { /* the extension was updated under this page */ }
+  });
+
+  // The codecs of the pictures and sounds a page's MediaSource player declared (document.js passes
+  // them on), kept in memory: the newest few, nowhere else.
+  const mediaSources = [];
+  globalThis.__dmMediaSources = mediaSources;
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-mediasource' || !Array.isArray(data.types)) return;
+    mediaSources.push({ blob: String(data.blob).slice(0, 300), types: data.types.map((t) => String(t).slice(0, 200)).slice(0, 8) });
+    while (mediaSources.length > 8) mediaSources.shift();
+  });
+
+  // What the page's own answers said about media (document.js passes them on), kept in
+  // memory for the panel's list of qualities: the newest few, at most 12 MiB, nowhere else.
+  const bodies = [];
+  let keptSize = 0;
+  globalThis.__dmBodies = bodies;
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-page-body' || typeof data.body !== 'string') return;
+    bodies.push(data.body);
+    keptSize += data.body.length;
+    while (keptSize > 12 * 1024 * 1024 || bodies.length > 40) keptSize -= bodies.shift().length;
+  });
+
+  // The person's own last click or key press, as this script saw it (a page cannot make an event
+  // that is trusted), and whether a magnet was taken for it: one magnet per gesture, so a page that
+  // waits for any click (a cookie banner's) cannot hand dm a list of torrents (security review,
+  // 2026-11-07). The page's user activation alone lasts seconds and is not used up by a message.
+  let gestureAt = -Infinity;
+  let gestureTaken = false;
+  const gesture = (event) => {
+    if (!event.isTrusted) return;
+    gestureAt = performance.now();
+    gestureTaken = false;
+  };
+  for (const kind of ['pointerdown', 'keydown']) window.addEventListener(kind, gesture, true);
+  const GESTURE_FOR_MS = 1500;
+
+  // A magnet link the page opened with script while the person's own click is active (document.js
+  // passes it on): taken for dm as a clicked magnet link is, or opened as the page meant when dm
+  // cannot take it. Never without the person's own gesture, so a page cannot hand dm a torrent alone.
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-magnet' || typeof data.url !== 'string') return;
+    if (!/^magnet:\?/i.test(data.url)) return;
+    const open = () => openMagnet(data.url);
+    let active = false;
+    try { active = navigator.userActivation?.isActive === true; } catch { active = false; }
+    const fresh = performance.now() - gestureAt < GESTURE_FOR_MS;
+    // A second magnet for the same gesture goes nowhere: the browser too opens one at a time.
+    if (fresh && gestureTaken) return;
+    if (!active || !fresh || !catchingNow() || privateTab) { open(); return; }
+    gestureTaken = true;
+    try {
+      ext.runtime.sendMessage({ type: 'dm.magnet', src: data.url, frame: '' })
+        .then((answer) => { if (!answer?.ok) open(); })
+        .catch(open);
+    } catch { open(); }
+  });
+
+  // On a site the app's rules name, the requests whose JSON answers hold the
+  // streams its page builds: the page script is told which, and what it reads
+  // comes back here to the background, which finds the streams (in Rust, only
+  // where the rules for the site name that request). Only from this page.
+  try {
+    ext.runtime.sendMessage({ type: 'dm.page-rules' }).then((answer) => {
+      // The element the site's rule says holds a video's title (gaps row 124), for the panel
+      // and for the name a download is given.
+      if (answer?.ok && typeof answer.title === 'string' && answer.title.length < 300) {
+        globalThis.dmTitleRule = answer.title;
+      }
+      if (answer?.ok && ((Array.isArray(answer.urls) && answer.urls.length)
+        || (Array.isArray(answer.finders) && answer.finders.length)
+        || (Array.isArray(answer.privateFetches) && answer.privateFetches.length))) {
+        window.postMessage({
+          source: 'dm-page-rules',
+          urls: answer.urls || [],
+          finders: answer.finders || [],
+          privateFetches: answer.privateFetches || [],
+        }, location.origin);
+      }
+    }).catch(() => {});
+  } catch { /* the extension was updated under this page */ }
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-page-answer'
+      || typeof data.url !== 'string' || typeof data.body !== 'string') return;
+    try {
+      ext.runtime.sendMessage({ type: 'dm.page-answer', url: data.url, body: data.body }).catch(() => {});
     } catch { /* the extension was updated under this page */ }
   });
 
@@ -85,6 +182,12 @@
   const privateTab = (() => {
     try { return ext.extension?.inIncognitoContext === true; } catch { return false; }
   })();
+  // Opens a magnet link in the browser as the page meant to, marked so document.js lets it through
+  // instead of offering it to dm again.
+  const openMagnet = (url) => {
+    try { document.documentElement.setAttribute('data-dm-magnet-pass', String(Date.now())); } catch { /* no root */ }
+    window.location.href = url;
+  };
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     // A magnet link is the app's, as a clicked .torrent is: it went to
@@ -102,10 +205,10 @@
         // browser's prompt names the site, as it would without dm, not the
         // extension (torrent check 4).
         ext.runtime.sendMessage({ type: 'dm.magnet', src: String(magnet.href), frame: '' })
-          .then((answer) => { if (!answer?.ok) window.location.href = magnet.href; })
-          .catch(() => { window.location.href = magnet.href; });
+          .then((answer) => { if (!answer?.ok) openMagnet(magnet.href); })
+          .catch(() => { openMagnet(magnet.href); });
       } catch {
-        window.location.href = magnet.href;
+        openMagnet(magnet.href);
       }
       return;
     }
@@ -149,28 +252,100 @@
     }
   }, true);
 
-  // The background's 'dm.links': the address of every link on the page, or
-  // of each one the selection holds. Nothing else is read.
+  // The background's 'dm.links': the addresses a page holds, or the selection holds, in the order a
+  // person would look for them: links (`a`, then `area`), images, then for "all links" the frames
+  // and every address written in an inline script, and for "selected links" the plain-text
+  // addresses in the selection and in a selected textarea (not a selected link's own text).
+  // Only addresses are sent; the background keeps web ones, once each.
+  const TEXT_ADDRESS = /\bhttps?:\/\/(?:[^\s:@/<>"']+(?::[^\s@/<>"']*)?@)?[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi;
+  const trimmed = (text) => text.replace(/[).,;:!?\]}>'"]+$/, '');
+  const addressesIn = (text, limit) => {
+    const found = [];
+    for (const hit of String(text).matchAll(TEXT_ADDRESS)) {
+      found.push(trimmed(hit[0]));
+      if (found.length >= limit) break;
+    }
+    return found;
+  };
   ext.runtime.onMessage.addListener((message, _sender, reply) => {
     if (!message || message.type !== 'dm.links') return false;
     const selected = message.selected === true;
     const selection = selected ? window.getSelection() : null;
     const selectionText = selection ? String(selection) : '';
+    const inSelection = (node, words) => {
+      if (!selected) return true;
+      // Inside the selection, or partly inside with its words in the
+      // selected text: a link that only touches its edge was not selected.
+      if (!selection) return false;
+      const whole = selection.containsNode(node, false);
+      const partly = words !== '' && selection.containsNode(node, true)
+        && selectionText.includes(words);
+      return whole || partly;
+    };
     const links = [];
+    const own = new Set();
+    // Each address's words where it has any (a link's text, an image's alt or
+    // title), the first found: the app shows them and keeps them as descriptions.
+    const texts = {};
+    const said = (address, words) => {
+      const plain = String(words ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      if (plain && typeof address === 'string' && !(address in texts)) texts[address] = plain;
+    };
+    // The file name a link's `download` attribute gives, the first found: the
+    // download is saved under it, as the browser would.
+    const names = {};
     for (const node of document.querySelectorAll('a[href]')) {
-      if (selected) {
-        // Inside the selection, or partly inside with its words in the
-        // selected text: a link that only touches its edge was not selected.
-        if (!selection) continue;
-        const whole = selection.containsNode(node, false);
-        const words = (node.textContent ?? '').trim();
-        const partly = words !== '' && selection.containsNode(node, true)
-          && selectionText.includes(words);
-        if (!(whole || partly)) continue;
+      const words = (node.textContent ?? '').trim();
+      if (!inSelection(node, words)) continue;
+      if (typeof node.href === 'string') {
+        links.push(node.href);
+        said(node.href, words || node.title);
+        const given = typeof node.download === 'string' ? node.download.trim() : '';
+        if (given && !(node.href in names)) names[node.href] = given.slice(0, 200);
       }
-      if (typeof node.href === 'string') links.push(node.href);
+      if (selected) own.add(words);
     }
-    reply({ links });
+    for (const node of document.querySelectorAll('area[href]')) {
+      if (inSelection(node, '') && typeof node.href === 'string') {
+        links.push(node.href);
+        said(node.href, node.alt || node.title);
+      }
+    }
+    for (const node of document.querySelectorAll('img')) {
+      const src = node.currentSrc || node.src;
+      if (src && inSelection(node, '')) {
+        links.push(src);
+        said(src, node.alt || node.title);
+      }
+    }
+    if (!selected) {
+      for (const frame of document.querySelectorAll('iframe[src]')) {
+        if (typeof frame.src === 'string') links.push(frame.src);
+      }
+      // Addresses a page writes into its scripts (a gallery's list, a player's config).
+      let looked = 0;
+      for (const script of document.querySelectorAll('script:not([src])')) {
+        const text = script.textContent || '';
+        if (text.length > 500000 || looked >= 200) continue;
+        for (const found of addressesIn(text.replace(/\\\//g, '/'), 200 - looked)) {
+          links.push(found);
+          looked += 1;
+        }
+      }
+    } else {
+      // Addresses typed in the selected text or in a selected textarea / text box.
+      const typed = [selectionText];
+      const active = document.activeElement;
+      if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) {
+        try { typed.push(String(active.value || '').slice(active.selectionStart, active.selectionEnd)); } catch { /* not a text box */ }
+      }
+      for (const text of typed) {
+        for (const found of addressesIn(text, 500)) {
+          if (!own.has(found)) links.push(found);
+        }
+      }
+    }
+    reply({ links, texts, names });
     return false;
   });
 
@@ -181,6 +356,186 @@
   // the pointer inside components that keep their player in a shadow root,
   // and on a play the page starts.
   let loading = false;
+  // Where the panel's WebAssembly cannot load (a page whose security policy forbids it:
+  // Reddit's), a plain-JavaScript panel does the same job with the same messages to the
+  // background: a button over the video, the list of what it comes in, and a line to
+  // say it was sent. Only a click the person made counts, as in the full panel.
+  const lite = (() => {
+    let host = null;
+    let parts = null;
+    let current = null;
+    let busy = false;
+    let hideTimer = null;
+    let lastScan = 0;
+    const STYLE = ':host{all:initial;position:fixed;z-index:2147483647;display:none}'
+      + '.bar{display:flex;font:600 13px system-ui,sans-serif;color:#fff;background:rgba(32,32,32,.94);'
+      + 'border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden}'
+      + 'button{all:unset;cursor:pointer;padding:6px 10px;font:inherit;color:inherit}'
+      + 'button:hover,button:focus-visible{background:#0a64d8}'
+      + '.x{padding:6px 8px;font-weight:400;border-left:1px solid rgba(255,255,255,.25)}'
+      + '.list{margin-top:4px;background:rgba(32,32,32,.96);border:1px solid rgba(255,255,255,.25);'
+      + 'border-radius:6px;overflow:hidden auto;max-height:260px;max-width:320px}'
+      + '.list button{display:block;width:100%;box-sizing:border-box;padding:8px 12px;font-weight:400;'
+      + 'white-space:normal;overflow-wrap:anywhere;border-top:1px solid rgba(255,255,255,.15)}'
+      + '.say{margin-top:4px;padding:6px 10px;background:rgba(32,32,32,.94);border-radius:6px;color:#ddd;'
+      + 'font:12px system-ui,sans-serif;max-width:320px;overflow-wrap:anywhere}'
+      + '[hidden]{display:none!important}';
+    const build = () => {
+      host = document.createElement('dm-panel-lite');
+      const root = host.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent = STYLE;
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      const go = document.createElement('button');
+      go.textContent = 'Download video';
+      const close = document.createElement('button');
+      close.className = 'x';
+      close.textContent = '×';
+      close.setAttribute('aria-label', 'Hide');
+      bar.append(go, close);
+      const list = document.createElement('div');
+      list.className = 'list';
+      list.hidden = true;
+      const say = document.createElement('div');
+      say.className = 'say';
+      say.hidden = true;
+      root.append(style, bar, list, say);
+      parts = { go, close, list, say };
+      // Reset to a plain box; the browser's own popover rules would centre and frame it.
+      // Said outright: the page's own rules (a hidden or see-through <html>) reach it by inheritance.
+      host.style.cssText = 'position:fixed;inset:auto;margin:0;padding:0;border:0;background:none;'
+        + 'overflow:visible;width:auto;height:auto;display:none;color:inherit;visibility:visible;opacity:1;'
+        + 'pointer-events:auto;transform:none;filter:none;clip-path:none;';
+      document.documentElement.appendChild(host);
+      // In the top layer, where a page's own player (Reddit's) cannot be drawn over it.
+      try { host.setAttribute('popover', 'manual'); host.showPopover(); } catch (e) { /* an older browser: z-index it is */ }
+      host.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      go.addEventListener('click', (event) => { if (event.isTrusted) ask(); });
+      close.addEventListener('click', (event) => { if (event.isTrusted) hide(); });
+    };
+    const hide = () => {
+      if (host) host.style.display = 'none';
+      if (parts) { parts.list.hidden = true; parts.say.hidden = true; }
+      current = null;
+    };
+    // Left up while it is working or its list is open; a message it gave ends it for sure.
+    const hideSoon = (ms, last) => {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (last) { hide(); return; }
+        if (busy || (parts && !parts.list.hidden) || host?.matches(':hover')) { hideSoon(ms); return; }
+        hide();
+      }, ms);
+    };
+    const said = (text) => {
+      parts.say.textContent = text || '';
+      parts.say.hidden = !text;
+    };
+    const send = (message) => ext.runtime.sendMessage({ ...message, frame: location.href });
+    const srcOf = () => (current && (current.currentSrc || current.src)) || '';
+    const finish = async (extra) => {
+      parts.list.hidden = true;
+      said('Sending to dm…');
+      let reply;
+      // The page's title, else its og:title, as reference A names a video (gaps row 124).
+      let ruled = '';
+      try {
+        if (globalThis.dmTitleRule) ruled = (document.querySelector(globalThis.dmTitleRule)?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+      } catch { /* a selector the page cannot read */ }
+      const title = ruled || document.title.trim()
+        || (document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '').trim();
+      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title, ...extra.fields }); } catch (e) { reply = { ok: false, said: 'dm was updated: reload this page to use it' }; }
+      said(reply?.ok ? 'Sent to dm. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || 'dm could not take it'));
+      hideSoon(2500, true);
+    };
+    // What the page itself names for this player: Reddit's player element carries the address of
+    // its HLS playlist (picture and sound together) in its `src`, where the MP4 files it loads
+    // are the picture alone.
+    const playerLines = () => {
+      const lines = [];
+      for (let el = current, i = 0; el && i < 12; el = el.parentElement || (el.getRootNode && el.getRootNode().host) || null, i++) {
+        const src = (el.localName === 'shreddit-player' || el.localName === 'shreddit-player-2') ? el.getAttribute('src') : null;
+        if (src && /^https?:/i.test(src) && /[.]m3u8([?]|$)/i.test(src)) {
+          lines.push({ url: src, label: 'HLS stream, best quality', line: 'HLS stream, best quality' });
+          break;
+        }
+      }
+      return lines;
+    };
+    const choose = (choice) => finish({
+      url: choice.url || '',
+      label: choice.label || '',
+      fields: {
+        ...(choice.quality ? { quality: choice.quality } : {}),
+        ...(choice.label ? { label: choice.label } : {}),
+        ...(choice.sound ? { sound: choice.sound } : {}),
+      },
+    });
+    const ask = async () => {
+      if (busy || !current) return;
+      busy = true;
+      said('Reading qualities…');
+      try {
+        const reply = await send({ type: 'dm.formats', src: srcOf() });
+        said('');
+        if (!reply?.ok) { said(reply?.said || 'dm did not answer'); hideSoon(5000, true); return; }
+        const given = Array.isArray(reply.choices) ? reply.choices : [];
+        const choices = [...playerLines().filter((l) => !given.some((g) => g.url === l.url)), ...given];
+        if (choices.length === 0) await finish({ fields: {} });
+        else if (choices.length === 1) await choose(choices[0]);
+        else {
+          parts.list.textContent = '';
+          for (const choice of choices) {
+            const item = document.createElement('button');
+            item.textContent = choice.line || choice.label || 'Download';
+            item.addEventListener('click', (event) => { if (event.isTrusted) choose(choice); });
+            parts.list.appendChild(item);
+          }
+          parts.list.hidden = false;
+        }
+      } catch (e) {
+        said('dm did not answer. Try again, or right-click the video and choose Download media with dm.');
+        hideSoon(5000, true);
+      } finally { busy = false; }
+    };
+    // The media under a point, followed into open shadow roots as the full panel's hit test is.
+    const mediaIn = (root, x, y, depth) => {
+      let stack = [];
+      try { stack = root.elementsFromPoint(x, y); } catch { return null; }
+      const direct = stack.find((e) => e.tagName === 'VIDEO' || e.tagName === 'AUDIO');
+      if (direct) return direct;
+      if (depth < 4) {
+        for (const e of stack) {
+          if (e.shadowRoot) {
+            const found = mediaIn(e.shadowRoot, x, y, depth + 1);
+            if (found) return found;
+          }
+        }
+      }
+      return null;
+    };
+    const place = (video) => {
+      const r = video.getBoundingClientRect();
+      if (r.width < 150 || r.height < 100) return;
+      if (!host) build();
+      current = video;
+      host.style.left = Math.max(0, Math.min(window.innerWidth - 240, r.right - 240 - 8)) + 'px';
+      host.style.top = Math.max(0, r.top + 8) + 'px';
+      host.style.display = 'block';
+      hideSoon(4000);
+    };
+    const onMove = (event) => {
+      if (Date.now() - lastScan < 150) return;
+      lastScan = Date.now();
+      if (host && event.composedPath().includes(host)) { clearTimeout(hideTimer); return; }
+      const video = mediaIn(document, event.clientX, event.clientY, 0);
+      if (video) place(video);
+    };
+    return {
+      start: () => document.addEventListener('mousemove', onMove, { capture: true, passive: true }),
+    };
+  })();
   // Where the pointer last was, and what last played, handed over once the
   // panel has loaded: the move or the play that loaded it is over by then,
   // and a pointer resting on a player sends no other.
@@ -199,7 +554,7 @@
       dm.content_start(ext);
       if (played) dm.content_played(played);
       else if (point) dm.content_pointer(point.x, point.y);
-    })().catch((e) => console.debug('dm:', e));
+    })().catch((e) => { console.debug('dm:', e); lite.start(); });
   };
   const hasMedia = (root) => {
     try { return root.querySelector('video, audio') !== null; } catch { return false; }

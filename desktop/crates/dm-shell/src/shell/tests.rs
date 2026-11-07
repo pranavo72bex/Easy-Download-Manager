@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 /// An uninstall asks a running dm to end, and leaves nothing
 /// when none runs, or the next launch would end on its own.
 #[test]
@@ -409,7 +414,7 @@ fn a_torrent_on_this_computer_is_taken_by_path_or_file_address() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a b.torrent");
     std::fs::write(&file, b"d4:infod4:name1:xee").unwrap();
-    let address = dm_core::torrent::file_url(&file).unwrap();
+    let address = dm_core::file_url(&file).unwrap();
     let other = dir.path().join("notes.txt");
     std::fs::write(&other, b"x").unwrap();
     let got: Vec<String> = orders(&argv(&[
@@ -436,6 +441,56 @@ fn when_done_is_read_and_left_for_the_window() {
     hand_to_running(home.path(), &got);
     let left = std::fs::read_to_string(host::inbox(home.path()).join(WHEN_DONE_FILE));
     assert_eq!(left.unwrap(), "shutdown");
+}
+
+#[test]
+fn links_and_torrents_the_system_opens_one_after_another_all_reach_the_window() {
+    let home = tempfile::tempdir().unwrap();
+    let files = tempfile::tempdir().unwrap();
+    let torrent = files.path().join("ubuntu.torrent");
+    std::fs::write(&torrent, b"d4:infod4:name1:aee").unwrap();
+    let text = files.path().join("notes.txt");
+    std::fs::write(&text, b"not a torrent").unwrap();
+    let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=a";
+    // Each Apple event is its own call, from the one running process.
+    assert_eq!(super::opened_by_system(home.path(), &argv(&[magnet])), 1);
+    assert_eq!(
+        super::opened_by_system(
+            home.path(),
+            &[torrent.display().to_string(), text.display().to_string()]
+        ),
+        1,
+        "the text file is passed by"
+    );
+    let inbox = host::inbox(home.path());
+    let mut urls: Vec<String> = std::fs::read_dir(&inbox)
+        .unwrap()
+        .filter_map(|e| {
+            let path = e.unwrap().path();
+            (path.extension()? == "json").then_some(path)
+        })
+        .map(|p| {
+            let request: host::Request =
+                serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
+            request.url
+        })
+        .collect();
+    urls.sort();
+    assert_eq!(
+        urls.len(),
+        2,
+        "the second did not overwrite the first: {urls:?}"
+    );
+    assert!(urls[0].starts_with("file://") && urls[0].ends_with("ubuntu.torrent"));
+    assert_eq!(urls[1], magnet);
+    assert!(inbox.join("show").exists(), "the window is brought forward");
+
+    let quiet = tempfile::tempdir().unwrap();
+    assert_eq!(
+        super::opened_by_system(quiet.path(), &[text.display().to_string()]),
+        0
+    );
+    assert!(!host::inbox(quiet.path()).join("show").exists());
 }
 
 #[test]
@@ -541,4 +596,12 @@ fn a_ring_with_nobody_listening_is_harmless() {
     std::fs::create_dir_all(host::inbox(home.path())).unwrap();
     std::fs::write(host::inbox(home.path()).join(host::BELL), "not a port").unwrap();
     host::ring(home.path());
+}
+
+#[test]
+fn a_program_that_cannot_start_says_so_and_an_empty_one_is_nothing() {
+    assert!(run_program("   ").is_ok());
+    let said = run_program("dm-no-such-program-here --flag").unwrap_err();
+    assert!(said.contains("dm-no-such-program-here"), "{said}");
+    assert!(said.contains("scheduled downloads are done"), "{said}");
 }

@@ -21,9 +21,6 @@ Runtime dependencies are what the window opens at run time: X11
 is drawn in Rust, which is why the binary is about 8 MB rather than the
 150 MB an Electron build would be.
 
-`yt-dlp` is an optional dependency. dm downloads files itself; yt-dlp is only
-consulted for sites that serve video through their own player.
-
 ## Anything else (AppImage)
 
 The tagged release carries an AppImage, which needs nothing installed (on

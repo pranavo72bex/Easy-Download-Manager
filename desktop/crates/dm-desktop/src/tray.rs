@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 /// The tray's words in the language in force: its four menu items, then
@@ -47,6 +52,8 @@ pub(super) fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<Tray
         Command::SpeedMedium,
         Command::SpeedHigh,
         Command::SpeedUnlimited,
+        // The limiter's own dialog, as the Downloads menu's Settings…
+        Command::SpeedLimiterSettings,
     ]
     .into_iter()
     .map(|c| (c, MenuItem::new(c.title(), true, None)))
@@ -96,7 +103,8 @@ pub(super) fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<Tray
         } else if event.id == scheduler_id {
             Tray::Run(Command::Scheduler, true)
         } else if let Some((_, preset)) = preset_ids.iter().find(|(id, _)| *id == event.id) {
-            Tray::Run(*preset, false)
+            // The dialog needs the window shown; the presets do not.
+            Tray::Run(*preset, *preset == Command::SpeedLimiterSettings)
         } else {
             return;
         };

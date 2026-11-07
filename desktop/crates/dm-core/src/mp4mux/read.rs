@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Reading the MP4 files and fragments that are joined.
 
 use super::*;
@@ -74,7 +79,12 @@ pub(super) fn read_input(file: &mut File, length: u64, input: usize) -> Result<V
             }
             n => (n, 8),
         };
-        if size < header_len || at + size > length {
+        // Checked: a 64-bit size near the top of the range wraps an addition and
+        // would put the walk back where it began, for ever.
+        let Some(end) = at.checked_add(size) else {
+            break;
+        };
+        if size < header_len || end > length {
             // A box running past the end: what is before it is all there is.
             break;
         }
@@ -90,7 +100,7 @@ pub(super) fn read_input(file: &mut File, length: u64, input: usize) -> Result<V
                 fragments.push((at, body));
             }
         }
-        at += size;
+        at = end;
     }
     let moov = moov.ok_or("it has no index (moov)")?;
     let mut tracks = tracks_of(&moov, input)?;
@@ -211,6 +221,10 @@ pub(super) fn entries<T>(
         .collect()
 }
 
+/// The most samples a table or a run may claim without a field in the file to
+/// bear it out: a ten-hour video at 60 frames a second has two million.
+const MOST_SAMPLES: usize = 1 << 24;
+
 /// A plain MP4's samples, from its `stbl`. Empty for a fragmented one,
 /// whose tables are empty and whose samples are in its fragments.
 pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
@@ -219,6 +233,11 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
     };
     let fixed = u32_at(stsz, 4).ok_or("a sample table is short")?;
     let count = u32_at(stsz, 8).ok_or("a sample table is short")? as usize;
+    // A table of one size has no entries to bound its count by, so it is
+    // bounded here: no file has more samples than this.
+    if fixed != 0 && count > MOST_SAMPLES {
+        return Err("a sample table claims too many samples".into());
+    }
     let sizes: Vec<u32> = if fixed != 0 {
         vec![fixed; count]
     } else {
@@ -246,7 +265,7 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
         None => None,
     };
 
-    let mut samples = Vec::with_capacity(sizes.len());
+    let mut samples = Vec::with_capacity(sizes.len().min(1 << 16));
     let mut size_iter = sizes.iter();
     'chunks: for (chunk, offset) in offsets.iter().enumerate() {
         let number = chunk as u32 + 1;
@@ -267,7 +286,7 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
                 cts: 0,
                 sync: syncs.is_none(),
             });
-            at += u64::from(*size);
+            at = at.saturating_add(u64::from(*size));
         }
     }
     let mut durations = times
@@ -403,6 +422,10 @@ pub(super) fn read_fragment(
             if count.saturating_mul(width) > trun.len().saturating_sub(at) {
                 return Err(short());
             }
+            // With no per-sample fields nothing in the box bounds the count.
+            if width == 0 && count > MOST_SAMPLES {
+                return Err(short());
+            }
             track.samples.reserve(count);
             for i in 0..count {
                 let mut field = at + i * width;
@@ -434,7 +457,7 @@ pub(super) fn read_fragment(
                     },
                     sync: is_sync(sample_flags),
                 });
-                next += u64::from(size);
+                next = next.saturating_add(u64::from(size));
             }
         }
         follows = next;
@@ -443,3 +466,37 @@ pub(super) fn read_fragment(
 }
 
 // ---- writing ------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn a_box_size_that_wraps_the_walk_ends_it_instead_of_looping() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&16u32.to_be_bytes());
+        bytes.extend_from_slice(b"free");
+        bytes.extend_from_slice(&[0; 8]);
+        bytes.extend_from_slice(&1u32.to_be_bytes());
+        bytes.extend_from_slice(b"free");
+        bytes.extend_from_slice(&(u64::MAX - 15).to_be_bytes());
+        let mut file = tempfile::tempfile().unwrap();
+        file.write_all(&bytes).unwrap();
+        let length = bytes.len() as u64;
+        let said = read_input(&mut file, length, 0).unwrap_err();
+        assert!(said.contains("no index"), "{said}");
+    }
+
+    #[test]
+    fn a_table_of_one_size_cannot_claim_billions_of_samples() {
+        let mut stsz = Vec::new();
+        stsz.extend_from_slice(&20u32.to_be_bytes());
+        stsz.extend_from_slice(b"stsz");
+        stsz.extend_from_slice(&0u32.to_be_bytes());
+        stsz.extend_from_slice(&1u32.to_be_bytes());
+        stsz.extend_from_slice(&u32::MAX.to_be_bytes());
+        let said = plain_samples(&stsz).unwrap_err();
+        assert!(said.contains("too many samples"), "{said}");
+    }
+}

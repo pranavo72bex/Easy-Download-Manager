@@ -31,7 +31,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE: ${{ inputs.release }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -49,7 +49,9 @@ jobs:
           fi
           version=$(python3 -c "import json; print(json.load(open('extension/manifest.firefox.json'))['version'])")
           git archive --format=zip -o dist/source.zip HEAD
-          npx --yes web-ext@8.3.0 sign --channel=unlisted \
+          # web-ext 8.3.0 sent the upload named "blob" on the runner's Node, refused as
+          # an "unsupported file type" (gaps.md row 51); later ones send it by name.
+          npx --yes web-ext@10.8.0 sign --channel=unlisted \
             --source-dir dist/firefox --artifacts-dir dist/signed \
             --upload-source-code dist/source.zip \
             --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"

@@ -3,10 +3,40 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-07: A 429 to the browser's name moves that server to dm's own
+
+dm sends Internet Explorer's name first, as reference A does (2026-11-01), and moved to its own
+names only for a 403. Wikimedia's media servers answer a browser's name from a program with 429
+and `Retry-After: 600` and serve dm's name at once (measured with each name, with and without a
+`Referer`; BUGLOG BUG-010), now on the first request and now only on the ranges after it. So a
+429 to the browser's name asks once more by dm's own at the first request (`probe.rs`) and, on
+any later request, moves the server to dm's name for the rest of the run (`agents::limited`,
+called from `Error::from_response`, where every refusal passes). Not done: waiting the 429 out
+under the same name (the limit was on the name, so it never lifted; dm sat at 9 MB of 36 for 30
+minutes), trying every fallback name after a 429 (a server that limits everyone would be asked
+three more times at once; it is asked once), and moving a person's own choice (Identify as dm
+only) to another name on a limit. What stays as it was: a server that limits every name is waited
+out with `Retry-After` as the least wait (2026-11-04), one request more than before.
 
 
+## 2026-10-31: The external video tool removed; videos as reference A gets them
 
-
+Decided by the maintainer on 2026-10-31, asked which way to replace
+the external video tool: "exactly like reference A". Measured the same day (reference A
+6.43 build 16 on Windows 11): handed a YouTube watch address on its command
+line, reference A made one connection, saved the page itself (6 KB) and
+stopped; it read no video. Reference A reads no page: it gets a video only
+from the requests the browser's player makes, caught by its extension.
+dm already does that (`tests/caught_pair.rs`, no the external video tool present). So
+the external video tool goes entirely: YouTube is read by dm's own reader (`youtube.rs`),
+every other site only through the player's caught requests, and a site
+only the external video tool could read is no longer offered, as reference A does not offer
+it. What reference A does on a playing YouTube page, where the player's
+requests are SABR and carry no plain address (2026-10-29), is to be watched
+from outside (its connections and the files it writes), not by opening its
+binaries, which its licence forbids. This replaces the earlier gaps entry's "the
+maintainer names the sites" and the 2026-10-26 decision to keep the external video tool
+behind the player's requests.
 
 ## 2026-10-31: dm and the other macOS manager, run side by side again
 
@@ -29,11 +59,11 @@ checked on real YouTube videos instead (decisions above).
 ## 2026-10-31: YouTube's streams are asked for when YouTube serves them; MP3 on every core
 
 Gaps row 55. A song's sound (dQw4w9WgXcQ, itag 140) was refused (403) to
-dm's engine for both dm's reading and yt-dlp's, and came only through
-yt-dlp's own slow download (46 s). Watched with yt-dlp's own
+dm's engine for both dm's reading and the external video tool's, and came only through
+the external video tool's own slow download (46 s). Watched with the external video tool's own
 `--print-traffic`: it asks with the same TV-client address and no token,
 and is answered. The reading says why: `available_at`, four seconds after
-it is made; yt-dlp waits for it, dm asked sooner. dm now waits for a
+it is made; the external video tool waits for it, dm asked sooner. dm now waits for a
 reading's `available_at` (at most 10 s), and a stream refused within ten
 seconds of its reading (dm's own reading carries no such field) is asked
 for once more when six seconds have passed. The song's sound: 10 s.
@@ -55,7 +85,7 @@ From the comparison with the other macOS manager: its list says "4K,
 not shot 16:9. Each picture is now named by its class and its container
 ("4K MP4", "1080p MP4", "720p WEBM"): the larger of its shorter side and
 its longer side's 16:9 height, snapped to the nearest of 144p ... 4K, 8K,
-or its own lines where it is not near one (`ytdlp::class_name`). The
+or its own lines where it is not near one (`videopage::class_name`). The
 quality word a line carries ("2026/mp4") is as before, so nothing
 downloads differently; the panel's list and Download details' chips say
 the same. `youtube-check.py` reads the container from the line wherever
@@ -98,7 +128,7 @@ Windows and Linux are gaps row 53). Checked: tones through the system's
 MP3 decoder at over 30 dB SNR, an AAC made by the system converted and
 played back at its level, and a real video's sound (3:33) saved as a
 valid 192 kbit/s MP3. Offered as "MP3 audio" after "M4A audio" in every
-quality list dm hands out (`ytdlp::with_mp3`), so the browser's panel and
+quality list dm hands out (`videopage::with_mp3`), so the browser's panel and
 Download details show it with no change to the extension; its quality
 `audio/mp3` fetches the M4A and converts it.
 
@@ -106,10 +136,10 @@ Also from the comparison with the other macOS manager's screenshots: its
 4K and 1440p files are twice dm's (414 against 209 MB) because it takes
 YouTube's VP9 where dm takes the MP4 stream, which there is AV1, as sharp
 at half the bits; from 1080p down the sizes match. When YouTube refuses
-the addresses of dm's own reading, dm now fetches yt-dlp's reading on its
-own engine before yt-dlp downloads on its few connections. For one video
+the addresses of dm's own reading, dm now fetches the external video tool's reading on its
+own engine before the external video tool downloads on its few connections. For one video
 (dQw4w9WgXcQ's sound, itag 140) both readings' addresses are refused to
-any fetch dm or curl makes, and yt-dlp's own download succeeds; finding
+any fetch dm or curl makes, and the external video tool's own download succeeds; finding
 why was stopped by the session's permissions (gaps row 55).
 
 ## 2026-10-31: Vertical and square parts by the stream's own crop, no codec
@@ -218,11 +248,11 @@ row under the lock, and the busy time left is drawing.
 
 ## 2026-10-29: The video helper fetched at the first start, its bytes told
 
-`tools::freshen`, which runs at every start, now also fetches yt-dlp (and
+`tools::freshen`, which runs at every start, now also fetches the external video tool (and
 QuickJS where no Deno is installed) when neither is installed nor fetched:
 twenty seconds after the start (`DM_PREFETCH_AFTER` for tests), so a dm
 that runs for a moment does not fetch 36 MB, and never for a named
-`DM_YTDLP`. `tools::preparing_progress` tells the bytes so far of what is
+its environment switch. `tools::preparing_progress` tells the bytes so far of what is
 being fetched (`Counting` in `fetch_once`); the row's "Getting ready for
 videos" status appends them in units alone, so no catalog gained a string.
 The one string that changed, the failure's, names both ways out in all
@@ -230,63 +260,63 @@ thirteen catalogs. Weighed and not done: a fetch at install time (the
 installers are the same for every system, and fetching is the person's
 setting to turn off).
 
-## 2026-10-29: yt-dlp's portable build where the release has no standalone one
+## 2026-10-29: The external video tool's portable build where the release has no standalone one
 
 `tools::fetch_into` reads the release's checksums first and takes the
 standalone build only where the release lists one for this computer; else
-the portable build (`yt-dlp`, one file of Python) checked the same way,
-with the Python to run it noted beside it (`yt-dlp.python`), which
-`ytdlp::writable_to` starts it through. `ytdlp::python3` is `DM_PYTHON`, or
+the portable build (its file, one file of Python) checked the same way,
+with the Python to run it noted beside it (its file), which
+`videopage::writable_to` starts it through. `videopage::python3` is `DM_PYTHON`, or
 the first `python3` on `PATH` or in the usual places that says it is 3.10
 or newer, asked once a run. Unix only in practice: every Windows has a
-standalone build. `tests/ytdlp_portable.rs` publishes only the portable
+standalone build. `tests/videopage_portable.rs` publishes only the portable
 build and downloads through it.
 
-## 2026-10-29: yt-dlp's failures in dm's words, from a corpus of its lines
+## 2026-10-29: The external video tool's failures in dm's words, from a corpus of its lines
 
-`tests/fixtures/ytdlp-errors.txt` holds yt-dlp's error lines as its readers
+its file holds the external video tool's error lines as its readers
 print them (YouTube's, Vimeo's, X's, Instagram's, TikTok's, the generic
-one, the downloader's), each with the sentence dm says; `tests/ytdlp_words.rs`
-checks every line is rewritten and that none of yt-dlp's advice (flags,
-its issue tracker, `yt-dlp -U`, links) reaches a person. A line with no
+one, the downloader's), each with the sentence dm says; `tests/videopage_words.rs`
+checks every line is rewritten and that none of the external video tool's advice (flags,
+its issue tracker, `the external video tool -U`, links) reaches a person. A line with no
 sentence of its own says the fallback, the site named as people write it
-(`site_name`) and yt-dlp's words in brackets, cut before its advice
+(`site_name`) and the external video tool's words in brackets, cut before its advice
 (`last_error`). The download's own failure line keeps its old shape,
-"yt-dlp could not download that: …", because the window's `format.rs`
-reads yt-dlp's words out of it to show after its own sentence; the window
+"the external video tool could not download that: …", because the window's `format.rs`
+reads the external video tool's words out of it to show after its own sentence; the window
 was not changed. Private and age-restricted are judged before the sign-in
-catch-all: yt-dlp's words for both carry "Sign in".
+catch-all: The external video tool's words for both carry "Sign in".
 
-## 2026-10-29: A failed yt-dlp run fetches the newest yt-dlp once and tries again
+## 2026-10-29: A failed the external video tool run fetches the newest the external video tool once and tries again
 
-yt-dlp's fix for a site change is usually out within days; dm's weekly
+the external video tool's fix for a site change is usually out within days; dm's weekly
 `freshen` left everyone waiting up to a week. Now a run that fails in words
-that are not a known refusal (`ytdlp/refusal.rs`) asks the release's
+that are not a known refusal (`videopage/refusal.rs`) asks the release's
 `SHA2-256SUMS` whether a build other than the one dm noted at its fetch
-(`yt-dlp.digest`) is published, fetches it if so, and runs once more
-(`tools::newer_ytdlp`, used by `download_ytdlp_from` and `read_choices_as`).
+(its file) is published, fetches it if so, and runs once more
+(its file, used by its file and `read_choices_as`).
 Once an hour at most, so a site that stays broken does not have dm asking
-GitHub at every download; never for a yt-dlp the person installed, which is
+GitHub at every download; never for an external video tool the person installed, which is
 theirs to update; never where fetching is off. Stable releases only:
-nightly carries breakages of its own. `DM_YTDLP_RELEASES` names a test's
-server as the release (`tests/ytdlp_heals.rs`: a broken build, then the
+nightly carries breakages of its own. its environment switch names a test's
+server as the release (`tests/videopage_heals.rs`: a broken build, then the
 fix, then nothing more within the hour).
 
-## 2026-10-29: Like reference A without yt-dlp, asked again and measured
+## 2026-10-29: Like reference A without the external video tool, asked again and measured
 
-Asked for: videos the way reference A gets them, with no yt-dlp, and no
+Asked for: videos the way reference A gets them, with no the external video tool, and no
 upkeep. dm already does what reference A is documented to do: the
 extension reads the player's own requests, takes the picture's and the
 sound's addresses, fetches both on many connections and joins them itself,
-with no helper (`tests/caught_pair.rs` proves it with no yt-dlp present).
+with no helper (`tests/caught_pair.rs` proves it with no the external video tool present).
 On YouTube that finds nothing today: in Edge 156 on a playing watch page,
 13 of 13 media requests were `POST videoplayback?sabr=1` with a binary body
-and no `itag`, `mime` or `range`. So "no yt-dlp on YouTube" means a client
+and no `itag`, `mime` or `range`. So "no the external video tool on YouTube" means a client
 of YouTube's SABR protocol (protobuf requests, UMP answers, proof-of-origin
 tokens) written into dm and kept in step with YouTube, which is the upkeep
 asked to be avoided; reference A does it with a paid team and a new build
 each time, reference B does not do it at all. Kept as decided on
-2026-10-26: the player's requests first on every site, yt-dlp reading the
+2026-10-26: the player's requests first on every site, the external video tool reading the
 page only where they cannot be used, fetched by dm and current within a
 week, so dm itself has nothing to keep up. Weighed again and not taken:
 saving what the player plays through the browser's media source (only the
@@ -310,14 +340,14 @@ each write on a very long list.
 
 Measured in Edge with the video file's real size on disk (not the space
 reserved, which an earlier measurement counted). After a click with a reading
-ready, 4-5 s went on: yt-dlp runs for each of the two streams dm's own
+ready, 4-5 s went on: The external video tool runs for each of the two streams dm's own
 request is refused for (YouTube answers dm 403; the refusal was handed to
-yt-dlp as a page, `download::is_stream` now stops that), and then yt-dlp
+the external video tool as a page, `download::is_stream` now stops that), and then the external video tool
 *sleeping*: formats from YouTube's tv client carry an `available_at` four
-seconds after the read, which yt-dlp waits for ("as required by the site")
+seconds after the read, which the external video tool waits for ("as required by the site")
 and which is not shortened here. The default read merges that client with
 visionos; asking for visionos alone (`FAST_YOUTUBE_CLIENT`) lists the same
-heights and no wait. It is yt-dlp's own, documented client choice, and falls
+heights and no wait. It is the external video tool's own, documented client choice, and falls
 back to the default read where it gives nothing. The read for the download
 starts when the list is asked for, in parallel with the page's own data
 (`mark_reading` before the helper starts, `kept_choices` where the page data
@@ -343,18 +373,18 @@ stale after YouTube's in-page navigation).
 ## 2026-10-27: What a failed YouTube read says; cookies stay the browser's session
 
 Checked against a report that YouTube downloads fail in dm: dm already runs
-the yt-dlp it finds only if under 120 days old (else its own fetched copy,
-refreshed weekly), hands yt-dlp a JavaScript engine by path (Deno, else the
+theexternal video tool it finds only if under 120 days old (else its own fetched copy,
+refreshed weekly), hands the external video tool a JavaScript engine by path (Deno, else the
 QuickJS dm fetched) on every read and download, and sends the page's session
-or a chosen cookies file. What was wrong: the list read dropped yt-dlp's
+or a chosen cookies file. What was wrong: the list read dropped the external video tool's
 stderr, so no failure could be told from another. Now `said_by` gives a known
-refusal in words, else yt-dlp's last `ERROR:` line. Only yt-dlp's own words
+refusal in words, else the external video tool's last `ERROR:` line. Only the external video tool's own words
 for a failed player script ("solving failed", "challenge solver", "no
 supported JavaScript runtime", "only images are available") are called that;
 "Requested format is not available" is not, as it has many causes. Not done:
 `--cookies-from-browser` (dm passes the extension's session for that page
 alone, so no browser profile is read and no cookie is kept) and
-`--remote-components` (it has yt-dlp fetch code from GitHub to run).
+`--remote-components` (it has the external video tool fetch code from GitHub to run).
 
 ## 2026-10-27: Every type is caught out of the box
 
@@ -368,48 +398,48 @@ the size floor and a private window still leave a download with the browser.
 
 ## 2026-10-27: The panel's list for YouTube is read from the page's data
 
-Measured: yt-dlp takes 2.6-4.5 s over a watch page (its `player_skip=js` saves
+Measured: The external video tool takes 2.6-4.5 s over a watch page (its `player_skip=js` saves
 about a second but drops the addresses the download needs; `android_vr`,
 `tv_simply` and `mweb` list one to five formats, and `web` and `tv` fail with
 "page needs to be reloaded"). The watch page's own `ytInitialPlayerResponse`
 carries every picture and sound with its size, in one request of 0.8 s. The
-panel's list is read from that (`ytdlp/page_data.rs`, same labels, qualities
-and order as `choices`, checked against yt-dlp on three videos); the SABR
-streams carry no addresses, so the download is still yt-dlp's reading of the
+panel's list is read from that (`videopage/page_data.rs`, same labels, qualities
+and order as `choices`, checked against the external video tool on three videos); the SABR
+streams carry no addresses, so the download is still the external video tool's reading of the
 page, started behind the list (`warm_reading`). Any page that is not
-`status: OK`, is live or lacks the data goes to yt-dlp as before. Dropped: a
-`player_client` pick for yt-dlp (fewer formats, and fails by video).
+`status: OK`, is live or lacks the data goes to the external video tool as before. Dropped: a
+`player_client` pick for the external video tool (fewer formats, and fails by video).
 
-## 2026-10-26: yt-dlp reads a video page, dm fetches it
+## 2026-10-26: The external video tool reads a video page, dm fetches it
 
-yt-dlp downloaded what it read on one connection a stream, so a video ran at
+the external video tool downloaded what it read on one connection a stream, so a video ran at
 one connection's speed (1 MB/s from a server holding each connection to
-that) while dm's engine sat idle. Now `ytdlp::download_page` asks yt-dlp
+that) while dm's engine sat idle. Now `videopage::download_page` asks the external video tool
 only what it would fetch (`-O "%()j"`, nothing downloaded, with the same
 format choice, name template, sign-in and proxy as its own download) and
 dm fetches each stream that is a plain file (`http`/`https`) with its own
-engine, with the agent yt-dlp gave it (`prefer_agent`; a site can bind its
+engine, with the agent the external video tool gave it (`prefer_agent`; a site can bind its
 addresses to the client it gave them to), and joins picture and sound as
-before (`finish_dm`). Measured with the real yt-dlp against that server,
+before (`finish_dm`). Measured with the real the external video tool against that server,
 40 ms away: 8 MB 8.69 s → 1.78 s, 32 MB 32.69 s → 4.77 s, the page's
 reading included (`tests/throughput.rs`, `video_helper`).
 
 Nothing that downloaded before can fail now. Streams in pieces (HLS, DASH
-fragments), live ones and a site's own protocols stay yt-dlp's; where dm's
-fetch is refused, yt-dlp downloads the same reading (`--load-info-json`),
+fragments), live ones and a site's own protocols stay the external video tool's; where dm's
+fetch is refused, the external video tool downloads the same reading (`--load-info-json`),
 so the page is not read twice, and from the page again if that reading no
 longer serves. A refusal is remembered in the staging folder, so a resume
-goes to yt-dlp at once. A pause keeps each stream's parts under its format
+goes to the external video tool at once. A pause keeps each stream's parts under its format
 id; a resume reads the page again (addresses expire after hours) and the
 engine adopts them by size and validator. Subtitles are fetched from the
 reading's addresses and carried in as before. The reading can hold the
 site's cookies: written for this account alone and removed after.
 
 The page is read once, not twice. The panel's list (`list_choices`, in the
-browser's host) keeps yt-dlp's whole `-J` reading for ten minutes in
+browser's host) keeps the external video tool's whole `-J` reading for ten minutes in
 `<home>/readings` (a file per page, named by a hash of its address, for
 this account alone, the stale ones deleted at each write), and the
-download a click starts has yt-dlp choose its format from it
+download a click starts has the external video tool choose its format from it
 (`--load-info-json`, 0.23 s here with the server gone) instead of reading
 the site again (1.7 to 6 s on YouTube, measured 2026-10-22/25). A reading
 that no longer serves is passed over for a fresh one. A fresh reading
@@ -420,7 +450,7 @@ A picture and sound the extension caught from a player and that refuse dm
 (YouTube's 403 after about a megabyte without the player's token) now fall
 back to their page through the same route, rather than failing the row.
 
-Why not without yt-dlp, as some download managers are: they read the player's own requests in
+Why not without the external video tool, as some download managers are: they read the player's own requests in
 the browser, which dm's extension already does (2026-10-25), and keeps up
 with each site by shipping fixes every week or two (30-odd builds in a
 year, most "resolved video recognition problems"). YouTube's web player
@@ -428,7 +458,7 @@ has since moved to SABR, whose requests name no format and cannot be
 fetched by range; taking it over would mean writing YouTube's streaming
 protocol (protobuf requests, UMP answers, its redirects and policies) into
 dm, using the page's proof-of-origin token, and keeping it working alone.
-yt-dlp is kept current by many and fetched afresh by dm weekly. Recording
+The external video tool is kept current by many and fetched afresh by dm weekly. Recording
 what the player plays was weighed too: only the quality the player picks,
 and only as fast as it plays.
 
@@ -596,7 +626,7 @@ bidirectional ordering inside its layout and a mirrored window); the "Download
 video" panel on a site whose security policy forbids WebAssembly (inherent:
 the menu still works); telling an advertisement from the programme on a
 player (needs a site's own knowledge, which dm does not keep); rewriting
-yt-dlp's site extractors and QuickJS (site logic is not dm's to write); a
+the external video tool's site extractors and QuickJS (site logic is not dm's to write); a
 browser that fetches a file again when it keeps a download dm refused
 (Firefox's pause drops the connection); the one-name-for-every-package
 command (`dm-desktop` in the .deb, `dm` elsewhere; the README says which).
@@ -762,7 +792,7 @@ own AES-128 scrambling, whose key the server hands to any player that asks
 (as every player and standard decoder reads it). A stream whose key belongs to a rights
 system is refused as copy-protected: SAMPLE-AES, any `KEYFORMAT` other than
 `identity` (FairPlay, Widevine, PlayReady), or a key address dm could only
-reach through one (`skd://`, a `data:` licence). yt-dlp is never given
+reach through one (`skd://`, a `data:` licence). The external video tool is never given
 `--allow-unplayable-formats`, and its own "DRM protected" refusal reaches the
 row in plain words. In the browser, a player the page plays through EME (its
 `mediaKeys` set) gets a "Protected video" bar that says dm does not download
@@ -850,7 +880,7 @@ them, and an address edited onto another server drops them. A row keeps its sign
 when the download finished was tried and broke Redownload, and left the
 recheck queue probing signed out, where a sign-in page of another length
 reads as a changed file. dm's files are written readable by the account
-alone instead. yt-dlp gets
+alone instead. The external video tool gets
 them in a private cookies file of its run (mode 0600, removed after),
 not as a command-line header any local `ps` could read. The control
 protocol and MCP say only whether a row has a sign-in.
@@ -1032,7 +1062,7 @@ finishes" true. Halves stop at 256 KiB, and a download has at most 256 ranges.
 
 ## 2026-10-15: A video is an MP4 unless WebM is asked for
 
-Left to itself, yt-dlp picks YouTube's best stream, which is AV1 or VP9
+Left to itself, the external video tool picks YouTube's best stream, which is AV1 or VP9
 in WebM with Opus sound: files many players (QuickTime, Windows' Films &
 TV, phones) open badly or not at all. dm now
 asks for MP4 picture and M4A sound, H.264 ahead of AV1 at the same height,
@@ -1061,7 +1091,7 @@ from the panel or a menu was not: dm was refused (W3Schools' 403 on one
 Linux network) and the person got nothing. Such a hand-off is now checked
 the same way, and when dm is refused or absent the extension starts the
 browser's own download of it and the panel says so. A player page (handed
-to yt-dlp) is not sent back: the browser cannot download a page as a video.
+to the external video tool) is not sent back: the browser cannot download a page as a video.
 The probe also tries a browser's agent, with `dm/<version>` after it, as a
 last rung after dm's own and the plain `dm/<version>`: it is still named.
 
@@ -1120,14 +1150,14 @@ From the window's thread, each finished download froze the window that long.
 ## 2026-10-12: A video from the panel asks first
 
 The app opens "Download details" for a panel video (`ask_panel_downloads`,
-on by default). The picked quality travels with its container, and yt-dlp is
+on by default). The picked quality travels with its container, and the external video tool is
 told to prefer that container, so an "MP4" line arrives as .mp4.
 
 ## 2026-10-12: One speed ceiling for everything
 
 A limit per download would let N downloads use N times the limit. dm's
 is one ceiling, shared by every connection and split with torrents and
-yt-dlp runs. A limit is set to leave the link usable, and that is a
+the external video tool runs. A limit is set to leave the link usable, and that is a
 statement about the link, not about one download.
 
 ## 2026-10-12: The browser extension is Rust compiled to WebAssembly
@@ -1142,10 +1172,10 @@ dm's window is drawn in Rust. A Tauri
 web view was replaced: one language, one process, and a window the tests
 drive through its accessibility tree.
 
-## 2026-10-11: Player pages go to the user's yt-dlp
+## 2026-10-11: Player pages go to the user's the external video tool
 
 dm writes no site logic, token minting or signature work of its own. It runs
-the yt-dlp the person installed and places what it produces. Nothing behind
+theexternal video tool the person installed and places what it produces. Nothing behind
 DRM is attempted.
 
 ## Always: free, with nothing reported
@@ -1171,14 +1201,14 @@ old, which the row keeps pointing at (`replaces`), and moves it over the
 old one only once it is whole; a failure leaves the old file and says so.
 Deleting first, a server that failed halfway left nothing. What is compared
 is what the row was fetched from: a Metalink row by the file's length
-alone, since its ETag is one mirror's of many; a yt-dlp or stream row not
+alone, since its ETag is one mirror's of many; an external video tool or stream row not
 at all, because its address is a page or a playlist and nothing it serves
 describes the file made from it.
 
 ## 2026-10-17: SOCKS5 resolves names at the proxy; FTP paths are the login's
 
 A SOCKS5 proxy is handed out as `socks5h://`, to dm's client and to
-yt-dlp, so a name is resolved by the proxy: resolved locally, a name only
+the external video tool, so a name is resolved by the proxy: resolved locally, a name only
 the proxy's network knows cannot be reached, and every site is told to the
 local resolver. librqbit reads only `socks5://`, so the swarm is given that
 spelling; its peers are addresses already. An FTP address's path is relative
@@ -1188,12 +1218,12 @@ to the login directory, as RFC 1738 has it, and `%2F` reaches the root.
 
 A link whose last segment names a document (`.html`, `.xml`, `.txt`, not a
 script's `.php` or `.aspx`) is fetched by dm's own client, with the row's
-referrer and cookies, and never handed to yt-dlp. It used to go to yt-dlp
+referrer and cookies, and never handed to the external video tool. It used to go to the external video tool
 first, falling back only on "unknown site"; any other refusal (a 403 to a
 request without the page's sign-in, a 429) failed a page dm could save.
 Some video sites do end watch pages in `.html`: a quality picked in the
-browser's video panel (which carries a container) still goes to yt-dlp. A
-watch address with no extension, or a script's, is yt-dlp's or refused.
+browser's video panel (which carries a container) still goes to the external video tool. A
+watch address with no extension, or a script's, is the external video tool's or refused.
 
 ## 2026-10-17: How far a power-cut repair looks back
 
@@ -1213,9 +1243,9 @@ TS, fMP4 or packed ADTS audio; the playlist's addresses decide only where
 the bytes say nothing or are encrypted. Tokenised segment addresses have no
 extension, and ADTS from them was called `.ts` and sent to the remux. A
 changed initialisation segment is decided once, in `beyond_dm`, on resolved
-addresses, and goes to yt-dlp.
+addresses, and goes to the external video tool.
 
-## 2026-10-17: Secrets stay off yt-dlp's command line
+## 2026-10-17: Secrets stay off the external video tool's command line
 
 The proxy (with any user name and password) goes in a 0600 config file of
 the run's own, passed with `--config-locations` and removed when the run
@@ -1682,7 +1712,7 @@ altogether, as before.
 
 A torrent shares the whole speed ceiling while none of dm's own downloads
 is running; with one running, the ceiling is split as before, one part for
-dm's own downloads and one for each torrent or yt-dlp run.
+dm's own downloads and one for each torrent or the external video tool run.
 
 ## The modern looks follow WinUI 3's Fluent 2 (2026-10-19)
 
@@ -1817,19 +1847,19 @@ stream has no length and no position to resume from: progress is the
 bytes written, and a resume starts it again. That converter cannot go through
 dm's proxy for these, so with one in force the download is refused.
 
-## yt-dlp and a video tool fetched by dm itself (2026-10-21)
+## The external video tool and a video tool fetched by dm itself (2026-10-21)
 
 YouTube is to work out of the box, with nothing installed by hand. dm still
-writes no site logic of its own: it runs yt-dlp. Where the computer has no
-yt-dlp (or converter), the first video page that needs one has dm fetch it
-into `<dm home>/tools`, through dm's proxy like any download: yt-dlp's own
+writes no site logic of its own: it runs the external video tool. Where the computer has no
+the external video tool (or converter), the first video page that needs one has dm fetch it
+into `<dm home>/tools`, through dm's proxy like any download: The external video tool's own
 standalone build from its GitHub releases, checked against the
 `SHA2-256SUMS` published with it (on macOS the unpacked build, which starts
 in 0.3 s where the single-file one took 8–14); the converter as one file from
 a static-build project's b6.1.1 release on GitHub, checked against digests written
-into dm, since that project publishes none. Fetched yt-dlp is fetched
+into dm, since that project publishes none. Fetched the external video tool is fetched
 afresh once a week. One the person installed is preferred, wherever it is.
-Not bundled in the installers: a bundled yt-dlp goes stale between dm
+Not bundled in the installers: a bundled the external video tool goes stale between dm
 releases, and both would add 100–150 MB to every installer. Not written as
 dm's own extractor: that is the site logic this project does not write.
 
@@ -1837,14 +1867,14 @@ dm's own extractor: that is the site logic this project does not write.
 
 Measured on 2026-10-21: YouTube's streams stop with a 403 after about 1 MB
 unless the client holds a proof-of-origin token, and an address that has
-asked too often is told "Sign in to confirm you're not a bot". yt-dlp gets
+asked too often is told "Sign in to confirm you're not a bot". The external video tool gets
 past both with a JavaScript runtime (Deno, now fetched with it) and the
 browser's session. So the extension sends the page's cookies with every
 video handed over (the panel, "Download media with dm") and with the
 panel's quality list, whether or not the site is in the popup's sign-in
 list, and the `cookies` permission moved from optional to required (it
 carries no install warning in Chrome or Firefox). Bounded the way a kept
-sign-in is: to the page's own server, in a private file of yt-dlp's run
+sign-in is: to the page's own server, in a private file of the external video tool's run
 removed when it ends, and — unlike a kept one — dropped from the row once
 the video is downloaded (`Start.cookies_once`, `Entry.cookies_once`).
 Nothing from a private window. Dropped: writing a token generator of dm's
@@ -1853,16 +1883,16 @@ own, which is the site logic this project does not write.
 ## dm joins a video's picture and sound itself (2026-10-21)
 
 A separate video tool was fetched (40–80 MB) for every video page only to join a picture
-and a sound that yt-dlp had already fetched. `mp4mux.rs` does that join in
+and a sound that the external video tool had already fetched. `mp4mux.rs` does that join in
 Rust: each input's samples are read from its index — a plain `moov`, or the
 `moof` fragments a DASH server's files carry — and written as one plain MP4
 with its index first and picture and sound interleaved a second at a time,
 the samples copied byte for byte. A DASH picture with B-frames and no edit
 list is given one that starts it at its first shown frame, as the converter's own
-join does (it played 67 ms behind its sound without). With no converter, yt-dlp
+join does (it played 67 ms behind its sound without). With no converter, the external video tool
 is asked for an MP4 picture and an M4A sound (`bv[ext=mp4]+ba[ext=m4a]`),
 leaves them side by side (its default `ignoreerrors='only_download'` turns
-the missing merger into a warning), and dm joins them under the name yt-dlp
+the missing merger into a warning), and dm joins them under the name the external video tool
 reported. Measured: 120 MB joined in 96 ms where the converter's stream copy took
 174 ms; the decoded frames and sound match the inputs' (`tests/mp4mux.rs`),
 and AVFoundation reads the result. The converter is still fetched where dm does not
@@ -1873,13 +1903,13 @@ Later the same day, the HLS side: `tsmux.rs` reads a transport stream's
 tables, its H.264 pictures (start codes turned into lengths, the picture
 size read from the SPS) and its ADTS AAC frames, and hands them to the same
 writer, picture and sound kept the distance apart they had in the stream.
-It runs before the converter for dm's own HLS downloads, and on a file yt-dlp saved
-as `.mp4` that is a transport stream (yt-dlp's HLS downloader leaves that to
+It runs before the converter for dm's own HLS downloads, and on a file the external video tool saved
+as `.mp4` that is a transport stream (the external video tool's HLS downloader leaves that to
 its converter's fix-up). A stream with any other picture or sound kind (HEVC, MP3,
 AC-3…) is refused whole, so nothing is dropped from it: a converter does it
-where there is one, else the `.ts` is kept. When dm joins, yt-dlp's joiner-location option is
+where there is one, else the `.ts` is kept. When dm joins, the external video tool's joiner-location option is
 pointed at nothing, so it never uses a converter dm
-did not choose. Tests that would pass with a converter yt-dlp found itself
+did not choose. Tests that would pass with a converter the external video tool found itself
 were checked to fail with dm's join turned off.
 
 ## WebM joined by dm too (2026-10-21)
@@ -1895,7 +1925,7 @@ to its halves. Reads move within one megabyte buffer rather than seeking
 
 ## Subtitles put in by dm (2026-10-21)
 
-With no converter, yt-dlp is asked for subtitles as WebVTT beside the video
+With no converter, the external video tool is asked for subtitles as WebVTT beside the video
 (`--sub-format vtt`, no `--embed-subs`), and dm carries them inside what it
 writes: in an MP4 as `tx3g` text tracks, one per language in one alternate
 group, each cue a sample and each gap an empty one, with a closing empty
@@ -1969,7 +1999,7 @@ Part 2.
 
 ## The same formats as the converter route (2026-10-21)
 
-Without the converter dm had asked yt-dlp for an MP4 picture and M4A sound, which
+Without the converter dm had asked the external video tool for an MP4 picture and M4A sound, which
 would have given a lower picture for a video whose tallest came only as
 WebM. `mkvmux::mp4_tracks` now reads a WebM's VP9 (`vp09`, its `vpcC` from
 the first key frame's header), AV1 (`av01`, WebM's `av1C`) and Opus (`Opus`,
@@ -1977,7 +2007,7 @@ the first key frame's header), AV1 (`av01`, WebM's `av1C`) and Opus (`Opus`,
 MP4 ones, so dm asks for what the converter route asked for (`bv+ba/b` and its height
 forms, with the same sort) and puts it into an MP4 as the converter did; a WebM is
 made only when one is asked for. Checked: on six YouTube videos at best and
-at 720p, yt-dlp picks the same format IDs for the old and the new selector,
+at 720p, the external video tool picks the same format IDs for the old and the new selector,
 and `scripts/out-of-box-check.py` gets a 4K video's best (format 625, 2160p
 VP9 over HLS) as one MP4 with its AAC sound that plays.
 
@@ -2011,7 +2041,7 @@ dm no longer fetches a separate video tool for anything. What it was still fetch
 dm's own now, or refused: RTMPT through an HTTP tunnel in `rtmp.rs`, RTSPS
 through a loopback TLS bridge in front of retina (which speaks plain RTSP
 only: patching it was the alternative, and the bridge needs no vendored
-copy), and a video in a container dm does not join asked of yt-dlp as one
+copy), and a video in a container dm does not join asked of the external video tool as one
 file that needs no joining. RTMPE is refused: it is Flash's encrypted RTMP,
 a protection dm does not undo. A converter the person installed is still
 used where it helps.
@@ -2024,10 +2054,10 @@ which retina sends only on its own connection, and dm's recording would
 then fail rather than go anywhere else. Accepted, as a program already
 running as the person can read dm's files anyway.
 
-yt-dlp stays the one thing fetched, with Deno. Written into dm instead it
+The external video tool stays the one thing fetched, with Deno. Written into dm instead it
 would be the site logic this project does not write (see "Player pages go
-to the user's yt-dlp"): YouTube's player code changes weekly and is answered
-by running it, which is why yt-dlp needs a JavaScript runtime, and yt-dlp's
+to the user's the external video tool"): YouTube's player code changes weekly and is answered
+by running it, which is why the external video tool needs a JavaScript runtime, and the external video tool's
 thousands of sites are kept working by hundreds of people. Fetched and kept
 current is what makes video work for someone who installs nothing; the row
 says "Getting ready for videos (first time only)" while it happens.
@@ -2036,19 +2066,19 @@ Someone who installed only the app is shown how to add the extension: a bar
 over the list, until a browser connects (the native host leaves
 `browser.seen` in dm's home on the extension's hello) or they say not now,
 with the same buttons in Options › Browser. Messages never say "install
-yt-dlp" or tell the person to install a converter: a failed video says dm could not get ready for
+the external video tool" or tell the person to install a converter: a failed video says dm could not get ready for
 videos and to check the connection, and an extension talking to an older
 app says to update the app. The two store addresses are allowed in shipped
 code by `cargo xtask privacy`, since they open in the person's browser only
 when clicked.
 
-## yt-dlp may use a joiner the person installed (2026-10-22, later)
+## The external video tool may use a joiner the person installed (2026-10-22, later)
 
-The option that pointed yt-dlp at a joiner that is not there was removed:
+The option that pointed the external video tool at a joiner that is not there was removed:
 it was the last place dm named a tool it does not use, and the owner chose
-to drop it. On a computer with no joiner of its own nothing changes: yt-dlp
+to drop it. On a computer with no joiner of its own nothing changes: The external video tool
 leaves picture and sound apart and dm joins them. Where one is installed,
-yt-dlp may join them itself and dm takes the one file as it is (putting
+the external video tool may join them itself and dm takes the one file as it is (putting
 subtitles inside where it can, as it does for any single file). The cost:
 the file can differ from computer to computer, and that route is tested
 only where the test machine has such a joiner. dm still fetches nothing
@@ -2058,27 +2088,27 @@ of the kind and runs nothing of the kind itself.
 
 dm joins picture and sound (`mp4mux`, `mkvmux`), carries subtitles, puts
 transport streams into MP4 (`tsmux`) and records live streams itself, so a
-converter on the computer is no longer used for any of it either: yt-dlp is
+converter on the computer is no longer used for any of it either: The external video tool is
 pointed at a joiner that is not there and always leaves picture and sound
 for dm, an HLS stream dm cannot convert (MPEG-2 pictures) is kept as the
 `.ts` it came as, and RTMPE is refused. The same file on every computer,
 whatever is installed, and one route to test instead of two.
 
-yt-dlp stays, and is not rewritten inside dm. It is what reads a video
+The external video tool stays, and is not rewritten inside dm. It is what reads a video
 site's page: YouTube's player answers with signatures and throttling codes
 that change week to week and are worked out by running the player's own
-JavaScript (which is why yt-dlp needs Deno), and yt-dlp covers well over a
+JavaScript (which is why the external video tool needs Deno), and the external video tool covers well over a
 thousand sites, kept working by the many people who maintain it. dm's own
 version would be site logic this project does not write (see "Player
-pages go to the user's yt-dlp"), would break within weeks of being
-written, and could not behave as yt-dlp does across its sites. The
+pages go to the user's the external video tool"), would break within weeks of being
+written, and could not behave as the external video tool does across its sites. The
 person never installs it: dm fetches it, checked, and keeps it current.
 User-facing words call it dm's video helper; PRIVACY.md names it and Deno,
 since people are owed knowing what program dm downloads and from where.
 
-## QuickJS rather than Deno for yt-dlp's JavaScript (2026-10-22)
+## QuickJS rather than Deno for the external video tool's JavaScript (2026-10-22)
 
-yt-dlp answers YouTube's player challenges by running JavaScript, with
+the external video tool answers YouTube's player challenges by running JavaScript, with
 Deno, Node, QuickJS or Bun. dm fetched Deno (85 MB) for it; it now fetches
 QuickJS-ng 0.17.0 (1–3 MB), pinned, each build checked against the digest
 written into dm since the release publishes no checksums file. Measured
@@ -2088,7 +2118,7 @@ first on 2026-10-22: the same formats chosen at every quality, a 108 MB
 now waits on about 36 MB instead of 120. A Deno the person installed is
 still used, as it reads a page a little faster.
 
-Not shipped in the installers: with 36 MB fetched once, bundling yt-dlp and
+Not shipped in the installers: with 36 MB fetched once, bundling the external video tool and
 QuickJS would add OS-specific programs to six installer formats (the Arch
 package builds from source), invite antivirus false alarms on Windows, and
 go stale between releases, for a few seconds saved once.
@@ -2147,9 +2177,9 @@ shell; `swaymsg kill` in `linux-wayland-close-check.sh` sets no desktop name,
 so it still checks the minimize path. Considered: a setting for what closing
 does, dropped until someone needs the other choice.
 
-## 2026-10-25 DASH is dm's own; yt-dlp is left the pages
+## 2026-10-25 DASH is dm's own; the external video tool is left the pages
 
-A DASH manifest went to yt-dlp, so a stream whose address was a plain `.mpd`
+A DASH manifest went to the external video tool, so a stream whose address was a plain `.mpd`
 needed a 40–80 MB helper fetched first. A manifest is a published format with
 no site logic in it: it says where the pieces are. So `dash.rs` reads it
 (templates with `$Number$`/`$Time$`/`$RepresentationID$`/`$Bandwidth$` and
@@ -2164,7 +2194,7 @@ named if nothing else remains; a byte range answered with anything but
 and sends the file would be written in as a piece. Sound is a main-role track
 over a louder commentary, in the picture's container where there is one.
 
-Not changed: a *page* (a video site's watch address) still goes to yt-dlp,
+Not changed: a *page* (a video site's watch address) still goes to the external video tool,
 because the media's address is minted by the site's own player and reading
 it is site logic, which this project does not write (2026-10-11, 2026-10-21).
 The way past that without site logic is to take the address from the player
@@ -2203,7 +2233,7 @@ page script is registered for every page and itself ignores any host but
 
 ## Reading a page's qualities faster (2026-10-25)
 
-The panel's list took 2 to 39 seconds, nearly all of it yt-dlp reading the
+The panel's list took 2 to 39 seconds, nearly all of it the external video tool reading the
 page. Three things, kept in this order of effect:
 
 1. The extension asks as soon as the panel is raised over a player (on
@@ -2239,14 +2269,14 @@ picture with packed-AAC sound (gaps.md row 7).
 ## 2026-10-26: A transport-stream picture with packed-AAC sound is joined by dm
 
 An HLS master that keeps its sound in `.aac` segments beside a `.ts` picture
-went to yt-dlp. dm now reads the ADTS frames as `tsmux` reads a transport
+went to the external video tool. dm now reads the ADTS frames as `tsmux` reads a transport
 stream's, takes the sound's start from the first segment's ID3
 `transportStreamTimestamp` (the picture's 90 kHz clock), and writes both as the
 two tracks of one MP4 (`tsmux::join_packed`). The join is chosen by sniffing
 the gathered files (0x47 sync byte; ID3 or ADTS), not by a new flag on the
 track, so the DASH and fMP4 paths are untouched. A stream `tsmux` refuses
 (HEVC with odd sound, MPEG-2 picture) fails the join with the reason rather
-than falling back; dropped: asking yt-dlp after the fetch, which would fetch
+than falling back; dropped: asking the external video tool after the fetch, which would fetch
 the stream twice.
 
 ## 2026-10-26: A browser hand-off starts at once; "Download details" is opt-in
@@ -2486,7 +2516,7 @@ Tried and dropped: handing freed memory back to the system on a timer
 ## 2026-10-28: Speed audit, what was changed and what was not
 
 Changed: a low-speed drop for ranged connections (`ranged/helping.rs`
-`Window`), concurrent HLS segments, DASH pieces by a shared counter, yt-dlp
+`Window`), concurrent HLS segments, DASH pieces by a shared counter, the external video tool
 `--concurrent-fragments`. Measured with `tests/speed.rs` and `tests/hls.rs`.
 Not changed: the 16 KiB write buffer (loopback 512 MB runs at 480-640 MB/s, so
 the disk write is not the limit here; Windows/NTFS and 10 GbE are unmeasured),
@@ -2496,10 +2526,10 @@ windows per range). The stall drop is limited to a range's first two tries so
 a server that serves one range slowly for good is waited out, not retried to a
 failure.
 
-## 2026-10-28: The video route follows what yt-dlp's reading says, per stream
+## 2026-10-28: The video route follows what the external video tool's reading says, per stream
 
 Four changes to the route that fetches a video page's streams itself
-(`ytdlp/fetch.rs`), each driven by a field of yt-dlp's reading and none by a
+(`videopage/fetch.rs`), each driven by a field of the external video tool's reading and none by a
 site's name.
 
 **A request is as long as the reading says a server allows.** A format's
@@ -2517,7 +2547,7 @@ slows each response after 1 MiB: 16 MiB in 6.4 s without, 0.55 s with.
 its `expire` has passed or bytes were already fetched, reads the page again and
 continues if the streams are the same (format id, name, stated size). The saved
 plan holds no address, so nothing on disk changes. A refusal at the first ask
-on a live address keeps the old route (the `REFUSED` marker, yt-dlp downloads),
+on a live address keeps the old route (the `REFUSED` marker, the external video tool downloads),
 so a site that refuses dm does not cost a second reading. Pause and cancel
 during the second reading stop the download, as anywhere.
 
@@ -2529,21 +2559,21 @@ as the server keeps it), the connection's own headers and `Authorization`;
 `Cookie` and `Referer` only where dm has none of its own. Values are never
 printed (`Headers` has a `Debug` of names alone).
 
-**yt-dlp, when it downloads itself, gets `--http-chunk-size 10M` and not
-`--throttled-rate`.** Run against yt-dlp 2026.10.21: chunking a server that
+**The external video tool, when it downloads itself, gets `--http-chunk-size 10M` and not
+`--throttled-rate`.** Run against the external video tool 2026.10.21: chunking a server that
 ignores ranges gave an identical 25 MB file, `--limit-rate 3M` held (25 MB in
 8.7 s) and the `@dm@` progress lines were unchanged. `--throttled-rate 100K`
 against a server held to 40 KB/s: the 600 kB file never arrived in four minutes
-(a 0-byte `.part`; yt-dlp starts over each time it reads the link as throttled),
+(a 0-byte `.part`; the external video tool starts over each time it reads the link as throttled),
 where without it the same file took 16 s. Tried and dropped: it would turn a
 slow connection into a download that never ends, on the path that downloads
 today.
 
-## 2026-10-28: yt-dlp's unpacked builds on every system
+## 2026-10-28: The external video tool's unpacked builds on every system
 
-`yt-dlp_win*.zip`, `yt-dlp_linux*.zip` and `yt-dlp_musllinux*.zip` (all in the
-release's `SHA2-256SUMS`) replace the one-file builds, as `yt-dlp_macos.zip`
-did for macOS. Each unpacks to `yt-dlp-<os>/`, the program beside `_internal/`;
+its file, its file and its file (all in the
+release's `SHA2-256SUMS`) replace the one-file builds, as its file
+did for macOS. Each unpacks to its file, the program beside `_internal/`;
 macOS keeps `ditto` (it keeps what a signed program's files carry), the rest use
 the `zip` crate (`unpack_portable`: a name that leaves the folder is refused,
 modes are kept, at most 600 MB). musl is told by a `/lib/ld-musl-*` loader.
@@ -2558,21 +2588,21 @@ Windows was not measured.
 
 Measured on 2026-10-31, and not built. Dailymotion's 1080p HLS stream
 (`hls-1080`, 47 segments, 80.7 MB, the same bytes both ways), three runs
-each from one reading of the page: yt-dlp with `--concurrent-fragments 8`
+each from one reading of the page: The external video tool with `--concurrent-fragments 8`
 and `--load-info-json` took 6.2 to 6.6 s; dm's `download_stream` on the same
 media playlist, 8 connections, 5.6 to 5.7 s. About 0.7 s (12 %), most of it
-yt-dlp's start, on a link that the stream fills either way: not the clear
+the external video tool's start, on a link that the stream fills either way: not the clear
 gain the route would need to pay for a second path, its fallback and the
 picture-and-sound join. Measured with a throwaway example that called
 `dm_core::download` on the playlist address; to repeat, build it again.
 
-Not built. yt-dlp already fetches HLS fragments concurrently (`--concurrent-
+Not built. The external video tool already fetches HLS fragments concurrently (`--concurrent-
 fragments`, since 2026-10-27), so the gain over today is unmeasured and may be
 small; a measurement on a recorded run comes before code.
 
 Which formats: `protocol` is `m3u8_native`, the reading is not live, `has_drm`
 is not true, the playlist's keys are `AES-128` or none (`SAMPLE-AES` and
-`EXT-X-MAP` shapes dm's `resolve_stream` calls `Beyond` stay yt-dlp's), and
+`EXT-X-MAP` shapes dm's `resolve_stream` calls `Beyond` stay the external video tool's), and
 `http_headers` are what `Headers` carries (applied in `fetch_segment_range`,
 which does not yet). The format's `url` is already the chosen variant's media
 playlist, so dm takes it as given and does not choose a rendition again.
@@ -2586,10 +2616,10 @@ two files of a plain pair, which needs each to be an MP4 first (`remux_ts`);
 that join is the part to prove on real streams.
 
 Fallback: any failure but a pause or cancel (including `Beyond`) forgets the
-parts, writes `REFUSED` and has yt-dlp download the same reading, as for a
+parts, writes `REFUSED` and has the external video tool download the same reading, as for a
 plain file; an expired playlist address is renewed as above. Not wired through
 `hls::download_stream`'s own `Beyond` arm, which hands the segment-playlist
-address to yt-dlp as if it were a page.
+address to the external video tool as if it were a page.
 
 ## 2026-10-28: A finished download wakes the scheduler
 
@@ -2771,8 +2801,8 @@ layering check and 1167 tests, none failing).
   Written up; a lint that applies to code the author cannot compile has to be
   tried on that code before it is made a rule.
 - Windows: `fetched_tools_are_kept_only_when_they_match` planted the old
-  single-file yt-dlp as `yt-dlp`, where Windows names it `yt-dlp.exe`; the code
-  was right and removed `yt-dlp.exe`. The test names it as the system does.
+  single-file the external video tool as its file, where Windows names it its file; the code
+  was right and removed its file. The test names it as the system does.
 - Windows (it passed on the retry): `removing_many_rows_writes_the_queue_once`
   saw 2 saves for 1. `Queue::flush` looked at "is a save owed" before taking the
   save lock, so the trailing flush and a caller's both saw it owed and each
@@ -2844,24 +2874,24 @@ this was tried on (Exec format error even for `--appimage-version`), so the
 aarch64 AppImage of the same release was run on an arm64 Arch Linux image, started
 the way an AppImage runs, with no `DM_HOME` set by hand. With `/tmp` as on a
 default system the page downloads. With `/tmp` mounted `noexec` the single-file
-yt-dlp that dm 0.8.3 fetches cannot start (it unpacks itself into `/tmp` on each
+the external video tool that dm 0.8.3 fetches cannot start (it unpacks itself into `/tmp` on each
 start: "error while loading shared libraries: libz.so.1: failed to map segment
 from shared object"), and the row ends as the person's sentence: dm's state was
-`yt-dlp could not download that: …/tools/yt-dlp: error while loading shared
+`the external video tool could not download that: …/tools/the external video tool: error while loading shared
 libraries…`, which the status table turned into "dm could not get the video from
-this page" for every yt-dlp failure it had no words for. The current tree, which
+this page" for every the external video tool failure it had no words for. The current tree, which
 fetches the unpacked build (written for startup speed), fetched
-`tools/yt-dlp-linux/…`, ran, and reached YouTube under the same `noexec` `/tmp`
+its file, ran, and reached YouTube under the same `noexec` `/tmp`
 (its only failure there was this network's HTTP 429, from repeated tests).
 `TMPDIR=<a folder programs may run from>` makes the released one-file build start
 too (checked on 0.8.3). `scripts/linux/noexec-tmp-check.sh` shows the single
-file failing and the unpacked build starting, from yt-dlp's own release files.
+file failing and the unpacked build starting, from the external video tool's own release files.
 Also found: the AppImage bundles no libraries (`usr/lib` is empty, `AppRun` sets no
 environment), so on a minimal system it needs the host's `libxkbcommon-x11` and
 the like; and with `/tmp` noexec an AppImage run without FUSE
 (`--appimage-extract-and-run`) cannot start either, which a desktop's FUSE mount
-does not do. The status now says yt-dlp's words after the vague sentence
-(`format::ytdlp_said`: the last `ERROR:` line, extractor and id taken off, no
+does not do. The status now says the external video tool's words after the vague sentence
+(`format::videopage_said`: the last `ERROR:` line, extractor and id taken off, no
 address, 120 characters), so the next report carries its cause.
 
 Reproduced on CachyOS itself with Brave (`scripts/linux/cachyos-brave/run.sh`):
@@ -2874,19 +2904,19 @@ quality). With `/tmp` as normal it completes (`A video (1) [page-1].mp4`, 600000
 bytes); with `/tmp` `noexec` the row fails with the `libz.so.1: failed to map
 segment` loader error and the Status column reads "Error: dm could not get the video
 from this page", the person's sentence; with `noexec` and `TMPDIR` pointed at a
-folder that allows programs the same page completes. yt-dlp's own two builds on
+folder that allows programs the same page completes. The external video tool's own two builds on
 that CachyOS under `noexec`: the single file fails, the unpacked one starts. What
 is not shown: that this person's `/tmp` is `noexec` (asked of them), the
 extension's own UI (the hand-off is its message, sent by script), and the current
 code's x86-64 build (its aarch64 build was run on Arch earlier).
 
-## 2026-10-28: yt-dlp gets a temporary folder of dm's own when /tmp is noexec
+## 2026-10-28: The external video tool gets a temporary folder of dm's own when /tmp is noexec
 
-The unpacked yt-dlp (0.8.3's follow-up) does not unpack at each start, but a
-single-file yt-dlp a person installed, or one fetched by an older dm, still does,
+The unpacked the external video tool (0.8.3's follow-up) does not unpack at each start, but a
+single-file the external video tool a person installed, or one fetched by an older dm, still does,
 into `TMPDIR`. On a `noexec` mount it cannot start. dm reads `/proc/self/mounts`
-once (`ytdlp::runnable_temp`); if the system temporary folder sits on a `noexec`
-mount it sets `TMPDIR` for yt-dlp to `<tools folder>/tmp` (made on demand, `_MEI*`
+once (`videopage::runnable_temp`); if the system temporary folder sits on a `noexec`
+mount it sets `TMPDIR` for the external video tool to `<tools folder>/tmp` (made on demand, `_MEI*`
 older than a day removed). Where `/tmp` allows programs nothing changes. Tried and
 dropped: asking the person to set `TMPDIR` themselves (they see only "could not get
 the video"); remounting is not ours to do.
@@ -2895,7 +2925,7 @@ the video"); remounting is not ours to do.
 
 The AppImage's `AppRun` sets `PYTHONHOME`, `PYTHONPATH`, `LD_LIBRARY_PATH`,
 `PATH` and others to point into the AppImage, for dm's own sake. A person's
-yt-dlp run by the system's Python (CachyOS's `pacman -S yt-dlp`) inherited them
+the external video tool run by the system's Python (CachyOS's `pacman -S the external video tool`) inherited them
 and died at start ("Fatal Python error … <no Python frame>"). `no_window` and
 `no_window_async`, which every helper dm starts already goes through, now give
 each of those variables without the entries under the AppImage's folder
@@ -2932,14 +2962,14 @@ and makes it final, as `unreadable_response` does for headers that cannot be
 read. dm still trusts only the built-in roots (webpki); trusting the system's
 store, for a company's own authority, would be a separate decision.
 
-## yt-dlp is ended when it stops answering
+## The external video tool is ended when it stops answering
 
-A yt-dlp that said nothing kept its row "running" for as long as dm ran
+an external video tool that said nothing kept its row "running" for as long as dm ran
 (BUGLOG.md, BUG-004). Its two output streams are watched: nothing before its
 first word for 120 s (as long as a page reading may take, `READ_WITHIN`), or
 nothing for ten minutes once it has spoken (a merge or a slow server is quiet
-for a while), and its process tree is ended with "yt-dlp stopped answering".
-`DM_YTDLP_QUIET` sets the first limit for tests, as `DM_YTDLP` names the
+for a while), and its process tree is ended with "the external video tool stopped answering".
+its environment switch sets the first limit for tests, as its environment switch names the
 program. Dropped: a limit on the whole run, which a long video on a slow link
 would hit while working.
 
@@ -2998,12 +3028,12 @@ through. Refused, dm says so on stderr (the browser's log) and exits.
 
 ## 2026-10-30: The slice cap timed on a long video over a real connection
 
-Row 22 asked for the slice size taken from yt-dlp's `http_chunk_size`
+Row 22 asked for the slice size taken from the external video tool's `http_chunk_size`
 (2026-10-28) to be timed on a long video against a server that actually
 throttles. Big Buck Bunny (10 minutes, 181 MB at 720p) through the release
 build, headless, on this connection: 16.1 s and 14.1 s with the cap (11.2
 and 12.9 MB/s), 44.2 s and 44.2 s without it (4.1 MB/s). The cap stays. It
-is switched off by `DM_YTDLP_NO_CHUNK` in the environment, kept so the
+is switched off by `DM_NO_CHUNK` in the environment, kept so the
 measurement can be taken again (the scratch script drove dm over its
 control port, as `scripts/real-sites.py` does).
 
@@ -3038,12 +3068,12 @@ the clipboard did open its offer over the dialog, a separate confound) and
 the window's focus. The driver with the window covered and a screenshot
 before each click: ten of ten, from none of ten.
 
-## 2026-10-30: yt-dlp's legal position, and what the other managers do
+## 2026-10-30: The external video tool's legal position, and what the other managers do
 
-Asked for: whether using yt-dlp can affect this project, and how the
+Asked for: whether using the external video tool can affect this project, and how the
 reference managers get YouTube "legally".
 
-- **Licence.** yt-dlp, its `yt-dlp-ejs` challenge solver and QuickJS-NG
+- **Licence.** The external video tool, its its file challenge solver and QuickJS-NG
   are published under the Unlicense (public domain) and the MIT licence;
   nothing in them constrains dm's MIT licence, and dm could even carry
   their code. dm fetches them at run time from their own releases rather
@@ -3052,20 +3082,20 @@ reference managers get YouTube "legally".
   that has nothing to distribute.
 - **What the law is about** is not the tool but the use: YouTube's terms
   forbid downloading without permission, and the 2020 takedown of
-  youtube-dl claimed circumvention of a technical measure (the "rolling
+  an earlier video tool claimed circumvention of a technical measure (the "rolling
   cipher"); GitHub restored it, finding that claim did not hold, and the
-  EFF's letter on it is the public record. yt-dlp solves the player's `n`
+  EFF's letter on it is the public record. The external video tool solves the player's `n`
   and signature puzzles, which YouTube serves in the clear to every
   browser; it breaks no encryption (DRM-protected formats are not
   downloaded by it, and dm leaves them alone too). Every download manager
   that gets YouTube is in the same position: reference A documents reading
   the player's requests and keeps a paid team shipping fixes; the other
   macOS manager looked at today (1.1.10, installed on this computer) ships
-  yt-dlp 2026.10.26 inside its bundle with QuickJS, ffmpeg, ffprobe and
-  aria2, points yt-dlp at its QuickJS through a config file, and updates
-  yt-dlp to the latest release through its own manifest every four hours.
+  the external video tool 2026.10.26 inside its bundle with QuickJS, ffmpeg, ffprobe and
+  the downloader, points the external video tool at its QuickJS through a config file, and updates
+  the external video tool to the latest release through its own manifest every four hours.
   So none of them "does it legally" in a way dm does not; dm fetches the
-  same yt-dlp afresh and does not ship it.
+  same the external video tool afresh and does not ship it.
 - **What dm keeps apart:** no YouTube code of its own to defend, the tool
   fetched from its publisher and refreshed, the person's own session only
   with their consent, no DRM, and the policy of each site's terms left to
@@ -3074,8 +3104,8 @@ reference managers get YouTube "legally".
 
 ## 2026-10-30: How YouTube is got today, watched, and what a reader of dm's own would be
 
-The maintainer asked for YouTube without yt-dlp, as the other macOS
-manager was believed to do it. It does not (above). What yt-dlp itself
+The maintainer asked for YouTube without the external video tool, as the other macOS
+manager was believed to do it. It does not (above). What the external video tool itself
 does today (2026.10.26, watched with `--print-traffic` on a public
 video; a public-domain tool, read as a black box): one GET of the watch
 page as a browser (for the visitor id, the player's script id and its
@@ -3083,7 +3113,7 @@ signature timestamp), one POST to `/youtubei/v1/player` as a Samsung TV
 client (`TVHTML5` 5.20260707, client name 7; plain `https` DASH formats,
 no proof-of-origin token needed), one more as a visionOS client for HLS,
 one GET of the player script (`/s/player/<id>/player_ias.vflset/en_US/base.js`),
-and one run of the `yt-dlp-ejs` solver (v0.8.0, two scripts, Unlicense)
+and one run of the its file solver (v0.8.0, two scripts, Unlicense)
 in Deno or QuickJS, which turns each format's `n` value into the one the
 server accepts (and decodes a `signatureCipher` where a format carries
 one). Its own source marks the web client as SABR-only, the Android VR
@@ -3092,27 +3122,27 @@ needing a token: the TV client is the one that works without tokens, as
 of today. A reader of dm's own is therefore well defined: the same four
 requests, the same solver scripts fetched from their releases and run in
 the QuickJS dm already fetches, the result written in the shape of
-yt-dlp's reading so `download_page` and the panel's list consume it
-unchanged, and yt-dlp kept behind it for every other site and for the
+the external video tool's reading so `download_page` and the panel's list consume it
+unchanged, and the external video tool kept behind it for every other site and for the
 day YouTube changes the client. Its cost is the one already recorded
 (2026-10-29): the client's name and version, and the solver's version,
-are dm's to keep current, as yt-dlp keeps them for itself. Taken on, at
+are dm's to keep current, as the external video tool keeps them for itself. Taken on, at
 the maintainer's word of 2026-10-30, as gaps.md row 41.
 
 What the other manager offers that dm does not, worth taking on the same
 evidence (its bundle and settings, not its code): a download of a part of
-a video (yt-dlp's `--download-sections`, which cuts with ffmpeg; dm has
+a video (the external video tool's `--download-sections`, which cuts with ffmpeg; dm has
 no ffmpeg and its own muxer joins whole streams, so a part would be its
 own fetch of the byte ranges the picture's and the sound's index names,
-row 42), and yt-dlp refreshed within hours rather than a week (dm already
-refetches a newer yt-dlp after a failure, once an hour).
+row 42), and the external video tool refreshed within hours rather than a week (dm already
+refetches a newer the external video tool after a failure, once an hour).
 
 ## 2026-10-30: YouTube read by dm itself, done
 
 Row 41 closed the same day: `youtube.rs` makes the four requests above
-and writes the reading in yt-dlp's shape; `download_page` takes it first
-on a watch page and yt-dlp behind it, the panel's list stays the page's
-own data, and the host no longer warms a yt-dlp reading of a YouTube page.
+and writes the reading in the external video tool's shape; `download_page` takes it first
+on a watch page and the external video tool behind it, the panel's list stays the page's
+own data, and the host no longer warms an external video tool reading of a YouTube page.
 A YouTube page does not wait for the helper's first fetch either: that
 goes on behind dm's own reading, for the videos it cannot read. Two
 things the stand-in could not show and the real video did: the TV
@@ -3124,14 +3154,14 @@ the real video through `real-sites.py` (4 s, the right name, one picture
 and one sound) and the Edge check 49 of 49 with the panel's download
 through the reader. The solver's scripts are pinned to release 0.8.0 by
 digest; when YouTube's player changes past what that release solves,
-dm's reading fails in words and yt-dlp (which carries the newer solver)
+dm's reading fails in words and the external video tool (which carries the newer solver)
 reads the page, so a stale pin costs the first request and nothing else;
 refreshing the pin is a release of dm, as QuickJS's is.
 
 ## 2026-10-30: The other macOS manager watched at run time, and what dm takes from it
 
 Asked for: how the other macOS manager (1.1.10) gets YouTube and other
-sites, found by running it, and the same in dm without yt-dlp. Its engine
+sites, found by running it, and the same in dm without the external video tool. Its engine
 is a Node program packed into one file with its code compiled, so it reads
 as nothing (a static JavaScript analysis tool was run on it and on its Edge
 extension; only the extension is source). What cost nothing was going
@@ -3142,48 +3172,48 @@ command line and the hosts it reached (`ps`, `lsof`).
 
 What it does, from the record:
 
-- **YouTube.** First `yt-dlp --dump-json --no-download --no-playlist
+- **YouTube.** First `the external video tool --dump-json --no-download --no-playlist
   --ignore-errors --prefer-free-formats <url>` (its config file adds
   `--js-runtimes quickjs:<its QuickJS>`), which ran its QuickJS for the
   player's challenge: 7.6 s. Then, after the job had waited 36 s in its
-  queue, `yt-dlp --ffmpeg-location <its ffmpeg> -f <selector>
+  queue, `the external video tool --ffmpeg-location <its ffmpeg> -f <selector>
   --merge-output-format mp4 -o <file> --no-playlist --no-warnings --newline
   --retries 10 --fragment-retries 10 --retry-sleep http:exp=1:20
   --retry-sleep fragment:exp=1:20 --abort-on-unavailable-fragments
   --progress-template … --concurrent-fragments 8 --load-info-json <its
-  reading>`: yt-dlp fetches the two streams, one connection each (the
+  reading>`: The external video tool fetches the two streams, one connection each (the
   concurrent fragments are for streams in pieces), ffmpeg joins them, and
   `ffprobe` reads the result. Its selector asks, per quality step from the
   one chosen downwards, for H.264 first, then H.265, then any MP4, then
   anything, with M4A sound; and it measures a quality by the picture's
   shorter side (`[aspect_ratio<1][width<=720]` for a portrait video).
-- **Other video sites** (Dailymotion tried): the same yt-dlp download
-  with no reading first. **A plain file:** its aria2 over RPC, sixteen
+- **Other video sites** (Dailymotion tried): the same the external video tool download
+  with no reading first. **A plain file:** its the downloader over RPC, sixteen
   connections (`--split=16 --max-connection-per-server=16
   --min-split-size=1M`).
 - **Its extension:** a button on every `<video>`; on YouTube the quality
   list is asked from the page's own player (`getAvailableQualityLevels`,
   in the page's world) and elsewhere from its engine's reading; a site's
   cookies go only for Vimeo and Instagram; a clip (a part of a video) is
-  cut by yt-dlp's `--download-sections` and ffmpeg (row 42).
+  cut by the external video tool's `--download-sections` and ffmpeg (row 42).
 
-So it does not get YouTube without yt-dlp: it is yt-dlp, ffmpeg and aria2
-behind a window, and refreshes yt-dlp every four hours. dm, as of today,
+So it does not get YouTube without the external video tool: it is the external video tool, ffmpeg and the downloader
+behind a window, and refreshes the external video tool every four hours. dm, as of today,
 goes further than it on YouTube: the page is read by dm itself in four
-requests (`youtube.rs`, no yt-dlp run at all when the reading holds; proved
-by a run with `DM_YTDLP` naming a program that does not exist), the
+requests (`youtube.rs`, no the external video tool run at all when the reading holds; proved
+by a run with its environment switch naming a program that does not exist), the
 streams are fetched on dm's connections and joined by dm's own muxers, with
 no ffmpeg, and the same video that took it 45 s took dm 6 s from a cold
-start, dm's own reading included. yt-dlp stays behind dm's reading, as
+start, dm's own reading included. The external video tool stays behind dm's reading, as
 decided on 2026-10-29 (rows 6 and 32), for the videos the reader cannot
 read and for every other site, where the other manager uses it too.
 
 Taken from it: a quality is the picture's shorter side (`format_for`'s
 selector and `youtube::choose`), so a portrait video at 720p is 720×1280,
 not the 405×720 picture that is 720 tall; dm's own HLS and DASH picks
-still go by height (row 43). Not taken: aria2 (dm's engine fetches plain
+still go by height (row 43). Not taken: the downloader (dm's engine fetches plain
 files on its own connections), ffmpeg and ffprobe (dm's muxers join without
-them), the four-hour refresh (dm refetches a newer yt-dlp after a failure
+them), the four-hour refresh (dm refetches a newer the external video tool after a failure
 it has no words for, within the hour), and `--prefer-free-formats` (dm
 chooses H.264 in MP4 by its own rule).
 
@@ -3202,7 +3232,7 @@ interface; dm's versions were written from that description alone.
 What it offers, and what became of each:
 
 - **A part of a video** (its "Clip", paid): taken, `clip.rs`. Its clip is
-  yt-dlp's `--download-sections` with ffmpeg re-encoding; dm's is the
+  the external video tool's `--download-sections` with ffmpeg re-encoding; dm's is the
   streams' own pieces chosen by their index (`sidx`), fetched by ranges,
   and cut to the second by the joined file's edit lists, with nothing
   decoded. Its vertical, square and GIF clips re-encode, which dm has no
@@ -3211,7 +3241,7 @@ What it offers, and what became of each:
   details for video pages, as chips four to a row.
 - **Playlists** (paid): taken for YouTube, read by dm itself from the
   playlist page and the browse API; other sites' playlists are gaps.md
-  row 46 (yt-dlp's flat listing would give them).
+  row 46 (the external video tool's flat listing would give them).
 - **Connections per file up to 32, ten downloads at once** (paid): dm
   already allows 32 and 10.
 - **Turbo Mode** (an iPhone's connection beside the Mac's): not built; the
@@ -3235,7 +3265,7 @@ Measured, the same files one after another:
 - A local server holding each connection to 1 MB/s, 168 MB: dm 8
   connections 20.5 s (8.2 MB/s), 16 connections 10.1 s (16.6 MB/s), 32
   connections 5.4 s (31.1 MB/s); the other manager at its own setting
-  (aria2, 16) 40.6 s, 16.4 s of it waiting in its queue.
+  (the downloader, 16) 40.6 s, 16.4 s of it waiting in its queue.
 - A 100 MB file on a far server over this slow link: the other manager
   failed once at 16.6 s and completed once in 167 s (0.6 MB/s); dm on 8
   connections completed in 88 s (1.2 MB/s) and on 16 failed twice (362 s
@@ -3243,28 +3273,28 @@ Measured, the same files one after another:
   connections past its limit unanswered until dm's read timeout, and after
   dm's tries the row fails where fewer connections would have finished it.
   Row 44.
-- YouTube, a 19 s video: dm 3.9 s whole with no yt-dlp run; the other
-  manager 45 s (7.6 s of yt-dlp reading, 36 s in its queue, 1 s
+- YouTube, a 19 s video: dm 3.9 s whole with no the external video tool run; the other
+  manager 45 s (7.6 s of the external video tool reading, 36 s in its queue, 1 s
   fetching). A 30 s part of a ten-minute 720p video: dm 5.0 s, 8 MB.
 
 Also seen: its extension asks YouTube's player for the quality list in
 the page's own world (`getAvailableQualityLevels`); dm's panel reads the
-page's data instead, which gives the sizes too. Its yt-dlp is refreshed
+page's data instead, which gives the sizes too. Its the external video tool is refreshed
 every four hours; dm refetches after a failure, within the hour.
 
 ## 2026-10-30: The maintainer's later asks on the other macOS manager, and what was done with each
 
 Asked for, in turn: its window's close icons for the side and top panels
-and its popup dialog; how it ships yt-dlp, since dm's has given trouble;
+and its popup dialog; how it ships the external video tool, since dm's has given trouble;
 a core as good as its or better; the way its extension gets a video's
-qualities quickly, since dm's panel was slow to; and, last, to run IDA Pro
-through ida-pro-mcp on its app and implement its core and its extension in
+qualities quickly, since dm's panel was slow to; and, last, to run a decompiler
+on its app and implement its core and its extension in
 dm. Also: Microsoft Edge alone for the browser checks.
 
-- **IDA Pro is not on this computer** (nothing at the paths rea and the
-  shell look in), so ida-pro-mcp cannot run here; and decompiling its
+- **A decompiler is not on this computer** (nothing at the paths rea and the
+  shell look in), so that cannot run here; and decompiling its
   binaries to re-implement them would not be the clean-room work asked
-  for earlier the same day. Its core is yt-dlp, aria2 and ffmpeg driven
+  for earlier the same day. Its core is the external video tool, the downloader and ffmpeg driven
   by a Node program: there is no native engine in it to take, and dm's own
   engine measured faster (the entry above). What was taken is behaviour,
   observed: the items below.
@@ -3274,13 +3304,13 @@ dm. Also: Microsoft Edge alone for the browser checks.
   player's levels and its video id; `handoff.rs` lists the heights at
   once) and lets dm's reading, with sizes, replace that list when it
   comes. The contract's row B34 still ends with the sizes listed.
-- **How it ships yt-dlp.** Inside its bundle, the unpacked build, beside
-  QuickJS, ffmpeg and aria2, refreshed from its own manifest every four
-  hours. dm now looks for a yt-dlp shipped in its own package
-  (`ytdlp::bundled`) and the packaging fetches one (`scripts/fetch-ytdlp.py`,
+- **How it ships the external video tool.** Inside its bundle, the unpacked build, beside
+  QuickJS, ffmpeg and the downloader, refreshed from its own manifest every four
+  hours. dm now looks for an external video tool shipped in its own package
+  (`videopage::bundled`) and the packaging fetches one (its file,
   the desktop workflow); dm's fetched copy still comes first, so the
   after-failure refresh keeps working. The earlier note that dm's packages
-  distribute no yt-dlp no longer holds for packages built that way; the
+  distribute no the external video tool no longer holds for packages built that way; the
   Unlicense allows it, and the maintainer asked for it.
 - **The core.** The one measured shortfall (16 connections failing on a
   server that holds extra connections open) is closed in the engine: a
@@ -3322,13 +3352,13 @@ the old rule (it asserts the new one's count of held requests, which
 the old would exceed, but a stricter shape needs paced served responses
 at the timeout; it has them now), a forged page message can silence the
 panel's "did not answer" note (harmless otherwise), and the packaged
-yt-dlp is not pinned to a digest in the repository (gaps row 50).
+the external video tool is not pinned to a digest in the repository (gaps row 50).
 Network drop (25 s, 100 s) and a 45 s freeze of dm complete byte-exact.
 
-## 2026-10-30: yt-dlp out of the box, as the clean-room specification recommends
+## 2026-10-30: The external video tool out of the box, as the clean-room specification recommends
 
 From `docs/clean-room-download-engine-spec.md`: the other macOS manager
-ships yt-dlp in its bundle, signed with its own Developer ID, and runs a
+ships the external video tool in its bundle, signed with its own Developer ID, and runs a
 copy in its support folder that carries no quarantine mark. dm now ships
 the pinned build in every package and copies it into its tools folder on
 first use (`tools::adopt`, `ditto --noextattr --noqtn` on macOS, then any
@@ -3336,7 +3366,7 @@ quarantine attribute removed and its absence checked), running it from
 there. Found while checking it: `ditto --noqtn` alone kept the quarantine
 attribute, and the quarantined copy hung the download for four minutes;
 and the shipped-copy lookup missed the build's own program name
-(`yt-dlp_macos`) beside the program. A Developer ID for dm stays the
+(its file) beside the program. A Developer ID for dm stays the
 maintainer's to buy; until then the copy is what keeps macOS from asking.
 
 Retry timing: 15 s apart after the fifth try instead of 30, with 15 tries
@@ -3344,13 +3374,13 @@ by default instead of 10, so the give-up horizon stays near three minutes
 while a returning server is found within 15 s. Existing settings files
 keep the 10 they saved, which now outlasts about 90 s.
 
-## 2026-10-30: yt-dlp shipped as its zip, not unpacked
+## 2026-10-30: The external video tool shipped as its zip, not unpacked
 
 Found by packaging a real dm.app before the release: cargo-packager signs
-every program in the bundle, and codesign refuses yt-dlp's embedded
+every program in the bundle, and codesign refuses the external video tool's embedded
 `Python.framework/Python` ("bundle format is ambiguous"), so the macOS
 package failed. The package now carries the release's zip as it is
-(`scripts/fetch-ytdlp.py`), which codesign leaves alone and the bundle's
+(its file), which codesign leaves alone and the bundle's
 seal still covers; `tools::adopt` unpacks it into the tools folder on
 first use (`ditto -x -k` on macOS, then any quarantine mark removed; the
 zip crate elsewhere). The app is 75 MB (the dmg 62 MB) instead of about
@@ -3379,17 +3409,17 @@ hour, a day), as the other macOS manager's Auto-Delete does. Decided:
   is kept while dm runs, hidden or not, to within its 30 s idle wake; a time
   that passed while dm was closed is acted on at the next start.
 
-## yt-dlp in macOS's own sandbox (2026-10-30)
+## The external video tool in macOS's own sandbox (2026-10-30)
 
-yt-dlp runs a site's player script, so on macOS it now starts under
-`sandbox-exec` with a profile made per run (`ytdlp/sandbox.rs`): everything
+the external video tool runs a site's player script, so on macOS it now starts under
+`sandbox-exec` with a profile made per run (`videopage/sandbox.rs`): everything
 allowed as usual but writing, which is allowed only in the run's staging
-folder, the temporary folder, `~/.cache` and `~/Library/Caches` (yt-dlp's
+folder, the temporary folder, `~/.cache` and `~/Library/Caches` (the external video tool's
 and Deno's caches) and `/dev`; the browsers' profiles, Safari's and the
 system's cookies, the keychains, `~/.ssh`, `~/.gnupg` and the cloud logins
 are neither read nor written, listed last so a writable folder cannot
 uncover them. `sandbox-exec` is deprecated but present on every macOS; it
-is tried once a run, and where it cannot make a sandbox yt-dlp starts
+is tried once a run, and where it cannot make a sandbox the external video tool starts
 plainly, as on Linux without bubblewrap. `DM_SANDBOX=0` turns it off.
 Checked: a hidden file reads as not permitted, outside its folders nothing
 writes, its staging writes; Dailymotion (HLS, through dm) and YouTube (with
@@ -3422,3 +3452,973 @@ split the largest when none are left, so the faster path takes more on its
 own. Off while a proxy is on: a connection around the proxy would show the
 site this computer's own address. A chosen network that is not connected
 is said once and the download uses one path.
+
+## The probe's response kept as the first piece (2026-10-31)
+
+The probe now sends `Range: bytes=0-` (`probe_get`) instead of `bytes=0-0`,
+and its response body is threaded through to segment 0's first attempt
+rather than drained. This reverses the decision of 2026-10-24 ("Weighed and
+not done"), asked for by the maintainer on 2026-10-31 as part of matching
+reference A's engine behaviour (the engine gap of 2026-10-31, now closed).
+
+The Wikimedia concern (a server answering 200 to `bytes=0-`) is handled:
+the probe reads the status code, and a 200 sets `resumable = false`, so the
+download falls to one connection and the response body is that connection's
+stream. A server that limits connections: the probe's response is kept
+open only on the connection that carries segment 0; every other segment
+makes its own request, the same as before. On a resume where segment 0
+already has bytes on disk, the probe body is dropped and a fresh range
+request is made. On a capped stream (HLS/DASH chunks), the probe body is
+also dropped because each chunk makes its own small request. It is dropped
+too under a speed limit when the file is planned into several ranges: kept,
+the shown speed overshot the limit near the end of the file
+(`tests/speed.rs`, `the_shown_speed_keeps_to_the_limit_from_the_first_second`);
+with one range it is kept, so a limited small file still uses one connection.
+The excess-bytes check (`DishonestRanges`) is skipped for the probe body only,
+since it legitimately carries the whole file and is clipped at the range's end.
+
+Found on the way, on Windows, with the same `HEAD`: the control port closed a
+connection that had been idle for the authentication limit (5 s), because the
+longer timeout was set on a clone of the socket and did not reach the
+reader's own. It is now set on the reader (`control.rs`).
+
+## Video from other sites comes from what the browser's player loaded (2026-11-01)
+
+With the external video tool gone, a site other than YouTube is downloaded from the requests its
+player made, which the extension hears (`webRequest.onResponseStarted`): HLS and
+DASH manifests, whole media files, and, for Facebook's and Instagram's CDN
+(`fbcdn.net`, `cdninstagram.com`), a file asked for in pieces. Checked live in a
+visible Edge with no sign-in on Vimeo, Instagram, TikTok and X.
+
+- A piece of that CDN is named by `bytestart` and `byteend`; the file is the
+  address without them. Which pieces are the picture and which the sound is in
+  the `efg` parameter's `vencode_tag` (`…dash_ln_heaac_vbr3_audio` is sound).
+  Their size is not known from pieces, so the latest picture seen is the line's.
+- A `<video>`'s own fetch of a small whole file is offered above 64 KB, not the
+  1 MB floor of what a script fetches: X's GIF-style clips are the post's media.
+- A stream picked from the panel carries the page's cookies for that download
+  alone, as a video page's session does: TikTok's CDN answers 403 to a signed
+  address without them (tested with every agent and referer; only a session
+  was missing).
+- The panel's hit-test accepts a layer of the player's own size up to eight
+  ancestors out, not four: TikTok's and Instagram's overlays hang off a
+  container five levels up and hid the panel. The size bound
+  (`layer_fits`) still refuses a dialog over the page.
+- An HLS playlist is named by the height in its address and a sound-only one is
+  not listed beside a picture, so no line saves the sound alone.
+
+## Each dialog a window of its own, and the vendored egui-winit (2026-11-01)
+
+The maintainer asked (2026-11-01, "make the UI improvements in gaps.md"; the
+request of 2026-10-31 that dm behave like reference A, whose dialogs are
+windows of their own that a person drags anywhere on the screen) for the
+dialogs to stop being drawn inside the main window. `Dialog::show`
+(`dialogs/frame.rs`) now hands its body to `dialogs/apart.rs`, which opens it
+in an egui immediate viewport, as `app/drops.rs` opens the drop target: the
+system's title bar with the dialog's title and close button, placed over the
+middle of the main window to begin with and left wherever the person puts it,
+sized to what the body measures. Immediate, not deferred, because the dialogs'
+bodies are closures over `&mut DmApp`. Where the backend has no window but the
+first (`Context::embed_viewports`, which the test harness is), the dialog stays
+a window in the main window, as it was, so `tests/window` keeps its tests. A
+dialog that keeps the clicks to itself holds the main window through a layer
+over it that egui treats as the modal one (`dialogs/mod.rs`, `hold_the_window`).
+Closing a dialog's window, like Escape, closes that dialog and no other
+(`Dialogs::close_window`, `state.rs`).
+
+How the control port reaches them. `ui.click`, `ui.key` and `ui.type` are
+how the QA and AI clients drive dm: events fed to egui as a person's pointer
+and keyboard would. eframe 0.37 offers the app the first window's input
+(`App::raw_input_hook`, `epi_integration.rs`) and no other window's: an
+immediate viewport's input is taken by egui-winit and handed straight to egui.
+So a dialog's own window could not be clicked. Weighed and not done: keeping
+the dialogs embedded whenever a control client is attached
+(`set_embed_viewports(true)`), which would have the QA check a look nobody
+sees and make B42 impossible to check; and the system's own input
+(`SendInput` and its kin), which is a different program for each system and
+moves the person's real pointer. A plain setting does not do it; there is none.
+
+So `desktop/vendor/egui-winit` is the published crate **egui-winit 0.37.0**, the
+version eframe 0.37.0 depends on, licence **MIT OR Apache-2.0** (its
+`Cargo.toml`; the published package carries no licence text of its own, the
+project does: github.com/emilk/egui), used through `[patch.crates-io]` as
+`vendor/winit` is. The one change is in `src/lib.rs` (search `dm:`): a
+`pub static OTHER_WINDOWS_INPUT: OnceLock<fn(&mut egui::RawInput)>` before
+`State`, and `State::take_egui_input` calls it with the input of every window
+whose viewport is not the first, just before returning it. Its `Cargo.lock` is
+left out, as a path dependency uses the workspace's. dm sets the function once
+at start (`main.rs`) to `dialogs::apart::feed`, which gives a window the events
+a control client queued for it (`app/human.rs`). Nothing else differs from the
+published crate (`desktop/vendor/README.md`); carry the change over when eframe
+is upgraded, or drop the copy when eframe offers a hook of its own.
+
+Also found: eframe's glow integration answers screenshot commands for the first
+window only, so a dialog's own window is pictured from the screen, over the
+rectangle `ui.windows` reports (`scripts/human-qa.py`, `screen_region`), and
+the Windows set of pictures for B25 is kept beside the macOS one
+(`docs/behaviour-baseline/windows/`, the maintainer's approval of 2026-11-01).
+
+Found by the maintainer's report that they still could not drag a dialog out of
+dm's window (2026-11-01), and by dragging every kind of dialog with the system's
+mouse (`SetCursorPos`, `mouse_event`) and reading its window back from Windows
+(`GetWindowRect`, `GetParent`, `GetWindow`): a dialog window was put back over
+the middle of dm's window whenever its measured size changed, so one whose body
+changes (Properties, a progress window, Download details) was pulled back while
+it was dragged. Placement is now latched once the size has settled (`Own::placed`).
+Sizing had two faults of its own: a panel's `min_rect` is the whole room it was
+given before anything is drawn, so a window could never measure smaller than its
+first guess (the body's height is now read from the layout's cursor), and Options
+fills a height it is given (`fixed_size`), which is now passed through
+(`Spec::height`). A dialog that opens centred on a dm window that reaches past the
+bottom of the screen is kept above the taskbar (`on_screen`). The control port
+chooses, among words that two dialog windows share, the one in the window that has
+the keyboard (`apart::windows`).
+
+## Options: one Advanced page for the connection and the proxy (2026-11-01)
+
+The maintainer asked for the UI improvements of gaps.md ("make the UI improvements in gaps.md") and
+row 16 had waited for that word: the expert tabs behind one Advanced page. Options now has six tabs:
+General, Browser, Folders, Downloads, Advanced, Sign-ins. Advanced is the old Network tab's body
+under a "Network" heading, then the old Proxy tab's body under a "Proxy" heading, on one scrolling
+page; every setting, its explanation line and the settings file's keys are as they were
+(`dialogs/options/tabs.rs`, `tab_advanced`). Restore defaults on it puts back every setting of
+both (`tab_settings(Tab::Advanced)`). The one new word, "Advanced", is in all thirteen
+catalogs; the two sentences that sent a person to "Options › Proxy" (the proxy that could not be
+reached, and the saved proxy turned off at launch) say "Options › Advanced" now, their
+translations changed in the tab's name only.
+
+Where OK refuses a proxy (no host, an address where the host goes, port 0) Advanced is opened at
+its proxy section (`OptionsDialog::to_proxy`, consumed by the page with `scroll_to_cursor`), where
+the Proxy tab was selected before. Behaviour contract row B43; tests in `tests/window/options.rs`.
+
+Not changed, as they are other crates' words: the English notices of dm-core and dm-shell that
+still say "Options › Proxy" or "Options › Network" (`download/mod.rs`, `live.rs`, `shell.rs`);
+they are shown to a person only through the window's own sentences above, or as they are.
+
+## The YouTube challenge scripts stay fetched from their project's release page (2026-11-01)
+
+dm reads YouTube itself (`youtube.rs`). To answer the signature and speed-limit checks in YouTube's
+player it runs two small scripts in QuickJS or Deno, pinned by version and digest (`SOLVER_VERSION`,
+`SOLVER_LIB`, `SOLVER_CORE`) and fetched once from the release page of the project that publishes
+them; the address is the one place the old external video tool's name is left in the repository.
+dm does not run that tool.
+
+The maintainer chose on 2026-11-01 to keep it so. Copying the scripts into dm's own release assets
+would still need the same attribution and the same upkeep, and a script that no longer matches the
+player is the most likely reason YouTube stops working. The way to notice is a weekly run of
+`scripts/real-sites.py` (a real YouTube video); the cure is a new version and digest. Writing dm's own
+solver was declined as upkeep (the YouTube proof-of-origin gap, gaps row 37, is the same kind).
+
+### The pin is kept current by a weekly pull request (2026-11-01)
+
+`.github/workflows/solver-update.yml` runs every Monday (and on demand): `scripts/update-solver.py`
+reads the project's address out of `youtube.rs`, asks its releases for the latest tag, and if it is
+newer downloads both scripts, refuses anything that is not a script, works out their SHA-256 and
+rewrites `SOLVER_VERSION` and the two digests; the offline YouTube tests run with the new pin and a
+pull request is opened. It never merges: the offline tests use stand-in scripts, so a person runs a
+real video (`SITES=youtube python3 scripts/real-sites.py`) before merging, and a checksum only
+protects if somebody looks at the change. `scripts/test-update-solver.py` tests the script against a
+stand-in releases server (a newer release, the same or an older one, a missing script, an error page
+in place of a script, a server that is down, a changed layout of `youtube.rs`).
+
+The repository needs "Allow GitHub Actions to create and approve pull requests" switched on in
+Settings > Actions > General; a pull request opened with the workflow's own token does not start the
+other workflows, which is why the YouTube tests run inside this one. A failed run (the release
+page unreachable, a script that is not one) is the signal that something needs a person.
+
+## Secrets on Windows are sealed under a key Credential Manager keeps (2026-11-01)
+
+A row's login and its browser cookies were written whole to `secrets.json` beside the queue file, readable
+by this account alone, so a copy of the home carried them in clear (gaps row 39). A Windows credential is
+limited to 2560 bytes and a cookie jar is not, so the file is sealed instead (ChaCha20-Poly1305, a fresh
+nonce on every write, `secretstore.rs`) under a random 32-byte key that is the credential, named
+`dm:queue-secrets-key` and scoped to this computer's profile. A file written in clear moves into the sealed
+form the first time it is read where the store works; where it does not (an error from the API, the
+store switched off by `DM_NO_SECRET_STORE`, any other system) the file is exactly what it always was and a
+notice says so. A file that cannot be opened (a copy made on another account) is not guessed at: the
+downloads that had logins or cookies ask for them again. Not done: the Sign-ins' and the proxy's passwords
+in the settings file, and the macOS and Linux stores (the row says why).
+
+## Site rules are served by the app and added to the extension's tables (2026-11-01)
+
+A fix for one site (a host to leave alone, a request whose answer names the stream) used to need a new
+extension in the browser stores, because the tables were compiled into it (gaps rows 68 and 69). The hello
+now carries an optional `rules` document, `Rules` in `dm-protocol`: `format` (how it is written, 1) and
+`revision` (how new it is), the lists `exclude` adds to `excluded.rs`, and `sites`, each with the requests
+whose JSON answers hold streams (`url_contains`, and the `keys` whose strings are addresses). The app serves
+the newer of `dm-shell/resources/rules.json` (built in) and a `rules.json` in dm's home, so a fix can be put
+in place by a file and not a release. Decisions:
+
+* Additive only. The extension adds what it is served to its own tables and nothing served removes a built-in
+  rule, so a missing, older, oversize (256 KiB, one native-messaging frame holds 1 MiB), malformed or
+  other-format document costs nothing: the extension decides as it was built to.
+* The served rules are kept in the extension's storage (`dm.rules`) and put back when the worker wakes, since
+  waking is when a download arrives and asking the app takes longer than a small download.
+* The page hook reads only JSON, at most 1 MiB, only for requests the rules of the page's site name, and
+  the extension re-checks the site and the request before it finds anything, so a page cannot make the
+  extension read an answer the rules do not name. What counts as a stream (an `http(s)` address ending in a
+  media extension, not on the never-caught list) is decided in Rust (`decide/answers.rs`), not in the page.
+* The shipped document is empty. The profiles are written from what the real pages show at the final QA; guessing
+  at sites' answers from memory would add rules nobody checked. Not done: carrying `rules.json` in the app's
+  signed update manifests.
+* Considered and not chosen: serving the document through `settings.get`. The hello is answered first and once per
+  handshake, and the decisions that need the rules (the never-caught list) run before the settings arrive.
+
+## 2026-11-01: Site rules ride in the update manifest, checked by digest
+
+`latest.json` may carry `rules`: `{url, sha256, size}`, the address under dm's own releases, size at most 256 KiB. The weekly or manual update check fetches it, requires the exact size and digest, parses it as `Rules` and keeps it as `rules.json` in dm's home only when its `revision` beats what is served (the shipped document is the floor); anything else is passed over silently and the check itself does not fail. Trust rests on the manifest being fetched over TLS from the project's releases plus the digest; this tree has no separate signature check on `latest.json` to lean on (the 2026-10-25 entry describes one), so none is claimed here.
+
+## 2026-11-01: The Linux AAC decoder is written but gated off until its tables are supplied
+
+`dm-core/src/aac/` holds everything of an AAC-LC decoder that is logic (bit reader, config, frame syntax, dequantisation, pulses, mid/side, TNS, FFT-based IMDCT, windows, overlap-add), tested against the defining formulas. It holds none of the standard's Huffman books (121 scale-factor and eleven spectral codebooks) nor band layouts beyond 44.1/48 kHz: they could not be reproduced reliably, copying them from another decoder is not allowed, and a wrong code word yields noise with no error. `tables::COMPLETE` is false, so `aac::decoder_ready()` is false and Linux offers no MP3 exactly as before. Dropped: guessing the tables, and returning a short or silent file. To finish: supply the tables from the standard, set `COMPLETE`, decode `sound.f140.m4a` and compare with a reference decode.
+
+## The settings passwords go to the same store; macOS and Linux reach theirs through the system's tools (2026-11-01)
+
+The Sign-ins' and the proxy's passwords (gaps row 39) are kept in memory as before; `Settings::save` puts each
+into the store under its own name (`dm:login:<home>:<host>\n<user>`, `dm:proxy:<home>`, the home being the
+short hash `secretstore::namespace` gives) and writes the field empty, and `Settings::load` fills an empty field from
+the store. A password still in the file in clear is moved in on its first read and the file written again. A
+store that refuses leaves the password in the file, as before, with a notice. A login removed in Options leaves
+its stored password behind (no listing of the store); an emptied password is deleted. macOS uses `security`
+and Linux `secret-tool`, started as processes (no new crate, no linking to libsecret, which a build on CI would
+need): a value is base64 text; `secret-tool` takes it on standard input, `security` only on its command line,
+which is said in the code. A missing tool is no store. Written without a Mac or Linux computer to compile or
+run on: proved by hand at the final QA.
+
+## Page renditions are read by one scan, not by a reader per site (2026-11-02)
+
+The panel's list of qualities adds the renditions a page names in its own data. The first
+three readers (Facebook, Instagram, TikTok) were each written for one site's field names;
+with a thousand sites that cannot be kept up. `decide/page_lines.rs` now names no site: it
+finds the strings of the page's scripts that hold a file the player fetched, takes the
+innermost list of objects around it as the renditions, reads each entry by the names of its
+fields (an address, `*height`, `*bitrate`/`*bandwidth`, a short `quality`/`label`), reads any
+string holding a DASH manifest for its representations, and looks in the objects around for
+the video's other lists. The old per-site tests pass unchanged, and a made-up site's shape has
+one of its own. Dropped: a table of site profiles (needs a release for each site).
+Known limits: field names with none of those words (a height named `h`), a list kept outside
+a script (a `data-` attribute), and pages that hold no list at all (the list then shows only
+what the player fetched).
+
+Added 2026-11-02 (Facebook's feed showed no list): the scan also reads what the page's own
+answers said. A feed loads each video's renditions through its API after the page, so the page's
+markup never held them (the file the player fetched appeared nowhere in it). `extension/document.js`
+keeps, on every site, the text of each fetch or XHR answer (text, JSON, XML; at most 2 MiB each) that
+mentions `.m3u8`, `.mpd`, `<MPD`, `.mp4` or `.webm`; `content.js` holds the newest 40, at most 12 MiB,
+in memory; the panel's list scans the page and then those answers, newest first. They are sent nowhere.
+Tried and dropped: offering the page's one stream when the player has fetched nothing (on a feed it
+was another video's: a 2-hour file landed), so a stream is offered only with a file the player fetched.
+
+## EDM-V1 and EDM-E1: what was built, and what was not (2026-11-03)
+
+Checked against the code before writing any: most of EDM-E1 already exists. Midpoint halving of the
+largest range is `ranged::split_largest`; a connection far slower than the rest is dropped and
+asked again (`window.stalled`, a coarser rule than the spec's: under 1/64 of the whole download's
+bytes over a window, not an EMA below 0.15 of the peers' for 3 s, so Part 2 is only partly met); a first retry after a cut is at once (`retry::quick_nap`); the seam
+is compared over 64 bytes (`LEAD_BYTES`, row 96); a zip's directory is read from the file's tail
+(`zipinfo.rs`). Not built, with the reason:
+
+- **Part 8, HTTP/2 multiplexing.** The client is pinned to HTTP/1 (`lib.rs`, `http1_only`) on
+  purpose: over h2 the ranges share one connection, one congestion window and one throttle, so
+  eight ranges download at the speed of one. The spec asks for that to be undone; it would make
+  the multi-connection feature do nothing on most CDNs.
+- **Part 6, full pre-allocation (`fallocate`, `SetFileValidData`).** The staged file is sparse
+  (`set_len`); allocating every block up front costs the whole write before the first byte arrives
+  and `SetFileValidData` needs a privilege and exposes old disk contents. Not a gain.
+- **Part 3, size tiers.** Contradicts row 95 (a 100 KB file on 4 connections, measured on reference
+  A); the floor stays at 32 KiB.
+
+EDM-V1: built are the page hook (`document.js` now relays manifests, playlists and whole media
+files on any host, not only googlevideo, leaving segments and byte ranges out; the MediaSource and
+`URL.createObjectURL` calls are observed, their codecs kept in `content.js` and read by nothing yet)
+and the shipped `rules.json` (revision 2) with answer rules for Facebook, Instagram, Vimeo, TikTok,
+X/Twitter and Reddit, in the document's real shape (`sites[].answers[]`; the spec's `profiles` schema
+is not the one the code reads). None of the site rules has been run against a live site (rows 62, 63
+and 71: logged-out pages refuse an automated browser). Not built: the `AdaptivePair` stream kind, the
+itag table (YouTube's heights come from the player response, not from itags), the extra headers in
+`Start`, and the `RefreshStream` request; `Entry::fresh_link` / `adopt_fresh_link` already cover the
+expired-address resume (row 57).
+
+Row 111 closed 2026-11-06 without new test files: the regression guards the row asked for already
+exist. Halving and stealing are `tests/speed.rs` (`one_slow_connection_does_not_hold_the_download_up`,
+`a_download_paused_after_its_ranges_were_halved_resumes_whole`), the 64-byte seam
+`tests/seam_check.rs`, and the zip tail `tests/zip_contents.rs`.
+
+## The worker checks its WebAssembly against a digest built with its code (2026-11-03)
+
+A browser keeps an unpacked extension's worker scripts (`background.js` and wasm-bindgen's glue)
+from when the extension was loaded, but reads `pkg/dm_catcher_bg.wasm` from the folder each time the
+worker starts. A rebuild of `extension/pkg` in place therefore paired old glue with new WebAssembly,
+which failed on its first call ("wasm.__wasm_bindgen_func_elem_1846 is not a function", gaps row
+114). `package.sh` writes the WebAssembly's SHA-256 into `pkg/build.js`, which the worker imports
+beside the glue, so the two are cached together; the worker fetches the bytes itself, compares, and
+on a mismatch reloads the extension, which loads glue that matches. At most once in two minutes
+(`dmReloadedAt` in `storage.local`, which a reload keeps): a folder caught halfway through a
+rebuild cannot set off a loop. Tried and dropped: naming the file by its digest, which would do the
+same with a 404 but changes a name seven scripts look for. The page's panel needs none of this: its
+glue and WebAssembly are one file (`pkg/panel.js`).
+
+## Reference A's extension, rows 116 to 119 (2026-11-04)
+
+* **Headers (116).** The worker listens at `onSendHeaders` (read only) and keeps the last request
+  headers per address in memory, never in storage or a log. They travel in `Start.headers`; the host
+  and the queue filter them again (`dm_core::cookies::forwardable`: nothing dm sets itself, no
+  `Cookie`, bounded), keep them with the row's secrets like cookies, and send them only to the
+  row's own server (`SignIn::headers_for`), so a bearer token never follows a redirect or a mirror.
+  `Authorization` is forwarded here although `Headers::of` (the stream hints) drops it: those hints
+  come from a playlist, these from the browser's own request for the same file.
+* **Answers (117).** The page hook no longer clones every answer. It wraps the `Response` reading
+  methods and the `body` getter (a `tee()` for answers that may be text), and XHR `json`,
+  `arraybuffer` and `blob`; bytes are decoded only when the first 64 are text.
+* **Finders (118).** A small selector-chain and property-path language from `rules.json`, evaluated
+  read only in the page's world (32 steps, 5 ms). The id is asked at the panel click; the lines come
+  from the answers already kept (`page_lines_for_player`). No site's finder is shipped yet.
+* **Pairing (119).** `ranged_of` reads any site's byte-range pieces by `Content-Type`; a lone one
+  is offered as a whole file, so a site with video only loses nothing.
+* **Not built: renewing (121).** The app cannot ask the extension anything (the native host exists
+  only while the browser holds a port), so there is no way to ask for a newer address.
+
+## Media types and adverts audited against reference A (2026-11-04, rows 126 and 127)
+
+* **Added:** a playlist or manifest recognised by its type alone (`application/octet-stream-m3u8`,
+  `video/vnd.mpeg.dash.mpd`), and `audio/mp2t` as a segment, not a file.
+* **Not offered, on purpose:** HDS (`video/f4m`, `video/f4f`, `Seg1-Frag1`): Flash-era, neither a
+  file; it is now kept out of the list. Subtitle types (`text/vtt`, TTML, DFXP) are not media.
+  `application/vnd.yt-ump` is YouTube's, read from the page by `youtube.rs`, not from the list.
+* **Adverts:** already excluded by host, path, `Server: DCLK-AdSvr` and a Windows-media stub of
+  100 KB or less (`excluded.rs`); an MP4 loaded as an image is never heard, since the worker does
+  not listen to the `image` type. Tests added for each.
+
+## The made-up `Referer` is dropped for a server that refuses it; `Retry-After` is a floor (2026-11-04, rows 133 and 134)
+
+Found by running reference A and dm on the same real sites (`docs/gaps.md` row 132).
+
+* **`Referer`:** dm keeps sending the file's own folder when no `Referer` was given (reference A does
+  the same, and some hosts want one). Only when the probe is still refused with 403 after the agent
+  ladder is it asked once more with none; if that is served, the server (host and port) is
+  remembered for the session and every later request to it goes without. A `Referer` that came with
+  the download (the browser's page) is never dropped. Tried and dropped: never sending one, which
+  would lose the hosts that want it.
+* **`Retry-After`:** the server's value is the least wait, and dm's own wait still grows under it,
+  doubling past the 15 s a dropped connection is held to, up to the 60 s ceiling as before.
+  Wikimedia's limiter answered dm each second for minutes and let a request through only after
+  about 20 quiet seconds; following the header exactly cannot get past one. Checked by
+  `tests/errors.rs` and a unit test in `retry.rs`. Not re-checked live: after the day's
+  side-by-side runs Wikimedia answered this computer `Retry-After: 600` with a request to be less
+  disruptive; dm then showed "Too many requests (retry n …)" and asked once a minute. Do not
+  re-test against Wikimedia's originals in a loop.
+
+## Measured and not changed: FTP's sign-in, the ramp after a restart (2026-11-04, rows 138 and 139)
+
+* **The 11.7 s against 8.2 s for GNU's 1 MB file over FTP** was mostly the harness: `sites.mjs`
+  sampled connections with a blocking PowerShell call each 400 ms, which held Node's loop and added
+  seconds to both apps' times. Traced without it, dm took 7.3 s on three runs; it signed in twice
+  (once to describe the file, once to fetch it) where curl signs in once (7.4 s). Changed: the
+  describing session fetches the first range; about 6 s now.
+* **The slow ramp after a hard kill** was the server: Hetzner's Ashburn mirror swings from 5 MB/s to
+  16 KB/s within a fresh download as well. On a local server holding each connection to 256 KB/s,
+  dm was back at full speed in the first second after a restart (1.5 MB, against 262 KB in a fresh
+  start's first second). Not changed. Use a local steady server (`D:\compare\steady\steady.mjs`)
+  for engine timings; real servers only to see that a thing works.
+
+## dm works exactly like reference A, with its labels (maintainer, 2026-11-04)
+
+Asked, in the maintainer's words: "I want to clone" reference A; "it should exactly work same";
+"if the user from" reference A "use our app user should be comfortable"; Windows first, macOS and
+Linux tested later; Microsoft Edge for testing. Answered the same day to three questions:
+
+* **Approval:** "It should work exactly like" reference A. This is the approval
+  `docs/behaviour-contract.md` asks for, for every change that makes dm behave as reference A does
+  (the link chooser, File Info before a panel download, the quality list, connections on small
+  files, a pasted page saved, the queue drop-downs, the Options controls). Each such commit names
+  this entry and edits its contract row and `docs/behaviour-baseline/` in the same commit.
+* **Labels:** reference A's own words for menus, buttons, categories and columns (a Tasks menu,
+  Delete, Delete Completed, All Downloads, Unfinished, Finished, Grabber; the Q, Last Try Date and
+  Description columns), in every catalog. Its icons, logo and artwork are still never copied.
+* **The window:** dm's own (Rust and egui), reshaped to reference A's layout; no WinUI rewrite.
+
+## The window as compact as reference A's (maintainer, 2026-11-04)
+
+Asked: "the opening screen size, font size and overall compactness" of dm and reference A "should be
+same. It should not look extremely big." Measured on this computer (1366 by 768, 100%): reference A
+opens 800 by 458, its text the system's 9-point face (about 12 pixels), its list rows 17 apart, its
+tree about 145 wide with items 16 apart, its toolbar 66 tall with every button named (a long name
+shortened, "Delete C…"). dm opened 962 by 692, past the bottom of the screen, with 14-point text,
+rows 28 apart, tree items 32 and a tree 230 wide; at that width its toolbar fell to pictures alone.
+
+Now (`theme::BODY` 12, `CAPTION` 11, `HEADING` 16, `CONTROL` 22, `NAV_ITEM` 22, `ROW` 20): a new
+window 820 by 500; the tree from 170; toolbar buttons with their name under the picture at most 64
+wide, a longer name shortened with "…" and whole on hover; columns in reference A's widths, so its
+eight fit. The larger text sizes in Options › View still scale all of it.
+
+## Maintenance pass: one settings reader, lib.rs by concern, borrowing over copying (2026-11-05)
+
+Asked: code easy to maintain, without changing what dm does; then a performance review on three
+rules (borrow in parameters, no copy before the end, references out where only read).
+
+* **One settings reader.** `Settings::read_only` (the window's lenient reading and its upgrades, no
+  file moved, no secret asked) is what the browser's host reads; it read strictly, so one odd field
+  put every default in force there while the window kept the rest.
+* **`dm-core/src/lib.rs` by concern** (1214 lines to 397): `error.rs`, `files.rs`, `http_client.rs`,
+  `agents.rs`, `processes.rs`, each re-exported whole, so every path (`dm_core::Error`,
+  `crate::lock`, `dm_core::agent_for`) is where it was.
+* **CI off Node 20**: checkout v5.0.0, upload-artifact v6.0.0, download-artifact v7.0.0, the first
+  of each on Node 24 (later majors not taken: more change than the runtime).
+* **Borrowing over copying**, found with clippy's `needless_pass_by_value`, `ptr_arg`,
+  `redundant_clone`, `assigning_clones`, `needless_collect`, `unnecessary_to_owned` on top of the
+  usual set: parameters only read now borrow (`add_sized`'s options, `remember_folder`'s folder,
+  `open_add_url`'s clipboard, the MCP relay's params, a font's bytes, a page's player id, the
+  journal's changed rows); fifteen `x = y.clone()` reuse `x`'s buffer (`clone_from`); clones of
+  values not used again are gone; `queues()` hands out its cached list (`Rc<[String]>`) where it
+  copied every name several times a frame, and the window's read-only users of the visible rows
+  share the table's list (`visible_shared`) rather than copying it.
+* **Left as they are, on purpose:** `mp3.rs` collects its threads' handles before joining them (not
+  collected, the threads ran one after another); `Arc::clone` spelled `.clone()` (no cost, a
+  matter of style); a `web_sys` event or `JsValue` taken by value (that is how wasm-bindgen hands
+  them over, and a clone is a handle); `tree_action`'s place (used after it is stored); `Spec`
+  (copying it is free; deriving `Copy` only quiets the lint).
+
+## The Scheduler by queue, and the queue lists on Start Queue and Stop Queue (2026-11-05, gaps rows 79 and 90)
+
+Built at the maintainer's word that dm "should work exactly like" reference A (2026-11-04), as
+contract rows B64 and B65.
+
+* **The Main queue's hours are the shared ones.** The settings already had one schedule for
+  every queue (`schedule`) and an entry per named queue (`queue_schedules`), a queue with none
+  following the first. The Scheduler shows that as it is: the Main queue edits `schedule`, and
+  any other queue either follows it ("This queue follows the Main queue's hours.") or is given
+  hours of its own. An entry for the Main queue itself, which only a hand-written file can
+  have, is not shown and so not kept.
+* **Once on a date** is `once_at` with the date typed and the time taken from Start at, so a
+  person types one time, not two. The days are greyed then: `open_now` does not read them for a
+  once-only run.
+* **"Force processes to terminate" is not offered.** `Schedule::force` exists in the settings
+  but nothing acts on it; a switch that does nothing would be worse than none. It waits until the
+  window's close stops processes.
+* **Start now and Stop are Start Queue and Stop Queue for the queue chosen.** Start now does
+  not open a closed schedule: it starts what the queue's hours allow and says when it waits for
+  them, as Start Queue does; the per-row Start now (a held row's) is how a person goes past them.
+* **Side by side where there is room.** The queues sit at the left of the hours when the window
+  leaves 700 points for the dialog (it then opens 660 wide, as a body that scrolls keeps the
+  dialog's least width and the days ran past its edge); at large text or in a small window the
+  queues stand above the hours. A refusal under a body that scrolls is scrolled into view.
+  The choice is made once, as it opens: a dialog that is a window of its own reads its own size
+  in its own frames. The line between the two is drawn as tall as they are: a separator in a
+  row takes all the height it is given, which in a window of its own is the window's, and the
+  window grew to it frame after frame until it had to scroll, then shrank, and over again,
+  so that Cancel moved under the pointer (found by `scripts/human-qa.py`, B50, B56, B65).
+* **The toolbar's arrow is a second button beside the first**, not a split button drawn as one:
+  egui has none, and two plain buttons keep each one's click and name for a screen reader
+  ("Choose the queue to start"). Its tooltip is not shown while its list is open: it lay over
+  the list and took the pointer from the first item.
+
+## A BitTorrent client's features: peers, files, a blocklist; slower hours; sound files (2026-11-05, gaps rows 144 to 148 and 82)
+
+From the BitTorrent client's feature list the maintainer supplied (its name left out, as for the
+reference apps); the sound files are reference A's.
+
+* **Peers: connected and known, no seeds.** librqbit counts peers by state (`live`, `connecting`,
+  `queued`, `dead`) and every address found this run (`seen`), not which of them have the whole
+  file, so the progress window says "Peers: {} connected, {} known" and claims no seed count. The
+  upload speed is measured from `uploaded_bytes` between samples, as the download speed is.
+* **A torrent's files are chosen while it is stopped.** librqbit can change `only_files` on a
+  running torrent, but the queue owns the session's life (a pause ends it), so the choice is
+  kept on the row and given to `add_torrent` at each start; Properties greys the ticks while it
+  runs. A file left out is deleted from the staging folder before the rest is moved: pieces it
+  shares with a wanted file leave it partly written, and moved it would look fetched.
+* **The blocklist is fetched by dm, not librqbit.** librqbit's own fetch would go around dm's
+  proxy, so dm fetches a list on the web with its own client, keeps it a day beside the parts
+  (named by a hash of its address) and hands librqbit a `file:` address. A list that cannot be
+  read stops the torrent with the reason: going on unprotected is not what was asked for. One
+  address on a list does not cover a peer's others: on this computer local peer discovery found
+  the test's seeder on the network address as well as on loopback.
+* **Slower hours every day, applied by the window.** The limit in force is worked out from the
+  clock (`Settings::speed_limit_bytes_now`) when settings are applied and at each refresh of the
+  window, which puts the other limit in when the hours begin or end; with nothing moving a refresh
+  can be up to half a minute away, so the change can come that late.
+* **Sound files per event** are kept in the `sounds` map the engine already read (`complete`,
+  `failed`, `queue_started`, `queue_done`); an emptied field removes its entry, so the usual
+  sound is back. Only `.wav` is offered in the chooser, as only `.wav` is promised.
+
+## Who opens magnet links: shown, taken at a click, given back (2026-11-05, gaps row 106)
+
+* **Read from Windows' keys, beside the window.** Options › Browser asks `reg.exe` four
+  questions as the page opens (each takes a moment), on a thread of its own. Windows' own
+  choice (`UserChoice`, set in Default apps) is asked first: it decides over every program's
+  registration and no program may write it, so dm says so and offers no button there.
+* **dm takes them only at a click, and keeps what it replaced.** At start dm still writes its
+  keys only where nobody has them (row 100). "Use dm for magnet links" is the person's own
+  choice to replace another program's: that program's key is first written out with
+  `reg export` to `magnet-before-dm.reg` in dm's home, then removed, then dm's written. "Give
+  magnet links back" removes dm's key and imports the kept one. The same for `.torrent`, whose
+  extension key is kept and dm's ProgId removed on giving back.
+* **dm does not appear in Default apps.** That needs a `RegisteredApplications` entry with
+  `Capabilities` (spec T5), a change to how dm shows in Windows, left for the maintainer's word.
+
+## Choices one size (maintainer, 2026-11-05)
+
+Asked: the toggle switches were bigger than the rest, and the controls "should be consistent".
+Check boxes and radio buttons kept WinUI's 20-point box, and the switch its 40 by 20 pill in a
+36-point row, sizes made for WinUI's 14-point text; the window has had 12-point text and
+22-point controls since 2026-11-04. Now `theme::CHOICE` (16) is the box, the ring and the
+switch's height (32 wide, its row `CONTROL` + 6), and the theme picker's buttons are a control's
+height with their 16-point drawings. The Windows baseline pictures were taken again from the QA
+run that showed the change (Add URL 8 points shorter: its sign-in switch's row); contract row
+B25 says so.
+
+## "Download links" as reference A's, and where dm keeps its own way (2026-11-05, gaps row 94)
+
+At the maintainer's word that dm "should work exactly like" reference A (2026-11-04).
+
+* **Hide images and Hide repeated files are on**, as reference A's are. A picture is told by the
+  name its server gave, or before it answers by its address (`classify`).
+* **A repeat is an address the page gives more than once**, the first kept. Reference A also
+  counts one already downloaded; dm already shows such a link unticked and says "(already in the
+  list)", which tells the person more than a missing line, so that stays.
+* **Save To's one category** is any of the kinds or a person's own categories; the folder it
+  names is the one dm would sort that kind into. One folder must be named before Start now or
+  Add for later take it.
+* **Edit is a button on each line**, opening the link's name and address under the list: egui's
+  grid has no row to select for one Edit button below it, as reference A's list does.
+* **Link texts come with the links**, as a map of address to words (`Batch.texts`), not a list
+  beside the links: the browser and the host each drop links (a fragment, a page's own address,
+  what dm cannot fetch), and a map stays right where two lists would fall out of step. Words are
+  a link's text, else its title, an image's `alt` or title, spaces closed up and cut to 200
+  characters; an older extension sends none and the column is empty. With the dialog off they
+  are the queued links' descriptions too, as the dialog keeps them by default.
+
+## A download that is a form's answer is fetched by sending the form once (2026-11-05, gaps row 128)
+
+* **Only the answer itself.** The extension keeps the body of each form a page sends (main frame
+  and frames, two minutes, twenty at most, 64 KB at most). A download is given its form only
+  where it comes from the form's very address with no redirect: a form answered by a redirect
+  leaves the file at an ordinary address that a GET fetches, as before.
+* **Sent once, never resumed.** The form travels with the download's sign-in (`SignIn::posting`)
+  to its one address, so every request builder sends it as a POST (`download::with_form`); the
+  probe asks once, with no range and none of its second tries (each would send the form again),
+  and the answer is fetched whole on one connection. A failure starts over with the same form,
+  as the browser would.
+* **Not asked about first.** The host's check that dm can fetch a caught download would send the
+  form, so a form's answer is taken as a link that works once is.
+* **Fields re-encoded.** A form the browser reports as fields is sent as
+  `application/x-www-form-urlencoded`; a raw body goes as its bytes with the type the browser's
+  request named. A form uploading a file (multipart with a file's bytes) is not reproduced.
+* **In memory only.** The row keeps the form in memory and writes only that it is a form's
+  answer; after a restart it fails saying to start it again from the page.
+* **Fields in the browser's order.** Chromium reports a form's fields as a dictionary sorted by
+  name (`format=csv&report=7` for a form written `report`, `format`), so dm sends them in that
+  order. A server reads a form by field name; one that checks the body's bytes (a signed body)
+  would refuse it. Reading the form in the page as it is submitted would keep the order, at the
+  cost of a listener on every page's submit.
+
+## A proxy configuration script is asked once per site and fails closed (2026-11-05, gaps row 80)
+
+* **Asked inside the request, waited for on a thread of its own.** reqwest's custom proxy is a
+  synchronous callback on the shared client, so the script cannot be awaited there. The first
+  request to a site (`scheme://host:port`, a redirect's new site too) fetches the script and runs
+  it in QuickJS on a thread with a runtime of its own, and the answer is kept for the session
+  (`pac::way_to`). On a runtime with several threads the wait is `block_in_place`; elsewhere the
+  thread waits, which nothing the script needs depends on. Asking before the first request instead
+  (the plan of 2026-11-03) missed redirects to other sites and every request made outside a
+  download (the video page reads, the probe of Add URL).
+* **The first way only.** A script's answer lists ways to try in turn; dm takes the first. Trying
+  the next on failure would need a client per way.
+* **No path, kept per site.** The script is asked about `scheme://host:port/`, as browsers ask
+  about secure addresses: a path can carry a session, and the answer is kept for the whole site.
+* **Fails closed.** A script that cannot be fetched or read, fails, runs past five seconds or
+  answers nothing usable sends the request to an address nothing answers (`pac::NO_WAY`), so it
+  fails, and the row says the script's trouble in place of "refused" (`pac::refusal` in
+  `error::network`). Never direct.
+* **Fetched directly.** The script's own address is fetched with no proxy, as browsers do: it is
+  what says where the proxy is.
+* **The tools take its answer.** `url_for_tools` gives `script:<address>`, and `proxy::route_for`
+  asks the script about each site where the address is used (FTP, a torrent, the video page
+  reads, the YouTube reader), so they go its way too, and a site it gives no way to is refused.
+* **The login goes with it.** The proxy section's user and password go to the proxies a script
+  names: a script names no login, and the proxy that needs one is the usual case.
+* **It decides over the proxies above it.** Filled in, the script chooses in place of the host and
+  port and the per-protocol proxies; the bypass list still sends its sites directly.
+
+## A height at two frame rates is two YouTube lines (2026-11-05, gaps row 72d)
+
+* **Two lines only where both exist.** A height with a picture above 30 frames a second and one at
+  or below gets a line for each, the faster first ("720p MP4 60 fps", then "720p MP4"); a height at
+  one rate keeps its one line and its old quality word, so a hand-off from an older list means what
+  it meant.
+* **The rate in the quality word.** `720/mp4/60` and `720/mp4/30`: a third part read by
+  `Quality::frame_rate_of` into `Options::frame_rate`, which keeps `youtube::choose` to that side
+  of 30. A word with no rate still takes the fastest picture, as before. Where the rate asked has
+  no picture at that height (the page changed), the other is fetched rather than nothing.
+* **The rate said is the picture's.** "60 fps" is the format's own rate (50 for a 50 fps video), as
+  reference A says it.
+
+## Windows' firewall question is said, not answered (2026-11-05, gaps rows 101, 107)
+
+* **Told from Windows' own rules.** The question at the first torrent leaves a firewall rule naming
+  the program, allowed or blocked, in `HKLM\...\FirewallPolicy\FirewallRules`, which a person's
+  account can read. No rule with `App=` dm's own path means Windows has not had an answer: the
+  row of a torrent finding peers says Windows may be asking, until there is one
+  (`dm_shell::firewall::may_ask`, read on a thread of its own every few seconds while asked).
+  Looking for the question's window by its title was the other way: its title is in the
+  system's language and its owner is not dm.
+* **Never answered for the person.** Adding a rule needs administrator rights and is the
+  person's choice; dm says where to change it later (Windows Security, Firewall) and that it
+  still downloads without it.
+* **The magnet chooser likewise.** Windows' own "how do you want to open this" at a first
+  magnet click is said in Options beside who opens magnet links; dm cannot answer it.
+
+## The browsers dm takes from, and its menu items, are chosen in the catch rules (2026-11-05, gaps row 86)
+
+* **The extension knows its browser; the app does not.** Native messaging tells the host an
+  extension's id, which is the same in Chrome, Edge and Brave for one store. The extension names
+  its browser from `navigator.userAgentData`'s brands (Firefox from its own URL scheme) and checks
+  it against `CatchRules::off_browsers`, which the app sends with the rest of its rules.
+* **An unticked browser keeps its downloads, not its menus.** Its right-click menu and the
+  video panel still hand things over when asked, as with catching switched off (B31).
+* **Menu items by id.** `dm_protocol::MENU_ITEMS` names them for Options and is checked against
+  the extension's own list by a test; the extension makes its menu again when the rules it is
+  sent leave out other items than the ones it kept.
+* **The panel's buttons.** Reference A's panel has buttons to choose from; dm's has one (Download
+  video) and its close, and the panel itself has its switch (`video_panel`), so there is nothing
+  more to choose.
+
+## Caption files are list lines of their own (2026-11-05, gaps row 72c)
+
+* **YouTube: the page's tracks, as TTML.** Each track the watch page's player data names is a
+  line ("TTML file, EN subtitles", "(ASR)" after the speech-recognised one, as reference A says
+  it); the line's quality word is `caption/<language>[/asr]` (`Quality::caption_of`), which the
+  runner turns into `Options::caption`, and the reading is that one track's address with
+  `fmt=ttml`, a file named after the video and the language. Only YouTube's own caption address
+  is taken. TTML because reference A saves TTML; the "Subtitles" setting that puts WebVTT into
+  the video stays as it was.
+* **Any site: the caption files in the video's record.** The page lines read the record around
+  the video's files for addresses ending `.srt`, `.vtt`, `.ttml` or `.dfxp`, or under a key
+  naming a caption or subtitle with no type in their last part (taken as SRT), from the innermost
+  record that has any (a wider one can hold other videos'); each is a line after the video's
+  files, downloaded as the file it is.
+
+## Starting while Download details asks (2026-11-05, gaps row 85)
+
+* **A row of its own from the start.** With the setting on, a plain file (one web address, not a
+  video page, a torrent or a form's answer) is added to the queue as Download details opens, so
+  it shows in the list and fetches into its parts folder like any row. The dialog keeps its id.
+* **Placed, not added again.** Start now and Add for later give that row its folder, name,
+  description and queue (`Queue::settle_early`): a row still under way is stopped a moment,
+  given its place (its parts moved with `relocate` when the folder changed) and put back in
+  line keeping what it has, or held for later; one that finished meanwhile is renamed and moved
+  as Move/Rename does. Cancel and the close box remove the row and its parts.
+* **Off by default**, as reference A ships it, and so the dialog behaves as before (B63).
+
+## The Edge check keeps its torrents off the network (2026-11-05, gaps row 108)
+
+* The check copies dm into a new folder for each run, and a torrent listening for peers from a
+  program at a new path raises Windows' firewall question every time. `DM_NO_SWARM`, set only by
+  the check's host shim, makes a torrent fail at once before any connection; the seven magnet
+  variants are checked by the rows they make, which is what the check is about.
+
+## A started stream renewed from the open page (2026-11-05, gaps rows 57 and 121)
+
+* **Found: the expired-address resume was never reached.** `AddOptions::fresh_link_ok`, which
+  lets a browser's hand-off take the place of a row whose signed address ran out, was set by its
+  test alone; every hand-off from the inbox left it off, so the waiting row stayed failed and the
+  browser's next address of the file became a second row. The host now marks every hand-off it
+  files `from_browser`, and the inbox offers it to a waiting row first (`shell::take_from_browser`).
+* **Download details still asks first (B63).** A hand-off the window asks about is asked about
+  as before: taking the waiting row in its place would change what contract row B63 says, and
+  waits for the maintainer's word. The waiting row takes it where nothing asks.
+* **The extension offers what it sees, the app decides.** The app has no way to ask the
+  extension (the browser starts the native host, not the app). So the extension remembers the
+  addresses it handed to dm (`decide::Handed`, in the session's storage across the worker's
+  naps), and when the page's player asks for one anew with a fresh signature
+  (`RequestHeaders::renewed`: the same path, query names and `itag`, no byte range) it sends
+  that address marked `Start::renews`. The app gives it to a row waiting for it and drops it
+  otherwise; the host never starts dm for one and never asks about one.
+* **Bounded.** Looked for at most every 2 s (every request the browser sends reaches the
+  worker), offered at most every 30 s and 20 times for one hand-off, 50 hand-offs remembered.
+* **Not a protocol version.** Version 3 would make today's app unable to read the new
+  extension's frames. The app's hello says `renews: true`; the extension sends renewals only to
+  an app that says so, as an older one would add each as another download.
+* **Dropped: an alarm to poll the app.** It needs the `alarms` permission, which every person
+  would be asked for on update.
+
+## A fetched tool loses macOS's quarantine mark (2026-11-06)
+
+* **Found by the human QA (B35):** every YouTube download from Edge failed with "the solver took too
+  long". The QuickJS dm fetched carried `com.apple.quarantine` ("Edge"): a program the browser
+  starts is a quarantining one, so what it writes is marked, and Gatekeeper rejects an ad-hoc
+  signed program so marked; `qjs` waited, never ran, and the solver's 45 s ran out. A copy without
+  the mark printed at once.
+* **dm takes the mark off** what it fetched and held to the SHA-256 it ships (`tools::place`), and
+  off a copy fetched before this (`tools::fetched`, when found). The digest says more than the mark;
+  a tool the person installed is theirs and is left alone.
+* **Not done: signing QuickJS.** dm does not re-sign a program it did not build.
+
+
+## The rows that waited for the maintainer's word, decided for the person using dm (2026-11-06)
+
+The maintainer's word, 2026-11-06, asked about gaps rows 70, 80, 84, 95, 120, 125, 136, 147, 154 and
+155: "implement which is better for user and user experience, what the user expect from program".
+Each was decided by that rule:
+
+* **Built: 155, stream lines say how long.** Two videos' playlists on one page read alike ("1080p HLS
+  stream"), so a person could not tell the film from the trailer.
+* **Built: 136, a web page typed into Add URL is asked about, not refused.** The question contract
+  row B40 already asks for an address that ends like a file is asked here too (Yes saves the page as
+  `.html`, No keeps nothing): a person who typed it may want it, and one who pasted it by mistake
+  says No. Reference A saves it without asking; asking is what B40 already does in dm.
+* **Built: 147, "Keep sharing a finished torrent", off by default.** A person who downloads torrents
+  expects to be able to give back; one who does not is not asked to (uploads cost a metered
+  connection, battery and privacy), so it is off until turned on.
+* **Built: 154, the macOS pictures of contract row B25 taken again**, of the 820 by 500 window the
+  maintainer approved on 2026-11-04, with dm picturing its own dialog windows (no screen-recording
+  permission is needed for the check).
+* **Instead of 80 (the browser's proxy as a fallback): dm follows the system's proxy from the
+  start.** The extension would need the `proxy` permission, and a browser disables an extension on
+  update until each person accepts a new permission: every user would lose the catching for a
+  click. A browser takes the system's proxy itself, so a new dm does the same (Options › Advanced ›
+  Proxy, "system"); with no proxy set in the system it goes direct as before. A saved setting is
+  kept.
+* **Not built: 95, small files in reference A's 14 KB pieces.** A file under a megabyte arrives in
+  well under a second on one connection; ten connections for it cost the server more than they
+  save the person, and servers that limit connections answer them with refusals. dm keeps one piece
+  under 1 MiB, with helpers only when the first is slow (contract row B36 stays).
+* **Not built: 120, the app fetching through the open page.** The extension already hands the app
+  what the page loaded (its answers, its renditions, the session's cookies for that download), which
+  is what the fetch would be for; a way for the app to make the browser fetch addresses with the
+  person's session is a door another local program could use.
+* **Not built: 125's three rules** (the caught address's player first, `object-fit: cover` loops
+  passed by, the largest of several). Reference A raises its bar unasked and must pick a player; dm
+  shows its panel on the player the person points at, plays or focuses, which is the one they mean.
+  Instagram's and TikTok's own videos use `object-fit: cover`, so passing those by would hide the
+  panel where it is wanted.
+* **Not built: 70, a button drawn by the app over the page.** It would follow player windows, zoom
+  and scrolling from outside the browser; the panel inside the page already moves under a fixed
+  header and out of a clipped parent (row 125's fixtures), and the cost is out of proportion.
+* **Not built: 84, dial-up and VPN redial.** Dial-up is gone and a VPN is the system's to connect;
+  a person expects dm to use the connection the computer has.
+
+## 2026-11-06: Release profile, what was not changed
+
+`panic = "abort"` would shrink the binary but breaks `tray.rs`, which survives a
+panic with `catch_unwind` (lines 154 and 164), and tokio tasks' panic isolation:
+not done. `opt-level = "s"` is now the release default, with sha2, md-5, crc32fast,
+miniz_oxide, ring, epaint and egui kept at 3 (the CPU-bound work: digests,
+unpacking, TLS, drawing). Release binary 25,895,328 to 20,516,304 bytes
+(all at "s": 20,152,704). `tests/throughput.rs`, two runs each on this Mac:
+512 MB over 8 connections 1398/2003 MB/s at 3, 1981/1964 at "s"; every other
+line the same within noise. `human-qa.py` on the new release binary: 63 of 64
+rows hold; B25 not pictured (no Screen Recording permission, gaps row 154).
+The 27-finding audit was not kept.
+
+## 2026-11-06: Linux AAC decoding by symphonia (gaps row 53)
+
+At the maintainer's word (2026-11-06, asked with the choice "Symphonia crate"),
+Linux decodes AAC with `symphonia-codec-aac` 0.6.1 (MPL-2.0, pure Rust, used
+unmodified as a crates.io dependency, as `colored` and `option-ext` already
+were). dm's own frame decoder (`aac/decoder.rs`, `huff.rs`, `transform.rs`),
+which lacked the standard's Huffman tables, is removed; dm keeps its own M4A
+reading (AudioSpecificConfig, sample tables, edit list), which refuses HE-AAC,
+more than two channels and 960-sample frames in words before decoding. A rate
+MP3 lacks is resampled by a Lanczos-windowed sinc (16 taps at the cut-off) to
+44.1 kHz for the 11025 family and 48 kHz otherwise. Checked: 72.7 dB against
+macOS AudioToolbox on a stereo 44.1 kHz fixture. macOS and Windows keep their
+system decoders. Row 54 (GIF on Linux) stays: no H.264 decoder, by the same
+day's answer.
+
+## 2026-11-06: GPL-3.0-or-later, with an attribution term (gaps row 151)
+
+At the maintainer's word ("if I can go to GPL v3, implement it, and make sure
+anyone who uses the project or code mentions this project in their readme").
+Checked first: every dependency's licence allows it (MIT, Apache-2.0 (v3
+only, hence not v2), BSD, ISC, Zlib, Unicode, BSL, CDLA-Permissive, MPL-2.0
+not marked "Incompatible With Secondary Licenses"; the few that offer LGPL or
+GPL-2.0 also offer MIT or Apache), and every commit is the maintainer's apart
+from dependabot's version bumps, so no one else's consent was needed.
+`LICENSE` is GNU's text (sha256 3972dc97…6986); `NOTICE` holds the copyright,
+the "or later" grant and a section 7(b) term: keep `NOTICE` and the files'
+notices, and show "Based on Easy Download Manager (dm) by pranavo72bex" in the work's Appropriate Legal Notices and wherever it shows
+its licence information, such as its README. The README is named as an
+example rather than as the only place: 7(b) covers preserving attributions in
+the material and in legal notices, and a term beyond it could be removed by a
+recipient as a "further restriction" (section 7, last paragraphs). Releases
+up to desktop-v0.8.7 and extension v3.2.1 stay MIT for those who have them.
+
+## 2026-11-06: Release build at "z", with the CPU's work at 3
+
+Measured on this Mac (M-series), release builds, the same day:
+
+| Build | Binary | MP3 encode (test, best of 5) | 20,000 rows over the control port | Window (`hidden`) |
+|---|---|---|---|---|
+| all 3 (until today) | 25.9 MB | 0.17 s | | |
+| "s", digests/unpacking/TLS/drawing at 3 | 20.5 MB | 0.18 s | 0.27 s | 104 ms, list 0.11 s |
+| all "z" (same overrides) | 16.6 MB | 0.37 s | | |
+| **"z", and dm-core, symphonia at 3 too (chosen)** | **17.7 MB** | **0.13 s** | 0.47 s | 104 ms, list 0.11 s |
+| "z", dm-core, dm-shell and dm-desktop at 3 | 27.0 MB | | 0.30 s | |
+
+Throughput (`tests/throughput.rs`, two rounds each) and memory at rest
+(`memory-check.py`: 38.5 MB private against 38.8) were the same within
+noise. With fat LTO the binary crate's level applies to the merged program,
+so dm-desktop cannot be raised alone. Accepted: listing 20,000 rows over the
+control port (the command line, MCP) takes 0.2 s longer. Not done:
+`panic = "abort"` (the tray survives a panic with `catch_unwind`), jemalloc
+(no measured need), removing aws-lc-rs (the torrent library's every TLS
+option brings it or OpenSSL; it would need a patched copy for about 0.5 MB).
+
+## 2026-11-06: Builds hardened, not obfuscated; nothing of the builder in what ships (gaps row 151)
+
+At the maintainer's answer (keep the repository public; harden, do not
+obfuscate) and word ("keep security the highest priority; do not leak anything
+about the Mac or information"). Found: the release app held 1,139 strings
+with the builder's home path and user name, and the extension's WebAssembly 34
+(panic messages name their source file). `scripts/release-flags.sh` gives
+release builds `--remap-path-prefix` for the home folder, Cargo's crates and
+the checkout, through CARGO_BUILD_RUSTFLAGS so that the Windows target's own
+flags (+crt-static) are untouched; Cargo's `trim-paths` is still unstable on
+1.98. Both are now at 0, and CI's packaging fails if the runner's paths are in
+the binary. Obfuscation was not done: the Chrome, Edge and Firefox stores
+refuse obfuscated extension code, and the app is already compiled and
+stripped. In the repository: the README's pictures showed the per-user
+temporary folder (`/var/folders/…`); they are rendered again by the window
+test `shots` with the folder shown as ~/Downloads, and `ui-shot.py` uses
+/tmp. The security report's checkout path, an e-mail address in the hand-off
+notes, the Cargo `authors` and PKGBUILD e-mail, and the full name in
+`NOTICE`, the README and the Windows file properties now say `pranavo72bex`.
+Kept: the Code of Conduct's contact address (the maintainer's to change).
+Not touched: git history (author e-mails, the old pictures), which only a
+rewrite and force-push would change.
+
+## 2026-11-06: Torrent file priorities as tiers (gaps row 149)
+
+librqbit 9 has no priority between files, only a file in or out
+(`only_files`), which it can change on a running torrent
+(`Session::update_only_files`). dm asks for the High files alone, and when the
+library reports them finished adds the Normal ones, then the Low ones
+(`torrent::tiers`, `TorrentOptions::tiers`). A priority is an order, not a
+share of the bandwidth. The row's total is every wanted file's, as the
+library counts only the files asked for. Found on the way: the step that
+removes files left out of a torrent read `only`, which is now the first tier,
+and would have deleted the Normal and Low files at the end
+(`TorrentOptions::wanted`). The priority is set while the download is stopped,
+as the choice of files is; a priority of Normal is not written to the queue
+file, so files from before read as Normal.
+
+## 2026-11-06: The browser's server address is not passed to the app (gaps row 129, measured)
+
+Measured with a YouTube stream address, which carries an `ip=` token bound to
+the address that asked for it: asked for over IPv6, the same address fetched
+over IPv4 is turned away (302) and over IPv6 served (206). dm's own reader asks
+and fetches over the same connection, and a download handed to dm reaches the
+address the browser was given: dm's client prefers IPv6 as the browser does
+(the address, asked for over IPv6 and handed to a running dm, completed, 433
+KB). A token bound to the browser's address would fail only where the browser
+and dm leave the computer differently (a VPN or proxy in the browser alone).
+No site was found where it fails, so `Start.ip` is not built; it is what to
+build if one is (reqwest's `resolve`, falling back to DNS). Row 122 measured
+the same day: without a sign-in nothing failed for want of the page's data.
+
+## 2026-11-06: A GIF on Linux from the AV1 stream (gaps row 54)
+
+At the maintainer's word ("implement it"), reversing the earlier "not
+proposed": Linux has no H.264 decoder dm can use, and one of dm's own was not
+wanted (patents; openh264 built from source has no licence from Cisco). AV1 is
+royalty-free, and YouTube offers most videos in it inside MP4, which dm's
+cutter already handles. A part asked for as GIF on Linux takes the AV1 picture
+(`youtube::read_for`, codec `av01`, at most 720 tall: a GIF is 480 across and
+a decoder without assembly is slow on more), and `frames/av1.rs` decodes its
+samples with rav1d 1.1.0 (BSD-2-Clause, a Rust port of dav1d) built without
+its assembly, so no assembler is needed and the build stays pure Rust; it is a
+dependency of Linux builds only (and of the tests everywhere). Its dav1d calls
+are `unsafe`, each with its reason. Pictures are made RGB with BT.601 or
+BT.709 as the sequence header says, limited or full range. "Part as GIF" is
+offered on Linux for YouTube addresses only (`gif::possible_for`): a stream
+caught elsewhere is H.264. Checked on Linux: a real YouTube part to a GIF in
+8 s (release).
+
+## 2026-11-06: Encrypted peer connections in a patched librqbit (gaps row 150)
+
+At the maintainer's answer ("build it in a patched copy"). librqbit 9.0.1 has
+no MSE/PE; `desktop/vendor/librqbit` is the published crate with
+`src/mse.rs` and the hooks for it, used through `[patch.crates-io]` as winit
+is. Policy: plaintext first, as before, and encrypted again where a peer hangs
+up on the plaintext handshake (an encryption-only peer does exactly that), so
+peers that took dm before see no change and the extra connection is made only
+for those that refused; incoming connections of both kinds are taken
+(`require_encryption`, off in dm, makes and takes encrypted ones only; the
+tests use it). Ruled out: encrypted first for every peer (a second round trip
+to every plaintext-only peer, and a change for the peers that worked).
+Chosen to check against: libtorrent (the library most clients are built on),
+not a client application, so that no other product is named. MSE with RC4 and
+a 768-bit group hides BitTorrent from simple traffic shaping and reaches the
+peers that insist on it; it is not strong encryption, and the window does not
+call it that. Cost: the patch is carried over at each librqbit upgrade until
+upstream has MSE (`desktop/vendor/README.md` says where each change is).
+
+## 2026-11-07: Windows' memory budget at rest (gaps row 137)
+
+Measured on the maintainer's Windows 11 computer (four cores), the release
+build at rest, `scripts/memory-check.py` three times: working set 64.4 to
+76.1 MB average (76.2 MB peak), private bytes 30.5 to 30.7 MB, 25 or 26
+threads, 478 to 483 handles. Set as on macOS, a third above what was
+measured: the working set's budget stays 100 MB and the private bytes' goes
+from 60 to 40 MB, so a regression of a third fails it and the system's own
+share does not. Beside reference A's numbers in row 137 (35 MB working set
+average, 13 MB private, 9 threads, 991 handles) dm keeps about twice the
+working set and private bytes and runs about three times the threads, with
+half the handles; the three runs agree to within a megabyte of private bytes.
+What makes up the difference was not measured on Windows (on macOS: the
+window's drawing surfaces, fonts and the runtimes, row 137's old text).
+
+## 2026-11-07: macOS opens links and files with dm through Apple events (gaps row 105)
+
+The first click on a Mac with dm.app installed showed that a `magnet:` link
+or a `.torrent` file reached nothing, with dm closed or running. dm had added
+`application:openURLs:` to winit's application delegate at run time, as
+`dock.rs` adds the Dock's method, once AppKit said the app would finish
+launching; winit's class has no such method, so it was added, and still was
+never called: most likely because AppKit reads which methods its delegate
+answers when the delegate is set, and winit sets it before dm can add
+anything (not proved; the replacement was checked instead). Chosen: the Apple event manager's own
+handlers for `GURL` (a link) and `odoc` (files), on an object of dm's, put in
+at `NSApplicationWillFinishLaunchingNotification`, which Apple names as the
+place for them: after AppKit's defaults (which would replace handlers put in
+earlier) and before the launch's own event is read. Ruled out: setting
+winit's delegate again after adding the method (it relies on AppKit's cache
+being read afresh, which is not documented), and a delegate of dm's own
+(winit 0.30 panics on any other delegate).
+
+## 2026-11-07: Whole MP4 files fetched by ranges are told apart by their first bytes (gaps row 155)
+
+Bilibili's player fetches its picture and its sound as two whole fragmented
+MP4 files (`…-1-30032.m4s`, `…-1-30216.m4s`), each in byte ranges its
+requests' `Range` header asks for, and its server answers both `206
+video/mp4`: the type cannot say which is the sound. Chosen: the extension
+takes such a file (a partial answer, an MP4 type, an address ending `.m4s`,
+`.mp4`, `.m4v` or `.m4a`, its whole length after the slash of
+`Content-Range`, 64 KB at least; only where the older rules drop it) as a
+picture or a sound by its type, and reads its first 64 KB once, with the
+browser's session, for its first track's handler (`vide` or `soun`) and
+height (`decide::mp4_track`). The pair is then one line, as a picture and a
+sound a player fetched apart already were, and the app joins them as before
+(`download_media_pair`). Beside a playlist or manifest these files are not
+lines (they may be its single-file renditions). Ruled out: a site rule for
+Bilibili (its file ids, or its `playurl` answer through the page hook): it
+would work for one site, and reading the file's own header works for any
+player that fetches files this way; guessing by size (the sound is the
+smaller): wrong whenever two pictures are loaded. Cost: one more request per
+such file, of 64 KB at most, refused for a private host the page is not on
+(`may_reread`).
+
+## 2026-11-07: Shared hosts are named in dm, not read from the public suffix list
+
+A waiting row adopts a fresh address of the same "family" of servers (gaps
+row 57), and the family was a host's last two labels, so two customers of
+one shared host (`victim.s3.amazonaws.com`, `evil.s3.amazonaws.com`) were one
+family. Chosen: 30 names of the hosts files are served from (from the
+public suffix list's private part: object stores, CDNs, page and app hosts)
+under which a host is its own family (`queue/family.rs` `SHARED`). Ruled
+out: the whole public suffix list as a crate (a dependency of some size for
+one comparison, and its private part changes weekly); the same host always
+(a site's signed link moves between its own servers, `cdn1.example.com` to
+`dl.example.com`, which is why the family exists). Cost: a shared host not
+named stays as before; the list is added to when one is found.
+

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The shape a row takes in `queue.json` and over the control protocol's
 //! `queue.list`.
 //!
@@ -34,15 +39,22 @@ fn entry(state: State) -> Entry {
         queue: String::new(),
         save_dir: None,
         save_name: None,
+        accept_page: false,
         validator: None,
         quality: None,
         parts_dir: String::new(),
         began_in: String::new(),
         cookies: String::new(),
         cookies_once: false,
+        headers: Vec::new(),
         replaces: None,
         speed_limit: 0,
         stalled: String::new(),
+        fresh_link: false,
+        title_hint: None,
+        torrent_files: Vec::new(),
+        post: None,
+        posted: false,
         sound: None,
         span: None,
         shape: None,

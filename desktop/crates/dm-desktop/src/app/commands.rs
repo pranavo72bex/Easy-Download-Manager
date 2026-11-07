@@ -1,6 +1,13 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl DmApp {
+    /// Whether `command` applies to the rows selected now.
+    #[must_use]
     pub fn enabled(&self, command: Command) -> bool {
         // The selected rows as they stand, neither copied nor sorted: asked
         // for every button and menu item each frame, `targets` copied and
@@ -40,6 +47,7 @@ impl DmApp {
                 matches!(r.state, State::Completed | State::Cancelled) || r.progress.downloaded > 0
             }),
             Command::CopyLink => !targets.is_empty(),
+            Command::CopyDetails => any(|r| matches!(r.state, State::Failed(_))),
             Command::UpdateLink => {
                 targets.len() == 1
                     && (!matches!(targets[0].state, State::Running | State::Completed)
@@ -97,9 +105,16 @@ impl DmApp {
                 .iter()
                 .any(|r| matches!(r.state, State::Running | State::Queued)),
             Command::DeleteCompleted => self.rows.iter().any(|r| r.state.clearable()),
-            Command::FindNext => !self.dialogs.find_text.is_empty(),
+            Command::FindNext | Command::FindPrevious => !self.dialogs.find_text.is_empty(),
             _ => true,
         }
+    }
+
+    /// Whether the schedule that governs `queue` (its own, or the one every
+    /// queue shares) lets it run now.
+    fn schedule_lets(&self, queue: &str) -> bool {
+        let schedule = self.applied.schedule_for(queue);
+        !schedule.enabled || schedule.open()
     }
 
     /// Runs one command, as a menu item, button, key or the control
@@ -125,7 +140,9 @@ impl DmApp {
         }
         let targets = self.targets();
         match command {
-            Command::AddUrl => self.dialogs.open_add_url(self.backend.platform.clipboard()),
+            Command::AddUrl => self
+                .dialogs
+                .open_add_url(self.backend.platform.clipboard().as_deref()),
             Command::AddSeries => self.dialogs.open_series(),
             Command::AddFromClipboard => {
                 let text = self.backend.platform.clipboard().unwrap_or_default();
@@ -255,6 +272,7 @@ impl DmApp {
                     &[&links.len()],
                 );
             }
+            Command::CopyDetails => self.copy_details_of(&targets),
             Command::UpdateLink => {
                 self.dialogs.focus_on("Update download link");
                 self.dialogs.update_link = Some((targets[0].id, String::new(), String::new()))
@@ -326,7 +344,7 @@ impl DmApp {
                 })
             }
             Command::SelectAll => {
-                self.selected = self.visible().iter().map(|r| r.id).collect();
+                self.selected = self.visible_shared().iter().map(|r| r.id).collect();
             }
 
             Command::ResumeAll => {
@@ -347,14 +365,24 @@ impl DmApp {
                 self.dialogs.focus_on("Find");
             }
             Command::FindNext => self.find_next(),
-            Command::Scheduler => self.dialogs.open_scheduler(&self.applied),
-            Command::StartQueue => {
+            Command::FindPrevious => self.find_previous(),
+            Command::Scheduler => {
                 let queue = self.current_queue();
+                self.dialogs.open_scheduler(&self.applied, &queue);
+            }
+            Command::StartQueue => {
+                let queue = self.chosen_queue();
                 let n = self.backend.start_queue(&queue);
+                // Its own sound, only where the person chose a file.
+                if n > 0 {
+                    if let Some(path) = self.sound_file("queue_started") {
+                        self.backend.platform.play_file(&path);
+                    }
+                }
                 // "Started 0 downloads" said nothing useful.
                 self.said = if n == 0 {
                     crate::i18n::Said::naming("Nothing in {} was waiting to start.", &[&queue])
-                } else if self.applied.schedule.enabled && !self.applied.schedule.open() {
+                } else if !self.schedule_lets(&queue) {
                     // "Started" while the schedule held them, which nothing
                     // was.
                     crate::i18n::Said::naming(
@@ -383,7 +411,7 @@ impl DmApp {
                 }
             }
             Command::StopQueue => {
-                let queue = self.current_queue();
+                let queue = self.chosen_queue();
                 let n = self.backend.stop_queue(&queue);
                 self.said = crate::i18n::Said::counting_naming(
                     "Stopped {} download in {}.||Stopped {} downloads in {}.",
@@ -469,5 +497,24 @@ impl DmApp {
             }
         }
         self.refresh();
+    }
+}
+
+impl DmApp {
+    /// "Copy details": the support block of each failed row among `rows` (`crate::details`), onto
+    /// the clipboard: what a person can paste to somebody who is helping them, with nothing secret
+    /// in it.
+    pub fn copy_details_of(&mut self, rows: &[Entry]) {
+        let Some((text, count)) =
+            crate::details::blocks_for(rows, self.applied.connections, &self.applied.download_dir)
+        else {
+            return;
+        };
+        self.copied = Some(text);
+        self.said = crate::i18n::Said::counting(
+            "Copied the details of {} download.||Copied the details of {} downloads.",
+            count as u64,
+            &[&count],
+        );
     }
 }

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Runs a real queue and prints what the window would be shown.
 //!
 //! The README's screenshots claim to be a queue the engine really was
@@ -14,7 +19,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use dm_core::stream::Quality;
+use dm_core::Quality;
 use dm_core::{client, Categories, Control, Limiter, Options, Queue};
 
 #[tokio::main]
@@ -64,9 +69,14 @@ async fn main() {
             server_dates: false,
             retry_wait: 0,
             record_limit: None,
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
+            accept_page: false,
+            torrent: Default::default(),
             system_proxy: false,
+            title_hint: None,
         },
         3,
     );

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Puts an HLS stream's MPEG transport stream (`.ts`) into an MP4, by dm
 //! itself.
 //!
@@ -10,8 +15,8 @@
 //! them to the MP4 writer (`mp4mux`) as samples: each picture with its
 //! start codes turned into lengths, each sound frame without its ADTS
 //! header, picture and sound started together. Nothing is decoded or
-//! encoded. A stream in anything else (HEVC, MP3, AC-3) is refused, and the
-//! caller keeps the `.ts`.
+//! encoded. A stream in anything else (MPEG-1/2 or MPEG-4 Part 2 pictures,
+//! AVS, LATM AAC; `OTHERS`) is refused, and the caller keeps the `.ts`.
 //!
 //! The input came from a server: nothing here indexes past what it checked.
 

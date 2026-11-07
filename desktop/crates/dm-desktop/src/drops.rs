@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Links dragged onto the window from a browser.
 //!
 //! winit hands a program only dropped files: a link dragged from a page
@@ -21,7 +26,9 @@ use std::sync::{Mutex, OnceLock};
 /// What a drop handed over: text (a link, or lines of links), or a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Dropped {
+    /// Text, holding a link or lines of links.
     Text(String),
+    /// A file's path.
     File(PathBuf),
 }
 
@@ -346,8 +353,11 @@ mod win {
         vtbl: &'static DropTargetVtbl,
     }
 
-    // SAFETY: a pointer to a static table of functions; it holds no state.
-    unsafe impl Sync for DropTarget {}
+    // No `unsafe impl Sync` is needed, and none is wanted: `DropTarget` holds one shared
+    // reference to `VTBL`, a static table of function pointers that is never written, and
+    // the compiler makes a shared reference to such a table `Sync` on its own. OLE may
+    // call the table's functions from any thread it registered the target on; they
+    // touch only `TAKES`, an atomic, and the data object they are handed.
 
     static VTBL: DropTargetVtbl = DropTargetVtbl {
         query_interface,
@@ -373,14 +383,19 @@ mod win {
         if out.is_null() || riid.is_null() {
             return E_POINTER;
         }
+        // SAFETY: `riid` is non-null (checked above); OLE passes a pointer to a GUID that
+        // is valid for the whole call.
         let id = unsafe { *riid };
         let same = |a: &GUID, b: &GUID| {
             a.data1 == b.data1 && a.data2 == b.data2 && a.data3 == b.data3 && a.data4 == b.data4
         };
         if same(&id, &IID_IUNKNOWN) || same(&id, &IID_IDROPTARGET) {
+            // SAFETY: `out` is non-null (checked above) and is OLE's slot for the interface
+            // pointer; `this` is the static drop target, valid for ever.
             unsafe { *out = this };
             S_OK
         } else {
+            // SAFETY: `out` is non-null and writable, as above.
             unsafe { *out = std::ptr::null_mut() };
             E_NOINTERFACE
         }
@@ -408,10 +423,16 @@ mod win {
     /// The registered format a browser puts a link's address in.
     fn url_format() -> u16 {
         let name: Vec<u16> = "UniformResourceLocatorW\0".encode_utf16().collect();
+        // SAFETY: `name` is NUL-terminated (the `\0` is in the string) and alive for the call.
         unsafe { RegisterClipboardFormatW(name.as_ptr()) as u16 }
     }
 
     unsafe fn vtbl(data: *mut c_void) -> &'static DataObjectVtbl {
+        // SAFETY: a COM interface pointer points at an object whose first field is a
+        // pointer to its table of functions, the layout `DataObjectVtbl` mirrors; the
+        // caller guarantees `data` is a live data object, so the table lives as long as
+        // the reference is used (the `'static` is a simplification: it never outlives the
+        // call that was handed `data`).
         unsafe { &**(data as *mut *const DataObjectVtbl) }
     }
 
@@ -420,24 +441,40 @@ mod win {
             return false;
         }
         let wanted = format(kind);
+        // SAFETY: `data` is non-null (checked above) and, by this function's contract, a
+        // live data object; `wanted` is valid for the call.
         unsafe { (vtbl(data).query_get_data)(data, &wanted) == S_OK }
     }
 
     /// The UTF-16 text the data object holds in `kind`, up to its first NUL.
     unsafe fn text(data: *mut c_void, kind: u16) -> Option<String> {
         let wanted = format(kind);
+        // SAFETY: STGMEDIUM is plain C data (integers, pointers, a union of handles);
+        // all zero is the empty medium OLE expects for an out parameter.
         let mut medium: STGMEDIUM = unsafe { std::mem::zeroed() };
+        // SAFETY: `data` is a live data object (this function's contract); `wanted` and
+        // `medium` are valid for the call, which fills `medium`.
         if unsafe { (vtbl(data).get_data)(data, &wanted, &mut medium) } != S_OK {
             return None;
         }
+        // SAFETY: `TYMED_HGLOBAL` was asked for and `get_data` answered `S_OK`, so the
+        // union holds a global memory handle.
         let global = unsafe { medium.u.hGlobal };
+        // SAFETY: `global` is that handle, owned by `medium` until it is released below.
         let size = unsafe { GlobalSize(global) } / 2;
+        // SAFETY: as above; a failed lock gives null, which is checked next.
         let at = unsafe { GlobalLock(global) } as *const u16;
         let text = (!at.is_null()).then(|| {
+            // SAFETY: `at` is non-null and points at the locked block of `GlobalSize`
+            // bytes, `size` being that in 16-bit units; global memory is at least 8-aligned
+            // and the block stays locked, and unchanged, until `GlobalUnlock` below.
             let units = unsafe { std::slice::from_raw_parts(at, size) };
             let end = units.iter().position(|u| *u == 0).unwrap_or(units.len());
             String::from_utf16_lossy(&units[..end])
         });
+        // SAFETY: `global` was locked above (unlocking a block that is not locked only
+        // fails); `medium` came from `get_data` and is released exactly once, here, after
+        // the last use of `at`.
         unsafe {
             GlobalUnlock(global);
             ReleaseStgMedium(&mut medium);
@@ -448,21 +485,33 @@ mod win {
     /// The paths of the files the data object holds.
     unsafe fn files(data: *mut c_void) -> Vec<PathBuf> {
         let wanted = format(CF_HDROP);
+        // SAFETY: STGMEDIUM is plain C data; all zero is the empty medium OLE expects.
         let mut medium: STGMEDIUM = unsafe { std::mem::zeroed() };
+        // SAFETY: `data` is a live data object (this function's contract); `wanted` and
+        // `medium` are valid for the call, which fills `medium`.
         if unsafe { (vtbl(data).get_data)(data, &wanted, &mut medium) } != S_OK {
             return Vec::new();
         }
+        // SAFETY: `CF_HDROP` over `TYMED_HGLOBAL` was asked for and answered `S_OK`: the
+        // union holds the handle of a file list, which is what an `HDROP` is.
         let drop = unsafe { medium.u.hGlobal } as HDROP;
+        // SAFETY: `drop` is valid until `ReleaseStgMedium` below; an index of `u32::MAX`
+        // with a null buffer asks for the number of files.
         let count = unsafe { DragQueryFileW(drop, u32::MAX, std::ptr::null_mut(), 0) };
         let mut paths = Vec::new();
         for i in 0..count {
+            // SAFETY: `drop` as above, `i < count`; a null buffer asks for the length.
             let len = unsafe { DragQueryFileW(drop, i, std::ptr::null_mut(), 0) } as usize;
             let mut name = vec![0u16; len + 1];
+            // SAFETY: `name` holds `len + 1` units and that size is passed, so at most
+            // that many are written.
             unsafe { DragQueryFileW(drop, i, name.as_mut_ptr(), name.len() as u32) };
             name.truncate(len);
             use std::os::windows::ffi::OsStringExt;
             paths.push(std::ffi::OsString::from_wide(&name).into());
         }
+        // SAFETY: `medium` came from `get_data` above and is released once, after the
+        // last use of `drop`.
         unsafe { ReleaseStgMedium(&mut medium) };
         paths
     }
@@ -472,6 +521,8 @@ mod win {
         if data.is_null() {
             return Vec::new();
         }
+        // SAFETY: `data` is non-null (checked above) and, by this function's contract, a
+        // live data object for the whole call; the helpers need nothing more.
         unsafe {
             if offers(data, CF_HDROP) {
                 return files(data).into_iter().map(Dropped::File).collect();
@@ -493,9 +544,12 @@ mod win {
         _at: POINTL,
         effect: *mut u32,
     ) -> HRESULT {
+        // SAFETY: `data` is the data object OLE holds for this drag, live for the call;
+        // `offers` and `read` return at once for null.
         let takes = unsafe { offers(data, CF_HDROP) || !read(data).is_empty() };
         TAKES.store(takes, Ordering::Relaxed);
         if !effect.is_null() {
+            // SAFETY: `effect` is non-null (checked) and is the DWORD OLE reads back.
             unsafe {
                 *effect = if takes {
                     DROPEFFECT_COPY
@@ -515,6 +569,7 @@ mod win {
     ) -> HRESULT {
         if !effect.is_null() {
             let takes = TAKES.load(Ordering::Relaxed);
+            // SAFETY: `effect` is non-null (checked) and is the DWORD OLE reads back.
             unsafe {
                 *effect = if takes {
                     DROPEFFECT_COPY
@@ -538,8 +593,11 @@ mod win {
         _at: POINTL,
         effect: *mut u32,
     ) -> HRESULT {
+        // SAFETY: `data` is the data object OLE hands this drop, live for the call; `read`
+        // returns at once for null.
         let taken = unsafe { read(data) };
         if !effect.is_null() {
+            // SAFETY: `effect` is non-null (checked) and is the DWORD OLE reads back.
             unsafe {
                 *effect = if taken.is_empty() {
                     DROPEFFECT_NONE
@@ -567,6 +625,10 @@ mod win {
         let window = hwnd as HWND;
         // winit's own, which takes files only, out; dm's in. OLE was
         // started on this thread by winit for its own.
+        // SAFETY: `window` is a window handle of this process (from the window system or
+        // `FindWindowW`); both calls only fail for one that is not valid. OLE was started
+        // on this thread (see above), and `target` is a static that outlives the
+        // registration, whose reference counting is a no-op (`add_ref`, `release`).
         unsafe {
             RevokeDragDrop(window);
             let target = &TARGET as *const DropTarget as *mut c_void;
@@ -592,6 +654,8 @@ mod win {
     pub(super) unsafe fn drop_for_test(data: *mut c_void) -> u32 {
         let mut effect = 0u32;
         let target = &TARGET as *const DropTarget as *mut c_void;
+        // SAFETY: `target` is the static drop target; `data` is the caller's live data
+        // object (the tests' own); `effect` is a local that outlives the call.
         unsafe { (TARGET.vtbl.drop)(target, data, 0, POINTL { x: 0, y: 0 }, &mut effect) };
         effect
     }
@@ -607,6 +671,7 @@ mod win {
         }
 
         unsafe extern "system" fn query(_this: *mut c_void, wanted: *const FORMATETC) -> HRESULT {
+            // SAFETY: the drop target under test passes a valid FORMATETC.
             let kind = unsafe { (*wanted).cfFormat };
             let holds = HOLDS.with(|h| h.borrow().as_ref().map(|(k, _)| *k));
             if holds == Some(kind) {
@@ -621,6 +686,7 @@ mod win {
             wanted: *const FORMATETC,
             medium: *mut STGMEDIUM,
         ) -> HRESULT {
+            // SAFETY: the same pointers the caller gave `get`, valid for the call.
             if unsafe { query(this, wanted) } != S_OK {
                 return -2147221404;
             }
@@ -628,6 +694,10 @@ mod win {
                 .with(|h| h.borrow().as_ref().map(|(_, t)| t.clone()))
                 .unwrap_or_default();
             let units: Vec<u16> = text.encode_utf16().chain([0]).collect();
+            // SAFETY: `global` is a fresh block of `units.len() * 2` bytes, locked for the
+            // copy and unlocked after (this stand-in for a test does not handle a failed
+            // allocation); `medium` is the caller's valid STGMEDIUM, which takes the block
+            // and releases it with `ReleaseStgMedium` in the code under test.
             unsafe {
                 let global = GlobalAlloc(GMEM_MOVEABLE, units.len() * 2);
                 let at = GlobalLock(global) as *mut u16;
@@ -658,6 +728,8 @@ mod win {
             let _ = super::super::take();
             HOLDS.with(|h| *h.borrow_mut() = Some((kind, text.to_string())));
             let mut data = Data { vtbl: &DATA_VTBL };
+            // SAFETY: `data` is a `#[repr(C)]` object whose first field points at
+            // `DATA_VTBL`, the layout the drop target reads; it outlives the call.
             let effect = unsafe { drop_for_test(&mut data as *mut Data as *mut c_void) };
             (effect, super::super::take())
         }

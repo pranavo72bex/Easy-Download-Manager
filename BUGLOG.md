@@ -12,7 +12,7 @@ with no flaky result in those three.
 - **Found and fixed: 7.** BUG-001 a range whose server overstates its length
   was fetched for ever; BUG-002 an untrusted certificate was retried for two
   minutes; BUG-003 Brave refused the panel's WebAssembly on YouTube; BUG-004 a
-  silent yt-dlp kept its row running for ever; BUG-005 the new panel loader
+  silent the external video tool kept its row running for ever; BUG-005 the new panel loader
   logged an error where WebAssembly is forbidden; BUG-006 the panel stayed
   put when the player changed size; BUG-007 the panel stayed put when the
   player moved without changing size (found by `scripts/human-qa.py` on real
@@ -39,7 +39,7 @@ with no flaky result in those three.
     resumed range's tail against the server before trusting it, retries what
     waiting can fix (`retry.rs`: 10 tries by default, backoff to 30 s), and
     moves the file into the download folder at the end. Also HLS/DASH, FTP,
-    Metalink, torrents, and yt-dlp (run as a child process) for video pages.
+    Metalink, torrents, and the external video tool (run as a child process) for video pages.
   - `dm-shell`: settings, the queue file, the browser host and `--register`,
     the one-instance lock.
   - `dm-desktop`: the program. The window (egui), and `--headless` with no
@@ -131,21 +131,21 @@ Deviations from the brief, and why:
   browser for now); the Firefox live-page check (W3Schools) did not show the
   panel and has not been compared with the build before this change.
 
-### BUG-004 — a yt-dlp that never says anything keeps the row running for ever
+### BUG-004 — an external video tool that never says anything keeps the row running for ever
 
-- **Scenario**: `ytdlp_crash_and_hang` (a fake yt-dlp that is `sleep 100000`,
-  on an extension-less watch address, which is yt-dlp's alone).
+- **Scenario**: `videopage_crash_and_hang` (a fake the external video tool that is `sleep 100000`,
+  on an extension-less watch address, which is the external video tool's alone).
 - **Symptom**: after 300 s the row is still "running" at 0 bytes; nothing is
   said. The page reading gives up after 120 s (`READ_WITHIN`), but the
-  fallback, yt-dlp's own download (`ytdlp.rs`), waited on it with no limit.
-- **Root cause**: the download loop read yt-dlp's output until it closed and
+  fallback, the external video tool's own download (`videopage.rs`), waited on it with no limit.
+- **Root cause**: the download loop read the external video tool's output until it closed and
   checked only pause and cancel while it was quiet.
 - **Fix**: `Heard`, a watchdog on both streams: no word for 120 s before the
-  first (as long as a reading may take; `DM_YTDLP_QUIET` sets it for tests),
-  or for ten minutes once it has spoken, ends yt-dlp's process tree and says
-  "yt-dlp stopped answering".
-- **Regression test**: `dm-core/tests/ytdlp_quiet.rs`
-  `a_yt_dlp_that_says_nothing_is_ended` (before: still waiting after 60 s;
+  first (as long as a reading may take; its environment switch sets it for tests),
+  or for ten minutes once it has spoken, ends the external video tool's process tree and says
+  "the external video tool stopped answering".
+- **Regression test**: `dm-core/tests/videopage_quiet.rs`
+  `a_helper_that_says_nothing_is_ended` (before: still waiting after 60 s;
   after: ended in 2 s).
 
 ### BUG-005 — on a page that forbids WebAssembly, the new panel loader logged an error
@@ -206,13 +206,85 @@ Deviations from the brief, and why:
   block put in above the player by script, no pointer event); failed before,
   passes after.
 
+### BUG-008 — FTP and torrents refused on a computer with no proxy
+
+- **Scenario**: `scripts/linux-stress.sh` (2026-11-06, the Debian container,
+  no network): every FTP download failed with "dm cannot send FTP through
+  the computer's proxy settings, and does not go around them". The same on
+  macOS with no proxy set.
+- **Root cause**: a new install follows the computer's proxy settings (gaps
+  row 80, decided 2026-11-06). For dm's own connections (FTP, a torrent's
+  swarm, RTMP/RTSP) the address was looked for in the environment only; with
+  none, `Options::no_route_through_system_proxy` refused, as if a proxy were
+  in force and unreadable. A computer with no proxy at all was the usual case.
+- **Fix**: `proxy::system_proxy_in_force` says whether the computer has a
+  proxy at all (an environment variable; on macOS the network settings,
+  read with `scutil --proxy`, whose SOCKS, HTTPS or HTTP proxy is now also
+  the address used). With none, dm's own connections go direct; with a
+  proxy in force and no address they could use (a configuration script
+  alone), they are still refused, never sent around it.
+- **Regression test**: `tests/ftp.rs`
+  `under_the_computers_proxy_settings_with_no_proxy_ftp_goes_direct` (it
+  replaced a test that expected the refusal), `download::tests`
+  `under_the_computers_proxy_only_a_proxy_in_force_with_no_address_refuses`,
+  `proxy::tests` `the_mac_network_settings_are_read_for_a_proxy`; the stress
+  `ftp` phase.
+
+### BUG-009 — an incoming peer waited for the next connection after a refused one
+
+- **Scenario**: building encrypted peer connections (gaps row 150), 2026-11-06:
+  a seeder taking only encrypted connections never finished an encrypted
+  handshake that began while another connection was being refused; the
+  connecting side timed out after 20 s.
+- **Root cause**: librqbit's listener (`session.rs` `task_listener`) collects
+  the checks of incoming connections in a `tokio::select!` branch with the
+  pattern `Some(Ok(..))`. A check that failed did not match, which disables
+  that branch until the loop goes round, which it did only when another
+  connection was accepted; until then no check under way was polled. A
+  plaintext handshake is read at once, so it rarely showed; an encrypted one
+  takes several round trips.
+- **Fix**: every finished check is taken, a failed one dropped inside the
+  branch (dm's patched librqbit, `desktop/vendor/README.md`).
+- **Regression test**: `tests/torrent_features.rs`
+  `a_seeder_that_takes_only_encrypted_connections_is_reached` (it runs a
+  refused plaintext connection beside the encrypted one; it timed out before).
+
+### BUG-010 — Wikimedia's originals stalled for ever on "Too many requests"
+
+- **Scenario**: `scripts/video-sites-check.py --phases public-url` on Windows,
+  2026-11-07 (test PUB-11a): a 36 MB video original from
+  `upload.wikimedia.org` stood at 9 to 13 MB for 30 minutes, the row saying
+  "Too many requests (retry 7 of 15)". Its 10 MB transcode from the same host
+  came whole.
+- **Root cause**: Wikimedia's media servers answer a browser's name from a
+  program with 429 and `Retry-After: 600` ("please contact noc@wikimedia.org
+  to discuss a less disruptive approach") and serve dm's own name at once
+  (measured: Internet Explorer's and Firefox's names 429, `dm/0.8.7 (+…)` 206,
+  with and without a `Referer`; eight ranges at once by dm's name all 206). dm
+  sends Internet Explorer's name first, as reference A does, and moved to its
+  own only when a server answered 403; a 429 was waited out under the same
+  name. The limit came now on the first request and now only on the ranges
+  after it.
+- **Fix**: a 429 to the browser's name asks once more by dm's own at the
+  first request (`probe.rs`), and on any later request moves that server to
+  dm's name for the rest of the run (`agents::limited`, from
+  `Error::from_response`). A server that limits every name gets one request
+  more than before and is waited out as before; with Identify as dm only on,
+  a limit never moves dm to another name.
+- **Regression test**: `tests/browser_agent_limited.rs`
+  `a_browsers_name_told_too_many_requests_is_asked_again_by_dms_own_once`
+  (four cases: ranges limited in the browser's name, the first request
+  limited, everyone limited, the switch on). Before the fix the first case
+  failed with `Refused { status: 429 }` after 481 s and the second after
+  four tries in the browser's name.
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not
-  dm's: yt-dlp's `HTML5MediaEmbed` numbers every video on a plain page
+  dm's: The external video tool's `HTML5MediaEmbed` numbers every video on a plain page
   (`'{title} ({num})'`, `'{id}-{num}'`), even the only one, and leaves the
   playlist fields out when there is one. dm now drops the number for a
-  page's only video (`ytdlp/fetch.rs` `unnumbered`); `video_page` checks the
+  page's only video (`videopage/fetch.rs` `unnumbered`); `video_page` checks the
   name, and failed before the change.
 
 ## Tests that were wrong
@@ -246,12 +318,12 @@ Deviations from the brief, and why:
   started a second copy of the whole suite beside the first; the two shared
   the origin's counters and the toxiproxy proxy, which is what made
   `folder_removed_or_read_only` and the network scenarios stall in run 1.
-- **T-007** `ytdlp_crash_and_hang`, `video_page`: used `video.html`. An
-  address that names a document is yt-dlp's first and, if yt-dlp cannot make
+- **T-007** `videopage_crash_and_hang`, `video_page`: used `video.html`. An
+  address that names a document is the external video tool's first and, if the external video tool cannot make
   a video of it, saved as the document (by design, `download/mod.rs`), so a
-  crashing yt-dlp gave a "completed" 188-byte page and the test passed without
+  crashing the external video tool gave a "completed" 188-byte page and the test passed without
   testing anything. They now use an extension-less `/watch?v=`, which is
-  yt-dlp's alone.
+  the external video tool's alone.
 
 - **T-008** the suite: each scenario left its files on the shared 200 MB
   download disk; by `disk_full` 2.9 MB was free and every later download was
@@ -272,6 +344,21 @@ Deviations from the brief, and why:
 - **T-010** `scripts/chrome-check.py` exited 0 when the extension's worker
   never started (a `return` inside the `try`), so a browser that loaded
   nothing reported success. Now exits 1.
+
+- **T-011** `scripts/stress-check.py` and `stress-protocols.py` set
+  `"retries"`, a key dm's settings never had, so every phase ran with the
+  default 15 attempts. `flaky`'s 429 and 503 servers then outlasted its
+  240 s wait ("still running"): with `Retry-After` the wait grows to 60 s,
+  so 15 attempts take about nine minutes. The scripts now set `"attempts"`;
+  `flaky` waits 420 s for ten. Found 2026-11-06 on Linux, the same on macOS.
+
+- **T-012** The torrent tests' own sessions had the DHT and local discovery
+  on, as dm's downloads do: a test's torrent was announced to the public
+  network and peers on the internet were connected to (seen 2026-11-06 while
+  building row 150: five addresses outside this computer, one of which
+  answered a handshake). `TorrentOptions::no_public_discovery` keeps a
+  session to its trackers; the tests' options set it, and a run of the
+  torrent tests watched with `lsof` saw no address but loopback.
 
 ## Static checks and fuzzing (Step 3)
 

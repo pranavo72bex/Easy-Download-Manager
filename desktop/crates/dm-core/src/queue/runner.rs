@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl Queue {
@@ -63,9 +68,15 @@ impl Queue {
         // the reason to set a window is a link that must be free outside it.
         // The same for a download limit whose allowance is spent: held until
         // the period rolls over, then put back as the schedule's are.
-        if !self.window_open() || self.allowance_spent().is_some() {
+        let spent = self.allowance_spent().is_some();
+        // Every queue on the one schedule: closed, nothing more to look at. With queues on
+        // schedules of their own each row is held or put back by its own queue's window.
+        if spent || (!self.has_queue_schedules() && !self.window_open()) {
             self.hold_for_schedule().await;
             return;
+        }
+        if self.has_queue_schedules() {
+            self.hold_for_schedule().await;
         }
         self.release_from_schedule().await;
 
@@ -168,6 +179,9 @@ impl Queue {
     /// Paused rather than cancelled, so the bytes already staged are kept
     /// and the next window resumes from them.
     pub(super) async fn hold_for_schedule(&self) {
+        // All of it where the one schedule (or the download limit) says stop; only the rows of
+        // queues whose own window is closed where queues have schedules of their own.
+        let all = self.allowance_spent().is_some() || !self.has_queue_schedules();
         let held = {
             let mut slots = self.inner.slots.lock().await;
             let mut held = false;
@@ -183,6 +197,7 @@ impl Queue {
                 if matches!(slot.entry.state, State::Running | State::Queued)
                     && !fetched
                     && !slot.outside_schedule
+                    && (all || !self.window_open_for(&slot.entry.queue))
                 {
                     slot.hold(true);
                     held = true;
@@ -204,7 +219,10 @@ impl Queue {
             let mut slots = self.inner.slots.lock().await;
             let mut released = false;
             for slot in slots.values_mut() {
-                if slot.entry.paused_by_schedule && slot.entry.state == State::Paused {
+                if slot.entry.paused_by_schedule
+                    && slot.entry.state == State::Paused
+                    && self.window_open_for(&slot.entry.queue)
+                {
                     slot.requeue();
                     released = true;
                 }
@@ -242,6 +260,8 @@ impl Queue {
             // would overwrite each other's part files: the one it was first
             // started under, recorded on the row, so a parts folder changed
             // in the settings since does not strand what it has.
+            // A form's answer whose form is gone (dm was closed since).
+            let mut form_lost = false;
             let own_parts = options.parts_dir.join(id.to_string());
             // Its own folder even if the row is gone before it starts: the
             // shared parts folder is never anybody's staging.
@@ -259,10 +279,31 @@ impl Queue {
                     options.dest_dir = PathBuf::from(&slot.entry.began_in);
                     // The browser's cookies for this site, where handed
                     // over: this download's alone, for its own server.
-                    options.sign_in =
-                        crate::cookies::SignIn::new(&slot.entry.url, &slot.entry.cookies);
+                    options.sign_in = crate::cookies::SignIn::with_headers(
+                        &slot.entry.url,
+                        &slot.entry.cookies,
+                        &slot.entry.headers,
+                    );
+                    // A form's answer goes with its form, sent again.
+                    if let Some(post) = slot.entry.post.clone() {
+                        options.sign_in =
+                            crate::cookies::SignIn::posting(options.sign_in.take(), post);
+                    } else if slot.entry.posted {
+                        form_lost = true;
+                    }
                     options.checksum = slot.entry.checksum.clone();
+                    options.torrent.only = crate::torrent::only_files(&slot.entry.torrent_files);
+                    // Files of different priorities: the first tier asked for alone.
+                    let tiers = crate::torrent::tiers(&slot.entry.torrent_files);
+                    if tiers.len() > 1 {
+                        options.torrent.only = tiers.first().cloned();
+                        options.torrent.tiers = tiers;
+                    } else {
+                        options.torrent.tiers = Vec::new();
+                    }
                     options.save_name = slot.entry.save_name.clone();
+                    options.title_hint = slot.entry.title_hint.clone();
+                    options.accept_page = slot.entry.accept_page;
                     // Its own limit as well as the one every download shares.
                     options.limiter = options.limiter.chained(&slot.own_limit);
                     // Sent as Referer where the row carries one, which is the
@@ -280,6 +321,12 @@ impl Queue {
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);
                         options.container = crate::stream::Quality::container_of(quality);
+                        options.frame_rate = crate::stream::Quality::frame_rate_of(quality);
+                        // A caption line: the caption file alone, in no container.
+                        options.caption = crate::stream::Quality::caption_of(quality);
+                        if options.caption.is_some() {
+                            options.container = None;
+                        }
                         // MP3: the M4A sound fetched, then made an MP3 by dm.
                         if options.container.as_deref() == Some("mp3") {
                             options.container = Some("m4a".into());
@@ -306,6 +353,7 @@ impl Queue {
             let (tx, mut rx) = tokio::sync::mpsc::channel(32);
             let watcher = {
                 let queue = queue.clone();
+                let this_run = ran_with.clone();
                 tokio::spawn(async move {
                     // What this run has reported so far, from what it found.
                     let mut reported: Option<u64> = staged;
@@ -347,6 +395,20 @@ impl Queue {
                             crate::download::Update::Validator(validator) => {
                                 slot.entry_mut().validator = Some(validator);
                             }
+                            crate::download::Update::Files(files) => {
+                                let merged =
+                                    crate::torrent::merged_files(&slot.entry.torrent_files, files);
+                                if merged != slot.entry.torrent_files {
+                                    slot.entry_mut().torrent_files = merged;
+                                }
+                            }
+                            // Kept for the window, not saved: a stopped
+                            // torrent has no swarm.
+                            crate::download::Update::Swarm(swarm) => {
+                                slot.swarm = Some(swarm);
+                                drop(slots);
+                                continue;
+                            }
                             // The highest attempt of any range is the row's.
                             crate::download::Update::Retrying {
                                 attempt,
@@ -355,7 +417,9 @@ impl Queue {
                                 wait,
                             } => {
                                 let now = slot.retrying.as_ref().map_or(0, |(a, _, _, _)| *a);
-                                if attempt >= now {
+                                // Not a run the row has been put back in
+                                // line since: its retry is not the row's.
+                                if attempt >= now && slot.control.is(&this_run) {
                                     slot.retrying =
                                         Some((attempt, of, why, std::time::Instant::now() + wait));
                                 }
@@ -367,8 +431,20 @@ impl Queue {
             };
 
             let client = inner.client.lock().await.clone();
-            let outcome = download_reporting(&client, &url, &options, Some(tx)).await;
+            let outcome = if form_lost {
+                drop(tx);
+                Err(crate::Error::Internal(
+                    "this download is a form's answer, and the form is gone since dm was \
+                     closed: start it again from the page it came from"
+                        .into(),
+                ))
+            } else {
+                download_reporting(&client, &url, &options, Some(tx)).await
+            };
             let reported = watcher.await.ok().flatten();
+            if let Some(slot) = inner.slots.lock().await.get_mut(&id) {
+                slot.swarm = None;
+            }
             /* Reports are samples: a file whole before the next one was
              * sent had bytes no report carried, and a small download could
              * go uncounted by the download limit altogether. What a
@@ -410,7 +486,7 @@ impl Queue {
                     }
                 }
                 // The cancel removed the parts while this run still held
-                // some open — a helper's, such as yt-dlp's — and on Windows an
+                // some open — a helper's — and on Windows an
                 // open file cannot be deleted. Now the run has let go,
                 // whatever is left goes.
                 let leftover = PathBuf::from(&slot.entry.parts_dir);
@@ -495,6 +571,22 @@ impl Queue {
                     let _ = tokio::fs::remove_dir(holder).await;
                 }
             }
+            // From the internet, as a browser's download says: marked here,
+            // before the queue's lock and on a thread of its own. On Windows
+            // the mark is a stream of the file's own, which the virus checker
+            // reads as it is written: about 16 ms a file on a Windows 11
+            // computer (2026-11-03), during which the lock held every other
+            // look at the queue, the window's included. Still before the row
+            // says Completed, so a file is never opened unmarked.
+            if let Ok(finished) = &outcome {
+                let path = finished.path.clone();
+                let from = url.clone();
+                let referrer = options.referrer.clone().unwrap_or_default();
+                let _ = tokio::task::spawn_blocking(move || {
+                    crate::motw::mark(&path, &from, &referrer);
+                })
+                .await;
+            }
             let mut slots = inner.slots.lock().await;
             let Some(slot) = slots.get_mut(&id) else {
                 return;
@@ -526,14 +618,13 @@ impl Queue {
                         slot.entry_mut().filename = name.to_string_lossy().into_owned();
                     }
                     slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
-                    // From the internet, as a browser's download says.
-                    crate::motw::mark(&finished.path, &slot.entry.url, &slot.entry.referrer);
                     slot.entry_mut().category = Some(finished.category);
                     slot.entry_mut().verified = finished.verified;
                     slot.entry_mut().mirrors = finished.mirrors;
                     slot.entry_mut().replaces = None;
                     if std::mem::take(&mut slot.entry_mut().cookies_once) {
                         slot.entry_mut().cookies.clear();
+                        slot.entry_mut().headers.clear();
                     }
                     State::Completed
                 }
@@ -549,6 +640,14 @@ impl Queue {
                         "the new version could not be fetched, so the old one is kept at {old}: \
                          {error}"
                     )),
+                    None if error.link_expired()
+                        && (!slot.entry.referrer.is_empty()
+                            || !slot.entry.cookies.is_empty()
+                            || !slot.entry.headers.is_empty()) =>
+                    {
+                        slot.entry_mut().fresh_link = true;
+                        State::Failed(format!("{LINK_EXPIRED} ({error})"))
+                    }
                     None => State::Failed(error.to_string()),
                 },
             };

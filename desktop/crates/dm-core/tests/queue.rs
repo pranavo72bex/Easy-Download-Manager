@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The queue: several downloads, a limit, and the controls between states.
 //!
 //! Byte-correctness is the engine's business and covered there; what matters
@@ -22,7 +27,7 @@ use common::tempdir;
 struct Server {
     live: Arc<AtomicUsize>,
     peak: Arc<AtomicUsize>,
-    /// How often `flaky` has been asked for: the first time is refused.
+    /// How often `flaky` has been asked for: the first two times are refused (dm asks a 404 twice).
     flaky: Arc<AtomicUsize>,
     /// Every path asked for, so a test can say what was never fetched.
     asked: Arc<std::sync::Mutex<Vec<String>>>,
@@ -55,7 +60,7 @@ async fn serve_recording() -> (
         // Gone the first time and there after: what a retry is for. A 404,
         // which the engine's own retries do not cover, so only a person's
         // Retry gets it the second look.
-        let gone_once = uri.path().contains("flaky") && s.flaky.fetch_add(1, Ordering::SeqCst) == 0;
+        let gone_once = uri.path().contains("flaky") && s.flaky.fetch_add(1, Ordering::SeqCst) < 2;
         if uri.path().contains("missing") || gone_once {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -523,7 +528,7 @@ async fn a_login_and_cookies_stay_out_of_the_queue_file_and_come_back() {
     let id = first
         .add_with(
             &url,
-            dm_core::queue::AddOptions {
+            dm_core::AddOptions {
                 cookies: "session=given-by-the-browser".into(),
                 ..Default::default()
             },
@@ -571,6 +576,41 @@ async fn a_login_and_cookies_stay_out_of_the_queue_file_and_come_back() {
     assert!(
         !dir.path().join("secrets.json").exists(),
         "secrets.json outlived its row"
+    );
+}
+
+/// A file of secrets that cannot be read (damaged, or sealed under a key the store would not
+/// give out at that moment) is moved aside, not deleted by the next save: the rows' sign-ins
+/// can still be got back.
+#[tokio::test]
+async fn a_file_of_secrets_that_cannot_be_read_is_kept_aside_not_deleted_by_the_next_save() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let first = queue(dir.path(), 0);
+    first.persist_to(store.clone()).await;
+    first
+        .add_with(
+            "http://127.0.0.1:9/private.bin",
+            dm_core::AddOptions {
+                cookies: "session=given-by-the-browser".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    first.flush().await;
+    let secrets = dir.path().join("secrets.json");
+    std::fs::write(&secrets, b"{ damaged").unwrap();
+
+    let second = queue(dir.path(), 0);
+    second.persist_to(store.clone()).await;
+    second.add("http://127.0.0.1:9/plain.bin").await.unwrap();
+    second.flush().await;
+    let aside = dir.path().join("secrets.json.unopened");
+    assert_eq!(
+        std::fs::read(&aside).ok().as_deref(),
+        Some(&b"{ damaged"[..]),
+        "the unreadable file was not kept"
     );
 }
 
@@ -780,7 +820,7 @@ fn served_sha256() -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     hasher.update(vec![7u8; 1024]);
-    hex::encode(hasher.finalize())
+    dm_core::hex::encode(hasher.finalize())
 }
 
 #[tokio::test]
@@ -969,14 +1009,49 @@ async fn clearing_the_history_keeps_a_failed_row_and_its_parts() {
 
 /* ------------------------------------------------------------- schedule */
 
+/// A window that cannot contain the present moment, whenever it is run.
 fn closed_now() -> dm_core::Schedule {
-    // A window that cannot contain the present moment, whenever it is run.
+    closed_at(dm_core::weekday_now().1)
+}
+
+/// A window shut at `minute` past midnight and for hours after: one minute,
+/// twelve hours later. It was 00:00 to 00:01 whatever the time, which is open
+/// for the minute after midnight: a full suite that reached these tests then
+/// (the Windows session, 2026-11-07) ran what they hold, six failing at once.
+fn closed_at(minute: u32) -> dm_core::Schedule {
+    let from = (minute + 12 * 60) % (24 * 60);
+    let to = (from + 1) % (24 * 60);
     dm_core::Schedule {
         enabled: true,
-        from: "00:00".into(),
-        to: "00:01".into(),
+        from: format!("{:02}:{:02}", from / 60, from % 60),
+        to: format!("{:02}:{:02}", to / 60, to % 60),
         days: vec![],
         wake: false,
+        when_done: String::new(),
+        retries: 0,
+        run_when_done: String::new(),
+        once_at: None,
+        force: false,
+    }
+}
+
+/// The schedule tests' shut window is shut whatever minute of the day they
+/// start at, and for the half hour a slow run may take, on every day.
+#[test]
+fn the_tests_shut_window_is_shut_at_every_minute_of_the_day() {
+    for start in 0..24 * 60 {
+        let shut = closed_at(start);
+        for later in 0..30 {
+            for day in 0..7 {
+                let minute = (start + later) % (24 * 60);
+                assert!(
+                    !shut.open_at(day, minute),
+                    "{} to {} is open at minute {minute} for a start at minute {start}",
+                    shut.from,
+                    shut.to
+                );
+            }
+        }
     }
 }
 
@@ -1311,7 +1386,7 @@ async fn a_full_disk_pauses_and_another_folder_finishes_it() {
         dm_core::Options {
             connections: 1,
             dest_dir: full.clone(),
-            room: dm_core::download::Room::with_free_space(move |at| {
+            room: dm_core::Room::with_free_space(move |at| {
                 (at.starts_with(&watched) || at.starts_with(&parts)).then_some(10)
             }),
             ..base
@@ -1339,7 +1414,7 @@ async fn a_full_disk_pauses_and_another_folder_finishes_it() {
         row.path
     );
     assert_eq!(std::fs::read(&row.path).unwrap().len(), 1024);
-    assert!(!roomy.join(dm_core::queue::UNFINISHED).exists());
+    assert!(!roomy.join(dm_core::UNFINISHED).exists());
 }
 
 /* ------------------------------------------------------------- metalink */
@@ -1408,7 +1483,7 @@ async fn serve_metalink(body: Vec<u8>) -> (SocketAddr, Mirrors) {
                  * probes would have said all three mirrors were in use even
                  * when every byte came from the first — which is exactly what
                  * an earlier version of this test did say. */
-                if end > start {
+                if end > start && !to.is_empty() {
                     s.hits.lock().unwrap().push(path.clone());
                 }
                 let slice = served[start as usize..=end as usize].to_vec();
@@ -1461,7 +1536,7 @@ fn sha256_of(bytes: &[u8]) -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     hasher.update(bytes);
-    hex::encode(hasher.finalize())
+    dm_core::hex::encode(hasher.finalize())
 }
 
 /// Bytes that differ everywhere, so a file spliced from the wrong source is
@@ -1654,9 +1729,10 @@ async fn serve_stalled_counting() -> (SocketAddr, Arc<AtomicUsize>, Arc<Open>) {
     let app = axum::Router::new().fallback(axum::routing::get(move |headers: HeaderMap| {
         let (hits, open) = (Arc::clone(&counted), Arc::clone(&held));
         async move {
-            let probe = headers
-                .get("range")
-                .is_some_and(|r| r.to_str().unwrap_or("") == "bytes=0-0");
+            let probe = headers.get("range").is_some_and(|r| {
+                let r = r.to_str().unwrap_or("");
+                r == "bytes=0-0" || r == "bytes=0-"
+            });
             if !probe {
                 hits.fetch_add(1, Ordering::SeqCst);
             }
@@ -1690,6 +1766,88 @@ async fn serve_stalled_counting() -> (SocketAddr, Arc<AtomicUsize>, Arc<Open>) {
     }));
     let addr = common::serve(app).await;
     (addr, hits, open)
+}
+
+#[tokio::test]
+async fn a_row_resumed_while_retrying_starts_its_new_run_without_the_old_retry() {
+    /* The old run's "retrying, attempt N" outlived a pause and a resume: the
+     * row showed it on a run that had not failed, and the queue counted the
+     * row as lending its place, so one more than the limit could start. */
+    use axum::http::HeaderMap;
+    use std::sync::atomic::AtomicBool;
+    let failing = Arc::new(AtomicBool::new(true));
+    let ranges = Arc::new(AtomicUsize::new(0));
+    let (fail, asked) = (Arc::clone(&failing), Arc::clone(&ranges));
+    let app = axum::Router::new().fallback(axum::routing::get(move |headers: HeaderMap| {
+        let (fail, asked) = (Arc::clone(&fail), Arc::clone(&asked));
+        async move {
+            let range = headers
+                .get("range")
+                .and_then(|r| r.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            if range == "bytes=0-0" {
+                return Response::builder()
+                    .status(206)
+                    .header("content-range", "bytes 0-0/1000000")
+                    .body(axum::body::Body::from(vec![0u8]))
+                    .unwrap();
+            }
+            asked.fetch_add(1, Ordering::SeqCst);
+            if fail.load(Ordering::SeqCst) {
+                return Response::builder()
+                    .status(503)
+                    .body(axum::body::Body::empty())
+                    .unwrap();
+            }
+            // Answered, and then nothing: a run that has not failed.
+            Response::builder()
+                .status(206)
+                .header("content-range", "bytes 0-999999/1000000")
+                .body(axum::body::Body::from_stream(
+                    futures_util::stream::pending::<Result<bytes::Bytes, std::io::Error>>(),
+                ))
+                .unwrap()
+        }
+    }));
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await });
+    }
+    let retrying = async {
+        while !q.retrying().await.contains_key(&id) {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), retrying)
+        .await
+        .expect("the row never said it was retrying");
+
+    failing.store(false, Ordering::SeqCst);
+    q.pause(id).await;
+    let before = ranges.load(Ordering::SeqCst);
+    q.resume(id).await;
+    let started_again = async {
+        while ranges.load(Ordering::SeqCst) <= before
+            || q.get(id).await.unwrap().state != DownloadState::Running
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), started_again)
+        .await
+        .expect("the resumed row was never started again");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(
+        !q.retrying().await.contains_key(&id),
+        "the new run carries the old run's retry: {:?}",
+        q.retrying().await.get(&id)
+    );
+    q.cancel(id).await;
 }
 
 #[tokio::test]
@@ -1799,6 +1957,27 @@ async fn an_unreadable_queue_file_is_kept_aside_and_said_rather_than_overwritten
     assert!(problems[0].contains("could not be read"), "{problems:?}");
     // Said once: asking again reports nothing new.
     assert!(q.problems().is_empty());
+}
+
+#[tokio::test]
+async fn a_queue_file_that_is_not_text_is_kept_aside_too() {
+    /* Only a file that read as text and failed to parse was kept aside; one
+     * that could not be read as text at all was taken for no file, and the
+     * first save wrote the empty list over it. */
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let damaged = b"[{\"id\": 1, \"url\": \"http://e.com/\xff\"}]".to_vec();
+    std::fs::write(&store, &damaged).unwrap();
+
+    let q = queue(dir.path(), 1);
+    q.persist_to(store.clone()).await;
+
+    let kept = std::fs::read(dir.path().join("queue.json.unreadable"))
+        .expect("the damaged queue was not kept aside");
+    assert_eq!(kept, damaged);
+    let problems = q.problems();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("could not be read"), "{problems:?}");
 }
 
 #[tokio::test]
@@ -2305,7 +2484,7 @@ async fn the_stalled_server_sees_a_dropped_response_let_go() {
     let (addr, _, open) = serve_stalled_counting().await;
     let res = client()
         .get(format!("http://{addr}/x.bin"))
-        .header("range", "bytes=0-")
+        .header("range", "bytes=0-4194303")
         .send()
         .await
         .unwrap();
@@ -2632,11 +2811,11 @@ async fn a_recheck_of_a_metalink_asks_about_the_file_not_the_document() {
 
 #[tokio::test]
 async fn a_recheck_leaves_alone_a_row_made_from_a_web_page() {
-    /* A yt-dlp row's address is the page, whose length is never the
+    /* A video page row's address is the page, whose length is never the
      * video's and which has no ETag of the video's: compared, every such
      * row was fetched again on every check. Nothing comparable: not
      * checked, not fetched. Stood up from a saved queue, since making the
-     * row needs a yt-dlp. */
+     * row needs a video reader. */
     use axum::response::IntoResponse;
     let app = axum::Router::new().fallback(axum::routing::get(|| async {
         (
@@ -2808,6 +2987,22 @@ async fn a_finished_download_hands_its_place_to_the_next_at_once() {
     }));
     let addr = common::serve(app).await;
     let dir = tempdir();
+    // What one tiny file costs on this computer outside the queue: the
+    // engine's own steps and the mark of the web. A few milliseconds on an
+    // idle Mac; 30 to 50 on a Windows 11 computer whose virus checker reads
+    // every file made (2026-11-03, gaps row 112).
+    let alone = tempdir();
+    let options = dm_core::Options {
+        connections: 1,
+        ..common::options(alone.path())
+    };
+    let began = std::time::Instant::now();
+    for n in 0..FILES {
+        let url = format!("http://{addr}/alone{n}.bin");
+        let done = dm_core::download(&client(), &url, &options).await.unwrap();
+        dm_core::motw::mark(&done.path, &url, "");
+    }
+    let each = began.elapsed() / FILES as u32;
     let q = queue(dir.path(), 1);
     for n in 0..FILES {
         q.add(&format!("http://{addr}/tiny{n}.bin")).await.unwrap();
@@ -2821,19 +3016,22 @@ async fn a_finished_download_hands_its_place_to_the_next_at_once() {
         .iter()
         .all(|e| e.state == DownloadState::Completed));
     println!(
-        "{FILES} tiny files, one place: {:.2}s ({:.0} files/s)",
+        "{FILES} tiny files, one place: {:.2}s ({:.0} files/s); alone {each:?} a file",
         took.as_secs_f64(),
         FILES as f64 / took.as_secs_f64()
     );
     /* Waiting for the tick after each file puts a floor under this: one
-     * place, a tick every 50 ms, so no less than about 50 ms a file at any
-     * load, 3 s here. Handed on at once it is the files alone (0.2 s on an
-     * idle machine, several seconds with every core busy, where this is
-     * not a test to read anything into); the bound is just under the floor,
-     * so the tick always fails it. */
+     * place, a tick every 50 ms, so no less than about 50 ms a file. Handed
+     * on at once it is the files' own cost and a little of the queue's. The
+     * bound is 45 ms a file, just under the floor, so the tick fails it
+     * wherever a file costs less than 25 ms; where files alone cost more
+     * (a virus checker, a loaded machine) the tick cannot be told from the
+     * files, and the bound is their cost and 20 ms, so a queue that is not
+     * at fault is not failed for it. */
+    let per_file = Duration::from_millis(45).max(each + Duration::from_millis(20));
     assert!(
-        took < Duration::from_millis(FILES as u64 * 45),
-        "{FILES} tiny files took {took:?}: places are refilled by the tick, not when they free"
+        took < per_file * FILES as u32,
+        "{FILES} tiny files took {took:?} ({each:?} a file alone): places are refilled by the          tick, not when they free"
     );
 }
 
@@ -3078,4 +3276,231 @@ async fn a_long_list_comes_back_whole_from_its_file_and_journal() {
     second.flush().await;
     assert!(!journal.exists(), "the journal outlived a start");
     assert!(std::fs::metadata(&store).unwrap().len() != whole);
+}
+
+#[tokio::test]
+async fn a_download_named_by_its_server_can_be_given_the_addresss_name_after() {
+    /* What a person who said no to the server's name gets: the finished file
+     * renamed to the name the address gave, never over another file. */
+    use axum::routing::get;
+    let app = axum::Router::new().route(
+        "/dl",
+        get(|| async {
+            Response::builder()
+                .header(
+                    "content-disposition",
+                    "attachment; filename=\"Report 2026.pdf\"",
+                )
+                .body(Body::from(vec![7u8; 4096]))
+                .unwrap()
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/dl")).await.unwrap();
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert_eq!(row.filename, "Report 2026.pdf");
+
+    q.rename(id, "dl").await.unwrap();
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.filename, "dl");
+    assert!(std::path::Path::new(&row.path).is_file());
+    assert_eq!(std::fs::read(&row.path).unwrap(), vec![7u8; 4096]);
+}
+
+#[tokio::test]
+async fn a_page_for_a_file_is_saved_as_html_after_a_person_says_yes() {
+    use axum::routing::get;
+    let page = "<html><title>Sign in</title></html>";
+    let app = axum::Router::new().route(
+        "/files/report.zip",
+        get(move || async move {
+            Response::builder()
+                .header("content-type", "text/html")
+                .body(Body::from(page))
+                .unwrap()
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q
+        .add(&format!("http://{addr}/files/report.zip"))
+        .await
+        .unwrap();
+    q.run().await;
+    assert!(matches!(
+        q.get(id).await.unwrap().state,
+        DownloadState::Failed(ref why) if why.contains("web page rather than the file")
+    ));
+
+    assert!(q.accept_page(id).await);
+    assert!(q.retry(id).await);
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert_eq!(row.filename, "report.html");
+    assert_eq!(std::fs::read_to_string(&row.path).unwrap(), page);
+}
+
+#[tokio::test]
+async fn a_queue_with_a_schedule_of_its_own_is_held_while_the_others_run() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 2);
+    q.set_queue_schedules(std::collections::BTreeMap::from([(
+        "Night".to_string(),
+        closed_now(),
+    )]));
+    let in_queue = |name: &str| dm_core::AddOptions {
+        queue: name.into(),
+        ..Default::default()
+    };
+    let night = q
+        .add_with(&format!("http://{addr}/f.bin?n"), in_queue("Night"))
+        .await
+        .unwrap();
+    let day = q
+        .add_with(&format!("http://{addr}/f.bin?d"), in_queue("Day"))
+        .await
+        .unwrap();
+    q.run().await;
+    assert_eq!(q.get(day).await.unwrap().state, DownloadState::Completed);
+    assert_eq!(
+        q.get(night).await.unwrap().state,
+        DownloadState::Paused,
+        "its own window is shut"
+    );
+    assert!(q.get(night).await.unwrap().paused_by_schedule);
+
+    // Its window opening puts it back, and only it.
+    q.set_queue_schedules(Default::default());
+    q.run().await;
+    assert_eq!(q.get(night).await.unwrap().state, DownloadState::Completed);
+}
+
+/// A download that is a form's answer keeps its form in memory only: on disk
+/// it says it is one, never what the form held, and after the app is closed,
+/// with the form gone, it fails saying to start it again from its page
+/// rather than asking the address in a way the server never answered.
+#[tokio::test]
+async fn a_forms_answer_keeps_its_form_off_disk_and_says_so_after_a_restart() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let url = format!("http://{addr}/kept.bin");
+
+    let first = queue(dir.path(), 1);
+    first.persist_to(store.clone()).await;
+    let id = first
+        .add_with(
+            &url,
+            dm_core::AddOptions {
+                later: true,
+                post: Some(dm_core::cookies::Posted {
+                    url: url.clone(),
+                    body: b"secret=hunter2".to_vec(),
+                    content_type: "application/x-www-form-urlencoded".into(),
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    first.flush().await;
+    let written = std::fs::read_to_string(&store).unwrap();
+    assert!(!written.contains("hunter2"), "the form was written to disk");
+    let rows: serde_json::Value = serde_json::from_str(&written).unwrap();
+    assert_eq!(rows[0]["posted"], true, "{written}");
+
+    let second = queue(dir.path(), 1);
+    second.persist_to(store.clone()).await;
+    second.resume(id).await;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        second.run().await;
+        let row = second.get(id).await.unwrap();
+        if let DownloadState::Failed(why) = &row.state {
+            assert!(why.contains("start it again from the page"), "{why}");
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "still {:?}",
+            row.state
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}
+
+/// A download begun while Download details asked is given its place once the person chose
+/// (reference A's "start downloading while the dialog is open"; gaps row 85): still under
+/// way, it goes on keeping what it has and lands in the folder and under the name chosen;
+/// already finished, it is moved and renamed.
+#[tokio::test]
+async fn a_download_begun_while_asked_is_placed_where_the_person_chose() {
+    let pieces = || async {
+        use futures_util::StreamExt;
+        let parts = futures_util::stream::iter(0..8).then(|_| async {
+            tokio::time::sleep(Duration::from_millis(60)).await;
+            Ok::<_, std::io::Error>(bytes::Bytes::from(vec![7u8; 4096]))
+        });
+        Response::builder()
+            .header("content-length", 8 * 4096)
+            .body(Body::from_stream(parts))
+            .unwrap()
+    };
+    let addr = common::serve(axum::Router::new().fallback(pieces)).await;
+    let dir = tempdir();
+    let chosen = tempdir();
+    let q = queue(dir.path(), 2);
+    let id = q.add(&format!("http://{addr}/early.bin")).await.unwrap();
+    let running = {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await })
+    };
+    for _ in 0..100 {
+        if q.get(id).await.unwrap().progress.downloaded > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    q.settle_early(
+        id,
+        Some(chosen.path().to_path_buf()),
+        Some("named.bin".into()),
+        "the one asked about",
+        "",
+        false,
+    )
+    .await
+    .unwrap();
+    // The queue's loop, as the app keeps it going: the row placed goes on to the end.
+    running.abort();
+    tokio::time::timeout(Duration::from_secs(20), q.run())
+        .await
+        .expect("the placed download finished");
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed, "{:?}", row.state);
+    assert_eq!(row.description, "the one asked about");
+    let landed = chosen.path().join("named.bin");
+    assert_eq!(std::fs::read(&landed).unwrap(), vec![7u8; 8 * 4096]);
+
+    // Finished before the person chose: moved and renamed.
+    let later = tempdir();
+    q.settle_early(
+        id,
+        Some(later.path().to_path_buf()),
+        Some("again.bin".into()),
+        "",
+        "",
+        false,
+    )
+    .await
+    .unwrap();
+    assert!(later.path().join("again.bin").is_file());
+    assert!(!landed.exists());
 }

@@ -13,19 +13,19 @@ for a public file, as it does for any download.
 
 ## Getting the tools for video sites
 
-A video site's page (YouTube and the like) is downloaded with yt-dlp, which
+A video site's page (YouTube and the like) is downloaded with the external video tool, which
 needs a small JavaScript engine (QuickJS) for some sites; dm joins the picture
-and sound itself. If your computer has no yt-dlp, dm fetches it and QuickJS the
+and sound itself. If your computer has no the external video tool, dm fetches it and QuickJS the
 first time such a page needs them, from their GitHub releases, each checked
 against its published checksum (QuickJS, a pinned build, against the
 digest written into dm) before it is kept in dm's own folder. dm
 does the rest itself: joining picture and sound, subtitles, and live RTMP
-(RTMPS and RTMPT too), RTSP (RTSPS too) and MMS streams. A yt-dlp fetched
+(RTMPS and RTMPT too), RTSP (RTSPS too) and MMS streams. an external video tool fetched
 this way is fetched afresh once a week while it is in use. These requests,
 like any download, carry nothing about you; GitHub sees an address asking
-for a public file. A recent yt-dlp you installed yourself is used instead,
+for a public file. A recent the external video tool you installed yourself is used instead,
 and then it is not fetched. Options › Downloads › "Fetch the video helper"
-turns the fetching off altogether; then only a yt-dlp you installed is used.
+turns the fetching off altogether; then only an external video tool you installed is used.
 
 ## What the extension handles
 
@@ -117,6 +117,12 @@ Options › Browser has "Hand over the browser's sign-in with every download"
 takes its own site's cookies, sent to that site's server only, and they are
 dropped from the row once that download is done, as a video page's are.
 
+**A form's answer.** When a page sends a form and the file that comes back is a download
+(an export button, some file hosts), the extension keeps what the form sent, in its own memory
+for two minutes, and hands it to the app with that one download, so the app can send the same
+form to the same address. The app keeps it in memory with the download and never writes it to
+disk; once dm is closed it is gone, and the download is started again from its page.
+
 **On this computer only.** dm listens on no network address by default. Started
 with `--control` (or `--headless --control`), it opens a port on the loopback
 address (`127.0.0.1`), which only programs on this computer can reach, and only
@@ -141,6 +147,6 @@ This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
 shipped code names any address but GitHub's. dm reaches GitHub only when
-you check for updates or open Help, or to fetch yt-dlp and QuickJS when a
+you check for updates or open Help, or to fetch the external video tool and QuickJS when a
 video needs them and your computer has none. The two extension stores are
 opened in your browser only when you click to add dm to it.

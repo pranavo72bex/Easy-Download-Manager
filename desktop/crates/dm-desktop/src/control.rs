@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A way for a test or an agent to drive the running window.
 //!
 //! JSON lines over TCP on 127.0.0.1, off unless dm is started with
@@ -32,8 +37,11 @@ pub struct Request {
     /// Sent by `dm-desktop mcp` (it says so when it authenticates), so the
     /// window can refuse it while Options says AI assistants are off.
     pub via_mcp: bool,
+    /// The command's name, as the control port received it.
     pub method: String,
+    /// The command's arguments.
     pub params: Value,
+    /// Where the answer, or the reason the command failed, is sent back.
     pub reply: mpsc::Sender<Result<Value, String>>,
 }
 
@@ -299,6 +307,11 @@ fn serve(
                     return Ok(());
                 }
                 authenticated = true;
+                // On the reader's own socket: on Windows a clone does not carry the
+                // option back, and a connection idle for the authentication limit was cut.
+                reader
+                    .get_ref()
+                    .set_read_timeout(Some(Duration::from_secs(300)))?;
                 out.set_read_timeout(Some(Duration::from_secs(300)))?;
                 write_reply(&mut out, &id, Ok(json!({ "authenticated": true })))?;
                 continue;

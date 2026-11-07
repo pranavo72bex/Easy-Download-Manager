@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # A link dragged onto dm's window under Wayland, in the Linux container:
 #
 #   sh scripts/linux-wayland-drag-check.sh      # screenshots into ./human-shots/wayland-drag

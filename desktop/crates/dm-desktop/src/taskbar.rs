@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! The progress on dm's taskbar button, so a minimised window still says how
 //! far the downloads are: green while they run, yellow while they are
 //! paused, red for a minute after one failed. Only Windows has such a
@@ -11,14 +16,20 @@ const RED_FOR: u64 = 60;
 /// What the button shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
+    /// Nothing to show.
     Nothing,
     /// Running, with no total to measure against.
     Unknown,
+    /// Running, with a total to measure against.
     Running {
+        /// Bytes done so far.
         done: u64,
+        /// Bytes in all.
         total: u64,
     },
+    /// Downloads are paused.
     Paused,
+    /// A download failed lately: the button stays red for a while.
     Failed,
 }
 
@@ -215,6 +226,7 @@ mod tests {
             queue: String::new(),
             save_dir: None,
             save_name: None,
+            accept_page: false,
             validator: None,
             quality: None,
             sound: None,
@@ -227,9 +239,15 @@ mod tests {
             began_in: String::new(),
             cookies: String::new(),
             cookies_once: false,
+            headers: Vec::new(),
             replaces: None,
             speed_limit: 0,
             stalled: String::new(),
+            fresh_link: false,
+            title_hint: None,
+            torrent_files: Vec::new(),
+            post: None,
+            posted: false,
         }
     }
 

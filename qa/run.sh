@@ -1,4 +1,9 @@
 #!/bin/sh
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 # Builds the QA stack and runs it: every scenario in qa/tests against dm built
 # from this checkout, and the extension hand-off in Chromium. Reports go to
 # qa/reports (JSON and JUnit per run, and each container's log).
@@ -9,6 +14,11 @@
 set -u
 cd "$(dirname "$0")"
 mkdir -p reports
+# The containers write as their own user (uid 1000); on a CI runner this
+# folder belongs to the runner's (1001), and every report write was refused
+# ("Permission denied: '/reports/qa-1.json'"), failing a suite that passed.
+# It holds test reports only.
+chmod a+rwx reports
 runs=${QA_RUNS:-1}
 docker compose build || exit 1
 status=0

@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! Several downloads, a limit on how many run at once, and the controls to
 //! move them between those states.
 //!
@@ -24,6 +29,7 @@ use crate::Error;
 
 mod actions;
 mod edit;
+mod family;
 mod inspect;
 mod journal;
 mod persist;
@@ -34,13 +40,14 @@ mod recheck;
 mod runner;
 mod settings;
 
-/// Seconds since the epoch, for the history a finished row becomes.
+/// Milliseconds since the epoch, for the recheck clock.
 fn now_millis() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64)
 }
 
+/// Seconds since the epoch, for the history a finished row becomes.
 fn now_seconds() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -55,13 +62,18 @@ pub type Id = u64;
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", content = "reason", rename_all = "lowercase")]
 pub enum State {
+    /// Waiting for its turn.
     Queued,
+    /// Being downloaded now.
     Running,
+    /// Stopped by the person, to be resumed.
     Paused,
+    /// Finished and in its place.
     Completed,
     /// Carries the reason, because a row saying only "failed" sends people
     /// looking in the wrong place.
     Failed(String),
+    /// Stopped by the person for good.
     Cancelled,
 }
 
@@ -79,12 +91,22 @@ impl State {
     }
 }
 
+/// What a row says when its address has expired and it waits for the browser to
+/// hand over a fresh one (`Entry::fresh_link`); the window words it in plain
+/// sentences.
+pub const LINK_EXPIRED: &str =
+    "the link has expired: dm is waiting for the browser to hand over a new one";
+
 /// One row.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Entry {
+    /// The row's number, never reused.
     pub id: Id,
+    /// The address it is downloaded from.
     pub url: String,
+    /// Where it has got to.
     pub state: State,
+    /// How much of it is done, and how fast.
     pub progress: Progress,
     /// Empty until the probe has learned one.
     pub filename: String,
@@ -139,6 +161,13 @@ pub struct Entry {
     /// The name to save it under, if a person chose one over the server's.
     #[serde(default)]
     pub save_name: Option<String>,
+    /// The title of the page the link was found on, to name a file whose own name says nothing.
+    #[serde(default)]
+    pub title_hint: Option<String>,
+    /// Whether a person said yes to saving a web page that answered for the
+    /// file as an HTML page (`Options::accept_page`).
+    #[serde(default)]
+    pub accept_page: bool,
     /// The server's ETag or Last-Modified for the file fetched, which the
     /// recheck queue compares against to tell whether it changed.
     #[serde(default)]
@@ -188,6 +217,11 @@ pub struct Entry {
     /// the browser sends with every video): dropped once it completes.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The request headers the browser sent (a bearer token and the like),
+    /// sent to this row's own server on every request, held like `cookies`
+    /// (outside the journal, dropped with a one-off sign-in).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
     /// The finished file a recheck found changed on its server, kept until
     /// the new version is whole and then replaced by it. Fetched beside it
     /// rather than after deleting it: a server that fails halfway through
@@ -203,6 +237,25 @@ pub struct Entry {
     /// has, once there is room, or from another folder (`relocate`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub stalled: String,
+    /// A row from the browser whose address has expired (a signed link that
+    /// ran out): failed, but waiting for the browser to hand over a fresh
+    /// address for the same file, which takes its place and goes on from the
+    /// parts already staged (`Queue::adopt_fresh_link`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fresh_link: bool,
+    /// A torrent's files, once its metadata is known, each with whether it
+    /// is fetched (Properties).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub torrent_files: Vec<crate::torrent::TorrentFile>,
+    /// The form this download is the answer to, sent again to fetch it. Held
+    /// in memory only: a form can hold what a person typed.
+    #[serde(skip)]
+    pub post: Option<crate::cookies::Posted>,
+    /// Whether it is a form's answer, kept on disk: after a restart, with the
+    /// form gone, it is said to be started again from its page rather than
+    /// asked for in a way the server never answered with the file.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub posted: bool,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -214,8 +267,11 @@ fn is_zero(n: &u64) -> bool {
 /// it costs the transfer nothing.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Connection {
+    /// The first byte of the connection's range.
     pub start: u64,
+    /// The last byte of the range, inclusive.
     pub end: u64,
+    /// How many bytes of the range are on disk.
     pub done: u64,
     /// Its part file is there: the server has answered for this range, so
     /// it is under way though its first bytes may still be in a buffer.
@@ -226,8 +282,6 @@ pub struct Connection {
     pub second: bool,
 }
 
-/// What a row is added with, beyond its address: what the "Download details"
-/// dialog asks before a download starts.
 impl Entry {
     /// Seconds until "Delete file after" is due for this row, as of `now`
     /// (Unix seconds): 0 once it is; `None` for a row with none, or one not
@@ -242,13 +296,22 @@ impl Entry {
     }
 }
 
+/// What a caller may say when it adds a download: beyond its address, what
+/// the "Download details" dialog asks before a download starts.
 #[derive(Debug, Clone, Default)]
 pub struct AddOptions {
+    /// The page the link was found on, where known.
     pub referrer: String,
+    /// The person's note on the download.
     pub description: String,
+    /// The queue to add it to; empty is the main queue.
     pub queue: String,
+    /// The folder to save in, in place of the default.
     pub save_dir: Option<String>,
+    /// The name to save under, in place of the one found.
     pub save_name: Option<String>,
+    /// The title of the page the link was found on, where known.
+    pub title_hint: Option<String>,
     /// "Add for later": added paused, waiting for its queue to start.
     pub later: bool,
     /// The quality picked in the browser's video panel, in
@@ -272,6 +335,8 @@ pub struct AddOptions {
     pub cookies: String,
     /// Those cookies are for this download alone, not kept once it is done.
     pub cookies_once: bool,
+    /// The headers the browser sent with the request (see `Entry::headers`).
+    pub headers: Vec<(String, String)>,
     /// A file this download takes the place of once it is whole, as a
     /// recheck's new version does: kept until then, so a failed download
     /// leaves it.
@@ -280,6 +345,13 @@ pub struct AddOptions {
     pub checksum: Option<crate::checksum::Checksum>,
     /// This download's own speed limit, in KB/s; zero for none.
     pub speed_limit: u64,
+    /// Handed over by the browser: it may take the place of a row waiting
+    /// for a fresh address for the same file (`Queue::adopt_fresh_link`)
+    /// instead of being added as another row.
+    pub fresh_link_ok: bool,
+    /// The form the download is the answer to, where the browser sent one
+    /// (its body, kept in memory with the row only).
+    pub post: Option<crate::cookies::Posted>,
 }
 
 /// Named queues that start on their own each day: each with its minute of
@@ -309,6 +381,8 @@ struct Slot {
     /// there may be (0 for no end), and what failed, until bytes arrive
     /// again. Not saved: it is about this run.
     retrying: Option<(u32, u32, String, std::time::Instant)>,
+    /// A running torrent's swarm at its last sample; none once it stops.
+    swarm: Option<crate::torrent::Swarm>,
     /// This row's own speed limit (`Entry::speed_limit`), chained to the
     /// shared one while it runs, so a change reaches it at once.
     own_limit: crate::limit::Limiter,
@@ -361,7 +435,10 @@ impl Slot {
         self.entry_mut().finished_at = None;
         self.entry_mut().paused_by_schedule = false;
         self.entry_mut().stalled.clear();
+        self.entry_mut().fresh_link = false;
         self.outside_schedule = false;
+        // About the run this one replaces.
+        self.retrying = None;
     }
 }
 
@@ -405,6 +482,8 @@ struct Inner {
     /// before the queue starts serving anything. Spawning that as a task
     /// raced the scheduler, and a scheduled queue would run at launch.
     schedule: std::sync::Mutex<Schedule>,
+    /// A schedule of its own for a named queue; a queue with none follows `schedule`.
+    queue_schedules: std::sync::Mutex<std::collections::BTreeMap<String, Schedule>>,
     /// How much may be downloaded per period, and how much has been.
     quota: std::sync::Mutex<crate::quota::Meter>,
     /// When the download limit's use was last written beside the queue.
@@ -476,6 +555,7 @@ pub fn accepted(url: &str) -> bool {
 }
 
 impl Queue {
+    /// A queue that downloads with `client` and `options`, `concurrency` files at a time.
     pub fn new(client: reqwest::Client, options: Options, concurrency: usize) -> Self {
         Queue {
             inner: Arc::new(Inner {
@@ -497,6 +577,7 @@ impl Queue {
                 concurrency: AtomicUsize::new(concurrency.max(1)),
                 queue_limits: std::sync::Mutex::new(HashMap::new()),
                 schedule: std::sync::Mutex::new(Schedule::default()),
+                queue_schedules: std::sync::Mutex::new(Default::default()),
                 quota: std::sync::Mutex::new(crate::quota::Meter::default()),
                 quota_saved: std::sync::Mutex::new(None),
                 recheck: std::sync::Mutex::new((None, now_millis())),
@@ -602,6 +683,7 @@ impl Queue {
                 queue: String::new(),
                 save_dir: None,
                 save_name: None,
+                accept_page: false,
                 validator: None,
                 quality: None,
                 sound: None,
@@ -614,14 +696,21 @@ impl Queue {
                 began_in: String::new(),
                 cookies: String::new(),
                 cookies_once: false,
+                headers: Vec::new(),
                 replaces: None,
                 speed_limit: 0,
                 stalled: String::new(),
+                fresh_link: false,
+                title_hint: None,
+                torrent_files: Vec::new(),
+                post: None,
+                posted: false,
             }),
             control: Control::new(),
             task: None,
             outside_schedule: false,
             retrying: None,
+            swarm: None,
             own_limit: crate::limit::Limiter::unlimited(),
         };
 
@@ -797,7 +886,7 @@ pub fn differs(row: &Entry, now: &crate::Probe) -> bool {
 /// What an earlier run left under `dir` that the download limit counted
 /// then: the bytes of its part files; none for a folder that is empty or
 /// missing; and `None` for one holding only another route's files (a
-/// torrent's pieces, yt-dlp's `.part`), whose own first report says how
+/// torrent's pieces), whose own first report says how
 /// much of them there is.
 async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
     let Ok(mut listing) = tokio::fs::read_dir(dir).await else {

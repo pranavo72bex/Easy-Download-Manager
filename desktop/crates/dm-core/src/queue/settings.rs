@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 impl Queue {
@@ -12,13 +17,6 @@ impl Queue {
         self.inner.concurrency.load(Ordering::Relaxed)
     }
 
-    /// Changes how many may run at once.
-    ///
-    /// Lowering it does not stop anything already running — a setting that
-    /// killed transfers to obey itself would lose bytes to a preference.
-    /// The excess drains as those finish.
-    /// How many files each named queue runs at once, where fewer than the
-    /// whole queue's limit; unnamed queues run up to that limit.
     /// Named queues to start on their own each day, at a minute past local
     /// midnight. Which already started today is kept across a change.
     pub fn set_queue_starts(&self, starts: Vec<(String, u32)>) {
@@ -47,6 +45,8 @@ impl Queue {
         due
     }
 
+    /// Sets how many downloads each named queue may run at once, where fewer
+    /// than the whole queue's limit; unnamed queues run up to that limit.
     pub fn set_queue_limits(&self, limits: HashMap<String, usize>) {
         *crate::lock(&self.inner.queue_limits) = limits
             .into_iter()
@@ -55,10 +55,17 @@ impl Queue {
             .collect();
     }
 
+    /// How many downloads each named queue may run at once.
+    #[must_use]
     pub fn queue_limits(&self) -> HashMap<String, usize> {
         crate::lock(&self.inner.queue_limits).clone()
     }
 
+    /// Sets how many downloads may run at once.
+    ///
+    /// Lowering it does not stop anything already running — a setting that
+    /// killed transfers to obey itself would lose bytes to a preference.
+    /// The excess drains as those finish.
     pub fn set_concurrency(&self, limit: usize) {
         self.inner
             .concurrency
@@ -98,6 +105,8 @@ impl Queue {
         limiter.set_rate(bytes_per_second).await;
     }
 
+    /// The schedule now in force.
+    #[must_use]
     pub fn schedule(&self) -> Schedule {
         crate::lock(&self.inner.schedule).clone()
     }
@@ -111,6 +120,26 @@ impl Queue {
         crate::lock(&self.inner.schedule).open()
     }
 
+    /// Whether the window is open for a row of `queue`: that queue's own schedule if it has
+    /// one, else the one for every queue.
+    pub(super) fn window_open_for(&self, queue: &str) -> bool {
+        match crate::lock(&self.inner.queue_schedules).get(queue) {
+            Some(own) => own.open(),
+            None => self.window_open(),
+        }
+    }
+
+    /// Whether any named queue has a schedule of its own.
+    pub(super) fn has_queue_schedules(&self) -> bool {
+        !crate::lock(&self.inner.queue_schedules).is_empty()
+    }
+
+    /// Puts in place the schedules of named queues (key: the queue's name). Replaces the set.
+    pub fn set_queue_schedules(&self, schedules: std::collections::BTreeMap<String, Schedule>) {
+        *crate::lock(&self.inner.queue_schedules) = schedules;
+    }
+
+    /// Sets the schedule.
     pub fn set_schedule(&self, schedule: Schedule) {
         *crate::lock(&self.inner.schedule) = schedule;
     }

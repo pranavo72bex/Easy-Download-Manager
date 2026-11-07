@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     if app.dialogs.file_info.is_none() {
@@ -17,6 +22,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let focus = app.dialogs.take_focus("Download details");
+    begin_early(app);
     let queues = app.queues();
     let Some(d) = app.dialogs.file_info.as_mut() else {
         return;
@@ -67,15 +73,15 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         // showed as the download's.
         if (url.starts_with("http://") || url.starts_with("https://")) && !dm_core::is_torrent(&url)
         {
-            let client = dm_core::proxy::client_with(&app.backend.settings().proxy)
+            let client = dm_core::client_with(&app.backend.settings().proxy)
                 .unwrap_or_else(|_| dm_core::client());
-            let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
+            let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
             let referrer = d.referrer.clone();
             let ctx = ctx.clone();
             app.backend.runtime.spawn(async move {
                 let asked = tokio::time::timeout(
                     std::time::Duration::from_secs(20),
-                    dm_core::probe::probe(
+                    dm_core::probe(
                         &client,
                         &url,
                         Some(&referrer)
@@ -94,9 +100,9 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             name: Some(name),
                             ..Probed::default()
                         }
-                    } else if dm_core::ytdlp::is_page(kind) {
+                    } else if dm_core::videopage::is_page(kind) {
                         Probed {
-                            page: !dm_core::download::names_a_document(&url),
+                            page: !dm_core::names_a_document(&url),
                             ..Probed::default()
                         }
                     } else {
@@ -119,7 +125,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             status: 403 | 429,
                             ..
                         }
-                    ) && !dm_core::download::names_a_document(&url);
+                    ) && !dm_core::names_a_document(&url);
                     *dm_core::lock(&slot) = Some(if refused_page {
                         Probed {
                             page: true,
@@ -147,29 +153,50 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let remux = app.applied.remux_ts;
     if let Some(name) = &server_name {
         if !d.name_typed && d.name.is_empty() {
-            d.name = name.clone();
+            d.name.clone_from(name);
         }
     }
-    // A video page's qualities, each with its size, read once as the
-    // dialog opens: a YouTube watch page's from its own data (under a
-    // second), any other's from yt-dlp's reading of it.
+    // A YouTube video's qualities, each with its size, read once as the
+    // dialog opens from its own data (under a second).
     let first = d.urls.first().cloned().unwrap_or_default();
     let youtube = d.urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
     let video = d.urls.len() == 1 && (page || youtube);
+    // A ZIP's files, read once from the end of the archive as the dialog
+    // opens, and listed below, so a person sees what the download holds
+    // before it is fetched (`zip_list`).
+    if d.urls.len() == 1
+        && !page
+        && zip_list::is_zip_address(&first)
+        && (first.starts_with("http://") || first.starts_with("https://"))
+    {
+        let client = dm_core::client_with(&app.backend.settings().proxy)
+            .unwrap_or_else(|_| dm_core::client());
+        let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
+        let sign_in = dm_core::cookies::SignIn::with_headers(&first, &d.cookies, &d.headers);
+        zip_list::read_address(
+            &app.backend.runtime,
+            ctx,
+            &mut d.zip,
+            client,
+            first.clone(),
+            referrer,
+            sign_in,
+        );
+    }
     if video && d.choices.is_none() {
-        let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::ytdlp::Choice>>>> =
+        let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::videopage::Choice>>>> =
             Default::default();
         d.choices = Some(slot.clone());
-        let url = first.clone();
+        let url = first;
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
         let proxy = app.backend.settings().proxy.url_for_tools();
-        let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
+        let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
         let ctx = ctx.clone();
         let found = d.playlist.clone();
         app.backend.runtime.spawn(async move {
             let listed = tokio::time::timeout(
                 std::time::Duration::from_secs(40),
-                dm_core::ytdlp::list_choices(
+                dm_core::videopage::list_choices(
                     &url,
                     referrer.as_deref(),
                     proxy.as_deref(),
@@ -184,7 +211,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             // No qualities from another site's page: perhaps it lists
             // several videos (a channel, a showcase, an album).
             if listed.is_empty() && !youtube {
-                let read = dm_core::ytdlp::read_playlist(
+                let read = dm_core::videopage::read_playlist(
                     &url,
                     referrer.as_deref(),
                     proxy.as_deref(),
@@ -204,12 +231,12 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             ctx.request_repaint();
         });
     }
-    let choices: Option<Vec<dm_core::ytdlp::Choice>> = d
+    let choices: Option<Vec<dm_core::videopage::Choice>> = d
         .choices
         .as_ref()
         .and_then(|slot| slot.lock().ok()?.clone());
     // The quality the setting would choose, shown as picked until one is.
-    let setting = dm_core::stream::Quality::named(&app.applied.stream_quality);
+    let setting = dm_core::Quality::named(&app.applied.stream_quality);
     // The folder this kind of file went to last time, where it still is.
     if !d.folder_offered && d.urls.len() == 1 && !d.name.trim().is_empty() {
         d.folder_offered = true;
@@ -242,8 +269,8 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             } else {
                 let mut categories = app.applied.categories();
                 if categories.enabled {
-                    categories.site = dm_core::category::host_of(url);
-                    let kind = dm_core::category::by_name(name).unwrap_or(dm_core::Category::Other);
+                    categories.site = dm_core::host_of(url);
+                    let kind = dm_core::by_name(name).unwrap_or(dm_core::Category::Other);
                     categories.place(&app.applied.download_dir, kind, name)
                 } else {
                     app.applied.download_dir.clone()
@@ -256,7 +283,9 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 .rows
                 .iter()
                 .filter(|r| {
-                    !r.state.settled()
+                    // The row begun at once for this very dialog is this file.
+                    Some(r.id) != d.early
+                        && !r.state.settled()
                         && r.path.is_empty()
                         && name_of(r) == name
                         && r.save_dir
@@ -264,11 +293,11 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             .is_none_or(|s| s.trim().is_empty() || std::path::Path::new(s) == dir)
                 })
                 .count();
-            let free = dm_core::download::nth_free_name(&dir, name, waiting);
+            let free = dm_core::nth_free_name(&dir, name, waiting);
             let taken = dir.join(name);
             if free == name {
                 None
-            } else if dm_core::download::free_name(&dir, name) == name {
+            } else if dm_core::free_name(&dir, name) == name {
                 // Free on disk: it is the list that has the name.
                 Some(Clash::Listed)
             } else if waiting == 0 && taken.is_file() {
@@ -324,7 +353,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             }
                             for (label, path) in &places {
                                 if option(ui, d.folder.trim() == path, label).clicked() {
-                                    d.folder = path.clone();
+                                    d.folder.clone_from(path);
                                 }
                             }
                         })
@@ -422,10 +451,25 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         }
                         ui.end_row();
                     }
+                    // A ZIP's files, by name and size: text only, never opened.
+                    // Nothing where the server or the file gave none.
+                    match zip_list::listing(&d.zip) {
+                        zip_list::Listing::Nothing => {}
+                        zip_list::Listing::Reading => {
+                            ui.label(t("Contents"));
+                            ui.label(RichText::new(zip_list::reading_words()).weak());
+                            ui.end_row();
+                        }
+                        zip_list::Listing::Files(files, more) => {
+                            ui.label(t("Contents"));
+                            ui.vertical(|ui| zip_list::show(ui, &files, more));
+                            ui.end_row();
+                        }
+                    }
                     // A part of the video, from one moment to another: cut
                     // from the streams dm fetches itself, which today are a
                     // YouTube video's.
-                    if youtube {
+                    if youtube || d.handed || d.part {
                         ui.label(t("Part"));
                         let starts = dm_core::youtube::start_of(&first);
                         ui.horizontal(|ui| {
@@ -476,8 +520,12 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             });
                             ui.end_row();
                             // As a GIF: moving pictures with no sound,
-                            // decoded by the system (macOS so far).
-                            if dm_core::gif::possible() {
+                            // decoded by the system (macOS, Windows) or, on
+                            // Linux, by dm from a YouTube video's AV1 stream.
+                            if d.urls
+                                .first()
+                                .is_some_and(|u| dm_core::gif::possible_for(u))
+                            {
                                 ui.label(t("Part as"));
                                 ui.horizontal(|ui| {
                                     if ui.selectable_label(!d.gif, t("Video")).clicked() {
@@ -617,7 +665,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 combo("details-queue")
                     .selected_text(crate::i18n::name(&d.queue))
                     .show_ui(ui, |ui| {
-                        for q in &queues {
+                        for q in queues.iter() {
                             pick(ui, &mut d.queue, q.clone(), crate::i18n::name(q));
                         }
                     })
@@ -633,9 +681,17 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             .as_ref()
             .filter(|d| d.handed)
             .and_then(|d| d.urls.first())
-            .map(|url| dm_core::category::host_of(url))
+            .map(|url| dm_core::host_of(url))
             .filter(|host| !host.is_empty());
+        let early = app.dialogs.file_info.as_ref().and_then(|d| d.early);
         app.dialogs.file_info = None;
+        // What was fetched while it asked goes with it.
+        if let Some(id) = early {
+            let queue = app.backend.queue.clone();
+            app.backend
+                .runtime
+                .spawn(async move { queue.remove(id).await });
+        }
         if let Some(site) = site {
             app.hand_off_cancelled(&site);
         }
@@ -664,6 +720,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         } else {
             String::new()
         },
+        title_hint: None,
         save_dir: Some(d.folder.trim().to_string()).filter(|f| !f.is_empty()),
         // The server's own name, untouched, is what dm names the file
         // anyway: left for it to place as it always does.
@@ -682,8 +739,14 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         delete_after: d.delete_after,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
+        headers: d.headers.clone(),
+        // The form for the first address alone, which is the one it was sent to.
+        post: d.post.clone(),
         checksum: None,
         speed_limit: 0,
+        // Added from Download details, by a person: not a hand-over that
+        // may take a waiting row's place.
+        fresh_link_ok: false,
         replaces: match &clash {
             Some(Clash::OnDisk { taken, .. }) if d.replace => {
                 Some(taken.to_string_lossy().into_owned())
@@ -699,7 +762,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let kind = kind_key(d.name.trim());
         let folder = Some(d.folder.trim().to_string()).filter(|f| !f.is_empty());
         if app.applied.last_folders.get(kind) != folder.as_ref() {
-            match app.backend.remember_folder(kind, folder) {
+            match app.backend.remember_folder(kind, folder.as_deref()) {
                 Ok(now) => app.applied.last_folders = now.last_folders,
                 Err(e) => app.said = e.into(),
             }
@@ -723,7 +786,30 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         .into_iter()
         .collect();
     let handed = d.handed;
-    match app.add_sized(&urls, with, &sizes) {
+    // Begun while it asked: placed where it was asked to go, not added again.
+    if let Some(id) = d.early {
+        let dir = with.save_dir.clone().map(std::path::PathBuf::from);
+        let placed = app.backend.settle_early(
+            id,
+            dir,
+            with.save_name.clone(),
+            &with.description,
+            &with.queue,
+            later,
+        );
+        app.dialogs.file_info = None;
+        if let Err(e) = placed {
+            app.said = e.into();
+        }
+        if handed {
+            for url in &urls {
+                app.taken_from_browser(url);
+            }
+        }
+        app.refresh();
+        return;
+    }
+    match app.add_sized(&urls, &with, &sizes) {
         Ok(_) => {
             app.dialogs.file_info = None;
             if handed {
@@ -750,15 +836,59 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// Starts the dialog's one file at once, where Options asks for that (reference A's "start
+/// downloading while the dialog is open"; gaps row 85): a plain file, not a video page, a
+/// torrent, a form's answer or several addresses, which wait for the person as before.
+fn begin_early(app: &mut DmApp) {
+    if !app.applied.start_while_asking {
+        return;
+    }
+    let Some(d) = app.dialogs.file_info.as_mut() else {
+        return;
+    };
+    if d.early_tried {
+        return;
+    }
+    d.early_tried = true;
+    let [url] = d.urls.as_slice() else {
+        return;
+    };
+    let plain = (url.starts_with("https://") || url.starts_with("http://"))
+        && !dm_core::is_torrent(url)
+        && d.choices.is_none()
+        && d.quality.is_none()
+        && d.post.is_none();
+    if !plain {
+        return;
+    }
+    let with = AddOptions {
+        referrer: d.referrer.clone(),
+        cookies: d.cookies.clone(),
+        cookies_once: d.cookies_once,
+        headers: d.headers.clone(),
+        ..AddOptions::default()
+    };
+    let url = url.clone();
+    match app.backend.add_with(&url, with) {
+        Ok(id) => {
+            if let Some(d) = app.dialogs.file_info.as_mut() {
+                d.early = Some(id);
+            }
+            app.refresh();
+        }
+        Err(e) => app.said = e.into(),
+    }
+}
+
 /// The choice the quality setting would take from a page's list (tallest
 /// first, the sound alone last): the tallest at or under the height asked,
 /// the first for "best", the sound for "audio"; `None` for an empty list.
 fn default_choice(
-    list: &[dm_core::ytdlp::Choice],
-    setting: dm_core::stream::Quality,
+    list: &[dm_core::videopage::Choice],
+    setting: dm_core::Quality,
 ) -> Option<String> {
-    use dm_core::stream::Quality;
-    let height = |choice: &dm_core::ytdlp::Choice| {
+    use dm_core::Quality;
+    let height = |choice: &dm_core::videopage::Choice| {
         choice
             .quality
             .split('/')
@@ -778,7 +908,7 @@ fn default_choice(
 
 /// A quality's chip: its height and container over its size ("1080p MP4"
 /// over "275.0 MB"), the sound alone said so.
-fn chip_words(choice: &dm_core::ytdlp::Choice) -> String {
+fn chip_words(choice: &dm_core::videopage::Choice) -> String {
     let (head, ext) = choice
         .quality
         .split_once('/')
@@ -789,7 +919,7 @@ fn chip_words(choice: &dm_core::ytdlp::Choice) -> String {
         // By its class, as the panel's list says it: "4K MP4", "1080p MP4".
         format!(
             "{} {}",
-            dm_core::ytdlp::class_name(0, side),
+            dm_core::videopage::class_name(0, side),
             ext.to_ascii_uppercase()
         )
     } else {

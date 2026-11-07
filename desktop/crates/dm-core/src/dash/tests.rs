@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 use super::*;
 
 const URL: &str = "https://cdn.example/v/show/manifest.mpd";
@@ -135,7 +140,8 @@ fn a_single_file_with_an_index_is_fetched_whole() {
         vec![Piece {
             url: "https://other.example/v.mp4".into(),
             range: None,
-            lock: None
+            lock: None,
+            millis: 0
         }]
     );
 }
@@ -222,4 +228,38 @@ fn a_portrait_manifest_is_picked_by_the_shorter_side() {
     assert_eq!(p(Quality::UpTo(720)), "v720");
     assert_eq!(p(Quality::UpTo(1080)), "v1080");
     assert_eq!(p(Quality::UpTo(480)), "v360");
+}
+
+#[test]
+fn a_part_of_a_templated_track_keeps_its_first_boxes_and_the_pieces_that_overlap() {
+    // 4-second pieces: 5s..9s lies in the second (4..8s) and third (8..12s).
+    let track = plan(&mpd(TEMPLATED), URL, Quality::UpTo(360), None)
+        .unwrap()
+        .video
+        .unwrap();
+    assert!(track.pieces.iter().skip(1).all(|p| p.millis == 4000));
+    let (cut, starts, ends) = super::cut(&track, 5.0, 9.0).unwrap();
+    assert_eq!(cut.pieces.len(), 3);
+    assert_eq!(cut.pieces[0].millis, 0);
+    assert!(cut.pieces[0].url.ends_with("init.mp4"));
+    assert_eq!((starts, ends), (4.0, 12.0));
+    assert!(super::cut(&track, 500.0, 600.0).is_none());
+}
+
+#[test]
+fn a_one_file_track_is_marked_to_be_cut_by_its_own_index() {
+    let body = r#"<Period><AdaptationSet mimeType="video/mp4"><Representation id="v" bandwidth="1" height="240">
+      <BaseURL>https://other.example/v.mp4</BaseURL><SegmentBase indexRange="800-1200"><Initialization range="0-799"/></SegmentBase>
+      </Representation></AdaptationSet></Period>"#;
+    let track = plan(&mpd(body), URL, Quality::Best, None)
+        .unwrap()
+        .video
+        .unwrap();
+    assert_eq!(
+        track.indexed,
+        Some(Indexed {
+            init: Some((0, 799)),
+            index: Some((800, 1200))
+        })
+    );
 }

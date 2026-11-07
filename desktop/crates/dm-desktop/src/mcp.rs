@@ -1,3 +1,8 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
 //! A Model Context Protocol server, so an AI client can use dm as tools.
 //!
 //! ```text
@@ -301,7 +306,7 @@ impl Control {
             .map_err(|e| e.to_string())?;
         let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         self.link = Some((stream, replies));
-        if let Err(why) = self.exchange("auth", json!({ "token": token, "client": self.client })) {
+        if let Err(why) = self.exchange("auth", &json!({ "token": token, "client": self.client })) {
             self.link = None;
             return Err(why);
         }
@@ -329,11 +334,12 @@ impl Control {
         stream.set_nonblocking(false).is_ok() && open
     }
 
+    /// Sends one request to the running window and returns its answer, reconnecting first if the window was restarted.
     pub fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
         if !self.alive() {
             self.reconnect()?;
         }
-        let answer = self.exchange(method, params);
+        let answer = self.exchange(method, &params);
         // A click, a typed word or a key is done a frame at a time: what
         // is drawn next is read after it has been.
         if answer.is_ok() && matches!(method, "ui.click" | "ui.type" | "ui.key") {
@@ -346,7 +352,7 @@ impl Control {
         answer
     }
 
-    fn exchange(&mut self, method: &str, params: Value) -> Result<Value, String> {
+    fn exchange(&mut self, method: &str, params: &Value) -> Result<Value, String> {
         let Some((out, replies)) = &mut self.link else {
             return Err("dm closed the connection".into());
         };
