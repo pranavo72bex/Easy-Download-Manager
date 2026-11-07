@@ -9,7 +9,7 @@
 resolver = "2"
 members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop", "xtask"]
 # A patched copy, used through [patch.crates-io], not a member.
-exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit"]
+exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/eframe"]
 
 [profile.release]
 opt-level = "z"
@@ -47,4 +47,5 @@ opt-level = 3
 [patch.crates-io]
 winit = { path = "vendor/winit" }
 egui-winit = { path = "vendor/egui-winit" }
+eframe = { path = "vendor/eframe" }
 librqbit = { path = "vendor/librqbit" }

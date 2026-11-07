@@ -331,7 +331,7 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Every registry command runs, with rows in every state | PASS | `every_command_runs_against_rows_in_every_state` |
 | Control protocol: token, commands, inspect, screenshot | PASS | `the_control_protocol_runs_commands_and_reads_the_window_back`; `app-check.py` against the real binary, including a PNG of the running window |
 | Clipboard watcher | PASS | `the_clipboard_watcher_offers_only_new_links_and_only_when_on` |
-| Every control has a name a screen reader says | PARTIAL | `every_control_has_a_name_a_screen_reader_can_say` (egui's own tree); the main window's controls reach the system's accessibility bus, a dialog's own window's do not (gaps row 160) |
+| Every control has a name a screen reader says | PARTIAL | `every_control_has_a_name_a_screen_reader_can_say` (egui's own tree); on Linux AT-SPI reaches the main window's and each dialog's controls (`linux-gui-check.sh`, 2026-11-08); on Windows dialogs not yet (gaps row 160) |
 | 500 rows | PASS | `five_hundred_rows_draw_inside_a_frame_budget` |
 | Lock, second launch, browser hand-off, HLS, proxy, speed limit, schedule | PASS | `scripts/app-check.py` on macOS and Linux |
 | `--hidden` opens no window | PASS | counted under Xvfb in `linux-check.sh`; no window is made until one is asked for, so none flashes (`app-check.py`, `linux-gui-check.sh`) |

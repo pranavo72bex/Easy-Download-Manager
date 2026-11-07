@@ -194,6 +194,10 @@ def where(role, name, contains=False):
         first = dialog_point(ORACLE, name, contains)
         if first:
             return first
+    # With a dialog open, what it has not drawn is scrolled out of its view: AT-SPI, which
+    # reaches dialogs too (row 160), would place it outside the dialog's window.
+    if dialog_texts(ORACLE)[1]:
+        return None
     out = x(sys.executable, "-c", WHERE, role, name, "1" if contains else "0").stdout.strip().splitlines()
     at = json.loads(out[-1]).get("at") if out else None
     # A control in one of dm's dialogs, each a window of its own that AT-SPI does not reach
@@ -289,6 +293,13 @@ def scrolled_to(words, contains=False, field=False):
             return at
         scroll_dialog(notches)
     return None
+
+
+def atspi_where(role, name, contains=False):
+    """Where AT-SPI alone (what a screen reader reads) says the control is, with none of
+    `where`'s help from dm's own account."""
+    out = x(sys.executable, "-c", WHERE, role, name, "1" if contains else "0").stdout.strip().splitlines()
+    return json.loads(out[-1]).get("at") if out else None
 
 
 def click(role, name, seconds=10, contains=False):
@@ -545,7 +556,8 @@ def field_at(name):
 def click_field(name):
     """Clicks into the field labelled `name` and selects what it holds."""
     # In a dialog's own window (see `where`): aimed at from its label, as dm drew it.
-    at = wait_for(lambda: dialog_field_point(ORACLE, name) or field_at(name), 10) \
+    at = wait_for(lambda: dialog_field_point(ORACLE, name)
+                  or (None if dialog_texts(ORACLE)[1] else field_at(name)), 10) \
         or scrolled_to(name, field=True)
     if not at:
         return False
@@ -905,6 +917,11 @@ def human_session(home, env, app):
         url = files.url("by-hand.bin")
         check("the Add URL button, clicked, opens New download",
               click("push button", "Add URL") and click_field("Address"))
+        # Read as a screen reader reads it (Orca reads AT-SPI): the dialog is a window of its
+        # own, given its own AccessKit adapter by dm's eframe (gaps row 160), so its buttons are
+        # there, not only the main window's.
+        check("a screen reader finds the dialog's own buttons (OK and Cancel)",
+              bool(wait_for(lambda: atspi_where("push button", "OK") and atspi_where("push button", "Cancel"), 10)))
         type_text(url)
         check("its OK, clicked after typing the address, opens Download details",
               click("push button", "OK") and wait_for(lambda: where("push button", "Start now"), 10))
