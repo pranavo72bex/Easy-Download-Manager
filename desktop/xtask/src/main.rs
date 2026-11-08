@@ -256,7 +256,9 @@ struct Crate {
 
 fn manifest(path: &Path) -> Result<Crate, String> {
     let text = read(path)?;
-    let value: toml::Value = text
+    // A whole document is a table: since toml 1.0, parsing text as a `Value` reads a single
+    // value, and a manifest is refused at its first line.
+    let value: toml::Table = text
         .parse()
         .map_err(|e| format!("{}: {e}", path.display()))?;
     let name = value
