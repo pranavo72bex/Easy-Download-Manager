@@ -4592,3 +4592,24 @@ cookies altogether: what it sent is the answer). The plain panel's shadow root s
 panel's does: closing it would have ended the site checks, which read the lines inside both
 (`sites-check.py` `LITE_STATE`); a page could still restyle a button inside it, which `asDrawn`,
 looking at the holder, does not see.
+
+## 2026-11-08: Headless keeps its window-free DmApp; the application's work is the Session's (architecture step 13)
+
+Step 13 of the architecture audit asked whether `--headless` should loop on the
+application alone, with no window toolkit. Its answers to `command.run` (the
+window's `Command`s: dm's every menu item) and to `ui.*` come from `DmApp`, the
+window's state, ticked against a stand-in `egui::Context` that is never drawn.
+Chosen (option (a) of the audit, the maintainer's word of 2026-11-08 that the
+existing behaviour must not break): headless keeps that `DmApp`, and everything
+it does that is not the window's moved into `dm_shell::app` instead. That covers
+the read and what follows it, the schedules' tick, When done and its countdown,
+the hand-offs (`handoff::Hands`), and who may use the control port
+(`control_api::refused`, `person_only`, `batch`, `answer`). So headless and the
+window follow one path, and a GPUI front end drives the same `Session`
+(`session.rs` `no_window_tests` drives a download to When done with no window).
+Ruled out: a headless loop on `Session` alone. It would have answered
+`command.run` and `ui.*` differently (no commands, "there is no window"), a
+change to what scripts and AI clients get. The audit counted it about 30
+lines, but that was before `command.run` was counted. `Command` moving out of
+the window crate is left for when GPUI needs it.
+

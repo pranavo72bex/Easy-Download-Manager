@@ -453,3 +453,84 @@ mod when_done_tests {
         assert!(!file.exists(), "dropped");
     }
 }
+
+/// The application layer driven by a presentation with no window at all, as
+/// a future front end would: a hand-off added, the queue read until it runs
+/// dry, When done counted down and carried out, and the control port's
+/// answer, with nothing from any window toolkit.
+#[cfg(test)]
+mod no_window_tests {
+    use super::*;
+    use crate::app::handoff::{Asking, Route};
+
+    #[test]
+    fn a_presentation_with_no_window_drives_a_download_to_when_done() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        let addr = runtime.block_on(async {
+            let app = axum::Router::new().fallback(|| async { "eleven byte" });
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            addr
+        });
+        let settings = backend.settings();
+        let mut session = Session {
+            when_done: WhenDone::Sleep,
+            ..Session::default()
+        };
+        // Each read is followed by one look for the queue running dry, the
+        // first included.
+        let first = session.read(&backend, &settings);
+        assert!(!session.ran_dry(&first.snapshot.rows));
+
+        dm_core::lock(&backend.handed).push_back(crate::host::Request {
+            url: format!("http://{addr}/file.bin"),
+            ..Default::default()
+        });
+        let Route::Added(Ok(id)) =
+            session
+                .hands
+                .next(&backend, &settings, &[], Asking::Nobody, Instant::now())
+        else {
+            panic!("not added");
+        };
+
+        let mut finished = false;
+        let mut fired = None;
+        let until = Instant::now() + Duration::from_secs(20);
+        while fired.is_none() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(50));
+            let read = session.read(&backend, &settings);
+            finished |= read.detected.finished.contains(&id);
+            if session.ran_dry(&read.snapshot.rows) {
+                fired = Some(session.when_done_fires(true, Instant::now()));
+            }
+        }
+        assert!(finished, "the download was not seen to finish");
+        assert_eq!(
+            fired,
+            Some(Fired::Counting),
+            "a sleep waits out its countdown"
+        );
+        assert_eq!(session.when_done, WhenDone::Nothing, "taken once");
+        let due = Instant::now() + Duration::from_secs(super::super::power::COUNTDOWN_SECS);
+        assert_eq!(
+            session.countdown_due(&backend, due),
+            Some(Ok(Carried::Asked))
+        );
+
+        let rows = backend.snapshot().rows;
+        let listed = crate::app::control_api::answer(
+            &backend,
+            &rows,
+            "queue.list",
+            &serde_json::Value::Null,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(listed[0]["id"], serde_json::json!(id));
+        assert_eq!(listed[0]["state"], serde_json::json!({"kind": "completed"}));
+    }
+}

@@ -45,17 +45,29 @@ implements `dm_shell::app::platform::Platform`, subscribes to
 | Layer | In place | Still in the window crate (to move) |
 |---|---|---|
 | Domain and engine | All of dm-core: no GUI types (enforced) | — |
-| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired), `backend` (Backend: the queue, the settings in force, every verb on rows), `control_api` (queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector: finished, failed, expired, started elsewhere, added again), `schedule` (the schedule's window, work left, rows each schedule looks after); dm-shell's settings, host, inbox | The per-tick work of `DmApp::logic` (countdown, delete-after, saved searches, watched folder, clipboard, hand-off routing), the reactions to `Detected` (worded by the window), settings coordination (`DmApp::apply_settings`), and headless mode, which still runs `DmApp::logic` with a dummy `egui::Context` |
+| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); dm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, and the egui-only control methods (`ui.*`, `command.run`, which runs the window's `Command`s) |
 | Presentation | dm-desktop | — |
 
-Steps 1 to 10 of [audit.md](audit.md) section 7 are done, each held to
-`cargo test --workspace` and the whole behaviour contract. Left, after
-`parity-with-reference-a` ships: step 11 (the per-tick work into an
-application `Session` that reports what to say or open, each presentation
-wording it), step 12 (settings coordination) and step 13 (headless with no
-window toolkit). Step 13 waits on one decision: whether a headless
-`command.run` keeps working through a window-free command executor
-(recommended) or is dropped.
+Steps 1 to 13 of [audit.md](audit.md) section 7 are done, each held to
+`cargo test --workspace` and the whole behaviour contract. A presentation
+drives the application in this order each tick (the egui window does it in
+`DmApp::refresh` and `DmApp::logic`; `session.rs`'s `no_window_tests` does it
+with no window at all):
+
+1. `changes::take`, then `Session::read` (rows, what happened, the command run
+   on each finished file), then `Session::ran_dry` once for that read;
+   `Session::when_done_fires` when it ran dry.
+2. `Session::schedule_tick` after the read.
+3. `Hands::next` (on `session.hands`) for each download handed over.
+4. `Session::countdown_due`, `session::delete_due`, `Session::look_at_watched`.
+5. Control requests: `control_api::refused`, then `control_api::answer`
+   (and `batch`), with the presentation answering what is its own.
+
+Headless (`--headless`) still runs `DmApp::logic` against a stand-in
+`egui::Context` (decided 2026-11-08, [decisions.md](../decisions.md)): its
+`command.run` and `ui.*` answers stay exactly as they are, and every rule it
+follows is the application's. Left: step 14 (dm-core's seams), and moving
+`Command` out of the window crate if GPUI is to run the same commands.
 
 ## What does not change
 
