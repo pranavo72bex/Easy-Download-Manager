@@ -303,7 +303,7 @@ pub struct DmApp {
     /// The application's memory between reads (`dm_shell::app::session`):
     /// what was told (finishes, failures, rows started elsewhere, the rows the
     /// window added itself) and the watched folder's.
-    session: dm_shell::app::session::Session,
+    pub session: dm_shell::app::session::Session,
 
     /// The place in the category tree the list is filtered to.
     pub place: Place,
@@ -355,9 +355,6 @@ pub struct DmApp {
     /// The queue a Start Queue or Stop Queue drop-down chose, for the next
     /// of those commands in place of the queue the list shows.
     pub queue_chosen: Option<String>,
-    /// The shared speed limit last put in force, in bytes a second, so the
-    /// slow hours' beginning and end are each seen once.
-    pub limit_in_force: Option<u64>,
     /// Finished files a drag out of the list has asked to carry, for the
     /// window to hand to the system's drag: only it has the native handle.
     pub drag_out: Vec<std::path::PathBuf>,
@@ -413,10 +410,6 @@ pub struct DmApp {
     fonts_ready: bool,
     /// What to do when the queue runs dry, for this session only.
     pub when_done: crate::power::WhenDone,
-    /// The schedule window as the last read of the list found it (`scheduled.rs`).
-    pub(crate) schedule_watch: scheduled::Watch,
-    /// The same for each named queue with a schedule of its own (key: its name).
-    pub(crate) queue_watches: std::collections::BTreeMap<String, scheduled::Watch>,
     /// Words typed over the list: only rows whose name, address or note
     /// holds them all are shown, in whatever place is chosen.
     pub filter: String,
@@ -591,7 +584,6 @@ impl DmApp {
             column_order: Column::ordered(&settings.column_order),
             queued: Vec::new(),
             queue_chosen: None,
-            limit_in_force: None,
             drag_out: Vec::new(),
             reordering: None,
             row_rects: HashMap::new(),
@@ -628,8 +620,6 @@ impl DmApp {
             accent_in_force: None,
             fonts_ready: false,
             when_done: Default::default(),
-            schedule_watch: Default::default(),
-            queue_watches: Default::default(),
             asks: Default::default(),
             ask_seen: Default::default(),
             asks_primed: false,

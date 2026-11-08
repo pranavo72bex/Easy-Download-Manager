@@ -16,8 +16,6 @@
 //! VPN connection hung up where the person asked (reference A's Scheduler).
 
 use super::*;
-use dm_shell::app::schedule::looked_after;
-pub(crate) use dm_shell::app::schedule::{work_left, AtEnd, Step, Watch};
 
 /// Whether a once-only date of `schedule` has been and gone, by the clock now.
 fn once_over_now(schedule: &dm_core::Schedule) -> bool {
@@ -62,108 +60,25 @@ impl DmApp {
     /// Called after every read of the list.
     pub(super) fn schedule_hooks(&mut self) {
         self.clear_spent_once_at();
-        // The slow hours' limit in, or out, as they begin or end.
-        let limit = self.applied.speed_limit_bytes_now();
-        if self.limit_in_force != Some(limit) {
-            self.backend.set_speed_limit(limit);
-            self.limit_in_force = Some(limit);
+        // Done by the application (`Session::schedule_tick`); the window says
+        // what the schedule armed and hangs up where it is asked to.
+        let tick = self.session.schedule_tick(
+            &self.backend,
+            &self.applied,
+            &self.rows,
+            self.when_done,
+            crate::power::available,
+        );
+        if let Some(wanted) = tick.armed {
+            self.said = crate::i18n::Said::new(
+                "The schedule has set what dm does when the downloads are done: {}.",
+                &[&crate::i18n::t(wanted.verb())],
+            );
         }
-        let schedule = self.applied.schedule.clone();
-        let open = schedule.enabled && schedule.open();
-        match self.schedule_watch.step(open) {
-            Step::Opened => {
-                let wanted = crate::power::WhenDone::from_word(&schedule.when_done);
-                let can = wanted == crate::power::WhenDone::Nothing
-                    || wanted == crate::power::WhenDone::Quit
-                    || crate::power::available(wanted);
-                // Only for something waiting to run, and never over a choice
-                // the person made this session in the Downloads menu.
-                if wanted != crate::power::WhenDone::Nothing
-                    && can
-                    && self.when_done == crate::power::WhenDone::Nothing
-                    && work_left(&self.rows)
-                {
-                    self.when_done = wanted;
-                    self.schedule_watch.arm(wanted);
-                    self.said = crate::i18n::Said::new(
-                        "The schedule has set what dm does when the downloads are done: {}.",
-                        &[&crate::i18n::t(wanted.verb())],
-                    );
-                }
-            }
-            Step::Closed => {
-                // Unused: put away, unless it was changed in the menu since.
-                if let Some(armed) = self.schedule_watch.disarm() {
-                    if self.when_done == armed {
-                        self.when_done = crate::power::WhenDone::Nothing;
-                    }
-                }
-            }
-            Step::Nothing => {}
-        }
-        // Fired (the choice was taken as the queue ran dry): nothing to put away.
-        if self.when_done == crate::power::WhenDone::Nothing {
-            self.schedule_watch.disarm();
-        }
-        // The rows the schedule for every queue looks after: those of a queue
-        // with no schedule of its own (all of them, unless one has).
-        let own = self.applied.queue_schedules.clone();
-        let shared = looked_after(&self.rows, &own, None);
-        let mut watch = std::mem::take(&mut self.schedule_watch);
-        self.end_of_window(&schedule, open, &shared, &mut watch);
-        self.schedule_watch = watch;
-        // Each named queue with a schedule of its own: its program at the end and
-        // its tries again, over its own rows. (What dm does when the downloads
-        // are done stays the one for every queue: it acts on the computer.)
-        let mut watches = std::mem::take(&mut self.queue_watches);
-        watches.retain(|name, _| own.contains_key(name));
-        for (name, schedule) in &own {
-            let open = schedule.enabled && schedule.open();
-            let watch = watches.entry(name.clone()).or_default();
-            watch.step(open);
-            let mine = looked_after(&self.rows, &own, Some(name));
-            self.end_of_window(schedule, open, &mine, watch);
-        }
-        self.queue_watches = watches;
-    }
-
-    /// The failed ones of `rows` tried again while the window is open, a
-    /// round each time they have run dry; and once no round is owed, the
-    /// program a person set to run when the scheduled downloads are done,
-    /// then the connection hung up where asked, once in a window after
-    /// something ran in it.
-    fn end_of_window(
-        &mut self,
-        schedule: &dm_core::Schedule,
-        open: bool,
-        rows: &[Arc<dm_core::Entry>],
-        watch: &mut Watch,
-    ) {
-        let failed: Vec<Id> = rows
-            .iter()
-            .filter(|r| matches!(r.state, State::Failed(_)))
-            .map(|r| r.id)
-            .collect();
-        match watch.at_end(open, work_left(rows), !failed.is_empty(), schedule.retries) {
-            AtEnd::Retry => {
-                for id in failed {
-                    self.backend.retry(id);
-                }
-            }
-            AtEnd::Done => {
-                let command = schedule.run_when_done.trim();
-                if !command.is_empty() {
-                    if let Err(why) = dm_shell::shell::run_program(command) {
-                        self.problems.push(why);
-                    }
-                }
-                // After the program, as reference A's Scheduler hangs up after
-                // the file it opens. Dial-up and VPN connections are Windows'.
-                if schedule.hang_up && cfg!(windows) {
-                    self.hang_up_later();
-                }
-            }
-            AtEnd::Nothing => {}
+        self.when_done = tick.when_done;
+        self.problems.extend(tick.problems);
+        if tick.hang_up && cfg!(windows) {
+            self.hang_up_later();
         }
     }
 }

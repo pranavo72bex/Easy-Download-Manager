@@ -508,7 +508,7 @@ pub(super) fn limiter(app: &mut DmApp, ctx: &egui::Context) {
             Ok(()) => {
                 open = false;
                 // Put in force at once, by the hours as they are now.
-                app.limit_in_force = None;
+                app.session.forget_limit();
             }
             Err(e) => {
                 if let Some((_, says, _, _, _)) = app.dialogs.limiter.as_mut() {

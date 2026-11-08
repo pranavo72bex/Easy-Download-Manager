@@ -8,13 +8,15 @@
 //! other timers), done by the application and reported, so each presentation
 //! only reacts (forgets a row's dialogs, says what could not be done).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use dm_core::{Entry, Id, State};
 
 use super::backend::Backend;
 use super::detect::{Detected, Detector, DryWatch};
+use super::power::WhenDone;
+use super::schedule::{looked_after, work_left, AtEnd, Step, Watch};
 use super::snapshot::Snapshot;
 use super::watch::Watched;
 use crate::Settings;
@@ -28,6 +30,28 @@ pub struct Session {
     detector: Detector,
     dry: DryWatch,
     watched: Watched,
+    /// The speed limit last put in force (bytes a second; `None` before the
+    /// first tick, or once a presentation asks for it to be put in again).
+    limit_in_force: Option<u64>,
+    /// The schedule for every queue: its window, its rounds, what it armed.
+    schedule_watch: Watch,
+    /// Each named queue with a schedule of its own.
+    queue_watches: BTreeMap<String, Watch>,
+}
+
+/// What a tick of the schedules came to, for the presentation to act on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScheduleTick {
+    /// When done as it now stands (the schedule may have armed or put away
+    /// its choice).
+    pub when_done: WhenDone,
+    /// The schedule's choice, armed in this tick: to be said.
+    pub armed: Option<WhenDone>,
+    /// The scheduled downloads are over and a schedule asks the dial-up
+    /// connection to be hung up (Windows).
+    pub hang_up: bool,
+    /// Problems met (a program to run at the end that could not start).
+    pub problems: Vec<String>,
 }
 
 /// One read of the queue: what to draw from, what happened since the last
@@ -87,6 +111,102 @@ impl Session {
     /// Call once per read, after it.
     pub fn ran_dry(&mut self, rows: &[Arc<Entry>]) -> bool {
         self.dry.look(rows, self.detector.before())
+    }
+
+    /// The speed limit last put in force, in bytes a second.
+    pub fn limit_in_force(&self) -> Option<u64> {
+        self.limit_in_force
+    }
+
+    /// Puts the speed limit in again at the next tick (the schedule's slow
+    /// hours were changed).
+    pub fn forget_limit(&mut self) {
+        self.limit_in_force = None;
+    }
+
+    /// One tick of the schedules, after a read: the slow hours' limit in or
+    /// out; the schedule's window opening (arming its When done, only for
+    /// something waiting to run and never over a choice the person made this
+    /// session) or closing (putting an unused choice away); and, for the
+    /// schedule for every queue and each queue's own, the end of its window:
+    /// its failed downloads tried again for as many rounds as allowed, then
+    /// its program run and, where asked, the dial-up connection hung up.
+    /// `when_done` is the session's choice as it stands; `can_do` says whether
+    /// this computer can carry out an action (the presentation knows).
+    pub fn schedule_tick(
+        &mut self,
+        backend: &Backend,
+        settings: &Settings,
+        rows: &[Arc<Entry>],
+        when_done: WhenDone,
+        can_do: impl Fn(WhenDone) -> bool,
+    ) -> ScheduleTick {
+        let mut tick = ScheduleTick {
+            when_done,
+            armed: None,
+            hang_up: false,
+            problems: Vec::new(),
+        };
+        // The slow hours' limit in, or out, as they begin or end.
+        let limit = settings.speed_limit_bytes_now();
+        if self.limit_in_force != Some(limit) {
+            backend.set_speed_limit(limit);
+            self.limit_in_force = Some(limit);
+        }
+        let schedule = settings.schedule.clone();
+        let open = schedule.enabled && schedule.open();
+        match self.schedule_watch.step(open) {
+            Step::Opened => {
+                let wanted = WhenDone::from_word(&schedule.when_done);
+                let can = wanted == WhenDone::Nothing || wanted == WhenDone::Quit || can_do(wanted);
+                if wanted != WhenDone::Nothing
+                    && can
+                    && tick.when_done == WhenDone::Nothing
+                    && work_left(rows)
+                {
+                    tick.when_done = wanted;
+                    tick.armed = Some(wanted);
+                    self.schedule_watch.arm(wanted);
+                }
+            }
+            Step::Closed => {
+                // Unused: put away, unless it was changed in the menu since.
+                if let Some(armed) = self.schedule_watch.disarm() {
+                    if tick.when_done == armed {
+                        tick.when_done = WhenDone::Nothing;
+                    }
+                }
+            }
+            Step::Nothing => {}
+        }
+        // Fired (the choice was taken as the queue ran dry): nothing to put away.
+        if tick.when_done == WhenDone::Nothing {
+            self.schedule_watch.disarm();
+        }
+        // The rows the schedule for every queue looks after: those of a queue
+        // with no schedule of its own (all of them, unless one has).
+        let own = settings.queue_schedules.clone();
+        let shared = looked_after(rows, &own, None);
+        end_of_window(
+            backend,
+            &schedule,
+            open,
+            &shared,
+            &mut self.schedule_watch,
+            &mut tick,
+        );
+        // Each named queue with a schedule of its own: its program at the end
+        // and its tries again, over its own rows. (When done stays the one for
+        // every queue: it acts on the computer.)
+        self.queue_watches.retain(|name, _| own.contains_key(name));
+        for (name, schedule) in &own {
+            let open = schedule.enabled && schedule.open();
+            let watch = self.queue_watches.entry(name.clone()).or_default();
+            watch.step(open);
+            let mine = looked_after(rows, &own, Some(name));
+            end_of_window(backend, schedule, open, &mine, watch, &mut tick);
+        }
+        tick
     }
 
     /// The watched folder's look (`watch::Watched::look`).
@@ -168,4 +288,40 @@ pub fn carry_out(backend: &Backend, action: super::power::WhenDone) -> Result<Ca
         .platform
         .power(action, report)
         .map(|()| Carried::Asked)
+}
+
+/// The end of one schedule's window over its `rows`: its failed downloads tried
+/// again while rounds are left, then its program, and the hang-up it asks for.
+fn end_of_window(
+    backend: &Backend,
+    schedule: &dm_core::Schedule,
+    open: bool,
+    rows: &[Arc<Entry>],
+    watch: &mut Watch,
+    tick: &mut ScheduleTick,
+) {
+    let failed: Vec<Id> = rows
+        .iter()
+        .filter(|r| matches!(r.state, State::Failed(_)))
+        .map(|r| r.id)
+        .collect();
+    match watch.at_end(open, work_left(rows), !failed.is_empty(), schedule.retries) {
+        AtEnd::Retry => {
+            for id in failed {
+                backend.retry(id);
+            }
+        }
+        AtEnd::Done => {
+            let command = schedule.run_when_done.trim();
+            if !command.is_empty() {
+                if let Err(why) = crate::shell::run_program(command) {
+                    tick.problems.push(why);
+                }
+            }
+            if schedule.hang_up {
+                tick.hang_up = true;
+            }
+        }
+        AtEnd::Nothing => {}
+    }
 }

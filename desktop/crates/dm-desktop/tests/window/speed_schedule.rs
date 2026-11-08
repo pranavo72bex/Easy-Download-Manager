@@ -683,7 +683,7 @@ fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
     assert!(kept.enabled && kept.from == "00:00" && kept.limit == 64);
     harness.state_mut().refresh();
     harness.run_steps(2);
-    let in_force = harness.state().limit_in_force;
+    let in_force = harness.state().session.limit_in_force();
     let (weekday, minute) = dm_core::weekday_now();
     if minute < 23 * 60 + 59 {
         assert_eq!(
@@ -696,6 +696,6 @@ fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
     let mut back = harness.state().backend().settings();
     back.slow_hours.enabled = false;
     harness.state_mut().apply_settings(back).unwrap();
-    harness.state_mut().limit_in_force = None;
+    harness.state_mut().session.forget_limit();
     harness.state_mut().refresh();
 }
