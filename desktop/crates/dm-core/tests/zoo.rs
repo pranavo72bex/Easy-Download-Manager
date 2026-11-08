@@ -741,3 +741,96 @@ async fn the_zoo_holds_its_floor() {
         "curl and dm disagree about bytes dm saved"
     );
 }
+
+/// A server that compresses unasked and states the compressed length (Apache's `AddEncoding
+/// x-gzip` on a .tar.gz): fetched once. The decoded bytes never matched the stated, encoded,
+/// length, so every answer was taken as short and the whole file fetched again for about 16 s
+/// (engine review, 2026-11-08).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_compressed_answer_with_its_length_is_fetched_once() {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let data = body(SMALL, 41);
+    let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    e.write_all(&data).unwrap();
+    let gz = e.finish().unwrap();
+    let fetched = Arc::new(AtomicUsize::new(0));
+    let count = fetched.clone();
+    let addr = common::serve(axum::Router::new().fallback(move || {
+        let (gz, count) = (gz.clone(), count.clone());
+        async move {
+            count.fetch_add(1, Ordering::SeqCst);
+            Response::builder()
+                .header("content-encoding", "gzip")
+                .header("content-length", gz.len())
+                .body(Body::from(gz))
+                .unwrap()
+        }
+    }))
+    .await;
+    let dir = common::tempdir();
+    let options = dm_core::Options {
+        connections: 4,
+        ..common::options(dir.path())
+    };
+    let started = std::time::Instant::now();
+    let finished = tokio::time::timeout(
+        Duration::from_secs(60),
+        download(&client(), &format!("http://{addr}/file.txt"), &options),
+    )
+    .await
+    .expect("timed out")
+    .expect("refused");
+    assert_eq!(
+        std::fs::read(&finished.path).unwrap(),
+        data,
+        "the decoded file"
+    );
+    let asked = fetched.load(Ordering::SeqCst);
+    assert!(
+        asked <= 2 && started.elapsed() < Duration::from_secs(5),
+        "fetched {asked} times over {:?}: the whole file again for each 'short' answer",
+        started.elapsed()
+    );
+}
+
+/// The other side of the case above: an encoded body cut off by the server is refused, not saved
+/// as a shorter file, now that its stated length is not what judges it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_compressed_answer_cut_off_is_not_saved() {
+    use std::io::Write;
+    let data = body(SMALL, 43);
+    let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    e.write_all(&data).unwrap();
+    let mut gz = e.finish().unwrap();
+    gz.truncate(gz.len() / 2);
+    let addr = common::serve(axum::Router::new().fallback(move || {
+        let gz = gz.clone();
+        async move {
+            Response::builder()
+                .header("content-encoding", "gzip")
+                .body(Body::from(gz))
+                .unwrap()
+        }
+    }))
+    .await;
+    let dir = common::tempdir();
+    let options = dm_core::Options {
+        connections: 4,
+        ..common::options(dir.path())
+    };
+    let got = tokio::time::timeout(
+        Duration::from_secs(90),
+        download(&client(), &format!("http://{addr}/file.txt"), &options),
+    )
+    .await
+    .expect("timed out");
+    match got {
+        Ok(finished) => assert_eq!(
+            std::fs::read(&finished.path).unwrap(),
+            data,
+            "a cut-off encoded body was saved as a file"
+        ),
+        Err(e) => assert!(!e.to_string().is_empty()),
+    }
+}

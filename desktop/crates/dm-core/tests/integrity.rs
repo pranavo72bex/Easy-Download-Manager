@@ -1001,3 +1001,98 @@ async fn after_a_redirect_every_piece_asks_the_address_it_landed_on() {
     );
     assert!(at_end.load(Ordering::SeqCst) > 1);
 }
+
+#[tokio::test]
+async fn a_server_with_no_version_that_answers_ranges_whole_is_fetched_on_one() {
+    /* The test above, from a server that names no version (no ETag, no Last-Modified), as a
+     * script-served download often does: its 200 to a range was taken for "the file changed on
+     * the server", the second try on as many connections met the same, and the download failed
+     * where one connection would have fetched it (engine review, 2026-11-08). */
+    let data = Arc::new(body(8_000_000, 13));
+    let in_flight = Arc::new(AtomicUsize::new(0));
+    let whole = Arc::new(AtomicUsize::new(0));
+    let (served, busy, answered_whole) = (data.clone(), in_flight.clone(), whole.clone());
+    let app = axum::Router::new().route(
+        "/get",
+        get(move |headers: HeaderMap| {
+            let (d, busy, answered_whole) = (served.clone(), busy.clone(), answered_whole.clone());
+            async move {
+                let others = busy.fetch_add(1, Ordering::SeqCst);
+                tokio::time::sleep(Duration::from_millis(150)).await;
+                let response = if others > 0 && headers.contains_key("range") {
+                    answered_whole.fetch_add(1, Ordering::SeqCst);
+                    Response::builder()
+                        .status(200)
+                        .header("content-length", d.len())
+                        .body(Body::from(d.to_vec()))
+                        .unwrap()
+                } else {
+                    let mut r = ranged(&d, "\"v1\"", &headers);
+                    r.headers_mut().remove("etag");
+                    r
+                };
+                busy.fetch_sub(1, Ordering::SeqCst);
+                response
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let many = dm_core::Options {
+        connections: 8,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("http://{addr}/get"), &many)
+        .await
+        .expect("a server with no version that answered ranges whole failed the download");
+    assert!(
+        whole.load(Ordering::SeqCst) > 0,
+        "the server never answered a range whole"
+    );
+    assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+}
+
+#[tokio::test]
+async fn a_file_that_grows_under_the_same_etag_is_never_saved_as_a_mix() {
+    /* Republished mid-download as a longer file under the same ETag, as a server that ignores
+     * If-Range or reuses its tags does: the ranges' Content-Range names another total than the
+     * one planned on, which is another file (engine review, 2026-11-08). Saved whole as one
+     * version, or refused; never a mix of both. */
+    let v1 = Arc::new(body(3_000_000, 21));
+    let v2 = Arc::new(body(4_000_000, 22));
+    let asked = Arc::new(AtomicUsize::new(0));
+    let (a, b, n) = (v1.clone(), v2.clone(), asked.clone());
+    let app = axum::Router::new().route(
+        "/grows.bin",
+        get(move |headers: HeaderMap| {
+            let (a, b, n) = (a.clone(), b.clone(), n.clone());
+            async move {
+                // The probe and the first ranges see version 1; the rest version 2.
+                let which = if n.fetch_add(1, Ordering::SeqCst) < 3 {
+                    a
+                } else {
+                    b
+                };
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                ranged(&which, "\"same\"", &headers)
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let many = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    match download(&client(), &format!("http://{addr}/grows.bin"), &many).await {
+        Ok(done) => {
+            let got = std::fs::read(&done.path).unwrap();
+            assert!(
+                got == *v1 || got == *v2,
+                "saved {} bytes that are neither version",
+                got.len()
+            );
+        }
+        Err(e) => assert!(!e.to_string().is_empty()),
+    }
+}

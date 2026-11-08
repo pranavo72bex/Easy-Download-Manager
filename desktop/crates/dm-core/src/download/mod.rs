@@ -719,7 +719,10 @@ async fn fetched_once_more_if_changed(
      * wants, rather than a failed row and a Retry. Once: a server whose
      * bytes differ on every request fails the second time and says so. */
     match fetch_reporting(client, url, options, report.clone()).await {
-        Err(Error::Changed) => {
+        // Ranges refused on what was already one connection (a resume, or a server that stopped
+        // serving ranges): there is no fewer to fall back to, so the file is fetched again from
+        // the start, as a changed one is.
+        Err(Error::Changed) | Err(Error::RangesIgnored) => {
             // The parts go as well as their plan: a connection that was
             // writing the plan down as the change was found can put it back,
             // and a plan with no parts to point at adopts nothing.

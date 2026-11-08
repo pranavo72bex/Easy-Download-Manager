@@ -600,21 +600,41 @@ async fn spot_check_segment(
     }
     drop(file);
 
-    // Ask the server for the same bytes.
+    // Ask the server for the same bytes, as the range itself was asked: with the headers a
+    // stream's reader says its server wants (a video CDN's Referer and Origin), without which the
+    // check was refused there and checked nothing, and under the validator (engine review,
+    // 2026-11-08).
     let source = job.source(index);
-    let request = get(
+    let mut request = get(
         client,
         &source.url,
         job.referrer.as_deref(),
         job.sign_in.as_ref(),
-    )
-    .header(
+    );
+    request = job.headers.onto(
+        request,
+        crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
+        job.referrer.is_some(),
+    );
+    request = request.header(
         reqwest::header::RANGE,
         format!("bytes={check_start}-{check_end}"),
     );
+    let conditional = source.validator.as_ref().filter(|v| !v.starts_with("W/"));
+    if let Some(validator) = conditional {
+        request = request.header(reqwest::header::IF_RANGE, validator);
+    }
     let Ok(res) = crate::auth::send(client, request, &source.url).await else {
         return Ok(());
     };
+    // Asked under the validator, the whole file instead of the range is the server saying the
+    // file is no longer that version: the bytes on disk are not all of one file, as a mismatch
+    // says (a file republished during the download, `zoo.rs` changes-midway).
+    if conditional.is_some() && res.status() == reqwest::StatusCode::OK {
+        job.disagreed
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        return Ok(());
+    }
     if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
         return Ok(());
     }
@@ -744,7 +764,14 @@ pub(super) async fn attempt_segment(
         .await?
     };
     let status = res.status();
-    let stated = res.content_length();
+    // The length an encoded body states is the encoded one, and what is written is decoded: held
+    // to it, a whole file was taken as short and fetched again for as long as retries last
+    // (engine review, 2026-11-08). A cut-off encoded body is still caught: the decoder says so.
+    let stated = if crate::decode::coding_of(res.headers()).is_some() {
+        None
+    } else {
+        res.content_length()
+    };
     if resumable && status != reqwest::StatusCode::PARTIAL_CONTENT {
         // The server answered the whole file to a request for part of it.
         // Under the validator the ranges were planned under, it is the same
@@ -761,7 +788,14 @@ pub(super) async fn attempt_segment(
         // Asked for every byte, it is the range: Wikimedia answers a range
         // of the whole file that way, and that is the file.
         let all_of_it = from == 0 && stated == Some(end + 1);
-        if !(same && all_of_it) {
+        // A server that names no version, then or now, gives no sign of a change: its 200 is
+        // ranges refused, fetched again on one connection, not "the file changed on the server"
+        // (engine review, 2026-11-08).
+        let unversioned = source.validator.is_none() && answered.is_none();
+        if unversioned && !all_of_it {
+            return Err(Error::RangesIgnored);
+        }
+        if !unversioned && !(same && all_of_it) {
             if !same {
                 forget_plan(job).await;
             }
@@ -785,6 +819,22 @@ pub(super) async fn attempt_segment(
             .and_then(|v| v.trim().parse::<u64>().ok());
         if said_start.is_some_and(|s| s != from) {
             return Err(Error::DishonestRanges);
+        }
+        // The total it names is the file's length now: another than the one the ranges were
+        // planned on is another file, whatever its validator says (a server that ignores
+        // If-Range, or a weak ETag dm does not send), caught here rather than by the sampled
+        // checks of the bytes (engine review, 2026-11-08).
+        let said_total = res
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.rsplit_once('/'))
+            .and_then(|(_, total)| total.trim().parse::<u64>().ok());
+        if let (Some(total), Some(size)) = (said_total, job.size) {
+            if total != size {
+                forget_plan(job).await;
+                return Err(Error::Changed);
+            }
         }
     }
 

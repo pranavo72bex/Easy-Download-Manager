@@ -3,6 +3,19 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-08: A finished file is synced once; a server with no version is not taken for a changed one
+
+From a review of the engine. A finished file and its folder are synced before the row is called
+Completed (`assemble::durable`): the 2026-10-15 decision repairs a power cut at resume, and a
+finished file is never resumed, so its repair never came. One sync per file costs little next to
+the download; syncing a download's own writes is still not done. A 200 to a range from a server
+that named no version, at the probe or now, is ranges refused (`Error::RangesIgnored`: the
+parts are wiped and the file fetched on one connection), not "changed": with nothing to compare,
+a whole answer is no sign of a new file. Tried and dropped the same day: sending If-Range with the
+spot check of a range's last bytes without reading a 200 as a change; a file republished during
+the download was then saved as a mix of both (the zoo's changes-midway, 2 runs in 6). A 200 to it
+under the validator is now a disagreement.
+
 ## 2026-11-08: A panel choice's session goes only where the tab's own requests went
 
 A video chosen in the panel (and a video page handed over) carried its host's cookies for that

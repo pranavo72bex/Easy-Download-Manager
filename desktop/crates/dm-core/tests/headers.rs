@@ -89,3 +89,93 @@ fn headers_go_to_their_own_server_only() {
         .is_empty());
     assert_eq!(sign_in.for_url("https://files.example/b.bin"), None);
 }
+
+/// Every request of a ranged download carries the browser's headers, on several connections and
+/// the check made of each finished range's last bytes among them: a server that guards the file
+/// with one never sees a request without it.
+#[tokio::test]
+async fn every_request_of_a_ranged_download_carries_the_browsers_headers() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    let data: Arc<Vec<u8>> = Arc::new((0..4_000_000u32).map(|i| (i * 31 % 251) as u8).collect());
+    let (bare, guarded) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+    let (d, b, g) = (data.clone(), bare.clone(), guarded.clone());
+    let app = axum::Router::new().route(
+        "/big.bin",
+        get(move |headers: HeaderMap| {
+            let (d, b, g) = (d.clone(), b.clone(), g.clone());
+            async move {
+                if headers.get("authorization").and_then(|v| v.to_str().ok()) != Some("Bearer t") {
+                    b.fetch_add(1, Ordering::SeqCst);
+                    return Response::builder()
+                        .status(403)
+                        .body(Body::from("no token"))
+                        .unwrap();
+                }
+                g.fetch_add(1, Ordering::SeqCst);
+                let total = d.len();
+                let range = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| {
+                        let (a, z) = v.split_once('-')?;
+                        let a: usize = a.parse().ok()?;
+                        let z: usize = if z.is_empty() {
+                            total - 1
+                        } else {
+                            z.parse().ok()?
+                        };
+                        Some((a, z.min(total - 1)))
+                    });
+                match range {
+                    Some((a, z)) => Response::builder()
+                        .status(206)
+                        .header("etag", "\"v1\"")
+                        .header("accept-ranges", "bytes")
+                        .header("content-range", format!("bytes {a}-{z}/{total}"))
+                        .header("content-length", z - a + 1)
+                        .body(Body::from(d[a..=z].to_vec()))
+                        .unwrap(),
+                    None => Response::builder()
+                        .status(200)
+                        .header("etag", "\"v1\"")
+                        .header("accept-ranges", "bytes")
+                        .header("content-length", total)
+                        .body(Body::from(d.to_vec()))
+                        .unwrap(),
+                }
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let q = dm_core::Queue::new(
+        client(),
+        dm_core::Options {
+            connections: 4,
+            ..options(dir.path())
+        },
+        1,
+    );
+    let id = q
+        .add_with(
+            &format!("http://{addr}/big.bin"),
+            dm_core::AddOptions {
+                headers: vec![("Authorization".into(), "Bearer t".into())],
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, dm_core::State::Completed, "{row:?}");
+    assert_eq!(std::fs::read(&row.path).unwrap(), *data);
+    assert!(guarded.load(Ordering::SeqCst) > 1, "not fetched in ranges");
+    assert_eq!(
+        bare.load(Ordering::SeqCst),
+        0,
+        "a request went without the browser's headers"
+    );
+}

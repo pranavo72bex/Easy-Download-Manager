@@ -49,6 +49,31 @@ pub(super) async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Er
     copied
 }
 
+/// The finished file's bytes, and its name in its folder, on the disk before anything calls it
+/// done: the queue records a completed row durably, and nothing resumes a finished file, so a
+/// power cut soon after could leave a "completed" file whose last blocks never reached the disk
+/// (engine review, 2026-11-08). One sync per finished file; a download's own writes are not synced
+/// (`docs/decisions.md`, 2026-10-15). A file that cannot be synced is a disk error; its folder is
+/// synced where the system allows it.
+pub(super) async fn durable(path: &Path) -> Result<(), Error> {
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+        // Opened for writing: Windows flushes a file only through a handle that may write it.
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)?
+            .sync_all()?;
+        #[cfg(unix)]
+        if let Some(dir) = path.parent().and_then(|p| std::fs::File::open(p).ok()) {
+            let _ = dir.sync_all();
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| Error::Internal(e.to_string()))?
+    .map_err(Error::Disk)
+}
+
 /* The first part becomes the file by a rename, and the rest are appended to
  * it on one blocking thread. The join used to copy every byte again through
  * async I/O 8 KiB at a time, each read and write a hop to the blocking pool:
@@ -339,6 +364,8 @@ pub(crate) async fn finish(
         let _ = fs::remove_file(&path).await;
         return Err(Error::Cancelled);
     }
+
+    durable(&path).await?;
 
     /* A file that fails its digest is removed rather than kept beside a
      * warning: one known to be wrong, sitting in the downloads folder looking
