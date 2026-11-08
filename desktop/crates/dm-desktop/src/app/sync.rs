@@ -231,7 +231,7 @@ impl DmApp {
     }
 
     pub(super) fn when_queue_dry(&mut self) {
-        if !self.dry.look(&self.rows, self.session.before()) {
+        if !self.session.ran_dry(&self.rows) {
             return;
         }
         // A queue that has run dry has finished: its own sound, only where the person chose a file.

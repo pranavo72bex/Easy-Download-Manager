@@ -461,7 +461,6 @@ pub struct DmApp {
     /// until another one fails.
     failed_hidden: BTreeSet<Id>,
     /// What "When done" has seen since the queue last ran dry.
-    dry: DryWatch,
     /// A sleep or shut down waiting out its countdown.
     pub countdown: Option<(crate::power::WhenDone, Instant)>,
     /// Running without a window (`--headless`).
@@ -647,7 +646,6 @@ impl DmApp {
             was_behind: false,
             cancelled_hand_offs: std::collections::HashMap::new(),
             failed_hidden: BTreeSet::new(),
-            dry: DryWatch::default(),
             countdown: None,
             headless: false,
             hidden: false,
@@ -877,67 +875,6 @@ pub fn opens_after(schedule: &dm_core::Schedule, today: u32, minute: u32) -> Opt
     })
 }
 
-/// What "When done" watches the list for, apart from the window so it can
-/// be tested: see `DmApp::when_queue_dry` for what counts as done.
-#[derive(Debug, Default)]
-struct DryWatch {
-    /// Something was downloading since the queue last ran dry.
-    busy_seen: bool,
-    /// A row finished or failed since the queue last ran dry.
-    settled_seen: bool,
-    /// The list has been looked at once: rows already finished then are
-    /// history, not news.
-    primed: bool,
-}
-
-impl DryWatch {
-    /// One look at the list, with each row's state at the last look. True
-    /// once, when a stretch of downloading has just ended with something
-    /// finished or failed and nothing left that dm will finish by itself.
-    fn look<R: std::borrow::Borrow<Entry>>(
-        &mut self,
-        rows: &[R],
-        last: &HashMap<Id, State>,
-    ) -> bool {
-        let rows: Vec<&Entry> = rows.iter().map(|r| r.borrow()).collect();
-        let settled = rows.iter().any(|r| {
-            matches!(r.state, State::Completed | State::Failed(_))
-                && last.get(&r.id).is_some_and(|was| *was != r.state)
-        });
-        if settled {
-            self.settled_seen = true;
-        }
-        // A row added and finished between two looks: it was downloading,
-        // though no look saw it so, and it settled. A 1 MB file handed over
-        // under When done › Exit never fired it.
-        let primed = std::mem::replace(&mut self.primed, true);
-        if primed
-            && rows.iter().any(|r| {
-                matches!(r.state, State::Completed | State::Failed(_)) && !last.contains_key(&r.id)
-            })
-        {
-            self.settled_seen = true;
-            self.busy_seen = true;
-        }
-        let busy = rows.iter().any(|r| match r.state {
-            State::Running | State::Queued => true,
-            State::Paused => r.paused_by_schedule,
-            _ => false,
-        });
-        if busy {
-            self.busy_seen = true;
-            return false;
-        }
-        // Both taken at every dry look, so neither outlives the stretch it
-        // was seen in: a row that settled while nothing was busy (a late
-        // outcome written over a paused row) once left `settled_seen` set,
-        // and a later stretch ended by Stop all fired.
-        let busy_seen = std::mem::take(&mut self.busy_seen);
-        let settled_seen = std::mem::take(&mut self.settled_seen);
-        busy_seen && settled_seen
-    }
-}
-
 /// Writes what egui captured as a PNG.
 fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), String> {
     if let Some(dir) = path.parent() {
@@ -949,69 +886,6 @@ fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), Stri
         .ok_or("the screenshot had no pixels")?
         .save(path)
         .map_err(|e| e.to_string())
-}
-
-#[cfg(test)]
-mod dry_tests {
-    use super::*;
-
-    fn row(id: Id, state: State) -> Entry {
-        let mut row = rows::status_tests::paused(false);
-        row.id = id;
-        row.state = state;
-        row
-    }
-
-    fn states(rows: &[Entry]) -> HashMap<Id, State> {
-        rows.iter().map(|r| (r.id, r.state.clone())).collect()
-    }
-
-    /// A row that settled while nothing was busy (a late outcome
-    /// over a paused row) must not count for a later stretch that a person
-    /// ended with Stop all.
-    #[test]
-    fn a_settle_seen_while_idle_does_not_carry_into_the_next_stretch() {
-        let mut watch = DryWatch::default();
-        let paused = vec![row(1, State::Paused)];
-        let mut last = states(&paused);
-        let done = vec![row(1, State::Completed)];
-        assert!(!watch.look(&done, &last), "nothing was busy");
-        last = states(&done);
-
-        // A new stretch, ended by a person's stop with nothing finished.
-        let running = vec![row(1, State::Completed), row(2, State::Running)];
-        assert!(!watch.look(&running, &last));
-        last = states(&running);
-        let stopped = vec![row(1, State::Completed), row(2, State::Paused)];
-        assert!(
-            !watch.look(&stopped, &last),
-            "fired on a queue a person stopped"
-        );
-    }
-
-    #[test]
-    fn a_stretch_that_finishes_something_fires_once() {
-        let mut watch = DryWatch::default();
-        let running = vec![row(1, State::Running)];
-        assert!(!watch.look(&running, &HashMap::new()));
-        let done = vec![row(1, State::Completed)];
-        assert!(watch.look(&done, &states(&running)));
-        assert!(!watch.look(&done, &states(&done)), "fired twice");
-    }
-
-    /// A small file added and finished between two looks is a
-    /// stretch that finished something; rows already finished at the first
-    /// look are history.
-    #[test]
-    fn a_download_that_came_and_went_between_two_looks_fires() {
-        let mut watch = DryWatch::default();
-        let history = vec![row(1, State::Completed)];
-        assert!(!watch.look(&history, &HashMap::new()), "history fired");
-        let last = states(&history);
-        let quick = vec![row(1, State::Completed), row(2, State::Completed)];
-        assert!(watch.look(&quick, &last));
-        assert!(!watch.look(&quick, &states(&quick)), "fired twice");
-    }
 }
 
 #[cfg(test)]

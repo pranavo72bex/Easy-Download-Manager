@@ -14,7 +14,7 @@ use std::sync::Arc;
 use dm_core::{Entry, Id, State};
 
 use super::backend::Backend;
-use super::detect::{Detected, Detector};
+use super::detect::{Detected, Detector, DryWatch};
 use super::snapshot::Snapshot;
 use super::watch::Watched;
 use crate::Settings;
@@ -26,6 +26,7 @@ use crate::Settings;
 #[derive(Debug, Default)]
 pub struct Session {
     detector: Detector,
+    dry: DryWatch,
     watched: Watched,
 }
 
@@ -79,6 +80,13 @@ impl Session {
     /// watch compares the latest rows with it).
     pub fn before(&self) -> &HashMap<Id, State> {
         self.detector.before()
+    }
+
+    /// Whether the queue has just run dry since the read before (When done:
+    /// the sound and the action it arms are the presentation's to start).
+    /// Call once per read, after it.
+    pub fn ran_dry(&mut self, rows: &[Arc<Entry>]) -> bool {
+        self.dry.look(rows, self.detector.before())
     }
 
     /// The watched folder's look (`watch::Watched::look`).
