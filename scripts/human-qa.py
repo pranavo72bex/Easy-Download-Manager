@@ -1084,6 +1084,21 @@ def walk(dm, origin):
     check("B42", "Add URL opens as a window of its own, over the middle of dm's window",
           len(shown) == 1 and shown[0]["title"] == "Add URL" and over and "OK" in words,
           f"dm {main}, dialog {box}, words {words[:6]}")
+    if sys.platform == "darwin":
+        # What VoiceOver is given of the dialog's own window (gaps row 160), read by dm itself
+        # through NSAccessibility: AccessKit builds a window's tree only once it is first asked,
+        # so it is asked until its buttons are there. Linux's is read over AT-SPI
+        # (linux-gui-check.sh) and Windows' over UI Automation (windows-a11y-check.py).
+        heard = []
+        for _ in range(30):
+            got = (dm.call("ui.accessibility").get("result") or {}).get("windows") or []
+            heard = [e["title"] for w in got if w.get("title") == "Add URL" for e in w.get("elements", [])
+                     if e.get("role") == "AXButton" and e.get("title")]
+            if "OK" in heard and "Cancel" in heard:
+                break
+            time.sleep(0.4)
+        check("B42", "a screen reader is given its OK and Cancel, in its own window",
+              "OK" in heard and "Cancel" in heard, f"buttons a screen reader is given there: {heard}")
     # Moved as a drag by its title bar moves it: half outside dm's window.
     if box:
         width = box[2] - box[0]

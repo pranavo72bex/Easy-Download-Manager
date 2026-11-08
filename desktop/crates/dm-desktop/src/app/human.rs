@@ -356,6 +356,8 @@ impl DmApp {
                 wake();
                 Ok(json!({ "pressed": name }))
             })(),
+            // What a screen reader is given of each window (macOS; gaps row 160).
+            "ui.accessibility" => crate::a11y_tree::windows(),
             "ui.windows" => {
                 let (main, dialogs) = crate::dialogs::apart::placement();
                 let rect =

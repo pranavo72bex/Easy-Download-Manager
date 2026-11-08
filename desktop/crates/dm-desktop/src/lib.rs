@@ -26,6 +26,7 @@
 #![warn(missing_docs)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
+pub mod a11y_tree;
 pub mod accent;
 pub mod app;
 pub mod autostart;
