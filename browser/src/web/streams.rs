@@ -219,7 +219,7 @@ fn offer_renewals() {
                 renews: true,
                 ..Start::default()
             };
-            if let Err(why) = hand(port.take(), start).await {
+            if let Err(why) = hand(port.take(), start, None).await {
                 log(
                     "debug",
                     &format!(
@@ -245,12 +245,12 @@ pub(super) async fn sent_to(url: &str) -> Vec<(String, String)> {
     SENT.with(|s| s.borrow().of(url))
 }
 
-/// The newest address the tab's player asked for that is the same stream as `url`, when a signed
+/// The newest address `tab`'s player asked for that is the same stream as `url`, when a signed
 /// address has been asked for again since (`RequestHeaders::renewed`); `url` itself otherwise.
-pub(super) async fn renewed(url: &str) -> String {
+pub(super) async fn renewed(url: &str, tab: Option<i64>) -> String {
     // Read back from the session's storage first, as `sent_to` does.
     let _ = sent_to(url).await;
-    SENT.with(|s| s.borrow().renewed(url))
+    SENT.with(|s| s.borrow().renewed(url, tab))
         .unwrap_or_else(|| url.to_string())
 }
 

@@ -29,7 +29,19 @@ pub struct Sent {
     pub kind: String,
     /// The headers as sent.
     pub request_headers: Vec<Header>,
+    /// The tab that sent it; the browser says -1 for a request of no tab's (a service worker's).
+    pub tab_id: Option<i64>,
 }
+
+impl Sent {
+    /// The tab that sent it, if a tab did.
+    pub fn tab(&self) -> Option<i64> {
+        self.tab_id.filter(|t| *t >= 0)
+    }
+}
+
+/// One address's last request: the address, the headers it carried, and the tab that sent it.
+pub type Kept = (String, Vec<(String, String)>, Option<i64>);
 
 /// The most addresses remembered, and headers and value length kept for one.
 const MOST_ADDRESSES: usize = 200;
@@ -73,7 +85,7 @@ fn key(url: &str) -> &str {
 /// The last request headers per address, oldest forgotten first.
 #[derive(Debug, Default)]
 pub struct RequestHeaders {
-    kept: VecDeque<(String, Vec<(String, String)>)>,
+    kept: VecDeque<Kept>,
 }
 
 impl RequestHeaders {
@@ -95,11 +107,11 @@ impl RequestHeaders {
             .take(MOST_HEADERS)
             .collect();
         let url = key(&sent.url);
-        self.kept.retain(|(u, _)| u != url);
+        self.kept.retain(|(u, _, _)| u != url);
         if headers.is_empty() || !url.starts_with("http") {
             return;
         }
-        self.kept.push_back((url.to_string(), headers));
+        self.kept.push_back((url.to_string(), headers, sent.tab()));
         while self.kept.len() > MOST_ADDRESSES {
             self.kept.pop_front();
         }
@@ -107,19 +119,19 @@ impl RequestHeaders {
 
     /// Everything kept, oldest first, for the session's storage (memory the browser clears when
     /// it closes), which outlives the worker that heard the requests.
-    pub fn export(&self) -> Vec<(String, Vec<(String, String)>)> {
+    pub fn export(&self) -> Vec<Kept> {
         self.kept.iter().cloned().collect()
     }
 
     /// Takes in what an earlier worker kept: older than anything heard since, so an address
     /// heard again keeps its newer headers.
-    pub fn merge(&mut self, older: Vec<(String, Vec<(String, String)>)>) {
-        let mut merged: VecDeque<(String, Vec<(String, String)>)> = older
+    pub fn merge(&mut self, older: Vec<Kept>) {
+        let mut merged: VecDeque<Kept> = older
             .into_iter()
-            .filter(|(url, headers)| {
+            .filter(|(url, headers, _)| {
                 url.starts_with("http")
                     && headers.len() <= MOST_HEADERS
-                    && !self.kept.iter().any(|(u, _)| u == url)
+                    && !self.kept.iter().any(|(u, _, _)| u == url)
             })
             .collect();
         merged.extend(std::mem::take(&mut self.kept));
@@ -132,9 +144,12 @@ impl RequestHeaders {
     /// The address the page's player asked for most recently that is the same stream as `url`
     /// with a newer signature: the same path, the same query names and the same `itag`, and no
     /// byte-range parameter (a piece is not the file). A signed address runs out; the newest one
-    /// is the one that will still be good when the app asks for it. `None` when `url` is already
-    /// the newest, or nothing newer was seen.
-    pub fn renewed(&self, url: &str) -> Option<String> {
+    /// is the one that will still be good when the app asks for it. Only `tab`'s own requests
+    /// count: another tab's video on the same host is another person's choice, not this one's
+    /// renewal (security review, 2026-11-07). `None` when `url` is already the newest, nothing
+    /// newer was seen in that tab, or the hand-off came from no tab.
+    pub fn renewed(&self, url: &str, tab: Option<i64>) -> Option<String> {
+        let tab = tab?;
         const PIECE: [&str; 5] = ["range", "bytestart", "byteend", "rn", "rbuf"];
         let split = |u: &str| {
             let u = key(u).to_string();
@@ -172,10 +187,16 @@ impl RequestHeaders {
                 value(p) == value(q)
             })
         };
-        let newest = self.kept.iter().rev().map(|(u, _)| u.as_str()).find(|u| {
-            let (other_path, other) = split(u);
-            other_path == path && names(&other) == names(&pairs) && same(&other, &pairs)
-        })?;
+        let newest = self
+            .kept
+            .iter()
+            .rev()
+            .filter(|(_, _, t)| *t == Some(tab))
+            .map(|(u, _, _)| u.as_str())
+            .find(|u| {
+                let (other_path, other) = split(u);
+                other_path == path && names(&other) == names(&pairs) && same(&other, &pairs)
+            })?;
         (newest != key(url)).then(|| newest.to_string())
     }
 
@@ -185,8 +206,8 @@ impl RequestHeaders {
         self.kept
             .iter()
             .rev()
-            .find(|(u, _)| u == url)
-            .map(|(_, h)| h.clone())
+            .find(|(u, _, _)| u == url)
+            .map(|(_, h, _)| h.clone())
             .unwrap_or_default()
     }
 }
@@ -195,8 +216,16 @@ impl RequestHeaders {
 mod tests {
     use super::*;
 
+    /// The tab the tests' requests come from.
+    const TAB: Option<i64> = Some(7);
+
     fn sent(url: &str, kind: &str, headers: &[(&str, &str)]) -> Sent {
+        from_tab(url, kind, headers, TAB)
+    }
+
+    fn from_tab(url: &str, kind: &str, headers: &[(&str, &str)], tab: Option<i64>) -> Sent {
         Sent {
+            tab_id: tab,
             url: url.into(),
             kind: kind.into(),
             request_headers: headers
@@ -272,21 +301,21 @@ mod tests {
             &[("X-A", "1")],
         ));
         assert_eq!(
-            kept.renewed("https://c.example/v.mp4?itag=22&sig=old")
+            kept.renewed("https://c.example/v.mp4?itag=22&sig=old", TAB)
                 .as_deref(),
             Some("https://c.example/v.mp4?itag=22&sig=new")
         );
         assert_eq!(
-            kept.renewed("https://c.example/v.mp4?itag=22&sig=new"),
+            kept.renewed("https://c.example/v.mp4?itag=22&sig=new", TAB),
             None
         );
         // A piece is not the file, and another path is another stream.
         assert_eq!(
-            kept.renewed("https://c.example/v.mp4?itag=22&sig=old&range=0-9"),
+            kept.renewed("https://c.example/v.mp4?itag=22&sig=old&range=0-9", TAB),
             None
         );
         assert_eq!(
-            kept.renewed("https://c.example/w.mp4?itag=22&sig=old"),
+            kept.renewed("https://c.example/w.mp4?itag=22&sig=old", TAB),
             None
         );
     }
@@ -301,9 +330,28 @@ mod tests {
         };
         kept.keep(&sent(&at("aaa", "old"), "media", &[("X-A", "1")]));
         kept.keep(&sent(&at("bbb", "new"), "media", &[("X-A", "1")]));
-        assert_eq!(kept.renewed(&at("aaa", "old")), None);
+        assert_eq!(kept.renewed(&at("aaa", "old"), TAB), None);
         kept.keep(&sent(&at("aaa", "newer"), "media", &[("X-A", "1")]));
-        assert_eq!(kept.renewed(&at("aaa", "old")), Some(at("aaa", "newer")));
+        assert_eq!(
+            kept.renewed(&at("aaa", "old"), TAB),
+            Some(at("aaa", "newer"))
+        );
+    }
+
+    /// The same video asked for anew in another tab, or by no tab (a service worker), is not
+    /// this tab's renewal; a hand-off from no tab is renewed from nowhere.
+    #[test]
+    fn only_the_handed_tabs_own_requests_renew_it() {
+        let mut kept = RequestHeaders::default();
+        let at = |sig: &str| format!("https://cdn.example/v.mp4?itag=22&sig={sig}");
+        kept.keep(&sent(&at("old"), "media", &[("X-A", "1")]));
+        kept.keep(&from_tab(&at("other"), "media", &[("X-A", "1")], Some(8)));
+        kept.keep(&from_tab(&at("worker"), "media", &[("X-A", "1")], Some(-1)));
+        assert_eq!(kept.renewed(&at("old"), TAB), None);
+        assert_eq!(kept.renewed(&at("old"), Some(8)), Some(at("other")));
+        assert_eq!(kept.renewed(&at("old"), None), None);
+        kept.keep(&sent(&at("new"), "media", &[("X-A", "1")]));
+        assert_eq!(kept.renewed(&at("old"), TAB), Some(at("new")));
     }
 
     #[test]

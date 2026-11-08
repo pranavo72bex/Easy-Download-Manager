@@ -171,7 +171,7 @@ pub async fn on_download_created(item: JsValue) {
     // dm refused for want of the browser's session (a link only a signed-in
     // browser can fetch): handed over again with that session, for this one
     // download, rather than left to download in the browser.
-    let mut outcome = hand(port, start.clone()).await;
+    let mut outcome = hand(port, start.clone(), None).await;
     if outcome
         .as_ref()
         .is_err_and(|why| why.contains("dm cannot fetch this without the browser"))
@@ -187,6 +187,7 @@ pub async fn on_download_created(item: JsValue) {
                     cookies_once: true,
                     ..start
                 },
+                None,
             )
             .await;
         }

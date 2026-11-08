@@ -37,8 +37,9 @@ pub fn app_status() -> String {
     })
 }
 
-/// Hands one download to the app, and waits for it to say it has it.
-pub(super) async fn hand(port: Option<Port>, start: Start) -> Result<(), String> {
+/// Hands one download to the app, and waits for it to say it has it. `tab` is the tab it was
+/// asked for from, whose own requests alone may renew its address later.
+pub(super) async fn hand(port: Option<Port>, start: Start, tab: Option<i64>) -> Result<(), String> {
     let mut port = match port {
         Some(port) => port,
         None => Port::open()?,
@@ -70,7 +71,7 @@ pub(super) async fn hand(port: Option<Port>, start: Start) -> Result<(), String>
         forget_app();
     } else if let Some((url, referrer)) = handed {
         load_handed().await;
-        HANDED.with(|h| h.borrow_mut().keep(&url, &referrer));
+        HANDED.with(|h| h.borrow_mut().keep(&url, &referrer, tab));
         store_handed().await;
     }
     outcome
@@ -102,6 +103,19 @@ pub(super) fn tab_store(from: &JsValue, path: &str) -> Option<String> {
         format!("{path}.cookieStoreId")
     };
     get(from, &key).as_string().filter(|s| !s.is_empty())
+}
+
+/// The id of the tab at `path` in `from` ("" for `from` itself), if it is a tab's.
+pub(super) fn tab_of(from: &JsValue, path: &str) -> Option<i64> {
+    let key = if path.is_empty() {
+        "id".to_string()
+    } else {
+        format!("{path}.id")
+    };
+    get(from, &key)
+        .as_f64()
+        .map(|id| id as i64)
+        .filter(|id| *id >= 0)
 }
 
 pub(super) fn own_id() -> String {

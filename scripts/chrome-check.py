@@ -1253,6 +1253,24 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     check("on a site whose policy forbids WebAssembly the full panel stays away, quietly, and the plain one is shown",
           not (panel(tab) or {}).get("shown") and bool(lite) and not [e for e in errors if "dm" in e],
           "; ".join(errors)[:300])
+    # The page cannot borrow a person's click: with the plain panel's holder made see-through by
+    # the page, a click on its × does nothing (the panel is not as dm drew it); as drawn, the same
+    # click hides it (gaps row 159 c, the full panel's `as_drawn`).
+    lite_shown = "(() => { const h = document.querySelector('dm-panel-lite'); return !!h && h.style.display !== 'none'; })()"
+    restyled = drawn = None
+    if lite:
+        x_at = tab.evaluate("(() => { const b = document.querySelector('dm-panel-lite').shadowRoot"
+                            ".querySelector('.x').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; })()")
+        tab.evaluate("document.querySelector('dm-panel-lite').style.opacity = '0'")
+        click_at(tab, *x_at)
+        time.sleep(0.4)
+        restyled = tab.evaluate(lite_shown)
+        tab.evaluate("document.querySelector('dm-panel-lite').style.opacity = '1'")
+        click_at(tab, *x_at)
+        time.sleep(0.4)
+        drawn = tab.evaluate(lite_shown)
+    check("a click on the plain panel the page made see-through does nothing; on the panel as drawn it counts",
+          bool(lite) and restyled is True and drawn is False, f"after the see-through click shown={restyled}, after the drawn one shown={drawn}")
     worker.evaluate(
         f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-media', srcUrl: '{origin}/files/strict.mp4',"
         f" pageUrl: '{origin}/strict.html'}}, {{}}))")

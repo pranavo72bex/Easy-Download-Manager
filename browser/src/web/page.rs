@@ -39,8 +39,23 @@ pub(super) async fn in_browser_instead(target: &Target, why: &str) -> Result<Str
 
 /// Hands something a person asked for. `Ok` carries a word for whoever
 /// asked; `Err` why it could not be done.
-pub(super) async fn hand_target(target: Target, store: Option<String>) -> Result<String, String> {
-    hand_chosen(target, store, None, None, None, false, (None, None), None).await
+pub(super) async fn hand_target(
+    target: Target,
+    store: Option<String>,
+    tab: Option<i64>,
+) -> Result<String, String> {
+    hand_chosen(
+        target,
+        store,
+        tab,
+        None,
+        None,
+        None,
+        false,
+        (None, None),
+        None,
+    )
+    .await
 }
 
 /// Hands one download over, with the quality picked from the panel's list
@@ -53,6 +68,7 @@ pub(super) async fn hand_target(target: Target, store: Option<String>) -> Result
 pub(super) async fn hand_chosen(
     target: Target,
     store: Option<String>,
+    tab: Option<i64>,
     quality: Option<String>,
     label: Option<String>,
     sound: Option<String>,
@@ -74,7 +90,7 @@ pub(super) async fn hand_chosen(
     let address = if target.page {
         target.url.clone()
     } else {
-        renewed(&target.url).await
+        renewed(&target.url, tab).await
     };
     let start = Start {
         id: hand_id("m", 0, now()),
@@ -109,7 +125,7 @@ pub(super) async fn hand_chosen(
             .unwrap_or_default(),
         ..Start::default()
     };
-    if let Err(why) = hand(port, start).await {
+    if let Err(why) = hand(port, start, tab).await {
         return in_browser_instead(&target, &why).await;
     }
     log("info", &format!("handed {} to the dm app", target.url));
@@ -169,13 +185,13 @@ pub(super) async fn formats_of(
 }
 
 /// Hands something a person asked for, and says so when it cannot.
-pub(super) async fn hand_asked(target: Target, store: Option<String>) {
+pub(super) async fn hand_asked(target: Target, store: Option<String>, tab: Option<i64>) {
     let name = if target.url.to_ascii_lowercase().starts_with("magnet:") {
         decide::magnet_name(&target.url)
     } else {
         decide::taken_name("", &target.url)
     };
-    match hand_target(target, store).await {
+    match hand_target(target, store, tab).await {
         // Left to the browser, which is downloading it: said so, not as
         // dm's.
         Ok(said) if said.starts_with("the browser is downloading it") => notify("dm", &said),
@@ -303,7 +319,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         } else if !catching().await {
             Some("catching is switched off".to_string())
         } else {
-            match hand_target(target, tab_store(&sender, "tab")).await {
+            match hand_target(target, tab_store(&sender, "tab"), tab_of(&sender, "tab")).await {
                 Ok(_) => {
                     notify("dm is downloading it", &decide::magnet_name(&url));
                     return answer(true, "the app takes it");
@@ -359,7 +375,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
             referrer: tab_url.clone(),
             page: false,
         };
-        return match hand_target(target, tab_store(&sender, "tab")).await {
+        return match hand_target(target, tab_store(&sender, "tab"), tab_of(&sender, "tab")).await {
             Ok(_) => {
                 notify("dm is downloading it", &decide::taken_name("", &url));
                 answer(true, "the app takes it")
@@ -384,7 +400,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
                 };
                 match decide::menu_target(&menu, private) {
                     Ok(target) => {
-                        hand_asked(target, tab_store(&sender, "tab")).await;
+                        hand_asked(target, tab_store(&sender, "tab"), tab_of(&sender, "tab")).await;
                         answer(true, "the app takes it")
                     }
                     Err(why) => answer(false, &why),
@@ -475,6 +491,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     match hand_chosen(
         target,
         tab_store(&sender, "tab"),
+        tab_of(&sender, "tab"),
         click.quality,
         click.label,
         click.sound,

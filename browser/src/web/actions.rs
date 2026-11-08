@@ -29,7 +29,7 @@ pub async fn on_menu_clicked(info: JsValue, tab: JsValue) {
         return;
     }
     match decide::menu_target(&click, private) {
-        Ok(target) => hand_asked(target, tab_store(&tab, "")).await,
+        Ok(target) => hand_asked(target, tab_store(&tab, ""), tab_of(&tab, "")).await,
         Err(why) => notify("dm cannot take that", &why),
     }
 }

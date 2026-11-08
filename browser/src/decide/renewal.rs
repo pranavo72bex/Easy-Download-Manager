@@ -30,6 +30,10 @@ struct Entry {
     referrer: String,
     offered_at: f64,
     offers: u32,
+    /// The tab it was handed from; only that tab's requests renew it. None from no tab (a caught
+    /// download), or kept by an extension older than this field.
+    #[serde(default)]
+    tab: Option<i64>,
 }
 
 /// A newer address for a stream handed to dm: what the extension sends with `renews`.
@@ -50,9 +54,9 @@ pub struct Handed {
 }
 
 impl Handed {
-    /// Remembers an address the app took. A web address only; a second hand-off of the same one
-    /// starts its count again.
-    pub fn keep(&mut self, url: &str, referrer: &str) {
+    /// Remembers an address the app took from `tab`. A web address only; a second hand-off of the
+    /// same one starts its count again.
+    pub fn keep(&mut self, url: &str, referrer: &str, tab: Option<i64>) {
         let url = url.split('#').next().unwrap_or(url);
         if !url.starts_with("http") {
             return;
@@ -63,6 +67,7 @@ impl Handed {
             referrer: referrer.to_string(),
             offered_at: 0.0,
             offers: 0,
+            tab,
         });
         while self.kept.len() > MOST_HANDED {
             self.kept.pop_front();
@@ -81,7 +86,7 @@ impl Handed {
             {
                 continue;
             }
-            if let Some(new) = seen.renewed(&entry.url) {
+            if let Some(new) = seen.renewed(&entry.url, entry.tab) {
                 entry.offered_at = now;
                 entry.offers += 1;
                 out.push(Renewal {
@@ -125,6 +130,7 @@ mod tests {
         seen.keep(&Sent {
             url: url.into(),
             kind: "media".into(),
+            tab_id: TAB,
             request_headers: vec![Header {
                 name: "sec-ch-ua".into(),
                 value: Some("Edge".into()),
@@ -132,6 +138,7 @@ mod tests {
         });
     }
 
+    const TAB: Option<i64> = Some(3);
     const OLD: &str = "https://cdn.example/videoplayback?itag=22&sig=old&expire=1";
     const NEW: &str = "https://cdn.example/videoplayback?itag=22&sig=new&expire=2";
 
@@ -139,7 +146,7 @@ mod tests {
     fn a_handed_stream_asked_for_anew_is_offered_once_in_each_interval() {
         let mut handed = Handed::default();
         let mut seen = RequestHeaders::default();
-        handed.keep(OLD, "https://site.example/watch");
+        handed.keep(OLD, "https://site.example/watch", TAB);
         heard(&mut seen, OLD);
         assert!(handed.due(&seen, 0.0).is_empty(), "nothing newer yet");
         heard(&mut seen, NEW);
@@ -160,7 +167,7 @@ mod tests {
     fn another_stream_or_a_piece_of_one_is_not_a_renewal() {
         let mut handed = Handed::default();
         let mut seen = RequestHeaders::default();
-        handed.keep(OLD, "");
+        handed.keep(OLD, "", TAB);
         heard(
             &mut seen,
             "https://cdn.example/videoplayback?itag=140&sig=new&expire=2",
@@ -176,29 +183,42 @@ mod tests {
         assert!(handed.due(&seen, 0.0).is_empty());
     }
 
+    /// The same stream asked for anew in another tab is that tab's, and a hand-off from no tab
+    /// (a caught download) is renewed by nothing.
+    #[test]
+    fn another_tabs_request_does_not_renew_a_hand_off() {
+        let mut handed = Handed::default();
+        let mut seen = RequestHeaders::default();
+        handed.keep(OLD, "", Some(4));
+        handed.keep("https://cdn.example/other?itag=22&sig=old", "", None);
+        heard(&mut seen, NEW);
+        heard(&mut seen, "https://cdn.example/other?itag=22&sig=new");
+        assert!(handed.due(&seen, 0.0).is_empty());
+    }
+
     #[test]
     fn offers_stop_after_the_most_for_one_hand_off() {
         let mut handed = Handed::default();
         let mut seen = RequestHeaders::default();
-        handed.keep(OLD, "");
+        handed.keep(OLD, "", TAB);
         heard(&mut seen, NEW);
         let offered: usize = (0..MOST_OFFERS + 5)
             .map(|n| handed.due(&seen, f64::from(n) * RENEW_EVERY_MS).len())
             .sum();
         assert_eq!(offered, MOST_OFFERS as usize);
         // Handed over again, it is counted afresh.
-        handed.keep(OLD, "");
+        handed.keep(OLD, "", TAB);
         assert_eq!(handed.due(&seen, 1e12).len(), 1);
     }
 
     #[test]
     fn only_web_addresses_are_kept_and_the_list_is_bounded() {
         let mut handed = Handed::default();
-        handed.keep("magnet:?xt=urn:btih:abc", "");
-        handed.keep("blob:https://site.example/1", "");
+        handed.keep("magnet:?xt=urn:btih:abc", "", TAB);
+        handed.keep("blob:https://site.example/1", "", TAB);
         assert!(handed.kept.is_empty());
         for n in 0..MOST_HANDED + 10 {
-            handed.keep(&format!("https://cdn.example/{n}.mp4?sig=a"), "");
+            handed.keep(&format!("https://cdn.example/{n}.mp4?sig=a"), "", TAB);
         }
         assert_eq!(handed.kept.len(), MOST_HANDED);
         assert!(handed.kept.front().unwrap().url.contains("/10.mp4"));
@@ -207,10 +227,10 @@ mod tests {
     #[test]
     fn what_a_worker_kept_survives_its_nap_and_newer_wins() {
         let mut first = Handed::default();
-        first.keep(OLD, "https://site.example/a");
+        first.keep(OLD, "https://site.example/a", TAB);
         let saved = first.export();
         let mut next = Handed::default();
-        next.keep(OLD, "https://site.example/b");
+        next.keep(OLD, "https://site.example/b", TAB);
         next.merge(&saved);
         next.merge("not json");
         assert_eq!(next.kept.len(), 1);

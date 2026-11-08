@@ -3,6 +3,20 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-08: A stream is renewed only from the tab it was handed from
+
+The extension offers the app a newer signed address of a stream it handed over (gaps row 121)
+when the page's player asks for that stream again. It matched across every tab, so another
+tab's request for the same stream on the same host counted (security review, 2026-11-07, row 159
+d). Each hand-off now keeps its tab (`Handed`'s `tab`, the request log's `tabId`), and only that
+tab's requests renew it, at the hand-off (`renewed`) and later (`due`). Given up for it: a
+hand-off from no tab (a caught download, which the browser's downloads API names no tab for) is
+not renewed by the browser, and a player whose requests a service worker makes (no tab, -1) is
+not renewed either; the app's own wait for the browser's next hand-off of the same file
+(row 57, `fresh_link`) still covers both. The handed address itself was not used to find the
+tab: YouTube's player never asks for it whole (each request names a byte range), so it is not
+in the request log.
+
 ## 2026-11-07: dm posts its own toasts on Windows
 
 notify-rust's Windows toasts each hang a click and a dismissal handler that are never taken

@@ -359,7 +359,7 @@
   // Where the panel's WebAssembly cannot load (a page whose security policy forbids it:
   // Reddit's), a plain-JavaScript panel does the same job with the same messages to the
   // background: a button over the video, the list of what it comes in, and a line to
-  // say it was sent. Only a click the person made counts, as in the full panel.
+  // say it was sent. Only a click the person made on the panel as drawn counts, as in the full panel.
   const lite = (() => {
     let host = null;
     let parts = null;
@@ -411,9 +411,22 @@
       // In the top layer, where a page's own player (Reddit's) cannot be drawn over it.
       try { host.setAttribute('popover', 'manual'); host.showPopover(); } catch (e) { /* an older browser: z-index it is */ }
       host.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-      go.addEventListener('click', (event) => { if (event.isTrusted) ask(); });
-      close.addEventListener('click', (event) => { if (event.isTrusted) hide(); });
+      go.addEventListener('click', (event) => { if (pressed(event)) ask(); });
+      close.addEventListener('click', (event) => { if (pressed(event)) hide(); });
     };
+    // A click counts only while the panel is as dm drew it, as the full panel's `as_drawn` asks:
+    // a page cannot press it, but it can restyle the element that holds it (see-through, over the
+    // whole window) so that a person's next click anywhere lands on it and hands the page's
+    // choice of file to dm.
+    const asDrawn = () => {
+      if (!host) return false;
+      let style;
+      try { style = getComputedStyle(host); } catch { return false; }
+      const r = host.getBoundingClientRect();
+      return parseFloat(style.opacity) >= 0.99 && style.visibility === 'visible'
+        && style.filter === 'none' && style.clipPath === 'none' && r.width <= 480 && r.height <= 640;
+    };
+    const pressed = (event) => event.isTrusted && asDrawn();
     const hide = () => {
       if (host) host.style.display = 'none';
       if (parts) { parts.list.hidden = true; parts.say.hidden = true; }
@@ -489,7 +502,7 @@
           for (const choice of choices) {
             const item = document.createElement('button');
             item.textContent = choice.line || choice.label || 'Download';
-            item.addEventListener('click', (event) => { if (event.isTrusted) choose(choice); });
+            item.addEventListener('click', (event) => { if (pressed(event)) choose(choice); });
             parts.list.appendChild(item);
           }
           parts.list.hidden = false;

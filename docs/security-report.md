@@ -339,13 +339,16 @@ Left, each a row in `docs/gaps.md` (row 159):
   WebAssembly) checks only `isTrusted`, not that it is drawn as dm drew it
   (`as_drawn`), in an open shadow root a page can restyle; and a panel
   choice now sends the cookies of whatever host the page's `<video src>`
-  names. The app's Download details dialog is what remains.
+  names. The app's Download details dialog is what remains. The click check
+  fixed 2026-11-08 (`asDrawn`, `scripts/chrome-check.py`); the cookies are
+  left for the maintainer's choice (gaps row 159).
 - **Low: a renewal is matched across tabs.** `RequestHeaders::renewed` did
   not compare the tab or YouTube's `id`, so another tab's video with the same
   itag on the same edge host could be offered as a renewal. The host cannot
   change; the file could be the wrong video. Since the same day it compares
   `id` and `mime` with the `itag` (`another_videos_address_with_the_same_itag_is_not_a_renewal`);
-  the tab is still not compared.
+  since 2026-11-08 only the handing tab's own requests count
+  (`only_the_handed_tabs_own_requests_renew_it`, `another_tabs_request_does_not_renew_a_hand_off`).
 - **Low: a settings file that fell back to defaults** has an empty proxy
   password, and `move_passwords_to` then forgot the one in the store. Fixed
   the same day: a run whose file was not read whole, or whose store did not
