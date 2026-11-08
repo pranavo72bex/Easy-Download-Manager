@@ -349,7 +349,11 @@ on with it, and the app drops it otherwise.
   asks the browser for its `cookies` permission the first time, and from
   then on that site's cookies go with its downloads as the `Cookie` header
   the browser would have sent, to the host's probe and to the app, where
-  the row keeps them so a resume is signed in too.
+  the row keeps them so a resume is signed in too. A video the panel hands
+  over takes its page's session, for that download alone: all of it for a
+  file on the page's own site, and for a file on another (a video server
+  of its own) only the cookies the browser itself sent that host from the
+  tab (`decide::session_goes`, `RequestHeaders::sent_cookies`).
 - **Without the app it does nothing.** There is no longer a downloader in the
   browser: with no app, downloads are the browser's own.
 - **Windows has run only on CI's machines.** Windows reads host manifests

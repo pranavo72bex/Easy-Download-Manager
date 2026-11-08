@@ -134,6 +134,24 @@ pub(super) async fn cookies_for(url: &str, store: Option<&str>) -> String {
     listed_sign_in(url, store, false, false).await.0
 }
 
+/// The cookies the browser itself sent `url`'s host from `tab`
+/// (`decide::cookies_named`), with the values its store holds now, as the
+/// header it would send: what a panel choice of another site's file carries.
+/// Empty where it sent none, and on any failure.
+pub(super) async fn sent_sign_in(tab: Option<i64>, url: &str, store: Option<&str>) -> String {
+    let names = sent_cookies(tab, url).await;
+    if names.is_empty() {
+        return String::new();
+    }
+    let query = to_js(&decide::cookie_query(url, store));
+    let Ok(listed) = call("cookies", "getAll", &[query]).await else {
+        return String::new();
+    };
+    let cookies: Vec<decide::BrowserCookie> =
+        serde_json::from_value(from_js(&listed)).unwrap_or_default();
+    decide::cookie_header(&decide::cookies_named(&cookies, &names))
+}
+
 /// [`listed_sign_in`] for one download: the app's "every site" switch
 /// counts.
 pub(super) async fn sign_in_for(url: &str, store: Option<&str>, video: bool) -> (String, bool) {

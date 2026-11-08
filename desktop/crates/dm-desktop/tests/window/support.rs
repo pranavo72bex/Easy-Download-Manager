@@ -162,6 +162,11 @@ pub(crate) struct World {
 
 pub(crate) const PAYLOAD: usize = 256 * 1024;
 
+/// How many times `/secret.zip`, which always wants a sign-in, has been asked for: a download
+/// tried again reaches the server again, however soon it fails again.
+pub(crate) static SECRET_ASKED: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
 pub(crate) fn payload() -> Vec<u8> {
     (0..PAYLOAD).map(|i| (i * 7 % 251) as u8).collect()
 }
@@ -269,6 +274,7 @@ pub(crate) fn world() -> World {
             .route(
                 "/secret.zip",
                 axum::routing::get(|| async {
+                    SECRET_ASKED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     Response::builder()
                         .status(401)
                         .body(Body::from("sign in first"))

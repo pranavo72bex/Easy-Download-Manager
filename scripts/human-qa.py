@@ -1360,7 +1360,11 @@ BROWSER_ROWS = {
 def edge(script, *args):
     """A check script of this repository in Microsoft Edge: its PASS and FAIL
     lines by name, and whether it ended well."""
-    run = subprocess.run([sys.executable, "-u", str(ROOT / "scripts" / script), *args],
+    # The check writes its lines in the encoding this run reads them in: with UTF-8 mode on
+    # here (`python -X utf8`) and not in it, its "—" came in as a byte UTF-8 refuses, and the
+    # run ended there (Windows, 2026-11-08).
+    utf8 = ["-X", "utf8"] if sys.flags.utf8_mode else []
+    run = subprocess.run([sys.executable, *utf8, "-u", str(ROOT / "scripts" / script), *args],
                          env=dict(os.environ, CHROME_PATH=EDGE, DM_BINARY=str(BINARY)),
                          capture_output=True, text=True)
     (WORK / f"edge-{script}.txt").write_text(run.stdout + run.stderr)

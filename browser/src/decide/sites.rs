@@ -113,13 +113,25 @@ pub fn cookies_sent(sites: &[String], url: &str, video: bool, everywhere: bool) 
 
 /// Whether a video's session (its site's cookies, for that one download) may go with what the
 /// panel or a video page hands over, before the person's own list and the app's "every site"
-/// switch are asked: the page itself (`page`), a file on the site of the page it was found on
-/// (`found_on`) or under it, or one on a host the browser itself sent that tab's request to
-/// (`reached`: the player's own video server, TikTok's on another domain). A page names its
-/// player's source itself, and could name another site's file so that dm fetched it with that
-/// site's sign-in (security review, 2026-11-07, gaps row 159 c).
-pub fn session_goes(url: &str, found_on: &str, page: bool, reached: bool) -> bool {
-    page || reached || site_of(found_on).is_some_and(|site| site_listed(&[site], url))
+/// switch are asked: the page itself (`page`), or a file on the site of the page it was found on
+/// (`found_on`) or under it. A file on another site (TikTok's video servers are on a domain of
+/// their own) takes only the cookies the browser itself sent that host from the tab
+/// ([`cookies_named`], `RequestHeaders::sent_cookies`): a page names its player's source
+/// itself, and could name another site's file, or make its tab reach that site first, so that
+/// dm fetched it with a sign-in the browser keeps from that page (security review, 2026-11-07,
+/// gaps row 159 c).
+pub fn session_goes(url: &str, found_on: &str, page: bool) -> bool {
+    page || site_of(found_on).is_some_and(|site| site_listed(&[site], url))
+}
+
+/// The cookies of `cookies` whose names are in `names`: those the browser itself sent a host
+/// (`RequestHeaders::sent_cookies`), with the values its store holds now.
+pub fn cookies_named(cookies: &[BrowserCookie], names: &[String]) -> Vec<BrowserCookie> {
+    cookies
+        .iter()
+        .filter(|c| names.contains(&c.name))
+        .cloned()
+        .collect()
 }
 
 /// What `cookies.getAll` is asked for a download's sign-in: its address and,

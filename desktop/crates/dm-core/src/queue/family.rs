@@ -27,7 +27,9 @@ pub(super) fn same_path(a: &str, b: &str) -> bool {
 /// the private part of the public suffix list, the hosts files are served from. Under these a
 /// host is its own family (security review, 2026-11-07: `victim.s3.amazonaws.com` and
 /// `evil.s3.amazonaws.com` were one family, and a waiting row could take a file from the
-/// second).
+/// second). The extension has the same names, and the same rule for one site, in
+/// `decide::sites` (`SHARED_HOSTING`, `registered_name`): dm-core may not depend on
+/// dm-protocol, where one copy for both would go. A name added here is added there.
 const SHARED: [&str; 30] = [
     "amazonaws.com",
     "cloudfront.net",
@@ -62,9 +64,12 @@ const SHARED: [&str; 30] = [
 ];
 
 fn family(url: &str) -> Option<String> {
+    // A final dot names the same host (`example.com.`); kept, it made `evil.com.` and
+    // `victim.com.` one family, "com.".
     let host = reqwest::Url::parse(url)
         .ok()?
         .host_str()?
+        .trim_end_matches('.')
         .to_ascii_lowercase();
     let labels: Vec<&str> = host.split('.').collect();
     // An address with no names in it (an IP) is its own family.
@@ -143,5 +148,11 @@ mod tests {
         ));
         assert!(!same_family("http://10.0.0.1/a", "http://10.0.0.2/a"));
         assert!(!same_family("not a url", "https://example.com/"));
+        // A host written with its final dot is the same host, and not every host of its ending.
+        assert!(same_family(
+            "https://a.example.com./x",
+            "https://b.example.com/y"
+        ));
+        assert!(!same_family("https://evil.com./a", "https://victim.com./a"));
     }
 }

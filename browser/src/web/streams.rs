@@ -256,11 +256,11 @@ pub(super) async fn sent_to(url: &str) -> Vec<(String, String)> {
     SENT.with(|s| s.borrow().of(url))
 }
 
-/// Whether the browser itself sent a request of `tab`'s to `url`'s host
-/// (`RequestHeaders::reached`), from this worker or the session's storage.
-pub(super) async fn reached(tab: Option<i64>, url: &str) -> bool {
+/// The names of the cookies the browser itself sent `url`'s host from `tab`
+/// (`RequestHeaders::sent_cookies`), from this worker or the session's storage.
+pub(super) async fn sent_cookies(tab: Option<i64>, url: &str) -> Vec<String> {
     let _ = sent_to("").await;
-    SENT.with(|s| s.borrow().reached(tab, url))
+    SENT.with(|s| s.borrow().sent_cookies(tab, url))
 }
 
 /// The newest address `tab`'s player asked for that is the same stream as `url`, when a signed

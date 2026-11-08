@@ -4554,3 +4554,28 @@ the tries again dialling once more and the connection left up at the true end; t
 had the same fault on a batch not yet done. Now a round owed comes first and the end after the
 last (`app/scheduled.rs` `Watch::at_end`), as reference A's "when done" comes after each file's
 retries; contract row B62 says so.
+
+## 2026-11-08: Another site's file takes only the cookies the browser itself sent it from the tab
+
+The gate of the same day ("A panel choice's session goes only where the tab's own requests
+went") let a file on another site carry all of that site's cookies once one of the tab's
+requests had gone there (`RequestHeaders::reached`). A page can send its tab anywhere: a
+`fetch`, a hidden frame, a preloaded `<video>`, then name that site's file in its player; and the
+browser, sending a request there from another site's page, keeps back every `SameSite` cookie
+(Lax, Strict, and by default one with no attribute), a sign-in above all. So "reached" said
+nothing of the sign-in, and dm sent what the browser had withheld. Chosen, at the maintainer's
+standing word of 2026-11-07 ("if found bug or improvement just implement it") and within the
+answer of 2026-11-08 to keep every site working: a file on the page's own site, or the page
+itself, goes with the session as before (`decide::session_goes`); one on another site takes only
+the cookies the browser itself sent that host from this tab, by name
+(`RequestHeaders::sent_cookies`, read from each request's own `Cookie` header, which the
+extension sees with `extraHeaders`; their values from the browser's store when the download
+starts, `decide::cookies_named`). TikTok's video servers, on a domain of their own, get the
+cookies its player was sent; a site whose cookies the browser blocked from the page gets none,
+as from the browser. Ruled out: counting a host only once a request to it carried any cookie (a
+host with one cookie it allows across sites and a Lax sign-in would still have given the
+sign-in), and taking the store's cookies marked `SameSite=None` (the browser may block third-party
+cookies altogether: what it sent is the answer). The plain panel's shadow root stays open, as the full
+panel's does: closing it would have ended the site checks, which read the lines inside both
+(`sites-check.py` `LITE_STATE`); a page could still restyle a button inside it, which `asDrawn`,
+looking at the holder, does not see.

@@ -47,6 +47,9 @@ pub type Kept = (String, Vec<(String, String)>, Option<i64>);
 const MOST_ADDRESSES: usize = 200;
 /// The most (tab, host) pairs remembered: which hosts each tab's requests went to.
 const MOST_REACHED: usize = 2000;
+/// The most cookie names kept for one tab and host, and the longest name.
+const MOST_COOKIES: usize = 64;
+const LONGEST_COOKIE_NAME: usize = 256;
 const MOST_HEADERS: usize = 40;
 const LONGEST_VALUE: usize = 4096;
 
@@ -79,6 +82,27 @@ pub fn forwarded(name: &str) -> bool {
         && !NOT_SENT_ON.iter().any(|n| n.eq_ignore_ascii_case(name))
 }
 
+/// The names of the cookies a request's `Cookie` header carried, each once.
+fn cookie_names(headers: &[Header]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for value in headers
+        .iter()
+        .filter(|h| h.name.trim().eq_ignore_ascii_case("cookie"))
+        .filter_map(|h| h.value.as_deref())
+    {
+        for pair in value.split(';') {
+            let name = pair.split('=').next().unwrap_or_default().trim();
+            if !name.is_empty()
+                && name.len() <= LONGEST_COOKIE_NAME
+                && !names.iter().any(|n| n == name)
+            {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names
+}
+
 /// The address with its fragment removed, as the browser requests it.
 fn key(url: &str) -> &str {
     url.split('#').next().unwrap_or(url)
@@ -88,9 +112,10 @@ fn key(url: &str) -> &str {
 #[derive(Debug, Default)]
 pub struct RequestHeaders {
     kept: VecDeque<Kept>,
-    /// The hosts each tab's requests went to, newest last: kept apart from the addresses, which a
-    /// page's many requests for pieces turn over within seconds.
-    reached: VecDeque<(i64, String)>,
+    /// The hosts each tab's requests went to, newest last, each with the names of the cookies the
+    /// browser itself sent it from that tab: kept apart from the addresses, which a page's many
+    /// requests for pieces turn over within seconds.
+    reached: VecDeque<(i64, String, Vec<String>)>,
 }
 
 impl RequestHeaders {
@@ -114,8 +139,22 @@ impl RequestHeaders {
         let url = key(&sent.url);
         if let (Some(tab), Some(host)) = (sent.tab(), super::site_of(url)) {
             if url.starts_with("http") {
-                self.reached.retain(|(t, h)| !(*t == tab && *h == host));
-                self.reached.push_back((tab, host));
+                // What the browser chose to send this host from this tab (`SameSite`, third-party
+                // cookies blocked or not), all its requests' together: the cookies' names alone,
+                // their values read from the browser's store when a download needs them.
+                let mut names = self
+                    .reached
+                    .iter()
+                    .position(|(t, h, _)| *t == tab && *h == host)
+                    .and_then(|at| self.reached.remove(at))
+                    .map(|(_, _, names)| names)
+                    .unwrap_or_default();
+                for name in cookie_names(&sent.request_headers) {
+                    if names.len() < MOST_COOKIES && !names.contains(&name) {
+                        names.push(name);
+                    }
+                }
+                self.reached.push_back((tab, host, names));
                 while self.reached.len() > MOST_REACHED {
                     self.reached.pop_front();
                 }
@@ -161,19 +200,39 @@ impl RequestHeaders {
         let (Some(tab), Some(host)) = (tab, super::site_of(url)) else {
             return false;
         };
-        self.reached.iter().any(|(t, h)| *t == tab && *h == host)
+        self.reached.iter().any(|(t, h, _)| *t == tab && *h == host)
     }
 
-    /// The (tab, host) pairs, oldest first, for the session's storage, as `export`.
-    pub fn export_reached(&self) -> Vec<(i64, String)> {
+    /// The names of the cookies the browser itself sent `url`'s host from `tab`: none where it
+    /// sent none (a `SameSite` sign-in to another site's page, third-party cookies blocked) or
+    /// the tab's requests never went there. A page can make its tab reach any host, so reaching
+    /// it says nothing of its sign-in; what the browser sent there does (gaps row 159 c).
+    pub fn sent_cookies(&self, tab: Option<i64>, url: &str) -> Vec<String> {
+        let (Some(tab), Some(host)) = (tab, super::site_of(url)) else {
+            return Vec::new();
+        };
+        self.reached
+            .iter()
+            .find(|(t, h, _)| *t == tab && *h == host)
+            .map(|(_, _, names)| names.clone())
+            .unwrap_or_default()
+    }
+
+    /// The (tab, host, cookie names) of each, oldest first, for the session's storage, as
+    /// `export`.
+    pub fn export_reached(&self) -> Vec<(i64, String, Vec<String>)> {
         self.reached.iter().cloned().collect()
     }
 
-    /// Takes in the pairs an earlier worker kept, older than anything heard since.
-    pub fn merge_reached(&mut self, older: Vec<(i64, String)>) {
-        let mut merged: VecDeque<(i64, String)> = older
+    /// Takes in what an earlier worker kept, older than anything heard since.
+    pub fn merge_reached(&mut self, older: Vec<(i64, String, Vec<String>)>) {
+        let mut merged: VecDeque<(i64, String, Vec<String>)> = older
             .into_iter()
-            .filter(|pair| !pair.1.is_empty() && !self.reached.contains(pair))
+            .filter(|(t, h, names)| {
+                !h.is_empty()
+                    && names.len() <= MOST_COOKIES
+                    && !self.reached.iter().any(|(t2, h2, _)| t2 == t && h2 == h)
+            })
             .collect();
         merged.extend(std::mem::take(&mut self.reached));
         while merged.len() > MOST_REACHED {
@@ -439,6 +498,56 @@ mod tests {
         let mut next = RequestHeaders::default();
         next.merge_reached(kept.export_reached());
         assert!(next.reached(TAB, "https://v16.tiktokcdn.com/v.mp4"));
+    }
+
+    /// The cookies a tab's requests carried to a host are kept by name, every request's
+    /// together, for that tab alone: what the browser itself chose to send there. A request
+    /// that carried none, as a page's own `fetch` of another site carries none of a `SameSite`
+    /// sign-in, adds nothing (gaps row 159 c).
+    #[test]
+    fn the_cookies_the_browser_sent_a_host_from_a_tab_are_kept_by_name() {
+        let mut kept = RequestHeaders::default();
+        kept.keep(&sent(
+            "https://v16.tiktokcdn.com/v.mp4?sig=a",
+            "media",
+            &[("Cookie", "tt_chain_token=abc; msToken=x=y"), ("X-A", "1")],
+        ));
+        kept.keep(&sent(
+            "https://v16.tiktokcdn.com/v.mp4?sig=b",
+            "media",
+            &[("Cookie", "tt_chain_token=abc; ttwid=2"), ("X-A", "1")],
+        ));
+        // A page's own request to another site, which the browser sent with none of its cookies.
+        kept.keep(&sent(
+            "https://bank.example/statement.pdf",
+            "xmlhttprequest",
+            &[("X-A", "1")],
+        ));
+        assert_eq!(
+            kept.sent_cookies(TAB, "https://v16.tiktokcdn.com/w.mp4"),
+            ["tt_chain_token", "msToken", "ttwid"],
+        );
+        assert!(kept.reached(TAB, "https://bank.example/x"), "reached");
+        assert!(
+            kept.sent_cookies(TAB, "https://bank.example/statement.pdf")
+                .is_empty(),
+            "but sent no cookie"
+        );
+        assert!(
+            kept.sent_cookies(Some(9), "https://v16.tiktokcdn.com/v.mp4")
+                .is_empty(),
+            "another tab's"
+        );
+        assert!(kept
+            .sent_cookies(None, "https://v16.tiktokcdn.com/v.mp4")
+            .is_empty());
+        let mut next = RequestHeaders::default();
+        next.merge_reached(kept.export_reached());
+        assert_eq!(
+            next.sent_cookies(TAB, "https://v16.tiktokcdn.com/v.mp4")
+                .len(),
+            3
+        );
     }
 
     #[test]

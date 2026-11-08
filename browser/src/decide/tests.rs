@@ -149,40 +149,38 @@ fn an_ftp_link_is_handed_over_from_the_menu() {
 fn a_panel_choice_carries_a_session_only_for_its_page_its_site_or_a_host_the_tab_reached() {
     let tab = "https://www.tiktok.com/@a/video/1";
     // The page itself, its site and a host under it.
-    assert!(session_goes(tab, "", true, false));
-    assert!(session_goes(
-        "https://www.tiktok.com/v.mp4",
-        tab,
-        false,
-        false
-    ));
+    assert!(session_goes(tab, "", true));
+    assert!(session_goes("https://www.tiktok.com/v.mp4", tab, false));
     assert!(session_goes(
         "https://v16-webapp.tiktok.com/v.mp4",
         tab,
-        false,
         false
     ));
-    // Another domain only where the tab's player fetched from it.
-    assert!(session_goes(
-        "https://v16.tiktokcdn.com/v.mp4",
-        tab,
-        false,
-        true
-    ));
+    // Another domain is not the page's site: it takes what the browser sent it (below).
+    assert!(!session_goes("https://v16.tiktokcdn.com/v.mp4", tab, false));
     assert!(!session_goes(
         "https://bank.example/statement.pdf",
         tab,
-        false,
         false
     ));
     // A look-alike is not under the site.
-    assert!(!session_goes(
-        "https://eviltiktok.com/v.mp4",
-        tab,
-        false,
-        false
-    ));
-    assert!(!session_goes("https://bank.example/x", "", false, false));
+    assert!(!session_goes("https://eviltiktok.com/v.mp4", tab, false));
+    assert!(!session_goes("https://bank.example/x", "", false));
+    // On another site, only the cookies the browser itself sent that host from the tab: its
+    // video server's own, and none of a sign-in the browser kept from the page.
+    let jar = [
+        BrowserCookie {
+            name: "tt_chain_token".into(),
+            value: "abc".into(),
+        },
+        BrowserCookie {
+            name: "sessionid".into(),
+            value: "secret".into(),
+        },
+    ];
+    let named = cookies_named(&jar, &["tt_chain_token".to_string()]);
+    assert_eq!(cookie_header(&named), "tt_chain_token=abc");
+    assert!(cookies_named(&jar, &[]).is_empty());
 }
 
 #[test]

@@ -62,6 +62,16 @@ impl DmApp {
             .is_some_and(|at| at.elapsed() < Duration::from_secs(3))
     }
 
+    /// Why a downloaded file may not be run now: a control client acted a moment ago
+    /// ([`Self::by_script`]). `None` when a person's click may run it. Asked where each file is
+    /// run, File › Open and the Open of Download complete and of Properties alike: a key pressed
+    /// on a focused button (Tab, then Enter) reaches it where a scripted click on its word is
+    /// refused (security review of 2026-11-07, gaps row 159 f).
+    pub(crate) fn run_refused(&self) -> Option<&'static str> {
+        self.by_script()
+            .then_some("Opening a file is done by a person, not by a script")
+    }
+
     /// Reads the words drawn this frame. Run at the end of the frame, and
     /// only when a control client may ask.
     pub fn scan_screen(&mut self, ctx: &egui::Context) {

@@ -325,7 +325,11 @@ Left, each a row in `docs/gaps.md` (row 159):
   row that never learned its name or size. Cookies do not cross (`set_url`).
   Fixed the same day: a host under one of 30 shared-hosting names (from the
   public suffix list's private part) is its own family
-  (`two_customers_of_a_shared_host_are_not_one_family`).
+  (`two_customers_of_a_shared_host_are_not_one_family`). Found 2026-11-08: a
+  host written with its final dot (`evil.com.`, the same host) kept the dot
+  as a label, so every such host was the family "com."; the dot is dropped
+  (`servers_of_one_site_are_a_family_and_other_sites_are_not`, failing
+  without it).
 - **Low (Windows): a torrent's file named `D:x`** passes librqbit's check
   (no `..`, no separator) and `PathBuf::push` makes it a path on another
   drive; the vendored storage creates the empty files before dm's own check
@@ -344,7 +348,21 @@ Left, each a row in `docs/gaps.md` (row 159):
   the same day: a panel choice's session goes only to the page's own site
   or a host the tab's own requests went to (`decide::session_goes`,
   `RequestHeaders::reached`; `chrome-check.py` "another site's file the
-  page names goes to dm without that site's session").
+  page names goes to dm without that site's session"). Made exact the same
+  day, on Windows: a page can make its tab reach any host (a `fetch`, a
+  frame, a preloaded `<video>`), and the browser sends that host none of a
+  `SameSite` sign-in from another site's page, but `reached` let dm take all
+  its cookies. A file on another site now takes only the cookies the browser
+  itself sent that host from the tab, by name (`RequestHeaders::sent_cookies`,
+  from the request's own `Cookie` header; `decide::cookies_named`), so dm
+  sends nothing the browser withheld; TikTok's video servers get what its
+  player was sent (`the_cookies_the_browser_sent_a_host_from_a_tab_are_kept_by_name`;
+  `chrome-check.py` "and where the tab's own player fetched from that site,
+  only the cookies the browser sent it there", which fails with `reached`).
+  The plain panel's shadow root stays open, as the full panel's does: the
+  site checks read the lines inside both (`sites-check.py` `LITE_STATE`); a
+  page could still restyle a button inside it, which `asDrawn`, looking at
+  the holder, does not see.
 - **Low: a renewal is matched across tabs.** `RequestHeaders::renewed` did
   not compare the tab or YouTube's `id`, so another tab's video with the same
   itag on the same edge host could be offered as a renewal. The host cannot
@@ -368,7 +386,15 @@ Left, each a row in `docs/gaps.md` (row 159):
   `dm-player-*` listeners do not check `event.source`; the Properties and
   Download complete dialogs' Open buttons have no script guard; with no
   store at all the notice blames "Windows Credential Manager" on macOS and
-  Linux too.
+  Linux too. Fixed 2026-11-08, the last two: a key a script pressed (Tab to
+  the button, then Enter) reached a dialog's Open, where a scripted click on
+  the word is refused, and ran the file, which on Windows may be a program
+  an AI assistant had just downloaded; Download complete's Open and Open
+  with… and Properties' Open now run nothing a moment after a script drove
+  the window, as File › Open did, and the file stays listed for the person
+  (`DmApp::run_refused`;
+  `a_dialogs_open_runs_nothing_a_moment_after_a_script_pressed_a_key`). The
+  notice names this system's store (the Keychain, the Secret Service).
 - The worker's re-read of a playlist on the public web still carries the
   browser's session, as the player's own request did; only private hosts are
   refused.

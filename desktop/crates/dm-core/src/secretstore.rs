@@ -63,6 +63,15 @@ impl SecretStore for MemoryStore {
     }
 }
 
+/// The store this system keeps the key in, as a person knows it: the one a sealed file needs.
+const STORE_NAME: &str = if cfg!(windows) {
+    "the Windows Credential Manager"
+} else if cfg!(target_os = "macos") {
+    "the Keychain"
+} else {
+    "the Secret Service"
+};
+
 /// The operating system's store, where there is one and it is not switched off.
 pub fn system() -> Option<&'static dyn SecretStore> {
     if cfg!(test) || std::env::var_os("DM_NO_SECRET_STORE").is_some() {
@@ -590,11 +599,11 @@ pub fn sealed(plain: Vec<u8>) -> Vec<u8> {
 pub fn opened(bytes: &[u8]) -> Opened {
     match system() {
         Some(store) => open_with(store, bytes),
-        None if is_sealed(bytes) => Opened::Failed(
-            "the secrets are sealed under a key in the Windows Credential Manager, which is not \
-             available here"
-                .to_string(),
-        ),
+        // This system's store by name: macOS and Linux were told of Windows' (security
+        // review, 2026-11-07, gaps row 159 f).
+        None if is_sealed(bytes) => Opened::Failed(format!(
+            "the secrets are sealed under a key in {STORE_NAME}, which is not available here"
+        )),
         None => Opened::Plain,
     }
 }
@@ -921,7 +930,14 @@ mod tests {
         assert_eq!(opened(PLAIN), Opened::Plain);
         let store = MemoryStore::default();
         let sealed_bytes = seal_with(&store, QUEUE_KEY, PLAIN).unwrap();
-        assert!(matches!(opened(&sealed_bytes), Opened::Failed(_)));
+        // Said of this system's own store.
+        match opened(&sealed_bytes) {
+            Opened::Failed(why) => {
+                assert!(why.contains(STORE_NAME), "{why}");
+                assert_eq!(why.contains("Windows"), cfg!(windows), "{why}");
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

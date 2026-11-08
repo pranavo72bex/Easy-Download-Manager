@@ -53,6 +53,8 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         let (mut ok, mut cancel, mut open_file, mut copy_details) = (false, false, false, false);
         let focus = app.dialogs.take_focus("File properties");
         let runtime = app.backend.runtime.clone();
+        // Its Open runs the file: a person's click does, a script's a moment ago does not.
+        let refused = app.run_refused();
         let Some(d) = app.dialogs.properties.get_mut(&id) else {
             continue;
         };
@@ -277,7 +279,9 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
             });
         let cancel = cancel || !shut;
         if open_file {
-            if let Err(e) = app.backend.platform.open(&row.path) {
+            if let Some(why) = refused {
+                d.says = why.to_string();
+            } else if let Err(e) = app.backend.platform.open(&row.path) {
                 d.says = e;
             }
         }

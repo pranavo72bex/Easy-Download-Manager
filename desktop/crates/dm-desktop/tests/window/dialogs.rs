@@ -207,6 +207,101 @@ fn a_pages_links_open_the_download_links_dialog() {
     });
 }
 
+/// A downloaded file is run by a person's click: a moment after a script pressed a key in the
+/// window (Tab to a dialog's Open, then Enter, reached it where a scripted click on the word
+/// Open is refused), Download complete's Open and Open with… and Properties' Open run nothing
+/// and say why, as File › Open does; once that moment has passed, a click runs it
+/// (`docs/security-report.md`, gaps row 159 f).
+#[test]
+fn a_dialogs_open_runs_nothing_a_moment_after_a_script_pressed_a_key() {
+    let world = world();
+    let mut harness = world.quick_harness();
+    harness.state_mut().applied.double_click = "properties".into();
+    // The window tests' settings have Download complete off.
+    harness.state_mut().applied.show_complete = true;
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the download to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(3);
+    let row = harness.state().rows()[0].clone();
+    assert!(harness.query_by_label("Download complete").is_some());
+    // A key a script pressed, as `ui.key` does: the window's moment is a script's.
+    let scripted = |harness: &mut Harness<'_, DmApp>| {
+        let pressed =
+            harness
+                .state_mut()
+                .human_call("ui.key", &serde_json::json!({ "key": "F13" }), None);
+        assert!(matches!(pressed, Some(Ok(_))), "{pressed:?}");
+        harness.run_steps(2);
+    };
+    let refused = "Opening a file is done by a person, not by a script";
+
+    // Download complete: Open, then Open with…, run nothing, and the file stays listed.
+    scripted(&mut harness);
+    click(&mut harness, "Open");
+    scripted(&mut harness);
+    click(&mut harness, "Open with…");
+    assert!(
+        world.fake.opened.lock().unwrap().is_empty(),
+        "{:?}",
+        world.fake.opened.lock().unwrap()
+    );
+    assert!(
+        harness.state().said.english().contains("done by a person"),
+        "{:?}",
+        harness.state().said
+    );
+    assert!(
+        harness.query_by_label("Download complete").is_some(),
+        "left for the person"
+    );
+    harness.state_mut().dialogs.complete.clear();
+    harness.run_steps(2);
+
+    // Properties: its Open the same, said in the window.
+    double_click(&mut harness, "file.zip");
+    until(&mut harness, "the file's digests to be worked out", |app| {
+        app.dialogs.properties.get(&row.id).is_some_and(|d| {
+            let sums = dm_core::lock(&d.sums);
+            !sums.is_empty() && sums.values().all(Option::is_some)
+        })
+    });
+    harness.run_steps(3);
+    scripted(&mut harness);
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
+        .click();
+    harness.run_steps(3);
+    assert!(world.fake.opened.lock().unwrap().is_empty());
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .properties
+            .get(&row.id)
+            .map(|d| d.says.as_str()),
+        Some(refused)
+    );
+
+    // Once the script's moment has passed, a person's click runs it.
+    std::thread::sleep(std::time::Duration::from_millis(3100));
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
+        .click();
+    for _ in 0..750 {
+        harness.run_steps(1);
+        if !world.fake.opened.lock().unwrap().is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(
+        *world.fake.opened.lock().unwrap(),
+        std::slice::from_ref(&row.path)
+    );
+}
+
 #[test]
 fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     let world = world();

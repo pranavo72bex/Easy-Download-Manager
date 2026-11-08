@@ -2384,14 +2384,15 @@ fn failed_downloads_are_counted_above_the_list_with_retry_all() {
     assert!(harness
         .query_by_label("1 download didn't finish.")
         .is_some());
+    let asked = SECRET_ASKED.load(std::sync::atomic::Ordering::SeqCst);
     click(&mut harness, "Retry all");
-    // Tried again: it leaves Failed, then fails again, as that server
-    // still wants a sign-in.
-    assert!(harness
-        .state()
-        .rows()
-        .iter()
-        .all(|r| !matches!(r.state, State::Failed(_))));
+    // Tried again: asked of the server once more, and failed again, as that
+    // server still wants a sign-in. Not looked for in between: on a loaded
+    // machine the second failure came within the click's own frames (the
+    // whole suite on Windows, 2026-11-08).
+    until(&mut harness, "the retry to reach the server", |_| {
+        SECRET_ASKED.load(std::sync::atomic::Ordering::SeqCst) > asked
+    });
     until(&mut harness, "the second failure", |app| {
         app.rows()
             .iter()

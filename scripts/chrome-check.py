@@ -69,9 +69,19 @@ WATCHED = []
 MARK = [0]
 
 
+def annotation(text):
+    """`text` as a GitHub annotation's message, which ends at its line."""
+    return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
 def check(name, ok, detail=""):
     results.append((ok, name, detail))
     print(f"  {'PASS' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail else ""), flush=True)
+    # A job's log is open to the repository's administrators only, its annotations to
+    # everyone: a failed check is named there, as `ci-failed-tests.py` names a failed test.
+    if not ok and os.environ.get("GITHUB_ACTIONS"):
+        print(f"::error title=chrome-check::{annotation(name + (f' — {detail}' if detail else ''))[:900]}",
+              flush=True)
     if WATCHED:
         worker = WATCHED[0]
         if not ok:
@@ -637,6 +647,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Content-Security-Policy", csp)
             if path == "/privatevideo.html":
                 self.send_header("Set-Cookie", "session=1; Path=/")
+                # On `localhost`, which a page on 127.0.0.1 is another site to, also one the
+                # browser may send across sites (gaps row 159 c).
+                if self.headers.get("Host", "").startswith("localhost"):
+                    self.send_header("Set-Cookie", "share=1; Path=/; SameSite=None; Secure")
             self.send_header("Content-Length", str(len(page)))
             self.end_headers()
             self.wfile.write(page)
@@ -1324,9 +1338,10 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     check("and the browser does not download it",
           not (engine_dl.parent / "browser-downloads" / "private-clip.mp4").exists())
 
-    # Another site's file named by the page: its session goes with a panel choice only where this
-    # tab's own requests went to that site (gaps row 159 c). `localhost` gets a session cookie of
-    # its own first, in a tab of its own.
+    # Another site's file named by the page: a panel choice carries only the cookies the browser
+    # itself sent that site from this tab (gaps row 159 c). `localhost` gets cookies of its own
+    # first, in a tab of its own: a session (Lax, which the browser sends no page of another
+    # site's) and one it may send across sites.
     other = origin.replace("127.0.0.1", "localhost")
     loaded(open_tab(base, f"{other}/privatevideo.html"), "/privatevideo.html")
 
@@ -1342,10 +1357,23 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
             click_panel(tab)
         wait_for(lambda: whole(engine_dl, name), 60)
     sent_a, sent_b = dm_cookies("cross-a.mp4"), dm_cookies("cross-b.mp4")
+
+    def names(header):
+        return {part.split("=")[0].strip() for part in header.split(";") if part.strip()}
+
+    held = worker.evaluate(f"chrome.cookies.getAll({{url: '{other}/files/cross-b.mp4'}})"
+                           ".then(c => c.map(x => x.name).sort().join(','))") or ""
+    by_browser = set().union(*[names(r["cookie"]) for r in requests
+                               if r["path"] == "/files/cross-b.mp4" and not is_dm(r["agent"])])
+    check("another site's sign-in is in the browser, for the checks below to mean anything",
+          "session" in held.split(","), held)
     check("another site's file the page names goes to dm without that site's session",
           bool(sent_a) and not any("session=1" in c for c in sent_a), str(sent_a))
-    check("and with it where the tab's own player fetched from that site",
-          bool(sent_b) and all("session=1" in c for c in sent_b), str(sent_b))
+    # The tab's own player reached that site (a page can make its tab reach any site): dm carries
+    # what the browser itself sent there, by name, and not the session it kept from this page.
+    check("and where the tab's own player fetched from that site, only the cookies the browser sent it there",
+          bool(sent_b) and "session" not in by_browser and all(names(c) == by_browser for c in sent_b),
+          f"the browser sent {sorted(by_browser)}, dm sent {sent_b}")
 
     # A player that keeps its video in a web component's shadow root.
     tab = panel_page(base, origin, "/shadow.html")

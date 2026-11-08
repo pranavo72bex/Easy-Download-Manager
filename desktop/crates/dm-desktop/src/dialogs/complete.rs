@@ -40,6 +40,10 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
     let mut never_again = app.dialogs.complete_never;
     let mut with: Vec<String> = Vec::new();
     let mut shut = true;
+    // Open and Open with… run the file: a person's click does, a script's a moment ago does
+    // not (`run_refused`), and the file stays listed for the person.
+    let refused = app.run_refused();
+    let mut told = false;
     // In the corner above the status bar, out of the way of the rows a
     // person is clicking while a batch finishes, rather than over them in
     // the middle; resizable, and no wider than the window.
@@ -151,12 +155,20 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
                                 button.clicked()
                             };
                             if named(ui, t("Open"), tf("Open {}", &[&name])) {
-                                app.open_file(&row.path);
-                                done.push(row.id);
+                                if refused.is_some() {
+                                    told = true;
+                                } else {
+                                    app.open_file(&row.path);
+                                    done.push(row.id);
+                                }
                             }
                             if named(ui, t("Open with…"), tf("Open {} with…", &[&name])) {
-                                with.push(row.path.clone());
-                                done.push(row.id);
+                                if refused.is_some() {
+                                    told = true;
+                                } else {
+                                    with.push(row.path.clone());
+                                    done.push(row.id);
+                                }
                             }
                             if named(ui, t("Open folder"), tf("Open the folder of {}", &[&name])) {
                                 app.reveal_file(&row.path);
@@ -179,6 +191,9 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
     // Ticking only marks the box; the window stays until it is closed, and
     // the choice is saved then.
     app.dialogs.complete_never = never_again;
+    if let (true, Some(why)) = (told, refused) {
+        app.said = why.to_string().into();
+    }
     if close || !shut {
         app.dialogs.complete.clear();
         settle_never(app);

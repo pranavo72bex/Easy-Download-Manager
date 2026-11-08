@@ -120,16 +120,14 @@ impl DmApp {
     /// Runs one command, as a menu item, button, key or the control
     /// protocol asked for it.
     pub fn run(&mut self, command: Command) {
-        if self.by_script()
-            && matches!(
-                command,
-                Command::OpenFile | Command::OpenWith | Command::Preview
-            )
-        {
-            self.said = "Opening a file is done by a person, not by a script"
-                .to_string()
-                .into();
-            return;
+        if matches!(
+            command,
+            Command::OpenFile | Command::OpenWith | Command::Preview
+        ) {
+            if let Some(why) = self.run_refused() {
+                self.said = why.to_string().into();
+                return;
+            }
         }
         if !self.enabled(command) {
             return;
