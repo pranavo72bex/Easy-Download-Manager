@@ -454,6 +454,9 @@ own: dm's own program started as the engine's host (`--javascript-host`).
   the same. In the host process that ends only the host; the app says the checks were not
   answered and goes on (`in_a_process_of_its_own_a_program_that_takes_too_much_memory_ends_only_its_host`).
   The host reads one request and touches nothing else (no settings, no window, no lock).
+- Proxy scripts (`pac.rs`) run there too since 2026-11-08 (`evaluate_here`): a script a
+  person's network names (often plain `http://`) gets the same engine, held the same way, in place
+  of QuickJS's command line, whose `qjs:os` module the hardening prelude had to take away.
 - Left: the host runs as the user, not in a sandbox of its own (a restricted token or an
   AppContainer would be one), so an exploitable bug in Chakra's interpreter, reached by a
   malicious player, would run as the user, as a bug in the QuickJS process could before. Chakra is

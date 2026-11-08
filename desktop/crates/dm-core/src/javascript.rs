@@ -4,7 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The computer's own JavaScript engine, for the little JavaScript dm runs: the program that
-//! answers YouTube's player checks (`youtube::player`).
+//! answers YouTube's player checks (`youtube::player`), and a proxy configuration script
+//! (`pac::evaluate_here`).
 //!
 //! On Windows it is Windows' own Chakra (`chakra.dll`, part of Windows 10 and 11), as reference
 //! A runs its YouTube pieces in Windows' own JScript engine: nothing is fetched or shipped for
@@ -110,6 +111,19 @@ fn here(program: &str, call: &str, within: Duration) -> Result<String, String> {
     {
         let _ = (program, call, within);
         Err("this system's own JavaScript engine is not used yet".into())
+    }
+}
+
+/// Whether the computer's own engine is here (Windows' own Chakra), rather than one dm runs as a
+/// program of its own.
+pub(crate) fn system_engine_here() -> bool {
+    #[cfg(windows)]
+    {
+        chakra::here()
+    }
+    #[cfg(not(windows))]
+    {
+        false
     }
 }
 

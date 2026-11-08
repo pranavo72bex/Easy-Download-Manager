@@ -349,6 +349,25 @@ own engine (`javascript.rs`). It cuts in the app rather than the extension, from
 fetches itself, so a link added without the browser is read the same way; and it runs Chakra, not
 JScript9, which lacks `Symbol`, a name today's player uses while it loads.
 
+## Speed and time left, side by side (Observed, 2026-11-08, Windows)
+
+One 48 MiB file from a server on 127.0.0.1 whose rate for all connections together steps between
+3 MB/s and 1 MB/s every 10 seconds (`D:\compare\smoothing.mjs`): reference A 6.43 by its command
+line, its windows answered as a person answers them and its progress window read twice a second;
+dm (debug build) by its control port, its row read twice a second. Each reading set beside the
+rate the server really sent in the second before it.
+
+| | Reference A | dm |
+|---|---|---|
+| The whole file | 84.7 s: its connections took about a third of what the server offered | 23.5 s, the server's whole rate |
+| After a step in the real rate, its shown rate within a quarter of the new one | after 12.4 s, 0.1 s, 13.5 s and 1.3 s; four of eight steps never | after 1.7 s and 1.4 s, both steps |
+| How much the shown rate moves between readings while the real one is steady | median 15%, at worst 64% | median 0.9% |
+| How far its time left is from the time that was left | median 6.9 s, at worst 71 s | median 5.4 s, at worst 12 s |
+
+What it changes: nothing in dm, which follows a change sooner, holds steadier while nothing changes
+and says the time left more nearly (row 65's rule). That reference A fetched the file at a third of
+the offered rate is its own: it set no speed limit, and dm took the whole rate from the same server.
+
 ## Dial-up / VPN redial, side by side (Observed, 2026-11-08, Windows)
 
 Reference A 6.43 and dm 0.8.7 (debug build) on one Windows 11 computer, one after the

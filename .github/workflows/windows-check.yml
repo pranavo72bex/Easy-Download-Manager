@@ -46,7 +46,8 @@ jobs:
         run: python scripts/app-check.py
       - name: Out of the box, nothing installed
         # QuickJS, fetched by dm's own code from GitHub, checked, and run
-        # on Windows.
+        # on Windows: what dm falls back on where Windows has no engine of
+        # its own (YouTube's checks and proxy scripts run in Windows' own).
         working-directory: desktop
         env:
           DM_NETWORK_TESTS: "1"
