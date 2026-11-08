@@ -644,26 +644,24 @@ impl DmApp {
 
     /// Puts settings into force, and puts the window's copy back when that
     /// fails rather than leaving it showing what is not in force.
-    pub fn apply_settings(&mut self, mut wanted: Settings) -> Result<(), String> {
-        // What makes dm run something is a person's to set, as a settings file imported never
-        // sets it (`Settings::keep_programs_of`).
-        if self.by_script() {
-            let kept = wanted.keep_programs_of(&self.applied);
-            let said = if kept.command {
-                Some("The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again")
-            } else if kept.schedule {
-                Some("The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again")
-            } else if kept.proxy_script {
-                Some("The proxy script was not changed: a script was driving the window a moment ago; set it again")
-            } else {
-                None
-            };
-            if let Some(said) = said {
-                self.said = said.to_string().into();
-            }
-        }
+    pub fn apply_settings(&mut self, wanted: Settings) -> Result<(), String> {
         let watch_changed = wanted.watch_clipboard != self.applied.watch_clipboard;
-        match self.backend.set_settings(wanted) {
+        // A script's change keeps what makes dm run something
+        // (`Backend::set_settings_from`); the window says so.
+        let (outcome, kept) = self.backend.set_settings_from(wanted, self.by_script());
+        let said = if kept.command {
+            Some("The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again")
+        } else if kept.schedule {
+            Some("The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again")
+        } else if kept.proxy_script {
+            Some("The proxy script was not changed: a script was driving the window a moment ago; set it again")
+        } else {
+            None
+        };
+        if let Some(said) = said {
+            self.said = said.to_string().into();
+        }
+        match outcome {
             Ok(now) => {
                 crate::i18n::set(crate::i18n::chosen(&now.language));
                 // A search saved or changed is looked at on the next frame,

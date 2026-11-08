@@ -281,6 +281,26 @@ impl Backend {
         Arc::clone(&self.settings)
     }
 
+    /// Applies a change asked for by a person or, `by_script`, by a script (the
+    /// control port, an AI client): what makes dm run something (the command
+    /// after each download, the scheduled hours' program, the proxy script) is
+    /// a person's to set, as a settings file imported never sets it, so a
+    /// script's change keeps the ones in force (`Settings::keep_programs_of`).
+    /// Returns what was kept as well as the outcome, so the presentation can
+    /// say so even when the change itself is then refused.
+    pub fn set_settings_from(
+        &self,
+        mut wanted: Settings,
+        by_script: bool,
+    ) -> (Result<Settings, String>, crate::settings::KeptPrograms) {
+        let kept = if by_script {
+            wanted.keep_programs_of(&self.settings())
+        } else {
+            Default::default()
+        };
+        (self.set_settings(wanted), kept)
+    }
+
     /// Applies a change and writes it down, returning what is now in force.
     ///
     /// Whole or not at all. What the change refuses (a relative folder, a
@@ -791,6 +811,28 @@ mod chooser_tests {
         assert!(super::chooser_here(true, None));
         std::fs::write(dir.path().join("zenity"), "").unwrap();
         assert!(super::chooser_here(false, Some(&path)));
+    }
+}
+
+#[cfg(test)]
+mod settings_from_tests {
+    use super::testing::backend;
+
+    /// What makes dm run something is a person's to set: a script's change
+    /// keeps the command in force and says it did; a person's sets it.
+    #[test]
+    fn a_scripts_settings_change_keeps_the_command_a_persons_sets_it() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        let mut wanted = backend.settings();
+        wanted.on_complete = "echo done".into();
+        let (now, kept) = backend.set_settings_from(wanted.clone(), true);
+        assert!(kept.command);
+        assert_eq!(now.unwrap().on_complete, "");
+        let (now, kept) = backend.set_settings_from(wanted, false);
+        assert!(!kept.command);
+        assert_eq!(now.unwrap().on_complete, "echo done");
     }
 }
 
