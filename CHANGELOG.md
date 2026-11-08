@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Tests (macOS, Linux): the computer sleeping in the middle of downloads, without sleeping the computer running the check (`stress-check.py sleep`): dm frozen for 20 s while its connections are dropped, or left silent, then woken; 8 of 8 downloads finish byte-exact both ways, on this Mac and in the Linux container (gaps row 20).
 - Fixed, found by new tests of the window:
   - Escape on an open drop-down in a dialog's own window (Options' Language, say) closed the whole dialog and lost what had been changed in it; it now closes the drop-down, and the next Escape the dialog, as in the main window.
   - The Playlist dialog was not counted among the open dialogs: Escape left it open, the list behind it still took keys, and a script was told no dialog was open.

@@ -314,6 +314,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         norange = q.get("norange") == "1"
         cap = int(q.get("cap", "0"))                    # serve at most this many bytes of the file in all, then refuse
         expire_after = int(q.get("expire", "0"))        # requests after which it answers 403
+        begun = time.time()
         if ttfb:
             time.sleep(ttfb)
         if expire_after:
@@ -364,6 +365,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         sent = 0
         t0 = time.time()
         while sent < send:
+            # A connection a sleep left behind (`p_sleep`): nothing more is sent and nothing is
+            # closed, as a peer that went away without a word leaves it; the client must notice
+            # the silence. Ones opened after the wake are served as ever.
+            mute = getattr(self.server, "mute_before", 0)
+            if mute and begun < mute:
+                until = time.time() + 180
+                while time.time() < until and getattr(self.server, "mute_before", 0):
+                    time.sleep(0.5)
+                self.close_connection = True
+                return
             n = min(BLOCK - (pos % BLOCK), send - sent, 256 * 1024 if not rate else max(1024, rate // 20))
             with Stats.lock:
                 Stats.total += n
@@ -1867,6 +1878,65 @@ def p_leak(ctx):
     finally:
         dm.stop()
         shutil.rmtree(dm.out, ignore_errors=True)
+
+
+@phase
+def p_sleep(ctx):
+    """The computer sleeps in the middle of downloads and wakes: dm frozen while its connections are dropped, or left silent, then woken; every file finishes byte-exact."""
+    # A real sleep would sleep the computer running the check (gaps row 20). What a download
+    # meets across one is made here instead: dm's process frozen (SIGSTOP, as the system stops
+    # it), the network gone meanwhile, and the process woken (SIGCONT) to connections that were
+    # reset, or that a peer gone away without a word left silent, which only dm's own silence
+    # timeout can find. Windows has no SIGSTOP: it keeps itself awake while a row runs (awake.rs).
+    if not hasattr(signal, "SIGSTOP"):
+        finding("info", "sleep", "skipped: no SIGSTOP on this system (Windows keeps itself awake while a download runs)")
+        return
+    root, server, base = ctx["root"], ctx["server"], ctx["base"]
+    n, size, asleep = 8, 16 * MB, 20
+    silence = 30  # dm's "Time out a silent connection after" default, in seconds
+    for mode in ("reset", "silent"):
+        dm = DM(root, {"connections": 4, "concurrency": n}, name=f"sleep-{mode}").start()
+        frozen = False
+        try:
+            expect = {f"z{mode}{i}.bin": (f"sleep{mode}{i}", size) for i in range(n)}
+            dm.add([f"{base}/f/sleep{mode}{i}/{size}/z{mode}{i}.bin?rate={512 * 1024}" for i in range(n)])
+            wait_for(lambda: sum(r["progress"]["downloaded"] for r in dm.rows()) > n * size * 0.3, 120, every=0.5)
+            before = sum(r["progress"]["downloaded"] for r in dm.rows())
+            os.kill(dm.proc.pid, signal.SIGSTOP)
+            frozen = True
+            if mode == "reset":
+                server.cut_all()
+            else:
+                server.mute_before = time.time()
+            time.sleep(asleep)
+            if mode == "reset":
+                server.down = False
+            os.kill(dm.proc.pid, signal.SIGCONT)
+            frozen = False
+            woke = time.time()
+            measure("sleep", f"{mode}: asleep {asleep} s at {before / (n * size):.0%} of {n} downloads")
+            wait_for(lambda: len(dm.rows()) == n and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 240, every=1)
+            took = time.time() - woke
+            rows = dm.rows()
+            st = states(rows)
+            ok, bad = verify(rows, expect)
+            measure("sleep", f"{mode}: {st} {took:.0f} s after waking; {ok} of {n} byte-exact")
+            if st.get("failed"):
+                finding("high", "sleep", f"{mode}: {st['failed']} of {n} downloads failed across a sleep")
+            if bad:
+                finding("critical", "sleep", f"{mode}: files differ after a sleep: {bad[:3]}")
+            check("sleep", f"{mode}: every download finished byte-exact after the computer woke", ok == n, f"{st}")
+            # The rest of each file at 2 MB/s a file is about 6 s; silent connections are found
+            # by the silence timeout first.
+            limit = (silence if mode == "silent" else 0) + 60
+            check("sleep", f"{mode}: and within {limit} s of waking", took < limit, f"{took:.0f} s")
+        finally:
+            if frozen:
+                os.kill(dm.proc.pid, signal.SIGCONT)
+            server.mute_before = 0
+            server.down = False
+            dm.stop()
+            shutil.rmtree(dm.out, ignore_errors=True)
 
 
 @phase
