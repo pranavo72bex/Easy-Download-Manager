@@ -105,6 +105,35 @@ jobs:
       - name: Doctests
         run: cargo test --doc --workspace --locked
 
+  coverage:
+    # Line coverage of the desktop workspace, held to a floor that is only ever raised (the
+    # maintainer, 2026-11-08: over 90%). The run fails below it, so tests that are taken away
+    # or code added untested shows here rather than in a later bug.
+    name: Coverage (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-llvm-cov
+      - name: Install a CJK font
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Measure, and hold to the floor
+        run: |
+          floor=$(cat ../docs/coverage-floor.txt)
+          cargo llvm-cov --workspace --locked --summary-only --fail-under-lines "$floor" | tee coverage.txt
+      - name: Say the total in the run's summary
+        if: always()
+        run: grep -E '^TOTAL' coverage.txt >> "$GITHUB_STEP_SUMMARY" || true
+
   packaging-lint:
     # Seconds, no Rust build: the shell scripts, the workflows and the Linux
     # desktop entry, which a release depends on and nothing else checks.
