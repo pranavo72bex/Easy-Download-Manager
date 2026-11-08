@@ -534,3 +534,67 @@ mod no_window_tests {
         assert_eq!(listed[0]["state"], serde_json::json!({"kind": "completed"}));
     }
 }
+
+/// What the application's work at each tick costs on a large queue (the
+/// architecture audit's Phase 6). Ignored by default; run in release:
+/// `cargo test -p dm-shell --release --lib large_queue -- --ignored --nocapture`.
+#[cfg(test)]
+mod large_queue {
+    use super::*;
+
+    fn time(what: &str, rows: usize, runs: u32, mut f: impl FnMut()) -> Duration {
+        f();
+        let start = Instant::now();
+        for _ in 0..runs {
+            f();
+        }
+        let each = start.elapsed() / runs;
+        println!("{rows:>6} rows  {what:<28} {each:>10.2?}");
+        each
+    }
+
+    #[test]
+    #[ignore = "a measure, run by hand in release"]
+    fn the_application_tick_stays_cheap_on_a_large_queue() {
+        for size in [1_000usize, 10_000] {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let state = tempfile::tempdir().unwrap();
+            let backend = crate::app::backend::testing::backend(&runtime, state.path());
+            let items = (0..size)
+                .map(|i| {
+                    let with = dm_core::AddOptions {
+                        later: true,
+                        ..Default::default()
+                    };
+                    (format!("http://127.0.0.1:9/{i}.bin"), with)
+                })
+                .collect();
+            assert!(backend.add_each(items).iter().all(Result::is_ok));
+            let settings = backend.settings();
+            let mut session = Session::default();
+            let mut rows = Vec::new();
+            let read = time("Session::read", size, 50, || {
+                let read = session.read(&backend, &settings);
+                rows = read.snapshot.rows;
+            });
+            assert_eq!(rows.len(), size);
+            let dry = time("Session::ran_dry", size, 50, || {
+                session.ran_dry(&rows);
+            });
+            let tick = time("Session::schedule_tick", size, 50, || {
+                session.schedule_tick(&backend, &settings, &rows, |_| true);
+            });
+            time("rules::superseded", size, 50, || {
+                super::super::rules::superseded(&rows);
+            });
+            time("control_api queue.list", size, 10, || {
+                super::super::control_api::queue_list(&rows);
+            });
+            // Four times a second while something moves: the read, the dry
+            // look and the schedules' tick stay well inside a frame.
+            let per_tick = read + dry + tick;
+            println!("{size:>6} rows  per tick (read+dry+schedule)  {per_tick:>10.2?}");
+            assert!(per_tick < Duration::from_millis(50), "{per_tick:?}");
+        }
+    }
+}
