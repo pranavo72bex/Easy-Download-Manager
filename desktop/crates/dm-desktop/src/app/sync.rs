@@ -493,14 +493,11 @@ impl DmApp {
                     self.quit_asked = true;
                     return;
                 }
-                // In the list of problems as well as the status line: whoever
-                // set it is likely away, and a status line is overwritten.
-                // A refusal that comes back later is left for the list too,
-                // as anything running apart from the window does.
-                let notices = self.backend.notices();
-                let report: crate::power::Report =
-                    Box::new(move |why| dm_core::lock(&notices).push(why));
-                if let Err(e) = self.backend.platform.power(action, report) {
+                // Carried out by the application (`session::carry_out`); a
+                // refusal said at once goes in the list of problems as well as
+                // the status line: whoever set it is likely away, and a status
+                // line is overwritten.
+                if let Err(e) = dm_shell::app::session::carry_out(&self.backend, action) {
                     self.problem(e.clone());
                     self.said = e.into();
                 }
@@ -711,42 +708,17 @@ impl DmApp {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let due: Vec<Entry> = self
-            .rows
-            .iter()
-            .filter(|r| r.delete_due_in(now) == Some(0))
-            .map(|r| Entry::clone(r))
-            .collect();
-        if due.is_empty() {
+        // Done by the application (`dm_shell::app::session::delete_due`); the
+        // window forgets what went and says what could not.
+        let Some(done) = dm_shell::app::session::delete_due(&self.backend, &self.rows, now) else {
             return;
+        };
+        for id in &done.gone {
+            self.dialogs.forget(*id);
+            self.selected.remove(id);
         }
-        let mut gone = Vec::new();
-        let mut failed = Vec::new();
-        for row in due {
-            // Its own file alone: one moved away or since written by another
-            // row is not this row's to delete.
-            let present = !row.path.is_empty() && !crate::table::gone(&row);
-            // A finished torrent still shared lets go of its file first (gaps row 147).
-            match present.then(|| {
-                dm_core::stop_sharing(std::path::Path::new(&row.path));
-                self.backend.platform.trash(&row.path)
-            }) {
-                Some(Err(e)) => {
-                    failed.push(format!("{}: {e}", row.path));
-                    self.backend.set_delete_after(row.id, None);
-                }
-                _ => gone.push(row.id),
-            }
-        }
-        if !gone.is_empty() {
-            self.backend.remove_many(&gone);
-            for id in &gone {
-                self.dialogs.forget(*id);
-                self.selected.remove(id);
-            }
-        }
-        if !failed.is_empty() {
-            self.said = crate::i18n::Said::new("Could not delete {}", &[&failed.join("; ")]);
+        if !done.failed.is_empty() {
+            self.said = crate::i18n::Said::new("Could not delete {}", &[&done.failed.join("; ")]);
         }
         self.refresh();
     }

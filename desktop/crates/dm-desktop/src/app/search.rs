@@ -78,36 +78,17 @@ impl DmApp {
                     // New: neither in the list nor found by this search
                     // before, compared without logins, so clearing the list
                     // or a site login on the row does not bring it back.
-                    let seen: std::collections::HashSet<String> = self
+                    // Sorted by the application (`dm_shell::app::search`).
+                    let seen: Vec<String> = self
                         .applied
                         .site_searches
                         .iter()
                         .find(|s| s.name == name)
-                        .map(|s| s.seen.iter().cloned().collect())
+                        .map(|s| s.seen.clone())
                         .unwrap_or_default();
-                    let listed: std::collections::HashSet<String> = self
-                        .rows
-                        .iter()
-                        .map(|r| dm_shell::lists::bare(&r.url))
-                        .collect();
-                    let new: Vec<String> = found
-                        .files
-                        .iter()
-                        .filter(|f| {
-                            let f = dm_shell::lists::bare(f);
-                            !listed.contains(&f) && !seen.contains(&f)
-                        })
-                        .cloned()
-                        .collect();
-                    // Remembered: what was added now, and what is already in
-                    // the list. A file that could not be added is not, so the
-                    // next run offers it again.
-                    let mut remember: Vec<String> = found
-                        .files
-                        .iter()
-                        .map(|f| dm_shell::lists::bare(f))
-                        .filter(|f| listed.contains(f))
-                        .collect();
+                    let finds = dm_shell::app::search::sort_finds(&found.files, &self.rows, &seen);
+                    let new = finds.new;
+                    let mut remember = finds.listed;
                     if new.is_empty() {
                         self.said =
                             crate::i18n::Said::naming("The search {} found nothing new.", &[&name]);
@@ -124,11 +105,7 @@ impl DmApp {
                             .find(|s| s.name == name)
                             .is_some_and(|s| s.keep_layout);
                         let added = self.add_found(&new, with, keep_layout);
-                        let now: std::collections::HashSet<String> = self
-                            .rows
-                            .iter()
-                            .map(|r| dm_shell::lists::bare(&r.url))
-                            .collect();
+                        let now = dm_shell::app::search::listed(&self.rows);
                         remember.extend(
                             new.iter()
                                 .map(|f| dm_shell::lists::bare(f))
@@ -150,13 +127,7 @@ impl DmApp {
                     let mut settings = self.applied.clone();
                     if let Some(search) = settings.site_searches.iter_mut().find(|s| s.name == name)
                     {
-                        for f in remember {
-                            if !search.seen.contains(&f) {
-                                search.seen.push(f);
-                            }
-                        }
-                        let over = search.seen.len().saturating_sub(dm_shell::lists::MOST_SEEN);
-                        search.seen.drain(..over);
+                        search.seen = dm_shell::app::search::remembered(&search.seen, remember);
                         if let Err(e) = self.apply_settings(settings) {
                             self.problem(format!(
                                 "what the search {name} has seen could not be saved: {e}"

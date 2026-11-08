@@ -22,9 +22,7 @@ pub fn shown_size(entry: &Entry) -> Option<u64> {
 
 /// A finished row whose file is no longer where dm saved it.
 pub fn gone(entry: &Entry) -> bool {
-    !entry.path.is_empty()
-        && (!std::path::Path::new(&entry.path).exists()
-            || SUPERSEDED.with(|s| s.borrow().contains(&entry.id)))
+    SUPERSEDED.with(|s| dm_shell::app::rules::file_gone(entry, &s.borrow()))
 }
 
 thread_local! {
@@ -39,28 +37,7 @@ thread_local! {
 /// Which finished rows another, later one has taken the file of, as the
 /// rows now stand.
 pub fn set_superseded<R: std::borrow::Borrow<dm_core::Entry>>(rows: &[R]) {
-    let rows: Vec<&dm_core::Entry> = rows.iter().map(|r| r.borrow()).collect();
-    let mut latest: std::collections::HashMap<&str, (u64, dm_core::Id)> =
-        std::collections::HashMap::new();
-    let finished = rows
-        .iter()
-        .filter(|r| r.state == dm_core::State::Completed && !r.path.is_empty());
-    for row in finished.clone() {
-        let at = row.finished_at.unwrap_or(0);
-        let held = latest.entry(row.path.as_str()).or_insert((at, row.id));
-        // Finished in the same second, the later row: the higher id.
-        if (at, row.id) > *held {
-            *held = (at, row.id);
-        }
-    }
-    let superseded = finished
-        .filter(|r| {
-            latest
-                .get(r.path.as_str())
-                .is_some_and(|(_, id)| *id != r.id)
-        })
-        .map(|r| r.id)
-        .collect();
+    let superseded = dm_shell::app::rules::superseded(rows);
     SUPERSEDED.with(|s| *s.borrow_mut() = superseded);
 }
 

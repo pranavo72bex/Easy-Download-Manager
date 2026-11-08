@@ -725,59 +725,7 @@ mod admit_tests {
 
 #[cfg(test)]
 mod export_tests {
-    struct Nothing;
-
-    impl super::Platform for Nothing {
-        fn set_login_item(&self, _: bool) -> Result<(), String> {
-            Ok(())
-        }
-        fn notify(&self, _: &str, _: &str) {}
-        fn clipboard(&self) -> Option<String> {
-            None
-        }
-        fn reveal(&self, _: &str) -> Result<(), String> {
-            Ok(())
-        }
-        fn open(&self, _: &str) -> Result<(), String> {
-            Ok(())
-        }
-        fn chime(&self) {}
-        fn power(
-            &self,
-            _: crate::app::power::WhenDone,
-            _: crate::app::power::Report,
-        ) -> Result<(), String> {
-            Ok(())
-        }
-        fn choose_app(&self) -> Option<std::path::PathBuf> {
-            None
-        }
-        fn open_with(&self, _: &str, _: &std::path::Path) -> Result<(), String> {
-            Ok(())
-        }
-        fn choose_file(&self, _: bool, _: &str) -> Option<std::path::PathBuf> {
-            None
-        }
-    }
-
-    fn backend(runtime: &tokio::runtime::Runtime, dir: &std::path::Path) -> super::Backend {
-        let settings = crate::Settings {
-            download_dir: dir.join("out"),
-            ..crate::Settings::default()
-        };
-        let queue = dm_core::Queue::new(
-            dm_core::client(),
-            settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
-            settings.concurrency,
-        );
-        super::Backend::new(
-            runtime.handle().clone(),
-            queue,
-            settings,
-            Vec::new(),
-            std::sync::Arc::new(Nothing),
-        )
-    }
+    use super::testing::backend;
 
     #[test]
     fn an_exported_list_brings_back_queue_note_name_and_digest() {
@@ -843,5 +791,67 @@ mod chooser_tests {
         assert!(super::chooser_here(true, None));
         std::fs::write(dir.path().join("zenity"), "").unwrap();
         assert!(super::chooser_here(false, Some(&path)));
+    }
+}
+
+/// A `Backend` on a queue of its own, with a platform that does nothing, for
+/// the application's tests.
+#[cfg(test)]
+pub(crate) mod testing {
+    pub(crate) struct Nothing;
+
+    impl super::Platform for Nothing {
+        fn set_login_item(&self, _: bool) -> Result<(), String> {
+            Ok(())
+        }
+        fn notify(&self, _: &str, _: &str) {}
+        fn clipboard(&self) -> Option<String> {
+            None
+        }
+        fn reveal(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn open(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn chime(&self) {}
+        fn power(
+            &self,
+            _: crate::app::power::WhenDone,
+            _: crate::app::power::Report,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+        fn choose_app(&self) -> Option<std::path::PathBuf> {
+            None
+        }
+        fn open_with(&self, _: &str, _: &std::path::Path) -> Result<(), String> {
+            Ok(())
+        }
+        fn choose_file(&self, _: bool, _: &str) -> Option<std::path::PathBuf> {
+            None
+        }
+    }
+
+    pub(crate) fn backend(
+        runtime: &tokio::runtime::Runtime,
+        dir: &std::path::Path,
+    ) -> super::Backend {
+        let settings = crate::Settings {
+            download_dir: dir.join("out"),
+            ..crate::Settings::default()
+        };
+        let queue = dm_core::Queue::new(
+            dm_core::client(),
+            settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
+            settings.concurrency,
+        );
+        super::Backend::new(
+            runtime.handle().clone(),
+            queue,
+            settings,
+            Vec::new(),
+            std::sync::Arc::new(Nothing),
+        )
     }
 }

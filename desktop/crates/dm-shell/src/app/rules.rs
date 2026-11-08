@@ -8,6 +8,7 @@
 //! any other presentation. Each place keeps its own way of saying what it
 //! decided (a question, a sentence, an error), never its own copy of the rule.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use dm_core::{Entry, Id, State};
@@ -52,6 +53,40 @@ pub fn link_expired(row: &Entry) -> bool {
         && ["answered 403", "answered 404", "answered 410"]
             .iter()
             .any(|code| why.contains(code))
+}
+
+/// Which finished rows another, later one has taken the file of: a row whose
+/// file was deleted turned "Complete" again when the same address was
+/// downloaded anew under its old name. The later row is the one finished last
+/// (in the same second, the higher id).
+pub fn superseded<R: std::borrow::Borrow<Entry>>(rows: &[R]) -> HashSet<Id> {
+    let rows: Vec<&Entry> = rows.iter().map(|r| r.borrow()).collect();
+    let mut latest: HashMap<&str, (u64, Id)> = HashMap::new();
+    let finished = rows
+        .iter()
+        .filter(|r| r.state == State::Completed && !r.path.is_empty());
+    for row in finished.clone() {
+        let at = row.finished_at.unwrap_or(0);
+        let held = latest.entry(row.path.as_str()).or_insert((at, row.id));
+        if (at, row.id) > *held {
+            *held = (at, row.id);
+        }
+    }
+    finished
+        .filter(|r| {
+            latest
+                .get(r.path.as_str())
+                .is_some_and(|(_, id)| *id != r.id)
+        })
+        .map(|r| r.id)
+        .collect()
+}
+
+/// A finished row whose file is no longer where dm saved it: gone from the
+/// disk, or taken by a later row (`superseded`).
+pub fn file_gone(entry: &Entry, superseded: &HashSet<Id>) -> bool {
+    !entry.path.is_empty()
+        && (!std::path::Path::new(&entry.path).exists() || superseded.contains(&entry.id))
 }
 
 /// The row an address is already listed as: the same address, its login

@@ -31,28 +31,12 @@ impl DmApp {
             return;
         }
         self.clipboard.last.clone_from(&text);
-        let fresh = |url: &String| {
-            !self.clipboard.dismissed.contains(url) && !self.rows.iter().any(|r| &r.url == url)
-        };
-        // Text that is links and nothing else, one or several; a sentence
-        // with a link in it is not an offer.
-        let words: Vec<&str> = text.as_deref().unwrap_or("").split_whitespace().collect();
-        let links: Vec<String> =
-            if !words.is_empty() && words.iter().all(|w| looks_downloadable(w).is_some()) {
-                let mut links: Vec<String> = Vec::new();
-                for w in words {
-                    if !links.iter().any(|l| l == w) {
-                        links.push(w.to_string());
-                    }
-                }
-                links.into_iter().filter(fresh).collect()
-            } else {
-                text.as_deref()
-                    .and_then(looks_downloadable)
-                    .filter(fresh)
-                    .into_iter()
-                    .collect()
-            };
+        // What it offers is the application's rule (`dm_shell::app::links`).
+        let links = dm_shell::app::links::clipboard_offer(
+            text.as_deref(),
+            &self.clipboard.dismissed,
+            &self.rows,
+        );
         // Taken at once where the person asked for that: one link's
         // Download details, or the list of several, with no bar first.
         if self.applied.start_copied && !links.is_empty() {

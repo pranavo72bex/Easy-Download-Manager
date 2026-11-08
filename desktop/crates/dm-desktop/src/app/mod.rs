@@ -389,11 +389,9 @@ pub struct DmApp {
     pub applied: Settings,
     /// The clipboard watcher's memory.
     pub clipboard: Clipboard,
-    /// When the watched folder was last read (Options › Downloads).
-    watched_at: Option<Instant>,
-    /// Files in it left where they lie, because no link was found in them or
-    /// they could not be moved aside: not read again every few seconds.
-    watch_skip: HashSet<std::path::PathBuf>,
+    /// The watched folder's memory between looks (Options › Downloads;
+    /// `dm_shell::app::watch`).
+    watched: dm_shell::app::watch::Watched,
     /// What the update check has found.
     pub update: Arc<Mutex<Update>>,
     /// A weekly check is waiting for its answer, to open About on a newer dm.
@@ -617,8 +615,7 @@ impl DmApp {
                 .unwrap_or(512),
             applied: settings,
             clipboard: Clipboard::default(),
-            watched_at: None,
-            watch_skip: HashSet::new(),
+            watched: Default::default(),
             browser_hint: (None, false),
             update_row: None,
             undo_remove: None,
