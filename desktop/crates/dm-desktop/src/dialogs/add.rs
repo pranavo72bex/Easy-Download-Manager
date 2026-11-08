@@ -4,6 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
+use dm_shell::app::rules::GoOn;
 /// An address without its login, for telling two rows apart.
 pub(crate) fn bare(url: &str) -> String {
     dm_shell::lists::bare(url)
@@ -220,8 +221,12 @@ fn replaceable(app: &DmApp, id: Id) -> Option<(String, String, String)> {
 /// Whether the row is stopped, or failed: one that "Show it" can also go on
 /// with.
 fn can_go_on(app: &DmApp, id: Id) -> bool {
-    app.row(id)
-        .is_some_and(|r| matches!(r.state, State::Paused | State::Failed(_)))
+    app.row(id).is_some_and(|r| {
+        matches!(
+            dm_shell::app::rules::go_on(&r.state, false),
+            GoOn::Resume | GoOn::Retry
+        )
+    })
 }
 
 /// Carries out an answer: asked, or remembered.
@@ -232,15 +237,14 @@ pub(crate) fn answer_duplicate(app: &mut DmApp, address: String, id: Id, how: Du
             app.selected.insert(id);
             // A stopped or failed row goes on, so the person who clicked the
             // link again is not left to find the button.
-            let failed = app
+            // Held or not: the person asked for this file again.
+            match app
                 .row(id)
-                .is_some_and(|r| matches!(r.state, State::Failed(_)));
-            if can_go_on(app, id) {
-                if failed {
-                    app.backend.retry(id);
-                } else {
-                    app.backend.resume(id);
-                }
+                .map(|r| dm_shell::app::rules::go_on(&r.state, false))
+            {
+                Some(GoOn::Retry) => app.backend.retry(id),
+                Some(GoOn::Resume) => app.backend.resume(id),
+                _ => {}
             }
         }
         Dup::Again => app.dialogs.open_file_info(vec![address]),

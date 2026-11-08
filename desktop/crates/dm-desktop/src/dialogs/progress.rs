@@ -4,6 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
+use dm_shell::app::rules::GoOn;
 
 /// How fast each piece of one download is coming in, worked out from where it
 /// stood at the last two samples: the Connections section of its progress
@@ -515,14 +516,12 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
             app.backend.pause(id);
         }
         if resume {
-            match row.state {
-                State::Failed(_) => app.backend.retry(id),
+            match dm_shell::app::rules::go_on(&row.state, row.paused_by_schedule) {
+                GoOn::Retry => app.backend.retry(id),
                 // Held by the schedule: Resume would only put it back to be
                 // held again. Asked whether to start it outside the schedule.
-                State::Paused if row.paused_by_schedule => {
-                    app.dialogs.confirm_outside = Some(vec![id]);
-                }
-                _ => app.backend.resume(id),
+                GoOn::Held => app.dialogs.confirm_outside = Some(vec![id]),
+                GoOn::Resume | GoOn::Settled | GoOn::NotStopped => app.backend.resume(id),
             }
         }
         if cancel {

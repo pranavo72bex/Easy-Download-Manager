@@ -4,6 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
+use dm_shell::app::rules::GoOn;
 
 impl DmApp {
     /// Whether `command` applies to the rows selected now.
@@ -209,12 +210,12 @@ impl DmApp {
                     }
                 }
                 for row in &targets {
-                    match row.state {
-                        // Held: asking would only requeue it to be held again.
-                        State::Paused if row.paused_by_schedule => {}
-                        State::Paused => self.backend.resume(row.id),
-                        State::Failed(_) => self.backend.retry(row.id),
-                        _ => {}
+                    match dm_shell::app::rules::go_on(&row.state, row.paused_by_schedule) {
+                        GoOn::Resume => self.backend.resume(row.id),
+                        GoOn::Retry => self.backend.retry(row.id),
+                        // Held: asked about above; resuming would only requeue
+                        // it to be held again.
+                        GoOn::Held | GoOn::Settled | GoOn::NotStopped => {}
                     }
                     // Not one its person closed: fifteen Resumes opened it
                     // fifteen times over the list. Show progress

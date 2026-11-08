@@ -4,6 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
+use dm_shell::app::rules::GoOn;
 
 impl DmApp {
     /// Takes requests from the control protocol from now on.
@@ -253,18 +254,22 @@ impl DmApp {
                             None
                         }
                         ("downloads.pause", _) => Some("it is not running"),
-                        ("downloads.resume", State::Paused) if held => {
-                            Some("the schedule or the download limit holds it")
+                        ("downloads.resume", _) => {
+                            match dm_shell::app::rules::go_on(&state, held) {
+                                GoOn::Held => Some("the schedule or the download limit holds it"),
+                                GoOn::Resume => {
+                                    self.backend.resume(id);
+                                    None
+                                }
+                                GoOn::Retry => {
+                                    self.backend.retry(id);
+                                    None
+                                }
+                                GoOn::Settled | GoOn::NotStopped => {
+                                    Some("it is not paused or failed")
+                                }
+                            }
                         }
-                        ("downloads.resume", State::Paused) => {
-                            self.backend.resume(id);
-                            None
-                        }
-                        ("downloads.resume", State::Failed(_)) => {
-                            self.backend.retry(id);
-                            None
-                        }
-                        ("downloads.resume", _) => Some("it is not paused or failed"),
                         (_, State::Completed | State::Cancelled) => Some("it is already settled"),
                         _ => {
                             self.backend.cancel(id);
