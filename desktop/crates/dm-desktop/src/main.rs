@@ -422,8 +422,11 @@ fn main() {
         // queue changes many times a second, and a repaint for each drew the
         // window far more often than it is drawn anyway (10 downloads: 9.7 %
         // of a core became 14.6 %). Requests within the quarter are one.
-        queue.on_change(move || {
-            dm_desktop::app::QUEUE_CHANGED.store(true, Ordering::Release);
+        // The queue tells the application (`dm_shell::app::changes`), which
+        // marks the change and tells each presentation subscribed: this
+        // window's is the repaint.
+        dm_shell::app::changes::connect(&queue);
+        dm_shell::app::changes::subscribe(move || {
             if let Some(ctx) = repaint.get() {
                 ctx.request_repaint_after(std::time::Duration::from_millis(250));
             }

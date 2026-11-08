@@ -80,6 +80,16 @@ impl Backend {
         self.block_on(self.queue.list())
     }
 
+    /// What the window draws from, read at once (`dm_shell::app::snapshot`).
+    pub fn snapshot(&self) -> dm_shell::app::snapshot::Snapshot {
+        dm_shell::app::snapshot::Snapshot {
+            rows: self.list_shared(),
+            retrying: self.retrying(),
+            swarms: self.swarms(),
+            allowance_spent: self.queue.allowance_spent().is_some(),
+        }
+    }
+
     /// The list shared with the queue, not copied: what the window reads.
     pub fn list_shared(&self) -> Vec<Arc<Entry>> {
         self.block_on(self.queue.list_shared())

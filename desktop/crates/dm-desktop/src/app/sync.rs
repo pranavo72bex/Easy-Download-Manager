@@ -33,13 +33,14 @@ impl DmApp {
         QUEUE_CHANGED.store(false, std::sync::atomic::Ordering::Release);
         self.take_when_done();
         self.take_new_download();
-        self.rows = self.backend.list_shared();
+        let snapshot = self.backend.snapshot();
+        self.rows = snapshot.rows;
         self.rows_gen += 1;
         self.place_rows();
-        set_retrying(self.backend.retrying());
-        set_swarms(self.backend.swarms());
+        set_retrying(snapshot.retrying);
+        set_swarms(snapshot.swarms);
         crate::table::set_superseded(&self.rows);
-        set_limit_holds(self.backend.queue.allowance_spent().is_some());
+        set_limit_holds(snapshot.allowance_spent);
         self.saved_sizes();
         self.watch_asks();
         self.apply_pending_renames();

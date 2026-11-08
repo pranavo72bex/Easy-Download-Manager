@@ -55,13 +55,10 @@ pub use widgets::*;
 
 /// How often the list is read back from the queue while the window shows.
 const REFRESH: Duration = Duration::from_millis(250);
-/// Set whenever the queue changes (`Queue::on_change`), cleared by the next
-/// read of the list. The window decides when to look again from the list it
-/// last read, which cannot say that something has just started: a change
-/// made after a read, while nothing moved, was seen only when another
-/// change or a keystroke came (a resumed download showed "Stopped" and its
-/// Resume button until it finished). This is what says it is still owed.
-pub static QUEUE_CHANGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Set whenever the queue changes, cleared by the next read of the list: the
+/// application's mark (`dm_shell::app::changes::CHANGED`), which says a read
+/// is still owed.
+pub use dm_shell::app::changes::CHANGED as QUEUE_CHANGED;
 
 /// Whether to read the list now, and when to look again if not: at once
 /// once a quarter of a second has passed since the last read, and, if the
