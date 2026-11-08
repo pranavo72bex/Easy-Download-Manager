@@ -743,6 +743,8 @@ mod coverage_tests {
     /// What each request carried: its range, user agent and referrer.
     #[derive(Debug, Clone, PartialEq)]
     struct Asked {
+        /// The case the request was made in (the path's first part).
+        how: String,
         range: String,
         agent: String,
         referer: String,
@@ -781,6 +783,7 @@ mod coverage_tests {
                     };
                     let range = header("range");
                     state.asked.lock().unwrap().push(Asked {
+                        how: how.clone(),
                         range: range.clone(),
                         agent: header("user-agent"),
                         referer: header("referer"),
@@ -1144,12 +1147,17 @@ mod coverage_tests {
     }
 
     fn assert_one_try(served: &Served, how: &str) {
+        // This case's own requests: the slice a case before it had already
+        // sent when its first one failed can reach the server after the log
+        // was cleared for this one (seen under coverage instrumentation).
         let asked = served.asked.lock().unwrap();
-        let mut ranges: Vec<&str> = asked.iter().map(|a| a.range.as_str()).collect();
+        let case = how.split(',').next().unwrap_or(how);
+        let mine: Vec<&Asked> = asked.iter().filter(|a| a.how == case).collect();
+        let mut ranges: Vec<&str> = mine.iter().map(|a| a.range.as_str()).collect();
         assert!((3..=4).contains(&ranges.len()), "{how}: {ranges:?}");
         ranges.sort_unstable();
         ranges.dedup();
-        assert_eq!(ranges.len(), asked.len(), "{how}: a range was asked again");
+        assert_eq!(ranges.len(), mine.len(), "{how}: a range was asked again");
     }
 
     /// A slice that fails in passing (a 503) is asked again after a wait
