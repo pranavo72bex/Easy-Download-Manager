@@ -7,8 +7,9 @@
 //! line or an AI client (MCP) asks of downloads, checked and answered the same
 //! whichever presentation runs. The `ui.*` methods, which act like a person on
 //! a window, stay with that window; so does carrying out an add or a settings
-//! change, which goes through the window's own path until the application
-//! holds a session of its own.
+//! change, which goes through the presentation's own path. Who may ask
+//! (`refused`), what is never done over the port (`person_only`) and a
+//! `batch` of requests are decided here for every presentation.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -230,6 +231,99 @@ pub fn add_asked(
     })
 }
 
+/// Why a request is refused before it is looked at, or `None` to answer it.
+/// `mcp_only`: the port was opened for AI assistants alone; `allow_mcp`: the
+/// person's Options › General › Allow AI assistants, asked afresh each
+/// request so turning it off takes hold at once.
+pub fn refused(via_mcp: bool, mcp_only: bool, allow_mcp: bool) -> Option<String> {
+    if mcp_only && !via_mcp {
+        return Some(
+            "this dm's control port is open for AI assistants only: tick Options › General › Allow the command line to control dm, or start dm with --control"
+                .into(),
+        );
+    }
+    if via_mcp && !allow_mcp {
+        return Some(
+            "AI assistants are turned off in dm: tick Options › General › Allow AI assistants to control dm (MCP)"
+                .into(),
+        );
+    }
+    None
+}
+
+/// Commands done in the window by a person and never over the control port:
+/// opening a downloaded file runs it, on Windows, if it is a program, and a
+/// web page may have talked a script or an AI client into it.
+pub const PERSON_ONLY: [&str; 3] = ["file.open", "file.open_with", "file.preview"];
+
+/// Why `command.run` of command `id` is refused over this connection, if it is.
+pub fn person_only(id: &str) -> Option<String> {
+    PERSON_ONLY
+        .contains(&id)
+        .then(|| format!("{id} is done in the window by a person, not over this connection"))
+}
+
+/// The most steps a `batch` answers.
+pub const BATCH_MOST: usize = 256;
+
+/// `batch`: up to `BATCH_MOST` requests in one, each answered by `call` in
+/// order (faster for a script than a round trip each). A batch inside a
+/// batch, or a screenshot, is not answered.
+pub fn batch(
+    params: &Value,
+    mut call: impl FnMut(&str, &Value) -> Result<Value, String>,
+) -> Result<Value, String> {
+    let steps = params
+        .get("steps")
+        .and_then(|v| v.as_array())
+        .ok_or("give `steps`: a list of {method, params}")?;
+    if steps.len() > BATCH_MOST {
+        return Err(format!("a batch is at most {BATCH_MOST} steps"));
+    }
+    let mut results = Vec::new();
+    for step in steps {
+        let method = step.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        if method == "batch" || method == "ui.screenshot" {
+            results.push(json!({ "ok": false, "error": format!("{method} cannot be batched") }));
+            continue;
+        }
+        let params = step.get("params").cloned().unwrap_or(Value::Null);
+        results.push(match call(method, &params) {
+            Ok(result) => json!({ "ok": true, "result": result }),
+            Err(error) => json!({ "ok": false, "error": error }),
+        });
+    }
+    Ok(json!(results))
+}
+
+/// The methods answered from the queue alone, whichever presentation runs:
+/// `queue.list`, and `downloads.pause`, `.resume` and `.cancel` by id (not
+/// by selection, so a script leaves the person's selection alone). `None`
+/// for any other method.
+pub fn answer(
+    backend: &Backend,
+    rows: &[Arc<Entry>],
+    method: &str,
+    params: &Value,
+) -> Option<Result<Value, String>> {
+    match method {
+        "queue.list" => Some(Ok(queue_list(rows))),
+        "downloads.pause" | "downloads.resume" | "downloads.cancel" => {
+            Some(act_on(backend, method, params))
+        }
+        _ => None,
+    }
+}
+
+/// Where `ui.screenshot` saves its picture under `home`: the name asked for,
+/// made safe as a file name, or "dm".
+pub fn screenshot_path(home: &std::path::Path, params: &Value) -> std::path::PathBuf {
+    let name = params.get("name").and_then(|n| n.as_str()).unwrap_or("dm");
+    let name = dm_core::sanitize_name(name);
+    let name = if name.is_empty() { "dm".into() } else { name };
+    home.join("screenshots").join(format!("{name}.png"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +423,100 @@ mod tests {
             (wanted.speed_limit, wanted.last_speed_limit, replaced),
             (50, 300, Some(300))
         );
+    }
+
+    #[test]
+    fn who_may_ask_is_decided_afresh_each_request() {
+        assert_eq!(refused(false, false, false), None, "a script, port open");
+        assert_eq!(refused(true, false, true), None, "an assistant, allowed");
+        assert!(refused(false, true, true)
+            .unwrap()
+            .contains("for AI assistants only"));
+        assert!(refused(true, false, false)
+            .unwrap()
+            .contains("AI assistants are turned off"));
+        assert!(refused(true, true, false)
+            .unwrap()
+            .contains("AI assistants are turned off"));
+    }
+
+    #[test]
+    fn opening_a_file_is_never_done_over_the_port() {
+        for id in PERSON_ONLY {
+            assert!(person_only(id)
+                .unwrap()
+                .contains("done in the window by a person"));
+        }
+        assert_eq!(person_only("downloads.pause_all"), None);
+    }
+
+    #[test]
+    fn a_batch_answers_each_step_in_order_and_refuses_what_cannot_be_batched() {
+        let mut asked = Vec::new();
+        let params = json!({"steps": [
+            {"method": "queue.list"},
+            {"method": "batch", "params": {}},
+            {"method": "ui.screenshot"},
+            {"method": "nope", "params": {"x": 1}},
+        ]});
+        let answered = batch(&params, |method, params| {
+            asked.push((method.to_string(), params.clone()));
+            if method == "nope" {
+                Err("no method is called nope".into())
+            } else {
+                Ok(json!(method))
+            }
+        })
+        .unwrap();
+        assert_eq!(
+            asked,
+            vec![
+                ("queue.list".to_string(), Value::Null),
+                ("nope".to_string(), json!({"x": 1}))
+            ]
+        );
+        assert_eq!(answered[0], json!({"ok": true, "result": "queue.list"}));
+        assert_eq!(answered[1]["error"], "batch cannot be batched");
+        assert_eq!(answered[2]["error"], "ui.screenshot cannot be batched");
+        assert_eq!(
+            answered[3],
+            json!({"ok": false, "error": "no method is called nope"})
+        );
+
+        assert!(batch(&json!({}), |_, _| Ok(Value::Null)).is_err());
+        let many = json!({"steps": vec![json!({"method": "queue.list"}); BATCH_MOST + 1]});
+        assert_eq!(
+            batch(&many, |_, _| Ok(Value::Null)).unwrap_err(),
+            "a batch is at most 256 steps"
+        );
+    }
+
+    #[test]
+    fn a_screenshot_is_saved_under_a_safe_name() {
+        let home = std::path::Path::new("/h");
+        assert_eq!(
+            screenshot_path(home, &json!({"name": "list"})),
+            home.join("screenshots").join("list.png")
+        );
+        assert_eq!(
+            screenshot_path(home, &Value::Null),
+            home.join("screenshots").join("dm.png")
+        );
+        let odd = screenshot_path(home, &json!({"name": "../../etc/x"}));
+        assert_eq!(odd.parent(), Some(home.join("screenshots").as_path()));
+    }
+
+    #[test]
+    fn only_the_queues_own_methods_are_answered_here() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        assert_eq!(
+            answer(&backend, &[], "queue.list", &Value::Null),
+            Some(Ok(json!([])))
+        );
+        assert!(answer(&backend, &[], "downloads.pause", &json!({"ids": []})).is_some());
+        assert_eq!(answer(&backend, &[], "ui.inspect", &Value::Null), None);
+        assert_eq!(answer(&backend, &[], "command.run", &Value::Null), None);
     }
 }

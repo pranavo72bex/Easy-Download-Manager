@@ -24,20 +24,13 @@ impl DmApp {
             }
         }
         for request in asked {
-            if self.mcp_only && !request.via_mcp {
-                let _ = request.reply.send(Err(
-                    "this dm's control port is open for AI assistants only: tick Options › General › Allow the command line to control dm, or start dm with --control"
-                        .to_string(),
-                ));
-                continue;
-            }
-            // An AI assistant is answered only while Options allows it, asked
-            // afresh each request, so turning it off takes hold at once.
-            if request.via_mcp && !self.applied.allow_mcp {
-                let _ = request.reply.send(Err(
-                    "AI assistants are turned off in dm: tick Options › General › Allow AI assistants to control dm (MCP)"
-                        .to_string(),
-                ));
+            // Who may ask is the application's (`control_api::refused`).
+            if let Some(why) = dm_shell::app::control_api::refused(
+                request.via_mcp,
+                self.mcp_only,
+                self.applied.allow_mcp,
+            ) {
+                let _ = request.reply.send(Err(why));
                 continue;
             }
             if request.method == "ui.screenshot" && self.headless {
@@ -47,17 +40,8 @@ impl DmApp {
                 continue;
             }
             if request.method == "ui.screenshot" {
-                let name = request
-                    .params
-                    .get("name")
-                    .and_then(|n| n.as_str())
-                    .unwrap_or("dm")
-                    .to_string();
-                let name = dm_core::sanitize_name(&name);
-                let name = if name.is_empty() { "dm".into() } else { name };
-                let path = dm_shell::home()
-                    .join("screenshots")
-                    .join(format!("{name}.png"));
+                let path =
+                    dm_shell::app::control_api::screenshot_path(&dm_shell::home(), &request.params);
                 // Answered when the integration has read the frame's pixels.
                 let reply = request.reply;
                 ctx.request_screenshot(move |image| {
@@ -93,16 +77,10 @@ impl DmApp {
                 let id = params.get("id").and_then(|v| v.as_str()).unwrap_or("");
                 let command =
                     Command::from_id(id).ok_or_else(|| format!("no command is called {id}"))?;
-                // Opening a downloaded file runs it, on Windows, if it is a
-                // program: a person's click in the window, never a script's
-                // or an AI client's that a web page may have talked into it.
-                if matches!(
-                    command,
-                    Command::OpenFile | Command::OpenWith | Command::Preview
-                ) {
-                    return Err(format!(
-                        "{id} is done in the window by a person, not over this connection"
-                    ));
+                // Opening a downloaded file is a person's click in the
+                // window (`control_api::person_only`).
+                if let Some(why) = dm_shell::app::control_api::person_only(command.id()) {
+                    return Err(why);
                 }
                 if !self.enabled(command) {
                     return Err(format!("{id} has nothing to act on"));
@@ -202,12 +180,11 @@ impl DmApp {
                     "rows": rows,
                 }))
             }
-            // UI-free methods answered by the application (`dm_shell::app::control_api`).
-            "queue.list" => Ok(dm_shell::app::control_api::queue_list(&self.rows)),
-            // By id and not by selection, so a script or the command line
-            // leaves the person's selection in the window alone.
-            "downloads.pause" | "downloads.resume" | "downloads.cancel" => {
-                dm_shell::app::control_api::act_on(&self.backend, method, params)
+            // UI-free methods answered by the application
+            // (`dm_shell::app::control_api::answer`).
+            "queue.list" | "downloads.pause" | "downloads.resume" | "downloads.cancel" => {
+                dm_shell::app::control_api::answer(&self.backend, &self.rows, method, params)
+                    .unwrap_or_else(|| Err(format!("no method is called {method}")))
             }
             // An exact ceiling in KB/s, where the commands only have presets;
             // 0 is no limit.
@@ -230,36 +207,11 @@ impl DmApp {
                 };
                 Ok(json!({ "added": added, "already_listed": asked.listed }))
             }
-            // Up to 256 requests in one, answered in order: faster for a
-            // script than a round trip each.
-            "batch" => {
-                let steps = params
-                    .get("steps")
-                    .and_then(|v| v.as_array())
-                    .ok_or("give `steps`: a list of {method, params}")?;
-                if steps.len() > 256 {
-                    return Err("a batch is at most 256 steps".into());
-                }
-                let mut results = Vec::new();
-                for step in steps {
-                    let method = step.get("method").and_then(|m| m.as_str()).unwrap_or("");
-                    if method == "batch" || method == "ui.screenshot" {
-                        results.push(
-                            json!({ "ok": false, "error": format!("{method} cannot be batched") }),
-                        );
-                        continue;
-                    }
-                    let params = step
-                        .get("params")
-                        .cloned()
-                        .unwrap_or(serde_json::Value::Null);
-                    results.push(match self.control_call(method, &params) {
-                        Ok(result) => json!({ "ok": true, "result": result }),
-                        Err(error) => json!({ "ok": false, "error": error }),
-                    });
-                }
-                Ok(json!(results))
-            }
+            // Up to 256 requests in one, answered in order
+            // (`control_api::batch`).
+            "batch" => dm_shell::app::control_api::batch(params, |method, params| {
+                self.control_call(method, params)
+            }),
             other => Err(format!("no method is called {other}")),
         }
     }
