@@ -240,7 +240,10 @@ FILES = {
     "limit.bin": (3 * MiB, 0, "plain"),           # fetched under Low speed
     "crash.bin": (64 * MiB, 512 * 1024, "plain"),
     "stopme.bin": (64 * MiB, 512 * 1024, "plain"),    # stopped, then Remove
-    "ui.bin": (48 * MiB, 512 * 1024, "plain"),        # running while its progress window is looked at (B46)
+    # Running while its progress window is looked at (B46, B53): about 24 s on
+    # eight connections. At 48 MB, about 12 s, a loaded machine reached B53's
+    # look at 98% with one piece left, and so one speed (2026-11-08).
+    "ui.bin": (96 * MiB, 512 * 1024, "plain"),
     "ui-alpha.bin": (1 * MiB, 0, "plain"),            # Find / Find previous (B48)
     "ui-beta.bin": (1 * MiB, 0, "plain"),
     "ui-alphabet.bin": (1 * MiB, 0, "plain"),

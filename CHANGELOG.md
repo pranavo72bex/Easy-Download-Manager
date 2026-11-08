@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed, found by new tests of the window:
+  - Escape on an open drop-down in a dialog's own window (Options' Language, say) closed the whole dialog and lost what had been changed in it; it now closes the drop-down, and the next Escape the dialog, as in the main window.
+  - The Playlist dialog was not counted among the open dialogs: Escape left it open, the list behind it still took keys, and a script was told no dialog was open.
 - Fixed, found by new tests written to cover the engine (each kept as a test that failed first):
   - A part saved as a GIF from a video with no edit list (most MP4s), or an edit of no length, was refused as "a GIF is made of two minutes at most", a one-second video too: its end was taken as the end of time. It now plays from its first picture shown to the end of its last (on macOS, Windows and Linux).
   - A GIF from a video with fewer pictures a second than asked played fast (a second lasted 0.83 s) and its last picture was cut short: each picture is now held until the next one's time and the last to the end of the part.

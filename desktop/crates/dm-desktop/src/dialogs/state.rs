@@ -515,6 +515,9 @@ impl Dialogs {
         say(self.series.is_some(), "Add numbered series");
         say(self.clip_links.is_some(), "Links on the clipboard");
         say(self.site_files.is_some(), "Grabber");
+        // Left out until 2026-11-08: Escape behind it left it open, the list
+        // behind it took keys, and a script was told it was not there.
+        say(self.playlist.is_some(), "Playlist");
         say(self.update_link.is_some(), "Update download link");
         say(self.move_to_queue.is_some(), "Move to queue");
         say(self.rename.is_some(), "Move/Rename");
@@ -612,6 +615,7 @@ impl Dialogs {
             Series,
             Links,
             SiteFiles,
+            Playlist,
             FileInfo,
             Options,
             About,
@@ -650,6 +654,7 @@ impl Dialogs {
             (self.series.is_some(), "Add numbered series", Shut::Series),
             (self.links.is_some(), "Download links", Shut::Links),
             (self.site_files.is_some(), "Grabber", Shut::SiteFiles),
+            (self.playlist.is_some(), "Playlist", Shut::Playlist),
             (self.file_info.is_some(), "Download details", Shut::FileInfo),
             (self.options.is_some(), "Options", Shut::Options),
             (self.about_open, "About dm", Shut::About),
@@ -697,6 +702,7 @@ impl Dialogs {
             Shut::ClipLinks => self.clip_links = None,
             Shut::Series => self.series = None,
             Shut::Links => self.links = None,
+            Shut::Playlist => self.playlist = None,
             Shut::SiteFiles => self.site_files = None,
             Shut::FileInfo => self.file_info = None,
             Shut::Options => self.options = None,
@@ -763,5 +769,376 @@ mod close_window_tests {
         assert!(dialogs.close_window(window_id("Exit dm?")));
         assert!(!dialogs.confirm_exit);
         assert!(!dialogs.close_window(window_id("Exit dm?")));
+    }
+}
+
+#[cfg(test)]
+mod coverage_tests {
+    use super::*;
+
+    /// Opens one question of each kind, by its title, and says whether it is
+    /// still open.
+    type Question = (&'static str, fn(&mut Dialogs), fn(&Dialogs) -> bool);
+
+    fn questions_asked() -> Vec<Question> {
+        vec![
+            ("Exit dm?", |d| d.confirm_exit = true, |d| d.confirm_exit),
+            (
+                "Keep running in the tray?",
+                |d| d.confirm_close = true,
+                |d| d.confirm_close,
+            ),
+            (
+                "Delete unfinished downloads",
+                |d| d.confirm_remove = Some(vec![1]),
+                |d| d.confirm_remove.is_some(),
+            ),
+            (
+                "Start outside the schedule?",
+                |d| d.confirm_outside = Some(vec![1]),
+                |d| d.confirm_outside.is_some(),
+            ),
+            (
+                "Cancel this download?",
+                |d| d.confirm_cancel = Some(1),
+                |d| d.confirm_cancel.is_some(),
+            ),
+            (
+                "Already in the list",
+                |d| d.duplicate = Some(("http://h/a.zip".into(), 1)),
+                |d| d.duplicate.is_some(),
+            ),
+            (
+                "Name sent by the server",
+                |d| {
+                    d.name_ask = Some(NameAsk {
+                        id: 1,
+                        address_name: "a.zip".into(),
+                        server_name: "b.zip".into(),
+                    })
+                },
+                |d| d.name_ask.is_some(),
+            ),
+            (
+                "Web page instead of the file",
+                |d| d.page_ask = Some(1),
+                |d| d.page_ask.is_some(),
+            ),
+            (
+                "The file doesn't exist",
+                |d| d.not_found = Some(1),
+                |d| d.not_found.is_some(),
+            ),
+            (
+                "Some are already in the list",
+                |d| {
+                    d.import_ask = Some(ImportAsk {
+                        text: "http://h/a.zip".into(),
+                        already: 1,
+                        total: 1,
+                    })
+                },
+                |d| d.import_ask.is_some(),
+            ),
+            (
+                "Leave this site to the browser?",
+                |d| d.skip_offer = Some("h".into()),
+                |d| d.skip_offer.is_some(),
+            ),
+        ]
+    }
+
+    /// Each question is asked alone, keeps the clicks to itself, and is
+    /// answered as Cancel by its own window's close button and by Escape,
+    /// before any other window.
+    #[test]
+    fn each_question_is_closed_by_its_own_window_and_first_by_escape() {
+        let mut dialogs = Dialogs::default();
+        for (title, ask, asked) in questions_asked() {
+            ask(&mut dialogs);
+            assert!(dialogs.asking(), "{title}");
+            assert_eq!(dialogs.questions(), vec![title]);
+            assert!(dialogs.modal(), "{title} does not hold the window");
+            assert!(dialogs.in_front(), "{title}");
+            // Another window's close button leaves it asking.
+            assert!(!dialogs.close_window(window_id("About dm")), "{title}");
+            assert!(asked(&dialogs), "{title}");
+            assert!(dialogs.close_window(window_id(title)), "{title}");
+            assert!(!asked(&dialogs), "{title}");
+            assert!(!dialogs.close_window(window_id(title)), "{title}");
+
+            // Escape answers it before the window behind it.
+            ask(&mut dialogs);
+            dialogs.about_open = true;
+            assert!(dialogs.close_top(&[window_id("About dm")]), "{title}");
+            assert!(!asked(&dialogs), "{title}");
+            assert!(dialogs.about_open, "Escape closed About before {title}");
+            dialogs.about_open = false;
+            assert!(!dialogs.asking());
+        }
+        // Remove's question is named by the title it last showed.
+        dialogs.confirm_remove = Some(vec![1]);
+        assert_eq!(dialogs.open_names(), ["Remove from the list"]);
+        dialogs.remove_title = "Delete file";
+        assert_eq!(dialogs.open_names(), ["Delete file"]);
+    }
+
+    fn properties() -> Properties {
+        Properties {
+            name: "a.zip".into(),
+            description: String::new(),
+            address: "http://h/a.zip".into(),
+            login: String::new(),
+            password: String::new(),
+            says: String::new(),
+            sums: Default::default(),
+            check: String::new(),
+            zip: None,
+            files: Vec::new(),
+            priorities: Vec::new(),
+        }
+    }
+
+    /// Every window that is not a question, opened alone: Escape closes it,
+    /// and so does its own window's close button; a window not open closes
+    /// nothing.
+    #[test]
+    fn every_window_is_closed_by_escape_and_by_its_own_close_button() {
+        type Window = (&'static str, fn(&mut Dialogs), fn(&Dialogs) -> bool);
+        let windows: Vec<Window> = vec![
+            ("Find", |d| d.find_open = true, |d| d.find_open),
+            (
+                "Speed limiter",
+                |d| d.open_limiter(&Settings::default()),
+                |d| d.limiter.is_some(),
+            ),
+            (
+                "Scheduler",
+                |d| d.open_scheduler(&Settings::default(), MAIN_QUEUE),
+                |d| d.scheduler.is_some(),
+            ),
+            (
+                "Update download link",
+                |d| d.update_link = Some((1, String::new(), String::new())),
+                |d| d.update_link.is_some(),
+            ),
+            (
+                "Move to queue",
+                |d| d.move_to_queue = Some((vec![1], String::new(), String::new())),
+                |d| d.move_to_queue.is_some(),
+            ),
+            (
+                "Move/Rename",
+                |d| d.rename = Some(MoveRename::default()),
+                |d| d.rename.is_some(),
+            ),
+            (
+                "Import a list",
+                |d| d.list_file = Some(ListFile::default()),
+                |d| d.list_file.is_some(),
+            ),
+            (
+                "Export the list",
+                |d| {
+                    d.list_file = Some(ListFile {
+                        save: true,
+                        ..ListFile::default()
+                    })
+                },
+                |d| d.list_file.is_some(),
+            ),
+            ("Add URL", |d| d.open_add_url(None), |d| d.add_url.is_some()),
+            (
+                "Links on the clipboard",
+                |d| d.clip_links = Some(vec![("http://h/a.zip".into(), true)]),
+                |d| d.clip_links.is_some(),
+            ),
+            (
+                "Add numbered series",
+                |d| d.open_series(),
+                |d| d.series.is_some(),
+            ),
+            (
+                "Download links",
+                |d| d.links = Some(LinksImport::default()),
+                |d| d.links.is_some(),
+            ),
+            (
+                "Grabber",
+                |d| d.open_site_files(),
+                |d| d.site_files.is_some(),
+            ),
+            (
+                "Download details",
+                |d| d.open_file_info(vec!["http://h/a.zip".into()]),
+                |d| d.file_info.is_some(),
+            ),
+            (
+                "Options",
+                |d| d.open_options(&Settings::default()),
+                |d| d.options.is_some(),
+            ),
+            ("About dm", |d| d.about_open = true, |d| d.about_open),
+            ("Tip of the day", |d| d.tip = Some(0), |d| d.tip.is_some()),
+            (
+                "Add dm to your browser",
+                |d| d.welcome = Some(Vec::new()),
+                |d| d.welcome.is_some(),
+            ),
+        ];
+        for (title, open, is_open) in windows {
+            let mut dialogs = Dialogs::default();
+            open(&mut dialogs);
+            assert!(is_open(&dialogs), "{title} did not open");
+            assert!(dialogs.open_names().iter().any(|n| n == title), "{title}");
+            assert!(dialogs.in_front(), "{title}");
+            assert!(dialogs.close_top(&[]), "Escape left {title} open");
+            assert!(!is_open(&dialogs), "{title}");
+            assert!(!dialogs.close_top(&[]), "Escape closed something else");
+
+            open(&mut dialogs);
+            assert!(!dialogs.close_window(window_id("Exit dm?")), "{title}");
+            assert!(dialogs.close_window(window_id(title)), "{title}");
+            assert!(!is_open(&dialogs), "{title}");
+        }
+    }
+
+    /// Properties, Download complete and the progress windows close one at a
+    /// time, the one in front first; a progress window closed is kept closed.
+    #[test]
+    fn the_windows_beside_each_other_close_front_first() {
+        let mut dialogs = Dialogs::default();
+        dialogs.properties.insert(7, properties());
+        dialogs.properties.insert(8, properties());
+        dialogs.complete.insert(7);
+        dialogs.progress.insert(9);
+        assert_eq!(
+            dialogs.modal_layers().len(),
+            2,
+            "each Properties holds the window"
+        );
+        assert!(dialogs
+            .open_names()
+            .contains(&"File properties".to_string()));
+        let progress = egui::Id::unique(("progress", 9_u64));
+        let props_7 = egui::Id::unique(("properties", 7_u64));
+        // Behind every window on screen: not closed by its own window's id.
+        assert!(!dialogs.close_window(window_id("About dm")));
+        // The progress window in front of the rest.
+        assert!(dialogs.close_top(&[props_7, progress]));
+        assert!(dialogs.progress.is_empty());
+        assert!(dialogs.progress_closed.contains(&9));
+        assert!(dialogs.close_window(props_7));
+        assert!(!dialogs.properties.contains_key(&7));
+        // None on screen: Properties before Download complete.
+        assert!(dialogs.close_top(&[]));
+        assert!(dialogs.properties.is_empty());
+        assert!(!dialogs.complete.is_empty());
+        assert!(dialogs.close_window(window_id("Download complete")));
+        assert!(dialogs.complete.is_empty());
+        // The windows a download opens on its own are not in front.
+        dialogs.progress.insert(9);
+        dialogs.complete.insert(9);
+        assert!(!dialogs.in_front());
+        assert!(!dialogs.modal());
+        dialogs.resumable_seen.insert(9, true);
+        dialogs.forget(9);
+        assert!(dialogs.progress.is_empty() && dialogs.complete.is_empty());
+        assert!(!dialogs.progress_closed.contains(&9) && dialogs.resumable_seen.is_empty());
+    }
+
+    /// Asked for again while open, a dialog is brought forward with what was
+    /// typed in it, not started afresh.
+    #[test]
+    fn a_dialog_asked_for_again_is_raised_and_kept() {
+        let mut dialogs = Dialogs::default();
+        dialogs.open_add_url(Some("http://h/first.zip"));
+        assert_eq!(
+            dialogs.add_url.as_ref().unwrap().address,
+            "http://h/first.zip"
+        );
+        dialogs.add_url.as_mut().unwrap().address = "typed".into();
+        dialogs.open_add_url(Some("http://h/second.zip"));
+        assert_eq!(dialogs.add_url.as_ref().unwrap().address, "typed");
+        assert!(dialogs.raise.contains(&window_id("Add URL")));
+        for open in [
+            Dialogs::open_series as fn(&mut Dialogs),
+            Dialogs::open_site_files,
+        ] {
+            open(&mut dialogs);
+            open(&mut dialogs);
+        }
+        dialogs.open_limiter(&Settings::default());
+        dialogs.open_limiter(&Settings::default());
+        dialogs.open_scheduler(&Settings::default(), MAIN_QUEUE);
+        dialogs.open_scheduler(&Settings::default(), MAIN_QUEUE);
+        dialogs.open_options(&Settings::default());
+        dialogs.open_options(&Settings::default());
+        for title in [
+            "Add numbered series",
+            "Grabber",
+            "Speed limiter",
+            "Scheduler",
+            "Options",
+        ] {
+            assert!(dialogs.raise.contains(&window_id(title)), "{title}");
+        }
+        // The keyboard is given to the dialog last asked for, once.
+        assert!(dialogs.take_focus("Speed limiter"));
+        assert!(!dialogs.take_focus("Speed limiter"));
+        dialogs.focus_on("Grabber");
+        assert!(!dialogs.take_focus("Add URL"));
+        assert!(dialogs.take_focus("Grabber"));
+    }
+
+    /// A saved Grabber search opens the Grabber with everything it keeps.
+    #[test]
+    fn a_saved_search_fills_the_grabber() {
+        let search = dm_shell::lists::Search {
+            name: "Nightly".into(),
+            page: "http://h/page.html".into(),
+            types: vec!["zip".into(), "pdf".into()],
+            depth: 2,
+            include: vec!["docs".into()],
+            exclude: vec!["old".into(), "tmp".into()],
+            every_hours: 3,
+            ..Default::default()
+        };
+        let mut dialogs = Dialogs::default();
+        dialogs.open_site_files_with(&search);
+        let d = dialogs.site_files.as_ref().unwrap();
+        assert_eq!(
+            (
+                d.page.as_str(),
+                d.types.as_str(),
+                d.depth,
+                d.include.as_str()
+            ),
+            ("http://h/page.html", "zip pdf", 2, "docs")
+        );
+        assert_eq!(
+            (d.exclude.as_str(), d.name.as_str(), d.every_hours),
+            ("old tmp", "Nightly", 3)
+        );
+        assert!(dialogs.take_focus("Grabber"));
+    }
+
+    /// A playlist already read opens with it, nothing more to read.
+    #[test]
+    fn a_playlist_already_read_opens_with_its_videos() {
+        let mut dialogs = Dialogs::default();
+        let list = dm_core::youtube::Playlist {
+            title: "Talks".into(),
+            ..Default::default()
+        };
+        dialogs.open_playlist_read("http://h/list".into(), list.clone(), "720".into());
+        let d = dialogs.playlist.as_ref().unwrap();
+        assert_eq!(
+            (d.url.as_str(), d.quality.as_str()),
+            ("http://h/list", "720")
+        );
+        let read = d.read.as_ref().unwrap().lock().unwrap().clone();
+        assert_eq!(read, Some(Ok(list)));
+        assert!(dialogs.take_focus("Playlist"));
     }
 }

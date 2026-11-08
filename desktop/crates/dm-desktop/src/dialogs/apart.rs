@@ -299,10 +299,12 @@ pub(super) fn show<R>(
     ctx.show_viewport_immediate(viewport, builder, |vui, _class| {
         let vctx = vui.ctx().clone();
         let close_requested = vctx.input(|i| i.viewport().close_requested());
-        // Escape closes the dialog, unless a menu or drop-down had it first.
-        let escape = vctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-        asked = close_requested || (escape && !own.popup_was_open);
-        own.popup_was_open = vctx.any_popup_open();
+        // Escape closes the dialog, unless a menu or drop-down was open: then it
+        // is left for the drop-down, drawn below, to close itself with (taken
+        // here first, it never reached it and the drop-down stayed open).
+        let escape = !own.popup_was_open
+            && vctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+        asked = close_requested || escape;
         if vctx.input(|i| i.viewport().focused) == Some(true) {
             shared().focused = Some(viewport);
         }
@@ -340,6 +342,12 @@ pub(super) fn show<R>(
                 (ui.cursor().top() - ui.max_rect().top() - ui.spacing().item_spacing.y).max(0.0),
             );
         });
+        // Whether a menu or drop-down is open, read once the body is drawn: a
+        // popup is open only in the frame that shows it, so read before the
+        // body it was always "no", and the Escape that closes a drop-down
+        // closed the whole dialog and its unsaved changes with it (coverage
+        // tests, 2026-11-08). The main window reads it after drawing too.
+        own.popup_was_open = vctx.any_popup_open();
         // A pass in which nothing was laid out yet says nothing of the size.
         if measured.y < 1.0 {
             measured.y = (own.size.y - pad.y).max(0.0);
