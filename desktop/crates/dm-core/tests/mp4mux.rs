@@ -15,6 +15,8 @@
 //! test, sharing nothing with dm's own — and holding every sample to the
 //! input's: the same bytes, in the same order, at the same times.
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 fn media(name: &str) -> PathBuf {
@@ -1204,4 +1206,113 @@ fn a_vp9_webm_picture_and_aac_sound_join_into_one_mp4() {
 #[test]
 fn an_av1_webm_picture_and_opus_sound_join_into_one_mp4() {
     check_webm_into_mp4("av1.f399.webm", "av1-sound.f251.webm", "av01", "Opus");
+}
+
+/// A part cut from a plain MP4 on the web (`download/plain.rs`, the Part line on an ordinary video
+/// file): its index and the frames of the part asked for by range, written as an MP4 of its own.
+/// Until 2026-11-08 nothing tested this path; it had been run by hand on two real files (gaps
+/// row 45).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_part_is_cut_from_a_plain_mp4_on_the_web() {
+    use axum::body::Body;
+    use axum::http::HeaderMap;
+    use axum::response::Response;
+    use std::sync::{Arc, Mutex};
+
+    // A plain MP4 (one index, no fragments): dm's writer's join of the picture and the sound.
+    let dir = tempfile::tempdir().unwrap();
+    let whole = dir.path().join("whole.mp4");
+    dm_core::mp4mux::join(&[media("picture.mp4"), media("sound.m4a")], &whole).unwrap();
+    let data = Arc::new(std::fs::read(&whole).unwrap());
+    let plain = |b: &[u8], w: &[u8]| b.windows(w.len()).any(|x| x == w);
+    assert!(
+        plain(&data, b"stco") || plain(&data, b"co64"),
+        "the joined file has no chunk offsets"
+    );
+    assert!(!plain(&data, b"moof"), "the joined file is fragmented");
+    let total = read_mp4(&whole).track("vide").seconds();
+
+    let asked: Arc<Mutex<Vec<String>>> = Arc::default();
+    let (served, log) = (data.clone(), asked.clone());
+    let app = axum::Router::new().route(
+        "/clip.mp4",
+        axum::routing::get(move |headers: HeaderMap| {
+            let (d, log) = (served.clone(), log.clone());
+            async move {
+                let range = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+                log.lock().unwrap().push(range.clone());
+                let n = d.len();
+                let span = range.strip_prefix("bytes=").and_then(|r| {
+                    let (a, z) = r.split_once('-')?;
+                    let a: usize = a.parse().ok()?;
+                    let z: usize = if z.is_empty() {
+                        n - 1
+                    } else {
+                        z.parse::<usize>().ok()?.min(n - 1)
+                    };
+                    (a <= z).then_some((a, z))
+                });
+                let b = Response::builder()
+                    .header("content-type", "video/mp4")
+                    .header("accept-ranges", "bytes")
+                    .header("etag", "\"clip\"");
+                match span {
+                    Some((a, z)) => b
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{z}/{n}"))
+                        .header("content-length", z - a + 1)
+                        .body(Body::from(d[a..=z].to_vec()))
+                        .unwrap(),
+                    None => b
+                        .header("content-length", n)
+                        .body(Body::from(d.to_vec()))
+                        .unwrap(),
+                }
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let out = common::tempdir();
+    let (from, to) = (total * 0.25, total * 0.75);
+    let options = dm_core::Options {
+        span: dm_core::Span::new(from, to),
+        ..common::options(out.path())
+    };
+    let done = tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        dm_core::download(
+            &dm_core::client(),
+            &format!("http://{addr}/clip.mp4"),
+            &options,
+        ),
+    )
+    .await
+    .expect("timed out")
+    .expect("the part was not cut");
+
+    let part = read_mp4(&done.path);
+    let kinds: Vec<&str> = part.tracks.iter().map(|t| t.handler.as_str()).collect();
+    assert_eq!(
+        kinds,
+        ["vide", "soun"],
+        "the part has its picture and its sound"
+    );
+    let seconds = part.track("vide").seconds();
+    assert!(
+        seconds > 0.0 && seconds <= to + 0.05,
+        "{seconds}s for a part to {to}s of {total}s"
+    );
+    assert!(
+        seconds < total,
+        "the whole {total}s was saved, not the part"
+    );
+    let asked = asked.lock().unwrap();
+    assert!(
+        asked.iter().all(|r| r.starts_with("bytes=")),
+        "a request for the whole file: {asked:?}"
+    );
 }
