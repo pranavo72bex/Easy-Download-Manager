@@ -300,11 +300,10 @@ pub struct DmApp {
     /// did not change since the read before is the same allocation.
     pub rows: Vec<Arc<Entry>>,
     refreshed: Option<Instant>,
-    /// What happened between reads: finishes, failures, rows started
-    /// elsewhere (`dm_shell::app::detect`). It also holds the rows the window
-    /// added itself (Add URL, a series, an import), which open their progress
-    /// window, if at all, as they are added.
-    detector: dm_shell::app::detect::Detector,
+    /// The application's memory between reads (`dm_shell::app::session`):
+    /// what was told (finishes, failures, rows started elsewhere, the rows the
+    /// window added itself) and the watched folder's.
+    session: dm_shell::app::session::Session,
 
     /// The place in the category tree the list is filtered to.
     pub place: Place,
@@ -389,9 +388,6 @@ pub struct DmApp {
     pub applied: Settings,
     /// The clipboard watcher's memory.
     pub clipboard: Clipboard,
-    /// The watched folder's memory between looks (Options › Downloads;
-    /// `dm_shell::app::watch`).
-    watched: dm_shell::app::watch::Watched,
     /// What the update check has found.
     pub update: Arc<Mutex<Update>>,
     /// A weekly check is waiting for its answer, to open About on a newer dm.
@@ -576,7 +572,7 @@ impl DmApp {
             backend,
             rows: Vec::new(),
             refreshed: None,
-            detector: Default::default(),
+            session: Default::default(),
             place: Place::All,
             selected: BTreeSet::new(),
             anchor: None,
@@ -615,7 +611,6 @@ impl DmApp {
                 .unwrap_or(512),
             applied: settings,
             clipboard: Clipboard::default(),
-            watched: Default::default(),
             browser_hint: (None, false),
             update_row: None,
             undo_remove: None,

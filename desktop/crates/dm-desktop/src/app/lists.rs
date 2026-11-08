@@ -68,7 +68,7 @@ impl DmApp {
             .map(|r| r.id)
             .filter(|id| !before.contains(id))
         {
-            self.detector.own(id);
+            self.session.own(id);
         }
         // Lines of a plain list with no address dm can read are said, not
         // passed over: "127.0.0.1:8000/notes.txt" went without a word.

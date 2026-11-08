@@ -8,11 +8,89 @@
 //! other timers), done by the application and reported, so each presentation
 //! only reacts (forgets a row's dialogs, says what could not be done).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use dm_core::{Entry, Id};
+use dm_core::{Entry, Id, State};
 
 use super::backend::Backend;
+use super::detect::{Detected, Detector};
+use super::snapshot::Snapshot;
+use super::watch::Watched;
+use crate::Settings;
+
+/// The application's memory between ticks, for whichever presentation drives
+/// it (the window, or a loop with no window): what was told, and the watched
+/// folder's. It does not own the `Backend`, which the presentation holds; its
+/// methods are handed it.
+#[derive(Debug, Default)]
+pub struct Session {
+    detector: Detector,
+    watched: Watched,
+}
+
+/// One read of the queue: what to draw from, what happened since the last
+/// read, and problems met doing what follows from it.
+#[derive(Clone, Default)]
+pub struct Read {
+    /// The rows and what each line says beside its state.
+    pub snapshot: Snapshot,
+    /// What happened since the last read.
+    pub detected: Detected,
+    /// Problems met (a command run after a download that could not start).
+    pub problems: Vec<String>,
+}
+
+impl Session {
+    /// Reads the queue and does what follows from it that is the
+    /// application's: the command a person set to run on each finished file
+    /// (Options › Downloads). Call `changes::take` before, never after, so a
+    /// change made during the read is still owed one.
+    pub fn read(&mut self, backend: &Backend, settings: &Settings) -> Read {
+        let snapshot = backend.snapshot();
+        let detected = self.detector.read(&snapshot.rows);
+        let mut problems = Vec::new();
+        let command = settings.on_complete.trim();
+        if !command.is_empty() && !detected.finished.is_empty() {
+            for row in snapshot
+                .rows
+                .iter()
+                .filter(|r| detected.finished.contains(&r.id) && !r.path.is_empty())
+            {
+                if let Err(why) = crate::shell::run_after(command, std::path::Path::new(&row.path))
+                {
+                    problems.push(why);
+                }
+            }
+        }
+        Read {
+            snapshot,
+            detected,
+            problems,
+        }
+    }
+
+    /// A row the presentation added itself: not "started elsewhere".
+    pub fn own(&mut self, id: Id) {
+        self.detector.own(id);
+    }
+
+    /// Each row's state at the read before the latest (When done's dry-queue
+    /// watch compares the latest rows with it).
+    pub fn before(&self) -> &HashMap<Id, State> {
+        self.detector.before()
+    }
+
+    /// The watched folder's look (`watch::Watched::look`).
+    pub fn look_at_watched(
+        &mut self,
+        folder: &str,
+        rows: &[Arc<Entry>],
+        backend: &Backend,
+    ) -> Vec<Vec<String>> {
+        self.watched.look(folder, rows, backend)
+    }
+}
 
 /// What a tick of "Delete file after" did.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

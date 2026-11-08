@@ -33,7 +33,13 @@ impl DmApp {
         QUEUE_CHANGED.store(false, std::sync::atomic::Ordering::Release);
         self.take_when_done();
         self.take_new_download();
-        let snapshot = self.backend.snapshot();
+        // One read by the application (`dm_shell::app::session`): the rows,
+        // what happened since the last read, and the command run on each
+        // finished file; the window reacts to the rest below.
+        let read = self.session.read(&self.backend, &self.applied);
+        let snapshot = read.snapshot;
+        let detected = read.detected;
+        self.problems.extend(read.problems);
         self.rows = snapshot.rows;
         self.rows_gen += 1;
         self.place_rows();
@@ -51,7 +57,6 @@ impl DmApp {
 
         // What happened since the last read (`dm_shell::app::detect`); the
         // window's part is how it is told: a notification, a sound, a dialog.
-        let detected = self.detector.read(&self.rows);
         let mut finished = Vec::new();
         let mut toasts: Vec<(String, String)> = Vec::new();
         let failed = detected.failed.clone();
@@ -71,15 +76,6 @@ impl DmApp {
                 if finished_now.contains(&row.id) {
                     toasts.push((name_of(row), row.path.clone()));
                     finished.push(row.id);
-                    // The command a person set to run on each finished file.
-                    let command = self.applied.on_complete.trim();
-                    if !command.is_empty() && !row.path.is_empty() {
-                        if let Err(why) =
-                            dm_shell::shell::run_after(command, std::path::Path::new(&row.path))
-                        {
-                            self.problems.push(why);
-                        }
-                    }
                 }
             }
         }
@@ -235,7 +231,7 @@ impl DmApp {
     }
 
     pub(super) fn when_queue_dry(&mut self) {
-        if !self.dry.look(&self.rows, self.detector.before()) {
+        if !self.dry.look(&self.rows, self.session.before()) {
             return;
         }
         // A queue that has run dry has finished: its own sound, only where the person chose a file.
@@ -934,7 +930,7 @@ impl DmApp {
                 Ok(id) => {
                     added += 1;
                     self.last_added.push(id);
-                    self.detector.own(id);
+                    self.session.own(id);
                     if let Some(size) = sizes.get(url) {
                         self.sizes_told.insert(id, *size);
                     }

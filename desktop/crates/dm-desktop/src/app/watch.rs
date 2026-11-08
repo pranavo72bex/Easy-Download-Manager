@@ -22,7 +22,10 @@ impl DmApp {
     /// window's own adds go in.
     pub(super) fn take_watched(&mut self) {
         let folder = self.applied.watch_folder.clone();
-        for links in self.watched.look(&folder, &self.rows, &self.backend) {
+        for links in self
+            .session
+            .look_at_watched(&folder, &self.rows, &self.backend)
+        {
             let _ = self.add(&links, Default::default());
         }
     }
