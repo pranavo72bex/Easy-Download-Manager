@@ -61,13 +61,15 @@ impl DmApp {
         };
         let added = self.backend.import_where(text, |url| !listed.contains(url));
         // A list is not a run of progress windows.
-        self.own.extend(
-            self.backend
-                .list()
-                .iter()
-                .map(|r| r.id)
-                .filter(|id| !before.contains(id)),
-        );
+        for id in self
+            .backend
+            .list()
+            .iter()
+            .map(|r| r.id)
+            .filter(|id| !before.contains(id))
+        {
+            self.detector.own(id);
+        }
         // Lines of a plain list with no address dm can read are said, not
         // passed over: "127.0.0.1:8000/notes.txt" went without a word.
         let unread = if text.trim_start().starts_with('{') {

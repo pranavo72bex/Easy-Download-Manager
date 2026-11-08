@@ -26,18 +26,7 @@ pub fn category_word(c: Category) -> String {
         .unwrap_or_default()
 }
 
-/// Whether `row` failed as a link that has run out does: refused (403,
-/// 404 or 410) by its server after part of it had arrived, where the same
-/// address worked a moment before.
-pub fn link_expired(row: &Entry) -> bool {
-    let State::Failed(why) = &row.state else {
-        return false;
-    };
-    row.progress.downloaded > 0
-        && ["answered 403", "answered 404", "answered 410"]
-            .iter()
-            .any(|code| why.contains(code))
-}
+pub use dm_shell::app::rules::link_expired;
 
 /// What the filter looks in: a row's name, address and note, lowercased.
 pub(super) fn haystack(row: &Entry) -> String {

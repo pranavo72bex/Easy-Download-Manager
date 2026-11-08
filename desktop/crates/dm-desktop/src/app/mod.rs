@@ -300,8 +300,11 @@ pub struct DmApp {
     /// did not change since the read before is the same allocation.
     pub rows: Vec<Arc<Entry>>,
     refreshed: Option<Instant>,
-    /// What each row was at the last refresh, to notice a finish.
-    last_state: HashMap<Id, State>,
+    /// What happened between reads: finishes, failures, rows started
+    /// elsewhere (`dm_shell::app::detect`). It also holds the rows the window
+    /// added itself (Add URL, a series, an import), which open their progress
+    /// window, if at all, as they are added.
+    detector: dm_shell::app::detect::Detector,
 
     /// The place in the category tree the list is filtered to.
     pub place: Place,
@@ -381,10 +384,6 @@ pub struct DmApp {
 
     /// Problems found at start-up, said in the window.
     pub problems: Vec<String>,
-    /// Completions already announced, so a notification fires once as each
-    /// finishes — and never for the history there when the window opened.
-    notified: HashSet<Id>,
-    notify_ready: bool,
 
     /// The settings as last applied to the window.
     pub applied: Settings,
@@ -427,8 +426,6 @@ pub struct DmApp {
     /// Words typed over the list: only rows whose name, address or note
     /// holds them all are shown, in whatever place is chosen.
     pub filter: String,
-    /// Rows whose failure has been sounded, so one failure is one sound.
-    failed_told: HashSet<Id>,
     /// Questions the rows raised (the server's name, a page for a file, a 404),
     /// waiting for the dialogs to be free: one is asked at a time.
     asks: std::collections::VecDeque<sync::Ask>,
@@ -494,11 +491,6 @@ pub struct DmApp {
     title_search: bool,
     /// The control port answers AI assistants only (see `main.rs`).
     mcp_only: bool,
-    /// Rows the window added itself (Add URL, a series, an import): they
-    /// open their progress window, if at all, as they are added. Any other
-    /// row that appears running — a browser's hand-off, a second launch's
-    /// link — opens one when it is first seen.
-    own: HashSet<Id>,
     /// The rows the last `add` made, in order.
     pub last_added: Vec<Id>,
     /// A sentence about one row ("Trying … again with the sign-in."),
@@ -586,7 +578,7 @@ impl DmApp {
             backend,
             rows: Vec::new(),
             refreshed: None,
-            last_state: HashMap::new(),
+            detector: Default::default(),
             place: Place::All,
             selected: BTreeSet::new(),
             anchor: None,
@@ -617,8 +609,6 @@ impl DmApp {
             list_page: 1,
             dialogs: Dialogs::default(),
             problems: Vec::new(),
-            notified: HashSet::new(),
-            notify_ready: false,
             // The limit in force, else the one last turned off — kept in
             // the settings, so it survives a restart — else 512 KB/s.
             last_limit: [settings.speed_limit, settings.last_speed_limit]
@@ -649,7 +639,6 @@ impl DmApp {
             when_done: Default::default(),
             schedule_watch: Default::default(),
             queue_watches: Default::default(),
-            failed_told: HashSet::new(),
             asks: Default::default(),
             ask_seen: Default::default(),
             asks_primed: false,
@@ -679,7 +668,6 @@ impl DmApp {
             scripted_at: None,
             title_search: false,
             mcp_only: false,
-            own: HashSet::new(),
             last_added: Vec::new(),
             said_about: None,
             sizes_told: HashMap::new(),

@@ -49,41 +49,36 @@ impl DmApp {
         self.selected.retain(|id| ids.contains(id));
         self.forget_said_about();
 
+        // What happened since the last read (`dm_shell::app::detect`); the
+        // window's part is how it is told: a notification, a sound, a dialog.
+        let detected = self.detector.read(&self.rows);
         let mut finished = Vec::new();
         let mut toasts: Vec<(String, String)> = Vec::new();
-        let mut failed = Vec::new();
-        let mut expired = Vec::new();
-        for row in &self.rows {
-            // Once per failure: a row retried and back in line is told
-            // again when it fails again.
-            if !matches!(row.state, State::Failed(_)) {
-                self.failed_told.remove(&row.id);
-            }
-            if matches!(row.state, State::Failed(_))
-                && self.failed_told.insert(row.id)
-                && self.notify_ready
-            {
-                failed.push(row.id);
-                if link_expired(row) {
-                    expired.push(row.id);
+        let failed = detected.failed.clone();
+        let expired = detected.expired.clone();
+        if !detected.failed.is_empty() || !detected.finished.is_empty() {
+            let failed_now: HashSet<Id> = detected.failed.iter().copied().collect();
+            let finished_now: HashSet<Id> = detected.finished.iter().copied().collect();
+            for row in &self.rows {
+                if failed_now.contains(&row.id) {
+                    // Told as a finish is, with why in plain words: a failure
+                    // was only a sound, if that was on.
+                    self.backend.platform.notify(
+                        t("Download failed"),
+                        &format!("{} — {}", name_of(row), status_of(row)),
+                    );
                 }
-                // Told as a finish is, with why in plain words: a failure
-                // was only a sound, if that was on.
-                self.backend.platform.notify(
-                    t("Download failed"),
-                    &format!("{} — {}", name_of(row), status_of(row)),
-                );
-            }
-            if row.state == State::Completed && self.notified.insert(row.id) && self.notify_ready {
-                toasts.push((name_of(row), row.path.clone()));
-                finished.push(row.id);
-                // The command a person set to run on each finished file.
-                let command = self.applied.on_complete.trim();
-                if !command.is_empty() && !row.path.is_empty() {
-                    if let Err(why) =
-                        dm_shell::shell::run_after(command, std::path::Path::new(&row.path))
-                    {
-                        self.problems.push(why);
+                if finished_now.contains(&row.id) {
+                    toasts.push((name_of(row), row.path.clone()));
+                    finished.push(row.id);
+                    // The command a person set to run on each finished file.
+                    let command = self.applied.on_complete.trim();
+                    if !command.is_empty() && !row.path.is_empty() {
+                        if let Err(why) =
+                            dm_shell::shell::run_after(command, std::path::Path::new(&row.path))
+                        {
+                            self.problems.push(why);
+                        }
                     }
                 }
             }
@@ -145,20 +140,10 @@ impl DmApp {
         // window as one started here does, where that is asked for. Not
         // the rows there when the window opened, and not one added for
         // later, which has not started.
-        if self.applied.show_progress && self.notify_ready && !self.headless {
-            let started: Vec<Id> = self
-                .rows
-                .iter()
-                .filter(|row| {
-                    !self.last_state.contains_key(&row.id)
-                        && !self.own.contains(&row.id)
-                        && matches!(row.state, State::Running | State::Queued)
-                })
-                .map(|row| row.id)
-                .collect();
+        if self.applied.show_progress && !self.headless {
             // One window for one download: a batch arriving at once opened a
             // stack of them over the list (a design review counted ten).
-            if let [only] = started.as_slice() {
+            if let [only] = detected.started_elsewhere.as_slice() {
                 self.dialogs.progress.insert(*only);
             }
         }
@@ -166,36 +151,21 @@ impl DmApp {
         // inbox before the window hears of it, and the browser has let its
         // own download go, so there is nothing left to ask. Said, as Add
         // URL would have asked.
-        if self.notify_ready {
-            let fresh = |row: &&Arc<Entry>| {
-                !self.last_state.contains_key(&row.id) && !self.own.contains(&row.id)
-            };
-            let again = self.rows.iter().filter(fresh).find(|row| {
-                let address = crate::dialogs::bare(&row.url);
-                self.rows.iter().any(|other| {
-                    other.id != row.id
-                        && other.state != State::Cancelled
-                        && self.last_state.contains_key(&other.id)
-                        && crate::dialogs::bare(&other.url) == address
-                })
-            });
-            if let Some(row) = again {
-                self.said = crate::i18n::Said::new(
-                    "Added {} again: that address was already in the list.",
-                    &[&name_of(row)],
-                );
-            }
+        if let Some(row) = detected
+            .added_again
+            .and_then(|id| self.rows.iter().find(|r| r.id == id))
+        {
+            self.said = crate::i18n::Said::new(
+                "Added {} again: that address was already in the list.",
+                &[&name_of(row)],
+            );
         }
-        self.own.retain(|id| ids.contains(id));
         // A size told by a dialog stands only until the row has its own.
         let rows = &self.rows;
         self.sizes_told.retain(|id, _| {
             rows.iter()
                 .any(|r| r.id == *id && r.progress.total.is_none() && r.progress.downloaded == 0)
         });
-        self.last_state = self.rows.iter().map(|r| (r.id, r.state.clone())).collect();
-        // After the first pass every completion already on disk is seeded.
-        self.notify_ready = true;
         self.problems.extend(
             self.backend
                 .problems()
@@ -265,7 +235,7 @@ impl DmApp {
     }
 
     pub(super) fn when_queue_dry(&mut self) {
-        if !self.dry.look(&self.rows, &self.last_state) {
+        if !self.dry.look(&self.rows, self.detector.before()) {
             return;
         }
         // A queue that has run dry has finished: its own sound, only where the person chose a file.
@@ -994,7 +964,7 @@ impl DmApp {
                 Ok(id) => {
                     added += 1;
                     self.last_added.push(id);
-                    self.own.insert(id);
+                    self.detector.own(id);
                     if let Some(size) = sizes.get(url) {
                         self.sizes_told.insert(id, *size);
                     }

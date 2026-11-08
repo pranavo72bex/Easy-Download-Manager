@@ -41,6 +41,19 @@ pub fn go_on(state: &State, held: bool) -> GoOn {
     }
 }
 
+/// Whether `row` failed as a link that has run out does: refused (403,
+/// 404 or 410) by its server after part of it had arrived, where the same
+/// address worked a moment before.
+pub fn link_expired(row: &Entry) -> bool {
+    let State::Failed(why) = &row.state else {
+        return false;
+    };
+    row.progress.downloaded > 0
+        && ["answered 403", "answered 404", "answered 410"]
+            .iter()
+            .any(|code| why.contains(code))
+}
+
 /// The row an address is already listed as: the same address, its login
 /// aside (`lists::bare`), in a row not cancelled.
 pub fn already_listed(rows: &[Arc<Entry>], address: &str) -> Option<Id> {
