@@ -289,16 +289,25 @@ impl DmApp {
     /// one at a time. With no window to ask in, it is simply added.
     pub fn take_handed(&mut self) {
         // A caught download by its own setting, the panel's and menus' by
-        // theirs.
-        let caught = dm_core::lock(&self.backend.handed)
-            .front()
-            .is_some_and(|r| r.caught);
+        // theirs. A part typed on the panel's "Part" line opens Download
+        // details whatever they say, its ends filled in (contract row B59):
+        // added at once, it was the whole video.
+        let (caught, part) =
+            dm_core::lock(&self.backend.handed)
+                .front()
+                .map_or((false, false), |r| {
+                    (
+                        r.caught,
+                        !(r.from.trim().is_empty() && r.to.trim().is_empty()),
+                    )
+                });
         let ask = !self.headless
-            && if caught {
-                self.applied.ask_caught_downloads
-            } else {
-                self.applied.ask_panel_downloads
-            };
+            && (part
+                || if caught {
+                    self.applied.ask_caught_downloads
+                } else {
+                    self.applied.ask_panel_downloads
+                });
         if ask && (self.dialogs.file_info.is_some() || self.dialogs.links.is_some()) {
             return;
         }

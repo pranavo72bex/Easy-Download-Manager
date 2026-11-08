@@ -285,6 +285,35 @@ file sparse, dm 73 s and reference A 96 s. Results:
 `D:\compare\plan-side-full.json` and `plan-side\report.json` (the error cases again with
 each window read and closed).
 
+## The four scenarios that differed, with reference A's windows answered (Observed, 2026-11-08, Windows)
+
+The 2026-11-02 runs (`compare.mjs`) left four of twelve local scenarios different, maybe the
+harness misreading reference A. Run again one after the other against one server on 127.0.0.1
+(`D:\compare\dialogs.mjs`): reference A 6.43 by its command line without its silent switch,
+every window it opened read and recorded with its words, and answered as a person answers it
+(File Info: Start Download; "the server sent the following name": Yes; Download complete:
+Close; its reminder to register: No); its progress window left alone. dm (debug build) by its
+control port. Each file was given a name reference A's own list had not seen: it asks first
+about a name it already holds ("Duplicate download link: This file already exists in your
+download list").
+
+| Scenario | Reference A | dm |
+|---|---|---|
+| A name the server gives (`Content-Disposition`, "Report 2026 ….pdf") | File Info, then "The name to save the file was "dl", but the server sent the following name "Report 2026 ….pdf". Would you like to save the file with the file name that was received from the server?"; with Yes, the file under the server's name, sorted into its Documents folder (outside the folder it was given) | the server's name, sorted into its Documents folder; the same bytes (SHA-256 equal). dm asks the same question in its window (contract row B39); added here by its control port, it does not ask |
+| The same in UTF-8 (`filename*=UTF-8''résumé € ….txt`) | the same question; with Yes, "résumé € ….txt", exact | "résumé € ….txt", exact |
+| A length it lies about (1 MiB more than it sends) | split into eight connections for the claimed 5 MB; the three past the real 4 MB get nothing (its log: `downloaded=0`); stays at 80% "Receiving data..." for the three minutes watched | whole and exact (4 MiB) |
+| A web page where a file was asked for (`page.zip` answering an HTML sign-in page) | saves it, renamed `page-….htm` (35 bytes), and says Download complete | refuses it: "that link answered with a web page rather than the file — it may have expired, or need a sign-in" |
+
+What it changes: the two named downloads come out the same in both; the earlier difference was
+the harness, which closed reference A's progress window, which cancels its download ("Cancel
+by user" in its own log), and looked only in the folder it gave (reference A sorted the PDF into
+its Documents folder). The two that stand are where dm does better: it finishes a file whose
+length is overstated, and says why it refuses a page served in a file's place, where reference
+A saves the page. Nothing in dm is changed for them (row 65's rule: only where dm is not already
+better). The duplicate question is reference A's, about its own list; dm's is contract rows B17
+and B50. Results:
+`D:\compare\dialogs-report.json`.
+
 ## Dial-up / VPN redial, side by side (Observed, 2026-11-08, Windows)
 
 Reference A 6.43 and dm 0.8.7 (debug build) on one Windows 11 computer, one after the

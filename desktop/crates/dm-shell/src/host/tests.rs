@@ -502,6 +502,28 @@ fn a_picture_and_the_sound_that_goes_with_it_reach_the_app_together() {
     assert_eq!(options.sound.as_deref(), Some("https://cdn.example/sound"));
 }
 
+/// A part the browser panel's "Part" line asked for goes with a download no Download details asks
+/// about (it was dropped, and the whole video fetched): an end alone starts at 0:00, as the dialog
+/// takes it; a start alone or no span is the whole video.
+#[test]
+fn a_part_handed_over_goes_with_a_download_no_dialog_asks_about() {
+    let with = |from: &str, to: &str| {
+        crate::shell::add_options(&Request {
+            url: "https://cdn.example/v.mp4".into(),
+            from: from.into(),
+            to: to.into(),
+            ..Default::default()
+        })
+        .span
+        .map(|s| (s.from, s.to))
+    };
+    assert_eq!(with("1:30", "2:00"), Some((90.0, 120.0)));
+    assert_eq!(with("", "45"), Some((0.0, 45.0)));
+    assert_eq!(with("1:30", ""), None);
+    assert_eq!(with("2:00", "1:30"), None);
+    assert_eq!(with("", ""), None);
+}
+
 fn ask(
     home: &Path,
     frame: serde_json::Value,

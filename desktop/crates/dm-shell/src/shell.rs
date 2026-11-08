@@ -290,6 +290,9 @@ pub fn posted(url: &str, post: Option<&dm_protocol::Posted>) -> Option<dm_core::
 /// What a request from the command line or a browser asks the queue for.
 pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
     dm_core::AddOptions {
+        // The panel's "Part" line, where no Download details asks (contract row B59): kept, not
+        // dropped for the whole video.
+        span: part_span(&request.from, &request.to),
         referrer: request.referrer.clone(),
         save_dir: request.save_dir.clone(),
         save_name: request.save_name.clone(),
@@ -308,6 +311,17 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         },
         ..dm_core::AddOptions::default()
     }
+}
+
+/// The part of a video a hand-off asks for (the browser panel's "Part" line), as Download
+/// details takes it: an end alone starts at 0:00. A start alone, or ends that make no span (an end
+/// before its start), ask for none: the whole video, as a click with nothing typed.
+pub fn part_span(from: &str, to: &str) -> Option<dm_core::Span> {
+    if to.trim().is_empty() {
+        return None;
+    }
+    let from = if from.trim().is_empty() { "0:00" } else { from };
+    dm_core::Span::parse(from, to)
 }
 
 /// Gives this launch's orders to the dm already running, and asks it to
