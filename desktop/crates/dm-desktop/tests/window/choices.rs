@@ -87,7 +87,7 @@ fn the_schedules_when_done_is_armed_with_its_hours_and_put_away_after() {
         harness.state_mut().refresh();
         harness.step();
     }
-    assert_eq!(harness.state().when_done, WhenDone::Quit);
+    assert_eq!(harness.state().session.when_done, WhenDone::Quit);
     let mut off = harness.state().applied.clone();
     off.schedule.enabled = false;
     harness.state_mut().apply_settings(off).unwrap();
@@ -96,7 +96,7 @@ fn the_schedules_when_done_is_armed_with_its_hours_and_put_away_after() {
         harness.step();
     }
     assert_eq!(
-        harness.state().when_done,
+        harness.state().session.when_done,
         WhenDone::Nothing,
         "the schedule's choice outlived its hours"
     );

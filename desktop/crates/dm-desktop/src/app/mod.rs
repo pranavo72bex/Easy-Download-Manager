@@ -408,8 +408,6 @@ pub struct DmApp {
     /// Whether the window's motion was last set to none (`motion.rs`).
     motion_in_force: Option<bool>,
     fonts_ready: bool,
-    /// What to do when the queue runs dry, for this session only.
-    pub when_done: crate::power::WhenDone,
     /// Words typed over the list: only rows whose name, address or note
     /// holds them all are shown, in whatever place is chosen.
     pub filter: String,
@@ -453,9 +451,6 @@ pub struct DmApp {
     /// The failed downloads the failed bar was hidden over: it stays away
     /// until another one fails.
     failed_hidden: BTreeSet<Id>,
-    /// What "When done" has seen since the queue last ran dry.
-    /// A sleep or shut down waiting out its countdown.
-    pub countdown: Option<(crate::power::WhenDone, Instant)>,
     /// Running without a window (`--headless`).
     pub headless: bool,
     /// The window is hidden in the tray: wakes are fewer.
@@ -619,7 +614,6 @@ impl DmApp {
             motion_in_force: None,
             accent_in_force: None,
             fonts_ready: false,
-            when_done: Default::default(),
             asks: Default::default(),
             ask_seen: Default::default(),
             asks_primed: false,
@@ -636,7 +630,6 @@ impl DmApp {
             was_behind: false,
             cancelled_hand_offs: std::collections::HashMap::new(),
             failed_hidden: BTreeSet::new(),
-            countdown: None,
             headless: false,
             hidden: false,
             control: None,

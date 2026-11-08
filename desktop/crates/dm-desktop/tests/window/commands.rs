@@ -465,7 +465,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     for (item, wanted) in when_done {
         press(&mut h, &["Downloads", "When done", item]);
         assert_eq!(
-            h.state().when_done,
+            h.state().session.when_done,
             wanted,
             "Downloads › When done › {item}"
         );

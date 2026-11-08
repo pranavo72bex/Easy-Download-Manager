@@ -13,23 +13,29 @@ fn when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen() {
     let mut harness = world.harness();
     harness.state_mut().applied.sound_on_complete = true;
     harness.state_mut().run(Command::WhenDoneSleep);
-    assert_eq!(harness.state().when_done, WhenDone::Sleep);
+    assert_eq!(harness.state().session.when_done, WhenDone::Sleep);
 
     add_url(&mut harness, &world.url("file.zip"), "Start now");
-    until(&mut harness, "the countdown", |app| app.countdown.is_some());
+    until(&mut harness, "the countdown", |app| {
+        app.session.countdown.is_some()
+    });
     assert!(world
         .fake
         .opened
         .lock()
         .unwrap()
         .contains(&"chime".to_string()));
-    assert_eq!(harness.state().when_done, WhenDone::Nothing, "once only");
+    assert_eq!(
+        harness.state().session.when_done,
+        WhenDone::Nothing,
+        "once only"
+    );
     harness.run_steps(2);
     assert!(harness
         .query_by_label_contains("put the computer to sleep in")
         .is_some());
     click(&mut harness, "Cancel");
-    assert!(harness.state().countdown.is_none());
+    assert!(harness.state().session.countdown.is_none());
     assert!(!world
         .fake
         .opened
@@ -41,7 +47,9 @@ fn when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen() {
     // Again, and this time it is let happen.
     harness.state_mut().run(Command::WhenDoneShutDown);
     add_url(&mut harness, &world.url("file.zip"), "Start now");
-    until(&mut harness, "the countdown", |app| app.countdown.is_some());
+    until(&mut harness, "the countdown", |app| {
+        app.session.countdown.is_some()
+    });
     harness.run_steps(2);
     click(&mut harness, "Now");
     assert_eq!(

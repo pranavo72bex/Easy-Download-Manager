@@ -404,7 +404,7 @@ fn with_no_window_exit_when_done_quits_at_once() {
     let world = world();
     let mut app = world.app();
     app.headless = true;
-    app.when_done = WhenDone::Quit;
+    app.session.when_done = WhenDone::Quit;
     app.add(&[world.url("file.zip")], dm_core::AddOptions::default())
         .unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -414,7 +414,7 @@ fn with_no_window_exit_when_done_quits_at_once() {
         app.refresh();
     }
     assert!(
-        app.countdown.is_none(),
+        app.session.countdown.is_none(),
         "counted down with nobody to see it"
     );
 }
@@ -537,15 +537,15 @@ fn when_done_from_the_command_line_is_taken_where_the_computer_can_do_it() {
         ("hibernate", WhenDone::Hibernate),
         ("shutdown", WhenDone::ShutDown),
     ] {
-        app.when_done = WhenDone::Nothing;
+        app.session.when_done = WhenDone::Nothing;
         app.said = Default::default();
         std::fs::write(&file, format!("{word}\n")).unwrap();
         app.refresh();
         assert!(!file.exists(), "{word}: left in the inbox");
         if dm_desktop::power::available(action) {
-            assert_eq!(app.when_done, action, "{word}");
+            assert_eq!(app.session.when_done, action, "{word}");
         } else {
-            assert_eq!(app.when_done, WhenDone::Nothing, "{word}");
+            assert_eq!(app.session.when_done, WhenDone::Nothing, "{word}");
             assert_eq!(
                 app.said.english(),
                 "This computer has no way to do that when the downloads are done.",
@@ -553,11 +553,11 @@ fn when_done_from_the_command_line_is_taken_where_the_computer_can_do_it() {
             );
         }
     }
-    app.when_done = WhenDone::Nothing;
+    app.session.when_done = WhenDone::Nothing;
     std::fs::write(&file, "reboot").unwrap();
     app.refresh();
     assert!(!file.exists());
-    assert_eq!(app.when_done, WhenDone::Nothing);
+    assert_eq!(app.session.when_done, WhenDone::Nothing);
 }
 
 /// A fresh link awaited for too long is no longer awaited: the next
@@ -639,9 +639,9 @@ fn a_countdown_whose_action_the_system_refuses_is_said() {
     let _one = one_at_a_time();
     let world = world();
     let mut app = app_on(&world, world.settings(), Arc::new(Refusing::default()));
-    app.countdown = Some((WhenDone::Sleep, Instant::now()));
+    app.session.countdown = Some((WhenDone::Sleep, Instant::now()));
     app.countdown_tick();
-    assert!(app.countdown.is_none());
+    assert!(app.session.countdown.is_none());
     assert!(app
         .problems
         .iter()
@@ -1369,7 +1369,7 @@ fn the_schedules_when_done_is_armed_as_its_window_opens_and_put_away_as_it_close
     app.apply_settings(wanted).unwrap();
     app.refresh();
     if dm_desktop::power::available(WhenDone::Sleep) {
-        assert_eq!(app.when_done, WhenDone::Sleep);
+        assert_eq!(app.session.when_done, WhenDone::Sleep);
         assert!(
             app.said
                 .english()
@@ -1378,13 +1378,13 @@ fn the_schedules_when_done_is_armed_as_its_window_opens_and_put_away_as_it_close
             app.said.english()
         );
     } else {
-        assert_eq!(app.when_done, WhenDone::Nothing);
+        assert_eq!(app.session.when_done, WhenDone::Nothing);
     }
     let mut shut = app.applied.clone();
     shut.schedule.enabled = false;
     app.apply_settings(shut).unwrap();
     app.refresh();
-    assert_eq!(app.when_done, WhenDone::Nothing, "left armed");
+    assert_eq!(app.session.when_done, WhenDone::Nothing, "left armed");
     app.run(Command::StopAll);
 }
 

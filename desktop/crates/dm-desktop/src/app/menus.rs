@@ -296,7 +296,11 @@ impl DmApp {
                                 || crate::power::available(w);
                             if ui
                                 .add_enabled_ui(can, |ui| {
-                                    crate::dialogs::radio_flag(ui, self.when_done == w, c.title())
+                                    crate::dialogs::radio_flag(
+                                        ui,
+                                        self.session.when_done == w,
+                                        c.title(),
+                                    )
                                 })
                                 .inner
                                 // Why, where it is greyed.

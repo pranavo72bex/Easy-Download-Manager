@@ -717,11 +717,12 @@ pub(crate) fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 /// Waits for Exit's countdown, says it has not quit yet, then runs it out.
 pub(crate) fn quit_after_its_countdown(harness: &mut Harness<'_, DmApp>) {
     until(harness, "Exit's countdown", |app| {
-        app.countdown
+        app.session
+            .countdown
             .is_some_and(|(action, _)| action == dm_desktop::power::WhenDone::Quit)
     });
     assert!(!harness.state().quit_asked, "quit before its countdown");
-    harness.state_mut().countdown =
+    harness.state_mut().session.countdown =
         Some((dm_desktop::power::WhenDone::Quit, std::time::Instant::now()));
     until(harness, "dm to quit", |app| app.quit_asked);
 }

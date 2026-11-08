@@ -34,7 +34,7 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
         !harness.state().quit_asked,
         "quit on a queue a person stopped"
     );
-    assert_eq!(harness.state().when_done, WhenDone::Quit);
+    assert_eq!(harness.state().session.when_done, WhenDone::Quit);
 
     // Something else finishes; the stopped row is left alone, not waited for.
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -85,10 +85,10 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
     }
     assert!(!harness.state().quit_asked);
     assert!(
-        harness.state().countdown.is_none(),
+        harness.state().session.countdown.is_none(),
         "counted down to sleep with a download the schedule holds"
     );
-    assert_eq!(harness.state().when_done, WhenDone::Sleep);
+    assert_eq!(harness.state().session.when_done, WhenDone::Sleep);
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn a_sleep_the_system_refuses_is_said_in_the_problems() {
     let world = world();
     *world.fake.power_fails.lock().unwrap() = true;
     let mut harness = world.harness();
-    harness.state_mut().countdown = Some((
+    harness.state_mut().session.countdown = Some((
         dm_desktop::power::WhenDone::Sleep,
         std::time::Instant::now(),
     ));

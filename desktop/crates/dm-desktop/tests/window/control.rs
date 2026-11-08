@@ -80,7 +80,7 @@ fn the_command_lines_when_done_is_taken_up() {
     let orders = dm_shell::shell::orders(&["--when-done".into(), "exit".into()]);
     dm_shell::shell::leave_when_done(&home, &orders);
     until(&mut harness, "When done to be set", |app| {
-        app.when_done == WhenDone::Quit
+        app.session.when_done == WhenDone::Quit
     });
     assert!(!dm_shell::host::inbox(&home)
         .join(dm_shell::shell::WHEN_DONE_FILE)

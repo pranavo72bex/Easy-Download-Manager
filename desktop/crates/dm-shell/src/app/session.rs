@@ -10,6 +10,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use dm_core::{Entry, Id, State};
 
@@ -37,14 +38,27 @@ pub struct Session {
     schedule_watch: Watch,
     /// Each named queue with a schedule of its own.
     queue_watches: BTreeMap<String, Watch>,
+    /// What dm does when the queue runs dry (Downloads › When done), for
+    /// this session: the person's choice, or the schedule's armed for them.
+    pub when_done: WhenDone,
+    /// An action waiting out its countdown: what, and when it is due.
+    pub countdown: Option<(WhenDone, Instant)>,
+}
+
+/// What the queue running dry did with When done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fired {
+    /// Nothing was chosen.
+    Nothing,
+    /// Quit at once: nobody is there to see a countdown.
+    QuitNow,
+    /// The action waits out its countdown (`Session::countdown`).
+    Counting,
 }
 
 /// What a tick of the schedules came to, for the presentation to act on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScheduleTick {
-    /// When done as it now stands (the schedule may have armed or put away
-    /// its choice).
-    pub when_done: WhenDone,
     /// The schedule's choice, armed in this tick: to be said.
     pub armed: Option<WhenDone>,
     /// The scheduled downloads are over and a schedule asks the dial-up
@@ -131,18 +145,16 @@ impl Session {
     /// schedule for every queue and each queue's own, the end of its window:
     /// its failed downloads tried again for as many rounds as allowed, then
     /// its program run and, where asked, the dial-up connection hung up.
-    /// `when_done` is the session's choice as it stands; `can_do` says whether
+    /// It acts on the session's When done; `can_do` says whether
     /// this computer can carry out an action (the presentation knows).
     pub fn schedule_tick(
         &mut self,
         backend: &Backend,
         settings: &Settings,
         rows: &[Arc<Entry>],
-        when_done: WhenDone,
         can_do: impl Fn(WhenDone) -> bool,
     ) -> ScheduleTick {
         let mut tick = ScheduleTick {
-            when_done,
             armed: None,
             hang_up: false,
             problems: Vec::new(),
@@ -161,10 +173,10 @@ impl Session {
                 let can = wanted == WhenDone::Nothing || wanted == WhenDone::Quit || can_do(wanted);
                 if wanted != WhenDone::Nothing
                     && can
-                    && tick.when_done == WhenDone::Nothing
+                    && self.when_done == WhenDone::Nothing
                     && work_left(rows)
                 {
-                    tick.when_done = wanted;
+                    self.when_done = wanted;
                     tick.armed = Some(wanted);
                     self.schedule_watch.arm(wanted);
                 }
@@ -172,15 +184,15 @@ impl Session {
             Step::Closed => {
                 // Unused: put away, unless it was changed in the menu since.
                 if let Some(armed) = self.schedule_watch.disarm() {
-                    if tick.when_done == armed {
-                        tick.when_done = WhenDone::Nothing;
+                    if self.when_done == armed {
+                        self.when_done = WhenDone::Nothing;
                     }
                 }
             }
             Step::Nothing => {}
         }
         // Fired (the choice was taken as the queue ran dry): nothing to put away.
-        if tick.when_done == WhenDone::Nothing {
+        if self.when_done == WhenDone::Nothing {
             self.schedule_watch.disarm();
         }
         // The rows the schedule for every queue looks after: those of a queue
@@ -207,6 +219,37 @@ impl Session {
             end_of_window(backend, schedule, open, &mine, watch, &mut tick);
         }
         tick
+    }
+
+    /// The queue has run dry (`ran_dry`): the session's When done is taken,
+    /// once only. Quit is at once where `nobody_sees` a countdown (no
+    /// window); anything else, Quit included, waits out its countdown,
+    /// [`COUNTDOWN_SECS`](super::power::COUNTDOWN_SECS) from `now`.
+    pub fn when_done_fires(&mut self, nobody_sees: bool, now: Instant) -> Fired {
+        match std::mem::take(&mut self.when_done) {
+            WhenDone::Nothing => Fired::Nothing,
+            WhenDone::Quit if nobody_sees => Fired::QuitNow,
+            action => {
+                let at = now + Duration::from_secs(super::power::COUNTDOWN_SECS);
+                self.countdown = Some((action, at));
+                Fired::Counting
+            }
+        }
+    }
+
+    /// A countdown whose time is up by `now` is ended and its action carried
+    /// out (`carry_out`): what came of it, or `None` while nothing is due.
+    pub fn countdown_due(
+        &mut self,
+        backend: &Backend,
+        now: Instant,
+    ) -> Option<Result<Carried, String>> {
+        let (action, at) = self.countdown?;
+        if now < at {
+            return None;
+        }
+        self.countdown = None;
+        Some(carry_out(backend, action))
     }
 
     /// The watched folder's look (`watch::Watched::look`).
@@ -262,6 +305,16 @@ pub fn delete_due(backend: &Backend, rows: &[Arc<Entry>], now: u64) -> Option<De
         backend.remove_many(&done.gone);
     }
     Some(done)
+}
+
+/// The When done another dm asked for (`dm --when-done <word>`), left in
+/// the inbox under `home`: taken, so it is acted on once. A word dm does not
+/// know is dropped.
+pub fn when_done_asked(home: &std::path::Path) -> Option<WhenDone> {
+    let file = crate::host::inbox(home).join(crate::shell::WHEN_DONE_FILE);
+    let word = std::fs::read_to_string(&file).ok()?;
+    let _ = std::fs::remove_file(&file);
+    WhenDone::ALL.into_iter().find(|w| w.word() == word.trim())
 }
 
 /// What carrying out a When done action that came due leads to.
@@ -323,5 +376,77 @@ fn end_of_window(
             }
         }
         AtEnd::Nothing => {}
+    }
+}
+
+#[cfg(test)]
+mod when_done_tests {
+    use super::*;
+
+    #[test]
+    fn the_queue_running_dry_takes_when_done_once() {
+        let now = Instant::now();
+        let mut session = Session::default();
+        assert_eq!(session.when_done_fires(false, now), Fired::Nothing);
+        assert!(session.countdown.is_none());
+
+        // Exit with nobody to see a countdown: at once, and taken.
+        session.when_done = WhenDone::Quit;
+        assert_eq!(session.when_done_fires(true, now), Fired::QuitNow);
+        assert_eq!(session.when_done, WhenDone::Nothing);
+        assert!(session.countdown.is_none());
+
+        // With a window, Exit waits out the countdown as the others do.
+        for action in [WhenDone::Quit, WhenDone::Sleep, WhenDone::ShutDown] {
+            session.when_done = action;
+            assert_eq!(session.when_done_fires(false, now), Fired::Counting);
+            assert_eq!(session.when_done, WhenDone::Nothing, "once only");
+            let at = now + Duration::from_secs(super::super::power::COUNTDOWN_SECS);
+            assert_eq!(session.countdown, Some((action, at)));
+        }
+    }
+
+    #[test]
+    fn a_countdown_is_carried_out_only_once_its_time_is_up() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        let mut session = Session::default();
+        let now = Instant::now();
+        assert!(session.countdown_due(&backend, now).is_none(), "none set");
+
+        session.countdown = Some((WhenDone::Sleep, now + Duration::from_secs(5)));
+        assert!(session.countdown_due(&backend, now).is_none(), "not yet");
+        assert!(session.countdown.is_some());
+        let due = now + Duration::from_secs(5);
+        assert_eq!(
+            session.countdown_due(&backend, due),
+            Some(Ok(Carried::Asked))
+        );
+        assert!(session.countdown.is_none());
+
+        session.countdown = Some((WhenDone::Quit, now));
+        assert_eq!(
+            session.countdown_due(&backend, now),
+            Some(Ok(Carried::Quit))
+        );
+        assert!(session.countdown_due(&backend, now).is_none(), "ended");
+    }
+
+    #[test]
+    fn a_when_done_another_dm_asked_for_is_taken_once() {
+        let home = tempfile::tempdir().unwrap();
+        assert_eq!(when_done_asked(home.path()), None, "nothing asked");
+        let inbox = crate::host::inbox(home.path());
+        std::fs::create_dir_all(&inbox).unwrap();
+        let file = inbox.join(crate::shell::WHEN_DONE_FILE);
+        for action in WhenDone::ALL {
+            std::fs::write(&file, format!("{}\n", action.word())).unwrap();
+            assert_eq!(when_done_asked(home.path()), Some(action));
+            assert!(!file.exists(), "taken");
+        }
+        std::fs::write(&file, "dance").unwrap();
+        assert_eq!(when_done_asked(home.path()), None, "unknown word");
+        assert!(!file.exists(), "dropped");
     }
 }

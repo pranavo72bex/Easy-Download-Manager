@@ -1014,7 +1014,7 @@ fn escape_cancels_the_when_done_countdown() {
     until(&mut harness, "it to finish", |app| {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
-    harness.state_mut().countdown = Some((
+    harness.state_mut().session.countdown = Some((
         dm_desktop::power::WhenDone::Sleep,
         std::time::Instant::now() + std::time::Duration::from_secs(30),
     ));
@@ -1029,7 +1029,7 @@ fn escape_cancels_the_when_done_countdown() {
     harness.key_press(egui::Key::Escape);
     harness.run_steps(3);
     assert!(
-        harness.state().countdown.is_none(),
+        harness.state().session.countdown.is_none(),
         "Escape did not cancel it"
     );
     assert!(

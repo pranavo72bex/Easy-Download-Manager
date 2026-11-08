@@ -66,7 +66,6 @@ impl DmApp {
             &self.backend,
             &self.applied,
             &self.rows,
-            self.when_done,
             crate::power::available,
         );
         if let Some(wanted) = tick.armed {
@@ -75,7 +74,6 @@ impl DmApp {
                 &[&crate::i18n::t(wanted.verb())],
             );
         }
-        self.when_done = tick.when_done;
         self.problems.extend(tick.problems);
         if tick.hang_up && cfg!(windows) {
             self.hang_up_later();

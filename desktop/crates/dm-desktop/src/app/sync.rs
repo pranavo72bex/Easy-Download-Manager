@@ -238,17 +238,12 @@ impl DmApp {
         if let Some(path) = self.sound_file("queue_done") {
             self.backend.platform.play_file(&path);
         }
-        use crate::power::WhenDone;
-        match std::mem::take(&mut self.when_done) {
-            WhenDone::Nothing => {}
-            // With nobody to see a countdown, at once.
-            WhenDone::Quit if self.headless => self.quit_asked = true,
-            // The others' countdown for Exit too: it quit the moment the
-            // last download ended, with no word.
-            action => {
-                let at = Instant::now() + Duration::from_secs(crate::power::COUNTDOWN_SECS);
-                self.countdown = Some((action, at));
-            }
+        // The session takes When done (`Session::when_done_fires`): with
+        // nobody to see a countdown, Exit at once; the others', Exit's too,
+        // wait out the countdown.
+        let fired = self.session.when_done_fires(self.headless, Instant::now());
+        if fired == dm_shell::app::session::Fired::QuitNow {
+            self.quit_asked = true;
         }
     }
 
@@ -373,29 +368,20 @@ impl DmApp {
     }
 
     pub(super) fn take_when_done(&mut self) {
-        let file = dm_shell::host::inbox(&dm_shell::settings::home())
-            .join(dm_shell::shell::WHEN_DONE_FILE);
-        let Ok(word) = std::fs::read_to_string(&file) else {
+        use crate::power::WhenDone;
+        let Some(wanted) = dm_shell::app::session::when_done_asked(&dm_shell::settings::home())
+        else {
             return;
         };
-        let _ = std::fs::remove_file(&file);
-        let command = match word.trim() {
-            "nothing" => Command::WhenDoneNothing,
-            "exit" => Command::WhenDoneQuit,
-            "sleep" => Command::WhenDoneSleep,
-            "hibernate" => Command::WhenDoneHibernate,
-            "shutdown" => Command::WhenDoneShutDown,
-            _ => return,
-        };
-        use crate::power::WhenDone;
-        let wanted = match command {
-            Command::WhenDoneSleep => WhenDone::Sleep,
-            Command::WhenDoneHibernate => WhenDone::Hibernate,
-            Command::WhenDoneShutDown => WhenDone::ShutDown,
-            _ => WhenDone::Nothing,
+        let command = match wanted {
+            WhenDone::Nothing => Command::WhenDoneNothing,
+            WhenDone::Quit => Command::WhenDoneQuit,
+            WhenDone::Sleep => Command::WhenDoneSleep,
+            WhenDone::Hibernate => Command::WhenDoneHibernate,
+            WhenDone::ShutDown => Command::WhenDoneShutDown,
         };
         // As the menu greys them: only what this computer can do.
-        if wanted == WhenDone::Nothing || crate::power::available(wanted) {
+        if matches!(wanted, WhenDone::Nothing | WhenDone::Quit) || crate::power::available(wanted) {
             self.run(command);
         } else {
             self.said = crate::i18n::Said::new(
@@ -482,22 +468,17 @@ impl DmApp {
 
     /// Runs a countdown's action once its time is up.
     pub fn countdown_tick(&mut self) {
-        if let Some((action, at)) = self.countdown {
-            if Instant::now() >= at {
-                self.countdown = None;
-                if action == crate::power::WhenDone::Quit {
-                    self.quit_asked = true;
-                    return;
-                }
-                // Carried out by the application (`session::carry_out`); a
-                // refusal said at once goes in the list of problems as well as
-                // the status line: whoever set it is likely away, and a status
-                // line is overwritten.
-                if let Err(e) = dm_shell::app::session::carry_out(&self.backend, action) {
-                    self.problem(e.clone());
-                    self.said = e.into();
-                }
+        // Carried out by the application (`Session::countdown_due`); a
+        // refusal said at once goes in the list of problems as well as the
+        // status line: whoever set it is likely away, and a status line is
+        // overwritten.
+        match self.session.countdown_due(&self.backend, Instant::now()) {
+            Some(Ok(dm_shell::app::session::Carried::Quit)) => self.quit_asked = true,
+            Some(Err(e)) => {
+                self.problem(e.clone());
+                self.said = e.into();
             }
+            Some(Ok(dm_shell::app::session::Carried::Asked)) | None => {}
         }
     }
 
@@ -567,7 +548,7 @@ impl DmApp {
         // tray with four finished rows, dm drew itself four times a second
         // and spent a third of a core doing it. A hand-off, a
         // control request and a tray click wake it at once regardless.
-        let moving = self.countdown.is_some()
+        let moving = self.session.countdown.is_some()
             || self
                 .rows
                 .iter()

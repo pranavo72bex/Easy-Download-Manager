@@ -467,7 +467,7 @@ pub(super) fn skip_offer(app: &mut DmApp, ctx: &egui::Context) {
 
 /// The countdown before the computer is turned off: time to say no.
 pub(super) fn countdown(app: &mut DmApp, ctx: &egui::Context) {
-    let Some((action, at)) = app.countdown else {
+    let Some((action, at)) = app.session.countdown else {
         return;
     };
     let left = at
@@ -494,9 +494,9 @@ pub(super) fn countdown(app: &mut DmApp, ctx: &egui::Context) {
     });
     ctx.data_mut(|d| d.insert_temp(shown_id, at));
     if cancel {
-        app.countdown = None;
+        app.session.countdown = None;
     } else if now {
-        app.countdown = Some((action, std::time::Instant::now()));
+        app.session.countdown = Some((action, std::time::Instant::now()));
         app.countdown_tick();
     }
     ctx.request_repaint_after(std::time::Duration::from_millis(500));

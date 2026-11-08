@@ -460,11 +460,13 @@ impl DmApp {
                     Err(e) => self.said = e.into(),
                 }
             }
-            Command::WhenDoneNothing => self.when_done = crate::power::WhenDone::Nothing,
-            Command::WhenDoneQuit => self.when_done = crate::power::WhenDone::Quit,
-            Command::WhenDoneSleep => self.when_done = crate::power::WhenDone::Sleep,
-            Command::WhenDoneShutDown => self.when_done = crate::power::WhenDone::ShutDown,
-            Command::WhenDoneHibernate => self.when_done = crate::power::WhenDone::Hibernate,
+            Command::WhenDoneNothing => self.session.when_done = crate::power::WhenDone::Nothing,
+            Command::WhenDoneQuit => self.session.when_done = crate::power::WhenDone::Quit,
+            Command::WhenDoneSleep => self.session.when_done = crate::power::WhenDone::Sleep,
+            Command::WhenDoneShutDown => self.session.when_done = crate::power::WhenDone::ShutDown,
+            Command::WhenDoneHibernate => {
+                self.session.when_done = crate::power::WhenDone::Hibernate
+            }
             Command::Options => self.dialogs.open_options(&self.applied),
 
             Command::ToggleCategories => self.show_categories = !self.show_categories,
