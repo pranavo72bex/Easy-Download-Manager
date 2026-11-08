@@ -15,6 +15,7 @@
 //! (the tray, notifications, the system's power actions), which the desktop
 //! implements behind the traits declared here. See `docs/architecture/`.
 
+pub mod backend;
 pub mod changes;
 pub mod platform;
 pub mod power;
