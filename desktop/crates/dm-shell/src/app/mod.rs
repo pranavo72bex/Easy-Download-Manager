@@ -22,4 +22,5 @@ pub mod detect;
 pub mod platform;
 pub mod power;
 pub mod rules;
+pub mod schedule;
 pub mod snapshot;

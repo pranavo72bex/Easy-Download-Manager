@@ -45,12 +45,17 @@ implements `dm_shell::app::platform::Platform`, subscribes to
 | Layer | In place | Still in the window crate (to move) |
 |---|---|---|
 | Domain and engine | All of dm-core: no GUI types (enforced) | — |
-| Application | `app::power` (WhenDone, Report), `app::platform` (Platform trait), `app::changes` (change fan-out), `app::snapshot` (Snapshot), `app::rules` (go_on); dm-shell's settings, host, inbox | `Backend` (`dm-desktop/src/backend.rs`, no egui in it); change detection and its side effects in `DmApp::refresh` (`app/sync.rs`); schedule hooks (`app/scheduled.rs`); the control port's UI-free methods (`app/control.rs`); timers (countdown, delete-after, searches, watched folder, clipboard); duplicate and admission rules |
+| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired), `backend` (Backend: the queue, the settings in force, every verb on rows), `control_api` (queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector: finished, failed, expired, started elsewhere, added again), `schedule` (the schedule's window, work left, rows each schedule looks after); dm-shell's settings, host, inbox | The per-tick work of `DmApp::logic` (countdown, delete-after, saved searches, watched folder, clipboard, hand-off routing), the reactions to `Detected` (worded by the window), settings coordination (`DmApp::apply_settings`), and headless mode, which still runs `DmApp::logic` with a dummy `egui::Context` |
 | Presentation | dm-desktop | — |
 
-The rest moves after `parity-with-reference-a` ships, on a branch rebased on
-`main`, in the order and steps of [audit.md](audit.md) section 7 (steps 3 and
-7 to 13): the files they touch are the ones still changing on that branch.
+Steps 1 to 10 of [audit.md](audit.md) section 7 are done, each held to
+`cargo test --workspace` and the whole behaviour contract. Left, after
+`parity-with-reference-a` ships: step 11 (the per-tick work into an
+application `Session` that reports what to say or open, each presentation
+wording it), step 12 (settings coordination) and step 13 (headless with no
+window toolkit). Step 13 waits on one decision: whether a headless
+`command.run` keeps working through a window-free command executor
+(recommended) or is dropped.
 
 ## What does not change
 
