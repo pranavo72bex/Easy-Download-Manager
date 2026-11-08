@@ -31,6 +31,9 @@ pub struct Session {
     detector: Detector,
     dry: DryWatch,
     watched: Watched,
+    /// Downloads the browser handed over: a moment ago, and a row waiting
+    /// for a fresh link (`handoff::Hands`).
+    pub hands: super::handoff::Hands,
     /// The speed limit last put in force (bytes a second; `None` before the
     /// first tick, or once a presentation asks for it to be put in again).
     limit_in_force: Option<u64>,

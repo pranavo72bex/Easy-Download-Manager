@@ -151,13 +151,6 @@ pub(crate) fn already_listed(app: &DmApp, address: &str) -> Option<Id> {
     dm_shell::app::rules::already_listed(app.rows(), address)
 }
 
-/// The row a caught download of `address` would duplicate: one listed and
-/// still worth keeping. A failed row, or a finished one whose file has gone
-/// from the disk, is not: the person clicking the link again wants it.
-pub(crate) fn worth_keeping(app: &DmApp, address: &str) -> Option<Id> {
-    dm_shell::app::rules::worth_keeping(app.rows(), address)
-}
-
 /// How an address already in the list is answered (`dm_shell::app::rules::Dup`).
 pub(crate) use dm_shell::app::rules::Dup;
 

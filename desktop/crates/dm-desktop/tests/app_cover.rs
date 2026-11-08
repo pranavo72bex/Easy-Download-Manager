@@ -583,7 +583,7 @@ fn a_fresh_link_is_awaited_for_a_while_and_a_bad_one_is_said() {
             ..Default::default()
         });
     app.take_handed();
-    assert!(app.awaiting_link.is_none());
+    assert!(app.session.hands.awaiting_link.is_none());
     assert!(
         app.said
             .english()
@@ -595,7 +595,7 @@ fn a_fresh_link_is_awaited_for_a_while_and_a_bad_one_is_said() {
     // Awaited for longer than it is: the next is a download of its own.
     if let Some(long_ago) = Instant::now().checked_sub(Duration::from_secs(3600)) {
         app.await_link(id);
-        app.awaiting_link = Some((id, long_ago));
+        app.session.hands.awaiting_link = Some((id, long_ago));
         app.backend
             .handed
             .lock()
@@ -605,7 +605,7 @@ fn a_fresh_link_is_awaited_for_a_while_and_a_bad_one_is_said() {
                 ..Default::default()
             });
         app.take_handed();
-        assert!(app.awaiting_link.is_none());
+        assert!(app.session.hands.awaiting_link.is_none());
         assert_eq!(app.backend.list().len(), 2, "not a row of its own");
         assert_eq!(
             app.row(id).map(|r| r.url.clone()),
@@ -629,7 +629,7 @@ fn a_fresh_link_is_awaited_for_a_while_and_a_bad_one_is_said() {
     harness.run_steps(1);
     harness.get_all_by_label("Cancel").last().unwrap().click();
     harness.run_steps(3);
-    assert!(harness.state().awaiting_link.is_none());
+    assert!(harness.state().session.hands.awaiting_link.is_none());
 }
 
 /// A sleep the system will not start is said, in the status line and the

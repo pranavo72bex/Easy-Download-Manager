@@ -250,107 +250,43 @@ impl DmApp {
     /// A video the browser's panel handed over: "Download details",
     /// one at a time. With no window to ask in, it is simply added.
     pub fn take_handed(&mut self) {
-        // A caught download by its own setting, the panel's and menus' by
-        // theirs.
-        let caught = dm_core::lock(&self.backend.handed)
-            .front()
-            .is_some_and(|r| r.caught);
-        let ask = !self.headless
-            && if caught {
-                self.applied.ask_caught_downloads
-            } else {
-                self.applied.ask_panel_downloads
-            };
-        if ask && (self.dialogs.file_info.is_some() || self.dialogs.links.is_some()) {
-            return;
-        }
-        // A row waiting for a fresh link takes the next download caught in
-        // the browser as it, rather than a row of its own.
-        if let Some((id, since)) = self.awaiting_link {
-            if since.elapsed() > AWAIT_LINK_FOR {
-                self.stop_awaiting_link();
-            } else {
-                let next = dm_core::lock(&self.backend.handed)
-                    .front()
-                    .is_some_and(|r| r.links.is_empty());
-                if next {
-                    let request = dm_core::lock(&self.backend.handed).pop_front();
-                    if let Some(request) = request {
-                        self.take_fresh_link(id, &request.url);
-                    }
-                    return;
-                }
-            }
-        }
-        let Some(request) = dm_core::lock(&self.backend.handed).pop_front() else {
-            return;
+        use dm_shell::app::handoff::{Asking, Route};
+        // Routed by the application (`Hands::next`); the window opens the
+        // dialogs it asks in and says what could not be done.
+        let asking = if self.headless {
+            Asking::Nobody
+        } else if self.dialogs.file_info.is_some() || self.dialogs.links.is_some() {
+            Asking::Busy
+        } else {
+            Asking::Free
         };
-        // The same address handed over again within a few seconds is one
-        // click, not two: a double-click on a link in the browser saved
-        // `setup (1).deb` and `setup (2).deb`.
-        if request.links.is_empty() && self.just_taken(&request.url) {
-            return;
-        }
-        // A page's links: the "Download all links" dialog, or straight
-        // into the main queue with nobody to ask.
-        if !request.links.is_empty() {
-            if ask {
+        let route = self.session.hands.next(
+            &self.backend,
+            &self.applied,
+            &self.rows,
+            asking,
+            Instant::now(),
+        );
+        match route {
+            Route::Nothing | Route::Again => {}
+            Route::FreshLink { id, url } => self.take_fresh_link(id, &url),
+            Route::AskLinks(request) => {
                 let backend = self.backend.clone();
                 self.dialogs.open_links(request, &backend);
-            } else {
-                let with = dm_core::AddOptions {
-                    later: true,
-                    queue: dm_core::MAIN_QUEUE.into(),
-                    referrer: request.referrer.clone(),
-                    ..Default::default()
-                };
-                // Each link's words on the page as its description, as the
-                // dialog does by default.
-                let items = request
-                    .links
-                    .iter()
-                    .map(|url| {
-                        let own = dm_core::AddOptions {
-                            description: request.texts.get(url).cloned().unwrap_or_default(),
-                            // The name its `download` attribute gives.
-                            save_name: request.names.get(url).cloned(),
-                            ..with.clone()
-                        };
-                        (url.clone(), own)
-                    })
-                    .collect();
+            }
+            Route::AddLinks(items) => {
                 if let Err(e) = self.add_items(items, &HashMap::new()) {
                     self.said = e.into();
                 }
             }
-            return;
-        }
-        // A download caught in the browser for an address already listed is
-        // not fetched a second time unasked: the person is shown the row and
-        // chooses "Download again". Only with a window to ask in.
-        if request.caught && !self.headless {
-            if let Some(id) = crate::dialogs::worth_keeping(self, &request.url) {
+            Route::Listed { url, id, how } => match how {
                 // Answered at once where the person ticked "Remember my choice".
-                match crate::dialogs::Dup::from_word(&self.applied.duplicate_choice) {
-                    Some(how) => {
-                        crate::dialogs::answer_duplicate(self, request.url.clone(), id, how)
-                    }
-                    None => self.dialogs.duplicate = Some((request.url.clone(), id)),
-                }
-                self.taken_from_browser(&request.url);
-                return;
-            }
-        }
-        if !ask {
-            match self
-                .backend
-                .add_with(&request.url, dm_shell::shell::add_options(&request))
-            {
-                Ok(_) => self.taken_from_browser(&request.url),
-                Err(e) => self.said = e.into(),
-            }
-        } else {
-            self.dialogs.open_handed(request);
+                Some(how) => crate::dialogs::answer_duplicate(self, url, id, how),
+                None => self.dialogs.duplicate = Some((url, id)),
+            },
+            Route::Added(Ok(_)) => {}
+            Route::Added(Err(e)) => self.said = e.into(),
+            Route::Ask(request) => self.dialogs.open_handed(request),
         }
     }
 
@@ -394,14 +330,12 @@ impl DmApp {
     /// Starts waiting for a fresh link for row `id`, from its page opened in
     /// the browser.
     pub fn await_link(&mut self, id: Id) {
-        self.awaiting_link = Some((id, Instant::now()));
-        dm_shell::shell::route_to_window(true);
+        self.session.hands.await_link(id, Instant::now());
     }
 
     /// Stops waiting for a fresh link.
     pub fn stop_awaiting_link(&mut self) {
-        self.awaiting_link = None;
-        dm_shell::shell::route_to_window(false);
+        self.session.hands.stop_awaiting_link();
     }
 
     /// The download caught in the browser becomes row `id`'s link, and the
@@ -430,7 +364,7 @@ impl DmApp {
 
     /// While a fresh link is awaited: what to do, and a way out.
     pub(super) fn awaiting_bar(&mut self, ui: &mut egui::Ui) {
-        let Some((id, _)) = self.awaiting_link else {
+        let Some((id, _)) = self.session.hands.awaiting_link else {
             return;
         };
         let name = self
@@ -454,16 +388,7 @@ impl DmApp {
     /// A download the browser handed over was added: one handed over again
     /// in the next few seconds is the same click.
     pub fn taken_from_browser(&mut self, url: &str) {
-        self.recent_hands.push((url.to_string(), Instant::now()));
-    }
-
-    /// Whether `url` was taken from the browser a moment ago. One handed
-    /// over and cancelled is not remembered: clicked again, it is meant.
-    pub(super) fn just_taken(&mut self, url: &str) -> bool {
-        let now = Instant::now();
-        self.recent_hands
-            .retain(|(_, at)| now.duration_since(*at) < HANDED_TWICE_WITHIN);
-        self.recent_hands.iter().any(|(taken, _)| taken == url)
+        self.session.hands.recent.taken(url, Instant::now());
     }
 
     /// Runs a countdown's action once its time is up.

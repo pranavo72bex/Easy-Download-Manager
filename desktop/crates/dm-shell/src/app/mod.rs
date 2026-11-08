@@ -19,6 +19,7 @@ pub mod backend;
 pub mod changes;
 pub mod control_api;
 pub mod detect;
+pub mod handoff;
 pub mod links;
 pub mod platform;
 pub mod power;

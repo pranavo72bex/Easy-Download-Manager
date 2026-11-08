@@ -235,10 +235,6 @@ fn at_inside(ctx: &egui::Context, rect: egui::Rect) -> bool {
 /// A site search's name and what it found, or why it could not.
 type SearchResult = (String, Result<dm_shell::lists::Crawled, String>);
 
-/// How soon the same address handed over again is taken for the same
-/// click.
-const HANDED_TWICE_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
-
 /// Where each browser gets dm's extension: its store's page where it is
 /// listed, otherwise the README's steps for loading it.
 pub const EXTENSION_EDGE: &str =
@@ -252,9 +248,6 @@ pub const EXTENSION_CHROME: &str =
 /// The file under dm's home that says the person asked not to be offered
 /// the extension again.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
-
-/// How long a fresh link is waited for from the browser.
-const AWAIT_LINK_FOR: Duration = Duration::from_secs(10 * 60);
 
 /// Written once the welcome's "Add dm to your browser" has been shown.
 const WELCOMED: &str = "welcomed";
@@ -344,9 +337,6 @@ pub struct DmApp {
     pub show_asked: bool,
     /// The window is to go to the tray (the close question's answer).
     pub hide_asked: bool,
-    /// A row waiting for its fresh link from the browser, and since when:
-    /// the next download caught there becomes its link.
-    pub awaiting_link: Option<(Id, Instant)>,
     /// Whether a new install's welcome has been looked into this run.
     welcome_checked: bool,
 
@@ -527,8 +517,6 @@ pub struct DmApp {
     pub row_menu_by_key: bool,
     /// The text size the smallest window was last set for.
     min_size_zoom: Option<f32>,
-    /// Addresses the browser handed over in the last few seconds.
-    recent_hands: Vec<(String, Instant)>,
     /// Where the menu bar ends, last frame: windows per download open
     /// below it, never over it.
     pub menu_bottom: f32,
@@ -602,7 +590,6 @@ impl DmApp {
             undo_remove: None,
             show_asked: false,
             hide_asked: false,
-            awaiting_link: None,
             welcome_checked: false,
             update: Arc::new(Mutex::new(Update::NotAsked)),
             weekly_pending: false,
@@ -655,7 +642,6 @@ impl DmApp {
             place_rules: String::new(),
             rail_language: None,
             columns_changed: false,
-            recent_hands: Vec::new(),
             min_size_zoom: None,
             open_menu_by_key: false,
             menus: Vec::new(),

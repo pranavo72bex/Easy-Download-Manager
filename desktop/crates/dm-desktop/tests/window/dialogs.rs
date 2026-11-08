@@ -1480,7 +1480,7 @@ fn a_fresh_link_is_taken_from_the_browser() {
         .lock()
         .unwrap()
         .contains(&world.url("page.html")));
-    assert!(harness.state().awaiting_link.is_some());
+    assert!(harness.state().session.hands.awaiting_link.is_some());
     // The person clicks the download on the page; the browser hands it over.
     harness
         .state()
@@ -1495,7 +1495,7 @@ fn a_fresh_link_is_taken_from_the_browser() {
             ..Default::default()
         });
     harness.state_mut().take_handed();
-    assert!(harness.state().awaiting_link.is_none());
+    assert!(harness.state().session.hands.awaiting_link.is_none());
     until(&mut harness, "the download to finish", |app| {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
