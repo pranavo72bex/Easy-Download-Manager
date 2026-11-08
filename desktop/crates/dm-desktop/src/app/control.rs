@@ -4,7 +4,6 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
-use dm_shell::app::rules::GoOn;
 
 impl DmApp {
     /// Takes requests from the control protocol from now on.
@@ -203,197 +202,33 @@ impl DmApp {
                     "rows": rows,
                 }))
             }
-            "queue.list" => Ok(json!(self
-                .rows
-                .iter()
-                .map(|r| {
-                    let mut value = serde_json::to_value(r).unwrap_or_default();
-                    value["url"] = json!(format::shown_url(&r.url));
-                    // A site's sign-in, handed over by the browser, is the
-                    // row's to send to that server and nobody's to read: not
-                    // a script's, and not an AI client's through MCP. Said
-                    // only as whether there is one. The browser's request
-                    // headers are the same (a bearer token rides in them).
-                    if let Some(row) = value.as_object_mut() {
-                        row.remove("cookies");
-                        row.remove("headers");
-                        row.insert("signed_in".into(), json!(!r.cookies.is_empty()));
-                    }
-                    value
-                })
-                .collect::<Vec<_>>())),
+            // UI-free methods answered by the application (`dm_shell::app::control_api`).
+            "queue.list" => Ok(dm_shell::app::control_api::queue_list(&self.rows)),
             // By id and not by selection, so a script or the command line
             // leaves the person's selection in the window alone.
             "downloads.pause" | "downloads.resume" | "downloads.cancel" => {
-                let ids: Vec<Id> = params
-                    .get("ids")
-                    .and_then(|v| v.as_array())
-                    .map(|a| a.iter().filter_map(|v| v.as_u64()).collect())
-                    .unwrap_or_default();
-                if ids.is_empty() {
-                    return Err("give `ids`: the downloads to act on".into());
-                }
-                let (mut done, mut skipped) = (Vec::new(), Vec::new());
-                for id in ids {
-                    /* The queue's row, not the window's copy of it: that is
-                     * up to a quarter of a second old, and a script that
-                     * paused and then resumed was told "it is not paused".
-                     * What is answered here is what is true now. */
-                    let Some(state) = self
-                        .backend
-                        .row(id)
-                        .map(|r| (r.state, r.paused_by_schedule))
-                    else {
-                        skipped.push(json!({ "id": id, "why": "no such download" }));
-                        continue;
-                    };
-                    let (state, held) = state;
-                    let why = match (method, &state) {
-                        ("downloads.pause", State::Running | State::Queued) => {
-                            self.backend.pause(id);
-                            None
-                        }
-                        ("downloads.pause", _) => Some("it is not running"),
-                        ("downloads.resume", _) => {
-                            match dm_shell::app::rules::go_on(&state, held) {
-                                GoOn::Held => Some("the schedule or the download limit holds it"),
-                                GoOn::Resume => {
-                                    self.backend.resume(id);
-                                    None
-                                }
-                                GoOn::Retry => {
-                                    self.backend.retry(id);
-                                    None
-                                }
-                                GoOn::Settled | GoOn::NotStopped => {
-                                    Some("it is not paused or failed")
-                                }
-                            }
-                        }
-                        (_, State::Completed | State::Cancelled) => Some("it is already settled"),
-                        _ => {
-                            self.backend.cancel(id);
-                            None
-                        }
-                    };
-                    match why {
-                        None => done.push(id),
-                        Some(why) => skipped.push(json!({ "id": id, "why": why })),
-                    }
-                }
-                Ok(json!({ "done": done, "skipped": skipped }))
+                dm_shell::app::control_api::act_on(&self.backend, method, params)
             }
             // An exact ceiling in KB/s, where the commands only have presets;
             // 0 is no limit.
             "downloads.speed_limit" => {
-                let kb = params
-                    .get("kb")
-                    .and_then(|v| v.as_u64())
-                    .ok_or("give `kb`: the limit in KB/s, or 0 for none")?;
-                if kb > 100_000_000 {
-                    return Err("`kb` is at most 100000000".into());
+                let (wanted, replaced) =
+                    dm_shell::app::control_api::speed_limit(&self.applied, params)?;
+                if let Some(limit) = replaced {
+                    self.last_limit = limit;
                 }
-                let mut wanted = self.applied.clone();
-                if wanted.speed_limit > 0 {
-                    self.last_limit = wanted.speed_limit;
-                    wanted.last_speed_limit = wanted.speed_limit;
-                }
-                wanted.speed_limit = kb;
                 self.apply_settings(wanted)?;
                 Ok(json!({ "speed_limit_kb": self.applied.speed_limit }))
             }
             "downloads.add" => {
-                let urls: Vec<String> = match params.get("urls").or_else(|| params.get("url")) {
-                    Some(serde_json::Value::String(one)) => vec![one.clone()],
-                    Some(serde_json::Value::Array(many)) => many
-                        .iter()
-                        .filter_map(|u| u.as_str().map(str::to_owned))
-                        .collect(),
-                    _ => return Err("give `urls`: a link or a list of links".into()),
-                };
-                // Nothing to add is a mistake in the asking, not success.
-                if urls.iter().all(|u| u.trim().is_empty()) {
-                    return Err("give `urls`: a link or a list of links; that list is empty".into());
-                }
-                let text = |key: &str| {
-                    params
-                        .get(key)
-                        .and_then(|v| v.as_str())
-                        .map(str::to_owned)
-                        .filter(|s| !s.is_empty())
-                };
-                let later = params
-                    .get("later")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-                // Over this connection a download goes into the download
-                // folder or below it, not into a startup folder or a
-                // shell's profile.
-                if let Some(folder) = text("folder") {
-                    let full = dm_shell::settings::full_folder(&folder, None)
-                        .ok_or("`folder` must be a full path, such as ~/Downloads")?;
-                    let inside = full.starts_with(&self.applied.download_dir)
-                        && !full
-                            .components()
-                            .any(|c| matches!(c, std::path::Component::ParentDir));
-                    if !inside {
-                        return Err(format!(
-                            "`folder` must be inside the download folder, {}",
-                            self.applied.download_dir.display()
-                        ));
-                    }
-                }
-                // A part of a video: both ends, as "4:10" or seconds.
-                let span = match (text("from"), text("to")) {
-                    (None, None) => None,
-                    (Some(from), Some(to)) => Some(dm_core::Span::parse(&from, &to).ok_or(
-                        "`from` and `to` are times such as 1:30 or 90, the end after the start",
-                    )?),
-                    _ => return Err("give both `from` and `to` for a part of a video".into()),
-                };
-                let with = dm_core::AddOptions {
-                    later,
-                    queue: if later {
-                        MAIN_QUEUE.to_string()
-                    } else {
-                        String::new()
-                    },
-                    save_dir: text("folder"),
-                    save_name: text("name"),
-                    description: text("description").unwrap_or_default(),
-                    span,
-                    ..dm_core::AddOptions::default()
-                };
-                /* An address already listed is not added a second time
-                 * unless `again` says so: Add URL asks a person, and a
-                 * script that repeats itself (or an AI client that calls
-                 * twice) made two rows fetching one file.
-                 * Said back, so the caller knows. */
-                let again = params
-                    .get("again")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-                // The rows' addresses once, not a search of every row for each
-                // link: 6 ms a link at 12 000 rows, a minute and a half for
-                // 20 000.
-                let known = if again {
-                    Default::default()
-                } else {
-                    crate::dialogs::listed_addresses(self)
-                };
-                let (mut listed, fresh): (Vec<String>, Vec<String>) = urls
-                    .into_iter()
-                    .partition(|u| !again && known.contains(&crate::dialogs::bare(u)));
-                // Each address once: a script that repeats a link a thousand
-                // times was answered with it a thousand times.
-                let mut seen = std::collections::HashSet::new();
-                listed.retain(|u| seen.insert(u.clone()));
-                let added = if fresh.is_empty() {
+                let asked =
+                    dm_shell::app::control_api::add_asked(&self.rows, &self.applied, params)?;
+                let added = if asked.fresh.is_empty() {
                     0
                 } else {
-                    self.add(&fresh, with)?
+                    self.add(&asked.fresh, asked.with)?
                 };
-                Ok(json!({ "added": added, "already_listed": listed }))
+                Ok(json!({ "added": added, "already_listed": asked.listed }))
             }
             // Up to 256 requests in one, answered in order: faster for a
             // script than a round trip each.

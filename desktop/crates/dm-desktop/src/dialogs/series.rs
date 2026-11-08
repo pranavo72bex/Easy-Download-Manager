@@ -174,11 +174,7 @@ pub(super) fn d_says(series: &mut Option<Series>, e: String) {
 /// The addresses already in dm's list, bare (without a login), for a pick
 /// list to offer unticked and say so.
 pub(crate) fn listed_addresses(app: &DmApp) -> std::collections::HashSet<String> {
-    app.rows()
-        .iter()
-        .filter(|r| r.state != State::Cancelled)
-        .map(|r| bare(&r.url))
-        .collect()
+    dm_shell::app::control_api::listed_addresses(app.rows())
 }
 
 pub(super) fn pick_list(

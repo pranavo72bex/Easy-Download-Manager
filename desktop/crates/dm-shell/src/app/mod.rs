@@ -17,6 +17,7 @@
 
 pub mod backend;
 pub mod changes;
+pub mod control_api;
 pub mod platform;
 pub mod power;
 pub mod rules;

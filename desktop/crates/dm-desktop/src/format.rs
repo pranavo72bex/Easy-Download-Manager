@@ -133,19 +133,7 @@ pub fn copyable_url(url: &str) -> String {
     }
 }
 
-/// A download's address as a window shows it: a password in it is replaced by dots, the rest kept.
-pub fn shown_url(url: &str) -> String {
-    match url::Url::parse(url) {
-        Ok(mut parsed) if parsed.password().is_some() => {
-            // Masked after formatting: put into the URL, the dots were
-            // percent-encoded and read "user:%E2%80%A2…@". The
-            // first ":mask@" is the user's, whose own `:` and `@` are encoded.
-            let _ = parsed.set_password(Some("dmmasked"));
-            parsed.to_string().replacen(":dmmasked@", ":•••@", 1)
-        }
-        _ => url.to_string(),
-    }
-}
+pub use dm_shell::lists::shown_url;
 
 /// What to call a row the probe has not reached yet: the last path segment,
 /// which is the engine's own fallback, or a magnet's `dn`.

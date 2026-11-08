@@ -148,57 +148,18 @@ pub fn default_list_path(settings: &Settings) -> std::path::PathBuf {
 
 /// The row already holding `address`, if one does and was not cancelled.
 pub(crate) fn already_listed(app: &DmApp, address: &str) -> Option<Id> {
-    let wanted = bare(address);
-    app.rows()
-        .iter()
-        .find(|r| r.state != State::Cancelled && bare(&r.url) == wanted)
-        .map(|r| r.id)
+    dm_shell::app::rules::already_listed(app.rows(), address)
 }
 
 /// The row a caught download of `address` would duplicate: one listed and
 /// still worth keeping. A failed row, or a finished one whose file has gone
 /// from the disk, is not: the person clicking the link again wants it.
 pub(crate) fn worth_keeping(app: &DmApp, address: &str) -> Option<Id> {
-    let wanted = bare(address);
-    app.rows()
-        .iter()
-        .find(|r| {
-            r.state != State::Cancelled
-                && !matches!(r.state, State::Failed(_))
-                && bare(&r.url) == wanted
-                && (r.state != State::Completed
-                    || (!r.path.is_empty() && std::path::Path::new(&r.path).exists()))
-        })
-        .map(|r| r.id)
+    dm_shell::app::rules::worth_keeping(app.rows(), address)
 }
 
-/// How an address already in the list is answered: show its row (and go on
-/// with it if it is stopped), download it again as a numbered copy, or have
-/// the new download take the old file's place once it is whole. Kept as a
-/// word in the settings (`duplicate_choice`) when the person ticks
-/// "Remember my choice"; Options › General undoes it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Dup {
-    Show,
-    Again,
-    Replace,
-}
-
-impl Dup {
-    pub(crate) fn word(self) -> &'static str {
-        match self {
-            Dup::Show => "show",
-            Dup::Again => "again",
-            Dup::Replace => "replace",
-        }
-    }
-
-    pub(crate) fn from_word(word: &str) -> Option<Dup> {
-        [Dup::Show, Dup::Again, Dup::Replace]
-            .into_iter()
-            .find(|d| d.word() == word.trim())
-    }
-}
+/// How an address already in the list is answered (`dm_shell::app::rules::Dup`).
+pub(crate) use dm_shell::app::rules::Dup;
 
 /// The finished file of row `id` as (path, folder, name), where it is on the
 /// disk to be replaced.
