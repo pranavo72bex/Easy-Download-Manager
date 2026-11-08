@@ -11,67 +11,7 @@
 //! window that can be cancelled, and run through the system's
 //! own commands, which need no privileges dm does not already have.
 
-/// The action taken when the last download settles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum WhenDone {
-    /// Do nothing.
-    #[default]
-    Nothing,
-    /// Close dm.
-    Quit,
-    /// Put the computer to sleep.
-    Sleep,
-    /// To disk and off: Linux and Windows have it; macOS does not offer it
-    /// as a command, so the menu greys it there.
-    Hibernate,
-    /// Shut the computer down.
-    ShutDown,
-}
-
-/// How long a sleep or shut down waits for someone to cancel it.
-pub const COUNTDOWN_SECS: u64 = 30;
-
-impl WhenDone {
-    /// Every choice, in the order the menus list them.
-    pub const ALL: [WhenDone; 5] = [
-        WhenDone::Nothing,
-        WhenDone::Quit,
-        WhenDone::Sleep,
-        WhenDone::Hibernate,
-        WhenDone::ShutDown,
-    ];
-
-    /// What the countdown window says is about to happen.
-    pub fn verb(self) -> &'static str {
-        match self {
-            WhenDone::Nothing => "do nothing",
-            WhenDone::Quit => "quit",
-            WhenDone::Sleep => "put the computer to sleep",
-            WhenDone::Hibernate => "hibernate the computer",
-            WhenDone::ShutDown => "shut the computer down",
-        }
-    }
-
-    /// The word a schedule keeps it as (`Schedule::when_done`) and the
-    /// command line and the control port name it by.
-    pub fn word(self) -> &'static str {
-        match self {
-            WhenDone::Nothing => "nothing",
-            WhenDone::Quit => "exit",
-            WhenDone::Sleep => "sleep",
-            WhenDone::Hibernate => "hibernate",
-            WhenDone::ShutDown => "shutdown",
-        }
-    }
-
-    /// The action a kept word names; anything else is nothing.
-    pub fn from_word(word: &str) -> WhenDone {
-        WhenDone::ALL
-            .into_iter()
-            .find(|w| w.word() == word.trim())
-            .unwrap_or_default()
-    }
-}
+pub use dm_shell::app::power::{Report, WhenDone, COUNTDOWN_SECS};
 
 /// How the machine is put to sleep or shut down on one system.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,10 +74,6 @@ fn installed(program: &str) -> bool {
     dirs.iter()
         .any(|d| names.iter().any(|n| d.join(n).is_file()))
 }
-
-/// Where a refusal that comes back later is told: the window's list of
-/// problems.
-pub type Report = Box<dyn FnOnce(String) + Send>;
 
 /// Does `action` on this machine. That it could not be started is the
 /// answer; a refusal it gives later goes to `report`.
