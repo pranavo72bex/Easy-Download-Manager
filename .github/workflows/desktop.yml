@@ -40,14 +40,15 @@ env:
 
 jobs:
   test:
-    # Linux and Windows on every push. macOS is left to the developer's Mac
-    # (scripts/app-check.py) and to the release's own install-and-run check:
-    # in a private repository GitHub bills a macOS minute as ten.
+    # Linux, Windows and macOS on every push. macOS was left to the developer's
+    # Mac while the repository was private (GitHub billed a macOS minute as
+    # ten); public since 2026-11-06, its minutes cost nothing, and its tests
+    # had run nowhere but one Mac.
     name: Tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
