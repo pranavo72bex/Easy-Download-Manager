@@ -17,9 +17,11 @@ echo "== cargo test --workspace"
 echo "== build dm-desktop (release)"
 cargo build --release -p dm-desktop 2>&1 | tail -2
 export DM_BINARY=/target/release/dm-desktop
+# Xvfb's clipboard here is no one's: the clipboard phase may write it (gaps row 20).
+export DM_SCRATCH_CLIPBOARD=1
 for phase in ${DM_ONLY:-throughput many_small concurrency flaky crash pause_storm names hostile control bigqueue \
              expired urls limits outage speedlimit hls leak lossy manifests scheduler watch mcp mirrors \
-             holds hidden details}; do
+             holds hidden details clipboard}; do
   xvfb-run -a python3 ../scripts/stress-check.py "$phase" 2>&1 | grep -E "^== |^  (ok|FAIL)|MEASURE|FINDING|Traceback|Error" | head -40
 done
 [ -n "${DM_ONLY:-}" ] && exit 0

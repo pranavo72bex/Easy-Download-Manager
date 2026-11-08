@@ -1869,6 +1869,111 @@ def p_leak(ctx):
         shutil.rmtree(dm.out, ignore_errors=True)
 
 
+@phase
+def p_clipboard(ctx):
+    """The clipboard offer, the clipboard written by another program: one link, a sentence, several links, a burst of copies, a huge text, Take at once."""
+    base, root = ctx["base"], ctx["root"]
+    # Only where the clipboard is no one's: an X server of the check's own (the Linux container's
+    # Xvfb, which `stress-inside.sh` says so for). Anywhere else a copy would overwrite the
+    # person's own clipboard (gaps row 20).
+    if not (sys.platform.startswith("linux") and os.environ.get("DM_SCRATCH_CLIPBOARD") == "1"
+            and shutil.which("xclip") and os.environ.get("DISPLAY")):
+        finding("info", "clipboard", "skipped: it runs only on a clipboard that is no one's (the Linux container's Xvfb, DM_SCRATCH_CLIPBOARD=1, xclip)")
+        return
+
+    def copy(text):
+        # xclip keeps serving the selection from a process of its own, as a program a person
+        # copied from does, until something else is copied.
+        subprocess.run(["xclip", "-selection", "clipboard", "-i"], input=text.encode(), timeout=20, check=True)
+
+    def drawn():
+        return [t["text"] for t in (dm.call("ui.texts").get("result") or {}).get("texts", [])]
+
+    def offered(seconds=4):
+        """What the bar offers: one link, a count of several, or nothing."""
+        def look():
+            said = drawn()
+            if "Link on your clipboard:" in said:
+                return "one"
+            several = [t for t in said if t.startswith("Links on your clipboard:")]
+            return several[0] if several else None
+        return wait_for(look, seconds, every=0.2)
+
+    def dialogs():
+        return [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])]
+
+    links = {f"clip{i}.bin": (f"clip{i}", 2 * MB) for i in range(4)}
+    url = {name: f"{base}/f/{seed}/{size}/{name}" for name, (seed, size) in links.items()}
+    dm = DM(root, {"connections": 2, "watch_clipboard": True}, name="clipboard", window=True).start()
+    try:
+        time.sleep(1.5)
+        copy(url["clip0.bin"])
+        check("clipboard", "a link another program copied is offered within a few seconds", offered() == "one", f"{drawn()[:12]}")
+        dm.call("ui.click", text="Download")
+        opened = wait_for(lambda: "Download details" in dialogs(), 5, every=0.2)
+        check("clipboard", "Download opens Download details for it", opened, f"{dialogs()}")
+        dm.call("ui.click", text="Start now")
+        done = wait_for(lambda: any(r["state"]["kind"] == "completed" for r in dm.rows()), 60)
+        ok, bad = verify(dm.rows(), {"clip0.bin": links["clip0.bin"]})
+        check("clipboard", "Start now downloads it, byte-exact", done and ok == 1 and not bad, f"{states(dm.rows())} {bad}")
+        # Something else first: dm looks again only when the clipboard changes.
+        copy("not a link at all")
+        time.sleep(1.5)
+        copy(url["clip0.bin"])
+        check("clipboard", "the same link, now in the list, is not offered again", offered(3) is None)
+        copy(f"have a look at {url['clip1.bin']} when you can")
+        check("clipboard", "a sentence with a link in it is not an offer", offered(3) is None)
+        copy("\n".join(url[n] for n in ("clip1.bin", "clip2.bin", "clip3.bin")))
+        check("clipboard", "three links copied together are offered as three", offered() == "Links on your clipboard: 3", f"{offered(1)}")
+        dm.call("ui.click", text="Dismiss")
+        gone = wait_for(lambda: offered(0.3) is None, 3, every=0.2)
+        copy("not a link at all")
+        time.sleep(1.5)
+        copy("\n".join(url[n] for n in ("clip1.bin", "clip2.bin", "clip3.bin")))
+        check("clipboard", "Dismiss takes the bar away, and the dismissed links are not offered again", gone and offered(3) is None)
+        # A burst: 300 different links copied as fast as a script can, dm still answering.
+        lat = []
+        for i in range(300):
+            copy(f"{base}/f/burst{i}/{MB}/burst{i}.bin")
+            if i % 30 == 0:
+                t0 = time.time()
+                dm.call("queue.list")
+                lat.append(time.time() - t0)
+        shown = offered() == "one"
+        dm.call("ui.click", text="Download")
+        wait_for(lambda: "Download details" in dialogs(), 5, every=0.2)
+        # The offer is the last copied: Download details names it.
+        named = wait_for(lambda: any("burst299" in t for t in drawn()), 3, every=0.2)
+        measure("clipboard", f"300 copies in a burst: a call answered in at most {max(lat) * 1000:.0f} ms")
+        check("clipboard", "after a burst of 300 copies dm answers, and offers the last one copied",
+              shown and bool(named) and max(lat) < 2.0 and dm.proc.poll() is None, f"worst {max(lat):.2f}s, offered {shown}, named {bool(named)}")
+        dm.call("ui.click", text="Cancel")
+        wait_for(lambda: "Download details" not in dialogs(), 3, every=0.2)
+        # A huge text, as copying a whole page: no offer, no stall.
+        copy("words " * (5 * MB // 6))
+        t0 = time.time()
+        time.sleep(2.5)
+        dm.call("queue.list")
+        rss = proc_stats(dm.proc.pid)[0]
+        measure("clipboard", f"a 5 MB text on the clipboard: answered {time.time() - t0 - 2.5:.2f}s after, rss {rss:.0f} MB")
+        check("clipboard", "five megabytes of text copied are no offer, and dm keeps answering",
+              offered(2) is None and dm.proc.poll() is None)
+        check("clipboard", "nothing was added to the list behind the person's back", len(dm.rows()) == 1, f"{len(dm.rows())} rows")
+    finally:
+        dm.stop()
+    # Take at once: a copied link opens Download details with no bar first.
+    dm = DM(root, {"connections": 2, "watch_clipboard": True, "start_copied": True}, name="clipboard-take", window=True).start()
+    try:
+        time.sleep(1.5)
+        copy(url["clip1.bin"])
+        opened = wait_for(lambda: "Download details" in dialogs(), 6, every=0.2)
+        check("clipboard", "with Take a copied link at once, a copy opens Download details, no bar first",
+              opened and offered(0.5) is None, f"{dialogs()}")
+    finally:
+        dm.stop()
+        shutil.rmtree(root / "clipboard-out", ignore_errors=True)
+
+
 # ----------------------------------------------------------------- main
 
 def main():

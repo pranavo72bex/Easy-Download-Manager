@@ -11,6 +11,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config curl file \
       xvfb xauth x11-utils dbus procps lsof git fonts-noto-core fonts-noto-cjk python3 ca-certificates \
+      # xclip: the stress check's clipboard phase copies from another program, on Xvfb's clipboard.
+      xclip \
       libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
       # What winit opens at run time, as the .deb declares: GTK brought
       # these along until the tray moved to D-Bus.

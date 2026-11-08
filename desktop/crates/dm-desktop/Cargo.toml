@@ -227,6 +227,11 @@ depends = [
   "libgl1",
   # Open and Open folder go through xdg-open (dm-shell/src/shell.rs).
   "xdg-utils",
+  # secret-tool: the saved logins, cookies and passwords go to the desktop's
+  # Secret Service through it (dm-core/src/secretstore.rs); without it they
+  # stay in dm's own files in clear (gaps row 39). Debian and Ubuntu do not
+  # install it by default.
+  "libsecret-tools",
 ]
 
 # The uninstaller tells the browsers dm is going and removes its login item

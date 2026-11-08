@@ -74,6 +74,16 @@ echo "== the installed binary, driven"
 INSTALLED=$(dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep -E '/bin/' | head -1)
 DM_BINARY="$INSTALLED" xvfb-run -a -s "-screen 0 1280x800x24" python3 scripts/app-check.py
 
+echo
+echo "== the installed binary keeps its secrets in the Secret Service (gaps row 39)"
+# The keyring a desktop session runs, unlocked as a sign-in unlocks it (with a password made up
+# for this run alone). Only the daemon is
+# added here: secret-tool, which dm reaches it through, must come with the package.
+apt-get install -y --no-install-recommends gnome-keyring >/dev/null
+DM_BINARY="$INSTALLED" dbus-run-session -- sh -c '
+  head -c 24 /dev/urandom | od -An -tx1 | tr -d " \n" | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+  xvfb-run -a -s "-screen 0 1280x800x24" python3 scripts/linux/secrets_check.py'
+
 [ -z "$APPIMAGE" ] && exit 0
 echo
 echo "== the AppImage starts and answers as a native host"

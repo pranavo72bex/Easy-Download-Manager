@@ -36,6 +36,10 @@ depends:
   - hicolor-icon-theme
   # Open and Open folder go through xdg-open.
   - xdg-utils
+  # secret-tool, through which the saved logins, cookies and passwords go to the
+  # desktop's Secret Service (gaps row 39): Fedora's libsecret, openSUSE's
+  # libsecret-tools.
+  - /usr/bin/secret-tool
 
 # A font for names in Chinese, Japanese and Korean, which neither Inter nor
 # egui's fonts have: dm takes the computer's own (gap 116), and a system
