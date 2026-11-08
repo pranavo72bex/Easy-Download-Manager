@@ -197,9 +197,10 @@ impl Drop for Viewport {
 
 // ----------------------------------------------------------------------------
 
-/// dm: whether each window made after the root is given an AccessKit adapter of its own. Not
-/// on Windows, whose build is left as published until it is checked there (gaps row 160).
-const ADAPTER_PER_WINDOW: bool = cfg!(all(feature = "accesskit", not(target_os = "windows")));
+/// dm: whether each window made after the root is given an AccessKit adapter of its own: on
+/// every system AccessKit is built for (gaps row 160; on Windows checked with UI Automation,
+/// `scripts/windows-a11y-check.py`, 2026-11-08).
+const ADAPTER_PER_WINDOW: bool = cfg!(feature = "accesskit");
 
 /// dm: gives `window` an AccessKit adapter of its own (a no-op without the feature, where no
 /// proxy is ever kept).

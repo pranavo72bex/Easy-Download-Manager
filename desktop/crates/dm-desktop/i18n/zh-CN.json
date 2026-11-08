@@ -897,5 +897,9 @@
  "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Windows 已有的连接（设置 › 网络和 Internet › 拨号或 VPN）。dm 连接时下载会等待，连不上就停止。这里没有用户名和密码时，dm 使用 Windows 保存的；不勾选“保存密码”时，输入的密码在 dm 关闭后即被忘记。",
  "cannot connect to the Internet. The dial-up or VPN connection did not come up": "无法连接到 Internet。拨号或 VPN 连接未能建立",
  "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "请在 选项 › 高级 › 拨号 / VPN 中选择其他连接，或关闭“使用 Windows 拨号 / VPN 网络”，然后点击“重试”",
- "Redialling": "正在重拨"
+ "Redialling": "正在重拨",
+ "Hang up modem when done": "完成后挂断调制解调器",
+ "The scheduled downloads are done: {} is hung up.": "计划的下载已完成：已挂断 {}。",
+ "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "完成后挂断调制解调器：选项 › 高级 › 拨号 / VPN 中未设置连接。",
+ "{} was not hung up: {}": "未能挂断 {}：{}"
 }

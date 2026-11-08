@@ -509,6 +509,7 @@ pub(super) mod status_tests {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            hang_up: false,
             once_at: None,
             force: false,
         };

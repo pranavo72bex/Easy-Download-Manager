@@ -1265,6 +1265,15 @@ def walk(dm, origin):
     check("B49", "the Scheduler asks what dm does when the scheduled downloads are done, and how many tries again",
           "When the scheduled downloads are done" in sched
           and "Try a failed download again this many times (0 for none)" in sched, f"{sched}")
+    # B49 since 2026-11-08: on Windows reference A's "Hang up modem when done", below the
+    # program to run when they are done; read further down, as a person scrolls on.
+    sched += [w for w in dm.scrolled_texts(turns=8) if w not in sched]
+    if sys.platform == "win32":
+        check("B49", "On Windows, the Scheduler has reference A's Hang up modem when done",
+              "Hang up modem when done" in sched, f"{sched}")
+    else:
+        check("B49", "Away from Windows, the Scheduler has no Hang up modem when done",
+              "Hang up modem when done" not in sched, f"{sched}")
     # B65: the Scheduler lists the queues, each with hours of its own, a date to
     # start once, and Start now and Stop. Opened again while the list shows
     # another queue, it shows that queue's (the name is also in the tree, so it

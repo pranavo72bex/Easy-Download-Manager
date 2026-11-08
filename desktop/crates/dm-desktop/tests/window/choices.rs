@@ -74,6 +74,7 @@ fn the_schedules_when_done_is_armed_with_its_hours_and_put_away_after() {
         when_done: "exit".into(),
         retries: 0,
         run_when_done: String::new(),
+        hang_up: false,
         once_at: None,
         force: false,
         enabled: true,

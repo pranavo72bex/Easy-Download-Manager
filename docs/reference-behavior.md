@@ -304,12 +304,24 @@ greyed out until it is on, and the sign-in and redials until a connection is cho
 |---|---|---|
 | No user name or password in Options | a box named after the connection asks for them (User name, Password, Save password, Dial, Cancel); the download waits at "Connecting..."; Cancel stops it ("Download has been cancelled by user") | dials with the ones Windows keeps for the connection, asking nothing |
 | Each try | its box: "Connecting Device", then "Undefined RAS Dial Error." and "Redial 5", counting down | the row: "Starting…", then "Redialling (retry 2 of 2)" |
-| Every try failed | stopped about 10 s in: "Cannot connect to the Internet." on the download, and once a box "Error connecting to VPN" ("change VPN connection that is set in IDM options, or turn off "Use Windows Dial Up / VPN Networking" checkbox") | failed at 9.9 s: "Error: cannot connect to the Internet. The dial-up or VPN connection did not come up", Windows' reason on hover ("No connection could be made because the target machine actively refused it"), and what to do next |
+| Every try failed | stopped about 10 s in: "Cannot connect to the Internet." on the download, and once a box "Error connecting to VPN" ("change VPN connection that is set in … options, or turn off "Use Windows Dial Up / VPN Networking" checkbox") | failed at 9.9 s: "Error: cannot connect to the Internet. The dial-up or VPN connection did not come up", Windows' reason on hover ("No connection could be made because the target machine actively refused it"), and what to do next |
 | Requests to the server meanwhile | none | none |
 
 What dm leaves out, and why: the box that asks for a sign-in (dm takes what Windows keeps),
 and the Apply button, which hands the sign-in to Windows (dm keeps its own, in the system's
 store when Save password is on). `docs/decisions.md`, 2026-11-08.
+
+Reference A's Scheduler, read the same day (Downloads › Scheduler, its controls listed with
+Windows messages and closed with Cancel, nothing changed): for each queue, "One-time
+downloading" or "Periodic synchronization"; "Start download at" a time, "Once at" a date or
+"Daily" on the days ticked; "Stop download at"; "Number of retries for each file if
+downloading failed :" (10, greyed until ticked); then, each a tick of its own and all off,
+"Open the following file when done:", "Hang up modem when done", "Exit … when done", "Turn
+off computer when done" (with Shut down, and "Force processes to terminate"), and "Start
+download on … startup" (… being its own name). "Hang up modem when done" is on offer
+whether or not Options sets a connection. dm has it below its program to run when the
+scheduled downloads are done, on Windows (contract row B49, 2026-11-08); what it hangs up is
+the connection Options › Advanced › Dial Up / VPN sets.
 
 ## HTTP proxy test (dm only, 2026-11-02)
 

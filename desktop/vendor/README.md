@@ -95,7 +95,10 @@ reader: AT-SPI (Orca) found the main window's controls and none of Add URL's, Op
 or the close question's (gaps row 160). The proxy given to the root's adapter is kept,
 and a window made after it is created hidden, given an adapter of its own, then shown
 as asked (AccessKit panics on a window already shown); the root made again later gets
-one the same way, and only the root's adapter may turn AccessKit off for all. Not on
-Windows, whose build is as published (`ADAPTER_PER_WINDOW`). Checked:
-`scripts/linux-gui-check.sh` asks AT-SPI alone for Add URL's OK and Cancel, inside the
-dialog's window. MIT OR Apache-2.0, as published.
+one the same way, and only the root's adapter may turn AccessKit off for all. The same on
+every system (`ADAPTER_PER_WINDOW`). Checked: `scripts/linux-gui-check.sh` asks AT-SPI
+alone for Add URL's OK and Cancel, inside the dialog's window; on Windows
+`scripts/windows-a11y-check.py` asks UI Automation (what Narrator reads) for the buttons of
+Add URL, Options, the Scheduler, the Speed limiter and About, each inside its own window
+(5 of 5 on 2026-11-08; with the copy as published, none of Add URL's). MIT OR Apache-2.0,
+as published.

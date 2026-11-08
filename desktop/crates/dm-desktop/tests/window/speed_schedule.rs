@@ -67,6 +67,7 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            hang_up: false,
             once_at: None,
             force: false,
             enabled: true,
@@ -412,6 +413,67 @@ fn the_speed_limiter_item_shows_whether_it_is_on() {
 
 /// Start now in Download details while the schedule is shut asks
 /// whether to start it outside the schedule, as Resume does.
+/// Reference A's "Hang up modem when done", in the Scheduler on Windows after
+/// the program to run: kept with the hours, and once the scheduled downloads
+/// are done (nothing left to run in them) the connection Options › Advanced ›
+/// Dial Up / VPN sets is hung up; with none set there, the status line says
+/// so. Not offered where there are no dial-up connections.
+#[test]
+fn the_scheduler_hangs_up_the_dial_up_connection_when_its_downloads_are_done() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Scheduler);
+    harness.run_steps(2);
+    if let Some(d) = harness.state_mut().dialogs.scheduler.as_mut() {
+        // Start and stop the same: open all day.
+        d.schedule.enabled = true;
+        d.schedule.from = "00:00".into();
+        d.schedule.to = "00:00".into();
+    }
+    harness.run_steps(6);
+    let offered = harness.query_by_label("Hang up modem when done").is_some();
+    assert_eq!(offered, cfg!(windows), "offered on Windows alone");
+    if !cfg!(windows) {
+        click(&mut harness, "Cancel");
+        return;
+    }
+    click(&mut harness, "Hang up modem when done");
+    click(&mut harness, "OK");
+    assert!(harness.state().dialogs.scheduler.is_none(), "OK kept it");
+    assert!(harness.state().backend().settings().schedule.hang_up);
+    harness.state_mut().run(Command::Scheduler);
+    harness.run_steps(2);
+    assert!(
+        harness
+            .state()
+            .dialogs
+            .scheduler
+            .as_ref()
+            .unwrap()
+            .schedule
+            .hang_up,
+        "shown as kept when opened again"
+    );
+    click(&mut harness, "Cancel");
+
+    // Something runs in the hours, then nothing is left to run: done.
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "the download to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    assert!(!harness.state().said.english().contains("hung up"));
+    harness.state_mut().run(Command::StopAll);
+    until(&mut harness, "the word that nothing was hung up", |app| {
+        app.said.english()
+            == "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN."
+    });
+
+    let mut back = harness.state().backend().settings();
+    back.schedule = dm_core::Schedule::default();
+    harness.state_mut().apply_settings(back).unwrap();
+}
+
 #[test]
 fn start_now_under_a_shut_schedule_offers_to_start_outside_it() {
     let _file = settings_file();
@@ -425,6 +487,7 @@ fn start_now_under_a_shut_schedule_offers_to_start_outside_it() {
         when_done: String::new(),
         retries: 0,
         run_when_done: String::new(),
+        hang_up: false,
         once_at: None,
         force: false,
         enabled: true,

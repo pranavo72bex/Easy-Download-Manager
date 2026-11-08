@@ -1053,6 +1053,7 @@ fn closed_at(minute: u32) -> dm_core::Schedule {
         when_done: String::new(),
         retries: 0,
         run_when_done: String::new(),
+        hang_up: false,
         once_at: None,
         force: false,
     }
@@ -3000,13 +3001,24 @@ async fn a_finished_download_taken_off_the_list_by_mistake_is_put_back_where_it_
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_finished_download_hands_its_place_to_the_next_at_once() {
     use axum::routing::get;
+    use std::time::Instant;
     const FILES: usize = 60;
-    let app = axum::Router::new().fallback(get(|| async {
-        Response::builder()
-            .status(StatusCode::OK)
-            .header("content-length", 512)
-            .body(Body::from(vec![3u8; 512]))
-            .unwrap()
+    // When each request came in, and for what: the time from one file's
+    // first request to the next file's is what a file costs, hand-over and all.
+    let arrivals: Arc<std::sync::Mutex<Vec<(String, Instant)>>> = Arc::default();
+    let seen = arrivals.clone();
+    let app = axum::Router::new().fallback(get(move |uri: Uri| {
+        let seen = seen.clone();
+        async move {
+            seen.lock()
+                .unwrap()
+                .push((uri.path().to_owned(), Instant::now()));
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("content-length", 512)
+                .body(Body::from(vec![3u8; 512]))
+                .unwrap()
+        }
     }));
     let addr = common::serve(app).await;
     let dir = tempdir();
@@ -3019,18 +3031,16 @@ async fn a_finished_download_hands_its_place_to_the_next_at_once() {
         connections: 1,
         ..common::options(alone.path())
     };
-    let began = std::time::Instant::now();
     for n in 0..FILES {
         let url = format!("http://{addr}/alone{n}.bin");
         let done = dm_core::download(&client(), &url, &options).await.unwrap();
         dm_core::motw::mark(&done.path, &url, "");
     }
-    let each = began.elapsed() / FILES as u32;
     let q = queue(dir.path(), 1);
     for n in 0..FILES {
         q.add(&format!("http://{addr}/tiny{n}.bin")).await.unwrap();
     }
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     q.run().await;
     let took = started.elapsed();
     assert!(q
@@ -3038,24 +3048,46 @@ async fn a_finished_download_hands_its_place_to_the_next_at_once() {
         .await
         .iter()
         .all(|e| e.state == DownloadState::Completed));
+    let arrivals = arrivals.lock().unwrap().clone();
+    let each = middle_gap(&arrivals, "/alone");
+    let queued = middle_gap(&arrivals, "/tiny");
     println!(
-        "{FILES} tiny files, one place: {:.2}s ({:.0} files/s); alone {each:?} a file",
+        "{FILES} tiny files, one place: {:.2}s ({:.0} files/s); a file every {queued:?} in the queue, every {each:?} alone",
         took.as_secs_f64(),
         FILES as f64 / took.as_secs_f64()
     );
     /* Waiting for the tick after each file puts a floor under this: one
-     * place, a tick every 50 ms, so no less than about 50 ms a file. Handed
-     * on at once it is the files' own cost and a little of the queue's. The
-     * bound is 45 ms a file, just under the floor, so the tick fails it
-     * wherever a file costs less than 25 ms; where files alone cost more
+     * place, a tick every 50 ms, so no less than 50 ms from one file to the
+     * next. Handed on at once it is the files' own cost and a little of the
+     * queue's. The bound is 45 ms, just under the floor, so the tick fails
+     * it wherever a file costs less than 25 ms; where files alone cost more
      * (a virus checker, a loaded machine) the tick cannot be told from the
      * files, and the bound is their cost and 20 ms, so a queue that is not
-     * at fault is not failed for it. */
-    let per_file = Duration::from_millis(45).max(each + Duration::from_millis(20));
+     * at fault is not failed for it. The middle gap, not the total time: a
+     * moment's load from the rest of the suite stretches a few gaps, not the
+     * middle one (2026-11-08, under the whole suite: 60 files in 4.2 s
+     * against a bound of 4.05 s, with a file costing 47 ms alone). */
+    let bound = Duration::from_millis(45).max(each + Duration::from_millis(20));
     assert!(
-        took < per_file * FILES as u32,
-        "{FILES} tiny files took {took:?} ({each:?} a file alone): places are refilled by the          tick, not when they free"
+        queued < bound,
+        "a file every {queued:?} in the queue, every {each:?} alone: places are refilled by the tick, not when they free"
     );
+}
+
+/// The middle of the times from one file's first request to the next file's,
+/// over the files whose paths start with `kind`.
+fn middle_gap(arrivals: &[(String, std::time::Instant)], kind: &str) -> Duration {
+    let mut named = std::collections::HashSet::new();
+    let mut firsts: Vec<std::time::Instant> = arrivals
+        .iter()
+        .filter(|(path, _)| path.starts_with(kind) && named.insert(path.clone()))
+        .map(|(_, at)| *at)
+        .collect();
+    firsts.sort();
+    let mut gaps: Vec<Duration> = firsts.windows(2).map(|w| w[1] - w[0]).collect();
+    assert!(!gaps.is_empty(), "no requests for {kind}");
+    gaps.sort();
+    gaps[gaps.len() / 2]
 }
 
 /// What `run` returns after is already owed to the disk: a `flush` straight

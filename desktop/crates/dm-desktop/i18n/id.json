@@ -897,5 +897,9 @@
  "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Sambungan yang dikenal Windows (Pengaturan › Jaringan & internet › Dial-up atau VPN). Unduhan menunggu selagi dm menyambungkannya, dan berhenti bila sambungan tidak tersambung. Tanpa nama pengguna atau kata sandi di sini, dm memakai yang disimpan Windows; tanpa Simpan kata sandi, yang diketik dilupakan saat dm ditutup.",
  "cannot connect to the Internet. The dial-up or VPN connection did not come up": "tidak dapat tersambung ke Internet. Sambungan dial-up atau VPN tidak tersambung",
  "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Pilih sambungan lain di Opsi › Lanjutan › Dial Up / VPN, atau matikan Gunakan Jaringan Dial Up / VPN Windows, lalu klik Coba lagi",
- "Redialling": "Memanggil ulang"
+ "Redialling": "Memanggil ulang",
+ "Hang up modem when done": "Putuskan modem setelah selesai",
+ "The scheduled downloads are done: {} is hung up.": "Unduhan terjadwal selesai: {} diputuskan.",
+ "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Putuskan modem setelah selesai: tidak ada sambungan yang diatur di Opsi › Lanjutan › Dial Up / VPN.",
+ "{} was not hung up: {}": "{} tidak diputuskan: {}"
 }

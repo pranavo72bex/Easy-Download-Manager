@@ -574,6 +574,10 @@ impl DmApp {
         if let Some(why) = dm_core::lock(&self.opener_said).take() {
             self.said = why.into();
         }
+        let hung_up = dm_core::lock(&self.hung_up).take();
+        if let Some(hung) = hung_up {
+            self.say_hung_up(hung);
+        }
         if let Some((checked, changed)) = dm_core::lock(&self.rechecked).take() {
             self.said = crate::i18n::Said::counting(
                 "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.",

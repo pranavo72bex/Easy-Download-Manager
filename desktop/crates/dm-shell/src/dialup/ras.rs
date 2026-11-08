@@ -4,11 +4,12 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Windows' Remote Access Service: the dial-up and VPN connections Windows
-//! knows, which are up, and dialling one (`RasDialW`, synchronous: no
-//! notifier is given, so the call returns once the connection is up or has
-//! failed).
+//! knows, which are up, dialling one (`RasDialW`, synchronous: no notifier is
+//! given, so the call returns once the connection is up or has failed), and
+//! hanging one up.
 
 use std::ptr::{null, null_mut};
+use std::time::{Duration, Instant};
 
 use windows_sys::Win32::NetworkManagement::Rras::{
     RASCS_Connected, RasDialW, RasEnumConnectionsW, RasEnumEntriesW, RasGetConnectStatusW,
@@ -18,6 +19,13 @@ use windows_sys::Win32::NetworkManagement::Rras::{
 
 /// `ERROR_BUFFER_TOO_SMALL`: the list is longer than the buffer offered.
 const TOO_SMALL: u32 = 603;
+
+/// `ERROR_INVALID_HANDLE`: what Windows says of a connection that has ended.
+const ENDED: u32 = 6;
+
+/// How long a hang-up is waited for: Windows ends a connection after
+/// `RasHangUpW` returns, within a second or two.
+const ENDING: Duration = Duration::from_secs(5);
 
 fn text(wide: &[u16]) -> String {
     let end = wide.iter().position(|c| *c == 0).unwrap_or(wide.len());
@@ -123,6 +131,16 @@ fn is_up(conn: &RASCONNW) -> bool {
     error == 0 && status.rasconnstate == RASCS_Connected
 }
 
+/// Whether Windows still has `conn`, up, dialling or ending: until its state
+/// can no longer be read, `RasHangUpW`'s documentation says, it has not ended.
+fn held(conn: &RASCONNW) -> bool {
+    // SAFETY: a zeroed RASCONNSTATUSW is a valid empty value of this plain struct.
+    let mut status: RASCONNSTATUSW = unsafe { std::mem::zeroed() };
+    status.dwSize = std::mem::size_of::<RASCONNSTATUSW>() as u32;
+    // SAFETY: the handle is one RasEnumConnectionsW gave; `status` is sized.
+    unsafe { RasGetConnectStatusW(conn.hrasconn, &mut status) != ENDED }
+}
+
 /// Windows' own dialler.
 pub(super) struct Ras;
 
@@ -163,5 +181,28 @@ impl super::Dialer for Ras {
             unsafe { RasHangUpW(handle) };
         }
         Err(said(error))
+    }
+
+    fn hang_up(&self, name: &str) -> Result<bool, String> {
+        let mine: Vec<RASCONNW> = open()
+            .into_iter()
+            .filter(|conn| text(&conn.szEntryName).eq_ignore_ascii_case(name))
+            .collect();
+        if mine.is_empty() {
+            return Ok(false);
+        }
+        for conn in &mine {
+            // SAFETY: the handle is one RasEnumConnectionsW just gave.
+            let error = unsafe { RasHangUpW(conn.hrasconn) };
+            // Ended meanwhile: as good as hung up.
+            if error != 0 && error != ENDED {
+                return Err(said(error));
+            }
+        }
+        let until = Instant::now() + ENDING;
+        while mine.iter().any(held) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        Ok(true)
     }
 }

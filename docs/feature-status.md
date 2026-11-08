@@ -458,6 +458,7 @@ of them.
       removes the file rather than reporting success beside a warning
 - [x] Proxy: an automatic configuration script (PAC) and per-protocol proxies, in Options › Advanced › Proxy (`pac::way_to`, `Proxy::script`, `Proxy::per_scheme`, `proxy::route_for` for the tools; `tests/proxy.rs`)
 - [x] Dial-up and VPN connections (Windows): Options › Advanced › Dial Up / VPN, as reference A's last tab; each download waits while dm dials the connection (Windows' RAS) and redials as set, and is never sent without it (`dm-core` `connect_first.rs`, `dm-shell` `dialup.rs`; `tests/connect_first.rs`, `dialup::tests`, run beside reference A on 2026-11-08)
+- [x] The Scheduler's "Hang up modem when done" (Windows, reference A's, off): when the scheduled downloads are done, the connection Options sets is hung up if it is up, after a dial under way, and the status line says so (`dm-shell` `dialup.rs` `hang_up`, `dialup/ras.rs`; `app/scheduled.rs` `end_of_window`; `dialogs/speed_schedule.rs`; contract row B49)
 - [x] Proxy support — client. HTTP, HTTPS, SOCKS4 and SOCKS5, with credentials,
       or the computer's own settings; a list of sites fetched directly. FTP
       goes through SOCKS or HTTP CONNECT (`tests/ftp.rs`); an HTTPS proxy

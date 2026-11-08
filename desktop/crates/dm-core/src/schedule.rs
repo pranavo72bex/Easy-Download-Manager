@@ -48,6 +48,10 @@ pub struct Schedule {
     /// are done. Empty is none. Never set by an imported settings file or by
     /// a script driving the window, as the command run after each download is not.
     pub run_when_done: String,
+    /// Hang up the dial-up or VPN connection that Options › Advanced › Dial Up /
+    /// VPN sets once the scheduled downloads are done (Windows; reference A's
+    /// "Hang up modem when done"). Off unless asked.
+    pub hang_up: bool,
     /// One run on a date instead of the weekly window: `YYYY-MM-DD HH:MM`,
     /// local. Closed until then, open from then to `to` (the next morning
     /// when `to` is not later than the start), after which the caller
@@ -69,6 +73,7 @@ impl Default for Schedule {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            hang_up: false,
             once_at: None,
             force: false,
         }
@@ -257,6 +262,7 @@ mod tests {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            hang_up: false,
             once_at: None,
             force: false,
         };
@@ -294,6 +300,7 @@ mod tests {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            hang_up: false,
             once_at: None,
             force: false,
         }
@@ -459,6 +466,15 @@ mod tests {
         assert!(
             !night.open_now((2026, 11, 3), 2, 12 * 60) && day.open_now((2026, 11, 3), 2, 12 * 60)
         );
+    }
+
+    #[test]
+    fn a_schedule_written_before_hang_up_leaves_the_connection_up() {
+        let read: Schedule =
+            serde_json::from_str(r#"{"enabled": true, "run_when_done": "x"}"#).unwrap();
+        assert_eq!(read.run_when_done, "x");
+        assert!(!read.hang_up, "hung up only when asked");
+        assert!(!Schedule::default().hang_up);
     }
 
     #[test]

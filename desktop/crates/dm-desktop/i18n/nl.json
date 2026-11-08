@@ -897,5 +897,9 @@
  "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Een verbinding die Windows kent (Instellingen › Netwerk en internet › Inbellen of VPN). Een download wacht terwijl dm haar verbindt, en stopt als ze niet tot stand komt. Zonder gebruikersnaam of wachtwoord hier gebruikt dm die van Windows; zonder Wachtwoord opslaan wordt het getypte vergeten als dm sluit.",
  "cannot connect to the Internet. The dial-up or VPN connection did not come up": "kan geen verbinding met internet maken. De inbel- of VPN-verbinding kwam niet tot stand",
  "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Kies een andere verbinding in Opties › Geavanceerd › Inbellen / VPN, of zet Windows-inbel-/VPN-netwerk gebruiken uit, en klik dan op Opnieuw proberen",
- "Redialling": "Opnieuw inbellen"
+ "Redialling": "Opnieuw inbellen",
+ "Hang up modem when done": "Modem ophangen als het klaar is",
+ "The scheduled downloads are done: {} is hung up.": "De geplande downloads zijn klaar: {} is verbroken.",
+ "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Modem ophangen als het klaar is: er is geen verbinding ingesteld in Opties › Geavanceerd › Inbellen / VPN.",
+ "{} was not hung up: {}": "{} is niet verbroken: {}"
 }

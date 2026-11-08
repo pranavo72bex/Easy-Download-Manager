@@ -11,7 +11,9 @@
 //! done), so the same cancellable countdown stands between it and the
 //! computer; closing the window with the choice unused puts it away again. And
 //! while the window is open a download that failed is tried again, up to the
-//! number the person set, each time the queue has run dry.
+//! number the person set, each time the queue has run dry. When the scheduled
+//! downloads are done, the program set is run and, on Windows, the dial-up or
+//! VPN connection hung up where the person asked (reference A's Scheduler).
 
 use super::*;
 
@@ -36,6 +38,16 @@ pub(crate) enum Step {
     Nothing,
     Opened,
     Closed,
+}
+
+/// What the end of the scheduled downloads calls for at a read of the list.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum AtEnd {
+    Nothing,
+    /// Start the failed ones again: a round of tries again is owed.
+    Retry,
+    /// They are done: the program to run, then the hang-up.
+    Done,
 }
 
 impl Watch {
@@ -71,6 +83,28 @@ impl Watch {
             return true;
         }
         false
+    }
+
+    /// At a read of the list: with nothing left to run and some failed, a
+    /// round of tries again while rounds are left (`retries`); once none is
+    /// owed, the end, once in a window after something ran in it. So the
+    /// program and the hang-up come after the tries again, as reference A's
+    /// "when done" comes after each file's retries, not between them.
+    pub(crate) fn at_end(
+        &mut self,
+        open: bool,
+        work_left: bool,
+        failed: bool,
+        retries: u8,
+    ) -> AtEnd {
+        if open && !work_left && failed && self.retry_round(retries) {
+            return AtEnd::Retry;
+        }
+        if self.run_due(open, work_left) {
+            AtEnd::Done
+        } else {
+            AtEnd::Nothing
+        }
     }
 
     pub(crate) fn arm(&mut self, action: crate::power::WhenDone) {
@@ -212,10 +246,11 @@ impl DmApp {
         self.queue_watches = watches;
     }
 
-    /// The program a person set to run when the scheduled downloads of `rows`
-    /// are done, once in a window after something ran in it; and the failed
-    /// ones tried again while the window is open, a round each time they have
-    /// run dry.
+    /// The failed ones of `rows` tried again while the window is open, a
+    /// round each time they have run dry; and once no round is owed, the
+    /// program a person set to run when the scheduled downloads are done,
+    /// then the connection hung up where asked, once in a window after
+    /// something ran in it.
     fn end_of_window(
         &mut self,
         schedule: &dm_core::Schedule,
@@ -223,23 +258,73 @@ impl DmApp {
         rows: &[Arc<dm_core::Entry>],
         watch: &mut Watch,
     ) {
-        let command = schedule.run_when_done.trim();
-        if watch.run_due(open, work_left(rows)) && !command.is_empty() {
-            if let Err(why) = dm_shell::shell::run_program(command) {
-                self.problems.push(why);
-            }
-        }
-        if open && schedule.retries > 0 && !work_left(rows) {
-            let failed: Vec<Id> = rows
-                .iter()
-                .filter(|r| matches!(r.state, State::Failed(_)))
-                .map(|r| r.id)
-                .collect();
-            if !failed.is_empty() && watch.retry_round(schedule.retries) {
+        let failed: Vec<Id> = rows
+            .iter()
+            .filter(|r| matches!(r.state, State::Failed(_)))
+            .map(|r| r.id)
+            .collect();
+        match watch.at_end(open, work_left(rows), !failed.is_empty(), schedule.retries) {
+            AtEnd::Retry => {
                 for id in failed {
                     self.backend.retry(id);
                 }
             }
+            AtEnd::Done => {
+                let command = schedule.run_when_done.trim();
+                if !command.is_empty() {
+                    if let Err(why) = dm_shell::shell::run_program(command) {
+                        self.problems.push(why);
+                    }
+                }
+                // After the program, as reference A's Scheduler hangs up after
+                // the file it opens. Dial-up and VPN connections are Windows'.
+                if schedule.hang_up && cfg!(windows) {
+                    self.hang_up_later();
+                }
+            }
+            AtEnd::Nothing => {}
+        }
+    }
+}
+
+impl DmApp {
+    /// Hangs up the connection Options › Advanced › Dial Up / VPN sets, off
+    /// the window's thread (Windows takes a moment to end it); what it came
+    /// to is said when it is known.
+    fn hang_up_later(&mut self) {
+        let slot = Arc::clone(&self.hung_up);
+        let spawned = std::thread::Builder::new()
+            .name("dm-hang-up".into())
+            .spawn(move || {
+                let hung = dm_shell::dialup::hang_up();
+                *dm_core::lock(&slot) = Some(hung);
+            });
+        if spawned.is_err() {
+            self.say_hung_up(dm_shell::dialup::hang_up());
+        }
+    }
+
+    /// Says what hanging up came to: a connection that was not up needs no
+    /// word, one Windows would not end is a problem.
+    pub(super) fn say_hung_up(&mut self, hung: dm_shell::dialup::HungUp) {
+        use dm_shell::dialup::HungUp;
+        match hung {
+            HungUp::Done(name) => {
+                self.said = crate::i18n::Said::new(
+                    "The scheduled downloads are done: {} is hung up.",
+                    &[&name],
+                );
+            }
+            HungUp::WasDown(_) => {}
+            HungUp::NoneSet => {
+                self.said = crate::i18n::Said::new(
+                    "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.",
+                    &[],
+                );
+            }
+            HungUp::Failed(name, why) => self
+                .problems
+                .push(crate::i18n::tf("{} was not hung up: {}", &[&name, &why])),
         }
     }
 }
@@ -342,7 +427,45 @@ mod queue_tests {
 
 #[cfg(test)]
 mod run_tests {
-    use super::Watch;
+    use super::{AtEnd, Watch};
+
+    #[test]
+    fn the_end_of_the_scheduled_downloads_comes_after_their_tries_again() {
+        let mut watch = Watch::default();
+        watch.step(true);
+        assert_eq!(
+            watch.at_end(true, true, false, 2),
+            AtEnd::Nothing,
+            "running"
+        );
+        assert_eq!(
+            watch.at_end(true, false, true, 2),
+            AtEnd::Retry,
+            "one failed"
+        );
+        assert_eq!(watch.at_end(true, true, false, 2), AtEnd::Nothing);
+        assert_eq!(
+            watch.at_end(true, false, true, 2),
+            AtEnd::Retry,
+            "the second round"
+        );
+        assert_eq!(watch.at_end(true, true, false, 2), AtEnd::Nothing);
+        assert_eq!(
+            watch.at_end(true, false, true, 2),
+            AtEnd::Done,
+            "no round left: done, failed or not"
+        );
+        assert_eq!(watch.at_end(true, false, true, 2), AtEnd::Nothing, "once");
+        // None to try again: done as the queue runs dry.
+        let mut clean = Watch::default();
+        clean.step(true);
+        assert_eq!(clean.at_end(true, true, false, 0), AtEnd::Nothing);
+        assert_eq!(clean.at_end(true, false, true, 0), AtEnd::Done);
+        // Shut: neither.
+        let mut shut = Watch::default();
+        assert_eq!(shut.at_end(false, false, true, 2), AtEnd::Nothing);
+        assert_eq!(shut.at_end(false, true, false, 2), AtEnd::Nothing);
+    }
 
     #[test]
     fn the_program_at_the_end_runs_once_after_something_ran_in_the_window() {

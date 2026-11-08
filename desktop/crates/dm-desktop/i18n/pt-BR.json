@@ -897,5 +897,9 @@
  "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Uma conexão que o Windows conhece (Configurações › Rede e Internet › Discada ou VPN). Um download espera enquanto o dm a conecta e para se ela não se estabelecer. Sem nome de usuário nem senha aqui, o dm usa os que o Windows guarda; sem Salvar senha, a digitada é esquecida quando o dm fecha.",
  "cannot connect to the Internet. The dial-up or VPN connection did not come up": "não é possível conectar à Internet. A conexão discada ou VPN não se estabeleceu",
  "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "Escolha outra conexão em Opções › Avançado › Discada / VPN, ou desative Usar a rede discada / VPN do Windows, e clique em Tentar novamente",
- "Redialling": "Rediscando"
+ "Redialling": "Rediscando",
+ "Hang up modem when done": "Desligar o modem ao terminar",
+ "The scheduled downloads are done: {} is hung up.": "Os downloads agendados terminaram: a conexão {} foi desligada.",
+ "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Desligar o modem ao terminar: nenhuma conexão definida em Opções › Avançado › Discada / VPN.",
+ "{} was not hung up: {}": "A conexão {} não foi desligada: {}"
 }

@@ -5,28 +5,30 @@
 
 use super::*;
 use std::cell::{Cell, RefCell};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// A dialler that is up or not, and fails its first `failing` dials.
 struct Fake {
-    up: bool,
+    up: Cell<bool>,
     failing: usize,
     dialled: RefCell<Vec<(String, String, String)>>,
+    hung_up: RefCell<Vec<String>>,
 }
 
 impl Fake {
     fn new(up: bool, failing: usize) -> Fake {
         Fake {
-            up,
+            up: Cell::new(up),
             failing,
             dialled: RefCell::default(),
+            hung_up: RefCell::default(),
         }
     }
 }
 
 impl Dialer for Fake {
     fn connected(&self, _: &str) -> bool {
-        self.up
+        self.up.get()
     }
     fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), String> {
         let mut dialled = self.dialled.borrow_mut();
@@ -36,6 +38,10 @@ impl Dialer for Fake {
         } else {
             Ok(())
         }
+    }
+    fn hang_up(&self, name: &str) -> Result<bool, String> {
+        self.hung_up.borrow_mut().push(name.into());
+        Ok(self.up.replace(false))
     }
 }
 
@@ -179,6 +185,9 @@ impl Dialer for Slow {
         std::thread::sleep(Duration::from_millis(100));
         Err("no answer".into())
     }
+    fn hang_up(&self, _: &str) -> Result<bool, String> {
+        Ok(false)
+    }
 }
 
 #[test]
@@ -255,6 +264,94 @@ fn a_download_no_longer_waited_for_stops_its_dial() {
     assert!(fake.dialled.borrow().len() <= 3);
 }
 
+#[test]
+fn hanging_up_ends_the_connection_options_sets_and_nothing_when_none_is_set() {
+    let _turn = dm_core::lock(&TURN);
+    *dm_core::lock(&IN_FORCE) = None;
+    let fake = Fake::new(true, 0);
+    assert_eq!(hang_up_with(&fake), HungUp::NoneSet);
+    assert!(fake.hung_up.borrow().is_empty(), "hung up with none set");
+    *dm_core::lock(&IN_FORCE) = Some(chosen());
+    let first = hang_up_with(&fake);
+    let again = hang_up_with(&fake);
+    *dm_core::lock(&IN_FORCE) = None;
+    assert_eq!(first, HungUp::Done("Office VPN".into()));
+    assert_eq!(again, HungUp::WasDown("Office VPN".into()));
+    assert!(!fake.connected("Office VPN"));
+    assert_eq!(*fake.hung_up.borrow(), ["Office VPN", "Office VPN"]);
+}
+
+/// A dialler whose hang-up Windows refuses.
+struct Refusing;
+
+impl Dialer for Refusing {
+    fn connected(&self, _: &str) -> bool {
+        true
+    }
+    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn hang_up(&self, _: &str) -> Result<bool, String> {
+        Err("Access is denied. (os error 5)".into())
+    }
+}
+
+#[test]
+fn a_hang_up_windows_refuses_says_why() {
+    let _turn = dm_core::lock(&TURN);
+    *dm_core::lock(&IN_FORCE) = Some(chosen());
+    let said = hang_up_with(&Refusing);
+    *dm_core::lock(&IN_FORCE) = None;
+    assert_eq!(
+        said,
+        HungUp::Failed("Office VPN".into(), "Access is denied. (os error 5)".into())
+    );
+}
+
+/// A dialler that keeps the order it was asked in, and takes its time dialling.
+struct Ordered {
+    asked: Mutex<Vec<&'static str>>,
+    dialling: AtomicBool,
+}
+
+impl Dialer for Ordered {
+    fn connected(&self, _: &str) -> bool {
+        false
+    }
+    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+        self.dialling.store(true, Ordering::SeqCst);
+        std::thread::sleep(Duration::from_millis(150));
+        dm_core::lock(&self.asked).push("dialled");
+        Ok(())
+    }
+    fn hang_up(&self, _: &str) -> Result<bool, String> {
+        dm_core::lock(&self.asked).push("hung up");
+        Ok(true)
+    }
+}
+
+#[test]
+fn a_hang_up_waits_for_a_dial_under_way_to_end() {
+    let _turn = dm_core::lock(&TURN);
+    *dm_core::lock(&IN_FORCE) = Some(chosen());
+    let ordered = Ordered {
+        asked: Mutex::default(),
+        dialling: AtomicBool::new(false),
+    };
+    let (dialled, hung) = std::thread::scope(|scope| {
+        let dialling = scope.spawn(|| connect_with(&ordered, &always, &mut |_| {}, &|_| {}));
+        while !ordered.dialling.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let hung = hang_up_with(&ordered);
+        (dialling.join().unwrap(), hung)
+    });
+    *dm_core::lock(&IN_FORCE) = None;
+    assert_eq!(dialled, Ok(()));
+    assert_eq!(hung, HungUp::Done("Office VPN".into()));
+    assert_eq!(*dm_core::lock(&ordered.asked), ["dialled", "hung up"]);
+}
+
 /// Off only: switched on, the engine's hook would hold every other test's downloads in this
 /// program while it is set.
 #[test]
@@ -289,4 +386,6 @@ fn windows_names_a_connection_it_does_not_know() {
         }
         other => panic!("{other:?}"),
     }
+    // Not open, so nothing to hang up: said so, not failed.
+    assert_eq!(ras::Ras.hang_up(&unknown.connection), Ok(false));
 }

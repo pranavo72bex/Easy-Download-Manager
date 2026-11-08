@@ -397,6 +397,11 @@ fn schedule_form(ui: &mut egui::Ui, draft: &mut SchedulerDraft, apply: &mut bool
                 &mut schedule.run_when_done,
                 320.0,
             );
+            // Reference A's, after the file it opens: the connection set in
+            // Options › Advanced › Dial Up / VPN, which is Windows' alone.
+            if cfg!(windows) {
+                toggle_row(ui, &mut schedule.hang_up, t("Hang up modem when done"));
+            }
             // The days are shown as they are kept, all ticked for every
             // day; the hint said no tick meant every day beside seven ticks.
             ui.label(

@@ -5,8 +5,8 @@
 
 //! A dial-up or VPN connection connected before a download goes out (Options ›
 //! Advanced › Dial Up / VPN, Windows), as reference A's last Options tab offers
-//! (gaps row 93, G84; the maintainer's word of 2026-11-07: "If IDM has then
-//! implement it").
+//! (gaps row 93, G84; the maintainer's word of 2026-11-07: "If reference A has
+//! then implement it").
 //!
 //! As reference A's, measured beside it on 2026-11-08 with a VPN to this
 //! computer that refuses: off until "Use Windows Dial Up / VPN Networking" is
@@ -18,6 +18,9 @@
 //! Options has none, where dm dials with the ones Windows keeps for the
 //! connection; and its Apply button, which hands them to Windows, is not here:
 //! dm keeps its own (`docs/decisions.md`, 2026-11-08).
+//!
+//! The Scheduler's "Hang up modem when done", reference A's too, hangs the same
+//! connection up once the scheduled downloads are done ([`hang_up`]).
 
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -86,6 +89,9 @@ pub trait Dialer {
     /// Dials `name` once, waiting until it is up or has failed. An empty `user`
     /// and `password` take the ones Windows keeps for it.
     fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), String>;
+    /// Hangs `name` up if Windows has it open, up or still dialling, and waits
+    /// for it to go: `Ok(true)` once it has, `Ok(false)` when it was not open.
+    fn hang_up(&self, name: &str) -> Result<bool, String>;
 }
 
 /// How [`ensure`] ended.
@@ -248,6 +254,50 @@ fn pause_while(wait: Duration, waiting: &dyn Fn() -> bool) {
             return;
         }
         std::thread::sleep(left.min(Duration::from_millis(200)));
+    }
+}
+
+/// How [`hang_up`] ended.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HungUp {
+    /// Options › Advanced › Dial Up / VPN sets no connection: nothing to hang up.
+    NoneSet,
+    /// The connection was not connected.
+    WasDown(String),
+    /// The connection was connected, and is hung up.
+    Done(String),
+    /// Windows did not hang the connection up: its name, and why.
+    Failed(String, String),
+}
+
+/// Hangs up the connection Options › Advanced › Dial Up / VPN sets, if it is
+/// up: Scheduler › Hang up modem when done, as reference A's. Whoever
+/// connected it, as the person asked for that connection to go; never in the
+/// middle of a dial of dm's, but after it. Windows takes a moment to end a
+/// connection, so this is called off the window's thread.
+pub fn hang_up() -> HungUp {
+    #[cfg(windows)]
+    {
+        hang_up_with(&ras::Ras)
+    }
+    #[cfg(not(windows))]
+    {
+        HungUp::NoneSet
+    }
+}
+
+/// [`hang_up`] with its dialler given, for the tests.
+#[cfg(any(windows, test))]
+fn hang_up_with(dialer: &dyn Dialer) -> HungUp {
+    let Some(dial) = in_force() else {
+        return HungUp::NoneSet;
+    };
+    let _one = dm_core::lock(&DIALLING);
+    let name = dial.connection.trim().to_owned();
+    match dialer.hang_up(&name) {
+        Ok(true) => HungUp::Done(name),
+        Ok(false) => HungUp::WasDown(name),
+        Err(why) => HungUp::Failed(name, why),
     }
 }
 

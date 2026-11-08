@@ -897,5 +897,9 @@
  "A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes.": "Windows에 등록된 연결(설정 › 네트워크 및 인터넷 › 전화 접속 또는 VPN)입니다. dm이 연결하는 동안 다운로드는 기다리며, 연결되지 않으면 멈춥니다. 여기에 사용자 이름이나 암호가 없으면 dm은 Windows에 저장된 것을 씁니다. 암호 저장이 꺼져 있으면 입력한 암호는 dm을 닫을 때 지워집니다.",
  "cannot connect to the Internet. The dial-up or VPN connection did not come up": "인터넷에 연결할 수 없습니다. 전화 접속 또는 VPN 연결이 되지 않았습니다",
  "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry": "옵션 › 고급 › 전화 접속 / VPN에서 다른 연결을 고르거나 Windows 전화 접속 / VPN 네트워킹 사용을 끈 다음 다시 시도을(를) 누르세요",
- "Redialling": "재다이얼 중"
+ "Redialling": "재다이얼 중",
+ "Hang up modem when done": "완료되면 모뎀 연결 끊기",
+ "The scheduled downloads are done: {} is hung up.": "예약된 다운로드가 끝났습니다: {} 연결을 끊었습니다.",
+ "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "완료되면 모뎀 연결 끊기: 옵션 › 고급 › 전화 접속 / VPN에 설정된 연결이 없습니다.",
+ "{} was not hung up: {}": "{} 연결을 끊지 못했습니다: {}"
 }

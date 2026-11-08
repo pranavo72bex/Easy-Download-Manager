@@ -4450,7 +4450,7 @@ named stays as before; the list is added to when one is found.
 
 ## 2026-11-08: Dial-up and VPN connections as reference A's, a download held until it is up (gaps row 93, G84)
 
-The maintainer's word of 2026-11-07 for G84: "If IDM has then implement it". Reference A's
+The maintainer's word of 2026-11-07 for G84: "If reference A has then implement it". Reference A's
 last Options tab was read and run beside dm with a VPN entry that refuses
 (`docs/reference-behavior.md`, 2026-11-08). Chosen: its switch, fields, words and defaults
 (off; zero redial attempts, endlessly; 30 seconds between) as a section of Options ›
@@ -4491,9 +4491,35 @@ as winit and egui-winit are, with one change in `src/native/glow_integration.rs`
 or the root made again) is created hidden, given an adapter, and shown as asked (AccessKit
 panics on a window already shown). Only the root's adapter may turn AccessKit off, since the
 switch is egui's one context's. Behind `ADAPTER_PER_WINDOW`, off on Windows until it is
-checked there with Narrator, at the maintainer's word to leave Windows to its own session.
+checked there with Narrator, at the maintainer's word to leave Windows to its own session. Turned on
+for Windows the same day in its own session: UI Automation, what Narrator reads, finds the
+buttons of Add URL, Options, the Scheduler, the Speed limiter and About inside each one's
+window (`scripts/windows-a11y-check.py`, 5 of 5; with the copy as published, none of Add URL's).
 Ruled out: dialogs drawn inside the main window again (B42 is the maintainer's choice); an
 AccessKit tree of the dialogs grafted onto the root's (AccessKit has one tree per window, and
 a screen reader finds controls by window). On an eframe upgrade the change is carried over,
 or dropped once upstream gives each viewport an adapter.
 
+## 2026-11-08: The Scheduler hangs up the connection Options sets, when its downloads are done
+
+Reference A's Scheduler (read on 2026-11-08, `docs/reference-behavior.md`) has "Hang up modem
+when done" (off) between "Open the following file when done" and "Exit … when done", each a
+tick of its own. dm's B49 said this was not offered, since dm had no dial-up connection to hang
+up; with G84 built it has, and the maintainer's words of 2026-11-04 (dm works as reference A,
+with its labels) and 2026-11-07 ("If reference A has then implement it") cover it. Chosen: a switch of
+the schedule (`Schedule::hang_up`, a queue's own hours have their own), in reference A's words,
+below the program to run, on Windows alone; at the moment that program runs, the connection
+named in Options › Advanced › Dial Up / VPN (with the switch on) is hung up if Windows has it
+open, whoever connected it, as the person asked for that connection to go. A dial of dm's under
+way is let finish first (the shared dialling lock), and Windows' end of the connection is waited
+for off the window's thread. The status line says it was hung up, or that no connection is set
+in Options; a refusal goes to the problems. Ruled out: hanging up every open connection (one the
+person keeps for something else would go too), and greying the switch while Options sets no
+connection (reference A leaves it on offer, and what dm says at the end names the setting).
+
+The end of the scheduled downloads moved with it: it came the first time the queue ran dry,
+before the rounds of Try a failed download again, so a hang-up there would have been followed by
+the tries again dialling once more and the connection left up at the true end; the program to run
+had the same fault on a batch not yet done. Now a round owed comes first and the end after the
+last (`app/scheduled.rs` `Watch::at_end`), as reference A's "when done" comes after each file's
+retries; contract row B62 says so.
