@@ -340,8 +340,11 @@ Left, each a row in `docs/gaps.md` (row 159):
   (`as_drawn`), in an open shadow root a page can restyle; and a panel
   choice now sends the cookies of whatever host the page's `<video src>`
   names. The app's Download details dialog is what remains. The click check
-  fixed 2026-11-08 (`asDrawn`, `scripts/chrome-check.py`); the cookies are
-  left for the maintainer's choice (gaps row 159).
+  fixed 2026-11-08 (`asDrawn`, `scripts/chrome-check.py`), and the cookies
+  the same day: a panel choice's session goes only to the page's own site
+  or a host the tab's own requests went to (`decide::session_goes`,
+  `RequestHeaders::reached`; `chrome-check.py` "another site's file the
+  page names goes to dm without that site's session").
 - **Low: a renewal is matched across tabs.** `RequestHeaders::renewed` did
   not compare the tab or YouTube's `id`, so another tab's video with the same
   itag on the same edge host could be offered as a renewal. The host cannot

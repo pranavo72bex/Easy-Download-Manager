@@ -143,6 +143,48 @@ fn an_ftp_link_is_handed_over_from_the_menu() {
     assert!(!handable("ftps://e.com/f") && !handable("file:///etc/passwd"));
 }
 
+/// A page names its player's source itself: another site's file goes without that site's session
+/// unless the tab's own requests went there (gaps row 159 c).
+#[test]
+fn a_panel_choice_carries_a_session_only_for_its_page_its_site_or_a_host_the_tab_reached() {
+    let tab = "https://www.tiktok.com/@a/video/1";
+    // The page itself, its site and a host under it.
+    assert!(session_goes(tab, "", true, false));
+    assert!(session_goes(
+        "https://www.tiktok.com/v.mp4",
+        tab,
+        false,
+        false
+    ));
+    assert!(session_goes(
+        "https://v16-webapp.tiktok.com/v.mp4",
+        tab,
+        false,
+        false
+    ));
+    // Another domain only where the tab's player fetched from it.
+    assert!(session_goes(
+        "https://v16.tiktokcdn.com/v.mp4",
+        tab,
+        false,
+        true
+    ));
+    assert!(!session_goes(
+        "https://bank.example/statement.pdf",
+        tab,
+        false,
+        false
+    ));
+    // A look-alike is not under the site.
+    assert!(!session_goes(
+        "https://eviltiktok.com/v.mp4",
+        tab,
+        false,
+        false
+    ));
+    assert!(!session_goes("https://bank.example/x", "", false, false));
+}
+
 #[test]
 fn a_sites_cookies_go_with_its_downloads_only_where_switched_on() {
     let sites = with_site(&[], "files.example", true);

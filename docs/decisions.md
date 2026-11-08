@@ -3,6 +3,23 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-08: A panel choice's session goes only where the tab's own requests went
+
+A video chosen in the panel (and a video page handed over) carried its host's cookies for that
+download, whatever host the page's player named: a page could name another site's file and have
+dm fetch it with that site's sign-in (security review, 2026-11-07, row 159 c). Asked to choose
+on 2026-11-08 between the tab's own site, the listed sites, and the hosts the tab's player
+fetched from, the maintainer answered "implement it and verify it" without naming one, so
+the one that keeps every site working was taken: the session now goes to the page itself, its
+site or a host under it, or a host the browser itself sent one of that tab's requests to
+(`decide::session_goes`; `RequestHeaders::reached`, kept per tab apart from the addresses and in
+the session's storage). The last keeps TikTok's video servers, on a domain of their own, which
+refuse a signed address without the session. Not done: the tab's own site alone, which would
+refuse those; the listed sites alone, which would make every such site a setting first. Left as
+is: a site the person listed and the app's "every site" switch, which the person chose. A file
+the page names but the browser never fetched from that host goes without a session; a player
+whose page is open long enough for its host to fall out of the 2000 pairs kept would too.
+
 ## 2026-11-08: A stream is renewed only from the tab it was handed from
 
 The extension offers the app a newer signed address of a stream it handed over (gaps row 121)

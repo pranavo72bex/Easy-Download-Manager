@@ -111,6 +111,17 @@ pub fn cookies_sent(sites: &[String], url: &str, video: bool, everywhere: bool) 
     }
 }
 
+/// Whether a video's session (its site's cookies, for that one download) may go with what the
+/// panel or a video page hands over, before the person's own list and the app's "every site"
+/// switch are asked: the page itself (`page`), a file on the site of the page it was found on
+/// (`found_on`) or under it, or one on a host the browser itself sent that tab's request to
+/// (`reached`: the player's own video server, TikTok's on another domain). A page names its
+/// player's source itself, and could name another site's file so that dm fetched it with that
+/// site's sign-in (security review, 2026-11-07, gaps row 159 c).
+pub fn session_goes(url: &str, found_on: &str, page: bool, reached: bool) -> bool {
+    page || reached || site_of(found_on).is_some_and(|site| site_listed(&[site], url))
+}
+
 /// What `cookies.getAll` is asked for a download's sign-in: its address and,
 /// where the browser named one, the cookie store it was made in. Firefox
 /// keeps each container's cookies in a store of its own, and without the

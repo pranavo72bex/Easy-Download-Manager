@@ -140,8 +140,12 @@ pub fn on_send_headers(details: JsValue) {
             wasm_bindgen_futures::spawn_local(async {
                 sleep(1000.0).await;
                 SENT_WRITING.with(|w| w.set(false));
+                // What an earlier worker kept is read back first: written without it, a worker
+                // just woken would replace it with the little it has heard itself.
+                let _ = sent_to("").await;
                 let all = SENT.with(|s| s.borrow().export());
-                let item = to_js(&serde_json::json!({ SENT_KEY: all }));
+                let reached = SENT.with(|s| s.borrow().export_reached());
+                let item = to_js(&serde_json::json!({ SENT_KEY: all, REACHED_KEY: reached }));
                 if let Err(why) = call("storage.session", "set", &[item]).await {
                     log("debug", &format!("request headers were not kept: {why}"));
                 }
@@ -152,6 +156,9 @@ pub fn on_send_headers(details: JsValue) {
 
 /// Where the request headers are kept between the worker's naps.
 const SENT_KEY: &str = "dm.sent";
+
+/// Where the hosts each tab's requests went to are kept between the worker's naps.
+const REACHED_KEY: &str = "dm.sent.reached";
 
 /// Where the streams handed to dm are kept between the worker's naps.
 const HANDED_KEY: &str = "dm.handed";
@@ -236,13 +243,24 @@ fn offer_renewals() {
 /// storage.
 pub(super) async fn sent_to(url: &str) -> Vec<(String, String)> {
     if !SENT_LOADED.with(|l| l.replace(true)) {
-        if let Ok(got) = call("storage.session", "get", &[JsValue::from_str(SENT_KEY)]).await {
+        let keys = to_js(&serde_json::json!([SENT_KEY, REACHED_KEY]));
+        if let Ok(got) = call("storage.session", "get", &[keys]).await {
             if let Ok(older) = serde_json::from_value(from_js(&field(&got, SENT_KEY))) {
                 SENT.with(|s| s.borrow_mut().merge(older));
+            }
+            if let Ok(older) = serde_json::from_value(from_js(&field(&got, REACHED_KEY))) {
+                SENT.with(|s| s.borrow_mut().merge_reached(older));
             }
         }
     }
     SENT.with(|s| s.borrow().of(url))
+}
+
+/// Whether the browser itself sent a request of `tab`'s to `url`'s host
+/// (`RequestHeaders::reached`), from this worker or the session's storage.
+pub(super) async fn reached(tab: Option<i64>, url: &str) -> bool {
+    let _ = sent_to("").await;
+    SENT.with(|s| s.borrow().reached(tab, url))
 }
 
 /// The newest address `tab`'s player asked for that is the same stream as `url`, when a signed

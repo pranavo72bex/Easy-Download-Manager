@@ -359,6 +359,18 @@ PANEL_PAGES = {
         '<!doctype html><title>a signed-in video</title><div style="position:relative;margin:40px">'
         '<video id="v" src="/files/private-clip.mp4" width="640" height="360" preload="none"></video>'
         + OVERLAY + '</div>', None),
+    # A video on another site (`localhost`, which has a session cookie of its own), named by a page
+    # on 127.0.0.1: never fetched by the browser from this tab, and fetched at once (preloaded).
+    # A panel choice carries that site's session only where the tab's own requests went
+    # (gaps row 159 c).
+    "/cross.html": (
+        '<!doctype html><title>another site\'s file</title><div style="position:relative;margin:40px">'
+        '<video id="v" src="{OTHER}/files/cross-a.mp4" width="640" height="360" preload="none"></video>'
+        + OVERLAY + '</div>', None),
+    "/crossplayed.html": (
+        '<!doctype html><title>another site\'s player</title><div style="position:relative;margin:40px">'
+        '<video id="v" src="{OTHER}/files/cross-b.mp4" width="640" height="360" preload="auto"></video>'
+        + OVERLAY + '</div>', None),
     "/tiny.html": (
         '<!doctype html><title>an avatar</title>'
         '<video id="v" src="/files/avatar.mp4" width="96" height="96" preload="none" style="margin:40px"></video>',
@@ -507,6 +519,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         requests.append({"path": path, "agent": agent, "referer": self.headers.get("Referer", ""),
                          "range": self.headers.get("Range", ""), "t": time.monotonic(),
                          "auth": self.headers.get("Authorization", ""),
+                         "cookie": self.headers.get("Cookie", ""),
                          "port": self.client_address[1]})
         if path == "/magnets.html":
             # The seven ways a torrent site's button opens a magnet link (gaps
@@ -616,7 +629,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if path in PANEL_PAGES:
             page, csp = PANEL_PAGES[path]
-            page = page.replace("{ORIGIN}", f"http://127.0.0.1:{self.server.server_address[1]}").encode()
+            page = page.replace("{ORIGIN}", f"http://127.0.0.1:{self.server.server_address[1]}")
+            page = page.replace("{OTHER}", f"http://localhost:{self.server.server_address[1]}").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             if csp:
@@ -1309,6 +1323,29 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     time.sleep(2)
     check("and the browser does not download it",
           not (engine_dl.parent / "browser-downloads" / "private-clip.mp4").exists())
+
+    # Another site's file named by the page: its session goes with a panel choice only where this
+    # tab's own requests went to that site (gaps row 159 c). `localhost` gets a session cookie of
+    # its own first, in a tab of its own.
+    other = origin.replace("127.0.0.1", "localhost")
+    loaded(open_tab(base, f"{other}/privatevideo.html"), "/privatevideo.html")
+
+    def dm_cookies(name):
+        return [r["cookie"] for r in requests if r["path"] == f"/files/{name}" and is_dm(r["agent"])]
+
+    for page, name in (("/cross.html", "cross-a.mp4"), ("/crossplayed.html", "cross-b.mp4")):
+        tab = panel_page(base, origin, page)
+        if name == "cross-b.mp4":
+            wait_for(lambda: any(r["path"] == "/files/cross-b.mp4" and not is_dm(r["agent"]) for r in requests), 10)
+        hover(tab, tab.evaluate(VIDEO_RECT))
+        if wait_for(lambda: (panel(tab) or {}).get("shown"), 5):
+            click_panel(tab)
+        wait_for(lambda: whole(engine_dl, name), 60)
+    sent_a, sent_b = dm_cookies("cross-a.mp4"), dm_cookies("cross-b.mp4")
+    check("another site's file the page names goes to dm without that site's session",
+          bool(sent_a) and not any("session=1" in c for c in sent_a), str(sent_a))
+    check("and with it where the tab's own player fetched from that site",
+          bool(sent_b) and all("session=1" in c for c in sent_b), str(sent_b))
 
     # A player that keeps its video in a web component's shadow root.
     tab = panel_page(base, origin, "/shadow.html")

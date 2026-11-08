@@ -45,6 +45,8 @@ pub type Kept = (String, Vec<(String, String)>, Option<i64>);
 
 /// The most addresses remembered, and headers and value length kept for one.
 const MOST_ADDRESSES: usize = 200;
+/// The most (tab, host) pairs remembered: which hosts each tab's requests went to.
+const MOST_REACHED: usize = 2000;
 const MOST_HEADERS: usize = 40;
 const LONGEST_VALUE: usize = 4096;
 
@@ -86,6 +88,9 @@ fn key(url: &str) -> &str {
 #[derive(Debug, Default)]
 pub struct RequestHeaders {
     kept: VecDeque<Kept>,
+    /// The hosts each tab's requests went to, newest last: kept apart from the addresses, which a
+    /// page's many requests for pieces turn over within seconds.
+    reached: VecDeque<(i64, String)>,
 }
 
 impl RequestHeaders {
@@ -107,6 +112,15 @@ impl RequestHeaders {
             .take(MOST_HEADERS)
             .collect();
         let url = key(&sent.url);
+        if let (Some(tab), Some(host)) = (sent.tab(), super::site_of(url)) {
+            if url.starts_with("http") {
+                self.reached.retain(|(t, h)| !(*t == tab && *h == host));
+                self.reached.push_back((tab, host));
+                while self.reached.len() > MOST_REACHED {
+                    self.reached.pop_front();
+                }
+            }
+        }
         self.kept.retain(|(u, _, _)| u != url);
         if headers.is_empty() || !url.starts_with("http") {
             return;
@@ -139,6 +153,33 @@ impl RequestHeaders {
             merged.pop_front();
         }
         self.kept = merged;
+    }
+
+    /// Whether the browser itself sent a request of `tab`'s to `url`'s host: the page's player,
+    /// a frame or the page fetched from there, with the browser's own cookies for it.
+    pub fn reached(&self, tab: Option<i64>, url: &str) -> bool {
+        let (Some(tab), Some(host)) = (tab, super::site_of(url)) else {
+            return false;
+        };
+        self.reached.iter().any(|(t, h)| *t == tab && *h == host)
+    }
+
+    /// The (tab, host) pairs, oldest first, for the session's storage, as `export`.
+    pub fn export_reached(&self) -> Vec<(i64, String)> {
+        self.reached.iter().cloned().collect()
+    }
+
+    /// Takes in the pairs an earlier worker kept, older than anything heard since.
+    pub fn merge_reached(&mut self, older: Vec<(i64, String)>) {
+        let mut merged: VecDeque<(i64, String)> = older
+            .into_iter()
+            .filter(|pair| !pair.1.is_empty() && !self.reached.contains(pair))
+            .collect();
+        merged.extend(std::mem::take(&mut self.reached));
+        while merged.len() > MOST_REACHED {
+            merged.pop_front();
+        }
+        self.reached = merged;
     }
 
     /// The address the page's player asked for most recently that is the same stream as `url`
@@ -352,6 +393,52 @@ mod tests {
         assert_eq!(kept.renewed(&at("old"), None), None);
         kept.keep(&sent(&at("new"), "media", &[("X-A", "1")]));
         assert_eq!(kept.renewed(&at("old"), TAB), Some(at("new")));
+    }
+
+    /// The hosts a tab's requests went to are that tab's alone, outlive the addresses' turnover,
+    /// and survive the worker's nap.
+    #[test]
+    fn the_hosts_a_tab_reached_are_kept_per_tab() {
+        let mut kept = RequestHeaders::default();
+        kept.keep(&sent(
+            "https://v16.tiktokcdn.com/v.mp4?sig=a",
+            "media",
+            &[("X-A", "1")],
+        ));
+        kept.keep(&from_tab(
+            "https://bank.example/",
+            "main_frame",
+            &[("X-A", "1")],
+            Some(9),
+        ));
+        kept.keep(&from_tab(
+            "https://worker.example/x",
+            "other",
+            &[("X-A", "1")],
+            Some(-1),
+        ));
+        for i in 0..(MOST_ADDRESSES + 10) {
+            kept.keep(&sent(
+                &format!("https://www.site.example/{i}"),
+                "xmlhttprequest",
+                &[("X-A", "1")],
+            ));
+        }
+        assert!(kept.reached(TAB, "https://v16.tiktokcdn.com/other.mp4"));
+        assert!(
+            kept.reached(TAB, "https://site.example/f"),
+            "www. is the same site"
+        );
+        assert!(
+            !kept.reached(TAB, "https://bank.example/statement.pdf"),
+            "another tab's"
+        );
+        assert!(kept.reached(Some(9), "https://bank.example/statement.pdf"));
+        assert!(!kept.reached(Some(-1), "https://worker.example/x"));
+        assert!(!kept.reached(None, "https://v16.tiktokcdn.com/v.mp4"));
+        let mut next = RequestHeaders::default();
+        next.merge_reached(kept.export_reached());
+        assert!(next.reached(TAB, "https://v16.tiktokcdn.com/v.mp4"));
     }
 
     #[test]

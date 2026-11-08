@@ -84,8 +84,16 @@ pub(super) async fn hand_chosen(
     // A stream chosen from the panel (`ask`) is a video the page is playing:
     // its session goes with it, for this download alone, as a video page's
     // does. TikTok's and others' CDN refuse a signed address without it.
-    let (cookies, cookies_once) =
-        sign_in_for(&target.url, store.as_deref(), target.page || ask).await;
+    // Only to the page's own site or a host the tab's requests went to: the
+    // page names the file, and could name another site's (gaps row 159 c).
+    let video = (target.page || ask)
+        && decide::session_goes(
+            &target.url,
+            &target.referrer,
+            target.page,
+            reached(tab, &target.url).await,
+        );
+    let (cookies, cookies_once) = sign_in_for(&target.url, store.as_deref(), video).await;
     // A signed address runs out: the newest one the player has asked for goes, not the first seen.
     let address = if target.page {
         target.url.clone()
