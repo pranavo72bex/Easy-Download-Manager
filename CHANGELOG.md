@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed, found by new tests written to cover the engine (each kept as a test that failed first):
+  - A part saved as a GIF from a video with no edit list (most MP4s), or an edit of no length, was refused as "a GIF is made of two minutes at most", a one-second video too: its end was taken as the end of time. It now plays from its first picture shown to the end of its last (on macOS, Windows and Linux).
+  - A GIF from a video with fewer pictures a second than asked played fast (a second lasted 0.83 s) and its last picture was cut short: each picture is now held until the next one's time and the last to the end of the part.
+  - A part of a stream smaller than 256 KB with no index given could not be cut: the server's honest answer, all the file has, was refused as a dishonest range.
+  - A YouTube video offered only as files with picture and sound together failed with "no stream at that quality".
+- Tests: line coverage raised where it was lowest, YouTube's reading (61% to 98%), video pages (41% to 99%), GIF frames (27% to 96%), parts (54% to 96%), shapes (63% to 100%), HLS (77% to 97%), the browser's host (75% to 95%), the shell (to 95%) and the registration (to 88%; the rest is Linux, Windows and release-build code), with local servers and fixtures only; CI fails below a coverage floor that is only raised (`docs/coverage-floor.txt`).
 - Engine (from a review of the download engine, each with a test that failed first where it could):
   - Fixed: a server that compresses a file unasked and states the compressed length (Apache's `AddEncoding x-gzip` on a `.tar.gz`) had the whole file fetched again and again for about 16 seconds, 12 times in the test, before it was saved: the decoded bytes were held to the encoded length. A compressed body cut off by the server is still refused.
   - Fixed: a server that names no version (no ETag, no Last-Modified) and answers ranges with the whole file made a download on several connections fail with "the file changed on the server"; it is now fetched on one connection, as a server that stops serving ranges is. On one connection, ranges refused (a resume) now fetch the file again from the start instead of failing.

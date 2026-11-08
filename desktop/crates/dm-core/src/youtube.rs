@@ -793,6 +793,13 @@ fn choose(
                     )
                 })
         })?;
+    // A picture with its own sound (the formats with both in one file, which
+    // name two codecs) needs none beside it: asking for one failed every
+    // video offered only that way with "no stream at that quality"
+    // (coverage tests, 2026-11-08).
+    if picture.video && picture.codec.contains(',') {
+        return Some(vec![(*picture).clone()]);
+    }
     let sound = match picture.container.as_str() {
         "webm" => audio_in("webm").or_else(audio_in_m4a),
         _ => audio_in("m4a").or_else(|| audio_in("webm")),

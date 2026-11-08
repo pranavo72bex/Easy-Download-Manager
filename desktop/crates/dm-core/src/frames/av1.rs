@@ -84,14 +84,8 @@ pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<F
         );
     }
     let scale = f64::from(video.timescale.max(1));
-    let (start, end) = match video.edits.iter().find(|e| e.media_time >= 0) {
-        Some(edit) => {
-            let from = edit.media_time as f64 / scale;
-            let long = edit.duration as f64 / f64::from(video.edits_timescale.max(1));
-            (from, if long > 0.0 { from + long } else { f64::MAX })
-        }
-        None => (0.0, f64::MAX),
-    };
+    // The part the edit list plays, in the track's time (`played`).
+    let (start, end) = super::played(&video);
     if end - start > 120.0 {
         return Err("a GIF is made of two minutes at most; choose a shorter part".into());
     }
@@ -125,10 +119,17 @@ pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<F
     decoder.drain(|picture| take(&mut held, picture, scale))?;
 
     let (w, h) = held.size.ok_or("no picture of the part was decoded")?;
+    // The last is held to the end of the part it plays, not one tick.
+    let span = (held.end - held.start) * f64::from(fps.max(1));
+    let end = if span.is_finite() {
+        span.ceil().max(0.0) as u64
+    } else {
+        0
+    };
     let ticks: Vec<_> = held.ticks.into_iter().collect();
     let mut frames = Vec::with_capacity(ticks.len());
     for (i, (tick, (_, rgb))) in ticks.iter().enumerate() {
-        let next = ticks.get(i + 1).map_or(tick + 1, |(t, _)| *t);
+        let next = ticks.get(i + 1).map_or((tick + 1).max(end), |(t, _)| *t);
         let delay = ((next - tick) as f64 * 100.0 / f64::from(fps.max(1)))
             .round()
             .max(2.0) as u16;

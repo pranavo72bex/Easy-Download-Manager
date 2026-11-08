@@ -90,6 +90,44 @@ fn shrink(
     out
 }
 
+/// The part of a picture track that plays, in seconds of its own time: what its first edit names,
+/// or, with no edit list or an edit of no length, every picture from the first shown to the end of
+/// the last (by when each is shown, its decode time and its composition offset: a stream with
+/// B-frames shows its first picture after its first decode). Taken as "to the end of time" before,
+/// every such video was longer than a GIF may be and refused, a one-second one too (coverage
+/// tests, 2026-11-08).
+pub(crate) fn played(video: &crate::mp4mux::Track) -> (f64, f64) {
+    let scale = f64::from(video.timescale.max(1));
+    let mut decoded = i64::try_from(video.start.unwrap_or(0)).unwrap_or(i64::MAX);
+    let (mut first, mut last) = (i64::MAX, i64::MIN);
+    for sample in &video.samples {
+        let shown = decoded.saturating_add(i64::from(sample.cts));
+        first = first.min(shown);
+        last = last.max(shown.saturating_add(i64::from(sample.duration)));
+        decoded = decoded.saturating_add(i64::from(sample.duration));
+    }
+    let (first, last) = if video.samples.is_empty() {
+        (0.0, 0.0)
+    } else {
+        (first as f64 / scale, last as f64 / scale)
+    };
+    match video.edits.iter().find(|e| e.media_time >= 0) {
+        Some(edit) => {
+            let from = edit.media_time as f64 / scale;
+            let long = edit.duration as f64 / f64::from(video.edits_timescale.max(1));
+            (
+                from,
+                if long > 0.0 {
+                    from + long
+                } else {
+                    last.max(from)
+                },
+            )
+        }
+        None => (first, last),
+    }
+}
+
 #[cfg(target_os = "macos")]
 mod mac {
     use super::{shrink, Frame};
@@ -302,15 +340,8 @@ mod mac {
             .ok_or("the part has no picture")?;
         let (sets, nal_length) = parameter_sets(&video.stsd)?;
         let scale = f64::from(video.timescale.max(1));
-        // The part the edit list plays, in the track's time.
-        let (start, end) = match video.edits.iter().find(|e| e.media_time >= 0) {
-            Some(edit) => {
-                let from = edit.media_time as f64 / scale;
-                let long = edit.duration as f64 / f64::from(video.edits_timescale.max(1));
-                (from, if long > 0.0 { from + long } else { f64::MAX })
-            }
-            None => (0.0, f64::MAX),
-        };
+        // The part the edit list plays, in the track's time (`played`).
+        let (start, end) = super::played(&video);
         if end - start > 120.0 {
             return Err("a GIF is made of two minutes at most; choose a shorter part".into());
         }
@@ -453,14 +484,29 @@ mod mac {
         }
         let (w, h) = held.size.ok_or("no picture of the part could be decoded")?;
         // Hundredths of a second each, rounded so the whole keeps time
-        // (12 a second is 8, 8, 9, ...).
-        let frames = std::mem::take(&mut held.ticks)
-            .into_values()
+        // (12 a second is 8, 8, 9, ...), and held until the next picture's
+        // tick: a video with fewer pictures a second than asked skips ticks,
+        // and timed by its place in the list it played fast (a second of 10
+        // a second asked at 12 lasted 0.83 s; coverage tests, 2026-11-08).
+        let ticks: Vec<_> = std::mem::take(&mut held.ticks).into_iter().collect();
+        let at = |n: u64| (n * 100 + u64::from(fps) / 2) / u64::from(fps);
+        // The last is held to the end of the part it plays, not one tick.
+        let span = (held.end - held.start) * f64::from(fps);
+        let end = if span.is_finite() {
+            span.ceil().max(0.0) as u64
+        } else {
+            0
+        };
+        let frames = ticks
+            .iter()
             .enumerate()
-            .map(|(i, (_, rgb))| {
-                let at = |n: usize| (n as u64 * 100 + u64::from(fps) / 2) / u64::from(fps);
-                let delay = (at(i + 1) - at(i)).max(2) as u16;
-                Frame { rgb, delay }
+            .map(|(i, (tick, (_, rgb)))| {
+                let next = ticks.get(i + 1).map_or((tick + 1).max(end), |(t, _)| *t);
+                let delay = (at(next) - at(*tick)).max(2) as u16;
+                Frame {
+                    rgb: rgb.clone(),
+                    delay,
+                }
             })
             .collect::<Vec<_>>();
         Ok((w as u16, h as u16, frames))

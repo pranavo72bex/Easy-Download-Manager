@@ -77,15 +77,8 @@ pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<F
         .ok_or("the part has no picture")?;
     let (sets, nal_length) = parameter_sets(&video.stsd)?;
     let scale = f64::from(video.timescale.max(1));
-    // The part the edit list plays, in the track's time.
-    let (start, end) = match video.edits.iter().find(|e| e.media_time >= 0) {
-        Some(edit) => {
-            let from = edit.media_time as f64 / scale;
-            let long = edit.duration as f64 / f64::from(video.edits_timescale.max(1));
-            (from, if long > 0.0 { from + long } else { f64::MAX })
-        }
-        None => (0.0, f64::MAX),
-    };
+    // The part the edit list plays, in the track's time (`played`).
+    let (start, end) = super::played(&video);
     if end - start > 120.0 {
         return Err("a GIF is made of two minutes at most; choose a shorter part".into());
     }
@@ -192,14 +185,29 @@ pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<F
             .size
             .ok_or("no picture of the part could be decoded")?;
         // Hundredths of a second each, rounded so the whole keeps time
-        // (12 a second is 8, 8, 9, ...).
-        let frames = std::mem::take(&mut run.held.ticks)
-            .into_values()
+        // (12 a second is 8, 8, 9, ...), and held until the next picture's
+        // tick: a video with fewer pictures a second than asked skips ticks,
+        // and timed by its place in the list it played fast (a second of 10
+        // a second asked at 12 lasted 0.83 s; coverage tests, 2026-11-08).
+        let ticks: Vec<_> = std::mem::take(&mut run.held.ticks).into_iter().collect();
+        let at = |n: u64| (n * 100 + u64::from(fps) / 2) / u64::from(fps);
+        // The last is held to the end of the part it plays, not one tick.
+        let span = (run.held.end - run.held.start) * f64::from(fps);
+        let end = if span.is_finite() {
+            span.ceil().max(0.0) as u64
+        } else {
+            0
+        };
+        let frames = ticks
+            .iter()
             .enumerate()
-            .map(|(i, (_, rgb))| {
-                let at = |n: usize| (n as u64 * 100 + u64::from(fps) / 2) / u64::from(fps);
-                let delay = (at(i + 1) - at(i)).max(2) as u16;
-                Frame { rgb, delay }
+            .map(|(i, (tick, (_, rgb)))| {
+                let next = ticks.get(i + 1).map_or((tick + 1).max(end), |(t, _)| *t);
+                let delay = (at(next) - at(*tick)).max(2) as u16;
+                Frame {
+                    rgb: rgb.clone(),
+                    delay,
+                }
             })
             .collect::<Vec<_>>();
         Ok((w as u16, h as u16, frames))

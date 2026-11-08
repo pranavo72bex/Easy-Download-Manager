@@ -1338,3 +1338,69 @@ mod installed_tests {
 
 #[cfg(test)]
 mod tests;
+
+/// What only this module can reach: how a browser is told to be installed
+/// where no public way in asks on this system (an unpacked Linux browser,
+/// Firefox as a Snap), and where the Windows manifests go.
+#[cfg(test)]
+mod coverage_tests {
+    use super::*;
+
+    #[test]
+    fn a_browser_unpacked_into_a_folder_of_its_own_counts_only_with_its_program() {
+        let root = tempfile::tempdir().unwrap();
+        let programs = Programs {
+            unpacked: vec![root.path().to_path_buf(), root.path().join("not-there")],
+            ..Programs::default()
+        };
+        // A folder named after it, but without the program inside.
+        std::fs::create_dir_all(root.path().join("Firefox-ESR")).unwrap();
+        assert!(!programs.unpacked_has(&["firefox"]));
+        // Named in any case and any version, with the program in it.
+        std::fs::create_dir_all(root.path().join("Firefox-128.0")).unwrap();
+        std::fs::write(root.path().join("Firefox-128.0/firefox"), b"").unwrap();
+        assert!(programs.unpacked_has(&["firefox"]));
+        // Another browser's program in that folder is not this one's.
+        assert!(!programs.unpacked_has(&["vivaldi"]));
+        // Nowhere to look.
+        assert!(!Programs::default().unpacked_has(&["firefox"]));
+    }
+
+    #[test]
+    fn firefox_as_a_snap_counts_as_installed_beside_an_empty_mozilla_folder() {
+        let home = tempfile::tempdir().unwrap();
+        let place = Place {
+            dir: home.path().join(".mozilla/native-messaging-hosts"),
+            family: Family::Firefox,
+            programs: &[],
+        };
+        assert_eq!(place.browser(), home.path().join(".mozilla"));
+        assert!(!place.installed(&Programs::default()));
+        std::fs::create_dir_all(home.path().join("snap/firefox")).unwrap();
+        assert!(place.installed(&Programs::default()));
+        // The Snap's folder says nothing of a Chromium browser.
+        let chromium = Place {
+            family: Family::Chromium,
+            ..place.clone()
+        };
+        assert!(!chromium.installed(&Programs::default()));
+        // A place with no parent is its own browser folder.
+        let bare = Place {
+            dir: PathBuf::from("/"),
+            family: Family::Chromium,
+            programs: &[],
+        };
+        assert_eq!(bare.browser(), Path::new("/"));
+    }
+
+    #[test]
+    fn the_windows_manifests_live_in_dms_own_folder() {
+        let home = Path::new("/home/someone");
+        let data = windows_data(home);
+        assert_eq!(data.file_name(), Some(std::ffi::OsStr::new("dm")));
+        assert_eq!(
+            windows_manifest(&data, Family::Firefox),
+            data.join("NativeMessagingHosts/firefox/com.dm.engine.json")
+        );
+    }
+}
