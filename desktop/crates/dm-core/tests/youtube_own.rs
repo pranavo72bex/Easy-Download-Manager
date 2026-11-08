@@ -177,22 +177,24 @@ fn text(status: StatusCode, kind: &str, body: String) -> Response {
         .unwrap()
 }
 
-/// Whether a JavaScript engine the reader can run the solver in is here.
+/// Whether a JavaScript engine the reader can answer the player's checks in is here: Windows'
+/// own, or an installed one.
 fn an_engine_is_here() -> bool {
-    ["deno", "qjs"].iter().any(|program| {
-        std::process::Command::new(program)
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok()
-    })
+    cfg!(windows)
+        || ["deno", "qjs"].iter().any(|program| {
+            std::process::Command::new(program)
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok()
+        })
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
     if !an_engine_is_here() {
-        eprintln!("no deno or qjs here: skipped");
+        eprintln!("no JavaScript engine here: skipped");
         return;
     }
     let seen = Seen::default();
@@ -290,23 +292,11 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
         .route("/youtubei/v1/player", post(player_api))
         .route(
             "/s/player/abcd1234/player_ias.vflset/en_US/base.js",
-            get(|| async { text(StatusCode::OK, "text/javascript", "var player = 1;".into()) }),
-        )
-        .route(
-            "/ejs/yt.solver.lib.min.js",
-            get(|| async { text(StatusCode::OK, "text/javascript", "var lib = { from: 'the lib' };".into()) }),
-        )
-        .route(
-            "/ejs/yt.solver.core.min.js",
-            get(|| async {
-                // The stand-in solver: each challenge answered in capitals,
-                // in the real solver's shape.
-                text(
-                    StatusCode::OK,
-                    "text/javascript",
-                    "var jsc = function (input) { if (!globalThis.from || input.type !== 'player' || typeof input.player !== 'string') { return { type: 'error', error: 'bad input' }; } return { type: 'result', responses: input.requests.map(function (r) { return { type: 'result', data: Object.fromEntries(r.challenges.map(function (c) { return [c, c.toUpperCase()]; })) }; }) }; };".into(),
-                )
-            }),
+            // A player in the real one's shape, cut and run by dm as the real one is: its
+            // address class, whose own method turns `n` into capitals, its function that builds
+            // a stream's address and deciphers a signature into capitals, and a call made while
+            // it loads that only a page could answer.
+            get(|| async { text(StatusCode::OK, "text/javascript", PLAYER.into()) }),
         )
         .fallback(get({
             let (picture, sound) = (picture.clone(), sound.clone());
@@ -337,7 +327,6 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
     let dir = tempdir();
     // The stand-in.
     std::env::set_var("DM_YOUTUBE_HOST", &origin);
-    std::env::set_var("DM_EJS_RELEASES", format!("{origin}/ejs"));
     dm_core::tools::set_folder(dir.path().join("tools"));
 
     let page = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
@@ -368,11 +357,11 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
         !seen.iter().any(|u| u.starts_with("/locked")),
         "a locked stream was asked for: {seen:?}"
     );
-    // The solver's scripts were kept, for the next reading.
-    assert!(dir
-        .path()
-        .join("tools/ejs-0.8.0/yt.solver.core.min.js")
-        .is_file());
+    // Nothing was fetched to answer the checks: no tool and no script.
+    assert!(
+        !dir.path().join("tools").exists() || cfg!(not(windows)),
+        "a tool was fetched on Windows"
+    );
 
     // A part of the same video, from 2 to 4 seconds. Each piece of the
     // picture plays a second, so its pieces 2 and 3 are asked for, by
@@ -466,6 +455,19 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
 }
 
 /// `text` percent-encoded as a query value.
+/// The test's player: the real one's shape, small.
+const PLAYER: &str = r#"var _yt_player={};(function(g){var window=this;'use strict';var ca="set;get;n".split(";");
+g.ch=function(a,b){this.url=a;this.p={}};
+g.ch.prototype.set=function(a,b){this.p[a]=b};
+g.ch.prototype.get=function(a){return this.p[a]};
+g.ch.prototype.Zn=function(){var a=this.get(ca[2]);a&&this.set(ca[2],a.toUpperCase())};
+g.ch.prototype.clone=function(){return new g.ch(this.url)};
+Ws=function(a){return a.toUpperCase()};
+om=function(a,b,c){b=b===void 0?"":b;c=c===void 0?"":c;a=new g.ch(a,!0);a.set("alr","yes");c&&(c=Ws(decodeURIComponent(c)),a[ca[0]](b,encodeURIComponent(c)));return a};
+window.document.querySelector("video").play();
+})(_yt_player);
+"#;
+
 fn urlencoding(text: &str) -> String {
     url::form_urlencoded::byte_serialize(text.as_bytes()).collect()
 }

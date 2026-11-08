@@ -212,9 +212,9 @@ release (CHANGELOG, "Security hardening from the pre-release review"):
 - Index ranges from the player API were unbounded before allocation; now
   capped. Quarantine removal no longer follows links; adoption staging is
   per process; the Mozilla source archive is written outside `dist/`.
-- Left: the test-only environment knobs (`DM_YOUTUBE_HOST`,
-  `DM_EJS_RELEASES`) are honoured in release builds; environment variables
-  are trusted by this report's model.
+- Left: the test-only environment knob `DM_YOUTUBE_HOST` is honoured in
+  release builds; environment variables are trusted by this report's model.
+  (`DM_EJS_RELEASES` went with the fetched scripts on 2026-11-08.)
 
 
 ---
@@ -425,3 +425,37 @@ this branch, both fixed the same day:
   fetches now treat a redirect as an error (`plumbing.rs` `fetch_bytes`,
   `redirect: "error"`); a playlist behind a redirect is left undescribed.
   `chrome-check.py` 88 of 88.
+
+---
+
+## YouTube's checks in Windows' own engine, 2026-11-08
+
+What changed: the two challenge scripts and QuickJS are no longer fetched from GitHub to read a
+YouTube video on Windows. dm cuts the player script itself (`youtube/player.rs`, a tokenizer and
+statement splitter of dm's own; nothing is parsed further) and runs the result in Windows' own
+Chakra (`javascript.rs`), as reference A runs its pieces in Windows' JScript9, in a process of its
+own: dm's own program started as the engine's host (`--javascript-host`).
+
+- What runs: YouTube's own player code, from `https://www.youtube.com/s/player/…` only (the
+  existing `player_path` check), less the calls it makes while loading, plus dm's few lines that
+  call it. The same code every browser runs on youtube.com. Attacker: YouTube itself or a TLS
+  interceptor the user trusts, as before.
+- What it can reach: nothing of the computer. A JSRT runtime has JavaScript's own objects and no
+  host objects (no files, programs, network, `ActiveXObject`, WinRT): dm projects none, and a test
+  checks the usual names are absent (`there_is_nothing_of_the_computer_in_reach`). That is tighter
+  than QuickJS's command line, whose modules reach files and programs.
+- How it is held in: no compiling to machine code (`DisableNativeCodeGeneration`: an interpreter
+  only, which removes the JIT, where engine exploits usually live); no `eval` or `Function`; at
+  most 256 MB (`JsSetRuntimeMemoryLimit`); stopped after 30 seconds from a second thread
+  (`JsDisableRuntimeExecution`); a thread of its own with a 16 MB stack. `chakra.dll` is loaded from
+  System32 only (`LOAD_LIBRARY_SEARCH_SYSTEM32`), so a planted DLL beside dm is not taken.
+- A process of its own: Chakra ends its whole process when a program passes its memory limit
+  (found in testing, whatever the program does to get there), and a fault in the engine would do
+  the same. In the host process that ends only the host; the app says the checks were not
+  answered and goes on (`in_a_process_of_its_own_a_program_that_takes_too_much_memory_ends_only_its_host`).
+  The host reads one request and touches nothing else (no settings, no window, no lock).
+- Left: the host runs as the user, not in a sandbox of its own (a restricted token or an
+  AppContainer would be one), so an exploitable bug in Chakra's interpreter, reached by a
+  malicious player, would run as the user, as a bug in the QuickJS process could before. Chakra is
+  kept up by Windows Update.
+

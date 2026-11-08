@@ -3666,6 +3666,9 @@ they are shown to a person only through the window's own sentences above, or as 
 
 ## The YouTube challenge scripts stay fetched from their project's release page (2026-11-01)
 
+Replaced on 2026-11-08: "YouTube's checks are answered as reference A answers them" below. The
+scripts are no longer fetched, and the weekly pull request is gone.
+
 dm reads YouTube itself (`youtube.rs`). To answer the signature and speed-limit checks in YouTube's
 player it runs two small scripts in QuickJS or Deno, pinned by version and digest (`SOLVER_VERSION`,
 `SOLVER_LIB`, `SOLVER_CORE`) and fetched once from the release page of the project that publishes
@@ -4592,3 +4595,62 @@ cookies altogether: what it sent is the answer). The plain panel's shadow root s
 panel's does: closing it would have ended the site checks, which read the lines inside both
 (`sites-check.py` `LITE_STATE`); a page could still restyle a button inside it, which `asDrawn`,
 looking at the holder, does not see.
+
+## 2026-11-08: YouTube's checks are answered as reference A answers them, with nothing fetched
+
+Asked by the maintainer on 2026-11-08 ("It should work out of the box for every users. make it rock
+solid. speically youtube part"; "better way to fix the issue? without shipping any third party
+package like quickjs?"; "how to [reference A] is doing it. also refer [reference A] and work as it"), and gaps row 162's
+own ask (the weekly check fixing itself with no external video tool and no other third party).
+That afternoon YouTube downloads failed on every fresh install: the two challenge scripts and
+QuickJS were fetched from GitHub's release pages at first use, and GitHub answered 504 for hours.
+
+How reference A does it, read from its own files (`docs/reference-behavior.md`, "How reference A
+answers YouTube's checks"): its extension finds the player script on the page, fetches it and cuts
+out the signature and `n` pieces with patterns its app sends it; its network library's YouTube parser
+puts the pieces in a small program of its own and runs it in Windows' own JScript9 engine
+(`IActiveScript`), with polyfills for that old engine. It ships no engine and fetches nothing.
+
+dm now does the same, with nothing fetched and no one else's script:
+
+- `youtube/player.rs` cuts the player itself. The player is one function whose statements define
+  its parts and then start it; dm keeps every statement but the calls made while it loads (an
+  expression statement that is not one assignment), so what is left defines and reaches for
+  nothing. Its function that builds a stream's address (the one whose own statements include
+  `x.set("alr","yes")`) is called as the player calls it, which deciphers a signature, and the
+  method its address class adds to `set`, `get` and `clone` turns `n`. These are the player's shape,
+  not its names, which change with every version; today's player (`a5c2aafe`) hides every name
+  behind a string table and its signature steps inside numbered dispatchers, and the shape holds.
+  A tokenizer of dm's own (strings, templates, regular expressions, comments) splits the
+  statements; nothing is parsed further.
+- `javascript.rs` runs the program in the computer's own engine. On Windows that is Windows' own
+  Chakra (`chakra.dll`, in System32 on Windows 10 and 11), through its hosting functions, loaded
+  from System32 only, with no compiling to machine code, no `eval`, 256 MB at most and 30
+  seconds; a program there has JavaScript's own objects and no files, programs or network. In
+  the app it runs in a process of its own: dm's own program started as the engine's host
+  (`dm-desktop --javascript-host`, one request on its input and the answer on its output), as the
+  warm page reader already is. Testing found that Chakra ends its whole process when a program
+  passes its memory limit, whatever the program does to get there; in the app's own process that
+  would have ended every download with it. A test or a tool with no host runs it in its own
+  process. It reads the ES5 build of the player (`player_ias`, the same version
+  as the page's `player_es6`, whose syntax Chakra predates). Where Chakra is missing, and on macOS
+  and Linux until their own engines are used (gaps row 164), an installed Deno (no permissions) or
+  QuickJS runs the same program.
+- Checked against the scripts it replaces, on the live player: the same `n` and signature answers,
+  in Node and in Chakra (about 2 s, 27 MB); the cut is 0.5 s where the scripts' parser took 3.7 s.
+
+Ruled out: shipping the two scripts in dm (third party, and the maintainer's later words); running
+the whole player against a stand-in browser (it starts at once and reaches for the page);
+JScript9 as reference A uses it (no `Symbol`, which today's player names while loading);
+`cscript.exe` (a separate host that policy may switch off and that security tools watch); WebView2
+(a window and a loader for a few functions); a JavaScript engine built into dm (third party, and a
+megabyte or more). Chakra holds pointers into the program's text and frees an unheld value at its
+next collection, so dm keeps both texts alive for the runtime's life, holds every value it reads
+(`JsAddRef`), and never reads the long program's own value (reading it, a function, crashed the
+engine in testing).
+
+The weekly job that moved the scripts' pin (`solver-update.yml`, `scripts/update-solver.py` and its
+test) is gone. `.github/workflows/youtube-check.yml` takes its place: every Monday, on Windows, real
+videos through dm's own reader, the first kilobyte of each chosen stream asked for as a download
+asks (`youtube_read`, `DM_FETCH_FIRST`), and an issue opened, or added to, when one fails.
+

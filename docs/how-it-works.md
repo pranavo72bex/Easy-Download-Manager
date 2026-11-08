@@ -440,12 +440,18 @@ desktop/
     mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM (mp4mux/: read, write, text)
     live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
                           recorder, connect, session)
-    youtube.rs            a YouTube page read by dm itself (the player API, the solver scripts),
-                          and a playlist page's videos
+    youtube.rs            a YouTube page read by dm itself (the player API; the player's checks
+                          answered by youtube/player.rs, the player cut down to what answers
+                          them, as reference A does), and a playlist page's videos
+    javascript.rs         the computer's own JavaScript engine for that program: Windows' own
+                          Chakra (chakra.dll; no JIT, no eval, memory and time capped), in a
+                          process of its own, dm started as its host (--javascript-host);
+                          elsewhere an installed Deno, or QuickJS
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
     videopage.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old
-                          name), and the tools dm fetches and checks (QuickJS)
+                          name), and the tools dm fetches and checks (QuickJS, where a system has
+                          no engine of its own and none installed)
     videopage/fetch.rs        a page's reading, its streams fetched by dm's engine
     videopage/choices.rs      the panel's list of qualities, from the page's own data
     videopage/page_data.rs    a YouTube watch page's own player data, read as that list

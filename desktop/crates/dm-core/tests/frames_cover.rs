@@ -12,14 +12,18 @@
 //! instead (its own tests are in `frames/av1.rs`), so the H.264 checks here
 //! run on macOS only.
 
+#[cfg(target_os = "macos")]
 use std::path::{Path, PathBuf};
 
+// For the H.264 checks, which run on macOS only.
+#[cfg(target_os = "macos")]
 fn media(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/media/mp4mux")
         .join(name)
 }
 
+#[cfg(target_os = "macos")]
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/mp4")

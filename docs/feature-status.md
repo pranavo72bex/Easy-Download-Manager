@@ -541,7 +541,14 @@ of them.
       bytes really cross a BitTorrent connection rather than being copied
 - [x] Player-only sites — a YouTube watch page is read by dm itself
       (`youtube.rs`): the page, the player API as a TV client and the player
-      script, whose challenges run in QuickJS or Deno, and its picture and
+      script, whose checks dm answers itself as reference A does, the player
+      cut down to what answers them (`youtube/player.rs`) and run in the
+      computer's own JavaScript engine (`javascript.rs`: Windows' own Chakra,
+      nothing fetched; elsewhere an installed Deno or QuickJS), checked on the
+      live player against the scripts it replaced, and on Windows with nothing
+      installed (`out-of-box-check.py`: an ordinary video, 1080p, a 4K music
+      video locked behind signatures at its best, 720p MP4, 480p WebM and its
+      sound, each whole, nothing fetched), and its picture and
       sound are fetched by dm's own engine and joined by dm (`mp4mux.rs`; an
       HLS transport stream is put into an MP4 by `tsmux.rs`). Another site's
       video comes from the browser extension's caught player requests; the

@@ -11,8 +11,11 @@
 //!     cargo run -p dm-core --example youtube_read -- <watch-url>...
 //!     DM_CODEC=av01 cargo run -p dm-core --example youtube_read -- <watch-url>...
 //!
-//! It reads only; nothing is downloaded. Its staging folder, and the tools it
-//! fetches for YouTube's challenges, are in a temporary one.
+//! It reads only; nothing is downloaded. With DM_FETCH_FIRST set, it also asks
+//! for the first kilobyte of each stream it chose, as a download does, and says
+//! whether YouTube accepted the answers to its checks (`ACCEPTED`) or refused
+//! them (`REFUSED`): the weekly check (`.github/workflows/youtube-check.yml`).
+//! Its staging folder is a temporary one.
 
 use dm_core::youtube;
 use dm_core::Quality;
@@ -25,10 +28,11 @@ async fn main() {
         std::process::exit(2);
     }
     let staging = tempfile::tempdir().expect("no temporary folder");
-    // The JavaScript engine and the solver YouTube's challenges need, fetched
-    // into a folder of this run's (checked against their digests), as the
-    // app fetches them into its own.
+    // Where a JavaScript engine is fetched (a system with none of its own and
+    // none installed), into a folder of this run's, as the app fetches it into
+    // its own.
     dm_core::tools::set_folder(staging.path().join("tools"));
+    let fetch_first = std::env::var_os("DM_FETCH_FIRST").is_some();
     let client = dm_core::client();
     for url in urls {
         let started = std::time::Instant::now();
@@ -91,7 +95,14 @@ async fn main() {
                         println!("ADDRESS {first}");
                     }
                 }
-                for chosen in value["requested_formats"].as_array().into_iter().flatten() {
+                if let Some(player) = value["player"].as_str() {
+                    println!("PLAYER {player}");
+                }
+                let chosen: Vec<&serde_json::Value> = match value["requested_formats"].as_array() {
+                    Some(pair) => pair.iter().collect(),
+                    None => vec![&value],
+                };
+                for chosen in chosen {
                     println!(
                         "CHOSE {} {} {}",
                         chosen["vcodec"].as_str().unwrap_or(""),
@@ -100,6 +111,9 @@ async fn main() {
                             .as_u64()
                             .map_or(String::new(), |h| format!("{h}p"))
                     );
+                    if fetch_first {
+                        println!("{}", first_kilobyte(&client, chosen).await);
+                    }
                 }
                 println!(
                     "OK    {url}  {formats} formats, {with_address} with an address, best {best}p, {took:.1} s, title {:?}",
@@ -109,4 +123,83 @@ async fn main() {
             Err(e) => println!("FAIL  {url}  {e}  ({took:.1} s)"),
         }
     }
+}
+
+/// Whether YouTube gives the first kilobyte of a chosen stream, asked for as a download asks:
+/// a redirect followed (dm follows them itself), and a refusal asked again twice, five seconds
+/// apart, as a download's own retries would. YouTube refuses a stream now and then that it
+/// gives a moment later; the weekly check is for answers it never takes.
+async fn first_kilobyte(client: &dm_core::reqwest::Client, chosen: &serde_json::Value) -> String {
+    let Some(url) = chosen["url"].as_str() else {
+        return "REFUSED no address".into();
+    };
+    let itag = chosen["format_id"].as_str().unwrap_or("?");
+    let mut last = String::new();
+    for attempt in 1..=3 {
+        if attempt > 1 {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+        match once(client, url, chosen).await {
+            Ok((status, bytes)) => {
+                let tries = if attempt > 1 {
+                    format!(", try {attempt}")
+                } else {
+                    String::new()
+                };
+                return format!("ACCEPTED {itag} {status} {bytes} bytes{tries}");
+            }
+            Err(why) => last = why,
+        }
+    }
+    format!("REFUSED {itag} {last}")
+}
+
+/// One ask for the first kilobyte at `url`, its redirects followed: the status and the bytes
+/// given, or why none were.
+async fn once(
+    client: &dm_core::reqwest::Client,
+    url: &str,
+    chosen: &serde_json::Value,
+) -> Result<(u16, usize), String> {
+    let mut url = url.to_string();
+    for _ in 0..5 {
+        let mut ask = client.get(&url).header("Range", "bytes=0-1023");
+        if let Some(headers) = chosen["http_headers"].as_object() {
+            for (name, value) in headers {
+                if let Some(value) = value.as_str() {
+                    ask = ask.header(name.as_str(), value);
+                }
+            }
+        }
+        let answer = ask.send().await.map_err(|e| e.to_string())?;
+        let status = answer.status();
+        if status.is_redirection() {
+            let next = answer
+                .headers()
+                .get("location")
+                .and_then(|v| v.to_str().ok())
+                .ok_or("a redirect to nowhere")?;
+            url = answer
+                .url()
+                .join(next)
+                .map_err(|e| e.to_string())?
+                .to_string();
+            continue;
+        }
+        if !status.is_success() {
+            let from = answer
+                .remote_addr()
+                .map_or(String::new(), |a| format!(" from {a}"));
+            // With DM_SHOW_ADDRESS, the address refused, to be fetched by other means.
+            let shown =
+                std::env::var_os("DM_SHOW_ADDRESS").map_or(String::new(), |_| format!(" {url}"));
+            return Err(format!("{}{from}{shown}", status.as_u16()));
+        }
+        let bytes = answer.bytes().await.map_err(|e| e.to_string())?;
+        if bytes.is_empty() {
+            return Err(format!("{} with nothing in it", status.as_u16()));
+        }
+        return Ok((status.as_u16(), bytes.len()));
+    }
+    Err("redirected more than five times".into())
 }

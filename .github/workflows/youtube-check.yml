@@ -1,0 +1,84 @@
+name: YouTube, weekly
+
+# YouTube changes its player every week or two, and dm answers the player's checks itself, as
+# reference A does: the player script cut down to what answers them (dm-core youtube/player.rs),
+# run in the computer's own JavaScript engine (javascript.rs; on Windows, Windows' own, so nothing
+# is fetched or shipped for it). Every Monday, and by hand, this reads real videos through dm's own
+# reader and asks YouTube for the first kilobyte of each stream it chose, as a download does. When a
+# video is not read, or its streams are refused, it says so in an issue (one, added to while it is
+# open) with the player that failed and dm's words, so the cutter is put right before people find
+# it broken. A schedule runs only from the default branch (main).
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  youtube:
+    name: real videos through dm's own reader
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - name: The reader
+        working-directory: desktop
+        run: cargo build --release -p dm-core --example youtube_read --locked
+      - name: Read real videos, and ask for each stream's first kilobyte
+        id: read
+        env:
+          DM_FETCH_FIRST: "1"
+        # An ordinary video, a music video (its streams locked behind signatures), a 4K one and
+        # a Short (YouTube's own channel's).
+        run: |
+          $videos = @(
+            'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+            'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            'https://www.youtube.com/watch?v=LXb3EKWsInQ',
+            'https://www.youtube.com/shorts/0HAETg7L15o'
+          )
+          & desktop\target\release\examples\youtube_read.exe @videos | Tee-Object -FilePath "$env:RUNNER_TEMP\youtube.txt"
+          $said = Get-Content "$env:RUNNER_TEMP\youtube.txt" -Raw
+          if ($said -match '(?m)^(FAIL|REFUSED)') {
+            "failed=true" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+      - name: Say so in an issue
+        if: failure() && steps.read.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          $said = Get-Content "$env:RUNNER_TEMP\youtube.txt" -Raw
+          $body = @"
+          dm's own YouTube reader failed this week's check ($env:RUN).
+
+          ``````
+          $said
+          ``````
+
+          A line ``FAIL`` is a video dm could not read (its words follow); ``REFUSED`` is a stream
+          YouTube would not give for the answers dm worked out, which means the player changed in a
+          way ``desktop/crates/dm-core/src/youtube/player.rs`` does not know. ``PLAYER`` names the
+          player script read. "Sign in to confirm you're not a bot" is YouTube turning the runner's
+          address away, not the player: run it again, or read the same videos on a person's machine:
+
+              cargo run -p dm-core --example youtube_read -- <watch-url>...
+          "@
+          Set-Content -Path "$env:RUNNER_TEMP\issue.md" -Value $body -Encoding utf8
+          $title = "YouTube: dm's own reader failed the weekly check"
+          $open = gh issue list --state open --search "in:title $title" --json number --jq '.[0].number'
+          if ($open) {
+            gh issue comment $open --body-file "$env:RUNNER_TEMP\issue.md"
+          } else {
+            gh issue create --title $title --body-file "$env:RUNNER_TEMP\issue.md"
+          }

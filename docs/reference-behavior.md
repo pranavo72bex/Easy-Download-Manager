@@ -314,6 +314,41 @@ better). The duplicate question is reference A's, about its own list; dm's is co
 and B50. Results:
 `D:\compare\dialogs-report.json`.
 
+## How reference A answers YouTube's checks (Observed, 2026-11-08, Windows)
+
+Read from reference A 6.43 as installed: its Edge extension's `content.js` (6.43.1) and the strings
+of its network library (the one that watches the browsers, in its 32- and 64-bit builds). Nothing was
+run but string and export listings.
+
+- **The extension cuts the pieces.** On a YouTube page it reads the page's `<script>` elements: one
+  whose address matches the player pattern gives the player's version, and the inline
+  `ytcfg.set(...)` gives `STS`, `DATASYNC_ID`, `LOGGED_IN`, `VISITOR_DATA` or `EOM_VISITOR_DATA`,
+  `SESSION_INDEX` and `PLAYER_JS_URL`. Every pattern comes from the app (message 1 of the YouTube
+  profile), with a list of the player versions the app already holds. For a version it does not
+  hold, the extension fetches the player inside the page (XHR, ten seconds) and runs the app's five
+  patterns in turn, each able to name pieces the ones before matched (`${k.r}`). With three or more
+  matched, it sends the pieces and the player's own signature timestamp (`[37,1,1,…]`); with fewer,
+  a newer app gets the whole script (`[37,1,4,…]`).
+- **The app runs them in Windows' own engine.** That library has a `YouTubeParser`, a
+  `YouTubeRecord` and a `JScriptSite` (an `IActiveScriptSite`), and holds JScript9's class id with
+  `IActiveScript` and `IActiveScriptParse`: the pieces run in Windows' own JScript9 through Active
+  Scripting. Its program is built from templates in the DLL: a prelude of what that engine lacks
+  (`Object.assign`, `String.prototype.startsWith`, a `Date` that reads an ISO date with an offset);
+  per player version, a function `LgVav_%u` that returns two others; the player's address class
+  made from a stand-in address (`$$r=new %1($$s,true)`, `https://google.com/`); the signature through
+  the player's own calls (`$$r=%2(%3(%4,$$s))`); `n` through an address object it makes and reads
+  back (`%1(%2,$$r=$$newStream($$lgFge,'n',$$s));$$r=$$r.$$v`); each wrapped as
+  `function %s($$s){var $$r;%s;return $$r}`.
+- **Nothing is shipped or fetched for it.** Its main program holds no JavaScript engine; the only
+  other JavaScript there is for proxy scripts (a JScript proxy library of its own, and a polyfill
+  of `Array.prototype.indexOf` in the main program's proxy code).
+
+dm does the same in substance since 2026-11-08 (`docs/decisions.md`, "YouTube's checks are answered
+as reference A answers them"): the player cut by its shape (`youtube/player.rs`), run in Windows'
+own engine (`javascript.rs`). It cuts in the app rather than the extension, from the player it
+fetches itself, so a link added without the browser is read the same way; and it runs Chakra, not
+JScript9, which lacks `Symbol`, a name today's player uses while it loads.
+
 ## Dial-up / VPN redial, side by side (Observed, 2026-11-08, Windows)
 
 Reference A 6.43 and dm 0.8.7 (debug build) on one Windows 11 computer, one after the

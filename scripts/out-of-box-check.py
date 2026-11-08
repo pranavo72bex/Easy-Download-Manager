@@ -38,7 +38,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY", ROOT / "desktop/target/release/dm-desktop"))
+BINARY = pathlib.Path(os.environ.get(
+    "DM_BINARY", ROOT / "desktop/target/release" / ("dm-desktop.exe" if sys.platform == "win32" else "dm-desktop")))
 
 # (what is asked, the quality word the panel sends, what must arrive)
 CASES = [
@@ -61,13 +62,17 @@ def check(name, ok, detail=""):
 
 def rows(home):
     try:
-        data = json.loads((home / "queue.json").read_text())
+        # UTF-8, as dm writes it: Windows reads text as its own code page, and a title in
+        # another script (Gangnam Style's) made the list unreadable, so nothing seemed done.
+        data = json.loads((home / "queue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     return data if isinstance(data, list) else data.get("entries", data.get("rows", []))
 
 
 def main():
+    # Titles in any script printed, whatever the console's code page (Windows).
+    sys.stdout.reconfigure(errors="replace")
     if not BINARY.exists():
         print("building dm…")
         subprocess.run(["cargo", "build", "--release", "-p", "dm-desktop"], cwd=ROOT / "desktop", check=True)
@@ -79,13 +84,21 @@ def main():
         "show_progress": False,
         "show_complete": False,
     }))
-    env = {
-        "HOME": os.environ["HOME"],
-        "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
-        "PATH": "/usr/bin:/bin",
-        "DM_HOME": str(home),
-        "DM_ONLY_FETCHED_TOOLS": "1",
-    }
+    if sys.platform == "win32":
+        # What Windows itself gives a program, and only Windows' own folders on PATH: its
+        # network needs SystemRoot, and nothing a person installed is found.
+        kept = ("SystemRoot", "windir", "SystemDrive", "USERPROFILE", "LOCALAPPDATA", "APPDATA",
+                "TEMP", "TMP", "ProgramData", "USERNAME", "COMPUTERNAME", "HOMEDRIVE", "HOMEPATH")
+        env = {name: os.environ[name] for name in kept if name in os.environ}
+        system = os.environ.get("SystemRoot", r"C:\Windows")
+        env["PATH"] = os.pathsep.join([os.path.join(system, "System32"), system])
+    else:
+        env = {
+            "HOME": os.environ["HOME"],
+            "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
+            "PATH": "/usr/bin:/bin",
+        }
+    env.update({"DM_HOME": str(home), "DM_ONLY_FETCHED_TOOLS": "1"})
     app = subprocess.Popen([str(BINARY), "--headless"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -112,10 +125,14 @@ def main():
         listed = rows(home)
         tools = sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else []
         print(f"tools dm fetched for itself: {', '.join(tools) or 'none'}")
-        # dm's tools folder (dm-core's tools.rs) holds QuickJS (qjs) and
-        # nothing else.
-        check("dm fetched QuickJS, and nothing else", any(t.startswith("qjs") for t in tools)
-              and all(t.startswith("qjs") for t in tools), tools)
+        # dm's tools folder (dm-core's tools.rs): on Windows it stays empty, YouTube's checks
+        # being answered in Windows' own JavaScript engine (javascript.rs); elsewhere it holds
+        # QuickJS (qjs) and nothing else, until the system's own engine is used (gaps row 164).
+        if sys.platform == "win32":
+            check("dm fetched nothing: YouTube's checks ran in Windows' own engine", not tools, tools)
+        else:
+            check("dm fetched QuickJS, and nothing else", any(t.startswith("qjs") for t in tools)
+                  and all(t.startswith("qjs") for t in tools), tools)
         for n, (name, url, quality, (container, height)) in enumerate(CASES):
             print(name)
             row = listed[n] if n < len(listed) else None

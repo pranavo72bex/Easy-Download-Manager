@@ -191,6 +191,19 @@ browsers and the login items to an installed dm.
 ";
 
 fn main() {
+    // dm started as the JavaScript engine's host (dm-core's javascript.rs):
+    // one program on stdin, its answer on stdout, nothing else touched or
+    // shown. YouTube's checks run there, so an engine that ends its process
+    // ends only that one.
+    let mut raw = std::env::args_os().skip(1);
+    if let (Some(flag), None) = (raw.next(), raw.next()) {
+        if flag == dm_core::javascript::HOST_FLAG {
+            std::process::exit(dm_core::javascript::host_main());
+        }
+    }
+    // Every other way dm runs reads with the engine in such a process.
+    dm_core::javascript::host_is_this_program();
+
     // First, before any thread starts: a copy with a "portable" file beside
     // it keeps its things beside it, for the host and the window alike.
     settings::enter_portable();
