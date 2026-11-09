@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Windows: dm is listed in Settings › Default apps for magnet links and `.torrent` files (and in Windows' "How do you want to open this?"), so a person can choose it there; listing it makes dm the default of nothing and touches no other program's keys, and Uninstall takes it out.
+- Browser extension: the hook on a page's `URL.createObjectURL` and `MediaSource` is gone; what it gathered was used by nothing, so dm now changes less of the pages it watches.
 - Download details: each file in a ZIP's Contents list has a Take out button, which saves that one file into the folder the archive is going to before the archive is downloaded, fetching only that file's own bytes from a server that serves ranges; it is unpacked (stored or deflated) and checked against the archive's CRC, and a line under the list says where it went or why it could not be taken out (as reference A takes one file out of an archive).
 - Downloads: a connection far behind the others (under 0.15 of their average over five seconds) is dropped and asked again, where only one under a sixty-fourth of the whole download was before: a slow connection beside one or two fast ones is now caught too.
 - Fixed: a DASH manifest or a Metalink file whose addresses escape `&` as XML does (`&amp;`, `&#38;`) lost those characters, so a signed address such as `v.mp4?a=1&amp;b=2` was read as `v.mp4?a=1b=2` and the download failed; the escapes are now read as what they stand for.

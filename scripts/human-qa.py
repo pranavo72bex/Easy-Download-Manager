@@ -919,7 +919,12 @@ def walk(dm, origin):
           listed and partial, f"listed: {listed}; ranges asked: {[e['range'] for e in asked]}; seen: {seen[:30]}")
     # Take out, on the first file listed (the folder has none): docs/readme.txt
     # alone is fetched, by ranges, and saved beside where the archive would go.
-    dm.click("Take out")
+    # `ui.click` counts from the last drawn: setup.exe's button is the 0th, so
+    # readme.txt's is the 1st.
+    for _ in range(16):
+        if dm.call("ui.click", text="Take out", nth=1).get("ok"):
+            break
+        time.sleep(0.25)
     saved_line = ""
     for _ in range(80):
         saved_line = next((t for t in dm.texts() if "readme.txt saved to" in t), "")

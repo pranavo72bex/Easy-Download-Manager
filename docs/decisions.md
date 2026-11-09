@@ -4848,3 +4848,24 @@ built or ruled out but four engine parts, at the maintainer's word of the day
 - **Part 6, a 256 KiB write buffer: not taken.** Measured before (`ranged.rs`,
   qa/after.md): no faster over loopback, 20 to 30 MB more memory over ten
   downloads of eight connections.
+
+## 2026-11-09: dm in Default apps (spec T5); the MediaSource hook removed (EDM-V1 stage 1)
+
+At the maintainer's word of the day ("go to reference in gaps.md and implement the improvement
+... make it ready for production"), the two reference items left that are code:
+
+- **Listed in Windows' Settings › Default apps.** `register.rs` `default_apps_keys` writes dm's
+  own ProgIds `dm.magnet` (with `URL Protocol`) and `dm.torrentfile`, each with dm's command,
+  `HKCU\Software\dm\Capabilities` naming them under `URLAssociations` and `FileAssociations`,
+  and dm's line in `HKCU\Software\RegisteredApplications`. Separate ProgIds rather than the
+  `magnet` key and `dm.torrent`: being listed must not take a link or a file type from another
+  program, nor mark dm's own registration as present where it is not (`torrent_is_ours` reads
+  `dm.torrent`'s marker). Written at registration and once at a start where missing
+  (`refresh_windows_handlers`), removed on Uninstall (`unlist_from_default_apps`). Tested with a
+  stand-in `reg`; not yet seen in Windows' Settings (a person on Windows).
+- **The MediaSource hook removed.** `document.js` replaced `URL.createObjectURL` and
+  `MediaSource.prototype.addSourceBuffer` on every hooked page to pass on a player's codecs,
+  which `content.js` kept and nothing read; a player makes its blob address before it declares
+  its codecs, so what was passed on was nearly always empty. Patching a page's own functions for
+  nothing is a risk (a site that checks them, a player that breaks) with no gain. Not taken:
+  T6's registry test (Windows code that cannot be compiled here; for the Windows session).

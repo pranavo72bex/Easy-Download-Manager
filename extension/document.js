@@ -38,32 +38,6 @@
       window.postMessage({ source: 'dm-media-seen', url: u.href }, location.origin);
     } catch { /* an address that is not one is not media */ }
   };
-  // A player that feeds a MediaSource plays a blob: address that names nothing. What it declares
-  // (the codecs of its picture and its sound) is passed on, so content.js can tell a page with an
-  // adaptive player from one with a plain file; the bytes are never read.
-  try {
-    const sources = new WeakMap();
-    const createObjectURL = URL.createObjectURL;
-    URL.createObjectURL = function (object) {
-      const url = createObjectURL.call(this, object);
-      try {
-        if (typeof MediaSource !== 'undefined' && object instanceof MediaSource) {
-          window.postMessage({ source: 'dm-mediasource', blob: url, types: sources.get(object) || [] }, location.origin);
-        }
-      } catch { /* the page's own call goes on */ }
-      return url;
-    };
-    if (typeof MediaSource !== 'undefined') {
-      const addSourceBuffer = MediaSource.prototype.addSourceBuffer;
-      MediaSource.prototype.addSourceBuffer = function (type) {
-        try {
-          const known = sources.get(this) || [];
-          if (known.length < 8) sources.set(this, [...known, String(type).slice(0, 200)]);
-        } catch { /* the page's own call goes on */ }
-        return addSourceBuffer.call(this, type);
-      };
-    }
-  } catch { /* no MediaSource here: the requests are still read */ }
   // The player's own list of qualities, for the panel's list: asked by
   // the content script with a token, answered at once from the page's
   // player with the id of the video it is playing, so the panel lists

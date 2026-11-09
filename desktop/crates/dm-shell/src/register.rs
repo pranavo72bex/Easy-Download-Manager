@@ -590,6 +590,108 @@ pub fn unregister_torrent_windows(mut reg: impl FnMut(&[String]) -> Result<(), S
         && reg(&reg_args(&["delete", TORRENT_PROGID_KEY, "/f"])).is_ok()
 }
 
+/// Where Windows lists the programs a person can choose in Settings › Default apps.
+const REGISTERED_APPLICATIONS_KEY: &str = r"HKCU\Software\RegisteredApplications";
+/// dm's own key, holding what it can open.
+const DM_APP_KEY: &str = r"HKCU\Software\dm";
+const CAPABILITIES_KEY: &str = r"HKCU\Software\dm\Capabilities";
+/// The same, as `RegisteredApplications` names it (from the hive's root).
+const CAPABILITIES_PATH: &str = r"Software\dm\Capabilities";
+/// dm's own ProgIds for Default apps: apart from the `magnet` key and `dm.torrent`, so being
+/// listed takes nothing from another program and nothing of dm's own registration.
+const MAGNET_LISTED_KEY: &str = r"HKCU\Software\Classes\dm.magnet";
+const TORRENT_LISTED_KEY: &str = r"HKCU\Software\Classes\dm.torrentfile";
+
+/// `reg.exe` argument lists, in order, that put dm in Settings › Default apps for magnet
+/// links and `.torrent` files (spec T5): a ProgId for each with its command, a
+/// `Capabilities` key naming them, and dm's line in `RegisteredApplications`. Nothing here
+/// makes dm the default of anything: Windows' "How do you want to open this?" and Default
+/// apps then offer dm, and the person chooses.
+pub fn default_apps_keys(exe: &Path) -> Vec<Vec<String>> {
+    let command = format!("\"{}\" \"%1\"", exe.display());
+    let magnet_open = format!(r"{MAGNET_LISTED_KEY}\shell\open\command");
+    let torrent_open = format!(r"{TORRENT_LISTED_KEY}\shell\open\command");
+    let urls = format!(r"{CAPABILITIES_KEY}\URLAssociations");
+    let files = format!(r"{CAPABILITIES_KEY}\FileAssociations");
+    let add = |key: &str, value: Option<&str>, data: &str| {
+        let mut args = vec!["add".to_string(), key.to_string()];
+        match value {
+            Some(name) => args.extend(["/v".to_string(), name.to_string()]),
+            None => args.push("/ve".to_string()),
+        }
+        args.extend(reg_args(&["/t", "REG_SZ", "/d", data, "/f"]));
+        args
+    };
+    vec![
+        add(MAGNET_LISTED_KEY, None, "URL:Magnet link"),
+        add(MAGNET_LISTED_KEY, Some("URL Protocol"), ""),
+        add(&magnet_open, None, &command),
+        add(TORRENT_LISTED_KEY, None, "BitTorrent file"),
+        add(&torrent_open, None, &command),
+        add(CAPABILITIES_KEY, Some("ApplicationName"), "dm"),
+        add(
+            CAPABILITIES_KEY,
+            Some("ApplicationDescription"),
+            "Downloads files, videos and torrents",
+        ),
+        add(&urls, Some("magnet"), "dm.magnet"),
+        add(&files, Some(".torrent"), "dm.torrentfile"),
+        add(REGISTERED_APPLICATIONS_KEY, Some("dm"), CAPABILITIES_PATH),
+    ]
+}
+
+/// Whether dm is in Default apps' list already.
+fn listed_in_default_apps(reg: &mut impl FnMut(&[String]) -> Result<(), String>) -> bool {
+    reg(&reg_args(&[
+        "query",
+        REGISTERED_APPLICATIONS_KEY,
+        "/v",
+        "dm",
+    ]))
+    .is_ok()
+}
+
+/// Puts dm in Settings › Default apps ([`default_apps_keys`]). Every key is dm's own, so it is
+/// rewritten whatever is there, and a program that moved is followed.
+pub fn list_in_default_apps(
+    exe: &Path,
+    mut reg: impl FnMut(&[String]) -> Result<(), String>,
+) -> Result<(), String> {
+    if !exe.is_absolute() {
+        return Err(format!(
+            "{} is not a program Windows could start",
+            exe.display()
+        ));
+    }
+    for args in default_apps_keys(exe) {
+        reg(&args)?;
+    }
+    Ok(())
+}
+
+/// Takes dm out of Default apps: its line in `RegisteredApplications`, its `Capabilities` and
+/// its two ProgIds. A person's choice of dm in Default apps then falls back to Windows' own.
+/// True when every one was removed (or was not there).
+pub fn unlist_from_default_apps(mut reg: impl FnMut(&[String]) -> Result<(), String>) -> bool {
+    let mut all = true;
+    if listed_in_default_apps(&mut reg) {
+        all &= reg(&reg_args(&[
+            "delete",
+            REGISTERED_APPLICATIONS_KEY,
+            "/v",
+            "dm",
+            "/f",
+        ]))
+        .is_ok();
+    }
+    for key in [DM_APP_KEY, MAGNET_LISTED_KEY, TORRENT_LISTED_KEY] {
+        if reg(&reg_args(&["query", key])).is_ok() {
+            all &= reg(&reg_args(&["delete", key, "/f"])).is_ok();
+        }
+    }
+    all
+}
+
 /// Who Windows opens a kind of link or file with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Owner {
@@ -955,6 +1057,7 @@ pub fn register(
         // does not undo the browsers' registration.
         let _ = register_magnet_windows(exe, run_reg);
         let _ = register_torrent_windows(exe, run_reg);
+        let _ = list_in_default_apps(exe, run_reg);
         return Ok(written);
     }
     if !exe.is_absolute() || !exe.is_file() {
@@ -1008,6 +1111,7 @@ pub fn unregister(home: &Path) -> Vec<PathBuf> {
     if cfg!(target_os = "windows") {
         let _ = unregister_magnet_windows(run_reg);
         let _ = unregister_torrent_windows(run_reg);
+        let _ = unlist_from_default_apps(run_reg);
         return unregister_windows(&windows_data(home), run_reg);
     }
     places(home)
@@ -1143,6 +1247,10 @@ pub fn refresh_windows_handlers(exe: &Path, mut reg: impl FnMut(&[String]) -> Re
     }
     if !torrent_is_ours(&mut reg) {
         let _ = register_torrent_windows(exe, &mut reg);
+    }
+    // Settings › Default apps: listed once, as an install would (spec T5).
+    if !listed_in_default_apps(&mut reg) {
+        let _ = list_in_default_apps(exe, &mut reg);
     }
 }
 

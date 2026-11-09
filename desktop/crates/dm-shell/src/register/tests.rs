@@ -772,7 +772,9 @@ fn a_start_writes_the_windows_handlers_an_older_version_never_wrote() {
         .collect();
     assert!(added.contains(&r"HKCU\Software\Classes\magnet"));
     assert!(added.contains(&r"HKCU\Software\Classes\.torrent"));
-    assert_eq!(added.len(), 4 + 5);
+    // And dm's line in Settings › Default apps.
+    assert!(added.contains(&r"HKCU\Software\RegisteredApplications"));
+    assert_eq!(added.len(), 4 + 5 + 10);
 
     // Both are dm's already: nothing written.
     let mut ran: Vec<Vec<String>> = Vec::new();
@@ -923,4 +925,116 @@ fn magnet_links_and_torrent_files_taken_from_another_program_can_be_given_back()
         .is_err()
     );
     assert!(ran.is_empty());
+}
+
+/// Settings › Default apps (spec T5): dm's own ProgIds, its `Capabilities` naming them, and
+/// its line in `RegisteredApplications`; never another program's keys, never a default.
+#[test]
+fn dm_is_listed_in_default_apps_with_keys_of_its_own_alone() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+    let keys = default_apps_keys(&exe);
+    let command = format!("\"{}\" \"%1\"", exe.display());
+    let has = |key: &str, value: Option<&str>, data: &str| {
+        keys.iter().any(|a| {
+            a[0] == "add"
+                && a[1] == key
+                && match value {
+                    Some(v) => a[2] == "/v" && a[3] == v,
+                    None => a[2] == "/ve",
+                }
+                && a.windows(2).any(|w| w[0] == "/d" && w[1] == data)
+        })
+    };
+    assert!(has(
+        r"HKCU\Software\Classes\dm.magnet",
+        Some("URL Protocol"),
+        ""
+    ));
+    assert!(has(
+        r"HKCU\Software\Classes\dm.magnet\shell\open\command",
+        None,
+        &command
+    ));
+    assert!(has(
+        r"HKCU\Software\Classes\dm.torrentfile\shell\open\command",
+        None,
+        &command
+    ));
+    assert!(has(
+        r"HKCU\Software\dm\Capabilities\URLAssociations",
+        Some("magnet"),
+        "dm.magnet"
+    ));
+    assert!(has(
+        r"HKCU\Software\dm\Capabilities\FileAssociations",
+        Some(".torrent"),
+        "dm.torrentfile"
+    ));
+    assert!(has(
+        r"HKCU\Software\RegisteredApplications",
+        Some("dm"),
+        r"Software\dm\Capabilities"
+    ));
+    // Nothing that decides a default: not the magnet key, not .torrent, not a UserChoice.
+    for args in &keys {
+        let key = args[1].as_str();
+        assert!(
+            key.starts_with(r"HKCU\Software\Classes\dm.")
+                || key.starts_with(r"HKCU\Software\dm\")
+                || key == r"HKCU\Software\RegisteredApplications",
+            "{key}"
+        );
+    }
+
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    list_in_default_apps(&exe, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(ran, keys);
+    assert!(list_in_default_apps(Path::new("dm.exe"), |_| Ok(())).is_err());
+
+    // Listed already: a start only asks.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    refresh_windows_handlers(&exe, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    });
+    assert!(ran.iter().all(|a| a[0] == "query"), "{ran:?}");
+}
+
+#[test]
+fn taken_out_of_default_apps_only_dms_own_keys_are_deleted() {
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(unlist_from_default_apps(|args| {
+        ran.push(args.to_vec());
+        Ok(())
+    }));
+    let deleted: Vec<String> = ran
+        .iter()
+        .filter(|a| a[0] == "delete")
+        .map(|a| a[1..].join(" "))
+        .collect();
+    assert_eq!(
+        deleted,
+        [
+            r"HKCU\Software\RegisteredApplications /v dm /f",
+            r"HKCU\Software\dm /f",
+            r"HKCU\Software\Classes\dm.magnet /f",
+            r"HKCU\Software\Classes\dm.torrentfile /f",
+        ]
+    );
+    // Not listed: nothing to delete, and that is not a failure.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(unlist_from_default_apps(|args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    }));
+    assert!(ran.iter().all(|a| a[0] != "delete"));
 }
