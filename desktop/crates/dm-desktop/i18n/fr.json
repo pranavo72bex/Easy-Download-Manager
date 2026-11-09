@@ -901,5 +901,9 @@
  "Hang up modem when done": "Raccrocher le modem à la fin",
  "The scheduled downloads are done: {} is hung up.": "Les téléchargements planifiés sont terminés : la connexion {} est coupée.",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Raccrocher le modem à la fin : aucune connexion n'est définie dans Options › Avancé › Accès à distance / VPN.",
- "{} was not hung up: {}": "La connexion {} n'a pas été coupée : {}"
+ "{} was not hung up: {}": "La connexion {} n'a pas été coupée : {}",
+ "Take out": "Extraire",
+ "Taking out {}…": "Extraction de {}…",
+ "{} saved to {}": "{} enregistré dans {}",
+ "Could not take out {}: {}": "Impossible d’extraire {} : {}"
 }

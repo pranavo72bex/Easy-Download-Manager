@@ -901,5 +901,9 @@
  "Hang up modem when done": "Putuskan modem setelah selesai",
  "The scheduled downloads are done: {} is hung up.": "Unduhan terjadwal selesai: {} diputuskan.",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Putuskan modem setelah selesai: tidak ada sambungan yang diatur di Opsi › Lanjutan › Dial Up / VPN.",
- "{} was not hung up: {}": "{} tidak diputuskan: {}"
+ "{} was not hung up: {}": "{} tidak diputuskan: {}",
+ "Take out": "Ambil",
+ "Taking out {}…": "Mengambil {}…",
+ "{} saved to {}": "{} disimpan di {}",
+ "Could not take out {}: {}": "Tidak dapat mengambil {}: {}"
 }

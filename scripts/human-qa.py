@@ -917,6 +917,24 @@ def walk(dm, origin):
                                   for e in asked)
     check("B44", "Download details for a .zip lists its files, with sizes, before the archive is fetched",
           listed and partial, f"listed: {listed}; ranges asked: {[e['range'] for e in asked]}; seen: {seen[:30]}")
+    # Take out, on the first file listed (the folder has none): docs/readme.txt
+    # alone is fetched, by ranges, and saved beside where the archive would go.
+    dm.click("Take out")
+    saved_line = ""
+    for _ in range(80):
+        saved_line = next((t for t in dm.texts() if "readme.txt saved to" in t), "")
+        if saved_line:
+            break
+        time.sleep(0.25)
+    taken = [p for p in (dm.home / "downloads").rglob("readme.txt")]
+    asked = requests("pack.zip", mark)
+    partial = bool(asked) and all(e["range"] and (e["range"] in PROBES or not e["range"].startswith("bytes=0-"))
+                                  for e in asked)
+    check("B44", "Take out saves that one file, whole, from ranges alone, and says where",
+          bool(saved_line) and len(taken) == 1 and taken[0].read_bytes() == b"a" * 1000 and partial,
+          f"'{saved_line}'; found {taken}; ranges asked: {[e['range'] for e in asked]}")
+    for p in taken:
+        p.unlink(missing_ok=True)
     dm.click("Cancel")
     pause(0.8)
     check("B44", "closing it fetched nothing and left no row",

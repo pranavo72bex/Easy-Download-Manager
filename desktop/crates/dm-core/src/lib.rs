@@ -214,7 +214,9 @@ pub use torrent::{
     TorrentFile, TorrentOptions,
 };
 
-pub use zipinfo::{zip_contents, zip_contents_of_file, ZipEntry};
+pub use zipinfo::{
+    zip_contents, zip_contents_of_file, zip_take_one, ZipEntry, MOST_TAKEN as ZIP_MOST_TAKEN,
+};
 
 /// A lock that is taken even if a thread that held it panicked.
 ///

@@ -901,5 +901,9 @@
  "Hang up modem when done": "完了したらモデムを切断する",
  "The scheduled downloads are done: {} is hung up.": "スケジュールしたダウンロードが完了しました: {} を切断しました。",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "完了したらモデムを切断する: オプション › 詳細設定 › ダイヤルアップ / VPN で接続が設定されていません。",
- "{} was not hung up: {}": "{} を切断できませんでした: {}"
+ "{} was not hung up: {}": "{} を切断できませんでした: {}",
+ "Take out": "取り出す",
+ "Taking out {}…": "{} を取り出しています…",
+ "{} saved to {}": "{} を {} に保存しました",
+ "Could not take out {}: {}": "{} を取り出せませんでした: {}"
 }

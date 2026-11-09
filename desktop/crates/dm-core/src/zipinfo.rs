@@ -10,7 +10,7 @@
 //! ranges; anything else, and anything that is not a ZIP, is `None`.
 
 /// One file of an archive, as its central directory lists it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ZipEntry {
     /// The path inside the archive; a folder ends in `/`.
     pub name: String,
@@ -18,6 +18,13 @@ pub struct ZipEntry {
     pub size: u64,
     /// Its size as stored in the archive.
     pub packed: u64,
+    /// Where its own header starts in the archive, so it can be taken out
+    /// alone ([`zip_take_one`]).
+    pub at: u64,
+    /// How it is packed: 0 stored, 8 deflated.
+    pub method: u16,
+    /// The CRC-32 of its unpacked bytes.
+    pub crc: u32,
 }
 
 impl ZipEntry {
@@ -126,6 +133,9 @@ fn entries_of(directory: &[u8], count: u64) -> Option<Vec<ZipEntry>> {
             return None;
         }
         let flags = u16_at(directory, at + 8)?;
+        let method = u16_at(directory, at + 10)?;
+        let crc = u32_at(directory, at + 16)?;
+        let mut header_at = u64::from(u32_at(directory, at + 42)?);
         let mut packed = u64::from(u32_at(directory, at + 20)?);
         let mut size = u64::from(u32_at(directory, at + 24)?);
         let name_length = usize::from(u16_at(directory, at + 28)?);
@@ -136,7 +146,7 @@ fn entries_of(directory: &[u8], count: u64) -> Option<Vec<ZipEntry>> {
         let extra = directory.get(name_at + name_length..name_at + name_length + extra_length)?;
         // The real sizes of a big file are in the ZIP64 field of its extra
         // data, in the order of the values that were all ones.
-        if size == 0xFFFF_FFFF || packed == 0xFFFF_FFFF {
+        if size == 0xFFFF_FFFF || packed == 0xFFFF_FFFF || header_at == 0xFFFF_FFFF {
             let mut field = 0usize;
             while field + 4 <= extra.len() {
                 let id = u16_at(extra, field)?;
@@ -149,6 +159,10 @@ fn entries_of(directory: &[u8], count: u64) -> Option<Vec<ZipEntry>> {
                     }
                     if packed == 0xFFFF_FFFF {
                         packed = u64_at(extra, value)?;
+                        value += 8;
+                    }
+                    if header_at == 0xFFFF_FFFF {
+                        header_at = u64_at(extra, value)?;
                     }
                     break;
                 }
@@ -160,7 +174,14 @@ fn entries_of(directory: &[u8], count: u64) -> Option<Vec<ZipEntry>> {
         // rest is shown as well as it can be.
         let _ = flags;
         let name = String::from_utf8_lossy(name_bytes).into_owned();
-        entries.push(ZipEntry { name, size, packed });
+        entries.push(ZipEntry {
+            name,
+            size,
+            packed,
+            at: header_at,
+            method,
+            crc,
+        });
         at = name_at + name_length + extra_length + comment_length;
     }
     Some(entries)
@@ -266,6 +287,115 @@ pub async fn zip_contents(
     entries_of(&bytes, directory.entries)
 }
 
+/// The most of an archive one file taken out of it alone may be: it is held in
+/// memory to be unpacked and checked, and a larger one is the archive's to
+/// download.
+pub const MOST_TAKEN: u64 = 256 * 1024 * 1024;
+
+const LOCAL_HEADER: u32 = 0x0403_4b50;
+
+/// Takes `entry` out of the ZIP at `url` alone, with range requests for its
+/// own bytes, as reference A takes one file out of an archive before the
+/// archive is downloaded: unpacked (stored or deflated), checked against the
+/// CRC the archive lists, and saved in `folder` under its own name (a free
+/// one where that is taken). Returns the path saved. Fails with words a
+/// person can read: a folder, a locked or oddly packed file, one too large,
+/// a server that stops serving ranges, bytes that do not check.
+pub async fn zip_take_one(
+    client: &reqwest::Client,
+    url: &str,
+    referrer: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+    entry: &ZipEntry,
+    folder: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    if entry.is_folder() {
+        return Err("a folder is not a file to take out".into());
+    }
+    if entry.packed > MOST_TAKEN {
+        return Err("this file is too large to take out alone; download the archive".into());
+    }
+    let unreadable = || "the server would not give that part of the archive".to_string();
+    let header = range(client, url, referrer, sign_in, entry.at, entry.at + 29)
+        .await
+        .ok_or_else(unreadable)?;
+    if u32_at(&header, 0) != Some(LOCAL_HEADER) {
+        return Err("the archive is not laid out as its list says".into());
+    }
+    let flags = u16_at(&header, 6).unwrap_or(0);
+    if flags & 1 != 0 {
+        return Err("this file is locked with a password".into());
+    }
+    let skip =
+        u64::from(u16_at(&header, 26).unwrap_or(0)) + u64::from(u16_at(&header, 28).unwrap_or(0));
+    let data_at = entry.at + 30 + skip;
+    let packed = if entry.packed == 0 {
+        Vec::new()
+    } else {
+        range(
+            client,
+            url,
+            referrer,
+            sign_in,
+            data_at,
+            data_at + entry.packed - 1,
+        )
+        .await
+        .ok_or_else(unreadable)?
+    };
+    let bytes = unpack(&packed, entry)?;
+    let name = crate::probe::sanitize(&entry.name);
+    if name.is_empty() {
+        return Err("the file has no name to save it under".into());
+    }
+    tokio::fs::create_dir_all(folder)
+        .await
+        .map_err(|e| format!("the folder could not be made: {e}"))?;
+    let path = folder.join(crate::download::free_name(folder, &name));
+    // Written beside it and moved into place, so a half-written file never
+    // carries the name.
+    let staged = folder.join(format!(".{name}.dm-taking"));
+    tokio::fs::write(&staged, &bytes)
+        .await
+        .map_err(|e| format!("the file could not be written: {e}"))?;
+    if let Err(e) = tokio::fs::rename(&staged, &path).await {
+        let _ = tokio::fs::remove_file(&staged).await;
+        return Err(format!("the file could not be written: {e}"));
+    }
+    Ok(path)
+}
+
+/// `packed`, the stored bytes of `entry`, unpacked and checked.
+fn unpack(packed: &[u8], entry: &ZipEntry) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let bytes = match entry.method {
+        0 => packed.to_vec(),
+        8 => {
+            let mut out = Vec::with_capacity(usize::try_from(entry.size.min(MOST_TAKEN)).unwrap_or(0));
+            // Never more than the list says, plus one to tell a liar.
+            flate2::read::DeflateDecoder::new(packed)
+                .take(entry.size.saturating_add(1))
+                .read_to_end(&mut out)
+                .map_err(|_| "the file's packed bytes are damaged".to_string())?;
+            out
+        }
+        other => {
+            return Err(format!(
+                "this file is packed in a way dm does not unpack (method {other}); download the archive"
+            ))
+        }
+    };
+    if bytes.len() as u64 != entry.size {
+        return Err("the file came out a different size than the archive lists".into());
+    }
+    let mut crc = flate2::Crc::new();
+    crc.update(&bytes);
+    if crc.sum() != entry.crc {
+        return Err("the file's bytes do not match the archive's check (CRC)".into());
+    }
+    Ok(bytes)
+}
+
 /// The files of a ZIP on disk, read from its end alone as [`zip_contents`]
 /// reads one at an address: for a finished download's Properties, which has
 /// the file and needs no server. `None` where the file is no ZIP, is cut
@@ -351,7 +481,8 @@ mod tests {
             ZipEntry {
                 name: "docs/readme.txt".into(),
                 size: 1000,
-                packed: 1000
+                packed: 1000,
+                ..entries[1].clone()
             }
         );
         assert_eq!(entries[2].name, "setup.exe");

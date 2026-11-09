@@ -143,6 +143,11 @@ pub struct FileInfo {
     /// (`dm_core::zip_contents`): `None` until asked; an empty list where the
     /// server or the file gave none.
     pub zip: Option<ZipSlot>,
+    /// The last file of the ZIP taken out alone ("Take out"): `None` until
+    /// one is asked for.
+    pub taken: Option<TakeSlot>,
+    /// That file's name, said while it is taken out.
+    pub taking: String,
     /// A YouTube playlist page: the Playlist dialog takes over.
     pub playlist: std::sync::Arc<std::sync::Mutex<Option<dm_core::youtube::Playlist>>>,
     /// The browser a handed-over download came from, where the host could
@@ -482,7 +487,7 @@ pub struct Properties {
 
 /// The files of a ZIP, as a background reading leaves them: `None` while it
 /// is under way, an empty list where there was nothing to list.
-pub use dm_shell::app::files::ZipSlot;
+pub use dm_shell::app::files::{TakeSlot, ZipSlot};
 
 /// What the background hashing of a finished file has found so far.
 pub use dm_shell::app::files::Sums;

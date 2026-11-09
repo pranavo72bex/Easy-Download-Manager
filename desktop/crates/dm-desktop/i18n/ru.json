@@ -901,5 +901,9 @@
  "Hang up modem when done": "Разорвать модемное соединение по завершении",
  "The scheduled downloads are done: {} is hung up.": "Запланированные загрузки завершены: соединение {} разорвано.",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Разорвать модемное соединение по завершении: в Параметры › Дополнительно › Удалённый доступ / VPN не задано подключение.",
- "{} was not hung up: {}": "Соединение {} не разорвано: {}"
+ "{} was not hung up: {}": "Соединение {} не разорвано: {}",
+ "Take out": "Извлечь",
+ "Taking out {}…": "Извлечение {}…",
+ "{} saved to {}": "{} сохранён в {}",
+ "Could not take out {}: {}": "Не удалось извлечь {}: {}"
 }

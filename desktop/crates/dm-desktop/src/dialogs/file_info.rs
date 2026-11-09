@@ -132,7 +132,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::videopage::Choice>>>> =
             Default::default();
         d.choices = Some(slot.clone());
-        let url = first;
+        let url = first.clone();
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
         let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
         let ctx = ctx.clone();
@@ -178,29 +178,13 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     }
     // The name it will really get where its folder has one of that name
     // already: Save as said `big.zip` and the file came as `big (1).zip`.
+    // Where a file taken out of a ZIP goes: beside the archive.
+    let archive_folder = folder_for(&app.applied, &d.folder, &first, d.name.trim());
     let clash = (d.urls.len() == 1 && !d.name.trim().is_empty())
         .then(|| {
             let name = d.name.trim();
             let url = d.urls.first().map(String::as_str).unwrap_or_default();
-            let dir = if !d.folder.trim().is_empty() {
-                std::path::PathBuf::from(d.folder.trim())
-            } else if let Some(rule) = app
-                .applied
-                .site_rule_for(url)
-                .filter(|rule| !rule.folder.is_empty())
-            {
-                // The site's own folder, as its rule says.
-                std::path::PathBuf::from(&rule.folder)
-            } else {
-                let mut categories = app.applied.categories();
-                if categories.enabled {
-                    categories.site = dm_core::host_of(url);
-                    let kind = dm_core::by_name(name).unwrap_or(dm_core::Category::Other);
-                    categories.place(&app.applied.download_dir, kind, name)
-                } else {
-                    app.applied.download_dir.clone()
-                }
-            };
+            let dir = folder_for(&app.applied, &d.folder, url, name);
             // Every download of that name still waiting to be placed there
             // takes a free name first (two rows read
             // "big (1).zip" and one landed as "big (2).zip").
@@ -387,7 +371,32 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         }
                         zip_list::Listing::Files(files, more) => {
                             ui.label(t("Contents"));
-                            ui.vertical(|ui| zip_list::show(ui, &files, more));
+                            ui.vertical(|ui| {
+                                // One file taken out alone, before the
+                                // archive is fetched, into the folder the
+                                // archive is going to.
+                                if let Some(entry) = zip_list::show(ui, &files, more, true) {
+                                    let referrer =
+                                        Some(d.referrer.clone()).filter(|r| !r.is_empty());
+                                    let sign_in = dm_core::cookies::SignIn::with_headers(
+                                        &first, &d.cookies, &d.headers,
+                                    );
+                                    let ctx = ui.ctx().clone();
+                                    d.taking = dm_core::sanitize_name(&entry.name);
+                                    d.taken = Some(dm_shell::app::files::take_from_zip(
+                                        &app.backend,
+                                        first.clone(),
+                                        referrer,
+                                        sign_in,
+                                        entry,
+                                        archive_folder.clone(),
+                                        move || ctx.request_repaint(),
+                                    ));
+                                }
+                                if let Some(words) = zip_list::taken_words(&d.taken, &d.taking) {
+                                    ui.label(RichText::new(words).weak());
+                                }
+                            });
                             ui.end_row();
                         }
                     }
@@ -861,6 +870,30 @@ fn clock(seconds: u64) -> String {
         format!("{h}:{m:02}:{s:02}")
     } else {
         format!("{m}:{s:02}")
+    }
+}
+
+/// The folder a download of `name` from `url` is saved in, as the dialog
+/// stands: the folder typed, else the site rule's, else its category's, else
+/// the download folder.
+fn folder_for(applied: &Settings, typed: &str, url: &str, name: &str) -> std::path::PathBuf {
+    if !typed.trim().is_empty() {
+        std::path::PathBuf::from(typed.trim())
+    } else if let Some(rule) = applied
+        .site_rule_for(url)
+        .filter(|rule| !rule.folder.is_empty())
+    {
+        // The site's own folder, as its rule says.
+        std::path::PathBuf::from(&rule.folder)
+    } else {
+        let mut categories = applied.categories();
+        if categories.enabled {
+            categories.site = dm_core::host_of(url);
+            let kind = dm_core::by_name(name).unwrap_or(dm_core::Category::Other);
+            categories.place(&applied.download_dir, kind, name)
+        } else {
+            applied.download_dir.clone()
+        }
     }
 }
 

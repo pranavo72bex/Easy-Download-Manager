@@ -46,6 +46,47 @@ pub fn list_zip_at(
     held
 }
 
+/// One file taken out of a ZIP on a server: its name, and where it was saved
+/// or why it was not. `None` while under way.
+pub type TakeSlot = Arc<Mutex<Option<(String, Result<PathBuf, String>)>>>;
+
+/// How long taking one file out of an archive may take.
+pub const TAKE_WITHIN: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// Takes `entry` out of the ZIP at `url` into `folder`, on the application's
+/// client (`dm_core::zip_take_one`: range requests for that file's own bytes
+/// alone), and wakes the window when it is done.
+pub fn take_from_zip(
+    backend: &crate::app::backend::Backend,
+    url: String,
+    referrer: Option<String>,
+    sign_in: Option<dm_core::cookies::SignIn>,
+    entry: dm_core::ZipEntry,
+    folder: PathBuf,
+    wake: impl FnOnce() + Send + 'static,
+) -> TakeSlot {
+    let held: TakeSlot = Arc::default();
+    let into = Arc::clone(&held);
+    let client = backend.client();
+    backend.runtime.spawn(async move {
+        let take = dm_core::zip_take_one(
+            &client,
+            &url,
+            referrer.as_deref(),
+            sign_in.as_ref(),
+            &entry,
+            &folder,
+        );
+        let done = tokio::time::timeout(TAKE_WITHIN, take)
+            .await
+            .unwrap_or_else(|_| Err("the server took too long".into()));
+        let name = dm_core::sanitize_name(&entry.name);
+        *dm_core::lock(&into) = Some((name, done));
+        wake();
+    });
+    held
+}
+
 /// Starts reading the files of the finished ZIP at `path` in the background,
 /// and gives the slot it fills; `wake` is called once it is filled.
 pub fn list_zip_file(

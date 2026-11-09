@@ -901,5 +901,9 @@
  "Hang up modem when done": "Bittiğinde modem bağlantısını kes",
  "The scheduled downloads are done: {} is hung up.": "Zamanlanmış indirmeler bitti: {} bağlantısı kesildi.",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Bittiğinde modem bağlantısını kes: Seçenekler › Gelişmiş › Çevirmeli / VPN bölümünde bağlantı seçilmemiş.",
- "{} was not hung up: {}": "{} bağlantısı kesilemedi: {}"
+ "{} was not hung up: {}": "{} bağlantısı kesilemedi: {}",
+ "Take out": "Çıkar",
+ "Taking out {}…": "{} çıkarılıyor…",
+ "{} saved to {}": "{}, {} konumuna kaydedildi",
+ "Could not take out {}: {}": "{} çıkarılamadı: {}"
 }

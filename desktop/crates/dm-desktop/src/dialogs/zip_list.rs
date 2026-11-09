@@ -12,7 +12,7 @@
 
 use egui::RichText;
 
-use super::ZipSlot;
+use super::{TakeSlot, ZipSlot};
 use crate::format;
 use crate::i18n::{t, tf};
 
@@ -102,8 +102,17 @@ pub(super) fn reading_words() -> String {
 }
 
 /// The list, as text: each file's name and, beside it, its size once
-/// unpacked (a folder has none), scrolling past [`HEIGHT`].
-pub(super) fn show(ui: &mut egui::Ui, files: &[dm_core::ZipEntry], more: usize) {
+/// unpacked (a folder has none), scrolling past [`HEIGHT`]. With `take`, each
+/// file of a size that can be taken out alone has a "Take out" button
+/// (reference A takes one file out of an archive before it is downloaded);
+/// the file clicked is returned.
+pub(super) fn show(
+    ui: &mut egui::Ui,
+    files: &[dm_core::ZipEntry],
+    more: usize,
+    take: bool,
+) -> Option<dm_core::ZipEntry> {
+    let mut chosen = None;
     egui::ScrollArea::vertical()
         .id_salt("zip-contents")
         .max_height(HEIGHT)
@@ -114,6 +123,12 @@ pub(super) fn show(ui: &mut egui::Ui, files: &[dm_core::ZipEntry], more: usize) 
                     ui.add(egui::Label::new(file.name.as_str()).truncate());
                     if !file.is_folder() {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if take
+                                && file.packed <= dm_core::ZIP_MOST_TAKEN
+                                && ui.small_button(t("Take out")).clicked()
+                            {
+                                chosen = Some(file.clone());
+                            }
                             ui.label(RichText::new(format::bytes(file.size)).weak());
                         });
                     }
@@ -123,6 +138,28 @@ pub(super) fn show(ui: &mut egui::Ui, files: &[dm_core::ZipEntry], more: usize) 
                 ui.label(RichText::new(tf("and {} more", &[&more.to_string()])).weak());
             }
         });
+    chosen
+}
+
+/// What became of the last file taken out, in words: under way, saved where,
+/// or why not. `None` when none was asked for.
+pub(super) fn taken_words(slot: &Option<TakeSlot>, asked: &str) -> Option<String> {
+    let slot = slot.as_ref()?;
+    Some(match &*dm_core::lock(slot) {
+        None => tf("Taking out {}…", &[&asked]),
+        Some((name, Ok(path))) => {
+            let folder = path
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+            let saved = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| name.clone());
+            tf("{} saved to {}", &[&saved, &folder])
+        }
+        Some((name, Err(why))) => tf("Could not take out {}: {}", &[name, why]),
+    })
 }
 
 #[cfg(test)]
@@ -135,6 +172,7 @@ mod tests {
                 name: format!("file{n}.txt"),
                 size: 10,
                 packed: 10,
+                ..Default::default()
             })
             .collect();
         Some(std::sync::Arc::new(std::sync::Mutex::new(Some(files))))
@@ -168,5 +206,30 @@ mod tests {
         assert!(matches!(listing(&read(0)), Listing::Nothing));
         let under_way: Option<ZipSlot> = Some(Default::default());
         assert!(matches!(listing(&under_way), Listing::Reading));
+    }
+
+    #[test]
+    fn a_file_taken_out_says_while_it_is_under_way_where_it_went_or_why_not() {
+        assert_eq!(taken_words(&None, "a.txt"), None);
+        let slot: TakeSlot = Default::default();
+        let asked = Some(slot.clone());
+        assert_eq!(
+            taken_words(&asked, "a.txt").as_deref(),
+            Some("Taking out a.txt…")
+        );
+        let folder = std::path::Path::new("downloads").join("archives");
+        *dm_core::lock(&slot) = Some(("a.txt".into(), Ok(folder.join("a (1).txt"))));
+        assert_eq!(
+            taken_words(&asked, "a.txt"),
+            Some(format!("a (1).txt saved to {}", folder.display()))
+        );
+        *dm_core::lock(&slot) = Some((
+            "a.txt".into(),
+            Err("this file is locked with a password".into()),
+        ));
+        assert_eq!(
+            taken_words(&asked, "a.txt").as_deref(),
+            Some("Could not take out a.txt: this file is locked with a password")
+        );
     }
 }

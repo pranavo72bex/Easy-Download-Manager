@@ -901,5 +901,9 @@
  "Hang up modem when done": "완료되면 모뎀 연결 끊기",
  "The scheduled downloads are done: {} is hung up.": "예약된 다운로드가 끝났습니다: {} 연결을 끊었습니다.",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "완료되면 모뎀 연결 끊기: 옵션 › 고급 › 전화 접속 / VPN에 설정된 연결이 없습니다.",
- "{} was not hung up: {}": "{} 연결을 끊지 못했습니다: {}"
+ "{} was not hung up: {}": "{} 연결을 끊지 못했습니다: {}",
+ "Take out": "꺼내기",
+ "Taking out {}…": "{} 꺼내는 중…",
+ "{} saved to {}": "{}을(를) {}에 저장했습니다",
+ "Could not take out {}: {}": "{}을(를) 꺼내지 못했습니다: {}"
 }

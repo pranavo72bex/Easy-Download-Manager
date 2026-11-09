@@ -101,3 +101,52 @@ fn a_finished_zips_files_are_listed_in_its_properties() {
     assert!(harness.query_by_label("Contents").is_some());
     assert!(harness.query_by_label("setup.exe").is_some());
 }
+
+/// One file taken out of the archive alone, before the archive is fetched
+/// (gaps EDM-E1 part 7): saved whole in the folder the archive is going to,
+/// the line under the list saying where, and no row for the archive.
+#[test]
+fn take_out_saves_one_file_of_a_zip_before_the_zip_is_fetched() {
+    let world = world();
+    let mut harness = world.quick_harness();
+    open_details(&mut harness, world.url("pack.zip"));
+    reading_over(&mut harness);
+    let folder = tempfile::tempdir().unwrap();
+    harness
+        .state_mut()
+        .dialogs
+        .file_info
+        .as_mut()
+        .unwrap()
+        .folder = folder.path().display().to_string();
+    harness.run_steps(2);
+    // The first file listed with a button: docs/readme.txt (the folder has none).
+    harness.get_all_by_label("Take out").next().unwrap().click();
+    harness.run_steps(2);
+    until(&mut harness, "the file to be taken out", |app| {
+        app.dialogs.file_info.as_ref().is_some_and(|d| {
+            d.taken
+                .as_ref()
+                .is_some_and(|slot| slot.lock().unwrap().is_some())
+        })
+    });
+    harness.run_steps(3);
+    let saved = folder.path().join("readme.txt");
+    assert_eq!(std::fs::read(&saved).unwrap(), vec![b'a'; 1000]);
+    let said = format!("readme.txt saved to {}", folder.path().display());
+    assert!(harness.query_by_label(&said).is_some(), "{said}");
+    assert!(
+        harness.state().rows().is_empty(),
+        "the archive was not fetched to take one file out"
+    );
+}
+
+/// A server that serves no ranges gives no list, and so nothing to take out.
+#[test]
+fn a_zip_on_a_server_that_serves_no_ranges_offers_nothing_to_take_out() {
+    let world = world();
+    let mut harness = world.quick_harness();
+    open_details(&mut harness, world.url("plain.zip"));
+    reading_over(&mut harness);
+    assert!(harness.query_by_label("Take out").is_none());
+}

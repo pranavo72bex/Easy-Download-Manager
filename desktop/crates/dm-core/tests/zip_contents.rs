@@ -14,7 +14,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
-use dm_core::{client, zip_contents};
+use dm_core::{client, zip_contents, zip_take_one};
 
 mod common;
 
@@ -174,12 +174,17 @@ fn zip64(comment: usize) -> Vec<u8> {
     out
 }
 
-fn the_large_entry() -> Vec<dm_core::ZipEntry> {
-    vec![dm_core::ZipEntry {
-        name: "disk.img".into(),
-        size: 5_000_000_000,
-        packed: 4_900_000_000,
-    }]
+/// What a listing says of each file that a person sees: its name and sizes.
+fn seen(entries: Option<Vec<dm_core::ZipEntry>>) -> Option<Vec<(String, u64, u64)>> {
+    entries.map(|all| {
+        all.into_iter()
+            .map(|e| (e.name, e.size, e.packed))
+            .collect()
+    })
+}
+
+fn the_large_entry() -> Option<Vec<(String, u64, u64)>> {
+    Some(vec![("disk.img".into(), 5_000_000_000, 4_900_000_000)])
 }
 
 #[tokio::test]
@@ -192,14 +197,14 @@ async fn a_zip64_archive_is_listed_with_its_large_sizes_over_the_web_and_on_disk
         let path = dir.path().join(format!("big-{comment}.zip"));
         std::fs::write(&path, &body).unwrap();
         assert_eq!(
-            dm_core::zip_contents_of_file(&path),
-            Some(the_large_entry()),
+            seen(dm_core::zip_contents_of_file(&path)),
+            the_large_entry(),
             "on disk, comment {comment}"
         );
         let (url, _) = serve(body, true).await;
         assert_eq!(
-            zip_contents(&client(), &url, None, None).await,
-            Some(the_large_entry()),
+            seen(zip_contents(&client(), &url, None, None).await),
+            the_large_entry(),
             "over the web, comment {comment}"
         );
     }
@@ -240,4 +245,130 @@ async fn an_empty_zip_lists_nothing_and_a_tiny_or_lying_one_gives_no_listing() {
     assert_eq!(dm_core::zip_contents_of_file(&path), None);
     let (url, _) = serve(lying, true).await;
     assert_eq!(zip_contents(&client(), &url, None, None).await, None);
+}
+
+/// An archive with a stored file, a deflated one and a folder, each of
+/// `each` bytes of its own pattern, after `padding` files of filler so the
+/// archive is much larger than any one of them.
+fn mixed(padding: usize, each: usize) -> Vec<u8> {
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut buffer);
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        let deflated = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        for n in 0..padding {
+            zip.start_file(format!("filler/{n}.bin"), stored).unwrap();
+            zip.write_all(&vec![0xAA; 100_000]).unwrap();
+        }
+        zip.add_directory("docs/", stored).unwrap();
+        zip.start_file("docs/plain.txt", stored).unwrap();
+        zip.write_all(&pattern(each, 7)).unwrap();
+        zip.start_file("docs/packed.txt", deflated).unwrap();
+        zip.write_all(&pattern(each, 13)).unwrap();
+        zip.finish().unwrap();
+    }
+    buffer.into_inner()
+}
+
+fn pattern(len: usize, step: usize) -> Vec<u8> {
+    (0..len).map(|i| b"abcdefghij\n"[(i * step) % 11]).collect()
+}
+
+async fn listed(url: &str, name: &str) -> dm_core::ZipEntry {
+    zip_contents(&client(), url, None, None)
+        .await
+        .expect("a listing")
+        .into_iter()
+        .find(|e| e.name == name)
+        .expect("the file is listed")
+}
+
+#[tokio::test]
+async fn one_file_is_taken_out_of_a_remote_zip_without_fetching_the_archive() {
+    let body = mixed(30, 50_000);
+    let total = body.len() as u64;
+    let (url, sent) = serve(body, true).await;
+    let dir = tempfile::tempdir().unwrap();
+
+    for (name, step) in [("docs/plain.txt", 7), ("docs/packed.txt", 13)] {
+        let entry = listed(&url, name).await;
+        let saved = zip_take_one(&client(), &url, None, None, &entry, dir.path())
+            .await
+            .expect("taken out");
+        assert_eq!(saved.parent(), Some(dir.path()));
+        assert_eq!(
+            std::fs::read(&saved).unwrap(),
+            pattern(50_000, step),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        2,
+        "nothing staged is left"
+    );
+    // Two listings and two files of 50 KB: a small part of a 3 MB archive.
+    assert!(
+        sent.load(Ordering::SeqCst) < total / 10,
+        "{} of {total} bytes were fetched",
+        sent.load(Ordering::SeqCst)
+    );
+
+    // Taken again, it is saved beside the first under a free name.
+    let entry = listed(&url, "docs/plain.txt").await;
+    let again = zip_take_one(&client(), &url, None, None, &entry, dir.path())
+        .await
+        .unwrap();
+    assert_eq!(again.file_name().unwrap(), "plain (1).txt");
+}
+
+#[tokio::test]
+async fn a_folder_a_damaged_file_or_a_server_without_ranges_takes_nothing_out() {
+    let body = mixed(0, 20_000);
+    let (url, _) = serve(body.clone(), true).await;
+    let dir = tempfile::tempdir().unwrap();
+
+    let folder = listed(&url, "docs/").await;
+    assert!(
+        zip_take_one(&client(), &url, None, None, &folder, dir.path())
+            .await
+            .unwrap_err()
+            .contains("folder")
+    );
+
+    // The archive's bytes of the stored file changed under its listed CRC.
+    let entry = listed(&url, "docs/plain.txt").await;
+    let mut damaged = body.clone();
+    let at = usize::try_from(entry.at).unwrap() + 30 + "docs/plain.txt".len() + 1000;
+    damaged[at] ^= 0xFF;
+    let (bad_url, _) = serve(damaged, true).await;
+    let why = zip_take_one(&client(), &bad_url, None, None, &entry, dir.path())
+        .await
+        .unwrap_err();
+    assert!(why.contains("CRC"), "{why}");
+
+    // A server that answers every request with the whole archive.
+    let (whole_url, _) = serve(body, false).await;
+    assert!(
+        zip_take_one(&client(), &whole_url, None, None, &entry, dir.path())
+            .await
+            .is_err()
+    );
+
+    // A file listed as larger than may be held is the archive's to download.
+    let huge = dm_core::ZipEntry {
+        packed: dm_core::ZIP_MOST_TAKEN + 1,
+        ..entry
+    };
+    assert!(zip_take_one(&client(), &url, None, None, &huge, dir.path())
+        .await
+        .unwrap_err()
+        .contains("too large"));
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        0,
+        "nothing was saved"
+    );
 }

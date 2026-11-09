@@ -901,5 +901,9 @@
  "Hang up modem when done": "Desligar o modem ao terminar",
  "The scheduled downloads are done: {} is hung up.": "Os downloads agendados terminaram: a conexão {} foi desligada.",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Desligar o modem ao terminar: nenhuma conexão definida em Opções › Avançado › Discada / VPN.",
- "{} was not hung up: {}": "A conexão {} não foi desligada: {}"
+ "{} was not hung up: {}": "A conexão {} não foi desligada: {}",
+ "Take out": "Extrair",
+ "Taking out {}…": "Extraindo {}…",
+ "{} saved to {}": "{} salvo em {}",
+ "Could not take out {}: {}": "Não foi possível extrair {}: {}"
 }

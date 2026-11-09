@@ -901,5 +901,9 @@
  "Hang up modem when done": "Modemverbindung trennen, wenn fertig",
  "The scheduled downloads are done: {} is hung up.": "Die geplanten Downloads sind fertig: {} ist getrennt.",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "Modemverbindung trennen, wenn fertig: Unter Optionen › Erweitert › DFÜ / VPN ist keine Verbindung festgelegt.",
- "{} was not hung up: {}": "{} wurde nicht getrennt: {}"
+ "{} was not hung up: {}": "{} wurde nicht getrennt: {}",
+ "Take out": "Herausnehmen",
+ "Taking out {}…": "{} wird herausgenommen…",
+ "{} saved to {}": "{} gespeichert in {}",
+ "Could not take out {}: {}": "{} konnte nicht herausgenommen werden: {}"
 }

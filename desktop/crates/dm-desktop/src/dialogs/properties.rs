@@ -253,7 +253,11 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                         }
                                         zip_list::Listing::Files(files, more) => {
                                             ui.label(t("Contents"));
-                                            ui.vertical(|ui| zip_list::show(ui, &files, more));
+                                            ui.vertical(|ui| {
+                                                // A finished archive is on the disk:
+                                                // Extract takes its files out.
+                                                zip_list::show(ui, &files, more, false);
+                                            });
                                             ui.end_row();
                                         }
                                     }

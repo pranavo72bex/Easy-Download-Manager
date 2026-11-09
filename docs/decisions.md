@@ -4815,3 +4815,36 @@ place is the reader on live YouTube in the Linux container (`youtube_read`
 with `DM_FETCH_FIRST`) with github.com unreachable and no Deno or QuickJS:
 four videos, both live players, every chosen stream accepted. B35/B36 drive a
 real browser to YouTube, which the macOS QA run covers.
+
+## 2026-11-09: The reference specs' last engine parts (EDM-E1 parts 2, 4, 6 and 7)
+
+An audit of `docs/gaps.md`'s reference sections against the code (torrent T1 to
+T8, EDM-V1, EDM-E1, reference A's extension R120 to R131) found everything
+built or ruled out but four engine parts, at the maintainer's word of the day
+("look into reference in gaps.md and implement here"):
+
+- **Part 7, one file out of a ZIP before it is downloaded: built.** Download
+  details › Contents › Take out (`zipinfo::zip_take_one`): the central
+  directory already read for the list now keeps each file's header offset,
+  method and CRC; the file's local header is read for its data's start, its
+  packed bytes fetched by one range, unpacked (stored, deflated; any other
+  method is refused with words) and checked against the CRC before it is
+  written beside where the archive goes, under a free name, staged and moved
+  into place. At most 256 MB, held in memory; larger is the archive's to
+  download. Only in Download details: a finished archive's Properties has the
+  file on disk, and Extract. Contract row B44 says so.
+- **Part 2, a connection behind its peers: built, narrowly.** The 5 s window's
+  rule was under a sixty-fourth of the whole download's bytes, which with two
+  or three connections let one at a twentieth of its peer's rate go on. It is
+  now also under 0.15 of the other connections' average (`helping::behind`).
+  The spec's 3 s window and per-connection EMA are not taken: a fresh
+  connection is still climbing at 3 s, and halving the largest range already
+  leaves a slow connection a small piece (`tests/speed.rs` is no faster with
+  the rule; it is kept for the connection that trickles beside a fast one).
+- **Part 4, a 10 s cap and a 2 s probe for a server's 5xx: not taken.** A
+  server that answered keeps `retry::backoff` (to 15 s, growing past a
+  `Retry-After`): Wikimedia's limiter let a request through only after about
+  twenty quiet seconds, and asking every two seconds kept it shut.
+- **Part 6, a 256 KiB write buffer: not taken.** Measured before (`ranged.rs`,
+  qa/after.md): no faster over loopback, 20 to 30 MB more memory over ten
+  downloads of eight connections.

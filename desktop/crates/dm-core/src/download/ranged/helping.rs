@@ -99,11 +99,9 @@ impl Window {
         tokio::time::Instant::now() >= self.ends()
     }
 
-    /// Whether this connection brought in under a sixty-fourth of what the
-    /// download as a whole did over the window, while that was a real flow
-    /// (over 1 MiB). Never under a limit of dm's own, which holds every
-    /// connection back alike, and never alone: a download that is all slow
-    /// is the link's, and the read timeout is its judge.
+    /// Whether this connection fell far behind the others over the window
+    /// ([`behind`]). Never under a limit of dm's own, which holds every
+    /// connection back alike.
     pub(in crate::download) fn stalled(&self, own: u64, job: &Job) -> bool {
         if job.limiter.is_limited() {
             return false;
@@ -113,6 +111,75 @@ impl Window {
             .load(Ordering::Relaxed)
             .saturating_sub(self.all);
         let mine = own.saturating_sub(self.own);
-        all > 1024 * 1024 && mine < all / 64
+        behind(all, mine, fetching(job))
+    }
+}
+
+/// How many ranges have a connection on them with bytes still to come.
+fn fetching(job: &Job) -> usize {
+    job.live
+        .iter()
+        .filter(|slot| {
+            let l = crate::lock(slot);
+            l.taken && (l.end - l.start + 1) > l.reserved
+        })
+        .count()
+}
+
+/// The share of the other connections' average rate under which a connection
+/// is dropped and asked again (reference A's watchdog: under 0.15 of its
+/// peers').
+const BEHIND_SHARE: f64 = 0.15;
+
+/// Whether a connection that brought in `mine` of the `all` bytes the
+/// download got over the window, beside `connections` fetching in all, is far
+/// enough behind to be dropped: while the whole was a real flow (over 1 MiB),
+/// under [`BEHIND_SHARE`] of the others' average, or under a sixty-fourth of
+/// the whole. Never alone: a download that is all slow is the link's, and the
+/// read timeout is its judge. Measured against the others' average rather
+/// than the whole, a slow one beside one or two fast ones is caught: a
+/// sixty-fourth of the whole let one at a twentieth of its one peer's rate
+/// hold the end of a two-connection download.
+fn behind(all: u64, mine: u64, connections: usize) -> bool {
+    if all <= 1024 * 1024 {
+        return false;
+    }
+    if mine < all / 64 {
+        return true;
+    }
+    let others = all.saturating_sub(mine);
+    let peers = connections.saturating_sub(1);
+    peers > 0 && (mine as f64) < BEHIND_SHARE * (others as f64 / peers as f64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::behind;
+
+    const MB: u64 = 1024 * 1024;
+
+    #[test]
+    fn a_connection_far_behind_its_peers_is_dropped_however_many_there_are() {
+        // Two connections, one at a twentieth of the other: a sixty-fourth
+        // of the whole did not catch it.
+        assert!(behind(21 * MB, MB, 2));
+        // Eight, one at a tenth of the others' average.
+        assert!(behind(71 * MB, MB, 8));
+        // Nothing at all from it.
+        assert!(behind(10 * MB, 0, 4));
+    }
+
+    #[test]
+    fn a_connection_near_its_peers_or_alone_or_in_a_trickle_is_kept() {
+        // A fifth of its one peer: slower, not stalled.
+        assert!(!behind(6 * MB, MB, 2));
+        // Alone, however slow: the whole is its own, the link's to judge.
+        assert!(!behind(2 * MB, 2 * MB, 1));
+        // Its peers just finished, so it is the only one fetching now.
+        assert!(!behind(4 * MB, MB, 1));
+        // Under a mebibyte over the whole window: too little to judge by.
+        assert!(!behind(MB, 0, 8));
+        // Every connection alike.
+        assert!(!behind(8 * MB, MB, 8));
     }
 }

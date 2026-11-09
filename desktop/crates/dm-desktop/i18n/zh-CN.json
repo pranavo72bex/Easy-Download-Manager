@@ -901,5 +901,9 @@
  "Hang up modem when done": "完成后挂断调制解调器",
  "The scheduled downloads are done: {} is hung up.": "计划的下载已完成：已挂断 {}。",
  "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.": "完成后挂断调制解调器：选项 › 高级 › 拨号 / VPN 中未设置连接。",
- "{} was not hung up: {}": "未能挂断 {}：{}"
+ "{} was not hung up: {}": "未能挂断 {}：{}",
+ "Take out": "取出",
+ "Taking out {}…": "正在取出 {}…",
+ "{} saved to {}": "{} 已保存到 {}",
+ "Could not take out {}: {}": "无法取出 {}：{}"
 }
