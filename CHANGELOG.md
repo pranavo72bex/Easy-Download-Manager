@@ -3,7 +3,7 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## Unreleased
+## App 0.9.0, extension 3.3.0
 
 - Fixed: a YouTube video made in another language and dubbed into English came with the English dub, not its own sound (issue #32). YouTube marks the track to play by the language it is asked in, and dm asks in English, so a Spanish video's English automatic dub was marked and its Spanish set aside as a dub. dm now takes the track YouTube names as the original (its address's `acont=original`, or a track id ending `.4`), and the marked track only where none is named; the voice-boosted copy of a track (`vb=1`) is set aside as the loudness-evened one already was. Checked on live YouTube: Spanish and Portuguese videos with English, French, Hindi and automatic dubs each gave their own language; an English video with twenty dubs gave English; single-language videos are unchanged.
 - Windows: dm is listed in Settings › Default apps for magnet links and `.torrent` files (and in Windows' "How do you want to open this?"), so a person can choose it there; listing it makes dm the default of nothing and touches no other program's keys, and Uninstall takes it out.
@@ -109,7 +109,7 @@ the browser extension (`v*` tags) are versioned separately.
 - A new dm follows the computer's proxy settings (Options › Advanced: Connect through a proxy, the computer's proxy settings), as a browser does; with none set it goes direct, and a saved setting is kept (in place of gaps row 80, which needed a new browser permission).
 - The browser panel's stream lines say how long each plays ("1080p HLS stream, 4 min 12 sec"), so two videos on one page can be told apart (gaps row 155).
 - Fixed: a video sent from the panel was not named by its page's title when its own name says nothing (gaps row 75): the panel read the title for its list and never sent it, so an X video was saved as "GiFPAi8WYAEgiBu.mp4". It now goes with every hand-off from the panel.
-- Release: Mozilla's signing of the Firefox add-on uses web-ext 10.8.0. web-ext 8.3.0 sent the upload named "blob" on the runner's Node, which AMO refused as an "unsupported file type" (gaps row 51).
+- Release: Mozilla's signing of the Firefox add-on uses web-ext 10.8.0. web-ext 8.3.0 sent the upload named "blob" on the runner's Node, which AMO refused as an "unsupported file type" (gaps row 51). Checked on 2026-11-09 against a stand-in AMO server on this computer: 8.3.0 names the upload `blob`, 10.8.0 names it after the zip.
 - Fixed (macOS): a YouTube video from the browser failed with "the solver took too long". dm, started by the browser, wrote the QuickJS it fetched with macOS's quarantine mark, and Gatekeeper would not run it; dm now takes the mark off a tool it has checked against its SHA-256, and off one fetched before (`tools.rs`; found by the human QA's B35).
 - The control port's `ui.window` puts dm's window in the tray, minimized or back in sight, for checks of the window out of sight. `scripts/stress-check.py hidden` (the tray and minimized: calls answered, a pause and a resume taken, downloads finished whole, and the list current within a quarter of a second of being shown) and `details` (three progress windows open while their downloads are paused, resumed and finish) pass on macOS (gaps row 24).
 - `scripts/memory-check.py` measures dm at rest on macOS too, with a budget for each system (gaps row 137).
