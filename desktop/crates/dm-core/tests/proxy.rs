@@ -298,7 +298,7 @@ fn script_engine(dir: &std::path::Path, proxy: &str) -> Option<std::path::PathBu
     std::fs::write(
         &engine,
         format!(
-            "#!/bin/sh\nif grep -q '//localhost:' \"$1\"; then echo DIRECT; else echo 'PROXY {proxy}'; fi\n"
+            "#!/bin/sh\nfor last in \"$@\"; do :; done\nif grep -q '//localhost:' \"$last\"; then echo DIRECT; else echo 'PROXY {proxy}'; fi\n"
         ),
     )
     .unwrap();

@@ -822,25 +822,6 @@ mod coverage_tests {
         assert!(parts_of(&dir.path().join("nowhere/v.mp4")).await.is_empty());
     }
 
-    /// QuickJS is told the program is a classic script, whose top-level
-    /// `this` is the global object; Deno is run with no permissions.
-    #[test]
-    fn quickjs_runs_the_program_as_a_script_and_deno_with_nothing() {
-        let file = Path::new("/tmp/p.js");
-        let args = |engine: &str| -> Vec<String> {
-            js_command(Path::new(engine), file)
-                .as_std()
-                .get_args()
-                .map(|a| a.to_string_lossy().into_owned())
-                .collect()
-        };
-        assert_eq!(args("/opt/qjs"), ["--script", "/tmp/p.js"]);
-        let deno = args("/opt/deno");
-        assert_eq!(deno[0], "run");
-        assert!(deno.contains(&"--no-npm".to_string()) && !deno.contains(&"--script".to_string()));
-        assert_eq!(deno.last().map(String::as_str), Some("/tmp/p.js"));
-    }
-
     /// A private file replaces what was there, readable by this account
     /// alone.
     #[tokio::test]
@@ -878,7 +859,9 @@ mod coverage_tests {
         assert_eq!(deno.first().map(String::as_str), Some("run"));
         assert!(deno.contains(&"--no-remote".to_string()));
         assert_eq!(deno.last().map(String::as_str), Some("/p.js"));
-        assert_eq!(args("/usr/bin/qjs"), ["/p.js"]);
+        // QuickJS is told the program is a classic script, whose top-level
+        // `this` is the global object (it takes a `.js` file as a module).
+        assert_eq!(args("/usr/bin/qjs"), ["--script", "/p.js"]);
         assert!(is_page(Some("text/html; charset=utf-8")));
         assert!(!is_page(Some("video/mp4")));
         assert!(!is_page(None));
