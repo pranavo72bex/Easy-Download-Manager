@@ -667,6 +667,19 @@ mod command {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
 
+    /// What an engine said when the program stopped: its last line that is
+    /// not a frame of the stack after it. QuickJS and Deno put the error
+    /// first and the frames (`at …`) after, so the last line alone was a
+    /// frame ("at <anonymous> (….js:17852:15)") and the error was lost.
+    pub(super) fn why_stopped(stderr: &str) -> &str {
+        stderr
+            .lines()
+            .map(str::trim)
+            .rev()
+            .find(|l| !l.is_empty() && !l.starts_with("at "))
+            .unwrap_or("")
+    }
+
     /// Each run's own file name, for runs at the same time.
     static RUNS: AtomicU64 = AtomicU64::new(0);
 
@@ -723,15 +736,7 @@ mod command {
             .map_err(|e| format!("the JavaScript engine would not start: {e}"))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!(
-                "the JavaScript stopped: {}",
-                stderr
-                    .lines()
-                    .rev()
-                    .find(|l| !l.trim().is_empty())
-                    .unwrap_or("")
-                    .trim()
-            ));
+            return Err(format!("the JavaScript stopped: {}", why_stopped(&stderr)));
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
         Ok(stdout
@@ -740,5 +745,19 @@ mod command {
             .find(|line| !line.trim().is_empty())
             .unwrap_or("")
             .to_string())
+    }
+}
+
+#[cfg(all(test, not(windows)))]
+mod command_tests {
+    #[test]
+    fn the_error_is_said_and_not_the_stack_after_it() {
+        let stderr = "Error: Cannot find global object\n    at ea (/tmp/p.js:3:9)\n    at <anonymous> (/tmp/p.js:17852:15)\n\n";
+        assert_eq!(
+            super::command::why_stopped(stderr),
+            "Error: Cannot find global object"
+        );
+        assert_eq!(super::command::why_stopped("it broke\n"), "it broke");
+        assert_eq!(super::command::why_stopped(""), "");
     }
 }
