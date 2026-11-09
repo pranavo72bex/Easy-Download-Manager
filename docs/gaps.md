@@ -19,9 +19,8 @@ Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
 `human-qa.py` 64 of 64 rows. The 0.9.0 release's own files, downloaded from its draft (digests
 as `latest.json` gives them), with extension 3.3.0's released zip: the macOS `.dmg` 64 of 64 rows;
-the arm64 `.deb` installed by apt on Debian 12 under Xvfb with Chromium in Edge's place, 63 of 64
-(B25 only: `human-qa.py` pictures dialogs on macOS and Windows alone, and its baselines are
-macOS pictures; the screen was looked at instead).
+the arm64 `.deb` installed by apt on Debian 12 with Chromium in Edge's place, 64 of 64 with
+`DM_RELEASE=desktop-v0.9.0 sh scripts/linux-human-qa.sh` (B25 against the Linux baselines).
 
 Removed from the list on 2026-11-09 at the maintainer's word (`docs/decisions.md`, "The work
 list keeps only what can be done"): every check that needs a site sign-in (Facebook, Instagram,
