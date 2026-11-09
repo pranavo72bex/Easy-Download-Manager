@@ -202,6 +202,12 @@ fn parse(text: &str) -> Result<Node, Error> {
                     }
                 }
             }
+            // `&amp;` and the like in text come apart from it, as references of their own.
+            Ok(Event::GeneralRef(entity)) => {
+                if let Some(top) = stack.last_mut() {
+                    top.text.push_str(&entity_text(&entity));
+                }
+            }
             Ok(Event::End(_)) => {
                 if let Some(done) = stack.pop() {
                     match stack.last_mut() {
@@ -215,6 +221,19 @@ fn parse(text: &str) -> Result<Node, Error> {
     }
     root.filter(|r| r.name == "MPD")
         .ok_or_else(|| bad("no MPD element"))
+}
+
+/// What a reference in a document's text stands for: a character, one of XML's five, or (one
+/// dm does not know) the reference as it was written.
+pub(crate) fn entity_text(entity: &quick_xml::events::BytesRef) -> String {
+    if let Ok(Some(c)) = entity.resolve_char_ref() {
+        return c.to_string();
+    }
+    let name: &str = entity;
+    match quick_xml::escape::resolve_predefined_entity(name) {
+        Some(text) => text.to_string(),
+        None => format!("&{name};"),
+    }
 }
 
 // ---- reading it -----------------------------------------------------------

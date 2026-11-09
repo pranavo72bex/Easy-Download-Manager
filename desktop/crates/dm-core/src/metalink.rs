@@ -142,6 +142,13 @@ pub fn parse(xml: &str) -> Option<Metalink> {
                 }
             }
 
+            // `&amp;` in a mirror URL comes apart from the text, as a reference of its own.
+            Ok(Event::GeneralRef(entity)) => {
+                if collecting.is_some() {
+                    text.push_str(&crate::dash::entity_text(&entity));
+                }
+            }
+
             Ok(Event::End(tag)) => {
                 let name = local_name(tag.name().as_ref());
                 if let Some(what) = collecting.take() {
@@ -420,5 +427,17 @@ mod tests {
         assert_eq!(read.filename, "a.iso");
         assert_eq!(read.size, Some(10));
         assert_eq!(read.mirrors, ["https://e.com/a.iso"]);
+    }
+
+    /// A signed mirror address carries its `&` escaped, as XML needs; it was
+    /// read with the escapes dropped, `?a=1b=2`, and every such mirror failed.
+    #[test]
+    fn an_escaped_ampersand_in_a_mirror_address_is_kept() {
+        let signed = r#"<metalink><file name="a.iso">
+            <url>https://e.com/a.iso?a=1&amp;b=2&#38;c=&#x33;&lt;</url></file></metalink>"#;
+        assert_eq!(
+            parse(signed).unwrap().mirrors,
+            ["https://e.com/a.iso?a=1&b=2&c=3<"]
+        );
     }
 }
