@@ -838,9 +838,12 @@ g.Vx(om);
         );
     }
 
-    /// Whether an engine is here to run a program in: Windows' own, or an installed one.
+    /// Whether an engine is here to run a program in: the computer's own (Windows', macOS's), or
+    /// an installed one.
     fn an_engine_is_here() -> bool {
-        cfg!(windows) || crate::videopage::deno().is_some() || crate::videopage::quickjs().is_some()
+        crate::javascript::system_engine_here()
+            || crate::videopage::deno().is_some()
+            || crate::videopage::quickjs().is_some()
     }
 
     #[tokio::test]

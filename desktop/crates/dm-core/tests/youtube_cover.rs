@@ -113,10 +113,33 @@ window.document.querySelector("video").play();
 
 fn stand_in() -> &'static StandIn {
     STAND_IN.get_or_init(|| {
-        // One folder of the build's own, emptied and written again each run: the
-        // stand-in lives as long as the test program, so a temporary folder of
-        // the system's was left behind by every run.
-        let home = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("youtube-stand-in");
+        // A folder of the build's own, not the system's: the stand-in lives as
+        // long as the test program, so a temporary folder of the system's was
+        // left behind by every run. One for each test process: nextest runs
+        // each test in a process of its own, side by side, and one folder for
+        // all had each process empty it under the others (a test whose engine
+        // was deleted as it started it, "No such file or directory"). Those
+        // left by runs over an hour ago are cleared.
+        let build = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+        if let Ok(entries) = std::fs::read_dir(&build) {
+            for entry in entries.flatten() {
+                let old = entry
+                    .metadata()
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|at| at.elapsed().ok())
+                    .is_some_and(|age| age > Duration::from_secs(3600));
+                if old
+                    && entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with("youtube-stand-in")
+                {
+                    let _ = std::fs::remove_dir_all(entry.path());
+                }
+            }
+        }
+        let home = build.join(format!("youtube-stand-in-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(&home).unwrap();
         for name in ["qjs", "deno"] {

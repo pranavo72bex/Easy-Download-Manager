@@ -4766,3 +4766,52 @@ channel with a fixed buffer (a slow subscriber would lose lifecycle events or
 make the publisher wait), and an event per byte count from the runner (the
 reads at four a second already carry progress).
 
+## 2026-11-09: macOS runs dm's JavaScript in its own JavaScriptCore (gaps row 164)
+
+On macOS the program that answers YouTube's checks, and a proxy script, ran in
+an installed Deno or in QuickJS fetched from GitHub at first use. The first
+YouTube download of a fresh install therefore needed GitHub, and failed the
+afternoon GitHub answered 504 (the reason Windows moved to its own Chakra,
+decisions 2026-11-08). macOS's JavaScriptCore is part of every macOS: dm loads
+the framework from its system path at first use (`dlopen`, so a macOS without
+it, or without the time-limit function, falls back as before rather than
+failing to start) and runs the program in a context of JavaScript's own objects,
+with the time it is given (`JSContextGroupSetExecutionTimeLimit`, exported by
+the framework from its private header), in dm's own host process as Chakra
+runs. Two differences from Chakra, both recorded in `javascript.rs`: macOS has
+no limit on one program's memory to set (the host process keeps a program
+that runs away from the app, and the time limit ends it), and `eval` is left
+on (it reaches nothing a program does not already have; there is nothing of
+the computer in the context, which a test checks). A person or a test that
+names an engine (`DM_QJS`, `DM_DENO`, set empty to name none) gets that one,
+on Windows too: the stand-in engines of the YouTube and proxy tests are used as
+before. Ruled out: linking the framework at build time (a missing symbol would
+stop dm from starting), and JavaScriptCore's Objective-C `JSContext` (the C
+functions are enough and need no Objective-C runtime glue).
+
+## 2026-11-09: Linux runs it in WebKitGTK's JavaScriptCore, and the JIT is off on both (gaps row 164)
+
+WebKitGTK's `libjavascriptcoregtk` exports the same C functions as macOS's
+framework, the time limit among them (checked with `nm -D` on Debian 12's
+4.1 build), so the `jsc` module serves both, loading on Linux the first of
+`libjavascriptcoregtk-6.0.so.1`, `-4.1.so.0`, `-4.0.so.18` the system's loader
+finds. Where none is installed, dm runs Deno or QuickJS as before. It is not a
+dependency of the packages: a GNOME desktop already has it and a KDE one may
+not, and requiring it would pull WebKitGTK's libraries onto every system for a
+fallback that works; the rpm recommends it (nfpm's `recommends`), the Arch
+package lists it as optional, and the .deb cannot say so (cargo-packager 0.11.8
+has no `Recommends`), Debian's and Ubuntu's GNOME bring it anyway.
+
+The host process starts JavaScriptCore with `JSC_useJIT=false` (read from the
+environment as the engine starts), its interpreter only, as Chakra runs
+without native code on Windows: the JIT is where engine exploits usually live.
+A hot loop takes nine times as long without it, but a YouTube reading took
+2.0 to 2.9 s either way (the program is mostly parsed once, and the network
+is most of it). The engine run in the app's own process (tests, the example
+tools) keeps its JIT.
+
+Row 164 asked for `human-qa.py` B35 and B36 on Linux; what was run in their
+place is the reader on live YouTube in the Linux container (`youtube_read`
+with `DM_FETCH_FIRST`) with github.com unreachable and no Deno or QuickJS:
+four videos, both live players, every chosen stream accepted. B35/B36 drive a
+real browser to YouTube, which the macOS QA run covers.

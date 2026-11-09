@@ -462,3 +462,28 @@ own: dm's own program started as the engine's host (`--javascript-host`).
   malicious player, would run as the user, as a bug in the QuickJS process could before. Chakra is
   kept up by Windows Update.
 
+
+## YouTube's checks in JavaScriptCore on macOS and Linux, 2026-11-09
+
+What changed: on macOS (the system's `JavaScriptCore.framework`) and on Linux
+(WebKitGTK's `libjavascriptcoregtk`, where installed) the program that answers
+YouTube's checks, and a proxy script, run in JavaScriptCore through its C
+functions, in the same host process as Chakra on Windows, in place of QuickJS's
+command line fetched from GitHub.
+
+- What it can reach: nothing of the computer. A global context made with no
+  class has JavaScript's own objects only; dm adds none, and a test checks the
+  usual names are absent (`there_is_nothing_of_the_computer_in_reach`).
+- How it is held in: no JIT in the host (`JSC_useJIT=false`, an interpreter
+  only, as Chakra's `DisableNativeCodeGeneration`); stopped at its time
+  (`JSContextGroupSetExecutionTimeLimit`); a thread of its own with a 16 MB
+  stack. The library is opened by its system path on macOS; on Linux by its
+  name, through the system's loader (the same search every program on that
+  system uses for it).
+- Unlike Chakra: no memory limit to set (JavaScriptCore has none in its C
+  functions; the host process keeps a runaway program from the app, and the
+  time limit ends it), and `eval` is the language's own (it reaches nothing a
+  program does not already have).
+- Left, as on Windows: the host runs as the user, not in a sandbox of its own.
+  JavaScriptCore is kept up by macOS's updates, and on Linux by the
+  distribution's WebKitGTK updates.

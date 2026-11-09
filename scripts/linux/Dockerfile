@@ -18,6 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # these along until the tray moved to D-Bus.
       libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 \
       libwayland-client0 libwayland-egl1 \
+      # WebKitGTK's JavaScriptCore, which dm's .deb recommends: YouTube's checks
+      # and a proxy script run in it, nothing fetched (gaps row 164).
+      libjavascriptcoregtk-4.1-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # No web view: the window is egui on GL, drawn by Mesa under Xvfb.

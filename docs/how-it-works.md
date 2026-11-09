@@ -450,7 +450,8 @@ desktop/
     javascript.rs         the computer's own JavaScript engine for that program: Windows' own
                           Chakra (chakra.dll; no JIT, no eval, memory and time capped), in a
                           process of its own, dm started as its host (--javascript-host);
-                          elsewhere an installed Deno, or QuickJS
+                          macOS's JavaScriptCore, and WebKitGTK's on Linux where installed (the
+                          same host, the JIT off); elsewhere an installed Deno, or QuickJS
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
     videopage.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old

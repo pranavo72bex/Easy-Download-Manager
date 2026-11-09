@@ -177,10 +177,10 @@ fn text(status: StatusCode, kind: &str, body: String) -> Response {
         .unwrap()
 }
 
-/// Whether a JavaScript engine the reader can answer the player's checks in is here: Windows'
-/// own, or an installed one.
+/// Whether a JavaScript engine the reader can answer the player's checks in is here: the
+/// computer's own (Windows', macOS's, WebKitGTK's on Linux), or an installed one.
 fn an_engine_is_here() -> bool {
-    cfg!(windows)
+    dm_core::javascript::system_engine_here()
         || ["deno", "qjs"].iter().any(|program| {
             std::process::Command::new(program)
                 .arg("--version")
@@ -359,8 +359,8 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
     );
     // Nothing was fetched to answer the checks: no tool and no script.
     assert!(
-        !dir.path().join("tools").exists() || cfg!(not(windows)),
-        "a tool was fetched on Windows"
+        !dir.path().join("tools").exists() || !dm_core::javascript::system_engine_here(),
+        "a tool was fetched where the computer has an engine of its own"
     );
 
     // A part of the same video, from 2 to 4 seconds. Each piece of the

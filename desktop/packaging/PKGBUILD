@@ -17,7 +17,8 @@ license=('GPL-3.0-or-later')
 # xkbcommon and GL.
 depends=('hicolor-icon-theme' 'libx11' 'libxcursor' 'libxi' 'libxkbcommon-x11' 'wayland' 'libglvnd' 'xdg-utils' 'libsecret')
 makedepends=('rust' 'cargo' 'pkgconf' 'git')
-optdepends=('noto-fonts-cjk: names in Chinese, Japanese and Korean')
+optdepends=('noto-fonts-cjk: names in Chinese, Japanese and Korean'
+            'webkit2gtk-4.1: YouTube and proxy scripts with nothing fetched from GitHub')
 
 # No debug package: the release profile strips the binary, so makepkg's
 # debuginfo flags only made the fat-LTO link of dm-desktop hold the whole
