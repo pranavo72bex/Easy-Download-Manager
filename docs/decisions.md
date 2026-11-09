@@ -4613,3 +4613,35 @@ change to what scripts and AI clients get. The audit counted it about 30
 lines, but that was before `command.run` was counted. `Command` moving out of
 the window crate is left for when GPUI needs it.
 
+
+## 2026-11-09: The command registry is the application's; dm-core keeps `pub use reqwest` (architecture steps 15, 16 and 14)
+
+The maintainer, 2026-11-09: "do not rebase for now. just implement the
+UI-independent architecture fully then we will fix the merge conflict". The
+decision of 2026-11-08 had left `Command` in the window crate until GPUI
+needed it; finishing the architecture means doing it now. `Command` (names,
+English labels, keys), which commands apply to the rows chosen and the
+commands that are the application's alone are in `dm_shell::app::commands`
+(step 15). Keys are a neutral `Chord` (the key, and whether Cmd/Ctrl and Shift
+are held), not egui's type, so a second toolkit binds the same shortcuts; the
+window keeps only `Shown` (a title in the language in force, the egui
+shortcut) and `pressed`. What only a presentation sees of a row (retrying, the
+file gone, whether it plays) is asked through `commands::Looks`, not copied
+into the application. Ruled out: a `Command` enum per presentation (the
+control port's `commands.list` and `command.run` would have differed by
+toolkit), and moving egui's key types into dm-shell (`xtask layers` forbids a
+toolkit there).
+
+Step 16 moved the rest of the audit's section 3 rows: what a row is called
+and where its file will go (`names`), imports (`import`), extraction
+(`files`), the schedule's hold (`schedule::holds_waiting`) and the clipboard
+watch (`links::Clipboard`). Each old path re-exports.
+
+Step 14: `Entry::redacted()` (no cookies, request headers or form body, the
+address's password masked, with `shown_url` moved into dm-core beside it) is
+what `queue.list` sends, so a new reader cannot forget a secret. `pub use
+reqwest` stays: the audit allowed either it or a client factory, a
+presentation never names it, and the two places the window does (the update
+check and a ZIP's listing) are network work a client factory would only move.
+Ruled out for now: `Queue::new` taking a client factory, a change to every
+caller of the queue for no behaviour.

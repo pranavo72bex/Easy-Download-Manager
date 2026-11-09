@@ -294,6 +294,37 @@ impl Entry {
         let at = self.finished_at?.saturating_add(after);
         Some(at.saturating_sub(now))
     }
+
+    /// This row as it may be shown or sent anywhere but its own server: its
+    /// sign-in (`cookies`), the browser's request headers (a bearer token
+    /// rides in them) and a form's body (`post`) taken out, and a password
+    /// in its address masked ([`shown_url`]). Whether it was signed in is
+    /// still `!self.cookies.is_empty()` on the row itself.
+    #[must_use]
+    pub fn redacted(&self) -> Entry {
+        Entry {
+            url: shown_url(&self.url),
+            cookies: String::new(),
+            headers: Vec::new(),
+            post: None,
+            ..self.clone()
+        }
+    }
+}
+
+/// A download's address as a window shows it: a password in it is replaced
+/// by dots, the rest kept.
+pub fn shown_url(url: &str) -> String {
+    match url::Url::parse(url) {
+        Ok(mut parsed) if parsed.password().is_some() => {
+            // Masked after formatting: put into the URL, the dots were
+            // percent-encoded and read "user:%E2%80%A2…@". The first
+            // ":mask@" is the user's, whose own `:` and `@` are encoded.
+            let _ = parsed.set_password(Some("dmmasked"));
+            parsed.to_string().replacen(":dmmasked@", ":•••@", 1)
+        }
+        _ => url.to_string(),
+    }
 }
 
 /// What a caller may say when it adds a download: beyond its address, what
@@ -969,5 +1000,51 @@ mod preview_tests {
         std::fs::write(parts.join(crate::download::STAGED), b"first bytes, more").unwrap();
         let again = preview_of(parts, "talk.mp4").unwrap();
         assert_eq!(std::fs::read(again).unwrap(), b"first bytes, more");
+    }
+}
+
+#[cfg(test)]
+mod redacted_tests {
+    use super::*;
+
+    #[test]
+    fn a_redacted_row_carries_no_secret_and_keeps_the_rest() {
+        let mut row: Entry = serde_json::from_value(serde_json::json!({
+            "id": 7,
+            "url": concat!("https://me:", "pa55", "@files.example/a.zip"),
+            "state": serde_json::to_value(State::Paused).unwrap(),
+            "progress": {"downloaded": 5, "total": null, "speed": 0.0, "eta": null},
+            "filename": "a.zip",
+            "description": "the big one",
+        }))
+        .unwrap();
+        row.cookies = "sid=1".into();
+        row.headers = vec![("Authorization".into(), "Bearer t".into())];
+        row.post = Some(crate::cookies::Posted {
+            url: "https://files.example/form".into(),
+            body: b"user=me".to_vec(),
+            content_type: "application/x-www-form-urlencoded".into(),
+        });
+        let shown = row.redacted();
+        assert!(shown.cookies.is_empty() && shown.headers.is_empty() && shown.post.is_none());
+        assert_eq!(
+            shown.url,
+            concat!("https://me:", "•••", "@files.example/a.zip")
+        );
+        assert_eq!(
+            (
+                shown.id,
+                shown.filename.as_str(),
+                shown.description.as_str()
+            ),
+            (7, "a.zip", "the big one")
+        );
+        let said = serde_json::to_string(&shown).unwrap();
+        assert!(!said.contains("pa55") && !said.contains("sid=1") && !said.contains("Bearer"));
+        // An address with no password is kept as it is.
+        assert_eq!(
+            shown_url("https://files.example/a.zip"),
+            "https://files.example/a.zip"
+        );
     }
 }

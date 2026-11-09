@@ -30,11 +30,11 @@ pub fn queue_list(rows: &[Arc<Entry>]) -> Value {
     json!(rows
         .iter()
         .map(|r| {
-            let mut value = serde_json::to_value(r).unwrap_or_default();
-            value["url"] = json!(crate::lists::shown_url(&r.url));
+            // Redacted by the row itself, so no reader can forget a secret.
+            let mut value = serde_json::to_value(r.redacted()).unwrap_or_default();
             if let Some(row) = value.as_object_mut() {
+                // Empty after redaction: said only as whether there was one.
                 row.remove("cookies");
-                row.remove("headers");
                 row.insert("signed_in".into(), json!(!r.cookies.is_empty()));
             }
             value
