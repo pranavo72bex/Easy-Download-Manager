@@ -285,6 +285,113 @@ file sparse, dm 73 s and reference A 96 s. Results:
 `D:\compare\plan-side-full.json` and `plan-side\report.json` (the error cases again with
 each window read and closed).
 
+## The four scenarios that differed, with reference A's windows answered (Observed, 2026-11-08, Windows)
+
+The 2026-11-02 runs (`compare.mjs`) left four of twelve local scenarios different, maybe the
+harness misreading reference A. Run again one after the other against one server on 127.0.0.1
+(`D:\compare\dialogs.mjs`): reference A 6.43 by its command line without its silent switch,
+every window it opened read and recorded with its words, and answered as a person answers it
+(File Info: Start Download; "the server sent the following name": Yes; Download complete:
+Close; its reminder to register: No); its progress window left alone. dm (debug build) by its
+control port. Each file was given a name reference A's own list had not seen: it asks first
+about a name it already holds ("Duplicate download link: This file already exists in your
+download list").
+
+| Scenario | Reference A | dm |
+|---|---|---|
+| A name the server gives (`Content-Disposition`, "Report 2026 ….pdf") | File Info, then "The name to save the file was "dl", but the server sent the following name "Report 2026 ….pdf". Would you like to save the file with the file name that was received from the server?"; with Yes, the file under the server's name, sorted into its Documents folder (outside the folder it was given) | the server's name, sorted into its Documents folder; the same bytes (SHA-256 equal). dm asks the same question in its window (contract row B39); added here by its control port, it does not ask |
+| The same in UTF-8 (`filename*=UTF-8''résumé € ….txt`) | the same question; with Yes, "résumé € ….txt", exact | "résumé € ….txt", exact |
+| A length it lies about (1 MiB more than it sends) | split into eight connections for the claimed 5 MB; the three past the real 4 MB get nothing (its log: `downloaded=0`); stays at 80% "Receiving data..." for the three minutes watched | whole and exact (4 MiB) |
+| A web page where a file was asked for (`page.zip` answering an HTML sign-in page) | saves it, renamed `page-….htm` (35 bytes), and says Download complete | refuses it: "that link answered with a web page rather than the file — it may have expired, or need a sign-in" |
+
+What it changes: the two named downloads come out the same in both; the earlier difference was
+the harness, which closed reference A's progress window, which cancels its download ("Cancel
+by user" in its own log), and looked only in the folder it gave (reference A sorted the PDF into
+its Documents folder). The two that stand are where dm does better: it finishes a file whose
+length is overstated, and says why it refuses a page served in a file's place, where reference
+A saves the page. Nothing in dm is changed for them (row 65's rule: only where dm is not already
+better). The duplicate question is reference A's, about its own list; dm's is contract rows B17
+and B50. Results:
+`D:\compare\dialogs-report.json`.
+
+## How reference A answers YouTube's checks (Observed, 2026-11-08, Windows)
+
+Read from reference A 6.43 as installed: its Edge extension's `content.js` (6.43.1) and the strings
+of its network library (the one that watches the browsers, in its 32- and 64-bit builds). Nothing was
+run but string and export listings.
+
+- **The extension cuts the pieces.** On a YouTube page it reads the page's `<script>` elements: one
+  whose address matches the player pattern gives the player's version, and the inline
+  `ytcfg.set(...)` gives `STS`, `DATASYNC_ID`, `LOGGED_IN`, `VISITOR_DATA` or `EOM_VISITOR_DATA`,
+  `SESSION_INDEX` and `PLAYER_JS_URL`. Every pattern comes from the app (message 1 of the YouTube
+  profile), with a list of the player versions the app already holds. For a version it does not
+  hold, the extension fetches the player inside the page (XHR, ten seconds) and runs the app's five
+  patterns in turn, each able to name pieces the ones before matched (`${k.r}`). With three or more
+  matched, it sends the pieces and the player's own signature timestamp (`[37,1,1,…]`); with fewer,
+  a newer app gets the whole script (`[37,1,4,…]`).
+- **The app runs them in Windows' own engine.** That library has a `YouTubeParser`, a
+  `YouTubeRecord` and a `JScriptSite` (an `IActiveScriptSite`), and holds JScript9's class id with
+  `IActiveScript` and `IActiveScriptParse`: the pieces run in Windows' own JScript9 through Active
+  Scripting. Its program is built from templates in the DLL: a prelude of what that engine lacks
+  (`Object.assign`, `String.prototype.startsWith`, a `Date` that reads an ISO date with an offset);
+  per player version, a function `LgVav_%u` that returns two others; the player's address class
+  made from a stand-in address (`$$r=new %1($$s,true)`, `https://google.com/`); the signature through
+  the player's own calls (`$$r=%2(%3(%4,$$s))`); `n` through an address object it makes and reads
+  back (`%1(%2,$$r=$$newStream($$lgFge,'n',$$s));$$r=$$r.$$v`); each wrapped as
+  `function %s($$s){var $$r;%s;return $$r}`.
+- **Nothing is shipped or fetched for it.** Its main program holds no JavaScript engine; the only
+  other JavaScript there is for proxy scripts (a JScript proxy library of its own, and a polyfill
+  of `Array.prototype.indexOf` in the main program's proxy code).
+
+dm does the same in substance since 2026-11-08 (`docs/decisions.md`, "YouTube's checks are answered
+as reference A answers them"): the player cut by its shape (`youtube/player.rs`), run in Windows'
+own engine (`javascript.rs`). It cuts in the app rather than the extension, from the player it
+fetches itself, so a link added without the browser is read the same way; and it runs Chakra, not
+JScript9, which lacks `Symbol`, a name today's player uses while it loads.
+
+## Resume after a kill, side by side (Observed, 2026-11-08, Windows)
+
+The maintainer's yes of 2026-11-08 to ending reference A's process for it. One 120 MiB file from a
+server on 127.0.0.1 at 12 MB/s for all connections together (`D:\compare\killresume2.mjs`); each
+app's process ended outright (`taskkill /F`) at about 40%, started again three seconds later, and
+its download resumed as a person resumes it: reference A by asking for the same address again
+(its windows on starting answered as a person answers them: the tip of the day closed, its
+trial's reminder put off) and choosing in its "Duplicate download link" window "If existing file
+is complete, show download complete dialog; otherwise resume it."; dm by starting it again.
+
+| | Reference A | dm before | dm now |
+|---|---|---|---|
+| How it goes on | the address asked again, and its duplicate window's resume | by itself when started | by itself when started |
+| Bytes coming again after the restart | 14 s, most of it its windows and the harness | 134 ms | 151 and 160 ms |
+| Fetched twice | 3.2 MB (2.5% of the file) | 16.5 MB (13%) | 5.1 and 5.0 MB (4%) |
+| The file | whole | whole | whole |
+
+What it changed: each range's ledger (what it has on disk) was written every 4 MiB or every second,
+so a crash lost up to a second of every range; it is now written every 512 KiB or every quarter
+second (`download/ranged/staged.rs` `LEDGER_EVERY`, `LEDGER_EVERY_TIME`). What dm still fetches
+again beyond reference A is the bytes on their way at the moment of the kill and the 64 KiB at each
+part's end it compares with the server on a resume, against a power cut's zeros, which reference A
+does not check.
+
+## Speed and time left, side by side (Observed, 2026-11-08, Windows)
+
+One 48 MiB file from a server on 127.0.0.1 whose rate for all connections together steps between
+3 MB/s and 1 MB/s every 10 seconds (`D:\compare\smoothing.mjs`): reference A 6.43 by its command
+line, its windows answered as a person answers them and its progress window read twice a second;
+dm (debug build) by its control port, its row read twice a second. Each reading set beside the
+rate the server really sent in the second before it.
+
+| | Reference A | dm |
+|---|---|---|
+| The whole file | 84.7 s: its connections took about a third of what the server offered | 23.5 s, the server's whole rate |
+| After a step in the real rate, its shown rate within a quarter of the new one | after 12.4 s, 0.1 s, 13.5 s and 1.3 s; four of eight steps never | after 1.7 s and 1.4 s, both steps |
+| How much the shown rate moves between readings while the real one is steady | median 15%, at worst 64% | median 0.9% |
+| How far its time left is from the time that was left | median 6.9 s, at worst 71 s | median 5.4 s, at worst 12 s |
+
+What it changes: nothing in dm, which follows a change sooner, holds steadier while nothing changes
+and says the time left more nearly (row 65's rule). That reference A fetched the file at a third of
+the offered rate is its own: it set no speed limit, and dm took the whole rate from the same server.
+
 ## Dial-up / VPN redial, side by side (Observed, 2026-11-08, Windows)
 
 Reference A 6.43 and dm 0.8.7 (debug build) on one Windows 11 computer, one after the

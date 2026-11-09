@@ -281,41 +281,33 @@ async fn a_socks5_proxy_carries_the_download_and_resolves_its_name() {
     );
 }
 
-/// A JavaScript engine for the configuration script: the QuickJS `DM_QJS` names where it does,
-/// else a stand-in that answers as the script below would (DIRECT for `localhost`, the proxy for
-/// the rest), so the test needs nothing installed.
-fn script_engine(dir: &std::path::Path, proxy: &str) -> std::path::PathBuf {
+/// The JavaScript engine for the configuration script: on Windows none named, so the script runs
+/// as written in Windows' own engine, as it does for a person; elsewhere the QuickJS `DM_QJS`
+/// names where it does, else a stand-in that answers as the script below would (DIRECT for
+/// `localhost`, the proxy for the rest), so the test needs nothing installed.
+fn script_engine(dir: &std::path::Path, proxy: &str) -> Option<std::path::PathBuf> {
+    if cfg!(windows) {
+        return None;
+    }
     if let Some(real) = std::env::var_os("DM_QJS").map(std::path::PathBuf::from) {
         if real.is_file() {
-            return real;
+            return Some(real);
         }
     }
-    if cfg!(windows) {
-        let engine = dir.join("engine.cmd");
-        std::fs::write(
-            &engine,
-            format!(
-                "@echo off\r\nfindstr /C:\"//localhost:\" \"%~1\" >nul && (echo DIRECT) || (echo PROXY {proxy})\r\n"
-            ),
-        )
-        .unwrap();
-        engine
-    } else {
-        let engine = dir.join("engine.sh");
-        std::fs::write(
-            &engine,
-            format!(
-                "#!/bin/sh\nif grep -q '//localhost:' \"$1\"; then echo DIRECT; else echo 'PROXY {proxy}'; fi\n"
-            ),
-        )
-        .unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
-        engine
+    let engine = dir.join("engine.sh");
+    std::fs::write(
+        &engine,
+        format!(
+            "#!/bin/sh\nif grep -q '//localhost:' \"$1\"; then echo DIRECT; else echo 'PROXY {proxy}'; fi\n"
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
+    Some(engine)
 }
 
 #[tokio::test]
@@ -341,7 +333,7 @@ async fn a_configuration_script_chooses_each_sites_way_and_a_failed_one_sends_no
         ),
     )
     .unwrap();
-    dm_core::pac::set_engine(Some(script_engine(dir.path(), &proxy)));
+    dm_core::pac::set_engine(script_engine(dir.path(), &proxy));
     let settings = Proxy {
         enabled: true,
         kind: Kind::Http,

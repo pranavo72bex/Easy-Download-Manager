@@ -125,16 +125,24 @@ impl Hands {
         now: Instant,
     ) -> Route {
         // A caught download by its own setting, the panel's and menus' by
-        // theirs.
-        let caught = dm_core::lock(&backend.handed)
+        // theirs. A part typed on the panel's "Part" line opens Download
+        // details whatever they say, its ends filled in (contract row B59):
+        // added at once, it was the whole video.
+        let (caught, part) = dm_core::lock(&backend.handed)
             .front()
-            .is_some_and(|r| r.caught);
+            .map_or((false, false), |r| {
+                (
+                    r.caught,
+                    !(r.from.trim().is_empty() && r.to.trim().is_empty()),
+                )
+            });
         let ask = asking != Asking::Nobody
-            && if caught {
-                settings.ask_caught_downloads
-            } else {
-                settings.ask_panel_downloads
-            };
+            && (part
+                || if caught {
+                    settings.ask_caught_downloads
+                } else {
+                    settings.ask_panel_downloads
+                });
         if ask && asking == Asking::Busy {
             return Route::Nothing;
         }
@@ -293,6 +301,30 @@ mod tests {
         let later = now + HANDED_TWICE_WITHIN;
         assert!(matches!(
             hands.next(&backend, &s, &[], Asking::Nobody, later),
+            Route::Added(Ok(_))
+        ));
+    }
+
+    #[test]
+    fn a_part_typed_on_the_panel_is_asked_about_whatever_the_settings_say() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        let mut hands = Hands::default();
+        let now = Instant::now();
+        let part = || Request {
+            to: "0:30".into(),
+            ..request("http://127.0.0.1:9/v.mp4", false)
+        };
+        hand(&backend, part());
+        assert!(matches!(
+            hands.next(&backend, &settings(false), &[], Asking::Free, now),
+            Route::Ask(_)
+        ));
+        // With no window it is added, its part kept (`shell::add_options`).
+        hand(&backend, part());
+        assert!(matches!(
+            hands.next(&backend, &settings(false), &[], Asking::Nobody, now),
             Route::Added(Ok(_))
         ));
     }

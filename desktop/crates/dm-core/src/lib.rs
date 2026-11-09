@@ -63,6 +63,8 @@ pub mod gif;
 
 pub mod hex;
 
+pub mod javascript;
+
 mod limit;
 
 pub mod live;

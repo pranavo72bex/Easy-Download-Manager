@@ -2290,6 +2290,53 @@ fn a_part_asked_for_in_the_browsers_panel_fills_download_details() {
     assert!(!d.part && d.part_from.is_empty() && d.part_to.is_empty());
 }
 
+/// With Download details off for the panel's videos, a part typed on the "Part" line still opens
+/// it, the part filled in, as contract row B59 says: added at once, the part was dropped and the
+/// whole video fetched. With nothing typed the video is added at once, as the setting says.
+#[test]
+fn a_part_asked_for_opens_download_details_where_it_is_off() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = false;
+    let hand = |harness: &mut Harness<'_, DmApp>, from: &str, to: &str| {
+        harness
+            .state()
+            .backend()
+            .handed
+            .lock()
+            .unwrap()
+            .push_back(dm_shell::host::Request {
+                url: world.url("file.zip"),
+                referrer: "https://video.example/watch".into(),
+                ask: true,
+                from: from.into(),
+                to: to.into(),
+                ..Default::default()
+            });
+        harness.state_mut().take_handed();
+        harness.run_steps(3);
+    };
+    hand(&mut harness, "1:30", "2:00");
+    let d = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .expect("Download details opened for the part");
+    assert!(d.part, "the part was not switched on");
+    assert_eq!((d.part_from.as_str(), d.part_to.as_str()), ("1:30", "2:00"));
+    assert!(harness.state().rows().is_empty(), "added without asking");
+    click(&mut harness, "Cancel");
+    hand(&mut harness, "", "");
+    assert!(
+        harness.state().dialogs.file_info.is_none(),
+        "asked, with nothing typed"
+    );
+    until(&mut harness, "the video added at once", |app| {
+        app.rows().iter().any(|r| r.url.ends_with("/file.zip"))
+    });
+}
+
 /// With "Take a copied link at once" on, a link copied opens its Download
 /// details with no bar first, as reference A's switch does; off, it is
 /// offered as before.

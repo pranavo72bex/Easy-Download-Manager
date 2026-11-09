@@ -10,10 +10,17 @@
 use super::*;
 
 /// How often a range's ledger is written down while it downloads: every
-/// this many bytes, or every second, whichever comes first.
-pub(in crate::download) const LEDGER_EVERY: u64 = 4 * 1024 * 1024;
+/// this many bytes, or every [`LEDGER_EVERY_TIME`], whichever comes first.
+/// What a range had on disk past its ledger is fetched again after a crash:
+/// killed outright at 40% of a 120 MiB file on a dozen connections, dm
+/// fetched 16.5 MB again at the old marks (4 MiB or a second) where
+/// reference A fetched 3.2 MB (gaps row 65, 2026-11-08). A ledger is twenty
+/// bytes written over, with no sync, so four times as often costs nothing
+/// that shows.
+pub(in crate::download) const LEDGER_EVERY: u64 = 512 * 1024;
 
-pub(in crate::download) const LEDGER_EVERY_SECOND: Duration = Duration::from_secs(1);
+/// The longest a range's ledger goes unwritten while bytes arrive.
+pub(in crate::download) const LEDGER_EVERY_TIME: Duration = Duration::from_millis(250);
 
 /// How much of a part's end is fetched again and compared on a resume: more
 /// than a filesystem leaves unwritten at a power cut, little enough to cost

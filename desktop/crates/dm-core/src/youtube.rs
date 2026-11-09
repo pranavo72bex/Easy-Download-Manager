@@ -10,17 +10,18 @@
 //! browser, for the visitor id, the player script's address and its
 //! signature timestamp; the player API as a TV client, which answers with
 //! plain `https` addresses for every picture and sound; the player script;
-//! and one run of the solver scripts (public domain, fetched from their
-//! releases and pinned by digest) in the QuickJS dm fetches, which turns each
-//! address's `n` value into the one the server accepts.
+//! and, as reference A does it, the pieces of that script that answer its
+//! checks cut out (`player`) and run in the computer's own JavaScript engine
+//! (`crate::javascript`), which turns each address's `n` value into the one
+//! the server accepts and deciphers a locked stream's signature. Nothing is
+//! fetched for that or shipped with dm.
 //! The result is written as the JSON a reader of a page prints, so
 //! `videopage::download_page` fetches and joins the streams from it. Anything this
 //! cannot read (a video wanting a sign-in, a live stream, a changed client) is
 //! failed, with the reason said in words.
 //!
-//! Test knobs: `DM_YOUTUBE_HOST` names a stand-in for `www.youtube.com`
-//! (a test's server), and `DM_EJS_RELEASES` a stand-in for the solver's
-//! releases, whose files are then not held to the pinned digests.
+//! Test knob: `DM_YOUTUBE_HOST` names a stand-in for `www.youtube.com` (a
+//! test's server).
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
@@ -28,19 +29,9 @@ use std::path::Path;
 use serde_json::{json, Value};
 
 mod itags;
+mod player;
 use crate::stream::Quality;
 use crate::Error;
-
-/// The solver's pinned release, and the digest of each of its two scripts.
-const SOLVER_VERSION: &str = "0.8.0";
-const SOLVER_LIB: (&str, &str) = (
-    "yt.solver.lib.min.js",
-    "c55987fe697e5b9ee18830163f7af85327e9bb5c3e674b969d38c8d205eaa577",
-);
-const SOLVER_CORE: (&str, &str) = (
-    "yt.solver.core.min.js",
-    "18da6ce0758b416e7ae645084f4f8801f9f9d59d6c477c05eaa0ff94ebd8cc00",
-);
 
 /// The TV client this reads with today: its answers carry plain
 /// addresses and want no proof-of-origin token.
@@ -56,6 +47,8 @@ const PAGE_AGENT: &str =
 const CHUNK: u64 = 10 << 20;
 /// How long the whole reading may take.
 const WITHIN: std::time::Duration = std::time::Duration::from_secs(60);
+/// How long the program that answers the player's checks may run.
+const SOLVING: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// The moment a video address starts at, in whole seconds: `t=` or
 /// `start=` in its query or its `#t=` fragment, as YouTube writes them
@@ -942,7 +935,7 @@ async fn read_within(
     // Only YouTube's own player path is fetched and run: the solver runs
     // the player's code, so a page naming a script elsewhere is not
     // followed there.
-    let js_url = facts
+    let js_path = facts
         .player_js
         .as_deref()
         .map(|named| {
@@ -951,24 +944,37 @@ async fn read_within(
                 .unwrap_or(named)
         })
         .filter(|path| player_path(path))
-        .map(|path| format!("{origin}{path}"));
-    let fetch_script = |url: String| async move {
-        let script = crate::redirects::send(
-            client
-                .get(&url)
-                .header(reqwest::header::USER_AGENT, PAGE_AGENT),
-        )
-        .await?;
-        let text = text_capped(Error::refused_or(script).await?, PAGE_MOST).await?;
-        Ok::<String, Error>(text)
+        .map(str::to_string);
+    // The build every engine reads first, then the one the page named.
+    let js_urls: Vec<String> = js_path
+        .iter()
+        .flat_map(|path| plain_build(path).into_iter().chain(Some(path.clone())))
+        .map(|path| format!("{origin}{path}"))
+        .collect();
+    let fetch_script = || async {
+        let mut failed = None;
+        for url in &js_urls {
+            let answer = async {
+                let script = crate::redirects::send(
+                    client
+                        .get(url)
+                        .header(reqwest::header::USER_AGENT, PAGE_AGENT),
+                )
+                .await?;
+                text_capped(Error::refused_or(script).await?, PAGE_MOST).await
+            };
+            match answer.await {
+                Ok(text) => return Ok(text),
+                Err(e) => failed = Some(e),
+            }
+        }
+        Err(failed.unwrap_or_else(|| Error::Internal("the page names no player script".into())))
     };
     let mut script: Option<String> = None;
-    if facts.sts.is_none() {
-        if let Some(url) = js_url.clone() {
-            let text = fetch_script(url).await?;
-            facts.sts = sts_in_player(&text);
-            script = Some(text);
-        }
+    if facts.sts.is_none() && !js_urls.is_empty() {
+        let text = fetch_script().await?;
+        facts.sts = sts_in_player(&text);
+        script = Some(text);
     }
 
     let body = json!({
@@ -1050,12 +1056,9 @@ async fn read_within(
     if needs {
         let script = match script {
             Some(text) => text,
-            None => match js_url {
-                Some(url) => fetch_script(url).await?,
-                None => return Err(Error::Internal("the page names no player script".into())),
-            },
+            None => fetch_script().await?,
         };
-        let solved = solve(client, &script, &formats, staging).await?;
+        let solved = solve(&script, &formats, staging).await?;
         for format in &mut formats {
             format.url = Some(unlocked(format, &solved)?);
             format.cipher = None;
@@ -1099,7 +1102,12 @@ async fn read_within(
     let duration = player
         .pointer("/videoDetails/lengthSeconds")
         .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
-    Ok(reading_json(id, &title, duration, &formats, &chosen, staging).to_string())
+    let mut reading = reading_json(id, &title, duration, &formats, &chosen, staging);
+    // The player script read, for a record of which one answered (the weekly check).
+    if let Some(path) = &js_path {
+        reading["player"] = json!(path);
+    }
+    Ok(reading.to_string())
 }
 
 /// The reading for a caption line: the track of `language` (the speech-recognised one where
@@ -1263,15 +1271,18 @@ struct Solved {
     sig: HashMap<String, String>,
 }
 
-/// Runs the solver scripts over the player script for every `n` value and
-/// signature the formats carry, in QuickJS (dm's own, or one installed), or
-/// Deno where that is what is installed.
-async fn solve(
-    client: &reqwest::Client,
-    player_js: &str,
-    formats: &[Format],
-    staging: &Path,
-) -> Result<Solved, Error> {
+/// The build of the player script every engine reads, where the page named another: the one
+/// in the JavaScript older engines know (`player_ias`) for the newer one (`player_es6`, whose
+/// syntax Windows' own engine predates). The same version, so the same answers.
+fn plain_build(path: &str) -> Option<String> {
+    path.contains("/player_es6.vflset/")
+        .then(|| path.replace("/player_es6.vflset/", "/player_ias.vflset/"))
+}
+
+/// Answers every `n` value and signature the formats carry, as reference A answers them: the
+/// player script cut down to what answers them (`player::program`), run in the computer's own
+/// JavaScript engine (`crate::javascript`).
+async fn solve(player_js: &str, formats: &[Format], staging: &Path) -> Result<Solved, Error> {
     let mut ns = BTreeSet::new();
     let mut sigs = BTreeSet::new();
     let mut n_of = |address: &str| {
@@ -1300,153 +1311,56 @@ async fn solve(
             }
         }
     }
-    let mut requests = Vec::new();
-    if !ns.is_empty() {
-        requests.push(json!({"type": "n", "challenges": ns.iter().collect::<Vec<_>>()}));
-    }
-    if !sigs.is_empty() {
-        requests.push(json!({"type": "sig", "challenges": sigs.iter().collect::<Vec<_>>()}));
-    }
-    let (lib, core) = solver_scripts(client).await?;
-    let input = json!({"type": "player", "player": player_js, "requests": requests});
-    let program = format!(
-        "{lib}\nObject.assign(globalThis, lib);\n{core}\nconsole.log(JSON.stringify(jsc({input})));\n"
-    );
-    let output = run_js(&program, staging).await?;
-    let answer: Value = serde_json::from_str(
-        output
-            .lines()
-            .rev()
-            .find(|line| line.trim_start().starts_with('{'))
-            .unwrap_or(""),
-    )
-    .map_err(|_| Error::Internal(format!("the solver said: {}", output.trim())))?;
-    if answer.get("type").and_then(Value::as_str) == Some("error") {
-        let why = answer.get("error").and_then(Value::as_str).unwrap_or("");
-        return Err(Error::Internal(format!("the solver failed: {why}")));
-    }
+    let ns: Vec<&str> = ns.iter().map(String::as_str).collect();
+    let sigs: Vec<&str> = sigs.iter().map(String::as_str).collect();
+    answer(player_js, &ns, &sigs, staging).await
+}
+
+/// What the player script `player_js` answers for `ns` (`n` values) and `sigs` (signatures),
+/// each by the value asked, cut and run as a download's reading runs it: for a person looking
+/// into a player that changed (`examples/player_answers.rs`).
+#[doc(hidden)]
+pub async fn answers(
+    player_js: &str,
+    ns: &[&str],
+    sigs: &[&str],
+    staging: &Path,
+) -> Result<(HashMap<String, String>, HashMap<String, String>), Error> {
+    let solved = answer(player_js, ns, sigs, staging).await?;
+    Ok((solved.n, solved.sig))
+}
+
+/// [`answers`], as the reading takes them.
+async fn answer(
+    player_js: &str,
+    ns: &[&str],
+    sigs: &[&str],
+    staging: &Path,
+) -> Result<Solved, Error> {
+    let unanswered =
+        |why: String| Error::Internal(format!("YouTube's checks were not answered: {why}"));
+    let program = player::program(player_js).map_err(unanswered)?;
+    let call = player::call(ns, sigs);
+    let output = crate::javascript::run(&program, &call, SOLVING, staging)
+        .await
+        .map_err(unanswered)?;
+    let answer: Value = serde_json::from_str(output.trim())
+        .map_err(|_| unanswered(format!("the answer was {:?}", output.trim())))?;
     let mut solved = Solved::default();
-    let responses = answer
-        .get("responses")
-        .and_then(Value::as_array)
-        .ok_or_else(|| Error::Internal("the solver answered nothing".into()))?;
-    for (request, response) in requests.iter().zip(responses) {
-        let kind = request.get("type").and_then(Value::as_str).unwrap_or("");
-        if response.get("type").and_then(Value::as_str) != Some("result") {
-            let why = response.get("error").and_then(Value::as_str).unwrap_or("");
-            return Err(Error::Internal(format!(
-                "the solver could not solve {kind}: {why}"
-            )));
-        }
-        let data = response.get("data").and_then(Value::as_object);
-        let into = if kind == "n" {
-            &mut solved.n
-        } else {
-            &mut solved.sig
-        };
-        for (challenge, result) in data.into_iter().flatten() {
-            if let Some(result) = result.as_str() {
-                into.insert(challenge.clone(), result.to_string());
-            }
+    for (kind, asked, into) in [("n", ns, &mut solved.n), ("sig", sigs, &mut solved.sig)] {
+        for challenge in asked.iter() {
+            let got = answer
+                .pointer(&format!(
+                    "/{kind}/{}",
+                    challenge.replace('~', "~0").replace('/', "~1")
+                ))
+                .and_then(Value::as_str)
+                .filter(|got| !got.is_empty())
+                .ok_or_else(|| unanswered(format!("no answer for the {kind} value {challenge}")))?;
+            into.insert((*challenge).to_string(), got.to_string());
         }
     }
     Ok(solved)
-}
-
-/// The solver's two scripts, fetched once into dm's tools folder and held
-/// to their digests, as QuickJS is.
-async fn solver_scripts(client: &reqwest::Client) -> Result<(String, String), Error> {
-    let folder = crate::tools::folder()
-        .ok_or_else(|| Error::Internal("dm has no tools folder here".into()))?
-        .join(format!("ejs-{SOLVER_VERSION}"));
-    let stand_in = std::env::var("DM_EJS_RELEASES")
-        .ok()
-        .filter(|v| !v.is_empty());
-    let base = stand_in.clone().unwrap_or_else(|| {
-        format!("https://github.com/yt-dlp/ejs/releases/download/{SOLVER_VERSION}")
-    });
-    let mut texts = Vec::new();
-    for (name, digest) in [SOLVER_LIB, SOLVER_CORE] {
-        let path = folder.join(name);
-        if let Ok(text) = tokio::fs::read_to_string(&path).await {
-            if stand_in.is_some() || crate::tools::sha256_hex(text.as_bytes()) == digest {
-                texts.push(text);
-                continue;
-            }
-        }
-        let bytes = crate::tools::fetch_bytes(client, &format!("{base}/{name}")).await?;
-        if stand_in.is_none() && crate::tools::sha256_hex(&bytes) != digest {
-            return Err(Error::Internal(format!(
-                "the solver script {name} fetched is not the release dm knows, so it was not kept"
-            )));
-        }
-        tokio::fs::create_dir_all(&folder).await?;
-        let partial = path.with_extension("partial");
-        tokio::fs::write(&partial, &bytes).await?;
-        tokio::fs::rename(&partial, &path).await?;
-        texts.push(String::from_utf8_lossy(&bytes).into_owned());
-    }
-    let core = texts.pop().unwrap_or_default();
-    let lib = texts.pop().unwrap_or_default();
-    Ok((lib, core))
-}
-
-/// Runs `program` in QuickJS (the one dm fetched, or one installed) or in
-/// an installed Deno, and gives what it printed.
-async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
-    // Why QuickJS could not be fetched, kept for the failure that follows.
-    let mut not_fetched = None;
-    let quickjs = match crate::videopage::quickjs() {
-        Some(found) => Some(found),
-        None if crate::videopage::deno().is_none() => {
-            match crate::tools::ensure(&crate::client(), crate::tools::Tool::QuickJs).await {
-                Ok(fetched) => Some(fetched),
-                Err(e) => {
-                    not_fetched = Some(e);
-                    None
-                }
-            }
-        }
-        None => None,
-    };
-    // In a file of this account's own: QuickJS does not read a program
-    // from its standard input.
-    tokio::fs::create_dir_all(staging).await?;
-    let file = staging.join(format!(".dm-solver-{}.js", std::process::id()));
-    crate::videopage::write_private(&file, program).await?;
-    let _gone = crate::videopage::RemoveOnDrop(file.clone());
-    // Deno first where it is installed: run with no permissions it can
-    // reach neither files nor programs, which QuickJS's command line does
-    // not prevent.
-    let mut command = match crate::videopage::deno().or(quickjs) {
-        Some(engine) => crate::videopage::js_command(&engine, &file),
-        None => {
-            let why = not_fetched.map_or(String::new(), |e| {
-                format!(" (QuickJS could not be fetched: {e})")
-            });
-            return Err(Error::Internal(format!(
-                "no JavaScript engine to run the player's challenges in{why}"
-            )));
-        }
-    };
-    crate::no_window_async(&mut command);
-    command
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true);
-    let output = tokio::time::timeout(std::time::Duration::from_secs(45), command.output())
-        .await
-        .map_err(|_| Error::Internal("the solver took too long".into()))?
-        .map_err(|e| Error::Internal(format!("the solver would not start: {e}")))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Internal(format!(
-            "the solver stopped: {}",
-            stderr.lines().last().unwrap_or("").trim()
-        )));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 /// The reading as JSON: what `videopage::download_page` reads of one

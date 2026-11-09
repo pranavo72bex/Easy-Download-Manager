@@ -5,7 +5,9 @@
 
 //! A proxy configuration script (PAC): what `FindProxyForURL` answers, and running it.
 //!
-//! The script is run by QuickJS (`tools.rs`), in a program of its own with the helpers a script
+//! The script is run in the computer's own JavaScript engine where there is one (Windows' own
+//! Chakra, `crate::javascript`, as reference A runs proxy scripts in Windows' JScript), else by
+//! QuickJS (`tools.rs`) or an installed Deno, in a program of its own with the helpers a script
 //! expects (`shExpMatch`, `dnsDomainIs`, `isInNet`, `isPlainHostName`, `localHostOrDomainIs`)
 //! written in front of it; the answer is read back by `parse_result`. A script that fails, takes
 //! too long or answers nothing usable is an error: the caller refuses the download rather than
@@ -132,20 +134,26 @@ pub fn is_in_net(address: &str, pattern: &str, mask: &str) -> bool {
     u32::from(a) & u32::from(m) == u32::from(p) & u32::from(m)
 }
 
-/// The helpers, in JavaScript, to stand in front of the script. The names that need the network
-/// (`dnsResolve`, `myIpAddress`) answer nothing, so a script cannot reach out from its sandbox.
+/// What stands in front of the script in an engine run as a program of its own (QuickJS, Deno).
 ///
-/// First, every way of making code from text is taken away, for good: QuickJS's command line
-/// keeps its `qjs:os` and `qjs:std` modules within reach of an `import()`, and `os.exec` runs
-/// any program (security review, 2026-11-08). A script that says `import` itself is refused
-/// before it runs ([`refused`]); without `eval` and the function constructors it cannot write
-/// one. Then `std`, `os` and `bjson` are taken from the global object where an engine put them.
-const PRELUDE: &str = r#"
+/// Every way of making code from text is taken away, for good: QuickJS's command line keeps its
+/// `qjs:os` and `qjs:std` modules within reach of an `import()`, and `os.exec` runs any program
+/// (security review, 2026-11-08). A script that says `import` itself is refused before it runs
+/// ([`refused`]); without `eval` and the function constructors it cannot write one. Then `std`,
+/// `os` and `bjson` are taken from the global object where an engine put them. Windows' own
+/// engine needs none of it: it is run with `eval` and the constructors off, and holds nothing of
+/// the computer.
+const HARDENING: &str = r#"
 (function(){var made=[function(){},function*(){},async function(){},async function*(){}];for(var i=0;i<made.length;i++){Object.defineProperty(Object.getPrototypeOf(made[i]),'constructor',{value:undefined,writable:false,configurable:false});}})();
 Object.defineProperty(globalThis,'eval',{value:undefined,writable:false,configurable:false});
 Object.defineProperty(globalThis,'Function',{value:undefined,writable:false,configurable:false});
 ['std','os','bjson','Deno'].forEach(function(n){try{delete globalThis[n];}catch(e){}});
 var __say=(typeof print==='function')?print:console.log;
+"#;
+
+/// The helpers, in JavaScript, to stand in front of the script. The names that need the network
+/// (`dnsResolve`, `myIpAddress`) answer nothing, so a script cannot reach out from its sandbox.
+const HELPERS: &str = r#"
 function isPlainHostName(h){return String(h).indexOf('.')<0;}
 function dnsDomainIs(h,d){h=String(h).toLowerCase();d=String(d).toLowerCase();return h.length>=d.length&&h.substring(h.length-d.length)===d;}
 function localHostOrDomainIs(h,n){h=String(h).toLowerCase();n=String(n).toLowerCase();return h===n||(h.indexOf('.')<0&&n.split('.')[0]===h);}
@@ -161,11 +169,12 @@ function dateRange(){return true;}
 function timeRange(){return true;}
 "#;
 
-/// The whole program to run: the helpers, the script, and a line printing its answer for `url`.
+/// The whole program to run in an engine of its own: the hardening, the helpers, the script, and
+/// a line printing its answer for `url`.
 pub fn program(script: &str, url: &str, host: &str) -> String {
     let quote = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".into());
     format!(
-        "{PRELUDE}\n{script}\n__say(String(FindProxyForURL({}, {})));\n",
+        "{HARDENING}{HELPERS}\n{script}\n__say(String(FindProxyForURL({}, {})));\n",
         quote(url),
         quote(host)
     )
@@ -223,6 +232,37 @@ pub async fn evaluate(
         return Err("the proxy script failed".into());
     }
     parse_result(String::from_utf8_lossy(&output.stdout).trim())
+}
+
+/// Runs `script` for `url` in the computer's own JavaScript engine (Windows' own Chakra, in a
+/// process of its own in the app: `crate::javascript`), with the helpers in front of it and the
+/// answer taken as the value of `FindProxyForURL`. That engine is run with `eval` and the function
+/// constructors off and holds nothing of the computer, so the hardening a command engine needs is
+/// not written. Fails closed, as [`evaluate`] does.
+pub async fn evaluate_here(
+    script: &str,
+    url: &str,
+    host: &str,
+    staging: &std::path::Path,
+) -> Result<Vec<Hop>, String> {
+    if let Some(why) = refused(script) {
+        return Err(why.into());
+    }
+    let quote = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".into());
+    let call = format!("String(FindProxyForURL({}, {}))", quote(url), quote(host));
+    let answer = crate::javascript::run(
+        &format!(
+            "{HELPERS}
+{script}
+"
+        ),
+        &call,
+        std::time::Duration::from_secs(5),
+        staging,
+    )
+    .await
+    .map_err(|e| format!("the proxy script failed: {e}"))?;
+    parse_result(answer.trim())
 }
 
 /// The address a request is sent to when the script gave it no way: this computer's discard
@@ -310,16 +350,21 @@ pub fn way_to(address: &str, target: &url::Url) -> Result<Option<url::Url>, Stri
                 .build()
                 .map_err(|e| format!("the proxy script could not be run: {e}"))?;
             runtime.block_on(async move {
-                let engine = engine().await?;
                 let text = text_of(&address).await?;
-                let hops = evaluate(
-                    &engine,
-                    &text,
-                    &format!("{site}/"),
-                    &host,
-                    &std::env::temp_dir(),
-                )
-                .await?;
+                let named = crate::lock(&ENGINE).is_some();
+                let hops = if !named && crate::javascript::system_engine_here() {
+                    evaluate_here(&text, &format!("{site}/"), &host, &std::env::temp_dir()).await?
+                } else {
+                    let engine = engine().await?;
+                    evaluate(
+                        &engine,
+                        &text,
+                        &format!("{site}/"),
+                        &host,
+                        &std::env::temp_dir(),
+                    )
+                    .await?
+                };
                 first_way(&hops)
             })
         })
@@ -525,7 +570,7 @@ mod tests {
             "globalThis,'Function'",
             "'std','os','bjson'",
         ] {
-            assert!(PRELUDE.contains(gone), "{gone}");
+            assert!(HARDENING.contains(gone), "{gone}");
         }
         // Before the script, so the script cannot have kept a constructor first.
         let p = program(
@@ -563,6 +608,44 @@ mod tests {
         ] {
             assert!(
                 evaluate(&engine, reach, "http://a/", "a", dir.path())
+                    .await
+                    .is_err(),
+                "{reach}"
+            );
+        }
+    }
+
+    /// In Windows' own engine: an ordinary script answers, and one reaching for a way to make
+    /// code from text fails, never answering DIRECT.
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn in_windows_own_engine_a_script_answers_and_cannot_make_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let ok = evaluate_here(
+            "function FindProxyForURL(u,h){return shExpMatch(h,'*.corp')&&isInNet('10.1.2.3','10.0.0.0','255.0.0.0')?'PROXY p:8080':'DIRECT';}",
+            "http://a.corp/",
+            "a.corp",
+            dir.path(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            ok,
+            [Hop::Via {
+                kind: crate::proxy::Kind::Http,
+                host: "p".into(),
+                port: 8080
+            }]
+        );
+        for reach in [
+            "function FindProxyForURL(){return (function(){}).constructor('return \"DIRECT\"')();}",
+            "function FindProxyForURL(){return Object.constructor('return \"DIRECT\"')();}",
+            "function FindProxyForURL(){return (async function(){}).constructor.name;}",
+            "function FindProxyForURL(){return eval('\"DIRECT\"');}",
+            "function FindProxyForURL(){return import('os');}",
+        ] {
+            assert!(
+                evaluate_here(reach, "http://a/", "a", dir.path())
                     .await
                     .is_err(),
                 "{reach}"

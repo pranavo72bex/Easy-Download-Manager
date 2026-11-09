@@ -787,9 +787,27 @@ def wait_for(probe, seconds):
 
 
 def whole(folder, name):
-    """The file, once it is all there and right."""
+    """The file, once it is all there and right. One Windows will not let be read this moment
+    (its virus scan looks at a file just finished, and so stopped the whole check, 2026-11-08) is
+    not there yet: it is looked at again."""
     path = folder / name
-    return path.exists() and path.read_bytes() == body(name)
+    try:
+        return path.exists() and path.read_bytes() == body(name)
+    except PermissionError:
+        return False
+
+
+def reads_as(path, data, within=5.0):
+    """Whether the file holds `data`, a moment's refusal by Windows to let it be read (as in
+    `whole`) asked again for up to `within` seconds."""
+    until = time.monotonic() + within
+    while True:
+        try:
+            return path.read_bytes() == data
+        except PermissionError:
+            if time.monotonic() > until:
+                return False
+            time.sleep(0.2)
 
 
 def devtools(profile):
@@ -1823,7 +1841,7 @@ def main():
         time.sleep(2)
         in_dm = pdfs(engine_dl)
         check("a PDF the browser finished before it could be held is fetched by dm, every time",
-              len(in_dm) == 3 and all((engine_dl / n).read_bytes() == body("small.pdf") for n in in_dm),
+              len(in_dm) == 3 and all(reads_as(engine_dl / n, body("small.pdf")) for n in in_dm),
               f"dm folder: {in_dm}")
         left = worker.evaluate("chrome.downloads.search({}).then(l => l.filter(d => d.url.endsWith('small.pdf')).map(d => d.state))")
         check("and the browser's finished copy is removed, file and list entry",

@@ -25,6 +25,7 @@ fn env_lock() -> std::sync::MutexGuard<'static, ()> {
 
 /// Points `HOME` at `home`, and stops the test there unless every lookup of
 /// the home directory now finds it: nothing below may reach the real one.
+#[cfg(not(windows))] // Used by the tests that run where HOME is the home directory, which Windows' is not.
 fn redirect_home(home: &Path) {
     // SAFETY: under `ENV`, so nothing else in this binary reads the
     // environment while it is set.
@@ -36,6 +37,7 @@ fn redirect_home(home: &Path) {
     );
 }
 
+#[cfg(not(windows))] // Used by the tests that run where HOME is the home directory, which Windows' is not.
 fn set(name: &str, value: Option<&Path>) {
     // SAFETY: as in `redirect_home`.
     unsafe {
@@ -47,8 +49,10 @@ fn set(name: &str, value: Option<&Path>) {
 }
 
 /// Puts the environment back as it was when a test ends, however it ends.
+#[cfg(not(windows))] // Used by the tests that run where HOME is the home directory, which Windows' is not.
 struct Restore(Vec<(&'static str, Option<std::ffi::OsString>)>);
 
+#[cfg(not(windows))] // Used by the tests that run where HOME is the home directory, which Windows' is not.
 impl Restore {
     fn of(names: &[&'static str]) -> Self {
         Restore(
@@ -60,6 +64,7 @@ impl Restore {
     }
 }
 
+#[cfg(not(windows))] // Used by the tests that run where HOME is the home directory, which Windows' is not.
 impl Drop for Restore {
     fn drop(&mut self) {
         for (name, value) in &self.0 {
@@ -83,6 +88,7 @@ fn program(dir: &Path) -> PathBuf {
 
 /// Firefox's folder made under `home`, as a browser that has run has it,
 /// and where dm's manifest for it goes.
+#[cfg(not(windows))] // Used by the tests that run where HOME is the home directory, which Windows' is not.
 fn firefox_has_run(home: &Path) -> PathBuf {
     let place = register::places(home)
         .into_iter()
@@ -92,6 +98,7 @@ fn firefox_has_run(home: &Path) -> PathBuf {
     place.manifest()
 }
 
+#[cfg(not(windows))] // Used by the tests that run where HOME is the home directory, which Windows' is not.
 fn read(file: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap()
 }
