@@ -4902,3 +4902,20 @@ plain track for itag 140) is set aside with the loudness-evened `drc=1` copy. No
 YouTube in the video's own language (the language is not known before the answer, and asking
 twice costs a request and a bot check), or a setting for the preferred language (no one has
 asked; the person's own language is a later choice for the quality list, not this fix).
+
+## 2026-11-09: The window moves to GPUI, in phases, after an audit (branch `gpui-migration`)
+
+At the maintainer's word of 2026-11-09 (the "egui → GPUI Migration" specification), the
+egui presentation is to be replaced by GPUI, keeping `dm_shell::app` and dm-core and every row
+of the behaviour contract. Phase 0, the audit, is in `docs/migration/` (no source changed).
+Taken from it: the seam is finished first under the egui window (Phase A: about 7,100 lines
+of dm-desktop that never touch egui moved to a toolkit-free crate, about 2,500 lines of
+application rules still in `DmApp` moved into `dm_shell::app`, the control port's `ui.*`
+answers made a toolkit-free contract, egui's performance measured), then a GPUI shell is
+built as a go/no-go spike judged first on screen readers in every dialog window (Phase B).
+Proposed pin `gpui-pre =0.3.12` with `gpui-component =0.9.1` (one maintainer publishes both;
+`gpui-ce` 0.3.0 is the fallback), confirmed only by that shell. Not taken: starting with
+GPUI views over `DmApp` as it is, which would copy its application rules into a second
+window, and replacing the control port's `ui.*` answers, which `human-qa.py` and MCP read.
+New B25 pictures, any contract row GPUI cannot hold as written, the go/no-go and the switch
+of the default window are the maintainer's to approve (`GPUI_MIGRATION_PLAN.md`, D1 to D5).
