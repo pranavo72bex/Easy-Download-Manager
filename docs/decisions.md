@@ -4885,3 +4885,20 @@ history. The copy search (row 151) was run (no copy found) and is now a periodic
 foot of the list. What is left needs Windows, a phone, a release, native readers or the
 maintainer's GitGuardian dashboard. Not taken: keeping the signed-in rows as BLOCKED, which
 left a list that read as unfinished when nothing in it could be done.
+
+## 2026-11-09: A dubbed YouTube video's own language, not the track marked to play (issue #32)
+
+The player API marks one sound track `audioIsDefault`, and which one follows the language of
+the request: dm asks in English (`hl=en`), so for a video made in Spanish with an English dub
+the English dub is marked and the Spanish original is not (seen on 2026-11-09 on every Spanish
+and Portuguese video tried with an English or automatic dub; an English video's original is
+marked, which is why it went unseen). dm had set aside every unmarked track as a dub, so it
+took the dub. The track's part is named by YouTube itself in the stream's address (`xtags`:
+`acont=original`, `dubbed`, `dubbed-auto`, `descriptive`) and in the track id (`.4` the
+original, `.3` a dub, `.10` an automatic dub). dm keeps the track named original, and the
+marked one only where no original is named; a video none of whose tracks would be kept keeps
+them all rather than have no sound. `vb=1` (a voice-boosted copy, at the same bitrate as the
+plain track for itag 140) is set aside with the loudness-evened `drc=1` copy. Not taken: asking
+YouTube in the video's own language (the language is not known before the answer, and asking
+twice costs a request and a bot check), or a setting for the preferred language (no one has
+asked; the person's own language is a later choice for the quality list, not this fix).
