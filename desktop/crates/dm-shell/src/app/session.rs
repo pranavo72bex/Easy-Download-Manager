@@ -46,6 +46,9 @@ pub struct Session {
     pub when_done: WhenDone,
     /// An action waiting out its countdown: what, and when it is due.
     pub countdown: Option<(WhenDone, Instant)>,
+    /// The typed events of each read, for any number of subscribers
+    /// (`events::Events::subscribe`).
+    pub events: super::events::Events,
 }
 
 /// What the queue running dry did with When done.
@@ -91,6 +94,7 @@ impl Session {
     pub fn read(&mut self, backend: &Backend, settings: &Settings) -> Read {
         let snapshot = backend.snapshot();
         let detected = self.detector.read(&snapshot.rows);
+        self.events.publish(&snapshot.rows);
         let mut problems = Vec::new();
         let command = settings.on_complete.trim();
         if !command.is_empty() && !detected.finished.is_empty() {
@@ -463,6 +467,41 @@ mod no_window_tests {
     use super::*;
     use crate::app::handoff::{Asking, Route};
 
+    /// Two presentations each subscribed to the session's events hear the
+    /// same download added, paused and removed, through the reads alone.
+    #[test]
+    fn subscribers_hear_a_downloads_life_through_the_sessions_reads() {
+        use crate::app::events::DownloadEvent;
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        let settings = backend.settings();
+        let mut session = Session::default();
+        let window = session.events.subscribe(None);
+        let script = session.events.subscribe(None);
+        session.read(&backend, &settings);
+        let id = backend
+            .add_with(
+                "http://127.0.0.1:9/a.bin",
+                dm_core::AddOptions {
+                    later: true,
+                    ..dm_core::AddOptions::default()
+                },
+            )
+            .unwrap();
+        session.read(&backend, &settings);
+        backend.remove(id);
+        session.read(&backend, &settings);
+        for subscriber in [&window, &script] {
+            let got = subscriber.drain();
+            assert!(
+                matches!(got.first(), Some(DownloadEvent::Added { id: added, .. }) if *added == id),
+                "{got:?}"
+            );
+            assert_eq!(got.last(), Some(&DownloadEvent::Removed(id)), "{got:?}");
+        }
+    }
+
     #[test]
     fn a_presentation_with_no_window_drives_a_download_to_when_done() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -595,6 +634,145 @@ mod large_queue {
             let per_tick = read + dry + tick;
             println!("{size:>6} rows  per tick (read+dry+schedule)  {per_tick:>10.2?}");
             assert!(per_tick < Duration::from_millis(50), "{per_tick:?}");
+        }
+    }
+}
+
+/// The application under load: a queue of `size` rows, several downloads
+/// running against a server that never finishes them, rows moved and a
+/// running download paused and resumed again and again, each read published
+/// to two subscribers. What each costs, and that both subscribers heard the
+/// same. The quick version runs with the tests; the whole is a measure, run
+/// by hand in release (`large_queue_under_load`).
+#[cfg(test)]
+mod under_load {
+    use super::*;
+    use crate::app::events::DownloadEvent;
+
+    /// Each operation's time, per run.
+    pub(super) struct Costs {
+        pub shift: Duration,
+        pub pause_resume: Duration,
+        pub read: Duration,
+    }
+
+    fn each(runs: u32, mut f: impl FnMut()) -> Duration {
+        let start = Instant::now();
+        for _ in 0..runs {
+            f();
+        }
+        start.elapsed() / runs
+    }
+
+    pub(super) fn exercise(size: usize, runs: u32) -> Costs {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        // A server that takes each request and never answers it: its
+        // downloads stay running for as long as the test.
+        let addr = runtime.block_on(async {
+            let app = axum::Router::new().fallback(|| async {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+                "never"
+            });
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            addr
+        });
+        let later = dm_core::AddOptions {
+            later: true,
+            ..Default::default()
+        };
+        let items = (0..size)
+            .map(|i| (format!("http://127.0.0.1:9/{i}.bin"), later.clone()))
+            .collect();
+        assert!(backend.add_each(items).iter().all(Result::is_ok));
+        let active: Vec<Id> = (0..4)
+            .map(|i| {
+                backend
+                    .add_with(
+                        &format!("http://{addr}/active{i}.bin"),
+                        dm_core::AddOptions::default(),
+                    )
+                    .unwrap()
+            })
+            .collect();
+        let settings = backend.settings();
+        let mut session = Session::default();
+        let first = session.events.subscribe(None);
+        let second = session.events.subscribe(None);
+        session.read(&backend, &settings);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !backend
+            .list()
+            .iter()
+            .any(|r| active.contains(&r.id) && r.state == State::Running)
+        {
+            assert!(Instant::now() < deadline, "no download ever ran");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let ids: Vec<Id> = backend.list().iter().map(|r| r.id).collect();
+        let middle = ids[ids.len() / 2];
+        let mut by = -1;
+        let shift = each(runs, || {
+            backend.shift(middle, by);
+            by = -by;
+        });
+        let running = active[0];
+        let pause_resume = each(runs, || {
+            backend.pause(running);
+            backend.resume(running);
+        });
+        let read = each(runs, || {
+            session.read(&backend, &settings);
+        });
+        // Nothing was lost or told differently to either subscriber, and the
+        // list is whole.
+        let (one, two) = (first.drain(), second.drain());
+        assert_eq!(one, two, "the subscribers heard different things");
+        assert!(
+            one.iter().all(|e| !matches!(e, DownloadEvent::Removed(_))),
+            "nothing was removed"
+        );
+        assert_eq!(backend.list().len(), size + active.len());
+        for id in active {
+            backend.pause(id);
+        }
+        Costs {
+            shift,
+            pause_resume,
+            read,
+        }
+    }
+
+    #[test]
+    fn a_hundred_rows_with_downloads_running_take_moves_and_pauses() {
+        let costs = exercise(100, 20);
+        // Generous: a loaded CI runner, in a debug build.
+        assert!(
+            costs.shift < Duration::from_millis(200),
+            "{:?}",
+            costs.shift
+        );
+        assert!(
+            costs.pause_resume < Duration::from_millis(500),
+            "{:?}",
+            costs.pause_resume
+        );
+        assert!(costs.read < Duration::from_millis(200), "{:?}", costs.read);
+    }
+
+    #[test]
+    #[ignore = "a measure, run by hand in release"]
+    fn large_queue_under_load() {
+        for size in [100usize, 1_000, 10_000] {
+            let costs = exercise(size, 50);
+            println!(
+                "{size:>6} rows, 4 running: move {:>9.2?}  pause+resume {:>9.2?}  read (2 subscribers) {:>9.2?}",
+                costs.shift, costs.pause_resume, costs.read
+            );
+            assert!(costs.read < Duration::from_millis(50), "{:?}", costs.read);
         }
     }
 }

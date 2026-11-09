@@ -736,8 +736,8 @@ fn the_weekly_update_check_asks_through_the_proxy_and_offers_what_it_finds() {
         ..Default::default()
     };
     harness.state_mut().apply_settings(wanted).unwrap();
-    // The window's client goes through it, or the check is not made.
-    let client = harness.state().client();
+    // The application's client goes through it, or the check is not made.
+    let client = harness.state().backend().client();
     let _ = world
         .runtime
         .block_on(async { client.get("http://dm-cover.invalid/probe").send().await });

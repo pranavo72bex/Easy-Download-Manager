@@ -12,14 +12,11 @@ impl DmApp {
         let mut search = search;
         // The login Options > Sign-ins keeps for the site, where it keeps one.
         search.page = self.applied.with_login(&search.page);
-        let client = self.client();
         let results = Arc::clone(&self.search_results);
-        let queue = self.backend.queue.clone();
         self.searches_running += 1;
-        self.backend.runtime.spawn(async move {
-            let options = queue.options().await;
-            let found = dm_shell::lists::crawl_with(&client, &search, Some(&options)).await;
-            dm_core::lock(&results).push((search.name, found));
+        let name = search.name.clone();
+        dm_shell::app::search::crawl_later(&self.backend, search, move |found| {
+            dm_core::lock(&results).push((name, found));
         });
     }
 

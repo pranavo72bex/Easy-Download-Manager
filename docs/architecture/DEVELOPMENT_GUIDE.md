@@ -31,14 +31,32 @@ queue already knows it, add it to `Snapshot` and fill it in
 `Backend::snapshot`; the window reads it there. Never read the queue from a
 drawing function.
 
-**A new control-port or MCP method**: today it goes in
-`dm-desktop/src/app/control.rs` beside the others; once that moves (audit step
-8), UI-free methods go in the application and only `ui.*` methods stay in the
-window.
+**A new command** (a menu item, a button, a key): add it to
+`dm_shell::app::commands` (its name in `Command::ALL` and `id`, its English
+label, its `Chord`s, when it applies in `applies`, and, where it needs no
+dialog, what it does in `verb`). The window gives it words (`Shown::title`)
+and opens its dialog in `DmApp::run`; the control port and MCP reach it by its
+name with nothing more.
+
+**A new control-port or MCP method**: a UI-free one goes in
+`dm_shell::app::control_api` (`answer`, with its check in `refused` if a
+person alone may call it); only `ui.*` methods and `command.run`'s dialogs stay
+in `dm-desktop/src/app/control.rs`.
+
+**Something asked of a server that is not a download** (a page read, a size
+asked, a list fetched): a function in `dm_shell::app::lookups` (or `search`,
+`update`, `files`) that takes the `Backend`, uses `Backend::client` (the proxy
+and timeout in force), runs on `backend.runtime`, and gives its answer to a
+callback. The window keeps the slot it shows and asks for a repaint in the
+callback. Never build a client or spawn a request in dm-desktop.
 
 **Something the window must react to at once**: it is told through
 `dm_shell::app::changes`; subscribe, signal, and read on the next frame.
 Never send data through a subscriber or block in one.
+
+**What happened to each download** (for a script, a second front end, a
+test): `session.events.subscribe(wake)` and drain the `Subscription` after a
+read: lifecycle events in order, progress coalesced (EVENT_FLOW.md).
 
 ## Holding it
 

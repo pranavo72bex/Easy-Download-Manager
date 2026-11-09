@@ -55,23 +55,9 @@ impl Dialogs {
     ) {
         self.focus_on("Playlist");
         let slot: PlaylistRead = Default::default();
-        let client =
-            dm_core::client_with(&backend.settings().proxy).unwrap_or_else(|_| dm_core::client());
-        let (page, read) = (url.clone(), slot.clone());
-        let proxy = backend.settings().proxy.url_for_tools();
-        backend.runtime.spawn(async move {
-            // YouTube's read by dm itself; no other site is read from its page.
-            let got = if dm_core::youtube::playlist_id(&page).is_some() {
-                dm_core::youtube::read_playlist(&client, &page, None)
-                    .await
-                    .map_err(|e| e.to_string())
-            } else {
-                match dm_core::videopage::read_playlist(&page, None, proxy.as_deref(), None).await {
-                    Ok(Some(list)) => Ok(list),
-                    Ok(None) => Err("That page is one video, not a playlist.".to_string()),
-                    Err(e) => Err(e.to_string()),
-                }
-            };
+        // Read by the application (`lookups::read_playlist_later`).
+        let read = slot.clone();
+        dm_shell::app::lookups::read_playlist_later(backend, url.clone(), move |got| {
             if let Ok(mut slot) = read.lock() {
                 *slot = Some(got);
             }
@@ -143,57 +129,38 @@ impl Dialogs {
     ) {
         let found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>> =
             Default::default();
-        let client =
-            dm_core::client_with(&backend.settings().proxy).unwrap_or_else(|_| dm_core::client());
-        let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(6));
         let sign_in = dm_core::cookies::SignIn::new(&request.url, &request.cookies);
-        for url in request.links.clone() {
-            let (found, client, gate) = (found.clone(), client.clone(), gate.clone());
-            let sign_in = sign_in.clone();
-            let page = request.referrer.clone();
-            backend.runtime.spawn(async move {
-                let Ok(_turn) = gate.acquire().await else {
-                    return;
+        // Asked by the application (`lookups::probe_links`), six at a time;
+        // the window keeps what each said, its kind in its own words.
+        let into = found.clone();
+        dm_shell::app::lookups::probe_links(
+            backend,
+            request.links.clone(),
+            request.referrer.clone(),
+            sign_in.clone(),
+            move |url, said| {
+                let found = match said {
+                    dm_shell::app::lookups::LinkFound::Known {
+                        name,
+                        kind,
+                        size,
+                        page,
+                    } => Found {
+                        name,
+                        kind: crate::app::category_word(kind),
+                        size,
+                        html: page,
+                        failed: None,
+                    },
+                    // Said, rather than "…" for ever as though still asking.
+                    dm_shell::app::lookups::LinkFound::Failed(why) => Found {
+                        failed: Some(why),
+                        ..Found::default()
+                    },
                 };
-                let asked = tokio::time::timeout(
-                    std::time::Duration::from_secs(20),
-                    dm_core::probe(
-                        &client,
-                        &url,
-                        Some(&page).filter(|p| !p.is_empty()).map(String::as_str),
-                        sign_in.as_ref(),
-                    ),
-                )
-                .await;
-                let failed = match &asked {
-                    Ok(Err(e)) => Some(e.to_string()),
-                    Err(_) => Some("the server did not answer in time".to_string()),
-                    Ok(Ok(_)) => None,
-                };
-                // Said, rather than "…" for ever as though still asking.
-                if let Some(why) = failed {
-                    dm_core::lock(&found).insert(
-                        url,
-                        Found {
-                            failed: Some(why),
-                            ..Found::default()
-                        },
-                    );
-                } else if let Ok(Ok(probe)) = asked {
-                    let kind = dm_core::classify(&probe.filename, probe.content_type.as_deref());
-                    dm_core::lock(&found).insert(
-                        url,
-                        Found {
-                            name: probe.filename,
-                            kind: crate::app::category_word(kind),
-                            size: probe.size,
-                            html: dm_core::videopage::is_page(probe.content_type.as_deref()),
-                            failed: None,
-                        },
-                    );
-                }
-            });
-        }
+                dm_core::lock(&into).insert(url, found);
+            },
+        );
         let listed: std::collections::HashSet<String> = backend
             .list()
             .iter()

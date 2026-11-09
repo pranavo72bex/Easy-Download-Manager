@@ -31,6 +31,9 @@ A future GPUI crate takes `dm-desktop`'s place: `dm-core`, `dm-protocol` and
 | `import` | how much of a list is listed already, the rows an import adds, the lines with no link | reading the file, the question asked about what is listed |
 | `files` | a finished ZIP extracted off the presentation's thread | the system's openers (`Platform`'s) |
 | `links` | links in text and files, the clipboard watch's memory and what it offers | reading the system's clipboard |
+| `lookups` | what dm asks a server before a download starts: a file's name and size, a page's links, a video page's qualities, a playlist | the words shown, the dialog's slots |
+| `update` | the update check (the release manifest, the version, the installer and its digest) and the site rules that ride along | what is said of the answer |
+| `events` | typed `DownloadEvent`s from each read, for any number of subscribers: lifecycle never dropped, progress coalesced | words, sounds, dialogs |
 
 What belongs in `dm_shell::app`: a command's rules and validation, state a
 presentation draws from, the changes it is told of, scheduling, settings
@@ -44,8 +47,9 @@ makes sense with a screen.
   and no presentation's wording.
 - The application never names `egui` (or any toolkit). A trait it declares
   (`Platform`) is how it asks the presentation for what only a desktop does.
-- A presentation never fetches anything itself: it asks the application, which
-  asks the engine.
+- A presentation never fetches anything itself, nor holds the engine's queue:
+  it asks the application (`Backend`, `lookups`, `search`, `update`, `files`),
+  which asks the engine.
 - State has one owner: the queue owns rows; `Settings` (behind `Backend`) owns
   settings; the window owns only its view state.
 - Moves keep the old path working with a `pub use` until every caller is moved.

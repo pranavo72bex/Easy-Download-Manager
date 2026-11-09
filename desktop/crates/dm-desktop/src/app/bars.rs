@@ -447,7 +447,7 @@ impl DmApp {
                     Command::SpeedLimiterSettings
                 });
             }
-            if let Some(wait) = self.backend.queue.allowance_spent() {
+            if let Some(wait) = self.backend.allowance_spent() {
                 ui.label(tf(
                     "· download limit of {} MB reached, held for {}",
                     &[&self.applied.limit_mb, &format::span(wait)],

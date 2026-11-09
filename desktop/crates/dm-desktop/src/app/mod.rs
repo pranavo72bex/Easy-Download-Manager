@@ -651,13 +651,6 @@ impl DmApp {
         &self.backend
     }
 
-    /// A client built the way the settings say: through the proxy, with
-    /// the timeout. For the window's own fetches, which are not downloads.
-    pub fn client(&self) -> dm_core::reqwest::Client {
-        dm_core::client_with_timeout(&self.applied.proxy, self.applied.read_timeout())
-            .unwrap_or_else(|_| dm_core::client())
-    }
-
     /// A problem for the list above the downloads, once: one that recurs
     /// each minute is not a new line each minute.
     pub fn problem(&mut self, text: String) {

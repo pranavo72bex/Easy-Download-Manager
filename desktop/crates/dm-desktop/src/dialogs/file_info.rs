@@ -73,73 +73,21 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         // showed as the download's.
         if (url.starts_with("http://") || url.starts_with("https://")) && !dm_core::is_torrent(&url)
         {
-            let client = dm_core::client_with(&app.backend.settings().proxy)
-                .unwrap_or_else(|_| dm_core::client());
+            // Asked by the application (`lookups::probe_later`).
             let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
             let referrer = d.referrer.clone();
             let ctx = ctx.clone();
-            app.backend.runtime.spawn(async move {
-                let asked = tokio::time::timeout(
-                    std::time::Duration::from_secs(20),
-                    dm_core::probe(
-                        &client,
-                        &url,
-                        Some(&referrer)
-                            .filter(|r| !r.is_empty())
-                            .map(String::as_str),
-                        sign_in.as_ref(),
-                    ),
-                )
-                .await;
-                // A web page's name ("watch") and size are no file's: left
-                // unsaid. A stream's are its file's, not its playlist's.
-                if let Ok(Ok(probe)) = asked {
-                    let kind = probe.content_type.as_deref();
-                    let found = if let Some(name) = stream_name(&url, kind, remux) {
-                        Probed {
-                            name: Some(name),
-                            ..Probed::default()
-                        }
-                    } else if dm_core::videopage::is_page(kind) {
-                        Probed {
-                            page: !dm_core::names_a_document(&url),
-                            ..Probed::default()
-                        }
-                    } else {
-                        Probed {
-                            name: Some(probe.filename).filter(|n| !n.is_empty()),
-                            size: probe.size,
-                            ..Probed::default()
-                        }
-                    };
+            dm_shell::app::lookups::probe_later(
+                &app.backend,
+                url,
+                referrer,
+                sign_in,
+                remux,
+                move |found| {
                     *dm_core::lock(&slot) = Some(found);
                     ctx.request_repaint();
-                } else if let Ok(Err(e)) = asked {
-                    // A watch page that turned dm's quick look away (a 429
-                    // bot check, a 403) is the video helper's to read when
-                    // the download starts, as the engine does: no
-                    // "Not available" and the bot page's text.
-                    let refused_page = matches!(
-                        e,
-                        dm_core::Error::Refused {
-                            status: 403 | 429,
-                            ..
-                        }
-                    ) && !dm_core::names_a_document(&url);
-                    *dm_core::lock(&slot) = Some(if refused_page {
-                        Probed {
-                            page: true,
-                            ..Probed::default()
-                        }
-                    } else {
-                        Probed {
-                            problem: Some(e.to_string()),
-                            ..Probed::default()
-                        }
-                    });
-                    ctx.request_repaint();
-                }
-            });
+                },
+            );
         } else {
             // Nothing to ask: known at once, so nothing waits on it.
             *dm_core::lock(&slot) = Some(Probed::default());
@@ -169,15 +117,12 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         && zip_list::is_zip_address(&first)
         && (first.starts_with("http://") || first.starts_with("https://"))
     {
-        let client = dm_core::client_with(&app.backend.settings().proxy)
-            .unwrap_or_else(|_| dm_core::client());
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
         let sign_in = dm_core::cookies::SignIn::with_headers(&first, &d.cookies, &d.headers);
         zip_list::read_address(
-            &app.backend.runtime,
+            &app.backend,
             ctx,
             &mut d.zip,
-            client,
             first.clone(),
             referrer,
             sign_in,
@@ -189,47 +134,27 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         d.choices = Some(slot.clone());
         let url = first;
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
-        let proxy = app.backend.settings().proxy.url_for_tools();
         let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
         let ctx = ctx.clone();
         let found = d.playlist.clone();
-        app.backend.runtime.spawn(async move {
-            let listed = tokio::time::timeout(
-                std::time::Duration::from_secs(40),
-                dm_core::videopage::list_choices(
-                    &url,
-                    referrer.as_deref(),
-                    proxy.as_deref(),
-                    sign_in.as_ref(),
-                ),
-            )
-            .await;
-            let listed = match listed {
-                Ok(Ok(list)) => list,
-                _ => Vec::new(),
-            };
-            // No qualities from another site's page: perhaps it lists
-            // several videos (a channel, a showcase, an album).
-            if listed.is_empty() && !youtube {
-                let read = dm_core::videopage::read_playlist(
-                    &url,
-                    referrer.as_deref(),
-                    proxy.as_deref(),
-                    sign_in.as_ref(),
-                );
-                if let Ok(Ok(Some(playlist))) =
-                    tokio::time::timeout(std::time::Duration::from_secs(40), read).await
-                {
-                    if playlist.entries.len() > 1 {
-                        *dm_core::lock(&found) = Some(playlist);
-                    }
+        // Read by the application (`lookups::list_choices_later`): the
+        // qualities, or the videos another site's page lists.
+        dm_shell::app::lookups::list_choices_later(
+            &app.backend,
+            url,
+            referrer,
+            sign_in,
+            youtube,
+            move |listed, several| {
+                if several.is_some() {
+                    *dm_core::lock(&found) = several;
                 }
-            }
-            if let Ok(mut slot) = slot.lock() {
-                *slot = Some(listed);
-            }
-            ctx.request_repaint();
-        });
+                if let Ok(mut slot) = slot.lock() {
+                    *slot = Some(listed);
+                }
+                ctx.request_repaint();
+            },
+        );
     }
     let choices: Option<Vec<dm_core::videopage::Choice>> = d
         .choices
@@ -687,10 +612,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         app.dialogs.file_info = None;
         // What was fetched while it asked goes with it.
         if let Some(id) = early {
-            let queue = app.backend.queue.clone();
-            app.backend
-                .runtime
-                .spawn(async move { queue.remove(id).await });
+            app.backend.remove_later(id);
         }
         if let Some(site) = site {
             app.hand_off_cancelled(&site);
@@ -823,7 +745,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             // Asked of the schedule itself: the list, not yet refreshed,
             // had no row waiting on it, so nothing asked.
             let shut = app.applied.schedule.enabled && !app.applied.schedule.open();
-            let spent = app.backend.queue.allowance_spent().is_some();
+            let spent = app.backend.allowance_spent().is_some();
             if !later && !app.headless && (shut || spent) {
                 app.dialogs.confirm_outside = Some(app.last_added.clone());
             }

@@ -276,6 +276,30 @@ impl Backend {
         dm_core::lock(&self.settings).clone()
     }
 
+    /// A client for the application's own fetches, which are not downloads
+    /// (a site's pages crawled, the update check, a ZIP's listing): through
+    /// the proxy in force, with its read timeout.
+    #[must_use]
+    pub fn client(&self) -> dm_core::reqwest::Client {
+        let settings = dm_core::lock(&self.settings);
+        dm_core::client_with_timeout(&settings.proxy, settings.read_timeout())
+            .unwrap_or_else(|_| dm_core::client())
+    }
+
+    /// How long downloads stay held where the download limit (the day's or
+    /// the month's allowance) is spent; `None` while it is not.
+    #[must_use]
+    pub fn allowance_spent(&self) -> Option<std::time::Duration> {
+        self.queue.allowance_spent()
+    }
+
+    /// Removes row `id` in the background, without waiting for it: what a
+    /// dialog fetched early while it asked, once the person said no.
+    pub fn remove_later(&self, id: Id) {
+        let queue = self.queue.clone();
+        self.runtime.spawn(async move { queue.remove(id).await });
+    }
+
     /// The settings as they change, for a thread of its own to read.
     pub fn settings_handle(&self) -> Arc<Mutex<Settings>> {
         Arc::clone(&self.settings)
@@ -879,9 +903,18 @@ pub(crate) mod testing {
         runtime: &tokio::runtime::Runtime,
         dir: &std::path::Path,
     ) -> super::Backend {
+        backend_with(runtime, dir, crate::Settings::default())
+    }
+
+    /// A backend over `settings`, its downloads under `dir`.
+    pub(crate) fn backend_with(
+        runtime: &tokio::runtime::Runtime,
+        dir: &std::path::Path,
+        settings: crate::Settings,
+    ) -> super::Backend {
         let settings = crate::Settings {
             download_dir: dir.join("out"),
-            ..crate::Settings::default()
+            ..settings
         };
         let queue = dm_core::Queue::new(
             dm_core::client(),

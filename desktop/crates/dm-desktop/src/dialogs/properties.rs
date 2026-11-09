@@ -52,7 +52,9 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         };
         let (mut ok, mut cancel, mut open_file, mut copy_details) = (false, false, false, false);
         let focus = app.dialogs.take_focus("File properties");
-        let runtime = app.backend.runtime.clone();
+        // The application's, for the readings this dialog starts (a ZIP's
+        // files, a digest): a clone is a handful of shared pointers.
+        let backend = app.backend.clone();
         // Its Open runs the file: a person's click does, a script's a moment ago does not.
         let refused = app.run_refused();
         let Some(d) = app.dialogs.properties.get_mut(&id) else {
@@ -228,13 +230,13 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 // the window, and a box to check it against
                                 // one the person was given.
                                 if row.state == State::Completed && !crate::table::gone(&row) {
-                                    digest_rows(ui, ctx, &runtime, &row.path, d, value);
+                                    digest_rows(ui, ctx, &backend, &row.path, d, value);
                                     // A finished ZIP's files, by name and
                                     // size, read from the file beside the
                                     // window: text only, never opened.
                                     if zip_list::is_zip_address(&row.path) {
                                         zip_list::read_file(
-                                            &runtime,
+                                            &backend,
                                             ctx,
                                             &mut d.zip,
                                             std::path::PathBuf::from(&row.path),
@@ -476,43 +478,24 @@ fn files_refusal(why: &str) -> String {
     .to_string()
 }
 
-/// Starts hashing `path` with `algorithm` unless that is already under way
-/// or done, on the app's runtime: a large file takes a while, and the window
-/// must not.
+/// Hashing a finished file is the application's (`files::hash_later`).
 fn start_sum(
-    runtime: &tokio::runtime::Handle,
+    backend: &dm_shell::app::backend::Backend,
     sums: &Sums,
     path: &str,
     algorithm: dm_core::Algorithm,
 ) {
-    let name = algorithm.name();
-    {
-        let mut held = dm_core::lock(sums);
-        if held.contains_key(name) {
-            return;
-        }
-        held.insert(name, None);
-    }
-    let (sums, path) = (Arc::clone(sums), std::path::PathBuf::from(path));
-    runtime.spawn(async move {
-        let found = dm_core::digest(&path, algorithm)
-            .await
-            .map_err(|e| e.to_string());
-        dm_core::lock(&sums).insert(name, Some(found));
-    });
+    dm_shell::app::files::hash_later(backend, sums, path, algorithm);
 }
 
-/// What has been found for `algorithm`: still working, the digest, or why not.
-fn sum_of(sums: &Sums, algorithm: dm_core::Algorithm) -> Option<Result<String, String>> {
-    dm_core::lock(sums).get(algorithm.name()).cloned().flatten()
-}
+use dm_shell::app::files::sum_of;
 
 /// The finished file's SHA-256, and the box that checks it against a digest
 /// the person was given (MD5, SHA-256 or SHA-512, told by its length).
 fn digest_rows(
     ui: &mut egui::Ui,
     ctx: &egui::Context,
-    runtime: &tokio::runtime::Handle,
+    backend: &dm_shell::app::backend::Backend,
     path: &str,
     d: &mut Properties,
     value: f32,
@@ -522,7 +505,7 @@ fn digest_rows(
         ui.label(RichText::new(t("Working it out…")).weak());
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
     };
-    start_sum(runtime, &d.sums, path, Algorithm::Sha256);
+    start_sum(backend, &d.sums, path, Algorithm::Sha256);
     ui.label("SHA-256").on_hover_text(t(
         "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.",
     ));
@@ -552,7 +535,7 @@ fn digest_rows(
     .labelled_by(name.id);
     ui.end_row();
     if let Some(given) = Checksum::parse(&d.check) {
-        start_sum(runtime, &d.sums, path, given.algorithm);
+        start_sum(backend, &d.sums, path, given.algorithm);
         ui.label("");
         match sum_of(&d.sums, given.algorithm) {
             None => waiting(ui),

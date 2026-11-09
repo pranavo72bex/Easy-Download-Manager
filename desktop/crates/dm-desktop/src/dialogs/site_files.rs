@@ -6,13 +6,12 @@
 use super::*;
 pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Grabber");
-    // Nothing more is worked out for a dialog that is not open: its client
-    // was built and every row's address parsed on every frame.
+    // Nothing more is worked out for a dialog that is not open: every row's
+    // address was parsed on every frame. The crawl's client is the
+    // application's (`app::search::crawl_later`), made when it starts.
     if app.dialogs.site_files.is_none() {
         return;
     }
-    // Built before the dialog is borrowed: the client reads the settings.
-    let client = app.client();
     let listed = listed_addresses(app);
     let Some(d) = app.dialogs.site_files.as_mut() else {
         return;
@@ -185,10 +184,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         // Those already in the list (`listed`, moved into the task below)
         // offered unticked, as the links dialog offers them: all were ticked,
         // and Add for later queued them again without asking.
-        let queue = app.backend.queue.clone();
-        app.backend.runtime.spawn(async move {
-            let options = queue.options().await;
-            let found = dm_shell::lists::crawl_with(&client, &search, Some(&options)).await;
+        dm_shell::app::search::crawl_later(&app.backend, search, move |found| {
             *dm_core::lock(&state) = match found {
                 Ok(found) => Grab::Found(
                     found

@@ -5,8 +5,9 @@
 
 //! A saved site search's finds, sorted by the application: which files are new
 //! (in neither the list nor what the search has seen), and what it remembers
-//! as seen, so a file is offered once however often the search runs. Running
-//! the search, adding what it found and saying so are the presentation's.
+//! as seen, so a file is offered once however often the search runs; and the
+//! crawl itself, in the background ([`crawl_later`]). Adding what it found
+//! and saying so are the presentation's.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -14,6 +15,22 @@ use std::sync::Arc;
 use dm_core::Entry;
 
 use crate::lists::{bare, MOST_SEEN};
+
+/// Crawls `search` in the background, with the application's client and the
+/// queue's options (its headers, its agent), and gives `done` what it found,
+/// or why not. The presentation is not held while pages are read (a site
+/// search can take minutes).
+pub fn crawl_later(
+    backend: &crate::app::backend::Backend,
+    search: crate::lists::Search,
+    done: impl FnOnce(Result<crate::lists::Crawled, String>) + Send + 'static,
+) {
+    let (client, queue) = (backend.client(), backend.queue.clone());
+    backend.runtime.spawn(async move {
+        let options = queue.options().await;
+        done(crate::lists::crawl_with(&client, &search, Some(&options)).await);
+    });
+}
 
 /// A search's files, sorted.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

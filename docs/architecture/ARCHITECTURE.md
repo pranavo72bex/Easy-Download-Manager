@@ -40,12 +40,12 @@ A second presentation (GPUI) depends on dm-shell and dm-core only. It
 implements `dm_shell::app::platform::Platform`, subscribes to
 `dm_shell::app::changes`, reads `Snapshot`s, and asks the application to act.
 
-## Where the code is today (2026-11-09, branch ui-independent-architecture)
+## Where the code is today (2026-11-09, on main)
 
 | Layer | In place | Still in the window crate (to move) |
 |---|---|---|
 | Domain and engine | All of dm-core: no GUI types (enforced) | — |
-| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), `commands` (the registry: every command's name, label and keys, which apply to the rows chosen, and the commands that are the application's alone), `names` (what a row is called and where its file will go), `import`, `files`, and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); dm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, the egui-only control methods (`ui.*`, and `command.run`'s commands that open a dialog or change the view) |
+| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), `commands` (the registry: every command's name, label and keys, which apply to the rows chosen, and the commands that are the application's alone), `names` (what a row is called and where its file will go), `import`, `files` (extraction, a ZIP's files, a file's digest), `lookups` (what a server says of a file, a page's links, a video page's qualities, a playlist), `update` (the update check and the site rules), `events` (typed download events for any number of subscribers), and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); dm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, the egui-only control methods (`ui.*`, and `command.run`'s commands that open a dialog or change the view) |
 | Presentation | dm-desktop | — |
 
 Steps 1 to 16 of [audit.md](audit.md) section 7 are done, each held to
@@ -71,6 +71,13 @@ commands, checks them with `commands::applies` and carries out the
 application's with `commands::verb`. What a row is called, imports, the
 clipboard watch and extraction are the application's too (step 16), and a
 row's secrets are taken out by the row itself (`Entry::redacted`, step 14).
+The window makes no request of a server itself, nor touches the engine's
+queue: every fetch that is not a download (a site crawled, the update check,
+a file's name and size, a page's links, a video's qualities, a playlist, a
+ZIP's files) is the application's, with the client the settings make
+(`Backend::client`), and `cargo xtask layers` plus a search for `reqwest` in
+dm-desktop find none (step 17). Typed events, their delivery policy and their
+cost at 10,000 rows are in [EVENT_FLOW.md](EVENT_FLOW.md).
 
 ## What does not change
 

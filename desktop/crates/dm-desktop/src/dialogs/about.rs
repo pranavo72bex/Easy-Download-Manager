@@ -187,13 +187,7 @@ pub(super) fn about(app: &mut DmApp, ctx: &egui::Context) {
         if ui.button(t("Check for updates")).clicked()
             || std::mem::take(&mut app.dialogs.check_update)
         {
-            let client = app.client();
-            crate::update::check(
-                &app.backend.runtime,
-                client,
-                Arc::clone(&app.update),
-                ctx.clone(),
-            );
+            crate::update::check(&app.backend, Arc::clone(&app.update), ctx.clone());
         }
         let state = dm_core::lock(&app.update).clone();
         ui.label(RichText::new(state.shown()).weak());

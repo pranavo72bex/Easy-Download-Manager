@@ -19,9 +19,6 @@ use crate::i18n::{t, tf};
 /// The most files shown; the rest are counted.
 const MOST_SHOWN: usize = 500;
 
-/// How long the reading of an address may take before the list is left out.
-const WITHIN: std::time::Duration = std::time::Duration::from_secs(30);
-
 /// The height of the list before it scrolls.
 const HEIGHT: f32 = 140.0;
 
@@ -32,13 +29,12 @@ pub(super) fn is_zip_address(url: &str) -> bool {
 }
 
 /// Starts reading the files of the ZIP at `url` once, in the background
-/// (`dm_core::zip_contents`: two or three small range requests, never the
-/// archive). A reading under way or done is left as it is.
+/// (the application's `files::list_zip_at`). A reading under way or done is
+/// left as it is.
 pub(super) fn read_address(
-    runtime: &tokio::runtime::Handle,
+    backend: &dm_shell::app::backend::Backend,
     ctx: &egui::Context,
     slot: &mut Option<ZipSlot>,
-    client: dm_core::reqwest::Client,
     url: String,
     referrer: Option<String>,
     sign_in: Option<dm_core::cookies::SignIn>,
@@ -46,25 +42,20 @@ pub(super) fn read_address(
     if slot.is_some() {
         return;
     }
-    let held: ZipSlot = Default::default();
-    *slot = Some(held.clone());
     let ctx = ctx.clone();
-    runtime.spawn(async move {
-        let read = dm_core::zip_contents(&client, &url, referrer.as_deref(), sign_in.as_ref());
-        let found = tokio::time::timeout(WITHIN, read)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_default();
-        *dm_core::lock(&held) = Some(found);
-        ctx.request_repaint();
-    });
+    *slot = Some(dm_shell::app::files::list_zip_at(
+        backend,
+        url,
+        referrer,
+        sign_in,
+        move || ctx.request_repaint(),
+    ));
 }
 
 /// Starts reading the files of the finished ZIP at `path` once, in the
-/// background.
+/// background (the application's `files::list_zip_file`).
 pub(super) fn read_file(
-    runtime: &tokio::runtime::Handle,
+    backend: &dm_shell::app::backend::Backend,
     ctx: &egui::Context,
     slot: &mut Option<ZipSlot>,
     path: std::path::PathBuf,
@@ -72,14 +63,12 @@ pub(super) fn read_file(
     if slot.is_some() {
         return;
     }
-    let held: ZipSlot = Default::default();
-    *slot = Some(held.clone());
     let ctx = ctx.clone();
-    runtime.spawn_blocking(move || {
-        let found = dm_core::zip_contents_of_file(&path).unwrap_or_default();
-        *dm_core::lock(&held) = Some(found);
-        ctx.request_repaint();
-    });
+    *slot = Some(dm_shell::app::files::list_zip_file(
+        backend,
+        path,
+        move || ctx.request_repaint(),
+    ));
 }
 
 /// What a reading has found so far, as far as the window shows it.

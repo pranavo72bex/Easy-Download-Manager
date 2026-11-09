@@ -4737,3 +4737,32 @@ would look at fewer seams on exactly the servers that cut connections. Shorter `
 `HELP_WATCH`: they decide whether a fast server ever sees a helper, and were set by measurement
 (2026-10-26); nothing here says they are wrong. The sync of the finished file (90 ms on this
 laptop's D: drive, 11 ms on C:) is what makes a completed row safe from a power cut.
+
+## 2026-11-09: Typed events beside the change mark; the window asks no server itself (architecture step 17)
+
+The maintainer asked for the spec's last items to be built ("implement it.
+migrate it properly"). Two were coupling: the window made its own requests (the
+update check, a ZIP's files, a file's name and size, a page's links, a video's
+qualities, a playlist, a site crawl), and it held the engine's queue in six
+places. Each is now the application's (`dm_shell::app::{update, files, lookups,
+search}`, `Backend::{client, allowance_spent, remove_later}`), taking the
+`Backend` and answering a callback; dm-desktop names `reqwest` nowhere. The
+clients the window built differed (some without the read timeout); every one
+is now `Backend::client`, the settings' proxy and timeout, inside each
+lookup's own overall limit.
+
+The third was events. `changes` stays as it is: a mark and a wake-up, never
+data, which is what lets a burst of a thousand changes cost one read. Typed
+`DownloadEvent`s are made beside it, from the same reads (`events::Events`,
+published by `Session::read`), not sent by the engine: the engine has no
+event of its own for progress, and adding a channel there would put the
+subscribers' speed on its threads. Policy: lifecycle events kept in order and
+never dropped, progress coalesced to the newest per row, each subscription
+independent, a dropped one gone at once, nobody listening costing nothing.
+The first version rebuilt the map of rows at each read (4.2 ms at 10,000
+rows); it is updated in place and skipped with no subscriber (2.9 ms with two
+subscribers, and the tick back near its 2.4 ms). Ruled out: a broadcast
+channel with a fixed buffer (a slow subscriber would lose lifecycle events or
+make the publisher wait), and an event per byte count from the runner (the
+reads at four a second already carry progress).
+

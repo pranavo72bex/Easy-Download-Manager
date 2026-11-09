@@ -30,7 +30,11 @@ extension that hands it the browser's downloads.
   ranged fetch, resume, assembly, queue, HLS, DASH, Metalink, BitTorrent,
   video-page handling). `crates/dm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
-  startup and the inbox. `crates/dm-desktop` is the window, drawn in Rust
+  startup and the inbox, and the application layer (`dm_shell::app`: the
+  queue's verbs, the commands, what happened between reads and the typed
+  events, schedules, hand-offs, the control port's rules, and every request
+  to a server that is not a download), so another window toolkit can drive
+  the same app (`docs/architecture/`). `crates/dm-desktop` is the window, drawn in Rust
   with egui, no web view, plus the
   tray, login item and notifications. `cargo packager` there builds the
   installers. The Tauri web-view window it replaced is in git history.

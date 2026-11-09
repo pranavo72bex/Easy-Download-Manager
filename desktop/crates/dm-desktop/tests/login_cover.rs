@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use dm_desktop::autostart::{self, Removal};
-use dm_desktop::update::{self, Update};
+use dm_desktop::update::{self, Said as _, Update};
 
 /// The environment is the process's: tests that set it take turns.
 static ENV: Mutex<()> = Mutex::new(());
@@ -464,75 +464,4 @@ fn a_version_with_a_suffix_is_compared_by_its_numbers() {
     assert!(update::newer("1.3", "1.2.99"));
     assert!(!update::newer("not a version", "0.0.1"));
     assert!(update::newer("0.0.1", "not a version"));
-}
-
-/// A proxy on loopback that refuses every tunnel, and how many it was asked
-/// for: what the update check reaches in place of the update server.
-fn refusing_proxy(runtime: &tokio::runtime::Runtime) -> (u16, std::sync::Arc<Mutex<Vec<String>>>) {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let asked = std::sync::Arc::new(Mutex::new(Vec::new()));
-    let seen = asked.clone();
-    let port = runtime.block_on(async move {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        tokio::spawn(async move {
-            while let Ok((mut tcp, _)) = listener.accept().await {
-                let seen = seen.clone();
-                tokio::spawn(async move {
-                    let mut head = vec![0u8; 4096];
-                    let n = tcp.read(&mut head).await.unwrap_or(0);
-                    let line = String::from_utf8_lossy(&head[..n])
-                        .lines()
-                        .next()
-                        .unwrap_or_default()
-                        .to_string();
-                    seen.lock().unwrap().push(line);
-                    let _ = tcp
-                        .write_all(b"HTTP/1.1 403 Forbidden\r\ncontent-length: 0\r\n\r\n")
-                        .await;
-                });
-            }
-        });
-        port
-    });
-    (port, asked)
-}
-
-#[test]
-fn an_update_check_the_way_out_refuses_fails_with_why() {
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let (port, asked) = refusing_proxy(&runtime);
-    // dm's own client first, which puts the TLS provider in place.
-    let _ = dm_core::client();
-    let proxy = dm_core::reqwest::Proxy::all(format!("http://127.0.0.1:{port}")).unwrap();
-    let client = dm_core::reqwest::Client::builder()
-        .proxy(proxy)
-        .build()
-        .unwrap();
-    let into = std::sync::Arc::new(Mutex::new(Update::NotAsked));
-    let ctx = egui::Context::default();
-    update::check(runtime.handle(), client, into.clone(), ctx);
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    loop {
-        let now = into.lock().unwrap().clone();
-        match now {
-            Update::Asking => {}
-            Update::Failed(why) => {
-                assert!(!why.is_empty());
-                break;
-            }
-            other => panic!("the check came to {other:?} through a proxy that refuses it"),
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the check never ended"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    }
-    let asked = asked.lock().unwrap();
-    assert_eq!(asked.len(), 1, "{asked:?}");
-    assert!(
-        asked[0].starts_with("CONNECT github.com:443"),
-        "the check went elsewhere: {asked:?}"
-    );
 }

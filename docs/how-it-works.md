@@ -53,9 +53,13 @@ its dialogs: Add URL, Download details, a progress window with each
 connection, Download complete, Properties, Add numbered series, Files on a
 site, Scheduler, Speed limiter, Options. It is held together like this:
 
-- **A command registry** (`desktop/crates/dm-desktop/src/commands.rs`). The
-  menus, the toolbar, the row menu, the keyboard and the control protocol
-  all run the same named commands.
+- **A command registry** (`dm_shell::app::commands`, with the window's
+  words and keys in `desktop/crates/dm-desktop/src/commands.rs`). The menus,
+  the toolbar, the row menu, the keyboard and the control protocol all run
+  the same named commands.
+- **An application layer under the window** (`dm_shell::app`,
+  `docs/architecture/`): what the window shows comes from it, and what a
+  person asks for is done by it; the window draws and asks.
 - **Window tests that click every control by its name**
   (`desktop/crates/dm-desktop/tests/window.rs` and `tests/window/`): every menu item, toolbar
   button and row-menu item is clicked through the accessibility tree and

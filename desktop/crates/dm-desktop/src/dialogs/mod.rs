@@ -13,6 +13,7 @@
 
 use crate::commands::Shown as _;
 use crate::i18n::{t, tf};
+use crate::update::Said as _;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
@@ -210,41 +211,9 @@ enum Clash {
     },
 }
 
-/// What Download details learned by asking the server: the name the file
-/// will have, where it gives one, and its size, where it says.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Probed {
-    /// The name the file will have.
-    pub name: Option<String>,
-    /// The file's size in bytes.
-    pub size: Option<u64>,
-    /// Why the server would not give the file, where it said: a 404 was
-    /// found only once the download had failed.
-    pub problem: Option<String>,
-    /// A web page rather than a file (a video site's watch page): dm finds
-    /// the video in it when it starts, so nothing is wrong to say.
-    pub page: bool,
-}
-
-/// The name an HLS stream at `url` is saved under: the engine's own naming
-/// for streams (a manifest called `index.m3u8` takes its folder's name),
-/// as a transport stream, and as an MP4 where `remux` puts it into one.
-/// `None` for an address that is not a stream.
-pub fn stream_name(url: &str, content_type: Option<&str>, remux: bool) -> Option<String> {
-    if dm_core::kind_of(url, content_type) != Some(dm_core::StreamKind::Hls) {
-        return None;
-    }
-    // The engine names a stream from its address and what its segments
-    // are; asked with one transport-stream segment, it names it as one.
-    let one = "#EXTM3U\n#EXTINF:1,\nsegment.ts\n#EXT-X-ENDLIST\n";
-    let named = dm_core::media_playlist(one, url, url, Default::default())
-        .ok()?
-        .filename;
-    match named.strip_suffix(".ts") {
-        Some(stem) if remux => Some(format!("{stem}.mp4")),
-        _ => Some(named),
-    }
-}
+/// What Download details learned by asking the server, and the name an HLS
+/// stream is saved under: the application's (`dm_shell::app::lookups`).
+pub use dm_shell::app::lookups::{stream_name, Probed};
 
 /// What dm learned of one link by asking its server.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -513,10 +482,10 @@ pub struct Properties {
 
 /// The files of a ZIP, as a background reading leaves them: `None` while it
 /// is under way, an empty list where there was nothing to list.
-pub type ZipSlot = Arc<Mutex<Option<Vec<dm_core::ZipEntry>>>>;
+pub use dm_shell::app::files::ZipSlot;
 
 /// What the background hashing of a finished file has found so far.
-pub type Sums = Arc<Mutex<HashMap<&'static str, Option<Result<String, String>>>>>;
+pub use dm_shell::app::files::Sums;
 
 /// An address split into itself and the user and password in it.
 fn split_login(url: &str) -> (String, String, String) {
