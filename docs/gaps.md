@@ -17,7 +17,11 @@ No code is left that can be written and checked alone, so there is nothing left 
 autonomous session to do: each row below needs a Windows computer, a device or a person.
 Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
-`human-qa.py` 64 of 64 rows.
+`human-qa.py` 64 of 64 rows. The 0.9.0 release's own files, downloaded from its draft (digests
+as `latest.json` gives them), with extension 3.3.0's released zip: the macOS `.dmg` 64 of 64 rows;
+the arm64 `.deb` installed by apt on Debian 12 under Xvfb with Chromium in Edge's place, 63 of 64
+(B25 only: `human-qa.py` pictures dialogs on macOS and Windows alone, and its baselines are
+macOS pictures; the screen was looked at instead).
 
 Removed from the list on 2026-11-09 at the maintainer's word (`docs/decisions.md`, "The work
 list keeps only what can be done"): every check that needs a site sign-in (Facebook, Instagram,
@@ -35,7 +39,6 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
-| 51  | AMO refused the extension's signing upload ("Unsupported file type") for 3.2.0 and 3.2.1: web-ext 8.3.0 names its upload `blob`. Both signing workflows pin web-ext 10.8.0, which names it after the zip (checked 2026-11-09 against a stand-in AMO server on this computer, both versions side by side); the AMO keys are set as secrets. Never yet run against AMO itself | PARTIAL | The `v3.3.0` tag's release run: its signing step passes and 3.3.0 appears on AMO |
 | 121 | An expired signed stream address is renewed: from the open page (`decide::Handed`, `Start::renews`) and by the browser's next hand-over of the same file (`Entry::fresh_link`, row 57). Tested offline only | OPEN | A real video site's CDN address that runs out mid-download, tab left open in Microsoft Edge, goes on in the same row |
 | 163 | GitGuardian fails pull request #33 on two made-up test passwords (`s3cret`, `p4ss`) in commit 62baeca's history; nothing like them is in the tree, and gitleaks finds no leak | OPEN: the maintainer | In GitGuardian's dashboard, resolve incidents 39386940 and 39386941 as test credentials |
 | T5  | dm is listed in Windows' Settings › Default apps for magnet links and `.torrent` files (`register.rs` `list_in_default_apps`, tested with a stand-in `reg`) but has not been seen there | OPEN | A person on Windows with an installed build sees dm there and chooses it for a magnet link |
