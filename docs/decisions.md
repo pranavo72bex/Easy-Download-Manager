@@ -4869,3 +4869,19 @@ At the maintainer's word of the day ("go to reference in gaps.md and implement t
   its codecs, so what was passed on was nearly always empty. Patching a page's own functions for
   nothing is a risk (a site that checks them, a player that breaks) with no gain. Not taken:
   T6's registry test (Windows code that cannot be compiled here; for the Windows session).
+
+## 2026-11-09: The work list keeps only what can be done
+
+At the maintainer's word ("remove the things which are done or cannot be done due to lack of
+sign-in or an open dialog; clean up gaps.md"), `docs/gaps.md` drops every row that waits on a
+site sign-in (Facebook, Instagram, Reddit, YouTube signed in: rows 63, 71, 75, 110, 122, 142,
+and the 68-site run beside reference A, row 152), on reference A's dialogs set by hand (row
+65's proxies), on a person's hands or eyes on the window (rows 60, 66, 72f), on a reporter
+(row 30), on the proof-of-origin token the maintainer declined (row 37), and on live checks of
+site rules that only signed-in sites still lack (rows 68 and 69: Vimeo, TikTok and X were run
+signed out with the shipped rules on 2026-11-06). Its notes (rows 77, 78, 99, 102, 109, 131,
+132, 135, 143) were findings, not work, and are kept in `docs/reference-behavior.md` and git
+history. The copy search (row 151) was run (no copy found) and is now a periodic duty at the
+foot of the list. What is left needs Windows, a phone, a release, native readers or the
+maintainer's GitGuardian dashboard. Not taken: keeping the signed-in rows as BLOCKED, which
+left a list that read as unfinished when nothing in it could be done.
