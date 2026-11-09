@@ -1168,3 +1168,122 @@ fn a_dial_up_password_is_kept_only_when_save_password_is_on() {
         "forgotten once Save password was turned off"
     );
 }
+
+#[test]
+fn a_close_or_double_click_this_dm_does_not_know_takes_the_default() {
+    let odd = Settings {
+        on_close: "minimise".into(),
+        double_click: "explode".into(),
+        ..Settings::default()
+    }
+    .clamped();
+    assert_eq!(odd.on_close, "ask");
+    assert_eq!(odd.double_click, "properties");
+    let known = Settings {
+        on_close: "tray".into(),
+        double_click: "folder".into(),
+        ..Settings::default()
+    }
+    .clamped();
+    assert_eq!(
+        (known.on_close.as_str(), known.double_click.as_str()),
+        ("tray", "folder")
+    );
+}
+
+#[test]
+fn a_cookies_file_that_is_a_folder_and_a_kinds_folder_are_judged() {
+    let dir = tempfile::tempdir().unwrap();
+    let before = Settings::default();
+    let folder = Settings {
+        cookies_file: dir.path().display().to_string(),
+        ..before.clone()
+    };
+    let why = folder.refusal(&before).unwrap();
+    assert!(why.contains("could not be read"), "{why}");
+
+    let file = dir.path().join("cookies.txt");
+    std::fs::write(&file, "").unwrap();
+    let readable = Settings {
+        cookies_file: file.display().to_string(),
+        ..before.clone()
+    };
+    assert_eq!(readable.refusal(&before), None);
+
+    let mut kinds = before.clone();
+    kinds.category_folders = vec!["Fine".into(), "a/b".into()];
+    let why = kinds.refusal(&before).unwrap();
+    assert!(why.contains("a/b"), "{why}");
+    kinds.category_folders = vec!["Fine".into(), String::new()];
+    assert_eq!(kinds.refusal(&before), None);
+}
+
+#[test]
+fn a_settings_file_that_cannot_be_moved_aside_is_said_and_left() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    // A folder where the copy would go, with something in it, so neither
+    // a rename nor a copy can take its place.
+    let aside = dir.path().join("settings.json.unreadable");
+    std::fs::create_dir(&aside).unwrap();
+    std::fs::write(aside.join("held"), "").unwrap();
+
+    std::fs::write(&path, "5").unwrap();
+    let (read, notice) = Settings::load_from(&path);
+    assert_eq!(read.connections, Settings::default().clamped().connections);
+    let notice = notice.unwrap();
+    assert!(notice.contains("or moved aside"), "{notice}");
+    assert!(path.exists(), "the file is not lost");
+
+    std::fs::write(&path, r#"{"connections": 4, "concurrency": "three"}"#).unwrap();
+    let (read, notice) = Settings::load_from(&path);
+    assert_eq!(read.connections, 4);
+    let notice = notice.unwrap();
+    assert!(notice.contains("could not be kept aside"), "{notice}");
+}
+
+#[test]
+fn a_proxy_or_a_list_read_in_parts_names_what_it_left_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    std::fs::write(
+        &path,
+        r#"{"proxy": {"enabled": false, "type": "quic", "host": "p.example", "port": "x", "script": 5},
+            "site_logins": 5}"#,
+    )
+    .unwrap();
+    let (read, notice) = Settings::load_from(&path);
+    let notice = notice.unwrap();
+    for named in ["proxy.type", "proxy.port", "proxy.script", "site_logins"] {
+        assert!(notice.contains(named), "{named} not named: {notice}");
+    }
+    assert!(
+        !notice.contains("so the proxy is off"),
+        "it was off already: {notice}"
+    );
+    assert!(!read.proxy.enabled);
+    assert_eq!(read.proxy.host, "p.example");
+    assert_eq!(read.proxy.port, dm_core::Proxy::default().port);
+    assert!(read.proxy.script.is_empty());
+    assert!(read.site_logins.is_empty());
+
+    std::fs::write(&path, r#"{"proxy": 5, "connections": 3}"#).unwrap();
+    let (read, notice) = Settings::load_from(&path);
+    assert!(notice.unwrap().contains("proxy"));
+    assert_eq!(read.proxy, dm_core::Proxy::default(), "off, not a guess");
+    assert!(!read.proxy.enabled);
+    assert_eq!(read.connections, 3);
+}
+
+/// The tests' saves never reach the real dm's home: a test that changed the
+/// settings through the backend wrote over the person's own.
+#[test]
+fn a_test_of_this_crate_keeps_its_settings_out_of_the_real_home() {
+    if std::env::var_os("DM_HOME").is_none() {
+        assert!(Settings::path().starts_with(std::env::temp_dir()));
+        assert_ne!(
+            home(),
+            dirs::data_local_dir().unwrap_or_default().join("dm-engine")
+        );
+    }
+}

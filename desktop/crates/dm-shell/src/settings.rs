@@ -1541,6 +1541,12 @@ pub fn home() -> PathBuf {
     if let Some(elsewhere) = std::env::var_os("DM_HOME") {
         return PathBuf::from(elsewhere);
     }
+    // This crate's own tests save settings through the backend: written into
+    // the real home, they replaced the person's download folder with a test's
+    // temporary one. They get a home of their own, one a run.
+    if cfg!(test) {
+        return std::env::temp_dir().join(format!("dm-shell-tests-{}", std::process::id()));
+    }
     dirs::data_local_dir()
         .unwrap_or_else(std::env::temp_dir)
         .join("dm-engine")
