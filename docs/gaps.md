@@ -53,6 +53,113 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | T5  | dm is listed in Windows' Settings › Default apps for magnet links and `.torrent` files (`register.rs` `list_in_default_apps`, tested with a stand-in `reg`) but has not been seen there | OPEN | A person on Windows with an installed build sees dm there and chooses it for a magnet link |
 | T6  | The test that writes the magnet key, opens a magnet with `Start-Process` and sees a row appear in the running dm is written (`dm-desktop/tests/magnet_registry.rs`, `#[ignore]`, `DM_REGISTRY_TEST=1`; it saves the key as it was and puts it back) and passes on macOS, where it runs the key's command itself; its Windows half type-checks but has not run | PARTIAL | On Windows: `DM_REGISTRY_TEST=1 cargo test -p dm-desktop --test magnet_registry -- --ignored` passes |
 
+## GPUI migration: picking it up (rows G1 to G9)
+
+Written so that a new session can start from here alone. The maintainer asked on 2026-11-09
+for dm's window to move from egui to GPUI, following a specification they attached (its
+substance is in `docs/migration/GPUI_MIGRATION_PLAN.md`). The maintainer also said, twice:
+**take the recommended option at every decision and keep going; do not stop to ask.** Record
+each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026-11-09").
+
+### Where and how
+
+- **Branch `gpui-migration`**, not `main`: `git switch gpui-migration`. `main` receives it only
+  by fast-forward after the full gate below, at the end of a phase.
+- **Read first**, in this order: `docs/migration/GPUI_MIGRATION_PLAN.md` (phases, the decisions
+  D1 to D5 and the recommended option for each), `docs/migration/CURRENT_UI_ARCHITECTURE.md`
+  (sections 3.3 the real tick order, 4.2 the rules still in `DmApp`, 5.2 the control port,
+  8 what a GPUI window must provide, 9 docs against code), then for the step at hand
+  `EGUI_FEATURE_INVENTORY.md`, `PLATFORM_GAP_ANALYSIS.md`, `GPUI_DEPENDENCY_DECISION.md`, and
+  `docs/architecture/MODULE_BOUNDARIES.md` (what may depend on what; `cargo xtask layers`
+  enforces it from `desktop/xtask/src/main.rs`, `fn layers`, the `GUI` and `SOCKETS` lists).
+- **Rules that still hold** (CLAUDE.md): no behaviour in `docs/behaviour-contract.md` changes
+  (Phase A moves code, it changes nothing a person sees); name no other download manager
+  ("reference A", "reference B"); no GPUI dependency in any crate before G6.
+- **The gate, after every step that touches `desktop/`, `browser/` or `extension/`**, before
+  its commit (all four, in this order; report every row they print):
+  1. `cd desktop && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
+  2. `cd desktop && cargo build -p dm-desktop && cd .. && sh scripts/package.sh`
+  3. `python3 scripts/human-qa.py` (macOS, a visible window, about 20 minutes): 64 of 64
+  4. `sh scripts/linux-human-qa.sh` (Docker running; builds the checkout in Debian): 64 of 64
+  A row that fails once and passes on a second whole run (B40 did on 2026-11-09) is reported
+  as such; a row that fails twice is a defect to fix before the commit.
+- **One commit per step** (or per module moved, in G2 and G3), message naming the row.
+  When a row closes, delete it here and say what was done in `CHANGELOG.md` (Unreleased,
+  as "Inside, no change to what a person sees: ...") and in the plan's status line.
+
+### State of each row (2026-11-09)
+
+- **G1, docs and code agree: in progress.** Done in the working tree, not yet committed:
+  `refresh()` calls `dm_shell::app::changes::take()` and `logic()` reads
+  `changes::pending()` (both were the same atomic done by hand); `ARCHITECTURE.md` gives the
+  tick order as the code runs it (inbox orders, read, `schedule_tick` before `ran_dry`, why
+  `DmApp::logic` runs from both `Window::logic` and `DmApp::ui`); `EVENT_FLOW.md` says the egui
+  window reacts to `Read::detected` and does not subscribe to typed events; `MODULE_BOUNDARIES.md`
+  and `ARCHITECTURE.md` point at G3 for the rules still in `DmApp`; `audit.md` is marked as a
+  dated record; stale comments fixed in `dm-desktop/src/lib.rs` (`backend`), `control.rs`
+  (all 24 methods), `i18n.rs` (CJK offered). Decided, not changed: `DmApp::logic` keeps running
+  twice per painted pass (the window tests drive `DmApp::ui` alone; the second run reads only
+  what changed). **Left:** the gate's result, then commit "G1: ...", delete the row.
+- **G2, a toolkit-free crate: next.** Recommended (take it): a new crate
+  `desktop/crates/dm-desktop-base` that `dm-desktop` depends on and that `cargo xtask layers`
+  forbids every name in `GUI` (add it to the `crates` list and to the `match` with
+  `may = dm-core, dm-protocol, dm-shell`, `no_gui = true`, sockets allowed). Move one module per
+  commit, leaving `pub use dm_desktop_base::<module>` at the old path in `dm-desktop/src/lib.rs`
+  so no caller or test changes: in this order (fewest dependents first) `region`, `quiet`,
+  `awake`, `wake`, `autostart`, `power`, `format` (the parts with no `egui` in them; keep any
+  egui-typed helper behind in dm-desktop), `details`, `i18n` (all but `pick`, which draws),
+  then the `Desktop` Platform from `platform.rs` (all but `drag_out`, which needs the window's
+  handle: leave it as a method the window supplies), `cli`, `mcp`, and `control` (the server,
+  the token and the dispatch; the `ui.*` answers stay in dm-desktop behind a trait the window
+  implements, which is G4). Before moving a module: `grep -n "egui\|eframe\|winit" <file>`
+  must be empty, or the egui part is split off first. Update `MODULE_BOUNDARIES.md` and
+  `ARCHITECTURE.md`'s crate diagram in the last commit.
+- **G3, rules into `dm_shell::app`: after G2.** The list, with files, is
+  `CURRENT_UI_ARCHITECTURE.md` 4.2 (settings coordination and the script guard `by_script`,
+  question detection B39 to B41, pending renames, once-only schedule dates, dial-up hang-up,
+  saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the
+  inbox orders, adding, finished sizes, remove with Undo's bookkeeping, the speed limiter's
+  memory). One rule per commit: the rule becomes a function or a small type in
+  `dm_shell::app` (a module of its own where none fits, listed in `MODULE_BOUNDARIES.md`),
+  `DmApp` calls it, and its tests move with it or are written (a test that fails without the
+  move's code, as the project does). Wording, sounds and which dialog opens stay in the window.
+- **G4, `ui.*` as a contract: after G2.** The methods are `ui.texts`, `ui.click`, `ui.type`,
+  `ui.key`, `ui.scroll`, `ui.inspect`, `ui.select`, `ui.place`, `ui.windows`, `ui.window`,
+  `ui.move_window`, `ui.screenshot`, `ui.accessibility`, plus `commands.list` and
+  `command.run` (implemented in `dm-desktop/src/app/human.rs`, `app/control.rs`,
+  `dialogs/apart.rs`; shapes in `CURRENT_UI_ARCHITECTURE.md` 5.2). Recommended: a trait
+  `WindowProbe` in `dm-desktop-base` with one method per `ui.*`, request and answer as serde
+  types whose JSON is fixed by tests written from what `scripts/human-qa.py` and `mcp.rs` read
+  today; dm-desktop implements it; the control server dispatches to it. `human-qa.py` must
+  not change.
+- **G5, egui's own costs: after G4 (can run beside G3).** Recommended: `scripts/ui-bench.py`,
+  using only the control port (so it measures a GPUI window the same way): a home seeded
+  with 100, 1,000 and 10,000 rows (as `stress-check.py window` seeds them), then start to
+  first `ui.texts` answer, idle CPU over 60 s (`ps`), memory (`memory-check.py`'s sampling),
+  `ui.scroll` and Find (`ui.type` into the search box) latency, and the window's CPU with 20
+  downloads running against a local server. Release build, three runs, medians. Record in a
+  new `docs/migration/GPUI_TEST_PLAN.md` as the egui baseline.
+- **G6, the GPUI shell: after G2 to G5.** Recommended pin (D2):
+  `gpui = { package = "gpui-pre", version = "=0.3.12" }`,
+  `gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }` (macOS features
+  `font-kit`, `runtime_shaders`; Linux `wayland`, `x11`; Windows none),
+  `gpui-component = "=0.9.1"`; fallback `gpui-ce` 0.3.0 if the pair will not build. A new
+  crate `desktop/crates/dm-gpui` (binary `dm-gpui`), depending on dm-core, dm-shell and
+  dm-desktop-base only; add it to `cargo xtask layers` as a window crate. It opens the main
+  window and one dialog window, runs the tick once per wake from one foreground waker
+  (`changes::subscribe`), keeps the tokio runtime for the engine, and implements `WindowProbe`
+  for what it draws. Judge it on `GPUI_MIGRATION_PLAN.md` Phase B's seven checks, each pass or
+  fail per system, written to `GPUI_TEST_PLAN.md`. D1 (go): recommended go if check 1
+  (screen readers reach OK and Cancel in the dialog's own window on macOS, Windows and Linux)
+  passes, or can be made to pass by a patch to GPUI kept in `desktop/vendor/` as eframe's is;
+  no-go otherwise, and then the plan stops at Phase A, which stands on its own.
+- **G7 to G9: after D1.** The plan's Phases C, D and E. D3 (new B25 pictures): recommended
+  approve once every other row holds in GPUI, drawing them with `--save-baseline` and looking
+  at them. D4: for a row GPUI cannot hold as written, recommended the fallback the gap
+  analysis names (for example `tray-icon`, `rfd`, dm's own drag-out code). D5: recommended
+  switch the default only after 64/64 on macOS, Windows and Linux from release packages,
+  and remove egui in a change of its own.
+
 ## Periodic
 
 - Search GitHub for copies of dm that drop `NOTICE` (`dm-engine`, `com.dm.engine.json`,

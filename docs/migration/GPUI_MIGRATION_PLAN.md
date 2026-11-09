@@ -63,7 +63,9 @@ the same 64 rows on every system, not when it looks done.
 
 ## Decisions that are the maintainer's
 
-These are asked, not assumed, when their phase is reached:
+The maintainer said on 2026-11-09: take the recommended option at each and keep going, without
+asking. Each is recorded in `docs/decisions.md` when taken; `docs/gaps.md`'s section "GPUI
+migration: picking it up" gives the recommended option for each:
 
 | # | Decision | When |
 |---|---|---|
