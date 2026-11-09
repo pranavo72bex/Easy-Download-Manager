@@ -381,6 +381,12 @@ PANEL_PAGES = {
         '<!doctype html><title>another site\'s player</title><div style="position:relative;margin:40px">'
         '<video id="v" src="{OTHER}/files/cross-b.mp4" width="640" height="360" preload="auto"></video>'
         + OVERLAY + '</div>', None),
+    # The same, with a file of its own, for when the browser itself sent the first one the
+    # session (it did once on CI, 2026-11-09), which leaves nothing to tell apart.
+    "/crossplayed-again.html": (
+        '<!doctype html><title>another site\'s player</title><div style="position:relative;margin:40px">'
+        '<video id="v" src="{OTHER}/files/cross-c.mp4" width="640" height="360" preload="auto"></video>'
+        + OVERLAY + '</div>', None),
     "/tiny.html": (
         '<!doctype html><title>an avatar</title>'
         '<video id="v" src="/files/avatar.mp4" width="96" height="96" preload="none" style="margin:40px"></video>',
@@ -1369,23 +1375,37 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     def dm_cookies(name):
         return [r["cookie"] for r in requests if r["path"] == f"/files/{name}" and is_dm(r["agent"])]
 
-    for page, name in (("/cross.html", "cross-a.mp4"), ("/crossplayed.html", "cross-b.mp4")):
+    def hand_from(page, name):
         tab = panel_page(base, origin, page)
-        if name == "cross-b.mp4":
-            wait_for(lambda: any(r["path"] == "/files/cross-b.mp4" and not is_dm(r["agent"]) for r in requests), 10)
+        if name != "cross-a.mp4":
+            wait_for(lambda: any(r["path"] == f"/files/{name}" and not is_dm(r["agent"]) for r in requests), 10)
         hover(tab, tab.evaluate(VIDEO_RECT))
         if wait_for(lambda: (panel(tab) or {}).get("shown"), 5):
             click_panel(tab)
         wait_for(lambda: whole(engine_dl, name), 60)
-    sent_a, sent_b = dm_cookies("cross-a.mp4"), dm_cookies("cross-b.mp4")
 
     def names(header):
         return {part.split("=")[0].strip() for part in header.split(";") if part.strip()}
 
-    held = worker.evaluate(f"chrome.cookies.getAll({{url: '{other}/files/cross-b.mp4'}})"
+    def by_browser(name):
+        return [r for r in requests if r["path"] == f"/files/{name}" and not is_dm(r["agent"])]
+
+    hand_from("/cross.html", "cross-a.mp4")
+    hand_from("/crossplayed.html", "cross-b.mp4")
+    played = "cross-b.mp4"
+    # Where the browser itself sent the tab's player the session, dm's rule and "send it all" look
+    # alike, so the scenario is run once more in a new tab with a file of its own; the browser
+    # did that once on CI (2026-11-09), and the detail below lists what it sent.
+    if any("session" in names(r["cookie"]) for r in by_browser(played)):
+        print(f"        the browser itself sent {played} the session, so once more: "
+              + str([(r["referer"], r["range"], r["cookie"]) for r in by_browser(played)]))
+        played = "cross-c.mp4"
+        hand_from("/crossplayed-again.html", played)
+    sent_a, sent_b = dm_cookies("cross-a.mp4"), dm_cookies(played)
+
+    held = worker.evaluate(f"chrome.cookies.getAll({{url: '{other}/files/{played}'}})"
                            ".then(c => c.map(x => x.name).sort().join(','))") or ""
-    by_browser = set().union(*[names(r["cookie"]) for r in requests
-                               if r["path"] == "/files/cross-b.mp4" and not is_dm(r["agent"])])
+    browser_sent = set().union(*[names(r["cookie"]) for r in by_browser(played)])
     check("another site's sign-in is in the browser, for the checks below to mean anything",
           "session" in held.split(","), held)
     check("another site's file the page names goes to dm without that site's session",
@@ -1393,8 +1413,9 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     # The tab's own player reached that site (a page can make its tab reach any site): dm carries
     # what the browser itself sent there, by name, and not the session it kept from this page.
     check("and where the tab's own player fetched from that site, only the cookies the browser sent it there",
-          bool(sent_b) and "session" not in by_browser and all(names(c) == by_browser for c in sent_b),
-          f"the browser sent {sorted(by_browser)}, dm sent {sent_b}")
+          bool(sent_b) and "session" not in browser_sent and all(names(c) == browser_sent for c in sent_b),
+          f"the browser sent {sorted(browser_sent)}, dm sent {sent_b}; the browser's requests: "
+          + str([(r["referer"], r["range"], r["cookie"]) for r in by_browser(played)]))
 
     # A player that keeps its video in a web component's shadow root.
     tab = panel_page(base, origin, "/shadow.html")
