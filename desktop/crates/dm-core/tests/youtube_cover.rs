@@ -1301,6 +1301,9 @@ async fn a_download_reads_through_its_proxy_and_as_a_part() {
 #[tokio::test]
 async fn with_no_engine_the_reading_says_so() {
     let _env = ENV.write().await;
+    // Its own process under nextest: the stand-in is not there unless this
+    // test makes it.
+    stand_in();
     let qjs = std::env::var_os("DM_QJS").unwrap();
     std::env::set_var("DM_QJS", "");
     let staging = tempdir();

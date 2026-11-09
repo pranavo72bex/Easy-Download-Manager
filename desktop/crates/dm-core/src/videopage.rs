@@ -216,6 +216,10 @@ pub(crate) async fn write_private(path: &Path, text: &str) -> Result<(), Error> 
     open.mode(0o600);
     let mut file = open.open(path).await?;
     tokio::io::AsyncWriteExt::write_all(&mut file, text.as_bytes()).await?;
+    // A tokio file finishes its writes in the background: flushed, the
+    // text is in the file before the program that reads it is started (on
+    // macOS a reader at once found the old, or no, text).
+    tokio::io::AsyncWriteExt::flush(&mut file).await?;
     Ok(())
 }
 

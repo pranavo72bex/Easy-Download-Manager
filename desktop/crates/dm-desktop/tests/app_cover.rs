@@ -184,9 +184,18 @@ fn the_floating_drop_target_shows_progress_takes_drops_and_has_its_menu() {
         .state_mut()
         .add(&[world.url("stalled.bin")], dm_core::AddOptions::default())
         .unwrap();
-    until(&mut harness, "the download to run", |app| {
-        app.rows().iter().any(|r| r.state == State::Running)
-    });
+    // Running, and its size known: until the server has said it, the card
+    // rightly has no "— 0%" to show (CI's macOS runner and a loaded machine
+    // looked before it had).
+    until(
+        &mut harness,
+        "the download to run with its size known",
+        |app| {
+            app.rows()
+                .iter()
+                .any(|r| r.state == State::Running && r.progress.total.is_some())
+        },
+    );
     harness.run_steps(3);
     // The card is the whole of its window, which has no title bar.
     let window = bounds(&harness, dm_desktop::drops::DROP_TARGET_TITLE);
