@@ -793,7 +793,14 @@ mod tests {
         }
         let mut found: Vec<String> = walk(root)
             .iter()
-            .map(|p| p.strip_prefix(root).unwrap().display().to_string())
+            .map(|p| {
+                // Windows names them with `\`.
+                let rel = p.strip_prefix(root).unwrap();
+                rel.iter()
+                    .map(|part| part.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join("/")
+            })
             .collect();
         found.sort();
         assert_eq!(found, ["a.rs", "sub/c.json", "sub/d.html"]);

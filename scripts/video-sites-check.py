@@ -680,8 +680,11 @@ def engine_phase(work):
             t0 = log[0]["t"] if log else 0
             timeline = ", ".join(f"+{r['t'] - t0:.1f}s {r['range'] or 'no Range'}" for r in log[:5])
             # The same request asked again: a 429 or 503 answered by asking again without Range at
-            # once (dm's fallback for a server that refuses ranges) is a different request.
-            again = [next((b for b in log[i + 1:] if b["range"] == a["range"]), None) for i, a in enumerate(log[:3])]
+            # once (dm's fallback for a server that refuses ranges) is a different request, and so
+            # is one in another name: a 429 to a browser's name is asked once more at once in dm's
+            # own (`probe.rs`, for servers that limit browsers' names from a program).
+            again = [next((b for b in log[i + 1:] if (b["range"], b["agent"]) == (a["range"], a["agent"])), None)
+                     for i, a in enumerate(log[:3])]
             too_soon = [b["t"] - a["t"] for a, b in zip(log, again) if b and b["t"] - a["t"] < 1.5]
             whole_file("ENG-05", url, size, row, f"requests: {timeline} (Retry-After: 2)",
                        f"the same request again {min(too_soon):.1f} s after a 429/503" if too_soon else "")
