@@ -183,10 +183,12 @@ mod tests {
 
     #[test]
     fn a_closed_schedule_holds_what_waits_on_it_and_not_what_runs() {
-        // No day ticked: never open.
+        // Closed whenever the test runs: a once-only window long over (no day
+        // ticked means every day, and the default 01:00 to 07:00 was open
+        // when CI ran it at 04:50).
         let closed = dm_core::Schedule {
             enabled: true,
-            days: Vec::new(),
+            once_at: Some("2000-01-01 01:00".into()),
             ..dm_core::Schedule::default()
         };
         assert!(!closed.open());
