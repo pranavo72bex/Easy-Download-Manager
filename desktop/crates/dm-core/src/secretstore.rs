@@ -969,4 +969,59 @@ mod tests {
         store.delete("a").unwrap();
         assert_eq!(store.get("a").unwrap(), None);
     }
+
+    /// A store that cannot be read or written, as a locked keychain is.
+    struct Broken;
+
+    impl SecretStore for Broken {
+        fn get(&self, _: &str) -> Result<Option<Vec<u8>>, String> {
+            Err("locked".to_string())
+        }
+        fn put(&self, _: &str, _: &[u8]) -> Result<(), String> {
+            Err("locked".to_string())
+        }
+        fn delete(&self, _: &str) -> Result<(), String> {
+            Err("locked".to_string())
+        }
+    }
+
+    #[test]
+    fn a_store_that_cannot_be_used_seals_nothing_and_opens_nothing_and_says_why() {
+        assert_eq!(
+            seal_with(&Broken, QUEUE_KEY, PLAIN),
+            Err("locked".to_string())
+        );
+        let sealed = seal_with(&MemoryStore::default(), QUEUE_KEY, PLAIN).unwrap();
+        match open_with(&Broken, &sealed) {
+            Opened::Failed(why) => assert_eq!(why, "the store could not be read (locked)"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_key_of_the_wrong_length_is_not_sealed_with() {
+        let store = MemoryStore::default();
+        store.put(QUEUE_KEY, &[1u8; 16]).unwrap();
+        let why = seal_with(&store, QUEUE_KEY, PLAIN).unwrap_err();
+        assert_eq!(why, "the key kept for the secrets is 16 bytes, not 32");
+        // The short key is left as it was, not replaced by a new one.
+        assert_eq!(store.get(QUEUE_KEY).unwrap(), Some(vec![1u8; 16]));
+    }
+
+    #[test]
+    fn an_envelope_with_text_that_is_not_base64_or_a_short_nonce_is_not_readable() {
+        let store = MemoryStore::default();
+        let sealed = seal_with(&store, QUEUE_KEY, PLAIN).unwrap();
+        let not_base64 = tampered(&sealed, |e| e.ct = "not base64 at all!".to_string());
+        let short_nonce = tampered(&sealed, |e| {
+            e.nonce = base64::engine::general_purpose::STANDARD.encode([0u8; 8])
+        });
+        for bad in [not_base64, short_nonce] {
+            assert!(is_sealed(&bad));
+            assert_eq!(
+                open_with(&store, &bad),
+                Opened::Failed("the sealed secrets are not readable".to_string())
+            );
+        }
+    }
 }

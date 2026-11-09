@@ -709,3 +709,68 @@ fn a_start_carries_the_part_of_a_video_and_an_older_one_has_none() {
     let old: Start = serde_json::from_str(r#"{"id":"x","url":"https://e.com/v"}"#).unwrap();
     assert!(old.from.is_empty() && old.to.is_empty());
 }
+
+/// What the extension's log says of a frame it could not read: the version
+/// it came with, or that it had none, or why its shape did not read.
+#[test]
+fn an_unreadable_frame_is_said_in_words() {
+    let future = Request::from_frame(&json!({"protocolVersion": 99, "type": "hello"})).unwrap_err();
+    assert_eq!(future, Unreadable::Version(Some(99)));
+    assert!(
+        future.to_string().contains("protocol version 99"),
+        "{future}"
+    );
+    let none = Reply::from_frame(&json!({"type": "hello"})).unwrap_err();
+    assert_eq!(none.to_string(), "a frame with no protocol version");
+    let odd = Request::from_frame(&json!({"protocolVersion": OLDEST_PROTOCOL, "type": "dance"}))
+        .unwrap_err();
+    assert!(matches!(odd, Unreadable::Shape(_)));
+    assert!(
+        odd.to_string()
+            .starts_with("a frame that could not be read: "),
+        "{odd}"
+    );
+}
+
+/// Each reason a download is left with the browser has its words.
+#[test]
+fn each_reason_a_download_is_left_is_said() {
+    let said = [
+        Left::Off,
+        Left::SkippedHost,
+        Left::TooSmall,
+        Left::NotAFileType,
+    ]
+    .map(Left::reason);
+    for (reason, word) in
+        said.iter()
+            .zip(["turned off", "leave alone", "minimum size", "file types"])
+    {
+        assert!(reason.contains(word), "{reason}");
+    }
+}
+
+/// A form's contents are never written into a log: only their sizes.
+#[test]
+fn a_posted_form_is_logged_by_its_size_alone() {
+    let form = format!("user=me&pass={}", test_secrets::secret("form_password"));
+    let posted = Posted {
+        form: form.clone(),
+        raw: String::new(),
+        content_type: "application/x-www-form-urlencoded".into(),
+    };
+    let logged = format!("{posted:?}");
+    assert!(
+        !logged.contains(&form) && !logged.contains("pass="),
+        "{logged}"
+    );
+    assert!(
+        logged.contains(&format!("{} bytes", form.len())),
+        "{logged}"
+    );
+    assert!(logged.contains("raw: 0 bytes"), "{logged}");
+    assert!(
+        logged.contains("application/x-www-form-urlencoded"),
+        "{logged}"
+    );
+}

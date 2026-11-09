@@ -326,4 +326,70 @@ mod tests {
             matches!(&got["http://127.0.0.1:9/gone.bin"], LinkFound::Failed(why) if !why.is_empty())
         );
     }
+
+    /// What Download details is told for a stream, a watch page that turned
+    /// the quick look away, and a file that is not there.
+    #[test]
+    fn a_stream_a_turned_away_page_and_a_missing_file_are_each_told_as_such() {
+        use axum::http::{header::CONTENT_TYPE, StatusCode};
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, dir.path());
+        let addr = runtime.block_on(async {
+            let app = axum::Router::new()
+                .route(
+                    "/live/index.m3u8",
+                    axum::routing::get(|| async {
+                        (
+                            [(CONTENT_TYPE, "application/vnd.apple.mpegurl")],
+                            "#EXTM3U\n#EXTINF:1,\nsegment.ts\n#EXT-X-ENDLIST\n",
+                        )
+                    }),
+                )
+                .route(
+                    "/watch",
+                    axum::routing::get(|| async { StatusCode::FORBIDDEN }),
+                )
+                .route(
+                    "/gone.zip",
+                    axum::routing::get(|| async { StatusCode::NOT_FOUND }),
+                );
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            addr
+        });
+        let ask = |path: &str| {
+            let (tell, heard) = std::sync::mpsc::channel();
+            probe_later(
+                &backend,
+                format!("http://{addr}{path}"),
+                String::new(),
+                None,
+                true,
+                move |probed| {
+                    let _ = tell.send(probed);
+                },
+            );
+            heard.recv_timeout(Duration::from_secs(25)).unwrap()
+        };
+        assert_eq!(
+            ask("/live/index.m3u8"),
+            Probed {
+                name: Some("live.mp4".into()),
+                ..Probed::default()
+            }
+        );
+        assert_eq!(
+            ask("/watch"),
+            Probed {
+                page: true,
+                ..Probed::default()
+            },
+            "a bot check is the video reader's, not a problem"
+        );
+        let gone = ask("/gone.zip");
+        assert!(!gone.page);
+        assert!(gone.problem.is_some_and(|why| why.contains("404")));
+    }
 }

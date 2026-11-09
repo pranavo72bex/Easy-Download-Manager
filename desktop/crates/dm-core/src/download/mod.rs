@@ -1402,4 +1402,73 @@ mod tests {
         assert!(outcome.is_err(), "a missing part was skipped");
         assert!(!into.exists(), "a short file was left under the name");
     }
+
+    #[test]
+    fn a_streams_headers_are_printed_by_name_never_by_value() {
+        let headers = Headers::of([("cookie", "sid=hidden-value"), ("x-token", "abc123")]);
+        let printed = format!("{headers:?}");
+        assert!(
+            printed.contains("cookie") && printed.contains("x-token"),
+            "{printed}"
+        );
+        assert!(
+            !printed.contains("hidden-value") && !printed.contains("abc123"),
+            "{printed}"
+        );
+    }
+
+    /// A server on 127.0.0.1 answering every path with `body` as `kind`.
+    async fn serve_one(kind: &'static str, body: &'static [u8]) -> std::net::SocketAddr {
+        let app = axum::Router::new().fallback(move || async move {
+            axum::response::Response::builder()
+                .header("content-type", kind)
+                .header("content-length", body.len())
+                .body(axum::body::Body::from(body))
+                .unwrap()
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        addr
+    }
+
+    #[tokio::test]
+    async fn a_part_of_a_file_that_is_no_video_is_refused_and_nothing_is_fetched_into_place() {
+        let addr = serve_one("application/zip", b"PK\x03\x04 not really").await;
+        let dir = tempfile::tempdir().unwrap();
+        let mut options = options_in(dir.path());
+        options.span = crate::clip::Span::new(1.0, 2.0);
+        let why = download(
+            &reqwest::Client::new(),
+            &format!("http://{addr}/files/pack.zip"),
+            &options,
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+        assert!(why.contains("a part can be cut only"), "{why}");
+        assert!(!options.dest_dir.join("pack.zip").exists());
+    }
+
+    #[tokio::test]
+    async fn a_page_where_a_videos_stream_should_be_is_that_streams_failure() {
+        let addr = serve_one(
+            "text/html; charset=utf-8",
+            b"<!DOCTYPE html><html><body>sign in</body></html>",
+        )
+        .await;
+        let dir = tempfile::tempdir().unwrap();
+        let options = options_in(dir.path());
+        let why = download_video_stream_with(
+            &reqwest::Client::new(),
+            &format!("http://{addr}/v/stream"),
+            &options,
+            None,
+            StreamHints::default(),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+        assert!(why.contains("answered with a web page"), "{why}");
+    }
 }

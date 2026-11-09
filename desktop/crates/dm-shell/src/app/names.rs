@@ -283,4 +283,37 @@ mod tests {
         assert_eq!(name_of(&film), "film.mp4");
         assert_eq!(kind_of(&film), Some(Category::Videos));
     }
+
+    /// A page named by a long query is cut to sixty characters; a name of no
+    /// known kind goes to a category a person made that takes it, and to no
+    /// planned folder otherwise.
+    #[test]
+    fn a_long_query_name_is_cut_and_a_persons_category_places_an_unknown_kind() {
+        let long = format!("https://www.e.com/watch?v={}", "x".repeat(80));
+        let shown = provisional(&long);
+        assert!(shown.starts_with("e.com/watch?v=xx"), "{shown}");
+        assert!(shown.ends_with('…'), "{shown}");
+        assert_eq!(shown.chars().count(), 61);
+        assert_eq!(
+            provisional("https://e.com/watch?v=abc"),
+            "e.com/watch?v=abc"
+        );
+
+        let dir = tempfile::tempdir().unwrap();
+        let odd = row(6, "https://e.com/notes.zzq", State::Queued);
+        let mut categories = dm_core::Categories {
+            enabled: true,
+            ..Default::default()
+        };
+        assert_eq!(planned_folder(&odd, dir.path(), &mut categories), None);
+        categories.custom = vec![dm_core::Custom {
+            name: "Odd".into(),
+            extensions: vec!["zzq".into()],
+            ..Default::default()
+        }];
+        assert_eq!(
+            planned_folder(&odd, dir.path(), &mut categories),
+            Some(dir.path().join("Odd").display().to_string())
+        );
+    }
 }

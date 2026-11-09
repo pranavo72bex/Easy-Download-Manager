@@ -90,6 +90,15 @@ fn an_address_with_no_site_is_refused_with_a_plain_reason() {
     assert_eq!(super::unusable("https://files.example/a.zip"), None);
 }
 
+/// Only a web or FTP address is judged by its site before fetching: a stream
+/// server's address, or text that is none, is the queue's to judge.
+#[test]
+fn an_address_that_is_not_web_or_ftp_is_left_to_the_queue() {
+    assert_eq!(super::unusable("rtmp://live.example/app/stream"), None);
+    assert_eq!(super::unusable("  not an address  "), None);
+    assert!(super::unusable("FTP://@/pub/a").is_some(), "any case");
+}
+
 #[test]
 fn a_link_with_no_site_as_typed_is_refused_though_it_parses() {
     // The parser reads `http:///x` as a site called `x`.

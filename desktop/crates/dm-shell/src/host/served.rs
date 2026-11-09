@@ -144,4 +144,22 @@ mod tests {
         assert!(!dir.join(format!("{FILE}.new")).exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// Where the file cannot be put in place (something else holds its
+    /// name), the newer document is refused and nothing half-written is left.
+    #[test]
+    fn a_document_that_cannot_be_moved_into_place_is_refused_and_cleaned_up() {
+        let dir = home();
+        let shipped = Rules::parse(SHIPPED).expect("shipped");
+        std::fs::create_dir_all(dir.join(FILE).join("held")).expect("a folder");
+        assert_eq!(served(&dir), shipped, "a folder is no document");
+        let newer = format!(r#"{{ "format": 1, "revision": {} }}"#, shipped.revision + 1);
+        assert!(adopt(&dir, &newer).is_err());
+        assert!(
+            !dir.join(format!("{FILE}.new")).exists(),
+            "the staged copy is gone"
+        );
+        assert!(dir.join(FILE).join("held").is_dir());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

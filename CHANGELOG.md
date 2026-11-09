@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: a DASH manifest or a Metalink file whose addresses escape `&` as XML does (`&amp;`, `&#38;`) lost those characters, so a signed address such as `v.mp4?a=1&amp;b=2` was read as `v.mp4?a=1b=2` and the download failed; the escapes are now read as what they stand for.
+- Fixed: removing a finished download with "Also delete the file(s)" when its file could not be deleted said nothing; "Could not delete …" is now shown.
+- Fixed: dm-shell's own tests wrote the person's real settings file (its download folder and When done command); they now use a folder of their own.
+- Tests: about 270 more, across the engine, the shell, the protocol and the window, with local servers and temporary folders only.
 - macOS and Linux: YouTube's checks and a proxy configuration script run in the system's own JavaScript engine, as they do in Windows' own on Windows: on macOS JavaScriptCore (part of macOS), on Linux WebKitGTK's JavaScriptCore where it is installed (GNOME and WebKitGTK browsers bring it; the rpm recommends it and the Arch package lists it as optional). A fresh install no longer fetches QuickJS from GitHub before its first YouTube download, so it works where GitHub cannot be reached; a Linux without WebKitGTK uses an installed Deno or the QuickJS dm fetches, as before. The engine runs with its JIT off, in a process of its own, as Chakra does on Windows. Checked on live YouTube on macOS, and on Linux with GitHub unreachable and no other engine installed (an ordinary video, two 4K ones with signature-locked streams and a Short, every chosen stream accepted).
 - YouTube's weekly check (`youtube-check.yml`) was run by hand on `main` and passed.
 - Tests: the YouTube reading tests no longer fail now and then when run side by side (each test process empties its own stand-in folder, not one they all shared).

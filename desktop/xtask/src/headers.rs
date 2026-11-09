@@ -226,4 +226,56 @@ mod tests {
         assert!(has_header(&once));
         assert_eq!(once.matches(MARK).count(), 1);
     }
+
+    #[test]
+    fn a_one_line_script_gets_a_line_ending_and_no_gap_at_its_end() {
+        let out = with_header("#!/bin/sh", Style::Hash);
+        assert!(out.starts_with("#!/bin/sh\n# Copyright"), "{out}");
+        assert!(out.ends_with("NOTICE files.\n"), "{out}");
+        let out = with_header("#!/bin/sh\n", Style::Hash);
+        assert!(out.ends_with("NOTICE files.\n"), "nothing after it: {out}");
+    }
+
+    /// In a repository of its own: the tracked file with no header is listed
+    /// and given one; one that has it, one of another format and one not
+    /// tracked are left as they are.
+    #[test]
+    fn the_tracked_files_without_a_header_are_listed_and_given_one() {
+        let dir = super::super::tests::Scratch::new("headers");
+        let root = &dir.0;
+        let git = |args: &[&str]| {
+            let done = std::process::Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .output()
+                .unwrap();
+            assert!(done.status.success(), "git {args:?}: {done:?}");
+        };
+        git(&["init", "-q"]);
+        std::fs::write(root.join("bare.rs"), "fn main() {}\n").unwrap();
+        let held = with_header("print(1)\n", Style::Hash);
+        std::fs::write(root.join("held.py"), &held).unwrap();
+        std::fs::write(root.join("notes.md"), "# Notes\n").unwrap();
+        std::fs::write(root.join("picture.bin"), [0xff, 0xfe, 0x00, 0x80]).unwrap();
+        git(&["add", "bare.rs", "held.py", "notes.md", "picture.bin"]);
+        std::fs::write(root.join("untracked.rs"), "fn x() {}\n").unwrap();
+
+        assert_eq!(
+            missing(root).unwrap(),
+            [("bare.rs".to_string(), Style::Slashes)]
+        );
+        assert_eq!(fix(root).unwrap(), 1);
+        let fixed = std::fs::read_to_string(root.join("bare.rs")).unwrap();
+        assert!(
+            has_header(&fixed) && fixed.ends_with("fn main() {}\n"),
+            "{fixed}"
+        );
+        assert_eq!(std::fs::read_to_string(root.join("held.py")).unwrap(), held);
+        assert_eq!(
+            std::fs::read_to_string(root.join("untracked.rs")).unwrap(),
+            "fn x() {}\n"
+        );
+        assert!(missing(root).unwrap().is_empty());
+        assert_eq!(fix(root).unwrap(), 0);
+    }
 }

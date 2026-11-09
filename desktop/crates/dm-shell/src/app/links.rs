@@ -395,3 +395,62 @@ mod clipboard_tests {
         assert!(!watch.on && watch.offered.is_none());
     }
 }
+
+#[cfg(test)]
+mod drop_tests {
+    use super::*;
+
+    #[test]
+    fn an_address_after_a_bracket_ends_where_that_bracket_closes() {
+        assert_eq!(
+            address_in("see[https://e.com/a.zip]."),
+            "https://e.com/a.zip"
+        );
+        assert_eq!(
+            address_in("x[http://[::1]:8/a.zip]"),
+            "http://[::1]:8/a.zip",
+            "the host's own brackets are kept"
+        );
+        assert_eq!(
+            address_in("(https://e.com/a.zip"),
+            "https://e.com/a.zip",
+            "never closed: the rest of the word"
+        );
+        assert_eq!(address_in("no address here"), "no address here");
+    }
+
+    #[test]
+    fn a_dropped_address_a_plist_and_files_with_no_link_line_are_read() {
+        assert_eq!(
+            links_at(std::path::Path::new("https://e.com/a.zip"), || None),
+            ["https://e.com/a.zip"]
+        );
+        let dir = tempfile::tempdir().unwrap();
+
+        // A path that cannot be opened: the bytes the drop handed over.
+        let gone = dir.path().join("gone.txt");
+        let handed = links_at(&gone, || Some(b"get https://e.com/b.zip".to_vec()));
+        assert_eq!(handed, ["https://e.com/b.zip"]);
+        assert!(links_at(&gone, || None).is_empty());
+
+        // A binary plist keeps its strings between other bytes.
+        let plist = dir.path().join("link.webloc");
+        let mut bytes = b"bplist00\xd1\x01\x02SURL_\x10".to_vec();
+        bytes.extend_from_slice(b"https://e.com/c.zip\x08\x0b");
+        std::fs::write(&plist, &bytes).unwrap();
+        assert_eq!(links_at(&plist, || None), ["https://e.com/c.zip"]);
+
+        // A .webloc with no URL key, and a .url with no URL= line: every link.
+        assert_eq!(
+            links_in_file(Some("webloc"), "<plist>https://e.com/d.zip</plist>"),
+            ["https://e.com/d.zip"]
+        );
+        assert_eq!(
+            links_in_file(
+                Some("url"),
+                "[InternetShortcut]\nIconFile=https://e.com/i.ico\n"
+            ),
+            ["https://e.com/i.ico"]
+        );
+    }
+}

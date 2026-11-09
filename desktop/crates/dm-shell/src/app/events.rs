@@ -376,6 +376,23 @@ mod tests {
         );
     }
 
+    /// Every subscriber gone: what was seen is let go, and one who subscribes
+    /// again is told from its own first read, not of what happened between.
+    #[test]
+    fn when_the_last_subscriber_leaves_what_was_seen_is_let_go() {
+        let mut events = Events::default();
+        let sub = events.subscribe(None);
+        events.publish(&[row(1, State::Queued, 0)]);
+        assert_eq!(format!("{events:?}"), "Events { rows: 1, subscribers: 1 }");
+        drop(sub);
+        events.publish(&[row(1, State::Running, 5)]);
+        assert!(events.last.is_empty() && !events.seeded);
+        assert_eq!(format!("{events:?}"), "Events { rows: 0, subscribers: 0 }");
+        let again = events.subscribe(None);
+        events.publish(&[row(1, State::Running, 5), row(2, State::Queued, 0)]);
+        assert!(again.drain().is_empty(), "seeded afresh");
+    }
+
     #[test]
     fn progress_is_coalesced_and_no_lifecycle_event_is_lost() {
         let mut events = Events::default();

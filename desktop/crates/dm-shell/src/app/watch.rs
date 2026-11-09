@@ -199,4 +199,50 @@ mod tests {
             .look(&dir.path().display().to_string(), &rows, &backend)
             .is_empty());
     }
+
+    /// A folder that is not there gives nothing; a folder, or a file still
+    /// being written, is not read; a file that cannot be moved aside is said
+    /// once and not read again.
+    #[test]
+    fn what_cannot_be_read_or_moved_is_left_and_said_once() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        let mut watched = Watched::default();
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("not there").display().to_string();
+        assert!(watched.look(&missing, &[], &backend).is_empty());
+
+        let old = std::time::SystemTime::now() - Duration::from_secs(60);
+        let path = dir.path().join("a.txt");
+        std::fs::write(&path, "https://h.example/one").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        std::fs::create_dir(dir.path().join("folder.txt")).unwrap();
+        std::fs::write(dir.path().join("fresh.txt"), "https://h.example/fresh").unwrap();
+        // `done` taken by a file: nothing can be moved into it.
+        std::fs::write(dir.path().join(DONE), "").unwrap();
+
+        let folder = dir.path().display().to_string();
+        watched.at = None;
+        assert_eq!(
+            watched.look(&folder, &[], &backend),
+            vec![vec!["https://h.example/one".to_string()]]
+        );
+        assert!(path.is_file(), "left where it was");
+        let problems = backend.problems();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert!(problems[0].contains("could not be moved"), "{problems:?}");
+
+        watched.at = None;
+        assert!(
+            watched.look(&folder, &[], &backend).is_empty(),
+            "not read again"
+        );
+        assert!(backend.problems().is_empty(), "said once");
+    }
 }

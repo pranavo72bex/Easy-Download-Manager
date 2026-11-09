@@ -1370,6 +1370,113 @@ mod tests {
         assert_eq!(trackers, ["http://t.example/announce"]);
     }
 
+    #[test]
+    fn a_torrent_with_only_udp_trackers_or_none_is_refused_behind_a_proxy() {
+        let info = b"d6:lengthi3e4:name1:x12:piece lengthi16384e6:pieces20:aaaaaaaaaaaaaaaaaaaae";
+        let mut udp_only = b"d8:announce18:udp://t.example:694:info".to_vec();
+        udp_only.extend_from_slice(info);
+        udp_only.push(b'e');
+        let mut none = b"d4:info".to_vec();
+        none.extend_from_slice(info);
+        none.push(b'e');
+        for file in [udp_only, none] {
+            let why = super::tcp_trackers_of(&file).unwrap_err().to_string();
+            assert!(why.contains("http or https trackers"), "{why}");
+        }
+        let why = super::tcp_trackers_of(b"not bencode")
+            .unwrap_err()
+            .to_string();
+        assert!(why.contains("not a torrent"), "{why}");
+    }
+
+    /// A blocklist served on 127.0.0.1, counting how often it was fetched.
+    async fn blocklist_server(
+        status: u16,
+    ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let hits = std::sync::Arc::new(AtomicUsize::new(0));
+        let counted = hits.clone();
+        let app = axum::Router::new().route(
+            "/list.p2p",
+            axum::routing::get(move || {
+                counted.fetch_add(1, Ordering::SeqCst);
+                async move {
+                    (
+                        axum::http::StatusCode::from_u16(status).unwrap(),
+                        "bad:1.2.3.4-1.2.3.5\n",
+                    )
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (format!("http://{addr}/list.p2p"), hits)
+    }
+
+    #[tokio::test]
+    async fn a_blocklist_on_the_web_is_fetched_once_a_day_and_kept_beside_the_parts() {
+        use std::sync::atomic::Ordering;
+        let (address, hits) = blocklist_server(200).await;
+        let dir = tempfile::tempdir().unwrap();
+        let parts = dir.path().join("parts");
+        let client = reqwest::Client::new();
+        let first = super::blocklist_file(&client, &format!(" {address} "), &parts)
+            .await
+            .unwrap();
+        let kept = local_file(&first).unwrap();
+        assert_eq!(kept.parent(), Some(dir.path()), "beside the parts folder");
+        assert_eq!(std::fs::read(&kept).unwrap(), b"bad:1.2.3.4-1.2.3.5\n");
+        assert!(!kept.with_extension("part").exists(), "no half copy left");
+        let again = super::blocklist_file(&client, &address, &parts)
+            .await
+            .unwrap();
+        assert_eq!(again, first);
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            1,
+            "a fresh copy is not fetched again"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_blocklist_that_cannot_be_read_is_an_error_not_no_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = reqwest::Client::new();
+        let (missing, _) = blocklist_server(404).await;
+        let why = super::blocklist_file(&client, &missing, dir.path())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            why.contains("could not be read") && why.contains("404"),
+            "{why}"
+        );
+        let nowhere = dir.path().join("no-such-list.p2p");
+        let why = super::blocklist_file(&client, &nowhere.display().to_string(), dir.path())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(why.contains("there is no such file"), "{why}");
+    }
+
+    #[tokio::test]
+    async fn a_blocklist_on_this_computer_is_handed_over_as_a_file_address() {
+        let dir = tempfile::tempdir().unwrap();
+        let list = dir.path().join("list.p2p");
+        std::fs::write(&list, b"x").unwrap();
+        let client = reqwest::Client::new();
+        let address = super::blocklist_file(&client, &list.display().to_string(), dir.path())
+            .await
+            .unwrap();
+        assert_eq!(local_file(&address).as_deref(), Some(list.as_path()));
+        // An address already in that spelling goes as it is.
+        let given = super::blocklist_file(&client, "file:///x/list.p2p", dir.path())
+            .await
+            .unwrap();
+        assert_eq!(given, "file:///x/list.p2p");
+    }
+
     use super::*;
 
     /// Librqbit's count dropped (a piece failing its hash, a
@@ -1550,6 +1657,7 @@ mod path_tests {
         assert!(!plain_torrent_path(Path::new("")));
         assert!(!plain_torrent_path(Path::new("../x")));
         assert!(!plain_torrent_path(Path::new("/etc/x")));
+        assert!(!plain_torrent_path(Path::new("album/a\0b.mp3")));
     }
 
     #[cfg(windows)]

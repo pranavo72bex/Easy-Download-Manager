@@ -176,5 +176,17 @@ mod tests {
         let looped = list(&[(20, 20, "cmd.exe"), (30, 20, "dm.exe")]);
         assert_eq!(walk_up(30, &looped), None);
         assert_eq!(walk_up(99, &edge), None);
+        // More go-betweens than a few steps: given up on, not walked for ever.
+        let deep = list(&[
+            (1, 0, "msedge.exe"),
+            (2, 1, "cmd.exe"),
+            (3, 2, "cmd.exe"),
+            (4, 3, "cmd.exe"),
+            (5, 4, "cmd.exe"),
+            (6, 5, "cmd.exe"),
+            (7, 6, "dm.exe"),
+        ]);
+        assert_eq!(walk_up(7, &deep), None);
+        assert_eq!(walk_up(4, &deep), Some("Microsoft Edge"), "near enough");
     }
 }

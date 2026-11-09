@@ -208,6 +208,32 @@ mod tests {
         assert!(released, "a dropped lock is released");
     }
 
+    /// A lock file left by a dm run as another account, readable but not
+    /// writable here, still locks; one not even readable is said, with its
+    /// path, rather than taken for a running dm.
+    #[cfg(unix)]
+    #[test]
+    fn a_lock_file_only_readable_here_still_locks_and_an_unreadable_one_is_said() {
+        use std::os::unix::fs::PermissionsExt;
+        let home = tempfile::tempdir().unwrap();
+        let lock = lock_path(home.path());
+        std::fs::write(&lock, b"").unwrap();
+        std::fs::set_permissions(&lock, std::fs::Permissions::from_mode(0o444)).unwrap();
+        assert!(!running(home.path()).unwrap());
+        let held = claim(home.path()).unwrap().expect("claimed read-only");
+        assert!(running(home.path()).unwrap());
+        drop(held);
+
+        std::fs::set_permissions(&lock, std::fs::Permissions::from_mode(0o000)).unwrap();
+        if std::fs::File::open(&lock).is_err() {
+            // Not an account that reads past permissions.
+            let why = running(home.path()).unwrap_err();
+            assert_eq!(why.kind(), std::io::ErrorKind::PermissionDenied);
+            assert!(why.to_string().contains("could not be opened"), "{why}");
+        }
+        std::fs::set_permissions(&lock, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+
     #[test]
     fn a_lock_that_cannot_be_opened_is_an_error_not_a_running_dm() {
         let home = tempfile::tempdir().unwrap();

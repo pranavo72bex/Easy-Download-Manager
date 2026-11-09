@@ -1294,6 +1294,46 @@ mod coverage_tests {
         assert!(!here.started);
     }
 
+    #[test]
+    fn a_caught_download_dm_can_fetch_is_filed_and_a_quality_list_is_passed_on() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(
+            home.path().join("settings.json"),
+            serde_json::json!({ "download_dir": home.path().join("out") }).to_string(),
+        )
+        .unwrap();
+        let mut world = stub(true, true);
+        let start = Asked::Start(Start {
+            id: "caught-2".into(),
+            url: "https://e.com/f.zip".into(),
+            caught: true,
+            mime: "application/zip".into(),
+            ..Start::default()
+        })
+        .to_frame();
+        assert_eq!(
+            reply(home.path(), start, &mut world),
+            Reply::Started {
+                id: "caught-2".into()
+            }
+        );
+        assert_eq!(filed(home.path()).len(), 1);
+        assert_eq!(world.rung, 1, "the running dm was told");
+
+        let asked = Asked::Formats(FormatsAsked {
+            url: " https://e.com/watch ".into(),
+            ..FormatsAsked::default()
+        })
+        .to_frame();
+        assert_eq!(
+            reply(home.path(), asked, &mut world),
+            Reply::Formats {
+                choices: Vec::new(),
+                reason: None
+            }
+        );
+    }
+
     /// The program started is this test's own binary with `--desktop`, which
     /// the test harness refuses and leaves at once: nothing is opened.
     #[test]

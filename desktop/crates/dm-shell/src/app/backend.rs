@@ -860,6 +860,54 @@ mod settings_from_tests {
     }
 }
 
+#[cfg(test)]
+mod set_url_tests {
+    use super::testing::backend;
+    use std::time::Duration;
+
+    /// A download running when it is given a new address is stopped, given
+    /// it and started again; one that is no link is refused.
+    #[test]
+    fn a_running_download_given_a_new_address_is_stopped_changed_and_started_again() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        // A server that takes each request and never answers it.
+        let addr = runtime.block_on(async {
+            let app = axum::Router::new().fallback(|| async {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+                "never"
+            });
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            addr
+        });
+        let id = backend
+            .add_with(
+                &format!("http://{addr}/old.bin"),
+                dm_core::AddOptions::default(),
+            )
+            .unwrap();
+        let until = std::time::Instant::now() + Duration::from_secs(10);
+        while backend.row(id).unwrap().state != dm_core::State::Running {
+            assert!(std::time::Instant::now() < until, "never ran");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let new = format!("http://{addr}/new.bin");
+        backend.set_url(id, &new).unwrap();
+        let row = backend.row(id).unwrap();
+        assert_eq!(row.url, new);
+        assert!(
+            matches!(row.state, dm_core::State::Running | dm_core::State::Queued),
+            "started again: {:?}",
+            row.state
+        );
+        assert!(backend.set_url(id, "not a link").is_err());
+        backend.cancel(id);
+    }
+}
+
 /// A `Backend` on a queue of its own, with a platform that does nothing, for
 /// the application's tests.
 #[cfg(test)]

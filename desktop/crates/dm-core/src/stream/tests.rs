@@ -522,3 +522,66 @@ fn a_span_picks_the_segments_whose_lengths_overlap_it() {
     assert_eq!(picked.parts.len(), 2);
     assert!(cover(&read, 20.0, 30.0).is_none());
 }
+
+#[test]
+fn a_quality_reads_back_as_the_word_it_was_named_by() {
+    assert_eq!(Quality::Best.word(), "best");
+    assert_eq!(Quality::UpTo(720).word(), "720");
+    assert_eq!(Quality::Audio.word(), "audio");
+}
+
+#[test]
+fn a_key_is_followed_switched_off_or_refused_by_its_method() {
+    let url = "https://cdn.example/show/index.m3u8";
+    let clear = "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"k.bin\"\n#EXTINF:4,\na.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\nb.ts\n#EXT-X-ENDLIST\n";
+    let read = media_playlist(clear, url, url, Quality::Best).unwrap();
+    assert_eq!(read.parts.len(), 2);
+    assert!(read.key.is_none(), "the last key said is none");
+    let sample = clear.replace("AES-128,", "SAMPLE-AES,");
+    let why = media_playlist(&sample, url, url, Quality::Best)
+        .unwrap_err()
+        .to_string();
+    assert!(why.contains("SAMPLE-AES encryption"), "{why}");
+    let nameless = clear.replace(",URI=\"k.bin\"", "");
+    let why = media_playlist(&nameless, url, url, Quality::Best)
+        .unwrap_err()
+        .to_string();
+    assert!(why.contains("names no key"), "{why}");
+}
+
+#[test]
+fn a_stream_is_renamed_for_what_its_segments_turn_out_to_be() {
+    let url = "https://cdn.example/talks/index.m3u8";
+    let mut s = Stream {
+        parts: Vec::new(),
+        key: None,
+        container: "ts".into(),
+        filename: "talks.ts".into(),
+    };
+    s.found_to_be("mp4", url, Quality::Audio);
+    assert_eq!(
+        (s.container.as_str(), s.filename.as_str()),
+        ("m4a", "talks.m4a")
+    );
+    s.found_to_be("mp4", url, Quality::Best);
+    assert_eq!(s.filename, "talks.mp4");
+    s.found_to_be("aac", url, Quality::Best);
+    assert_eq!(s.filename, "talks.aac");
+    s.found_to_be("something else", url, Quality::Best);
+    assert_eq!(s.filename, "talks.ts");
+    // A manifest of an anonymous name at the root, or no path at all.
+    assert_eq!(
+        name_for("https://cdn.example/master.m3u8", "ts"),
+        "master.ts"
+    );
+    assert_eq!(name_for("https://cdn.example/", "ts"), "stream.ts");
+    assert_eq!(name_for("not a url", "mp4"), "stream.mp4");
+}
+
+#[test]
+fn a_key_of_the_wrong_length_is_refused() {
+    let why = decrypt(&[0u8; 8], &[0u8; 16], &[0u8; 16])
+        .unwrap_err()
+        .to_string();
+    assert!(why.contains("16 bytes; this one is 8"), "{why}");
+}

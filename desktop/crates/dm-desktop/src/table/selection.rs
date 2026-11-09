@@ -127,3 +127,48 @@ pub fn selection(
         (BTreeSet::from([id]), Some(id))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_empty_list_keeps_the_selection_as_it_was() {
+        let kept = BTreeSet::from([7]);
+        assert_eq!(
+            stepped(&[], &kept, Some(7), Some(7), Step::Down, false),
+            (kept.clone(), Some(7), Some(7))
+        );
+        // A click past the last row changes nothing either.
+        assert_eq!(
+            selection(&[1, 2], &kept, Some(7), 5, egui::Modifiers::NONE),
+            (kept, Some(7))
+        );
+    }
+
+    #[test]
+    fn shift_up_selects_the_run_back_to_where_it_started() {
+        let rows = [1, 2, 3, 4, 5];
+        let (selected, anchor, cursor) = stepped(
+            &rows,
+            &BTreeSet::from([4]),
+            Some(4),
+            Some(4),
+            Step::PageUp(2),
+            true,
+        );
+        assert_eq!(selected, BTreeSet::from([2, 3, 4]));
+        assert_eq!(anchor, Some(4), "the run is extended from where it started");
+        assert_eq!(cursor, Some(2));
+        // Up with nothing selected starts at the bottom, Page Down at the top.
+        let none = BTreeSet::new();
+        assert_eq!(
+            stepped(&rows, &none, None, None, Step::Up, false).2,
+            Some(5)
+        );
+        assert_eq!(
+            stepped(&rows, &none, None, None, Step::PageDown(3), false).2,
+            Some(1)
+        );
+    }
+}

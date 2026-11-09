@@ -3559,3 +3559,70 @@ async fn a_download_begun_while_asked_is_placed_where_the_person_chose() {
     assert!(later.path().join("again.bin").is_file());
     assert!(!landed.exists());
 }
+
+/// A file of secrets sealed under a key this computer's store does not have (no
+/// store here at all) is said, and kept aside for when the key is back.
+#[tokio::test]
+async fn a_sealed_file_of_secrets_with_no_store_to_open_it_is_said_and_kept_aside() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let first = queue(dir.path(), 0);
+    first.persist_to(store.clone()).await;
+    first.add("http://127.0.0.1:9/plain.bin").await.unwrap();
+    first.flush().await;
+    let keys = dm_core::secretstore::MemoryStore::default();
+    let sealed = dm_core::secretstore::seal_with(
+        &keys,
+        dm_core::secretstore::QUEUE_KEY,
+        br#"[{"id":1,"cookies":"session=x"}]"#,
+    )
+    .unwrap();
+    let secrets = dir.path().join("secrets.json");
+    std::fs::write(&secrets, &sealed).unwrap();
+
+    let second = queue(dir.path(), 0);
+    second.persist_to(store.clone()).await;
+    let problems = second.problems();
+    assert!(
+        problems
+            .iter()
+            .any(|p| p.contains("could not be opened") && p.contains("secrets.json.unopened")),
+        "{problems:?}"
+    );
+    assert_eq!(
+        std::fs::read(dir.path().join("secrets.json.unopened")).unwrap(),
+        sealed
+    );
+    assert_eq!(second.list().await.len(), 1, "the rows themselves are kept");
+}
+
+/// A queue file that cannot be read in a folder dm cannot write to: it cannot be
+/// moved aside either, and that is said rather than taken for an empty queue.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_unreadable_queue_file_that_cannot_be_moved_aside_is_said() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir();
+    let folder = dir.path().join("locked");
+    std::fs::create_dir(&folder).unwrap();
+    let store = folder.join("queue.json");
+    std::fs::write(&store, "[{\"id\": \"not a number\"}]").unwrap();
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o555)).unwrap();
+    if std::fs::write(folder.join("probe"), b"x").is_ok() {
+        // Root writes past permissions (a container): nothing to test.
+        std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+    let q = queue(dir.path(), 0);
+    q.persist_to(store.clone()).await;
+    let problems = q.problems();
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(
+        problems.iter().any(|p| p.contains("or moved aside")),
+        "{problems:?}"
+    );
+    assert!(q.list().await.is_empty());
+    assert!(std::fs::read_to_string(&store)
+        .unwrap()
+        .contains("not a number"));
+}

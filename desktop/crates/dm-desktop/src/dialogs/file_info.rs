@@ -873,3 +873,63 @@ mod clock_tests {
         assert_eq!(super::clock(3723), "1:02:03");
     }
 }
+
+#[cfg(test)]
+mod choice_tests {
+    use super::{chip_words, default_choice};
+    use dm_core::videopage::Choice;
+    use dm_core::Quality;
+
+    fn choice(quality: &str, label: &str, size: Option<u64>) -> Choice {
+        Choice {
+            label: label.into(),
+            quality: quality.into(),
+            size,
+        }
+    }
+
+    fn list() -> Vec<Choice> {
+        vec![
+            choice("2160/mp4", "MP4 3840×2160", Some(900_000_000)),
+            choice("1080/mp4", "MP4 1920×1080", Some(275_000_000)),
+            choice("480/webm", "WebM 854×480", None),
+            choice("audio/m4a", "M4A audio", Some(4_000_000)),
+        ]
+    }
+
+    #[test]
+    fn the_setting_picks_the_tallest_it_allows_or_the_sound() {
+        let list = list();
+        let pick = |q| default_choice(&list, q);
+        assert_eq!(pick(Quality::Best).as_deref(), Some("2160/mp4"));
+        assert_eq!(pick(Quality::UpTo(1080)).as_deref(), Some("1080/mp4"));
+        assert_eq!(pick(Quality::UpTo(720)).as_deref(), Some("480/webm"));
+        // Nothing that short: the tallest there is rather than nothing.
+        assert_eq!(pick(Quality::UpTo(144)).as_deref(), Some("2160/mp4"));
+        assert_eq!(pick(Quality::Audio).as_deref(), Some("audio/m4a"));
+        assert_eq!(default_choice(&[], Quality::Best), None);
+        // A list of only labels: its first.
+        let odd = [choice("hls", "Stream", None)];
+        assert_eq!(default_choice(&odd, Quality::Audio).as_deref(), Some("hls"));
+        assert_eq!(
+            default_choice(&odd, Quality::UpTo(720)).as_deref(),
+            Some("hls")
+        );
+    }
+
+    #[test]
+    fn a_chip_says_the_class_and_container_over_the_size() {
+        let chip = chip_words(&choice("1080/mp4", "MP4 1920×1080", Some(2048)));
+        assert!(chip.starts_with("1080p"), "{chip}");
+        assert!(chip.contains("MP4\n"), "{chip}");
+        assert!(chip.ends_with(&crate::format::bytes(2048)), "{chip}");
+        let sound = chip_words(&choice("audio/m4a", "M4A audio", None));
+        assert!(sound.ends_with("M4A"), "{sound}");
+        assert!(!sound.contains('\n'), "no size, no second line: {sound}");
+        // Not a height: the list's own words.
+        assert_eq!(
+            chip_words(&choice("hls", "Live stream", None)),
+            "Live stream"
+        );
+    }
+}

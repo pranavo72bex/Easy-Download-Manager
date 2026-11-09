@@ -1316,3 +1316,142 @@ async fn a_part_is_cut_from_a_plain_mp4_on_the_web() {
         "a request for the whole file: {asked:?}"
     );
 }
+
+/// `data` served at `/clip.mp4` as an MP4, answering byte ranges where `ranges`
+/// is set and always the whole file otherwise.
+async fn serve_clip(data: Vec<u8>, ranges: bool) -> String {
+    use axum::body::Body;
+    use axum::http::HeaderMap;
+    use axum::response::Response;
+    let data = std::sync::Arc::new(data);
+    let app = axum::Router::new().route(
+        "/clip.mp4",
+        axum::routing::get(move |headers: HeaderMap| {
+            let d = data.clone();
+            async move {
+                let n = d.len();
+                let asked = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|r| r.strip_prefix("bytes="))
+                    .and_then(|r| r.split_once('-'))
+                    .and_then(|(a, z)| {
+                        let a: usize = a.parse().ok()?;
+                        let z = z.parse::<usize>().map_or(n - 1, |z| z.min(n - 1));
+                        (a <= z).then_some((a, z))
+                    })
+                    .filter(|_| ranges);
+                let b = Response::builder().header("content-type", "video/mp4");
+                match asked {
+                    Some((a, z)) => b
+                        .status(206)
+                        .header("accept-ranges", "bytes")
+                        .header("content-range", format!("bytes {a}-{z}/{n}"))
+                        .header("content-length", z - a + 1)
+                        .body(Body::from(d[a..=z].to_vec()))
+                        .unwrap(),
+                    None => b
+                        .header("content-length", n)
+                        .body(Body::from(d.to_vec()))
+                        .unwrap(),
+                }
+            }
+        }),
+    );
+    format!("http://{}/clip.mp4", common::serve(app).await)
+}
+
+fn top_box(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+    let mut out = ((body.len() + 8) as u32).to_be_bytes().to_vec();
+    out.extend_from_slice(kind);
+    out.extend_from_slice(body);
+    out
+}
+
+async fn cut(
+    url: &str,
+    from: f64,
+    to: f64,
+) -> (Result<dm_core::Finished, dm_core::Error>, tempfile::TempDir) {
+    let out = common::tempdir();
+    let options = dm_core::Options {
+        span: dm_core::Span::new(from, to),
+        ..common::options(out.path())
+    };
+    (
+        dm_core::download(&dm_core::client(), url, &options).await,
+        out,
+    )
+}
+
+/// A part of a plain MP4, told to its row by the name it is saved under.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_part_is_cut_and_its_row_is_told_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let whole = dir.path().join("whole.mp4");
+    dm_core::mp4mux::join(&[media("picture.mp4"), media("sound.m4a")], &whole).unwrap();
+    let data = std::fs::read(&whole).unwrap();
+    let url = serve_clip(data, true).await;
+    let out = common::tempdir();
+    let options = dm_core::Options {
+        span: dm_core::Span::new(0.5, 1.5),
+        ..common::options(out.path())
+    };
+    let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+    let done = dm_core::download_reporting(&dm_core::client(), &url, &options, Some(tx))
+        .await
+        .expect("the part");
+    let mut named = None;
+    while let Ok(update) = rx.try_recv() {
+        if let dm_core::Update::Named { name, .. } = update {
+            named = Some(name);
+        }
+    }
+    let name = done
+        .path
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(named.as_deref(), Some(name.as_str()));
+    assert!(
+        name.starts_with("clip (") && name.ends_with(").mp4"),
+        "{name}"
+    );
+    let part = read_mp4(&done.path);
+    assert!(part.track("vide").seconds() > 0.0);
+}
+
+#[tokio::test]
+async fn a_part_is_not_cut_where_the_file_cannot_be_asked_for_by_range() {
+    let dir = tempfile::tempdir().unwrap();
+    let whole = dir.path().join("whole.mp4");
+    dm_core::mp4mux::join(&[media("picture.mp4"), media("sound.m4a")], &whole).unwrap();
+    let url = serve_clip(std::fs::read(&whole).unwrap(), false).await;
+    let (got, out) = cut(&url, 0.5, 1.5).await;
+    let why = got.unwrap_err().to_string();
+    assert!(why.contains("serves byte ranges"), "{why}");
+    assert!(std::fs::read_dir(out.path().join("out")).map_or(true, |mut d| d.next().is_none()));
+}
+
+#[tokio::test]
+async fn a_file_with_no_index_or_boxes_that_do_not_add_up_gives_no_part() {
+    // The boxes walked past include one with a 64-bit size.
+    let mut no_index = top_box(b"ftyp", b"isom\0\0\0\0");
+    no_index.extend(top_box(b"mdat", &[7u8; 64]));
+    no_index.extend_from_slice(&1u32.to_be_bytes());
+    no_index.extend_from_slice(b"free");
+    no_index.extend_from_slice(&24u64.to_be_bytes());
+    no_index.extend_from_slice(&[0u8; 8]);
+    let (got, _out) = cut(&serve_clip(no_index, true).await, 0.5, 1.5).await;
+    let why = got.unwrap_err().to_string();
+    assert!(why.contains("no index (moov)"), "{why}");
+
+    let mut odd = top_box(b"ftyp", b"isom\0\0\0\0");
+    odd.extend_from_slice(&1000u32.to_be_bytes());
+    odd.extend_from_slice(b"mdat");
+    odd.extend_from_slice(&[0u8; 40]);
+    let (got, _out) = cut(&serve_clip(odd, true).await, 0.5, 1.5).await;
+    let why = got.unwrap_err().to_string();
+    assert!(why.contains("do not add up"), "{why}");
+}

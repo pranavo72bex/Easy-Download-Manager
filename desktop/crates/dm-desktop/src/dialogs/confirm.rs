@@ -147,8 +147,9 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         app.dialogs.confirm_remove = None;
         app.dialogs.deleting_files = false;
         let delete = std::mem::take(&mut app.dialogs.remove_files);
+        let mut failed: Vec<String> = Vec::new();
         if delete {
-            let failed: Vec<String> = files
+            failed = files
                 .iter()
                 .filter_map(|path| {
                     // A finished torrent still shared lets go of its files first (gaps row 147).
@@ -160,9 +161,6 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                         .map(|e| format!("{path}: {e}"))
                 })
                 .collect();
-            if !failed.is_empty() {
-                app.said = crate::i18n::Said::new("Could not delete {}", &[&failed.join("; ")]);
-            }
         }
         // The selection goes to the row after those removed, or the one
         // before where they were the last: it was lost, and the keys had
@@ -183,6 +181,11 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             })
             .copied();
         app.remove_now(&ids);
+        // Said after the removal, which clears the status line: said
+        // before it, a file left on the disk went without a word.
+        if !failed.is_empty() {
+            app.said = crate::i18n::Said::new("Could not delete {}", &[&failed.join("; ")]);
+        }
         if let Some(id) = next {
             app.selected.insert(id);
             app.cursor = Some(id);

@@ -752,4 +752,86 @@ mod tests {
         assert!(hosts_in(r#"format!("https://{host}/")"#).is_empty());
         assert!(REPORTERS.contains(&"sentry"));
     }
+
+    /// A folder of its own under the system's temporary one, removed when
+    /// dropped (xtask has no crate for it).
+    pub(crate) struct Scratch(pub(crate) PathBuf);
+
+    impl Scratch {
+        pub(crate) fn new(what: &str) -> Scratch {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos());
+            let dir =
+                std::env::temp_dir().join(format!("xtask-{what}-{}-{nanos}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            Scratch(dir)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn the_walk_finds_source_files_and_passes_over_built_glue() {
+        let dir = Scratch::new("walk");
+        let root = &dir.0;
+        std::fs::create_dir_all(root.join("pkg")).unwrap();
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        for file in [
+            "a.rs",
+            "b.txt",
+            "pkg/glue.js",
+            "sub/c.json",
+            "sub/d.html",
+            "sub/e.md",
+        ] {
+            std::fs::write(root.join(file), "").unwrap();
+        }
+        let mut found: Vec<String> = walk(root)
+            .iter()
+            .map(|p| p.strip_prefix(root).unwrap().display().to_string())
+            .collect();
+        found.sort();
+        assert_eq!(found, ["a.rs", "sub/c.json", "sub/d.html"]);
+        assert!(walk(&root.join("not there")).is_empty());
+    }
+
+    #[test]
+    fn a_manifest_names_its_crate_and_every_dependency_but_the_tests() {
+        let dir = Scratch::new("manifest");
+        let path = dir.0.join("Cargo.toml");
+        std::fs::write(
+            &path,
+            "[package]\nname = \"dm-x\"\n\n[dependencies]\ndm-core = \"1\"\n\n\
+             [dev-dependencies]\ntempfile = \"3\"\n\n\
+             [target.'cfg(windows)'.dependencies]\nwindows-sys = \"1\"\n",
+        )
+        .unwrap();
+        let read = manifest(&path).unwrap();
+        assert_eq!(read.name, "dm-x");
+        assert_eq!(read.deps, ["dm-core", "windows-sys"]);
+
+        std::fs::write(&path, "[package\n").unwrap();
+        assert!(manifest(&path).err().unwrap().contains("Cargo.toml"));
+        assert!(manifest(&dir.0.join("none.toml")).is_err());
+    }
+
+    #[test]
+    fn the_fuzz_files_are_counted_by_their_tests_and_a_missing_one_is_none() {
+        let dir = Scratch::new("fuzz");
+        let file = dir.0.join("desktop/crates/dm-core/tests/fuzz.rs");
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, "#[test]\nfn a() {}\n#[test]\nfn b() {}\n").unwrap();
+        let counted = fuzz_targets(&dir.0);
+        assert_eq!(counted.len(), 5);
+        assert_eq!(
+            counted[0],
+            ("desktop/crates/dm-core/tests/fuzz.rs".into(), 2)
+        );
+        assert!(counted[1..].iter().all(|(_, n)| *n == 0));
+    }
 }

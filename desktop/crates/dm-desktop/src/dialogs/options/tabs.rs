@@ -1376,3 +1376,93 @@ pub(super) fn tab_site_logins(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Ta
         .weak(),
     );
 }
+
+#[cfg(test)]
+mod dialup_tests {
+    use super::*;
+    use egui_kittest::kittest::{NodeT, Queryable};
+
+    /// Options as it opens over these settings.
+    fn options(settings: &Settings) -> OptionsDialog {
+        let mut dialogs = Dialogs::default();
+        dialogs.open_options(settings);
+        dialogs.options.take().unwrap()
+    }
+
+    fn harness(d: OptionsDialog) -> egui_kittest::Harness<'static, OptionsDialog> {
+        egui_kittest::Harness::builder()
+            .with_size(egui::vec2(700.0, 600.0))
+            .build_ui_state(|ui, d: &mut OptionsDialog| tab_dialup(ui, d), d)
+    }
+
+    fn disabled(
+        h: &egui_kittest::Harness<'_, OptionsDialog>,
+        role: egui::accesskit::Role,
+        label: &str,
+    ) -> bool {
+        h.get_by_role_and_label(role, label)
+            .accesskit_node()
+            .is_disabled()
+    }
+
+    #[test]
+    fn dial_up_waits_for_its_switch_and_the_sign_in_for_a_connection() {
+        use egui::accesskit::Role;
+        let mut settings = Settings::default();
+        let mut h = harness(options(&settings));
+        h.run();
+        assert!(
+            disabled(&h, Role::ComboBox, "Connection"),
+            "off: no connection to pick"
+        );
+        assert!(disabled(&h, Role::TextInput, "User name"));
+
+        settings.dialup.enabled = true;
+        let mut h = harness(options(&settings));
+        h.run();
+        assert!(!disabled(&h, Role::ComboBox, "Connection"));
+        assert!(
+            disabled(&h, Role::TextInput, "User name"),
+            "the sign-in waits for a connection"
+        );
+        let combo = h.get_by_role_and_label(Role::ComboBox, "Connection");
+        assert_eq!(
+            combo.accesskit_node().value().as_deref(),
+            Some("None"),
+            "no connection is None"
+        );
+
+        settings.dialup.connection = "Office VPN".into();
+        let mut h = harness(options(&settings));
+        h.run();
+        let combo = h.get_by_role_and_label(Role::ComboBox, "Connection");
+        assert_eq!(
+            combo.accesskit_node().value().as_deref(),
+            Some("Office VPN")
+        );
+        assert!(!disabled(&h, Role::TextInput, "User name"));
+        assert!(!disabled(&h, Role::PasswordInput, "Password"));
+        h.get_by_role_and_label(Role::TextInput, "User name")
+            .click();
+        h.run_steps(2);
+        h.get_by_role_and_label(Role::TextInput, "User name")
+            .type_text("someone");
+        h.run_steps(2);
+        assert_eq!(h.state().draft.dialup.username, "someone");
+        // The drop-down offers None, which clears the connection.
+        h.get_by_role_and_label(Role::ComboBox, "Connection")
+            .click();
+        h.run();
+        h.query_all_by_label("None").last().unwrap().click();
+        h.run();
+        assert!(h.state().draft.dialup.connection.is_empty());
+        assert!(h.state().draft.dialup.enabled);
+    }
+
+    #[test]
+    fn the_connections_known_are_read_again_only_after_a_while() {
+        // None here (a system without Windows' dial-up), read once and kept.
+        assert_eq!(known_connections(), dm_shell::dialup::connections());
+        assert_eq!(known_connections(), dm_shell::dialup::connections());
+    }
+}

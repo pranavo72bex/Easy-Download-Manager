@@ -1128,3 +1128,99 @@ mod stream_name_tests {
         assert_eq!(stream_name("http://h/file.zip", None, true), None);
     }
 }
+
+#[cfg(test)]
+mod links_import_tests {
+    use super::*;
+
+    fn import(urls: &[&str]) -> LinksImport {
+        LinksImport {
+            items: urls.iter().map(|u| (u.to_string(), true)).collect(),
+            ..LinksImport::default()
+        }
+    }
+
+    #[test]
+    fn only_these_types_go_by_the_servers_name_or_the_addresses() {
+        let mut d = import(&[
+            "http://h/a.zip",
+            "http://h/b.PDF?x=1",
+            "http://h/get?id=3",
+            "http://h/c.mp4",
+        ]);
+        d.types = ".zip, pdf".into();
+        // The third is named by its server: a zip.
+        dm_core::lock(&d.found).insert(
+            "http://h/get?id=3".into(),
+            Found {
+                name: "named.zip".into(),
+                ..Found::default()
+            },
+        );
+        assert_eq!(d.visible(), [true, true, true, false]);
+        assert_eq!(
+            d.chosen(),
+            ["http://h/a.zip", "http://h/b.PDF?x=1", "http://h/get?id=3"]
+        );
+        d.types = "  ".into();
+        assert!(d.visible().iter().all(|v| *v), "nothing typed lists all");
+    }
+
+    #[test]
+    fn the_folder_every_link_goes_to_is_the_choice_made() {
+        let root = std::path::Path::new("downloads");
+        let sorted = dm_core::Categories {
+            enabled: true,
+            ..dm_core::Categories::default()
+        };
+        let mut d = import(&["http://h/a.zip", "http://h/b.mp4"]);
+        assert_eq!(d.save_dir(root, &sorted), None, "each to its own");
+        assert_eq!(
+            d.folder_of("http://h/b.mp4", root, &sorted),
+            sorted
+                .destination(root, dm_core::Category::Videos)
+                .display()
+                .to_string()
+        );
+        d.save_to = SaveTo::OneFolder;
+        d.folder = "   ".into();
+        assert_eq!(d.save_dir(root, &sorted), None, "no folder typed");
+        d.folder = " elsewhere ".into();
+        assert_eq!(d.save_dir(root, &sorted).as_deref(), Some("elsewhere"));
+        assert_eq!(d.folder_of("http://h/a.zip", root, &sorted), "elsewhere");
+        d.save_to = SaveTo::OneCategory;
+        d.category = crate::app::category_word(dm_core::Category::Documents);
+        assert_eq!(
+            d.save_dir(root, &sorted),
+            Some(
+                sorted
+                    .destination(root, dm_core::Category::Documents)
+                    .display()
+                    .to_string()
+            )
+        );
+        // A person's own category is a folder of its name.
+        d.category = "Receipts".into();
+        assert_eq!(
+            category_folder(&d.category, root, &sorted),
+            root.join("Receipts")
+        );
+    }
+
+    #[test]
+    fn a_name_given_with_edit_wins_over_the_servers() {
+        let mut d = import(&["http://h/a.zip"]);
+        dm_core::lock(&d.found).insert(
+            "http://h/a.zip".into(),
+            Found {
+                name: "server.zip".into(),
+                ..Found::default()
+            },
+        );
+        assert_eq!(d.name_of("http://h/a.zip"), "server.zip");
+        d.names.insert("http://h/a.zip".into(), "  ".into());
+        assert_eq!(d.name_of("http://h/a.zip"), "server.zip", "blank is none");
+        d.names.insert("http://h/a.zip".into(), " mine.zip ".into());
+        assert_eq!(d.name_of("http://h/a.zip"), "mine.zip");
+    }
+}

@@ -684,6 +684,10 @@ mod toolbar_tests {
         );
         assert_eq!(ToolStyle::named("text"), ToolStyle::Text);
         assert_eq!(ToolStyle::named("anything"), ToolStyle::Both);
+        // Each style saved under the word it is read back from.
+        for style in [ToolStyle::Both, ToolStyle::Icons, ToolStyle::Text] {
+            assert_eq!(ToolStyle::named(style.name()), style);
+        }
     }
 
     #[test]

@@ -176,3 +176,101 @@ async fn the_bytes_of_a_fetch_are_told_while_it_runs() {
         "told as fetching after the fetch"
     );
 }
+
+/// A server standing in for the release whose build answers `first` the
+/// first time it is asked, then the build; and how often it was asked.
+async fn flaky_release(first: u16) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use axum::routing::get;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let asked = std::sync::Arc::new(AtomicUsize::new(0));
+    let counted = asked.clone();
+    let app = axum::Router::new().route(
+        "/q/qjs-linux-x86_64",
+        get(move || {
+            let n = counted.fetch_add(1, Ordering::SeqCst);
+            async move {
+                let status = if n == 0 { first } else { 200 };
+                (
+                    axum::http::StatusCode::from_u16(status).unwrap(),
+                    &b"a quickjs"[..],
+                )
+            }
+        }),
+    );
+    (format!("http://{}/q", common::serve(app).await), asked)
+}
+
+fn linux_build_from(base: String) -> Sources {
+    Sources {
+        quickjs: base,
+        quickjs_digests: vec![(
+            "qjs-linux-x86_64".into(),
+            dm_core::hex::encode(sha2::Sha256::digest(b"a quickjs")),
+        )],
+    }
+}
+
+/// A server's passing trouble is tried again; a refusal is not.
+#[tokio::test]
+async fn a_passing_server_error_is_tried_again_and_a_missing_build_is_not() {
+    use std::sync::atomic::Ordering;
+    let client = dm_core::client();
+    let (base, asked) = flaky_release(503).await;
+    let dir = common::tempdir();
+    let path = fetch_into(
+        &client,
+        Tool::QuickJs,
+        dir.path(),
+        &linux_build_from(base),
+        "linux",
+        "x86_64",
+    )
+    .await
+    .expect("the build, the second time");
+    assert_eq!(std::fs::read(path).unwrap(), b"a quickjs");
+    assert_eq!(asked.load(Ordering::SeqCst), 2);
+
+    let (base, asked) = flaky_release(404).await;
+    let dir = common::tempdir();
+    let said = fetch_into(
+        &client,
+        Tool::QuickJs,
+        dir.path(),
+        &linux_build_from(base),
+        "linux",
+        "x86_64",
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(said, dm_core::Error::Refused { status: 404, .. }),
+        "{said}"
+    );
+    assert_eq!(asked.load(Ordering::SeqCst), 1, "a refusal was asked again");
+    assert!(std::fs::read_dir(dir.path()).unwrap().next().is_none());
+}
+
+/// A build dm knows no digest for is not fetched at all.
+#[tokio::test]
+async fn a_build_with_no_digest_in_dm_is_not_fetched() {
+    use std::sync::atomic::Ordering;
+    let (base, asked) = flaky_release(200).await;
+    let sources = Sources {
+        quickjs: base,
+        quickjs_digests: Vec::new(),
+    };
+    let dir = common::tempdir();
+    let said = fetch_into(
+        &dm_core::client(),
+        Tool::QuickJs,
+        dir.path(),
+        &sources,
+        "linux",
+        "x86_64",
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(said.contains("no QuickJS digest"), "{said}");
+    assert_eq!(asked.load(Ordering::SeqCst), 0);
+}

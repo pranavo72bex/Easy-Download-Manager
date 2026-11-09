@@ -126,3 +126,118 @@ async fn something_that_is_not_a_zip_gives_no_listing() {
     let (url, _) = serve(vec![b'x'; 200_000], true).await;
     assert!(zip_contents(&client(), &url, None, None).await.is_none());
 }
+
+/// A ZIP64 archive written by hand: one entry larger than 4 GB whose sizes are
+/// in its ZIP64 extra field (after a field of another kind), and an end record
+/// that sends the reader to the ZIP64 one. `comment` bytes of comment end it:
+/// at its longest the directory lies outside the end the first request reads.
+fn zip64(comment: usize) -> Vec<u8> {
+    let mut out = b"local data".to_vec();
+    let directory_at = out.len() as u64;
+    let name = b"disk.img";
+    let mut extra = Vec::new();
+    extra.extend_from_slice(&0x5455u16.to_le_bytes());
+    extra.extend_from_slice(&5u16.to_le_bytes());
+    extra.extend_from_slice(&[1, 0, 0, 0, 0]);
+    extra.extend_from_slice(&1u16.to_le_bytes());
+    extra.extend_from_slice(&16u16.to_le_bytes());
+    extra.extend_from_slice(&5_000_000_000u64.to_le_bytes());
+    extra.extend_from_slice(&4_900_000_000u64.to_le_bytes());
+    out.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+    out.extend_from_slice(&[45, 0, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    out.extend_from_slice(&u32::MAX.to_le_bytes()); // packed
+    out.extend_from_slice(&u32::MAX.to_le_bytes()); // size
+    out.extend_from_slice(&(name.len() as u16).to_le_bytes());
+    out.extend_from_slice(&(extra.len() as u16).to_le_bytes());
+    out.extend_from_slice(&[0u8; 14]); // comment length to local offset
+    out.extend_from_slice(name);
+    out.extend_from_slice(&extra);
+    let directory_size = out.len() as u64 - directory_at;
+    let record_at = out.len() as u64;
+    out.extend_from_slice(&0x0606_4b50u32.to_le_bytes());
+    out.extend_from_slice(&44u64.to_le_bytes());
+    out.extend_from_slice(&[45, 0, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    out.extend_from_slice(&1u64.to_le_bytes());
+    out.extend_from_slice(&1u64.to_le_bytes());
+    out.extend_from_slice(&directory_size.to_le_bytes());
+    out.extend_from_slice(&directory_at.to_le_bytes());
+    out.extend_from_slice(&0x0706_4b50u32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&record_at.to_le_bytes());
+    out.extend_from_slice(&1u32.to_le_bytes());
+    out.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    out.extend_from_slice(&[0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF]);
+    out.extend_from_slice(&u32::MAX.to_le_bytes());
+    out.extend_from_slice(&u32::MAX.to_le_bytes());
+    out.extend_from_slice(&(comment as u16).to_le_bytes());
+    out.extend(std::iter::repeat_n(b'c', comment));
+    out
+}
+
+fn the_large_entry() -> Vec<dm_core::ZipEntry> {
+    vec![dm_core::ZipEntry {
+        name: "disk.img".into(),
+        size: 5_000_000_000,
+        packed: 4_900_000_000,
+    }]
+}
+
+#[tokio::test]
+async fn a_zip64_archive_is_listed_with_its_large_sizes_over_the_web_and_on_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    // Short: everything in the end the first request reads. Long: the record and the
+    // directory each fetched on their own.
+    for comment in [0, 65_535] {
+        let body = zip64(comment);
+        let path = dir.path().join(format!("big-{comment}.zip"));
+        std::fs::write(&path, &body).unwrap();
+        assert_eq!(
+            dm_core::zip_contents_of_file(&path),
+            Some(the_large_entry()),
+            "on disk, comment {comment}"
+        );
+        let (url, _) = serve(body, true).await;
+        assert_eq!(
+            zip_contents(&client(), &url, None, None).await,
+            Some(the_large_entry()),
+            "over the web, comment {comment}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn an_empty_zip_lists_nothing_and_a_tiny_or_lying_one_gives_no_listing() {
+    let dir = tempfile::tempdir().unwrap();
+    // An end record and nothing else: an archive of no entries.
+    let mut none = Vec::new();
+    none.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    none.extend_from_slice(&[0u8; 18]);
+    let path = dir.path().join("none.zip");
+    std::fs::write(&path, &none).unwrap();
+    assert_eq!(dm_core::zip_contents_of_file(&path), Some(Vec::new()));
+    let (url, _) = serve(none, true).await;
+    assert_eq!(
+        zip_contents(&client(), &url, None, None).await,
+        Some(Vec::new())
+    );
+
+    // Shorter than an end record.
+    let tiny = dir.path().join("tiny.zip");
+    std::fs::write(&tiny, b"PK").unwrap();
+    assert_eq!(dm_core::zip_contents_of_file(&tiny), None);
+    let (url, _) = serve(b"PK\x05\x06".to_vec(), true).await;
+    assert_eq!(zip_contents(&client(), &url, None, None).await, None);
+
+    // An end record whose directory would run past the end of the file.
+    let mut lying = vec![0u8; 100];
+    lying.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    lying.extend_from_slice(&[0, 0, 0, 0, 1, 0, 1, 0]);
+    lying.extend_from_slice(&1000u32.to_le_bytes());
+    lying.extend_from_slice(&50u32.to_le_bytes());
+    lying.extend_from_slice(&0u16.to_le_bytes());
+    let path = dir.path().join("lying.zip");
+    std::fs::write(&path, &lying).unwrap();
+    assert_eq!(dm_core::zip_contents_of_file(&path), None);
+    let (url, _) = serve(lying, true).await;
+    assert_eq!(zip_contents(&client(), &url, None, None).await, None);
+}

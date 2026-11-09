@@ -552,3 +552,19 @@ fn digest_rows(
         ui.end_row();
     }
 }
+
+#[cfg(test)]
+mod refusal_tests {
+    #[test]
+    fn the_queues_refusals_are_said_and_others_kept_as_they_are() {
+        for why in [
+            "Tick at least one file.",
+            "Stop the download to change which files are fetched.",
+            "The torrent's files are not known yet.",
+            "the disk is full",
+        ] {
+            // In English, each is its own words.
+            assert_eq!(super::files_refusal(why), why);
+        }
+    }
+}

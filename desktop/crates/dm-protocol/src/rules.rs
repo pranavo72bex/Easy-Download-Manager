@@ -362,6 +362,23 @@ mod tests {
         assert!(rules.finders_for("other.example").is_empty());
     }
 
+    /// A finder's field past the sane length is cleared, and a finder left
+    /// with no way to find an id is dropped with it.
+    #[test]
+    fn an_over_long_finder_field_is_cleared() {
+        let long = "x".repeat(MAX_FINDER_TEXT + 1);
+        let rules = Rules::parse(&document(&format!(
+            r#""sites": [ {{ "host": "feed.example", "finders": [
+                    {{ "player": "div.vp", "id_path": "a.b", "container": "{long}" }},
+                    {{ "player": "div.vp", "id_attr": "{long}" }} ] }} ]"#
+        )))
+        .expect("a document");
+        let finders = rules.finders_for("feed.example");
+        assert_eq!(finders.len(), 1, "the one with only a long id is gone");
+        assert_eq!(finders[0].id_path, "a.b");
+        assert!(finders[0].container.is_empty());
+    }
+
     #[test]
     fn a_document_that_is_not_one_is_refused() {
         assert!(Rules::parse("not json").is_err());

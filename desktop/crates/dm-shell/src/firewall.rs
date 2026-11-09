@@ -104,4 +104,20 @@ HKEY_LOCAL_MACHINE\\SYSTEM\\...\\FirewallRules
         ));
         assert!(!answered_in("", Path::new(r"C:\Apps\dm\dm-desktop.exe")));
     }
+
+    /// Away from Windows there is no question: dm never says Windows may be
+    /// asking, before its one reading of the rules or after it, and the
+    /// reading settles as answered.
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn away_from_windows_dm_never_says_windows_may_be_asking() {
+        assert_eq!(answered(Path::new("/any/program")), Some(true));
+        assert!(!may_ask(), "the first reading has not come back yet");
+        let until = Instant::now() + Duration::from_secs(10);
+        while STATE.load(Ordering::Relaxed) != YES {
+            assert!(Instant::now() < until, "the reading never came back");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!may_ask(), "answered, and it stays answered");
+    }
 }

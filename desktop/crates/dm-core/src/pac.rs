@@ -666,4 +666,142 @@ mod tests {
         .await;
         assert!(r.is_err());
     }
+
+    #[tokio::test]
+    async fn a_refused_script_is_not_written_or_run_by_either_engine() {
+        let dir = tempfile::tempdir().unwrap();
+        let staging = dir.path().join("staging");
+        let script = "import * as os from 'qjs:os'; function FindProxyForURL(){return 'DIRECT';}";
+        let why = evaluate(
+            std::path::Path::new("/no/such/qjs"),
+            script,
+            "http://a/",
+            "a",
+            &staging,
+        )
+        .await
+        .unwrap_err();
+        assert!(why.contains("import a module"), "{why}");
+        assert!(!staging.exists(), "nothing was written for it");
+        let why = evaluate_here(script, "http://a/", "a", &staging)
+            .await
+            .unwrap_err();
+        assert!(why.contains("import a module"), "{why}");
+    }
+
+    /// An engine that is a shell script, so a run needs no JavaScript engine installed.
+    #[cfg(unix)]
+    fn fake_engine(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let engine = dir.join(format!("engine-{}", body.len()));
+        std::fs::write(&engine, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
+        engine
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_engines_answer_is_read_and_a_failed_or_odd_run_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let staging = dir.path().join("staging");
+        let script = "function FindProxyForURL(u,h){return 'PROXY p:8080; DIRECT';}";
+        // The program it is handed is the script's, and is gone after the run.
+        let answers = fake_engine(
+            dir.path(),
+            "for last in \"$@\"; do :; done\ngrep -q 'PROXY p:8080' \"$last\" && echo 'PROXY p:8080; DIRECT'",
+        );
+        let hops = evaluate(&answers, script, "http://a/", "a", &staging)
+            .await
+            .unwrap();
+        assert_eq!(
+            hops,
+            vec![
+                Hop::Via {
+                    kind: Kind::Http,
+                    host: "p".into(),
+                    port: 8080
+                },
+                Hop::Direct
+            ]
+        );
+        assert_eq!(std::fs::read_dir(&staging).unwrap().count(), 0);
+
+        let fails = fake_engine(dir.path(), "echo DIRECT; exit 3");
+        assert_eq!(
+            evaluate(&fails, script, "http://a/", "a", &staging).await,
+            Err("the proxy script failed".to_string())
+        );
+        let odd = fake_engine(dir.path(), "echo 'what is this'");
+        assert!(evaluate(&odd, script, "http://a/", "a", &staging)
+            .await
+            .is_err());
+    }
+
+    #[test]
+    fn the_first_way_of_an_answer_is_the_one_taken() {
+        assert_eq!(
+            first_way(&[]),
+            Err("the script answered nothing".to_string())
+        );
+        assert_eq!(first_way(&[Hop::Direct]), Ok(None));
+        let via = |kind, host: &str| Hop::Via {
+            kind,
+            host: host.into(),
+            port: 1080,
+        };
+        let v6 = first_way(&[via(Kind::Socks5, "::1"), Hop::Direct])
+            .unwrap()
+            .unwrap();
+        assert_eq!(v6.as_str(), "socks5h://[::1]:1080");
+        let named = first_way(&[via(Kind::Http, "p.example")]).unwrap().unwrap();
+        assert_eq!(named.as_str(), "http://p.example:1080/");
+        let why = first_way(&[via(Kind::System, "p")]).unwrap_err();
+        assert!(why.contains("not one"), "{why}");
+    }
+
+    #[tokio::test]
+    async fn a_script_is_read_from_the_web_or_a_file_and_one_that_is_none_is_refused() {
+        use axum::routing::get;
+        let app = axum::Router::new()
+            .route(
+                "/proxy.pac",
+                get(|| async { "function FindProxyForURL(u, h) { return 'DIRECT'; }" }),
+            )
+            .route(
+                "/page.html",
+                get(|| async { "<html>no script here</html>" }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let text = text_of(&format!(" http://{addr}/proxy.pac "))
+            .await
+            .unwrap();
+        assert!(text.contains("FindProxyForURL"), "{text}");
+        let why = text_of(&format!("http://{addr}/missing.pac"))
+            .await
+            .unwrap_err();
+        assert!(why.contains("could not be fetched"), "{why}");
+        let why = text_of(&format!("http://{addr}/page.html"))
+            .await
+            .unwrap_err();
+        assert!(why.contains("no FindProxyForURL"), "{why}");
+
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("local.pac");
+        std::fs::write(&file, "function FindProxyForURL(){return 'DIRECT';}").unwrap();
+        let by_address = url::Url::from_file_path(&file).unwrap().to_string();
+        assert!(text_of(&by_address).await.is_ok());
+        let long = dir.path().join("long.pac");
+        std::fs::write(&long, vec![b' '; SCRIPT_MOST + 1]).unwrap();
+        assert_eq!(
+            text_of(&long.display().to_string()).await,
+            Err("the proxy script is too long to be one".to_string())
+        );
+        let why = text_of(&dir.path().join("none.pac").display().to_string())
+            .await
+            .unwrap_err();
+        assert!(why.contains("could not be read"), "{why}");
+    }
 }

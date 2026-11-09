@@ -328,6 +328,143 @@ mod tests {
         assert_eq!(http_address("rtsp://x/y"), None);
     }
 
+    /// An ASF header naming a packet size of 32 and, where `streams` is set,
+    /// stream 1.
+    fn asf_header(streams: bool) -> Vec<u8> {
+        let mut file = FILE_PROPERTIES.to_vec();
+        file.extend_from_slice(&104u64.to_le_bytes());
+        file.resize(92, 0);
+        file.extend_from_slice(&32u32.to_le_bytes());
+        file.resize(104, 0);
+        let mut stream = STREAM_PROPERTIES.to_vec();
+        stream.extend_from_slice(&78u64.to_le_bytes());
+        stream.resize(72, 0);
+        stream.extend_from_slice(&[0x01, 0x00]);
+        stream.resize(78, 0);
+        let objects: Vec<&[u8]> = if streams {
+            vec![&file, &stream]
+        } else {
+            vec![&file]
+        };
+        let mut header = vec![0u8; 24];
+        header.extend_from_slice(&(objects.len() as u32).to_le_bytes());
+        header.extend_from_slice(&[1, 2]);
+        for o in objects {
+            header.extend_from_slice(o);
+        }
+        header
+    }
+
+    /// An MMSH chunk of `kind` holding `body`.
+    fn chunk(kind: u8, body: &[u8]) -> Vec<u8> {
+        let extra = if matches!(kind, b'H' | b'D') { 8 } else { 0 };
+        let mut out = vec![b'$', kind];
+        out.extend_from_slice(&((body.len() + extra) as u16).to_le_bytes());
+        out.extend(std::iter::repeat_n(0u8, extra));
+        out.extend_from_slice(body);
+        out
+    }
+
+    /// A server answering the description request with (`status`, `described`)
+    /// and the playing one with (`playing_status`, `played`).
+    async fn serve(
+        status: u16,
+        described: Vec<u8>,
+        playing_status: u16,
+        played: Vec<u8>,
+    ) -> String {
+        let app = axum::Router::new().fallback(move |headers: axum::http::HeaderMap| {
+            let (described, played) = (described.clone(), played.clone());
+            async move {
+                let playing = headers
+                    .get_all("pragma")
+                    .iter()
+                    .any(|p| p.to_str().is_ok_and(|p| p.contains("xPlayStrm=1")));
+                let (status, body) = if playing {
+                    (playing_status, played)
+                } else {
+                    (status, described)
+                };
+                (axum::http::StatusCode::from_u16(status).unwrap(), body)
+            }
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("mms://{addr}/live/clip.asf")
+    }
+
+    async fn record_from(url: &str) -> (Result<u64, Error>, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let got = record(
+            url,
+            &dir.path().join("clip.part"),
+            &Control::new(),
+            &Arc::new(AtomicU64::new(0)),
+        )
+        .await;
+        (got, dir)
+    }
+
+    #[test]
+    fn a_header_says_its_packet_size_and_its_streams() {
+        assert_eq!(header_facts(&asf_header(true)), (Some(32), vec![1]));
+        assert_eq!(header_facts(&asf_header(false)), (Some(32), vec![]));
+    }
+
+    #[tokio::test]
+    async fn what_an_mms_server_refuses_or_leaves_out_is_said() {
+        let header = chunk(b'H', &asf_header(true));
+        let cases: Vec<(String, &str)> = vec![
+            (
+                serve(404, Vec::new(), 200, Vec::new()).await,
+                "answered 404",
+            ),
+            (
+                serve(200, chunk(b'E', b""), 200, Vec::new()).await,
+                "sent no stream header",
+            ),
+            (
+                serve(200, chunk(b'H', &asf_header(false)), 200, Vec::new()).await,
+                "names no streams",
+            ),
+            (
+                serve(200, header.clone(), 503, Vec::new()).await,
+                "answered 503",
+            ),
+            (
+                serve(200, header.clone(), 200, chunk(b'E', b"")).await,
+                "before sending any of it",
+            ),
+        ];
+        for (url, said) in cases {
+            let (got, _dir) = record_from(&url).await;
+            let why = got.unwrap_err().to_string();
+            assert!(why.contains(said), "{why} is not {said:?}");
+        }
+        let (got, _dir) = record_from("http://127.0.0.1:1/clip.asf").await;
+        assert!(got.unwrap_err().to_string().contains("not an mms://"));
+    }
+
+    #[tokio::test]
+    async fn packets_are_padded_to_the_headers_size_and_others_left_out() {
+        let header = asf_header(true);
+        let mut played = chunk(b'D', b"early");
+        played.extend(chunk(b'H', &header));
+        played.extend(chunk(b'C', b"change"));
+        played.extend(chunk(b'D', b"12345"));
+        played.extend(chunk(b'E', b""));
+        played.extend(chunk(b'D', b"after the end"));
+        let url = serve(200, chunk(b'H', &header), 200, played).await;
+        let (got, dir) = record_from(&url).await;
+        let written = got.unwrap();
+        let data = std::fs::read(dir.path().join("clip.part")).unwrap();
+        let mut packet = b"12345".to_vec();
+        packet.resize(32, 0);
+        assert_eq!(data, [header, packet].concat());
+        assert_eq!(written, data.len() as u64);
+    }
+
     proptest::proptest! {
         #[test]
         fn any_bytes_are_read_without_a_panic(data in proptest::collection::vec(proptest::num::u8::ANY, 0..800)) {

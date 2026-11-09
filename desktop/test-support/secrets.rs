@@ -78,3 +78,23 @@ fn fresh(name: &str) -> String {
     hasher.write_u32(std::process::id());
     format!("t{:x}", hasher.finish())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A secret is the same all run long, and one marked with `@` and `:`
+    /// is written into an address with neither left bare.
+    #[test]
+    fn a_secret_holds_for_the_run_and_a_marked_one_is_escaped_for_an_address() {
+        let first = secret("support_check");
+        assert_eq!(secret("support_check"), first);
+        assert!(!first.is_empty());
+        let marked = marked("support_check");
+        assert_eq!(marked, format!("{first}@{first}:x"));
+        let written = escaped(&marked);
+        assert!(!written.contains(['@', ':']), "{written}");
+        assert_eq!(written, format!("{first}%40{first}%3Ax"));
+        assert_eq!(escaped("100%"), "100%25");
+    }
+}

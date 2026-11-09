@@ -415,3 +415,57 @@ async fn a_configuration_script_chooses_each_sites_way_and_a_failed_one_sends_no
     );
     dm_core::pac::set_engine(None);
 }
+
+/// A proxy named for `http` alone carries that scheme's requests; a site on the
+/// bypass list still goes directly.
+#[tokio::test]
+async fn a_proxy_for_one_scheme_carries_its_requests_and_the_bypass_list_still_holds() {
+    let _one = ONE_AT_A_TIME.lock().await;
+    let server = serve(axum::Router::new().route("/f.txt", get(direct))).await;
+    let (proxy, asked) = answering_proxy().await;
+    let (host, port) = proxy.split_once(':').unwrap();
+    let mut settings = Proxy {
+        enabled: true,
+        kind: Kind::Http,
+        host: "main.invalid".into(),
+        port: 3128,
+        bypass: vec!["localhost".into()],
+        ..Default::default()
+    };
+    settings.per_scheme.insert(
+        "http".into(),
+        dm_core::SchemeProxy {
+            kind: Kind::Http,
+            host: host.into(),
+            port: port.parse().unwrap(),
+            username: String::new(),
+            password: String::new(),
+        },
+    );
+    let client = client_with(&settings).unwrap();
+    let dir = tempdir();
+    let done = download(
+        &client,
+        &format!("http://{server}/f.txt"),
+        &options(dir.path()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(std::fs::read(&done.path).unwrap(), b"via the proxy");
+    assert!(asked.lock().unwrap().iter().any(|l| l.contains("/f.txt")));
+
+    let before = asked.lock().unwrap().len();
+    let dir = tempdir();
+    let done = download(
+        &client,
+        &format!("http://localhost:{}/f.txt", server.port()),
+        &options(dir.path()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        b"direct from the server"
+    );
+    assert_eq!(asked.lock().unwrap().len(), before, "the proxy was asked");
+}

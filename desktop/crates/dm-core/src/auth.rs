@@ -620,6 +620,48 @@ mod tests {
     }
 
     #[test]
+    fn a_session_algorithm_hashes_the_login_once_more_with_both_nonces() {
+        let c = challenge(
+            r#"Digest realm = "r", stale, nonce="n", algorithm=MD5-sess, qop="auth,auth-int""#,
+        )
+        .unwrap();
+        assert_eq!(
+            (c.algorithm, c.qop, c.stale, c.realm.as_str()),
+            (Algorithm::Md5Sess, true, false, "r")
+        );
+        let url = url::Url::parse("http://h/f.bin").unwrap();
+        let h = authorization(&c, 1, "GET", &url, "me", "pw");
+        assert!(h.contains("algorithm=MD5-sess"), "{h}");
+        let field = |name: &str| {
+            params(h.trim_start_matches("Digest "))
+                .into_iter()
+                .find(|(k, _)| k == name)
+                .map(|(_, v)| v)
+                .unwrap()
+        };
+        let (cnonce, response) = (field("cnonce"), field("response"));
+        let md5 = |t: &str| Algorithm::Md5.hash(t);
+        let a1 = md5(&format!("{}:n:{cnonce}", md5("me:r:pw")));
+        let a2 = md5("GET:/f.bin");
+        assert_eq!(
+            response,
+            md5(&format!("{a1}:n:00000001:{cnonce}:auth:{a2}"))
+        );
+        let sha = Challenge {
+            algorithm: Algorithm::Sha256Sess,
+            ..c
+        };
+        assert!(authorization(&sha, 1, "GET", &url, "me", "pw").contains("algorithm=SHA-256-sess"));
+        // No algorithm named is MD5.
+        assert_eq!(
+            challenge(r#"Digest realm="r", nonce="n""#)
+                .unwrap()
+                .algorithm,
+            Algorithm::Md5
+        );
+    }
+
+    #[test]
     fn client_nonces_differ() {
         assert_ne!(cnonce("n"), cnonce("n"));
     }

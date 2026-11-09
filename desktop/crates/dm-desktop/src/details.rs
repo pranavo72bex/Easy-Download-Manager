@@ -297,6 +297,55 @@ mod tests {
     }
 
     #[test]
+    fn each_state_has_its_word_and_an_unread_disk_is_said_unknown() {
+        let mut row = failed("https://example.com/f.bin", "x", "", "");
+        let unread = Setting {
+            free: None,
+            ..setting()
+        };
+        for (state, word) in [
+            (State::Queued, "waiting"),
+            (State::Paused, "stopped"),
+            (State::Completed, "finished"),
+            (State::Cancelled, "cancelled"),
+        ] {
+            row.state = state;
+            let text = block(&row, &unread);
+            assert!(text.contains(&format!("State: {word}\n")), "{text}");
+            assert!(text.ends_with("Free disk space: unknown"), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_strong_validator_sends_if_range_and_a_weak_one_does_not() {
+        let mut row = failed("https://example.com/f.bin", "x", "", "");
+        row.validator = Some("\"abc\"".into());
+        assert!(headers_sent(&row).contains(&"If-Range"));
+        row.validator = Some("W/\"abc\"".into());
+        assert!(!headers_sent(&row).contains(&"If-Range"));
+        row.validator = None;
+        assert!(!headers_sent(&row).contains(&"If-Range"));
+    }
+
+    #[test]
+    fn only_failed_rows_have_a_block() {
+        let dir = std::env::temp_dir();
+        let mut done = failed("https://example.com/f.bin", "x", "", "");
+        done.state = State::Completed;
+        assert!(blocks_for(std::slice::from_ref(&done), 4, &dir).is_none());
+        let broken = failed(
+            "https://example.com/g.bin",
+            "the connection was refused",
+            "",
+            "",
+        );
+        let (text, count) = blocks_for(&[done, broken.clone(), broken], 4, &dir).unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(text.matches("State: failed").count(), 2, "{text}");
+        assert!(text.contains("Connections: 4"), "{text}");
+    }
+
+    #[test]
     fn a_finished_or_running_row_has_no_reason_line() {
         let mut row = failed("https://example.com/f.bin", "x", "", "");
         row.state = State::Running;

@@ -525,6 +525,9 @@ pub(super) mod status_tests {
         row.progress.downloaded = 3 * 1024 * 1024;
         row.progress.speed = 2048.0;
         assert_eq!(status_in_english(&row), "3.0 MB · 2.0 KB/s");
+        // Nothing arriving just now: what has arrived alone.
+        row.progress.speed = 0.0;
+        assert_eq!(status_in_english(&row), "3.0 MB");
         // A torrent with nothing yet is finding its peers.
         let mut magnet = paused(false);
         magnet.state = State::Running;

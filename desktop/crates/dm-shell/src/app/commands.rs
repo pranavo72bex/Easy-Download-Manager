@@ -776,6 +776,31 @@ mod tests {
         assert_eq!(Command::from_id("no.such.command"), None);
     }
 
+    /// The keys that act on the list's selection are kept from it behind a
+    /// dialog; the others, which open something, are not.
+    #[test]
+    fn only_the_selections_keys_act_on_the_list() {
+        for command in [
+            Command::Remove,
+            Command::SelectAll,
+            Command::Properties,
+            Command::DownloadNow,
+            Command::StopDownload,
+            Command::FindNext,
+            Command::FindPrevious,
+        ] {
+            assert!(command.acts_on_the_list(), "{command:?}");
+        }
+        for command in [
+            Command::AddUrl,
+            Command::Options,
+            Command::Find,
+            Command::Quit,
+        ] {
+            assert!(!command.acts_on_the_list(), "{command:?}");
+        }
+    }
+
     #[test]
     fn no_two_commands_share_a_key() {
         let chords: Vec<_> = Command::ALL.iter().flat_map(|c| c.chords()).collect();

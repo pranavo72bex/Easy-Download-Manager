@@ -389,3 +389,11 @@ fn windows_names_a_connection_it_does_not_know() {
     // Not open, so nothing to hang up: said so, not failed.
     assert_eq!(ras::Ras.hang_up(&unknown.connection), Ok(false));
 }
+
+/// Options offers no connections where there are no dial-up or VPN entries
+/// to read: everywhere but Windows.
+#[cfg(not(windows))]
+#[test]
+fn away_from_windows_there_are_no_connections_to_offer() {
+    assert!(super::connections().is_empty());
+}

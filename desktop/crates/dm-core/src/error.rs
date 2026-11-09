@@ -412,3 +412,68 @@ pub fn file_error(e: &std::io::Error) -> String {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_status_and_a_file_error_are_said_in_words() {
+        assert_eq!(status_line(404), "404 Not Found");
+        assert_eq!(status_line(599), "599");
+        let said = |kind| file_error(&std::io::Error::from(kind));
+        assert_eq!(said(std::io::ErrorKind::NotFound), "it is not there");
+        assert_eq!(
+            said(std::io::ErrorKind::PermissionDenied),
+            "dm is not allowed to use it"
+        );
+        assert_eq!(
+            said(std::io::ErrorKind::AlreadyExists),
+            "something of that name is already there"
+        );
+        let other = file_error(&std::io::Error::from_raw_os_error(28));
+        assert!(!other.contains("os error"), "{other}");
+        assert_eq!(file_error(&std::io::Error::other("worn out")), "worn out");
+    }
+
+    #[tokio::test]
+    async fn a_redirect_dm_does_not_follow_is_no_file() {
+        let app = axum::Router::new()
+            .route(
+                "/away",
+                axum::routing::get(|| async {
+                    (
+                        axum::http::StatusCode::FOUND,
+                        [(axum::http::header::LOCATION, "file:///etc/passwd")],
+                    )
+                }),
+            )
+            .route(
+                "/nowhere",
+                axum::routing::get(|| async { axum::http::StatusCode::MOVED_PERMANENTLY }),
+            )
+            .route(
+                "/same",
+                axum::routing::get(|| async { axum::http::StatusCode::NOT_MODIFIED }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        let ask = |path: &str| client.get(format!("http://{addr}{path}")).send();
+        let why = Error::refused_or(ask("/away").await.unwrap())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(why.contains("sent dm on to file:///etc/passwd"), "{why}");
+        let why = Error::refused_or(ask("/nowhere").await.unwrap())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(why.contains("somewhere else"), "{why}");
+        assert!(Error::refused_or(ask("/same").await.unwrap()).await.is_ok());
+    }
+}

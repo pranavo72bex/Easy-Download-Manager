@@ -193,3 +193,17 @@ async fn find_index(
         "this file has no index (moov) to cut a part by".into(),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn an_mp4_is_known_by_its_name_or_its_type() {
+        assert!(super::is_mp4("Talk.MOV", None));
+        assert!(super::is_mp4("song.m4a", None));
+        assert!(super::is_mp4("watch", Some("Video/MP4; codecs=avc1")));
+        assert!(super::is_mp4("watch", Some("audio/mp4")));
+        assert!(super::is_mp4("watch", Some("video/quicktime")));
+        assert!(!super::is_mp4("clip.webm", Some("video/webm")));
+        assert!(!super::is_mp4("page", None));
+    }
+}

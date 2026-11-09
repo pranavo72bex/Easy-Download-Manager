@@ -207,3 +207,41 @@ pub(super) fn pick_list(
             }
         });
 }
+
+#[cfg(test)]
+mod series_words_tests {
+    use super::*;
+    use dm_shell::lists::{series, SeriesError};
+
+    #[test]
+    fn each_reason_a_series_cannot_be_made_is_said() {
+        let said = |e| series_error(e).to_string();
+        let all = [
+            SeriesError::Star,
+            SeriesError::Backwards,
+            SeriesError::TooMany,
+            SeriesError::Ends,
+        ]
+        .map(said);
+        // Four reasons, four sentences.
+        let distinct: std::collections::HashSet<_> = all.iter().collect();
+        assert_eq!(distinct.len(), 4);
+        assert!(all.iter().all(|s| s.ends_with('.')));
+        // As the series reads them.
+        let reason = |t: &str, f: &str, to: &str| series(t, f, to, 0).err().map(said);
+        assert_eq!(reason("h/*", "1", "20000"), Some(all[2].clone()));
+        assert_eq!(reason("h/*", "1", "b"), Some(all[3].clone()));
+        assert_eq!(reason("h/*", "9", "1"), Some(all[1].clone()));
+        assert_eq!(reason("h/x", "1", "2"), Some(all[0].clone()));
+    }
+
+    #[test]
+    fn what_a_start_says_goes_to_the_open_series_alone() {
+        let mut none: Option<Series> = None;
+        d_says(&mut none, "x".into());
+        assert!(none.is_none());
+        let mut open = Some(Series::default());
+        d_says(&mut open, "refused".into());
+        assert_eq!(open.unwrap().says, "refused");
+    }
+}
