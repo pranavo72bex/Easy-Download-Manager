@@ -110,6 +110,9 @@ on its Overview page). The version must be above the listing's. A copy
 installed from the store has the store's own id (the listing's CRX ID):
 until dm knows it, people run `dm-desktop --register <that id>`.
 
+A `v*` tag (`git tag v3.3.0 && git push origin v3.3.0`) builds both store zips and opens a
+**draft** GitHub release with them, as the app's tag does; publish it once looked at.
+
 Firefox installs only add-ons Mozilla has signed. A `v*` tag submits the
 Firefox build to AMO as a listed add-on and includes the source archive for
 review, given the AMO API key as the secrets `AMO_JWT_ISSUER` and
