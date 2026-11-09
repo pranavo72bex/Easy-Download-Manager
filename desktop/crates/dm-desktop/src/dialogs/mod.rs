@@ -11,6 +11,7 @@
 //! Each is drawn from state held here and acts on the app when its button
 //! is pressed; none of them reaches the queue except through the backend.
 
+use crate::commands::Shown as _;
 use crate::i18n::{t, tf};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};

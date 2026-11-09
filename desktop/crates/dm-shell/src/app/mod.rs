@@ -17,6 +17,7 @@
 
 pub mod backend;
 pub mod changes;
+pub mod commands;
 pub mod control_api;
 pub mod detect;
 pub mod handoff;

@@ -5,6 +5,7 @@
 
 use crate::support::*;
 use crate::test_secrets;
+use dm_desktop::commands::Shown as _;
 
 #[test]
 fn when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen() {

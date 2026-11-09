@@ -39,7 +39,7 @@ pub(super) fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<Tray
     let (w, h) = image.dimensions();
     let icon = tray_icon::Icon::from_rgba(image.into_raw(), w, h).map_err(|e| e.to_string())?;
 
-    use dm_desktop::commands::Command;
+    use dm_desktop::commands::{Command, Shown};
     use tray_icon::menu::PredefinedMenuItem;
     let [show, limiter, scheduler, quit, tooltip] = tray_words();
     let show = MenuItem::new(show, true, None);

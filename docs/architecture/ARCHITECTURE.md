@@ -40,15 +40,15 @@ A second presentation (GPUI) depends on dm-shell and dm-core only. It
 implements `dm_shell::app::platform::Platform`, subscribes to
 `dm_shell::app::changes`, reads `Snapshot`s, and asks the application to act.
 
-## Where the code is today (2026-11-08, branch ui-independent-architecture)
+## Where the code is today (2026-11-09, branch ui-independent-architecture)
 
 | Layer | In place | Still in the window crate (to move) |
 |---|---|---|
 | Domain and engine | All of dm-core: no GUI types (enforced) | — |
-| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); dm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, and the egui-only control methods (`ui.*`, `command.run`, which runs the window's `Command`s) |
+| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), `commands` (the registry: every command's name, label and keys, which apply to the rows chosen, and the commands that are the application's alone), and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); dm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, the egui-only control methods (`ui.*`, and `command.run`'s commands that open a dialog or change the view), and step 16's rows (lists, clipboard, files, planned names) |
 | Presentation | dm-desktop | — |
 
-Steps 1 to 13 of [audit.md](audit.md) section 7 are done, each held to
+Steps 1 to 13 and 15 of [audit.md](audit.md) section 7 are done, each held to
 `cargo test --workspace` and the whole behaviour contract. A presentation
 drives the application in this order each tick (the egui window does it in
 `DmApp::refresh` and `DmApp::logic`; `session.rs`'s `no_window_tests` does it
@@ -66,8 +66,10 @@ with no window at all):
 Headless (`--headless`) still runs `DmApp::logic` against a stand-in
 `egui::Context` (decided 2026-11-08, [decisions.md](../decisions.md)): its
 `command.run` and `ui.*` answers stay exactly as they are, and every rule it
-follows is the application's. Left: step 14 (dm-core's seams), and moving
-`Command` out of the window crate if GPUI is to run the same commands.
+follows is the application's. `Command` is the application's (step 15): a presentation runs the same
+commands, checks them with `commands::applies` and carries out the
+application's with `commands::verb`. Left: step 16 (lists, clipboard, files,
+planned names) and step 14 (dm-core's seams).
 
 ## What does not change
 

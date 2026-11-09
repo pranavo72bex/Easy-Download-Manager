@@ -300,7 +300,7 @@ impl DmApp {
         // windows each download opens on its own are not in front of the list
         // that way, and leave it its keys.
         let behind = self.dialogs.in_front();
-        for command in ctx.input_mut(Command::pressed) {
+        for command in ctx.input_mut(crate::commands::pressed) {
             // F3 is what Find is open for: it finds behind its own dialog.
             let finding = matches!(command, Command::FindNext | Command::FindPrevious)
                 && self.dialogs.find_open;

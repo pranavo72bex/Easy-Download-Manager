@@ -4,7 +4,25 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
-use dm_shell::app::rules::GoOn;
+use dm_shell::app::commands::{limited, recheck, verb, when_done, Ran};
+
+/// What the window knows of a row that decides whether a command applies:
+/// read where it is kept for drawing.
+struct WindowLooks;
+
+impl dm_shell::app::commands::Looks for WindowLooks {
+    fn retrying(&self, id: Id) -> bool {
+        retrying(id).is_some()
+    }
+
+    fn gone(&self, row: &Entry) -> bool {
+        crate::table::gone(row)
+    }
+
+    fn plays(&self, row: &Entry) -> bool {
+        matches!(kind_of(row), Some(Category::Videos | Category::Audio))
+    }
+}
 
 impl DmApp {
     /// Whether `command` applies to the rows selected now.
@@ -20,95 +38,13 @@ impl DmApp {
             .map(|r| &**r)
             .filter(|r| self.selected.contains(&r.id) && self.shows(r))
             .collect();
-        let any = |f: fn(&Entry) -> bool| targets.iter().any(|r| f(r));
-        match command {
-            Command::DownloadNow => any(|r| matches!(r.state, State::Paused | State::Failed(_))),
-            Command::StopDownload => any(|r| matches!(r.state, State::Running | State::Queued)),
-            // Enabled only for downloads neither running nor in line —
-            // a running one is stopped first, so nothing is removed from
-            // under its own writer by a slip of the Delete key.
-            Command::Remove => {
-                !targets.is_empty()
-                    && targets
-                        .iter()
-                        .all(|r| !matches!(r.state, State::Running | State::Queued))
-            }
-            // A finished download's file, which only a settled row has.
-            Command::DeleteFile => {
-                any(|r| r.state == State::Completed)
-                    && targets
-                        .iter()
-                        .all(|r| !matches!(r.state, State::Running | State::Queued))
-            }
-            Command::MoveToQueue | Command::Properties => !targets.is_empty(),
-            // Only where there is something to fetch again: a row that has
-            // fetched nothing yet would only start.
-            // A failure with nothing fetched is Retry's.
-            Command::Redownload => any(|r| {
-                matches!(r.state, State::Completed | State::Cancelled) || r.progress.downloaded > 0
-            }),
-            Command::CopyLink => !targets.is_empty(),
-            Command::CopyDetails => any(|r| matches!(r.state, State::Failed(_))),
-            Command::UpdateLink => {
-                targets.len() == 1
-                    && (!matches!(targets[0].state, State::Running | State::Completed)
-                        || retrying(targets[0].id).is_some())
-            }
-            Command::RemoveFromQueue => any(|r| !r.queue.is_empty()),
-            // Not where it would do nothing: at the top or the bottom of
-            // the order.
-            Command::MoveUp => {
-                targets.len() == 1 && self.rows.first().is_some_and(|r| r.id != targets[0].id)
-            }
-            Command::MoveDown => {
-                targets.len() == 1 && self.rows.last().is_some_and(|r| r.id != targets[0].id)
-            }
-            Command::ShowProgress => any(|r| r.state != State::Completed),
-            // Open folder stays: it says the file is gone, which is an answer.
-            Command::OpenFolder => {
-                targets.len() == 1
-                    && targets[0].state == State::Completed
-                    && !targets[0].path.is_empty()
-            }
-            // Something a player can show, with some of it fetched.
-            Command::Preview => {
-                targets.len() == 1
-                    && targets[0].state != State::Completed
-                    && targets[0].progress.downloaded > 0
-                    && matches!(
-                        kind_of(targets[0]),
-                        Some(Category::Videos | Category::Audio)
-                    )
-            }
-            // A finished ZIP that is still on disk.
-            Command::ExtractHere | Command::ExtractTo => {
-                targets.len() == 1
-                    && targets[0].state == State::Completed
-                    && dm_core::extract::is_zip(&targets[0].path)
-                    && !crate::table::gone(targets[0])
-            }
-            Command::OpenFile | Command::OpenWith => {
-                targets.len() == 1
-                    && targets[0].state == State::Completed
-                    && !targets[0].path.is_empty()
-                    && !crate::table::gone(targets[0])
-            }
-            // One to move and rename, or several to move together.
-            Command::MoveRename => {
-                !targets.is_empty()
-                    && targets.iter().all(|r| {
-                        r.state == State::Completed && !r.path.is_empty() && !crate::table::gone(r)
-                    })
-            }
-            Command::ResumeAll => self.rows.iter().any(|r| r.state == State::Paused),
-            Command::StopAll => self
-                .rows
-                .iter()
-                .any(|r| matches!(r.state, State::Running | State::Queued)),
-            Command::DeleteCompleted => self.rows.iter().any(|r| r.state.clearable()),
-            Command::FindNext | Command::FindPrevious => !self.dialogs.find_text.is_empty(),
-            _ => true,
-        }
+        dm_shell::app::commands::applies(
+            command,
+            &targets,
+            &self.rows,
+            !self.dialogs.find_text.is_empty(),
+            &WindowLooks,
+        )
     }
 
     /// Whether the schedule that governs `queue` (its own, or the one every
@@ -196,11 +132,12 @@ impl DmApp {
                 // A row the schedule or the download limit holds is asked
                 // about: start it now, outside the schedule, or let it wait.
                 // With nobody to ask (headless), it is said instead.
-                let held: Vec<Id> = targets
-                    .iter()
-                    .filter(|r| r.state == State::Paused && r.paused_by_schedule)
-                    .map(|r| r.id)
-                    .collect();
+                // Each row goes on (the application's `verb`) but those the
+                // schedule or the download limit holds.
+                let held = match verb(command, &self.backend, &targets, "") {
+                    Some(Ran::WentOn { held }) => held,
+                    _ => Vec::new(),
+                };
                 if !held.is_empty() {
                     if self.headless {
                         self.said =
@@ -210,13 +147,6 @@ impl DmApp {
                     }
                 }
                 for row in &targets {
-                    match dm_shell::app::rules::go_on(&row.state, row.paused_by_schedule) {
-                        GoOn::Resume => self.backend.resume(row.id),
-                        GoOn::Retry => self.backend.retry(row.id),
-                        // Held: asked about above; resuming would only requeue
-                        // it to be held again.
-                        GoOn::Held | GoOn::Settled | GoOn::NotStopped => {}
-                    }
                     // Not one its person closed: fifteen Resumes opened it
                     // fifteen times over the list. Show progress
                     // still opens it.
@@ -226,10 +156,15 @@ impl DmApp {
                     }
                 }
             }
-            Command::StopDownload => {
-                for row in &targets {
-                    self.backend.pause(row.id);
-                }
+            // The application's alone, with nothing to say.
+            Command::StopDownload
+            | Command::Redownload
+            | Command::RemoveFromQueue
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::ResumeAll
+            | Command::StopAll => {
+                verb(command, &self.backend, &targets, "");
             }
             Command::Remove => {
                 // Asked first, whichever way it was asked for: an
@@ -251,11 +186,6 @@ impl DmApp {
                 self.dialogs.remove_files = true;
                 self.dialogs.deleting_files = true;
                 self.dialogs.confirm_remove = Some(ids);
-            }
-            Command::Redownload => {
-                for row in &targets {
-                    self.backend.redownload(row.id);
-                }
             }
             Command::CopyLink => {
                 // Each address on a line of its own, without a sign-in
@@ -285,13 +215,6 @@ impl DmApp {
                     String::new(),
                 ))
             }
-            Command::RemoveFromQueue => {
-                for row in &targets {
-                    self.backend.set_queue(row.id, "");
-                }
-            }
-            Command::MoveUp => self.backend.shift(targets[0].id, -1),
-            Command::MoveDown => self.backend.shift(targets[0].id, 1),
             Command::Properties => {
                 for row in &targets {
                     self.dialogs.open_properties(row);
@@ -346,14 +269,11 @@ impl DmApp {
                 self.selected = self.visible_shared().iter().map(|r| r.id).collect();
             }
 
-            Command::ResumeAll => {
-                self.backend.resume_all();
-            }
-            Command::StopAll => {
-                self.backend.pause_all();
-            }
             Command::DeleteCompleted => {
-                let n = self.backend.clear_finished();
+                let n = match verb(command, &self.backend, &targets, "") {
+                    Some(Ran::Cleared(n)) => n,
+                    _ => 0,
+                };
                 self.said = crate::i18n::Said::counting(
                     "Deleted {} completed or cancelled download from the list.||Deleted {} completed or cancelled downloads from the list.",
                     n as u64, &[&n],
@@ -371,7 +291,10 @@ impl DmApp {
             }
             Command::StartQueue => {
                 let queue = self.chosen_queue();
-                let n = self.backend.start_queue(&queue);
+                let n = match verb(command, &self.backend, &targets, &queue) {
+                    Some(Ran::QueueStarted(n)) => n,
+                    _ => 0,
+                };
                 // Its own sound, only where the person chose a file.
                 if n > 0 {
                     if let Some(path) = self.sound_file("queue_started") {
@@ -395,23 +318,18 @@ impl DmApp {
                         &[&n, &queue],
                     )
                 };
-                // Asked in the background: a server at a time, each up to
-                // its timeouts, which held the window for minutes when it
-                // was done here. The counts are said when it is done.
+                // Asked in the background (the application's `recheck`); the
+                // counts are said when it is done.
                 if queue == dm_core::RECHECK_QUEUE {
-                    let (q, done) = (self.backend.queue.clone(), Arc::clone(&self.rechecked));
-                    self.backend.runtime.spawn(async move {
-                        let (checked, changed) = q.synchronize(dm_core::RECHECK_QUEUE).await;
-                        if !changed.is_empty() {
-                            dm_shell::shell::wake(&q);
-                        }
-                        *dm_core::lock(&done) = Some((checked, changed.len()));
-                    });
+                    recheck(&self.backend, Arc::clone(&self.rechecked));
                 }
             }
             Command::StopQueue => {
                 let queue = self.chosen_queue();
-                let n = self.backend.stop_queue(&queue);
+                let n = match verb(command, &self.backend, &targets, &queue) {
+                    Some(Ran::QueueStopped(n)) => n,
+                    _ => 0,
+                };
                 self.said = crate::i18n::Said::counting_naming(
                     "Stopped {} download in {}.||Stopped {} downloads in {}.",
                     n as u64,
@@ -419,14 +337,8 @@ impl DmApp {
                 );
             }
             Command::SpeedLimiterToggle => {
-                let mut wanted = self.applied.clone();
-                if wanted.speed_limit > 0 {
-                    self.last_limit = wanted.speed_limit;
-                    wanted.last_speed_limit = wanted.speed_limit;
-                    wanted.speed_limit = 0;
-                } else {
-                    wanted.speed_limit = self.last_limit.max(1);
-                }
+                let wanted = limited(command, &self.applied, &mut self.last_limit)
+                    .unwrap_or_else(|| self.applied.clone());
                 if let Err(e) = self.apply_settings(wanted) {
                     self.said = e.into();
                 } else {
@@ -446,12 +358,8 @@ impl DmApp {
             | Command::SpeedHigh
             | Command::SpeedUnlimited => {
                 let kb = command.speed_preset().unwrap_or(0);
-                let mut wanted = self.applied.clone();
-                if wanted.speed_limit > 0 {
-                    self.last_limit = wanted.speed_limit;
-                    wanted.last_speed_limit = wanted.speed_limit;
-                }
-                wanted.speed_limit = kb;
+                let wanted = limited(command, &self.applied, &mut self.last_limit)
+                    .unwrap_or_else(|| self.applied.clone());
                 match self.apply_settings(wanted) {
                     Ok(()) if kb > 0 => {
                         self.said = crate::i18n::Said::new("Speed limiter on: {} KB/s.", &[&kb])
@@ -460,12 +368,14 @@ impl DmApp {
                     Err(e) => self.said = e.into(),
                 }
             }
-            Command::WhenDoneNothing => self.session.when_done = crate::power::WhenDone::Nothing,
-            Command::WhenDoneQuit => self.session.when_done = crate::power::WhenDone::Quit,
-            Command::WhenDoneSleep => self.session.when_done = crate::power::WhenDone::Sleep,
-            Command::WhenDoneShutDown => self.session.when_done = crate::power::WhenDone::ShutDown,
-            Command::WhenDoneHibernate => {
-                self.session.when_done = crate::power::WhenDone::Hibernate
+            Command::WhenDoneNothing
+            | Command::WhenDoneQuit
+            | Command::WhenDoneSleep
+            | Command::WhenDoneShutDown
+            | Command::WhenDoneHibernate => {
+                if let Some(chosen) = when_done(command) {
+                    self.session.when_done = chosen;
+                }
             }
             Command::Options => self.dialogs.open_options(&self.applied),
 

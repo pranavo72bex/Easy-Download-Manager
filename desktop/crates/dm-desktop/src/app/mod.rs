@@ -21,7 +21,7 @@ use dm_shell::Settings;
 use egui::RichText;
 
 use crate::backend::Backend;
-use crate::commands::Command;
+use crate::commands::{Command, Shown};
 use crate::dialogs::Dialogs;
 use crate::format;
 use crate::icons::{self, Icon};

@@ -17,7 +17,7 @@ use egui::RichText;
 use egui_extras::{Column as Width, TableBuilder};
 
 use crate::app::{status_of, Column, DmApp};
-use crate::commands::Command;
+use crate::commands::{Command, Shown};
 use crate::format;
 
 /// Draws the downloads table into `ui`.
