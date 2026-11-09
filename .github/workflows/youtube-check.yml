@@ -47,9 +47,23 @@ jobs:
             'https://www.youtube.com/shorts/0HAETg7L15o'
           )
           & desktop\target\release\examples\youtube_read.exe @videos | Tee-Object -FilePath "$env:RUNNER_TEMP\youtube.txt"
-          $said = Get-Content "$env:RUNNER_TEMP\youtube.txt" -Raw
-          if ($said -match '(?m)^(FAIL|REFUSED)') {
+          $lines = Get-Content "$env:RUNNER_TEMP\youtube.txt"
+          # YouTube's bot check ("Sign in to confirm you're not a bot") turns the runner's
+          # address away before dm reads anything: it says nothing of dm's reader, and is not
+          # counted as dm failing (the first run by hand, 2026-11-09, opened issue #37 for two such
+          # videos while the other two were read and their streams accepted).
+          $botChecked = @($lines | Where-Object { $_ -match '^FAIL' -and $_ -match 'not a bot' })
+          $failed = @($lines | Where-Object { ($_ -match '^FAIL' -and $_ -notmatch 'not a bot') -or $_ -match '^REFUSED' })
+          $read = @($lines | Where-Object { $_ -match '^OK ' })
+          foreach ($line in $botChecked) { "::warning::not checked, YouTube's bot check: $line" }
+          if ($failed.Count -gt 0) {
             "failed=true" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+          if ($read.Count -eq 0) {
+            # Nothing was read at all: the check is blind this week, which is worth a red run
+            # but not an issue about dm.
+            "::warning::every video met YouTube's bot check; nothing of dm's reader was checked"
             exit 1
           }
       - name: Say so in an issue
