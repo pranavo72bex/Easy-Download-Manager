@@ -140,6 +140,12 @@ cd desktop && cargo test -p dm-desktop --test window
 DM_BINARY=desktop/target/release/bundle/dm.app/Contents/MacOS/dm-desktop python3 scripts/app-check.py
 sh scripts/linux-package.sh     # builds the .deb and AppImage, installs the .deb, drives it
 
+# The release's own Linux .deb and extension, downloaded from its draft and checked
+# against latest.json: the whole of human-qa.py in a Debian container (an X display,
+# Chromium in Edge's place); the macOS run is human-qa.py with DM_BINARY naming the
+# .dmg's app and dist/chrome holding the release's Chrome zip.
+DM_RELEASE=desktop-v0.2.0 sh scripts/linux-human-qa.sh
+
 # The extension installs into a real Firefox and downloads a file.
 python3 scripts/firefox-check.py granted
 

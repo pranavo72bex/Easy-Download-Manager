@@ -1,0 +1,21 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+# human-qa.py on Debian 12 (scripts/linux-human-qa.sh): Chromium in Edge's
+# place (Edge for Linux is x86_64 only), an X server, a window manager, a
+# session bus with a keyring, ImageMagick for the dialogs' pictures, and the
+# libraries the .deb depends on, so a build of the checkout runs here too.
+# The window's Linux baseline pictures (docs/behaviour-baseline/linux) are
+# drawn in this image: its fonts and screen are part of what they show.
+FROM debian:12
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      chromium xvfb xauth x11-utils openbox xdotool xclip dbus dbus-x11 python3 procps \
+      imagemagick fonts-dejavu-core ca-certificates curl at-spi2-core gnome-keyring \
+      libgl1-mesa-dri xdg-utils libsecret-tools \
+      libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 libxkbcommon-x11-0 \
+      libwayland-client0 libwayland-egl1 libegl1 libgl1 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /work

@@ -3,6 +3,10 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## Unreleased
+
+- QA: `scripts/linux-human-qa.sh` runs the whole of `human-qa.py` on Linux, in a Debian 12 container on an X display with Chromium in Edge's place, against a release's own `.deb` and extension (`DM_RELEASE`, each file checked against its `latest.json`), a `.deb` at hand, or a build of the checkout. `human-qa.py` pictures dialogs on X11 (ImageMagick's `import`) and compares the window with Linux baseline pictures of its own (`docs/behaviour-baseline/linux`, drawn from the 0.9.0 release's `.deb`), so B25 is checked on Linux too.
+
 ## App 0.9.0, extension 3.3.0
 
 - Fixed: a YouTube video made in another language and dubbed into English came with the English dub, not its own sound (issue #32). YouTube marks the track to play by the language it is asked in, and dm asks in English, so a Spanish video's English automatic dub was marked and its Spanish set aside as a dub. dm now takes the track YouTube names as the original (its address's `acont=original`, or a track id ending `.4`), and the marked track only where none is named; the voice-boosted copy of a track (`vb=1`) is set aside as the loudness-evened one already was. Checked on live YouTube: Spanish and Portuguese videos with English, French, Hindi and automatic dubs each gave their own language; an English video with twenty dubs gave English; single-language videos are unchanged.

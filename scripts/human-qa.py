@@ -24,6 +24,11 @@ Needs a debug build (`cd desktop && cargo build -p dm-desktop`), the
 extension (`sh scripts/package.sh`) and Microsoft Edge. DM_BINARY and
 DM_QA_EDGE name others. The download folder and dm's home are made under
 /tmp/dm-human-qa and removed at the end. Standard library only.
+
+On Linux, `sh scripts/linux-human-qa.sh` runs it in a Debian container on an X
+display, against a release's own .deb and extension or a build of the
+checkout, with Chromium in Edge's place; its window pictures are compared
+with docs/behaviour-baseline/linux, drawn in that container.
 """
 import hashlib, json, os, pathlib, re, shutil, signal, socket, struct, subprocess, sys, threading, time, traceback, zlib
 
@@ -32,7 +37,7 @@ CONTRACT = ROOT / "docs" / "behaviour-contract.md"
 BASELINE = ROOT / "docs" / "behaviour-baseline"
 # One set of pictures for each system whose fonts and window frames differ: the
 # set for this one where there is one, else the first.
-BASELINE_SET = BASELINE / "windows" if sys.platform == "win32" else BASELINE
+BASELINE_SET = {"win32": BASELINE / "windows", "linux": BASELINE / "linux"}.get(sys.platform, BASELINE)
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
 EDGE = os.environ.get("DM_QA_EDGE") or {
     "darwin": "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
@@ -84,6 +89,10 @@ def screen_region(x, y, w, h, target):
         subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True)
     elif sys.platform == "darwin":
         subprocess.run(["screencapture", "-x", f"-R{x},{y},{w},{h}", str(target)], capture_output=True)
+    elif os.environ.get("DISPLAY") and shutil.which("import"):
+        # X11 (scripts/linux-human-qa.sh): ImageMagick's import, from the root window.
+        subprocess.run(["import", "-window", "root", "-crop", f"{w}x{h}+{x}+{y}", "+repage", str(target)],
+                       capture_output=True)
     else:
         return False
     return target.is_file()
@@ -1360,7 +1369,9 @@ def walk(dm, origin):
             # macOS pictures a dialog's window from the screen, which needs the Screen Recording
             # permission for the program running this check (System Settings › Privacy).
             why = ("not pictured: allow Screen Recording for the program running this check"
-                   if sys.platform == "darwin" else "not pictured")
+                   if sys.platform == "darwin" else
+                   "not pictured: an X display and ImageMagick's import are needed"
+                   if sys.platform == "linux" else "not pictured")
         else:
             why = "no baseline or another screen size" if share is None else f"{share * 100:.2f}% of pixels differ"
         check("B25", f"{name} looks as the baseline", share is not None and share <= 0.01, why)
