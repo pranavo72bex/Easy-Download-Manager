@@ -1115,10 +1115,10 @@ pub(super) async fn attempt_segment(
                 )));
             }
         }
-        // Written down every few megabytes or every second: a crash then
+        // Written down every half megabyte or quarter second: a crash then
         // costs no more than that of this range, fetched again.
         if written > recorded
-            && (written - recorded >= LEDGER_EVERY || recorded_at.elapsed() >= LEDGER_EVERY_SECOND)
+            && (written - recorded >= LEDGER_EVERY || recorded_at.elapsed() >= LEDGER_EVERY_TIME)
         {
             file.flush().await?;
             put(&mut ledger, written).await?;

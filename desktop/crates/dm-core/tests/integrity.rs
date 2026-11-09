@@ -1096,3 +1096,99 @@ async fn a_file_that_grows_under_the_same_etag_is_never_saved_as_a_mix() {
         Err(e) => assert!(!e.to_string().is_empty()),
     }
 }
+
+/// Set where this test binary is started to run one download and be ended in its middle; its
+/// folder is in `DM_INTEGRITY_FOLDER`.
+const RUN_ONE: &str = "DM_INTEGRITY_RUN_ONE";
+
+/// The download a process is ended in the middle of: where this test binary is started for the
+/// test below, one download of the address it is given, until it is ended from outside; as a
+/// test of its own, nothing.
+#[tokio::test]
+async fn the_download_a_process_is_ended_in_the_middle_of() {
+    let (Some(url), Some(folder)) = (
+        std::env::var_os(RUN_ONE),
+        std::env::var_os("DM_INTEGRITY_FOLDER"),
+    ) else {
+        return;
+    };
+    let mut o = options(std::path::Path::new(&folder));
+    o.connections = 2;
+    let _ = download(&client(), &url.to_string_lossy(), &o).await;
+}
+
+#[tokio::test]
+async fn a_process_ended_in_the_middle_of_a_download_has_written_down_nearly_all_it_had() {
+    /* What a range had on disk past its ledger is fetched again after a crash. Each range's
+     * ledger is written every 512 KiB or quarter second, where it was every 4 MiB or second:
+     * killed at 40% of a 120 MiB file, dm fetched 16.5 MB again, where reference A fetched
+     * 3.2 MB (gaps row 65, 2026-11-08). Here the process downloading is ended outright, as a
+     * crash ends it, about two seconds into two connections at some 800 KB/s each: what its
+     * ledgers say trails what the server sent by well under a second of both (by a second of
+     * each, about 1.4 MB, the old way). */
+    if std::env::var_os(RUN_ONE).is_some() {
+        return;
+    }
+    let data = Arc::new(body(8 * 1024 * 1024, 7));
+    let sent = Arc::new(AtomicUsize::new(0));
+    let (served, counted) = (data.clone(), sent.clone());
+    let slow = axum::Router::new().route(
+        "/f.bin",
+        get(move |h: HeaderMap| {
+            let (data, counted) = (served.clone(), counted.clone());
+            async move {
+                let resp = ranged(&data, "\"v1\"", &h);
+                let (parts, b) = resp.into_parts();
+                let bytes = axum::body::to_bytes(b, usize::MAX).await.unwrap();
+                let chunks: Vec<_> = bytes
+                    .chunks(16 * 1024)
+                    .map(bytes::Bytes::copy_from_slice)
+                    .collect();
+                let s = futures_util::stream::iter(chunks).then(move |c| {
+                    let counted = counted.clone();
+                    async move {
+                        tokio::time::sleep(Duration::from_millis(20)).await;
+                        counted.fetch_add(c.len(), Ordering::SeqCst);
+                        Ok::<_, std::io::Error>(c)
+                    }
+                });
+                Response::from_parts(parts, Body::from_stream(s))
+            }
+        }),
+    );
+    let at = serve(slow).await;
+    let dir = tempdir();
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "the_download_a_process_is_ended_in_the_middle_of",
+            "--nocapture",
+        ])
+        .env(RUN_ONE, format!("http://{at}/f.bin"))
+        .env("DM_INTEGRITY_FOLDER", dir.path())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let flowing = tokio::time::Instant::now();
+    while sent.load(Ordering::SeqCst) == 0 {
+        assert!(
+            flowing.elapsed() < Duration::from_secs(30),
+            "the download never started"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(1900)).await;
+    child.kill().unwrap();
+    let _ = child.wait();
+    let sent = sent.load(Ordering::SeqCst) as u64;
+    let written_down = staged(dir.path());
+    assert!(
+        sent > 1024 * 1024,
+        "too little was sent to judge by: {sent}"
+    );
+    assert!(
+        sent.saturating_sub(written_down) < 700 * 1024,
+        "{written_down} of the {sent} bytes sent were written down"
+    );
+}

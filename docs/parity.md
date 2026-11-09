@@ -106,6 +106,7 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | Pause stops promptly, even on a stalled connection | PASS | `a_pause_on_a_stalled_connection_is_honoured_within_the_read_timeout` |
 | Resume continues from staged bytes | PASS | `a_download_resumes_from_what_is_already_staged` |
 | Resume after an app restart | PASS | `queue.rs` `the_queue_survives_the_app_closing` and the running-row case |
+| A crash costs little of what was downloaded: each range writes down what it has on disk every 512 KiB or quarter second (killed at 40% of 120 MiB beside reference A: 5 MB fetched again, reference A 3.2 MB, dm before 16.5 MB) | PASS | `integrity.rs` `a_process_ended_in_the_middle_of_a_download_has_written_down_nearly_all_it_had` (the process ended outright; fails with the old cadence); `docs/reference-behavior.md`, "Resume after a kill, side by side" |
 | Server ignores Range mid-run (200 for 206) | PASS | `Error::Changed`, nothing appended |
 | Server without ranges, retried | PASS | `integrity.rs` `a_server_without_ranges_is_fetched_again_from_the_start` |
 | File republished between runs (ETag/Last-Modified) | PASS | `integrity.rs` `a_file_republished_between_runs_is_not_spliced_into_the_old_parts` |

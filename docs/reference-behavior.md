@@ -349,6 +349,30 @@ own engine (`javascript.rs`). It cuts in the app rather than the extension, from
 fetches itself, so a link added without the browser is read the same way; and it runs Chakra, not
 JScript9, which lacks `Symbol`, a name today's player uses while it loads.
 
+## Resume after a kill, side by side (Observed, 2026-11-08, Windows)
+
+The maintainer's yes of 2026-11-08 to ending reference A's process for it. One 120 MiB file from a
+server on 127.0.0.1 at 12 MB/s for all connections together (`D:\compare\killresume2.mjs`); each
+app's process ended outright (`taskkill /F`) at about 40%, started again three seconds later, and
+its download resumed as a person resumes it: reference A by asking for the same address again
+(its windows on starting answered as a person answers them: the tip of the day closed, its
+trial's reminder put off) and choosing in its "Duplicate download link" window "If existing file
+is complete, show download complete dialog; otherwise resume it."; dm by starting it again.
+
+| | Reference A | dm before | dm now |
+|---|---|---|---|
+| How it goes on | the address asked again, and its duplicate window's resume | by itself when started | by itself when started |
+| Bytes coming again after the restart | 14 s, most of it its windows and the harness | 134 ms | 151 and 160 ms |
+| Fetched twice | 3.2 MB (2.5% of the file) | 16.5 MB (13%) | 5.1 and 5.0 MB (4%) |
+| The file | whole | whole | whole |
+
+What it changed: each range's ledger (what it has on disk) was written every 4 MiB or every second,
+so a crash lost up to a second of every range; it is now written every 512 KiB or every quarter
+second (`download/ranged/staged.rs` `LEDGER_EVERY`, `LEDGER_EVERY_TIME`). What dm still fetches
+again beyond reference A is the bytes on their way at the moment of the kill and the 64 KiB at each
+part's end it compares with the server on a resume, against a power cut's zeros, which reference A
+does not check.
+
 ## Speed and time left, side by side (Observed, 2026-11-08, Windows)
 
 One 48 MiB file from a server on 127.0.0.1 whose rate for all connections together steps between
