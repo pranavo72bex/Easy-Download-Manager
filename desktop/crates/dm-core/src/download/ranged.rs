@@ -223,9 +223,20 @@ pub(super) async fn run(
                 } else if let Some(index) = orphan {
                     index
                 } else {
+                    /* The watching ends early once the connections with
+                     * ranges of their own are done: they end only when no
+                     * range is left to halve (or a refusal, which ends a
+                     * helper here anyway), and ranges only shrink, so
+                     * there is nothing for a helper either. The last helper
+                     * to finish its range otherwise watched out its whole
+                     * window after the file was in, and the download waited
+                     * for it: 80 ms of every small slow file (gaps row 165). */
                     if helper
                         && (refused.load(Ordering::SeqCst)
-                            || !slow_enough_to_help(&job, started).await
+                            || !tokio::select! {
+                                worth = slow_enough_to_help(&job, started) => worth,
+                                _ = wave_over_seen.wait_for(|over| *over) => false,
+                            }
                             // Looked at again after the watching: a refusal
                             // while it went on is as good as one before.
                             || refused.load(Ordering::SeqCst))

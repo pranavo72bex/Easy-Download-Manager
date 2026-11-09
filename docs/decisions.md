@@ -4707,3 +4707,33 @@ test) is gone. `.github/workflows/youtube-check.yml` takes its place: every Mond
 videos through dm's own reader, the first kilobyte of each chosen stream asked for as a download
 asks (`youtube_read`, `DM_FETCH_FIRST`), and an issue opened, or added to, when one fails.
 
+
+## 2026-11-09: A small slow file ends with its last range; the seams are still asked one at a time (gaps row 165)
+
+Context: Edge's check of a 3 MB file from a server that holds each connection to 1 MB/s took
+2.07 to 3.07 s on this Windows laptop (debug build) against a 2.8 s limit. Timed in parts, beside
+the browser and in the engine alone (a server paced as the check's): the check's own tab took a
+third of a second before the press, Edge and dm's host 0.4 to 0.9 s from the press to dm's first
+request, the host's question to the app's 0.11 s, and the download itself 0.8 s in the engine and
+1.0 s in the app. Of that 0.8 s, 80 ms or more came after the file was in: the last helping
+connection to finish its range watched a whole window (`HELP_WATCH`) for more work before it
+ended, and the download waited for it.
+
+Decision:
+- A helper's watching ends when the connections with ranges of their own are done (they end only
+  when no range is left to halve, and ranges only shrink), and it is not begun once every byte is
+  in. The engine alone: 0.82 to 0.86 s before, 0.72 to 0.80 s after; the pause between the last
+  range's byte and the checks after it, 65 ms at best of three before and 17 ms after
+  (`a_download_from_a_slow_server_ends_with_its_last_range`, which fails without it).
+- `chrome-check.py` times that file from the press, as its words say ("a person clicks, and
+  watches"), not from before it opens and loads the page. The limit stays 2.8 s: one connection
+  alone takes over 3 s, so it still says the helpers came, with at least four of dm's connections.
+  The check now says where its time went. In the whole QA after both: 1.40 and 1.59 s from the
+  press (1.6 and 1.8 s counted the old way), all 64 rows holding.
+
+Ruled out: asking the seams again all at once (about 35 ms of the 0.8 s): a server that limits
+connections refuses some of them, and a refused seam proves nothing and is let pass, so the check
+would look at fewer seams on exactly the servers that cut connections. Shorter `HELP_AFTER` and
+`HELP_WATCH`: they decide whether a fast server ever sees a helper, and were set by measurement
+(2026-10-26); nothing here says they are wrong. The sync of the finished file (90 ms on this
+laptop's D: drive, 11 ms on C:) is what makes a completed row safe from a power cut.

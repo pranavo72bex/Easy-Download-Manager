@@ -127,6 +127,7 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | One failed range recovers alone | PASS | `a_connection_dropped_mid_range_is_retried` |
 | One connection when ranges are not served | PASS | `a_server_without_ranges_still_produces_the_right_file` |
 | Small files not split | PASS | `MIN_SEGMENT`, `plan.rs` tests |
+| A small file from a server that holds each connection down is fetched on connections that join once the first is seen to be slow, and is done when its last range is: no helper watches on for work after the file is in | PASS | `download.rs` `a_small_file_from_a_slow_server_is_fetched_on_helping_connections`, `a_download_from_a_slow_server_ends_with_its_last_range` (fails without it: 65 ms against 17 ms, best of three); `chrome-check.py` "a small file from a server that holds each connection to 1 MB/s is fetched on helping connections" |
 | Mirrors (Metalink) each carry ranges | PASS | Metalink tests in `download.rs` and `metalink.rs` |
 | Metalink: the document's size is the reference, a stale mirror is dropped; a piece's hash is not the file's | PASS | `tests/metalink.rs`; `metalink.rs` `a_digest_of_one_piece_is_not_taken_for_the_whole_file` |
 | A site's own connection limit (Options › Advanced › Network), by host or suffix, never above the setting | PASS | `limits.rs` `a_site_with_a_limit_of_its_own_is_fetched_on_that_many_connections` (a counting server sees at most the limit); `window.rs` `site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue` |

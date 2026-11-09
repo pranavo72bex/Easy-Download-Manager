@@ -40,6 +40,10 @@ pub(in crate::download) async fn slow_enough_to_help(
     let Some(size) = job.size else {
         return false;
     };
+    // Nothing left to come: not worth a window's watching to find out.
+    if job.downloaded.load(Ordering::Relaxed) >= size {
+        return false;
+    }
     let mut from = (
         tokio::time::Instant::now(),
         job.downloaded.load(Ordering::Relaxed),

@@ -18,20 +18,20 @@ to tell whether it is already done. Builds on this 4-core Windows laptop: `CARGO
 `CARGO_BUILD_JOBS=2`; the full suite takes about 1 h 20 (57 min to build, 10 to 15 silent after "Finished" while
 nextest lists the tests, which is not a hang, 13 to run), the whole QA 20 min.
 
-1. **Row 165, the small-file timing**: measured (the row says where the time goes), then fixed, about 2 h.
-2. **Row 65's proxies**: the maintainer sets reference A's proxy by hand (Downloads › Options ›
+1. **Row 65's proxies**: the maintainer sets reference A's proxy by hand (Downloads › Options ›
    Proxy / Socks, 5 min), then a comparison like `D:\compare\killresume2.mjs`, about 30 min. The
    second-look and parts-join comparison is not run (its harness was stopped by the session's
    safety check on 2026-11-08): left unless the maintainer asks for it another way.
-3. **For the Mac laptop, row 164**: JavaScriptCore on macOS and Linux, about 2 to 3 h there.
-4. **Once the branch is merged to `main`** (the maintainer's call): run
+2. **For the Mac laptop, row 164**: JavaScriptCore on macOS and Linux, about 2 to 3 h there.
+3. **Once the branch is merged to `main`** (the maintainer's call): run
    `.github/workflows/youtube-check.yml` by hand once and see it green (row 162), 10 min.
-5. **With the maintainer, last**: row 152 (the 68 sites of `docs/site-list.md` beside reference A,
+4. **With the maintainer, last**: row 152 (the 68 sites of `docs/site-list.md` beside reference A,
    4 to 6 h), rows 63, 71, 75, 110 and 122 (signed in), 60 (dialogs dragged by hand), 66 (the
    maintainer's look), 72f, 142, and 163 (GitGuardian's dashboard).
 
-In all: about 3 to 5 h of work that needs no one, then the sessions with the maintainer.
-Pushed in this session (2026-11-08): 4ce1702 (a part typed kept; real HLS, DASH and MP4 parts),
+In all: about 3 h of work that needs no one (row 164 on the Mac), then the sessions with the maintainer.
+Pushed on 2026-11-09: 8984c83 (a crash costs a third of what it did), and row 165 (a small slow file
+ends with its last range). Pushed on 2026-11-08: 4ce1702 (a part typed kept; real HLS, DASH and MP4 parts),
 7b4cd35 (YouTube answered as reference A answers it, nothing fetched), 21ae9f3 (proxy scripts in
 Windows' own engine; speed and time left beside reference A).
 
@@ -264,7 +264,6 @@ little memory dm takes is row 137.
 
 | 164 | **The computer's own JavaScript engine on macOS and Linux** (2026-11-08). On Windows, YouTube's checks and a proxy script (`pac::evaluate_here`, since 2026-11-08) run in Windows' own Chakra (`javascript.rs`), nothing fetched. Elsewhere `javascript::run` still takes an installed Deno or QuickJS, and fetches QuickJS from GitHub when neither is there, as a proxy script's engine does. To do as reference A does there too (it runs proxy scripts in Windows' JScript): macOS, JavaScriptCore (`JavaScriptCore.framework`, part of macOS: `JSGlobalContextCreate`, `JSEvaluateScript`, `JSValueToStringCopy`, a time limit by `JSContextGroupSetExecutionTimeLimit`); Linux, WebKitGTK's JavaScriptCore where it is installed (`libjavascriptcoregtk-4.1`, `-6.0`), else Deno or QuickJS; and `javascript::system_engine_here` true there, which takes a proxy script to it | OPEN (the Mac laptop) | A `macos` engine in `javascript.rs` beside `chakra`, with the same tests (a call's value, an error's words, stopped at its time, no `eval`, nothing of the computer in reach), which `pac::evaluate_here` then uses (its prelude has no `async function*`, which JavaScriptCore reads but Chakra does not); `tools.rs` fetching QuickJS only where the system has no engine and none is installed; `human-qa.py` B35/B36 on a fresh home with GitHub unreachable |
 
-| 165 | **A small file from a slow server takes longer on Windows than when its check was set** (found 2026-11-08). `chrome-check.py`'s "a small file from a server that holds each connection to 1 MB/s is fetched on helping connections" (3 MB; helpers join 100 ms in, `download/ranged.rs`) wants it whole within 2.8 s of the click; it took about 1.2 s in Edge when set (2026-10-26, CHANGELOG). In today's `human-qa.py` runs on Windows (debug build, this 4-core machine) it took 2.07, 2.59, 2.81 and 3.07 s, on 9 to 11 connections, so B36 holds or not by tens of milliseconds; the hand-off before it (the doorbell check) took 0.7 to 1.1 s of that. Not from the day's changes (no proxy script or YouTube reader is on that path; the suite passes) | OPEN | Time the parts of the 3 s on Windows (the click to the hand-off, the first request, the helpers' start, the ranges' last-byte checks, the sync before completion), in the release build and the debug one; make dm as quick as it was, or set the limit from what a release build takes here |
 | 163 | **The pull request's GitGuardian check fails on two made-up test passwords in its history.** GitGuardian scans every commit of pull request #33 (202 of them) and found `s3cret` and `p4ss`, the settings tests' logins of 2026-11-01 (commit 62baeca, `dm-shell/src/settings/tests.rs`), replaced by secrets made up for each run (`desktop/test-support/secrets.rs`) on 2026-11-04: nothing like them is in the tree now. Rewriting the branch's history would break the other laptop's work, so it is left. Checked again on 2026-11-08: gitleaks 8.21.2 over the whole history (749 commits, every branch) finds no leak, and GitGuardian's check still names only these two (219 commits of the pull request). Neither the check's Skip action nor its incidents can be reached from a script: GitHub runs a check's actions only from a person's click, and the incidents are in GitGuardian's dashboard; its server-side check reads no file of the repository's to ignore a match | OPEN: the maintainer | In GitGuardian's dashboard, resolve incidents 39386940 and 39386941 as test credentials (or Skip on the pull request's GitGuardian check); the check passes on the next push |
 | 166 | **The UI-independent architecture (branch `ui-independent-architecture`).** Every step of `docs/architecture/audit.md` section 7 is done (1 to 13 on 2026-11-08, Phase 6 measured and 14 to 16 on 2026-11-09; `docs/architecture/ARCHITECTURE.md`). The maintainer, 2026-11-09: "resolve merge conflict which is coming from windows laptop into base branch. keep both as both is needed. we will do final test in parity-with-reference-a (base branch)". So parity's head (8984c83) was merged into this branch, both sides kept (27dcb9a: the B59 rule moved into `handoff::Hands::next`; both decisions; this row renumbered from 164), and the four tests that kept parity's Desktop CI red were fixed on it (`write_private` flushed; the no-engine YouTube test's stand-in; the screenshot checked where there is a GPU; the drop target read once the size is known) | OPEN: the maintainer's final test | The branch's Desktop CI green on Windows, Linux and macOS; then this branch merged into `parity-with-reference-a` (a fast-forward while parity has not moved; else merge parity in again, as above), and the final test there by the maintainer: `cargo test --workspace`, `python3 scripts/human-qa.py` in a visible window, CI |
 
