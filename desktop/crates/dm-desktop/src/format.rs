@@ -101,20 +101,9 @@ pub fn span(time: Duration) -> String {
     }
 }
 
-/// Where a URL came from, which is the second thing anybody wants to know
-/// about a download. A magnet has no host — it is a swarm, not a server.
-pub fn host(url: &str) -> String {
-    if url.starts_with("magnet:") {
-        return "torrent".into();
-    }
-    url::Url::parse(url)
-        .ok()
-        .and_then(|u| {
-            u.host_str()
-                .map(|h| h.trim_start_matches("www.").to_string())
-        })
-        .unwrap_or_default()
-}
+/// Where a URL came from, and what to call a row the probe has not
+/// reached yet: the application's (`dm_shell::app::names`).
+pub use dm_shell::app::names::{host, provisional};
 
 /// An address as the window shows it: without a password in it.
 ///
@@ -134,52 +123,6 @@ pub fn copyable_url(url: &str) -> String {
 }
 
 pub use dm_shell::lists::shown_url;
-
-/// What to call a row the probe has not reached yet: the last path segment,
-/// which is the engine's own fallback, or a magnet's `dn`.
-pub fn provisional(url: &str) -> String {
-    let Ok(parsed) = url::Url::parse(url) else {
-        return url.to_string();
-    };
-    if parsed.scheme() == "magnet" {
-        return parsed
-            .query_pairs()
-            .find(|(k, _)| k == "dn")
-            .map(|(_, v)| v.into_owned())
-            .unwrap_or_else(|| "Magnet link".into());
-    }
-    let last = parsed
-        .path_segments()
-        .and_then(|mut s| s.next_back().map(str::to_owned))
-        .unwrap_or_default();
-    let last = percent_decode(&last);
-    if last.is_empty() {
-        return host(url);
-    }
-    // A page made by a script, named by its query (`watch?v=…`), is shown
-    // by its short address until it is named: a failed YouTube video's row
-    // said only "watch".
-    match parsed.query().filter(|q| !q.is_empty()) {
-        Some(query) if !last.contains('.') => {
-            let host = parsed.host_str().unwrap_or_default();
-            let host = host.strip_prefix("www.").unwrap_or(host);
-            let path = parsed.path().trim_start_matches('/');
-            let shown = format!("{host}/{path}?{query}");
-            match shown.char_indices().nth(60) {
-                Some((at, _)) => format!("{}…", &shown[..at]),
-                None => shown,
-            }
-        }
-        _ => last,
-    }
-}
-
-fn percent_decode(text: &str) -> String {
-    url::form_urlencoded::parse(format!("x={}", text.replace('+', "%2B")).as_bytes())
-        .next()
-        .map(|(_, v)| v.into_owned())
-        .unwrap_or_else(|| text.to_string())
-}
 
 /// The months as a date in the list says them, in English; each goes
 /// through the catalogs.

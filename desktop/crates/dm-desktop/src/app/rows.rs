@@ -38,28 +38,9 @@ pub(super) fn haystack_named(name: &str, row: &Entry) -> String {
     format!("{name} {} {}", row.url, row.description).to_lowercase()
 }
 
-/// The name a row is shown by: the file's, or a guess at it until the
-/// server says.
-pub fn name_of(row: &Entry) -> String {
-    if !row.filename.is_empty() {
-        return row.filename.clone();
-    }
-    // The name chosen in Download details, until the file is saved under
-    // it: a row added for later showed its address's name.
-    match row.save_name.as_deref().map(str::trim) {
-        Some(chosen) if !chosen.is_empty() => chosen.to_string(),
-        _ => format::provisional(&row.url),
-    }
-}
-
-/// A row's kind: what its name says, else what dm learned from the server.
-/// Queued rows had none, so Videos listed one of a hundred queued videos
-/// and their icons were blank; and with what the server said
-/// first, a file renamed to "report (1).pdf" stayed under Other.
-/// One named "get.php" is still known by what the server sent.
-pub fn kind_of(row: &Entry) -> Option<Category> {
-    dm_core::by_name(&name_of(row)).or(row.category)
-}
+/// The name a row is shown by, and its kind: the application's
+/// (`dm_shell::app::names`).
+pub use dm_shell::app::names::{kind_of, name_of};
 
 /// Why a row paused by itself, in plain words: a full disk names its
 /// folder, as a failed one does.

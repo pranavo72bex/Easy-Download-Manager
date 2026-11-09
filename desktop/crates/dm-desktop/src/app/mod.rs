@@ -263,24 +263,8 @@ pub fn drop_hint() -> &'static str {
     DROP_HINT
 }
 
-/// The clipboard watcher's memory: offered once, never again once dismissed,
-/// and nothing offered for what was copied before it was turned on.
-#[derive(Default)]
-pub struct Clipboard {
-    /// Whether the watch is on.
-    pub on: bool,
-    /// The last text seen on the clipboard.
-    pub last: Option<String>,
-    /// The address now offered to the person, if any.
-    pub offered: Option<String>,
-    /// Every link offered, when the clipboard holds several and nothing
-    /// else: only the first was offered and the rest dropped.
-    pub offered_all: Vec<String>,
-    /// The addresses the person turned away.
-    pub dismissed: HashSet<String>,
-    /// When the clipboard was last read.
-    pub polled: Option<Instant>,
-}
+/// The clipboard watcher's memory: the application's (`dm_shell::app::links`).
+pub use dm_shell::app::links::Clipboard;
 
 /// The rows the table shows, shared between frames and with the queue.
 pub type SharedRows = std::rc::Rc<Vec<Arc<Entry>>>;

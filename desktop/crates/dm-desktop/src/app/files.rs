@@ -36,22 +36,15 @@ impl DmApp {
     /// opener's does. Nothing in it is opened or run.
     pub fn extract_zip(&mut self, path: &str, url: &str, into: Option<std::path::PathBuf>) {
         let said = Arc::clone(&self.opener_said);
-        let (path, url) = (std::path::PathBuf::from(path), url.to_string());
         self.said = crate::i18n::t("Extracting…").into();
-        let spawned = std::thread::Builder::new()
-            .name("dm-extract".into())
-            .spawn(move || {
-                let cancel = std::sync::atomic::AtomicBool::new(false);
-                let origin = (!url.is_empty()).then_some(url.as_str());
-                let limits = dm_core::extract::Limits::default();
-                let answer = match dm_core::extract::extract_in(
-                    &path,
-                    into.as_deref(),
-                    &limits,
-                    &cancel,
-                    origin,
-                    &|_, _| {},
-                ) {
+        // Done off the window's thread by the application; only the words
+        // are the window's.
+        let started = dm_shell::app::files::extract_later(
+            std::path::PathBuf::from(path),
+            url.to_string(),
+            into,
+            move |answer| {
+                let answer = match answer {
                     Ok(done) => format!(
                         "Extracted {} {} to {}",
                         done.files,
@@ -61,8 +54,9 @@ impl DmApp {
                     Err(e) => format!("Not extracted: {e}"),
                 };
                 *dm_core::lock(&said) = Some(answer);
-            });
-        if let Err(e) = spawned {
+            },
+        );
+        if let Err(e) = started {
             self.said = format!("Not extracted: {e}").into();
         }
     }
@@ -78,12 +72,6 @@ impl DmApp {
     /// it next opens.
     pub fn schedule_holds(&self) -> Option<Option<String>> {
         let schedule = &self.applied.schedule;
-        if !schedule.enabled || schedule.open() {
-            return None;
-        }
-        let waiting = self.rows.iter().any(|r| {
-            r.state == State::Queued || (r.state == State::Paused && r.paused_by_schedule)
-        });
-        waiting.then(|| opens_next(schedule))
+        dm_shell::app::schedule::holds_waiting(schedule, &self.rows).then(|| opens_next(schedule))
     }
 }

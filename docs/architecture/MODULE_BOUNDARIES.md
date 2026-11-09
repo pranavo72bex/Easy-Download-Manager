@@ -27,6 +27,10 @@ A future GPUI crate takes `dm-desktop`'s place: `dm-core`, `dm-protocol` and
 | `snapshot` | `Snapshot`: the rows (shared) and what each row's line says beside its state | copying rows, being read per frame |
 | `rules` | decisions about rows used in more than one place (`go_on`) | wording: each presentation says what was decided its own way |
 | `commands` | the registry: every `Command`, its stable name and English label, its keys as `Chord`s, which apply to the rows chosen (`applies`, with what only the presentation sees behind `Looks`), and the commands that are the application's alone (`verb`, `when_done`, `limited`, `recheck`) | a command's words in the language in force, a toolkit's key type, opening a dialog |
+| `names` | what a row is called until the server names it, its kind, the folder it is bound for and the free name it will get there | writing any of it into the row |
+| `import` | how much of a list is listed already, the rows an import adds, the lines with no link | reading the file, the question asked about what is listed |
+| `files` | a finished ZIP extracted off the presentation's thread | the system's openers (`Platform`'s) |
+| `links` | links in text and files, the clipboard watch's memory and what it offers | reading the system's clipboard |
 
 What belongs in `dm_shell::app`: a command's rules and validation, state a
 presentation draws from, the changes it is told of, scheduling, settings

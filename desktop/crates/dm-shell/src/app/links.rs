@@ -240,6 +240,96 @@ pub fn links_in_file(kind: Option<&str>, text: &str) -> Vec<String> {
     links_in(text)
 }
 
+/// The clipboard watch's memory: offered once, never again once dismissed,
+/// and nothing offered for what was copied before it was turned on. A
+/// presentation reads the system's clipboard and hands the text over; what
+/// to offer is decided here.
+#[derive(Debug, Default)]
+pub struct Clipboard {
+    /// Whether the watch is on.
+    pub on: bool,
+    /// The last text seen on the clipboard.
+    pub last: Option<String>,
+    /// The address now offered to the person, if any.
+    pub offered: Option<String>,
+    /// Every link offered, when the clipboard holds several and nothing
+    /// else: only the first was offered and the rest dropped.
+    pub offered_all: Vec<String>,
+    /// The addresses the person turned away.
+    pub dismissed: std::collections::HashSet<String>,
+    /// When the clipboard was last read.
+    pub polled: Option<std::time::Instant>,
+}
+
+/// What one look at the clipboard found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Looked {
+    /// Nothing new: the watch is off, or the text is what it was.
+    Nothing,
+    /// Links to take at once, where the person asked for that ("start
+    /// copied"): one link's Download details, or the list of several, with
+    /// no offer first. They count as dismissed, so are not offered again.
+    Take(Vec<String>),
+    /// Offered (`offered`, `offered_all`), or the offer withdrawn where the
+    /// new text holds no link.
+    Offered,
+}
+
+impl Clipboard {
+    /// Turns the watch on or off. Turned on, it is seeded with what the
+    /// clipboard holds now (`now`), so a link copied long ago for another
+    /// reason is not offered; turned off, nothing stays offered.
+    pub fn turn(&mut self, on: bool, now: impl FnOnce() -> Option<String>) {
+        self.on = on;
+        if !on {
+            self.offered = None;
+            self.offered_all.clear();
+            return;
+        }
+        self.last = now();
+        self.polled = Some(std::time::Instant::now());
+    }
+
+    /// One look at the clipboard's `text`, with the list as it stands
+    /// (`rows`: an address already a row is not offered) and whether copied
+    /// links start at once (`start_copied`).
+    pub fn look(
+        &mut self,
+        text: Option<String>,
+        rows: &[std::sync::Arc<dm_core::Entry>],
+        start_copied: bool,
+    ) -> Looked {
+        if !self.on {
+            return Looked::Nothing;
+        }
+        self.polled = Some(std::time::Instant::now());
+        if text == self.last {
+            return Looked::Nothing;
+        }
+        self.last.clone_from(&text);
+        let links = clipboard_offer(text.as_deref(), &self.dismissed, rows);
+        if start_copied && !links.is_empty() {
+            self.dismissed.extend(links.iter().cloned());
+            self.offered = None;
+            self.offered_all.clear();
+            return Looked::Take(links);
+        }
+        self.offered = links.first().cloned();
+        self.offered_all = links;
+        Looked::Offered
+    }
+
+    /// The person turned the offer away (or took it): nothing is offered,
+    /// and none of what was offered is offered again.
+    pub fn dismiss_all(&mut self) {
+        self.dismissed.extend(self.offered_all.iter().cloned());
+        if let Some(url) = self.offered.take() {
+            self.dismissed.insert(url);
+        }
+        self.offered_all.clear();
+    }
+}
+
 /// What the clipboard offers to download: text that is links and nothing
 /// else, one or several (each once), or else the one link a text starts with;
 /// a sentence with a link in it is not an offer. A link the person dismissed,
@@ -264,5 +354,44 @@ pub fn clipboard_offer(
             .filter(fresh)
             .into_iter()
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod clipboard_tests {
+    use super::*;
+
+    #[test]
+    fn the_watch_offers_what_is_new_once_and_nothing_copied_before() {
+        let mut watch = Clipboard::default();
+        assert_eq!(
+            watch.look(Some("https://e.com/a.zip".into()), &[], false),
+            Looked::Nothing
+        );
+        // Seeded with what was there when it was turned on.
+        watch.turn(true, || Some("https://e.com/old.zip".into()));
+        assert_eq!(
+            watch.look(Some("https://e.com/old.zip".into()), &[], false),
+            Looked::Nothing
+        );
+        assert_eq!(
+            watch.look(Some("https://e.com/a.zip".into()), &[], false),
+            Looked::Offered
+        );
+        assert_eq!(watch.offered.as_deref(), Some("https://e.com/a.zip"));
+        watch.dismiss_all();
+        assert_eq!(watch.offered, None);
+        // Copied again after something else: dismissed, so not offered.
+        watch.look(Some("words".into()), &[], false);
+        watch.look(Some("https://e.com/a.zip".into()), &[], false);
+        assert_eq!(watch.offered, None);
+        // Taken at once where copied links start themselves.
+        assert_eq!(
+            watch.look(Some("https://e.com/b.zip".into()), &[], true),
+            Looked::Take(vec!["https://e.com/b.zip".into()])
+        );
+        assert!(watch.dismissed.contains("https://e.com/b.zip"));
+        watch.turn(false, || None);
+        assert!(!watch.on && watch.offered.is_none());
     }
 }

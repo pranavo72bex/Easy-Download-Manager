@@ -30,16 +30,12 @@ impl DmApp {
                 return Err(self.said.shown());
             }
         };
-        let listed = Backend::listed(&text);
-        let already = listed
-            .iter()
-            .filter(|url| crate::dialogs::already_listed(self, url).is_some())
-            .count();
+        let (already, total) = dm_shell::app::import::already_listed(&self.rows, &text);
         if already > 0 {
             self.dialogs.import_ask = Some(crate::dialogs::ImportAsk {
                 text,
                 already,
-                total: listed.len(),
+                total,
             });
             return Ok(());
         }
@@ -50,37 +46,13 @@ impl DmApp {
     /// Adds the downloads a list holds; `skip_listed`, not those whose
     /// address is already a row.
     pub fn import_text(&mut self, text: &str, skip_listed: bool) {
-        let before: HashSet<Id> = self.backend.list().iter().map(|r| r.id).collect();
-        let listed: HashSet<String> = if skip_listed {
-            Backend::listed(text)
-                .into_iter()
-                .filter(|url| crate::dialogs::already_listed(self, url).is_some())
-                .collect()
-        } else {
-            HashSet::new()
-        };
-        let added = self.backend.import_where(text, |url| !listed.contains(url));
+        // What is added, skipped and unread is the application's.
+        let done = dm_shell::app::import::import(&self.backend, &self.rows, text, skip_listed);
         // A list is not a run of progress windows.
-        for id in self
-            .backend
-            .list()
-            .iter()
-            .map(|r| r.id)
-            .filter(|id| !before.contains(id))
-        {
+        for id in done.new {
             self.session.own(id);
         }
-        // Lines of a plain list with no address dm can read are said, not
-        // passed over: "127.0.0.1:8000/notes.txt" went without a word.
-        let unread = if text.trim_start().starts_with('{') {
-            0
-        } else {
-            text.lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty() && !l.starts_with('#'))
-                .filter(|l| !l.contains("://") && !l.to_ascii_lowercase().contains("magnet:?"))
-                .count()
-        };
+        let (added, unread) = (done.added, done.unread);
         self.said = if unread > 0 {
             crate::i18n::Said::naming(
                 "Imported {}. Skipped {} lines with no link in them (a link starts with http://, https://, ftp:// or magnet:).",

@@ -135,6 +135,17 @@ pub fn work_left(rows: &[Arc<Entry>]) -> bool {
     })
 }
 
+/// Whether `schedule` is closed with downloads waiting on it: queued, or
+/// paused by it (what runs now is not waiting). A presentation says when
+/// it next opens.
+pub fn holds_waiting(schedule: &dm_core::Schedule, rows: &[Arc<Entry>]) -> bool {
+    schedule.enabled
+        && !schedule.open()
+        && rows
+            .iter()
+            .any(|r| r.state == State::Queued || (r.state == State::Paused && r.paused_by_schedule))
+}
+
 /// The rows a schedule looks after: with `Some(queue)`, that queue's own
 /// schedule's (its rows); with `None`, the one for every queue's (the rows of
 /// every queue that has no schedule of its own).
@@ -155,6 +166,40 @@ pub fn looked_after(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn waiting(state: State, held: bool) -> Arc<Entry> {
+        Arc::new(
+            serde_json::from_value(serde_json::json!({
+                "id": 1,
+                "url": "https://e.com/a",
+                "state": serde_json::to_value(state).unwrap(),
+                "paused_by_schedule": held,
+                "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
+                "filename": "a",
+            }))
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn a_closed_schedule_holds_what_waits_on_it_and_not_what_runs() {
+        // No day ticked: never open.
+        let closed = dm_core::Schedule {
+            enabled: true,
+            days: Vec::new(),
+            ..dm_core::Schedule::default()
+        };
+        assert!(!closed.open());
+        assert!(holds_waiting(&closed, &[waiting(State::Queued, false)]));
+        assert!(holds_waiting(&closed, &[waiting(State::Paused, true)]));
+        assert!(!holds_waiting(&closed, &[waiting(State::Paused, false)]));
+        assert!(!holds_waiting(&closed, &[waiting(State::Running, false)]));
+        let off = dm_core::Schedule {
+            enabled: false,
+            ..closed
+        };
+        assert!(!holds_waiting(&off, &[waiting(State::Queued, false)]));
+    }
 
     #[test]
     fn the_window_opening_and_closing_is_seen_once_each() {
