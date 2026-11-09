@@ -105,13 +105,21 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   forbids every name in `GUI` (add it to the `crates` list and to the `match` with
   `may = dm-core, dm-protocol, dm-shell`, `no_gui = true`, sockets allowed). Move one module per
   commit, leaving `pub use dm_desktop_base::<module>` at the old path in `dm-desktop/src/lib.rs`
-  so no caller or test changes: in this order (fewest dependents first) `region`, `quiet`,
-  `awake`, `wake`, `autostart`, `power`, `format` (the parts with no `egui` in them; keep any
-  egui-typed helper behind in dm-desktop), `details`, `i18n` (all but `pick`, which draws),
-  then the `Desktop` Platform from `platform.rs` (all but `drag_out`, which needs the window's
-  handle: leave it as a method the window supplies), `cli`, `mcp`, and `control` (the server,
-  the token and the dispatch; the `ui.*` answers stay in dm-desktop behind a trait the window
-  implements, which is G4). Before moving a module: `grep -n "egui\|eframe\|winit" <file>`
+  so no caller or test changes. Surveyed 2026-11-09 (`grep -cE "egui|eframe|winit"`, and
+  the `crate::` modules each uses), in this order:
+  1. no egui and no dm-desktop module used: `quiet` (210 lines), `awake` (90), `wake` (68),
+     `autostart` (687), `power` (391), `toast` (210), `control` (577; its `ui.*` dispatch
+     reaches the window through a callback today: keep that seam, G4 makes it a trait);
+  2. no egui, using only modules already moved: `region` (201, uses `autostart`), `mcp`
+     (609), then `cli` (416, uses `mcp`);
+  3. egui in a few places, split first (the egui-typed helpers stay in dm-desktop):
+     `format` (774, 6 mentions; uses `i18n`'s `i` and `region`), then `details` (356, uses
+     `format`), `i18n` (602, 3 mentions; `pick` draws and stays; it uses `dialogs` and `theme`,
+     which must be cut to a value passed in), and `platform.rs`'s `Desktop` (400, 5 mentions;
+     `drag_out` needs the window's handle and stays as a method the window supplies).
+  Each module brings its own crates (target-specific ones too, for example the `windows`
+  and `objc2` families): move those lines from dm-desktop's `Cargo.toml` with it, and run
+  `cargo xtask layers` after each move. Before moving a module: `grep -n "egui\|eframe\|winit" <file>`
   must be empty, or the egui part is split off first. Update `MODULE_BOUNDARIES.md` and
   `ARCHITECTURE.md`'s crate diagram in the last commit.
 - **G3, rules into `dm_shell::app`: after G2.** The list, with files, is
