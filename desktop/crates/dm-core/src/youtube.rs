@@ -588,13 +588,100 @@ struct Format {
     bitrate: u64,
     size: Option<u64>,
     fps: u64,
-    /// A sound track that is not the video's own (a dub), or a loudness
-    /// variant: never chosen, kept in the list.
+    /// A sound track that is not the video's own (a dub, set by
+    /// `set_dubs_aside`), or a loudness or voice-boosted variant: never
+    /// chosen, kept in the list.
     secondary: bool,
+    /// Which of the video's sound tracks this is, where it has more than one.
+    voice: Voice,
     /// Where the stream's first boxes and its index of pieces are
     /// (`initRange`, `indexRange`), for cutting a part of it (`clip`).
     init: Option<(u64, u64)>,
     index: Option<(u64, u64)>,
+}
+
+/// Which of a video's sound tracks a stream is. A video made in one
+/// language and dubbed into others lists a track per language; which one the
+/// player API marks as the one to play (`audioIsDefault`) follows the
+/// language dm asks in (English), so a Spanish video's English dub is marked
+/// over its own Spanish (issue #32). The address names each track's part
+/// (`xtags`: `acont=original`, `dubbed`, `dubbed-auto`, `descriptive`) and
+/// the original's track id ends `.4`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Voice {
+    /// No track named: the video's one sound, or a picture.
+    Only,
+    /// The language the video was made in.
+    Original,
+    /// Not named the original, but the one the player would play.
+    Default,
+    /// Any other: a dub, an automatic dub, a described track.
+    Other,
+}
+
+impl Voice {
+    fn of(f: &Value, acont: Option<&str>) -> Voice {
+        let default = f
+            .pointer("/audioTrack/audioIsDefault")
+            .and_then(Value::as_bool);
+        let original_id = f
+            .pointer("/audioTrack/id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.ends_with(".4"));
+        match acont {
+            Some("original") => Voice::Original,
+            Some(_) if default == Some(true) => Voice::Default,
+            Some(_) => Voice::Other,
+            None if f.get("audioTrack").is_none() => Voice::Only,
+            None if original_id => Voice::Original,
+            None if default != Some(false) => Voice::Default,
+            None => Voice::Other,
+        }
+    }
+}
+
+/// Sets every sound track but the video's own aside: the original where one
+/// is named, else the one the player would play. Where that would leave no
+/// sound at all, nothing is set aside.
+fn set_dubs_aside(formats: &mut [Format]) {
+    let named_original = formats.iter().any(|f| f.voice == Voice::Original);
+    let own = |voice: Voice| match voice {
+        Voice::Only | Voice::Original => true,
+        Voice::Default => !named_original,
+        Voice::Other => false,
+    };
+    let sound_left = formats
+        .iter()
+        .any(|f| !f.video && !f.secondary && own(f.voice));
+    if !sound_left {
+        return;
+    }
+    for f in formats.iter_mut().filter(|f| !own(f.voice)) {
+        f.secondary = true;
+    }
+}
+
+/// The stream's `xtags` (`acont=original:lang=es:vb=1`) as pairs, from its
+/// address or from the address inside the cipher it is locked behind.
+fn xtags(url: Option<&str>, cipher: Option<&str>) -> Vec<(String, String)> {
+    let inside_cipher = || {
+        url::form_urlencoded::parse(cipher?.as_bytes())
+            .find(|(k, _)| k == "url")
+            .map(|(_, v)| v.into_owned())
+    };
+    let Some(address) = url.map(str::to_string).or_else(inside_cipher) else {
+        return Vec::new();
+    };
+    let Ok(parsed) = url::Url::parse(&address) else {
+        return Vec::new();
+    };
+    let Some((_, tags)) = parsed.query_pairs().find(|(k, _)| k == "xtags") else {
+        return Vec::new();
+    };
+    tags.split(':')
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
 }
 
 impl Format {
@@ -632,11 +719,15 @@ impl Format {
         if url.is_none() && cipher.is_none() {
             return None;
         }
-        let dubbed = f
-            .pointer("/audioTrack/audioIsDefault")
-            .and_then(Value::as_bool)
-            .is_some_and(|default| !default);
-        let drc = f.get("isDrc").and_then(Value::as_bool).unwrap_or(false);
+        let tags = xtags(url.as_deref(), cipher.as_deref());
+        let tag = |key: &str| tags.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str());
+        let voice = Voice::of(f, tag("acont"));
+        // The loudness-evened copy, and the voice-boosted one (`vb=1`), of a
+        // track: the same bitrate as the plain one at times, so taken by
+        // the highest-bitrate pick unless set aside.
+        let drc =
+            f.get("isDrc").and_then(Value::as_bool).unwrap_or(false) || tag("drc") == Some("1");
+        let boosted = tag("vb") == Some("1");
         let range = |key: &str| {
             let r = f.get(key)?;
             let edge = |k: &str| {
@@ -678,7 +769,8 @@ impl Format {
             fps: number("fps")
                 .or_else(|| known.map(|k| u64::from(k.fps)))
                 .unwrap_or(0),
-            secondary: dubbed || drc,
+            secondary: drc || boosted,
+            voice,
             init: range("initRange"),
             index: range("indexRange"),
         })
@@ -1042,6 +1134,7 @@ async fn read_within(
     if muxed {
         formats = streams_at("/streamingData/formats");
     }
+    set_dubs_aside(&mut formats);
     if formats.is_empty() {
         return Err(Error::Internal(
             "the player names no stream dm can fetch".into(),
@@ -1659,6 +1752,129 @@ mod tests {
             r#"{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","url":"https://r1.example/a"}"#,
         );
         assert_eq!((sound.height, sound.fps), (0, 0));
+    }
+
+    /// The sound tracks as the player API gave them for a Spanish video with
+    /// an English automatic dub (2026-11-09): the dub marked as the one to
+    /// play, the original not, and the original in three copies (plain,
+    /// loudness-evened, voice-boosted) at one bitrate.
+    fn dubbed_video(with_xtags: bool) -> Vec<Format> {
+        let sound = |track: &str, name: &str, default: bool, tags: &str, extra: &str| {
+            let address = if with_xtags {
+                format!(
+                    "https://r1.example/a?itag=140&xtags={}",
+                    tags.replace(':', "%3A").replace('=', "%3D")
+                )
+            } else {
+                format!(
+                    "https://r1.example/a?itag=140&t={}",
+                    tags.replace([':', '='], "-")
+                )
+            };
+            format!(
+                r#"{{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":129483,"audioTrack":{{"id":"{track}","displayName":"{name}","audioIsDefault":{default}}}{extra},"url":"{address}"}}"#
+            )
+        };
+        let mut formats: Vec<Format> = [
+            r#"{"itag":137,"mimeType":"video/mp4; codecs=\"avc1.640028\"","width":1920,"height":1080,"bitrate":4000000,"url":"https://r1.example/v?itag=137"}"#.to_string(),
+            sound("en-US.10", "English (US)", true, "acont=dubbed-auto:lang=en-US", ""),
+            sound("es-US.4", "Spanish (US) original", false, "acont=original:drc=1:lang=es-US", r#","isDrc":true"#),
+            sound("es-US.4", "Spanish (US) original", false, "acont=original:lang=es-US", ""),
+            sound("es-US.4", "Spanish (US) original", false, "acont=original:lang=es-US:vb=1", ""),
+        ]
+        .iter()
+        .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
+        .collect();
+        set_dubs_aside(&mut formats);
+        formats
+    }
+
+    fn sound_chosen(formats: &[Format], quality: Quality) -> String {
+        choose(formats, quality, None, None)
+            .unwrap()
+            .into_iter()
+            .find(|f| !f.video)
+            .and_then(|f| f.url)
+            .unwrap()
+    }
+
+    #[test]
+    fn a_dubbed_videos_own_language_is_chosen_not_the_dub_marked_to_play() {
+        let formats = dubbed_video(true);
+        for quality in [Quality::Best, Quality::UpTo(1080), Quality::Audio] {
+            let chosen = sound_chosen(&formats, quality);
+            assert!(
+                chosen.contains("acont%3Doriginal%3Alang%3Des-US") && !chosen.contains("vb%3D1"),
+                "{quality:?}: {chosen}"
+            );
+        }
+    }
+
+    #[test]
+    fn without_xtags_the_track_id_names_the_original() {
+        let formats = dubbed_video(false);
+        assert_eq!(
+            formats.iter().filter(|f| !f.video && !f.secondary).count(),
+            2,
+            "the dub is set aside, the original's two copies kept (only the address named the boosted one)"
+        );
+        assert!(sound_chosen(&formats, Quality::Audio).contains("lang-es-US"));
+        assert!(!sound_chosen(&formats, Quality::Audio).contains("dubbed"));
+    }
+
+    #[test]
+    fn where_no_original_is_named_the_track_marked_to_play_is_the_videos_own() {
+        let mut formats: Vec<Format> = [
+            r#"{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":130000,"audioTrack":{"id":"de.3","audioIsDefault":false},"url":"https://r1.example/a?d=de"}"#,
+            r#"{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":120000,"audioTrack":{"id":"en.3","audioIsDefault":true},"url":"https://r1.example/a?d=en"}"#,
+        ]
+        .iter()
+        .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
+        .collect();
+        set_dubs_aside(&mut formats);
+        assert_eq!(
+            sound_chosen(&formats, Quality::Audio),
+            "https://r1.example/a?d=en"
+        );
+    }
+
+    #[test]
+    fn tracks_none_of_which_is_the_videos_own_are_all_kept() {
+        let mut formats: Vec<Format> = [
+            r#"{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":130000,"audioTrack":{"id":"de.3","audioIsDefault":false},"url":"https://r1.example/a?d=de"}"#,
+            r#"{"itag":251,"mimeType":"audio/webm; codecs=\"opus\"","averageBitrate":120000,"audioTrack":{"id":"fr.3","audioIsDefault":false},"url":"https://r1.example/a?d=fr"}"#,
+        ]
+        .iter()
+        .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
+        .collect();
+        set_dubs_aside(&mut formats);
+        assert!(
+            formats.iter().all(|f| !f.secondary),
+            "a video is not left without sound"
+        );
+    }
+
+    #[test]
+    fn xtags_are_read_from_the_address_or_from_inside_its_cipher() {
+        let pairs = |v: &[(&str, &str)]| {
+            v.iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            xtags(
+                Some("https://r1.example/a?xtags=acont%3Doriginal%3Alang%3Des%3Avb%3D1&n=x"),
+                None
+            ),
+            pairs(&[("acont", "original"), ("lang", "es"), ("vb", "1")])
+        );
+        let cipher = "s=abc&sp=sig&url=https%3A%2F%2Fr1.example%2Fa%3Fxtags%3Dacont%253Ddubbed%253Alang%253Den";
+        assert_eq!(
+            xtags(None, Some(cipher)),
+            pairs(&[("acont", "dubbed"), ("lang", "en")])
+        );
+        assert!(xtags(Some("https://r1.example/a?itag=140"), None).is_empty());
+        assert!(xtags(None, None).is_empty());
     }
 
     #[test]

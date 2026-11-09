@@ -103,8 +103,19 @@ async fn main() {
                     None => vec![&value],
                 };
                 for chosen in chosen {
+                    // The address's `xtags` where it has them: which sound track
+                    // (`acont=original:lang=es`) a dubbed video gave.
+                    let tags = chosen["url"]
+                        .as_str()
+                        .and_then(|u| url::Url::parse(u).ok())
+                        .and_then(|u| {
+                            u.query_pairs()
+                                .find(|(k, _)| k == "xtags")
+                                .map(|(_, v)| format!(" {v}"))
+                        })
+                        .unwrap_or_default();
                     println!(
-                        "CHOSE {} {} {}",
+                        "CHOSE {} {} {}{tags}",
                         chosen["vcodec"].as_str().unwrap_or(""),
                         chosen["acodec"].as_str().unwrap_or(""),
                         chosen["height"]
