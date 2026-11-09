@@ -66,7 +66,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
 - **Branch `gpui-migration`**, not `main`: `git switch gpui-migration`. `main` receives it only
   by fast-forward after the full gate below, at the end of a phase.
 - **Read first**, in this order: `docs/migration/GPUI_MIGRATION_PLAN.md` (phases, the decisions
-  D1 to D5 and the recommended option for each), `docs/migration/CURRENT_UI_ARCHITECTURE.md`
+  D1 to D5 and the recommended option for each), `docs/migration/GPUI_UI_ARCHITECTURE.md` (the
+  design every step builds towards: crates, tick, state, views, `WindowProbe`),
+  `docs/migration/GPUI_TEST_PLAN.md` (the gate and what each row adds to it),
+  `docs/migration/CURRENT_UI_ARCHITECTURE.md`
   (sections 3.3 the real tick order, 4.2 the rules still in `DmApp`, 5.2 the control port,
   8 what a GPUI window must provide, 9 docs against code), then for the step at hand
   `EGUI_FEATURE_INVENTORY.md`, `PLATFORM_GAP_ANALYSIS.md`, `GPUI_DEPENDENCY_DECISION.md`, and
@@ -78,9 +81,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
 - **The gate, after every step that touches `desktop/`, `browser/` or `extension/`**, before
   its commit (all four, in this order; report every row they print):
   1. `cd desktop && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
-  2. `cd desktop && cargo build -p dm-desktop && cd .. && sh scripts/package.sh`
-  3. `python3 scripts/human-qa.py` (macOS, a visible window, about 20 minutes): 64 of 64
+  2. `cd desktop && cargo check --target x86_64-pc-windows-msvc -p dm-desktop` (the Windows-only
+     code G2 and G3 move is never built on the Mac otherwise; the target is installed)
+  3. `cd desktop && cargo build -p dm-desktop && cd .. && sh scripts/package.sh && python3 scripts/human-qa.py`
+     (macOS, a visible window, about 20 minutes): 64 of 64
   4. `sh scripts/linux-human-qa.sh` (Docker running; builds the checkout in Debian): 64 of 64
+  Record each row's progress in `docs/migration/EGUI_PARITY_REPORT.md` once GPUI slices start.
   A row that fails once and passes on a second whole run (B40 did on 2026-11-09) is reported
   as such; a row that fails twice is a defect to fix before the commit.
 - **One commit per step** (or per module moved, in G2 and G3), message naming the row.

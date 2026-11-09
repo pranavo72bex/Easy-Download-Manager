@@ -163,7 +163,10 @@ about 2,500 in A3; the drawing that is rewritten is the remaining ~26,000,
 plus 485 window tests. Phase A is several sessions of work; Phase B one to two;
 Phase C is the bulk.
 
-## Still to write (from the spec's list)
+## The other documents (the spec's list, all written 2026-11-09)
 
-`GPUI_UI_ARCHITECTURE.md` (Phase B), `GPUI_TEST_PLAN.md` (A5 and Phase B),
-`EGUI_PARITY_REPORT.md` (Phase E).
+| Document | Use |
+|---|---|
+| [GPUI_UI_ARCHITECTURE.md](GPUI_UI_ARCHITECTURE.md) | The GPUI window's design: crates (`dm-desktop-base`, `dm-gpui`), the tick and its one waker, state ownership, views, the `WindowProbe` the control port asks, platform pieces; GPUI API points marked to verify in G6 |
+| [GPUI_TEST_PLAN.md](GPUI_TEST_PLAN.md) | The gate for every step, what each G row adds to it, the systems, the performance table G5 fills, the shell's checks G6 fills, where the tests move |
+| [EGUI_PARITY_REPORT.md](EGUI_PARITY_REPORT.md) | All 64 contract rows: kind, slice, state in egui and in GPUI; updated by each slice |
