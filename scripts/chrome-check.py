@@ -526,11 +526,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         agent = self.headers.get("User-Agent", "")
-        requests.append({"path": path, "agent": agent, "referer": self.headers.get("Referer", ""),
-                         "range": self.headers.get("Range", ""), "t": time.monotonic(),
-                         "auth": self.headers.get("Authorization", ""),
-                         "cookie": self.headers.get("Cookie", ""),
-                         "port": self.client_address[1]})
+        seen = {"path": path, "agent": agent, "referer": self.headers.get("Referer", ""),
+                "range": self.headers.get("Range", ""), "t": time.monotonic(),
+                "auth": self.headers.get("Authorization", ""),
+                "cookie": self.headers.get("Cookie", ""),
+                "port": self.client_address[1]}
+        requests.append(seen)
         if path == "/magnets.html":
             # The seven ways a torrent site's button opens a magnet link (gaps
             # row 108, spec T6); the hashes are made up.
@@ -740,6 +741,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     time.sleep(0.08)
         except (BrokenPipeError, ConnectionResetError):
             pass
+        # When this answer was all sent (or dropped): the paced check's parts are timed from it.
+        seen["ended"] = time.monotonic()
 
 
 class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
@@ -1870,15 +1873,41 @@ def main():
         # a second: one connection takes three seconds and more for 3 MB; the
         # connections that join once the first is seen to be slow bring it
         # to about one.
+        # Timed from the press, as a person watches it: the tab this check opens and loads first
+        # (a third of a second in Edge on Windows) is the check's, not dm's, and it was counted
+        # until 2026-11-09 (gaps row 165). One connection alone takes over three seconds, so the
+        # limit still says the helpers came. Its parts are told too: the page, the press to dm's
+        # first request, that to its last, the last byte sent, and the file whole in dm's
+        # folder, looked at every 20 ms here rather than wait_for's quarter second.
         mark = len(requests)
+        opened = time.monotonic()
+        tab = open_tab(base, f"{origin}/page.html")
+        loaded(tab, "/page.html", '[id="paced.bin"]')
         began = time.monotonic()
-        human_click(base, origin, "paced.bin")
-        done = wait_for(lambda: whole(engine_dl, "paced.bin"), 40)
-        took = time.monotonic() - began
-        ports = {r["port"] for r in requests[mark:]
-                 if r["path"].endswith("/paced.bin") and is_dm(r["agent"])}
+        press_element(tab, "paced.bin")
+        pressed = time.monotonic()
+        landed = None
+        while time.monotonic() - began < 40 * SLOW:
+            if whole(engine_dl, "paced.bin"):
+                landed = time.monotonic()
+                break
+            time.sleep(0.02)
+        done = landed is not None
+        took = (landed or time.monotonic()) - began
+        asked = [r for r in requests[mark:] if r["path"].endswith("/paced.bin") and is_dm(r["agent"])]
+        ports = {r["port"] for r in asked}
+        parts = ""
+        if asked:
+            starts = sorted(r["t"] for r in asked)
+            sent = max(r.get("ended", r["t"]) for r in asked)
+            first = sorted(asked, key=lambda r: r["t"])[:4]
+            parts = (f"; the page {began - opened:.2f} s before, the press {pressed - began:.2f} s, "
+                     f"to dm's first request {starts[0] - pressed:.2f} s, "
+                     f"to its last {starts[-1] - starts[0]:.2f} s, to the last byte sent {sent - starts[-1]:.2f} s, "
+                     f"to the file whole {(landed or sent) - sent:.2f} s; its first requests at "
+                     + ", ".join(f"+{(r['t'] - starts[0]) * 1000:.0f} ms {r['range'] or 'whole'}" for r in first))
         check("a small file from a server that holds each connection to 1 MB/s is fetched on helping connections",
-              done and took < 2.8 and len(ports) >= 4, f"{took:.2f} s on {len(ports)} of dm's connections")
+              done and took < 2.8 and len(ports) >= 4, f"{took:.2f} s on {len(ports)} of dm's connections{parts}")
         # The same size from a fast server: no connection is opened that it
         # did not need (the host's own probe and the app's one), and dm starts
         # at once: the time from the click to dm's first request for it.

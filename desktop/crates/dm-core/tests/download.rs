@@ -1370,6 +1370,116 @@ async fn a_small_file_from_a_slow_server_is_fetched_on_helping_connections() {
     );
 }
 
+/// A small file from a slow server is done when its last range is: a helper
+/// connection with nothing left to fetch does not watch out its window first.
+/// The last helper to finish its range watched another 80 ms after the file was
+/// in, and the download waited for it, on every such file (gaps row 165, found
+/// beside a browser's click on Windows). Timed on the server, from the last
+/// byte of a range it sent to the seams dm asks for again once its connections
+/// are done: no pause the length of that window between the requests. The best
+/// of three, so a moment's load on a shared machine does not decide it.
+#[tokio::test]
+async fn a_download_from_a_slow_server_ends_with_its_last_range() {
+    use std::time::Instant;
+    let body = Arc::new((0..3 * MB).map(|i| (i % 251) as u8).collect::<Vec<u8>>());
+    let mut best = Duration::MAX;
+    for _ in 0..3 {
+        // When each request came and whether it was a check of a few
+        // kilobytes, and when the last of the file's bytes was sent on any
+        // connection (a range that was halved is not read to its answer's end).
+        let asked = Arc::new(std::sync::Mutex::new(Vec::<(Instant, bool)>::new()));
+        let ended = Arc::new(std::sync::Mutex::new(None::<Instant>));
+        let (data, seen, last) = (body.clone(), asked.clone(), ended.clone());
+        let app = axum::Router::new().route(
+            "/f.bin",
+            get(move |headers: HeaderMap| {
+                let (data, seen, last) = (data.clone(), seen.clone(), last.clone());
+                async move {
+                    let size = data.len();
+                    let (a, b) = headers
+                        .get("range")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.strip_prefix("bytes="))
+                        .and_then(|v| v.split_once('-'))
+                        .map(|(a, b)| {
+                            (
+                                a.parse::<usize>().unwrap(),
+                                b.parse::<usize>().unwrap_or(size - 1).min(size - 1),
+                            )
+                        })
+                        .unwrap_or((0, size - 1));
+                    let check = b - a < 4096;
+                    seen.lock().unwrap().push((Instant::now(), check));
+                    let piece = bytes::Bytes::copy_from_slice(&data[a..=b]);
+                    let stream = futures_util::stream::unfold(0usize, move |at| {
+                        let (piece, last) = (piece.clone(), last.clone());
+                        async move {
+                            if at >= piece.len() {
+                                return None;
+                            }
+                            let end = (at + 64 * 1024).min(piece.len());
+                            // About a megabyte a second on each connection.
+                            tokio::time::sleep(Duration::from_secs_f64(
+                                (end - at) as f64 / MB as f64,
+                            ))
+                            .await;
+                            if !check {
+                                let now = Instant::now();
+                                let mut last = last.lock().unwrap();
+                                *last = Some(last.map_or(now, |t| t.max(now)));
+                            }
+                            Some((Ok::<_, std::io::Error>(piece.slice(at..end)), end))
+                        }
+                    });
+                    Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{size}"))
+                        .header("content-length", b - a + 1)
+                        .header("etag", "\"one\"")
+                        .body(Body::from_stream(stream))
+                        .unwrap()
+                }
+            }),
+        );
+        let addr = common::serve(app).await;
+        let dir = tempdir();
+        let opts = dm_core::Options {
+            connections: 8,
+            ..options(dir.path())
+        };
+        let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+            .await
+            .expect("the download failed");
+        assert_eq!(std::fs::read(&done.path).unwrap(), *body);
+        let last_byte = ended.lock().unwrap().expect("no range was sent");
+        let mut after: Vec<Instant> = asked
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(at, check)| *check && *at >= last_byte)
+            .map(|(at, _)| *at)
+            .collect();
+        after.sort();
+        assert!(
+            after.len() >= 2,
+            "the checks after the last range were not asked: {}",
+            after.len()
+        );
+        let longest = std::iter::once(last_byte)
+            .chain(after.iter().copied())
+            .collect::<Vec<_>>()
+            .windows(2)
+            .map(|w| w[1] - w[0])
+            .max()
+            .unwrap();
+        best = best.min(longest);
+    }
+    assert!(
+        best < Duration::from_millis(50),
+        "a pause of {best:?} between the last range and the checks after it"
+    );
+}
+
 /// The same small file from a server that is not slow is fetched on the one
 /// connection the probe opened: a helper would cost a round trip to save
 /// nothing, so none is ever opened.
