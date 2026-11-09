@@ -24,6 +24,7 @@ use std::time::Duration;
 
 /// The most memory a program may take in Windows' own engine: the program that answers
 /// YouTube's checks takes about 30 MB.
+#[cfg(windows)]
 pub(crate) const MEMORY: usize = 256 << 20;
 
 /// The argument, alone, that starts dm's own program as the engine's host: its `main` then

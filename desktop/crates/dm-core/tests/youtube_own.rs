@@ -454,7 +454,6 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
         .is_file());
 }
 
-/// `text` percent-encoded as a query value.
 /// The test's player: the real one's shape, small.
 const PLAYER: &str = r#"var _yt_player={};(function(g){var window=this;'use strict';var ca="set;get;n".split(";");
 g.ch=function(a,b){this.url=a;this.p={}};
@@ -468,6 +467,7 @@ window.document.querySelector("video").play();
 })(_yt_player);
 "#;
 
+/// `text` percent-encoded as a query value.
 fn urlencoding(text: &str) -> String {
     url::form_urlencoded::byte_serialize(text.as_bytes()).collect()
 }

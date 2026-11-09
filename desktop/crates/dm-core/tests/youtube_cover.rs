@@ -6,14 +6,16 @@
 //! dm's own YouTube reader (`dm_core::youtube`) and the fetch of what it
 //! reads (`videopage::download_page`), against a stand-in for YouTube: the
 //! watch page, the player API, the player script, the playlist pages, the
-//! browse API, the solver's releases and the streams are all one local
-//! server's, each video id its own case.
+//! browse API and the streams are all one local server's, each video id its
+//! own case. Nothing is fetched to answer YouTube's checks: dm cuts the
+//! player script itself (`youtube/player.rs`).
 //!
 //! The JavaScript engine is a stand-in too: a shell script named as QuickJS
-//! (`DM_QJS`) that checks it was handed the solver's program and answers
-//! the challenges these cases carry, or fails in the way the player script
-//! it was handed asks for. What is tested is what dm does with an engine's
-//! answer, not the solver itself.
+//! (`DM_QJS`) that checks it was handed the player as dm cuts it, with dm's
+//! call, and answers the challenges these cases carry, or fails in the way
+//! the player script it was handed asks for. What is tested is what dm does
+//! with an engine's answer, not the cut itself (its own tests are in
+//! `youtube/player.rs`).
 //!
 //! The stand-in is named by environment variables, which are the
 //! process's: they are set once, and the few tests that change one for a
@@ -75,18 +77,39 @@ const ENGINE: &str = r#"#!/bin/sh
 for last in "$@"; do :; done
 cp "$last" "$last.seen"
 printf '%s\n' "$*" > "$last.args"
-if ! grep -q 'Object.assign(globalThis, lib);' "$last"; then
-  echo 'not the solver program' >&2
+if ! grep -q 'console.log(__dm.solve(' "$last" || ! grep -q '"alr","yes"' "$last"; then
+  echo 'not the player as dm cuts it' >&2
   exit 3
 fi
-if grep -q MARK_ERROR "$last"; then echo '{"type":"error","error":"the player changed"}'; exit 0; fi
+if grep -q MARK_ERROR "$last"; then echo 'the player changed' >&2; exit 1; fi
 if grep -q MARK_NOJSON "$last"; then echo 'nothing useful'; exit 0; fi
-if grep -q MARK_NORESP "$last"; then echo '{"type":"result"}'; exit 0; fi
-if grep -q MARK_UNSOLVED "$last"; then echo '{"type":"result","responses":[{"type":"error","error":"no such function"}]}'; exit 0; fi
+if grep -q MARK_NORESP "$last"; then echo '{}'; exit 0; fi
+if grep -q MARK_UNSOLVED "$last"; then echo '{"n":{"abc":"ABC","def":""},"sig":{}}'; exit 0; fi
 if grep -q MARK_EXIT "$last"; then printf 'first line\nit broke\n' >&2; exit 2; fi
-echo 'a line the solver logs'
-echo '{"type":"result","responses":[{"type":"result","data":{"abc":"ABC","def":"DEF"}},{"type":"result","data":{"xyz":"XYZ"}}]}'
+echo 'a line the player logs'
+echo '{"n":{"abc":"ABC","def":"DEF"},"sig":{"xyz":"XYZ"}}'
 "#;
+
+/// The player script of a case that needs solving: the real one's shape,
+/// small (as `tests/youtube_own.rs` has it), with its timestamp and the
+/// case's marker for the stand-in engine.
+fn player_like(marker: &str) -> String {
+    format!(
+        r#"var _yt_player={{}};(function(g){{var window=this;'use strict';var ca="set;get;n".split(";");
+var cfg={{signatureTimestamp:54321}};
+var mark="{marker}";
+g.ch=function(a,b){{this.url=a;this.p={{}}}};
+g.ch.prototype.set=function(a,b){{this.p[a]=b}};
+g.ch.prototype.get=function(a){{return this.p[a]}};
+g.ch.prototype.Zn=function(){{var a=this.get(ca[2]);a&&this.set(ca[2],a.toUpperCase())}};
+g.ch.prototype.clone=function(){{return new g.ch(this.url)}};
+Ws=function(a){{return a.toUpperCase()}};
+om=function(a,b,c){{b=b===void 0?"":b;c=c===void 0?"":c;a=new g.ch(a,!0);a.set("alr","yes");c&&(c=Ws(decodeURIComponent(c)),a[ca[0]](b,encodeURIComponent(c)));return a}};
+window.document.querySelector("video").play();
+}})(_yt_player);
+"#
+    )
+}
 
 fn stand_in() -> &'static StandIn {
     STAND_IN.get_or_init(|| {
@@ -120,7 +143,6 @@ fn stand_in() -> &'static StandIn {
         let origin = format!("http://{}", rx.recv().unwrap());
         std::env::set_var("DM_NO_SECRET_STORE", "1");
         std::env::set_var("DM_YOUTUBE_HOST", &origin);
-        std::env::set_var("DM_EJS_RELEASES", format!("{origin}/ejs"));
         std::env::set_var("DM_QJS", home.join("engines/qjs"));
         std::env::set_var("DM_DENO", "");
         dm_core::tools::set_folder(home.join("tools"));
@@ -186,14 +208,6 @@ async fn handle(method: Method, uri: Uri, headers: HeaderMap, body: String) -> R
             let asked: Value = serde_json::from_str(&body).unwrap_or_default();
             browse(asked["continuation"].as_str().unwrap_or(""))
         }
-        ("GET", "/ejs/yt.solver.lib.min.js") => {
-            text(200, "text/javascript", "var lib = { from: 'the lib' };")
-        }
-        ("GET", "/ejs/yt.solver.core.min.js") => text(
-            200,
-            "text/javascript",
-            "var jsc = function (input) { return input; };",
-        ),
         (_, p) if p.starts_with("/s/player/") => player_script(p),
         (_, p) if p.starts_with("/media/") => media(p, &uri, &headers).await,
         _ => text(404, "text/plain", "no such page"),
@@ -262,13 +276,18 @@ fn player_script(path: &str) -> Response {
         "solverNone1" => "MARK_NORESP",
         "solverFail1" => "MARK_UNSOLVED",
         "solverExit1" => "MARK_EXIT",
+        // A player whose shape dm does not know: its timestamp is read, but
+        // no function in it deciphers a signature.
+        "oddPlayer01" => {
+            return text(
+                200,
+                "text/javascript",
+                "var player = {signatureTimestamp:54321};",
+            )
+        }
         _ => "",
     };
-    text(
-        200,
-        "text/javascript",
-        format!("var player = {{signatureTimestamp:54321}}; /* {marker} */"),
-    )
+    text(200, "text/javascript", player_like(marker))
 }
 
 fn video(itag: u64, mime: &str, (w, h, fps): (u64, u64, u64), size: usize, url: &str) -> Value {
@@ -382,7 +401,7 @@ fn player(id: &str, call: usize, origin: &str) -> Response {
             ],
         ),
         "noScriptUrl" | "farScript01" | "scriptGone2" | "badAddress1" | "solverErr01"
-        | "noEngine001" | "denoEngine1" | "ejsMissing1" | "solverJunk1" | "solverNone1"
+        | "noEngine001" | "denoEngine1" | "oddPlayer01" | "solverJunk1" | "solverNone1"
         | "solverFail1" | "solverExit1" => {
             let mut streams = vec![
                 video(
@@ -976,9 +995,9 @@ async fn a_sign_in_is_sent_with_the_page() {
 
 /// Where the page gives no timestamp the player script is fetched for it,
 /// from YouTube's own path even when the page names it in full; the same
-/// script then goes to the solver, whose answers unlock every address.
+/// script is then cut and run, and its answers unlock every address.
 #[tokio::test]
-async fn n_values_and_a_cipher_are_unlocked_by_the_solver() {
+async fn n_values_and_a_cipher_are_unlocked_by_the_player() {
     let _env = ENV.read().await;
     stand_in();
     let staging = tempdir();
@@ -1016,20 +1035,19 @@ async fn n_values_and_a_cipher_are_unlocked_by_the_solver() {
         body["playbackContext"]["contentPlaybackContext"]["signatureTimestamp"], 54321,
         "read from the player script"
     );
-    // The program the engine was handed: the solver's two scripts, and the
-    // player with every challenge asked.
+    // The program the engine was handed: the player as dm cuts it, its
+    // calls made while it loads left out, and every challenge asked.
     let seen = std::fs::read_dir(staging.path())
         .unwrap()
         .flatten()
         .find(|e| e.file_name().to_string_lossy().ends_with(".js.seen"))
         .expect("the engine ran");
     let program = std::fs::read_to_string(seen.path()).unwrap();
-    assert!(program.contains("var lib = { from: 'the lib' };"));
-    assert!(program.contains("var jsc = function"));
-    assert!(program.contains("signatureTimestamp:54321"));
+    assert!(program.contains(r#"a.set("alr","yes")"#));
+    assert!(!program.contains("querySelector"));
     let input = program
         .lines()
-        .find(|l| l.starts_with("console.log(JSON.stringify(jsc("))
+        .find(|l| l.starts_with("console.log(__dm.solve("))
         .unwrap();
     assert!(input.contains("\"abc\"") && input.contains("\"def\"") && input.contains("\"xyz\""));
     // The program file itself is gone once the engine is done.
@@ -1037,11 +1055,9 @@ async fn n_values_and_a_cipher_are_unlocked_by_the_solver() {
         .unwrap()
         .flatten()
         .any(|e| e.file_name().to_string_lossy().ends_with(".js")));
-    // The solver's scripts are kept for the next reading.
-    assert!(stand_in()
-        .home
-        .join("tools/ejs-0.8.0/yt.solver.lib.min.js")
-        .is_file());
+    // Nothing was fetched to answer the checks.
+    assert!(asked_with("/ejs/").is_empty());
+    assert!(!stand_in().home.join("tools").exists());
 }
 
 /// A cipher with no `sp` puts its signature under `signature`.
@@ -1074,7 +1090,7 @@ async fn what_youtube_refuses_is_said_in_words() {
         ("badAddress1", "a stream's address is not one"),
         ("cipherNoUrl", "a cipher with no address"),
         ("cipherNoSig", "a cipher with no signature"),
-        ("sigUnknown1", "the signature was not solved"),
+        ("sigUnknown1", "no answer for the sig value qqq"),
     ] {
         let why = failure(id).await;
         assert!(why.contains(said), "{id}: {why}");
@@ -1103,24 +1119,25 @@ async fn what_youtube_refuses_is_said_in_words() {
     assert!(asked_with("\"videoId\":\"captions001\"").is_empty());
 }
 
-/// What the solver says when it fails, or says nothing usable, is the
-/// reading's failure.
+/// What the engine says when the player fails in it, or what it answers
+/// that is of no use, is the reading's failure, in words.
 #[tokio::test]
-async fn a_solver_that_fails_fails_the_reading_with_its_words() {
+async fn a_player_that_fails_fails_the_reading_with_its_words() {
     let _env = ENV.read().await;
     stand_in();
     for (id, said) in [
-        ("solverErr01", "the solver failed: the player changed"),
-        ("solverJunk1", "the solver said: nothing useful"),
-        ("solverNone1", "the solver answered nothing"),
-        (
-            "solverFail1",
-            "the solver could not solve n: no such function",
-        ),
-        ("solverExit1", "the solver stopped: it broke"),
+        ("solverErr01", "the JavaScript stopped: the player changed"),
+        ("solverJunk1", "the answer was \"nothing useful\""),
+        ("solverNone1", "no answer for the n value abc"),
+        ("solverFail1", "no answer for the n value def"),
+        ("solverExit1", "the JavaScript stopped: it broke"),
+        ("oddPlayer01", "YouTube's player is not as dm knows it"),
     ] {
         let why = failure(id).await;
-        assert!(why.contains(said), "{id}: {why}");
+        assert!(
+            why.contains("YouTube's checks were not answered") && why.contains(said),
+            "{id}: {why}"
+        );
     }
 }
 
@@ -1277,7 +1294,7 @@ async fn a_download_reads_through_its_proxy_and_as_a_part() {
         .contains("not a YouTube video address"));
 }
 
-// ---- The engine and the solver's scripts ----
+// ---- The engine ----
 
 /// With no engine at all, and none that can be fetched, the reading says
 /// so and leaves no program behind.
@@ -1300,7 +1317,7 @@ async fn with_no_engine_the_reading_says_so() {
     std::env::set_var("DM_QJS", qjs);
     let why = result.unwrap_err().to_string();
     assert!(
-        why.contains("no JavaScript engine to run the player's challenges in")
+        why.contains("no JavaScript engine to run it in")
             && why.contains("QuickJS could not be fetched"),
         "{why}"
     );
@@ -1340,19 +1357,16 @@ async fn a_deno_is_run_with_no_permissions() {
     assert!(args.contains("--no-npm"));
 }
 
-/// The solver's scripts are fetched where they are not kept; a release
-/// that cannot be had fails the reading.
+/// A player dm cannot cut is not run at all: no engine is started and no
+/// program is left behind.
 #[tokio::test]
-async fn solver_scripts_that_cannot_be_had_fail_the_reading() {
-    let _env = ENV.write().await;
-    let origin = stand_in().origin.clone();
-    let kept = stand_in().home.join("tools/ejs-0.8.0");
-    let _ = std::fs::remove_dir_all(&kept);
-    std::env::set_var("DM_EJS_RELEASES", format!("{origin}/missing"));
+async fn a_player_dm_cannot_cut_is_not_run() {
+    let _env = ENV.read().await;
+    stand_in();
     let staging = tempdir();
     let result = youtube::read(
         &dm_core::client(),
-        &page("ejsMissing1"),
+        &page("oddPlayer01"),
         Quality::Best,
         None,
         false,
@@ -1360,12 +1374,12 @@ async fn solver_scripts_that_cannot_be_had_fail_the_reading() {
         staging.path(),
     )
     .await;
-    std::env::set_var("DM_EJS_RELEASES", format!("{origin}/ejs"));
+    let why = result.unwrap_err().to_string();
     assert!(
-        matches!(result, Err(Error::Refused { status: 404, .. })),
-        "{result:?}"
+        why.contains("YouTube's player is not as dm knows it"),
+        "{why}"
     );
-    assert!(!kept.join("yt.solver.lib.min.js").exists());
+    assert_eq!(std::fs::read_dir(staging.path()).unwrap().count(), 0);
 }
 
 // ---- Playlists ----
