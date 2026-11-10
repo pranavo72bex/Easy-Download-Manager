@@ -18,28 +18,41 @@ use gpui_component::input::{Input, InputState};
 use crate::screen::Screen;
 use crate::theme::Theme;
 
-/// The system font's size for controls and labels (`NSFont.systemFontSize`).
-pub const TEXT: f32 = 13.0;
+/// The measure each system's own dialogs use: macOS's (AppKit's, measured
+/// on the system's own dialog), Windows 11's (WinUI's) or GNOME's
+/// (libadwaita's), so a dm dialog is laid out as its neighbours are.
+const fn pick(macos: f32, windows: f32, gnome: f32) -> f32 {
+    if cfg!(target_os = "macos") {
+        macos
+    } else if cfg!(windows) {
+        windows
+    } else {
+        gnome
+    }
+}
+
+/// The system font's size for controls and labels (macOS's
+/// `NSFont.systemFontSize`, WinUI's body text, GNOME's).
+pub const TEXT: f32 = pick(13.0, 14.0, 14.0);
 /// The small system font's size: what is said under a control, a dialog's
-/// informative text (`NSFont.smallSystemFontSize`).
-pub const SMALL_TEXT: f32 = 11.0;
-/// A regular control's height: a text field, a push button, a pop-up (24
-/// points, measured on the system's own dialog).
-pub const CONTROL: f32 = 24.0;
+/// informative text (macOS's `smallSystemFontSize`, WinUI's caption).
+pub const SMALL_TEXT: f32 = pick(11.0, 12.0, 12.0);
+/// A regular control's height: a text field, a push button, a pop-up.
+pub const CONTROL: f32 = pick(24.0, 32.0, 34.0);
 /// From the window's edges to what it holds.
-pub const MARGIN: f32 = 20.0;
+pub const MARGIN: f32 = pick(20.0, 24.0, 18.0);
 /// Between one row of a form and the next.
-pub const ROW_GAP: f32 = 8.0;
+pub const ROW_GAP: f32 = pick(8.0, 8.0, 10.0);
 /// Between a label and its control.
 pub const LABEL_GAP: f32 = 8.0;
 /// Between two buttons in a row.
-pub const BUTTON_GAP: f32 = 12.0;
+pub const BUTTON_GAP: f32 = pick(12.0, 8.0, 12.0);
 /// Above the row of buttons.
-pub const FOOTER_GAP: f32 = 20.0;
+pub const FOOTER_GAP: f32 = pick(20.0, 24.0, 18.0);
 /// A push button's narrowest, so OK is not a sliver beside Cancel.
-pub const BUTTON_MIN: f32 = 80.0;
+pub const BUTTON_MIN: f32 = pick(80.0, 120.0, 80.0);
 /// A control's corners.
-pub const RADIUS: f32 = 5.0;
+pub const RADIUS: f32 = pick(5.0, 4.0, 6.0);
 
 /// A dialog's body: the margins, the system's text, its rows apart.
 pub fn body(theme: Theme) -> Div {
@@ -231,10 +244,17 @@ pub fn tick_box(ticked: bool, theme: Theme) -> Div {
         })
 }
 
-/// A row of buttons as macOS lays one out: `leading` at the start (an
+/// A row of buttons as the system lays one out: `leading` at the start (an
 /// action beside the question's answer, such as Add for later), and
-/// `trailing` at the end in the order given, the default last (rightmost).
+/// `trailing` at the end, given in macOS's order, the default last
+/// (rightmost), which Windows reverses.
 pub fn buttons(leading: Vec<gpui::AnyElement>, trailing: Vec<gpui::AnyElement>) -> Div {
+    // Given as macOS and GNOME order them, the default rightmost; Windows
+    // puts the default first and Cancel last.
+    let mut trailing = trailing;
+    if cfg!(windows) {
+        trailing.reverse();
+    }
     div()
         .mt(px(FOOTER_GAP - ROW_GAP))
         .flex()

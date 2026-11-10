@@ -13,6 +13,10 @@ platform"; "make the overall architecture scalable, maintainable and easy to fol
   black text at 89%; in dark, the light-blue accent with black on it) and GNOME's libadwaita
   ones on Linux. `on_accent` names what is drawn on the accent, which is not white everywhere.
   A test holds every palette, light and dark, to readable contrast (text 7:1, the rest 3:1).
+- The dialogs' measures are each system's too (`native.rs`, `pick`): macOS's as measured on its
+  own dialog (13 pt text, 24 pt controls, 20 pt margins), Windows 11's WinUI ones (14 px text,
+  32 px controls, 24 px margins, 120 px buttons, 4 px corners, the default button first and
+  Cancel last) and GNOME's (14 px text, 34 px controls, 18 px margins, 6 px corners).
 - What is dropped on a window waits in one place for both windows, `dm_desktop_base::drops`, and
   Windows' OLE drop target (a browser's link as well as files) moved there out of the egui crate,
   with its tests: the GPUI window puts it on each of its windows on Windows, and its macOS drag
