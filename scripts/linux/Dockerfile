@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # WebKitGTK's JavaScriptCore, which dm's .deb recommends: YouTube's checks
       # and a proxy script run in it, nothing fetched (gaps row 164).
       libjavascriptcoregtk-4.1-0 \
+      # What the GPUI window (dm-gpui, docs/gaps.md G6) builds against.
+      libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+      libxcb1-dev libx11-xcb-dev libvulkan-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # No web view: the window is egui on GL, drawn by Mesa under Xvfb.

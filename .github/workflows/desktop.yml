@@ -71,6 +71,15 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
 
+      # The GPUI window (dm-gpui, docs/gaps.md G6) builds against these on
+      # Linux; the egui window needs none of them.
+      - name: GPUI's Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
+
       - name: Refuse warnings
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
@@ -91,7 +100,7 @@ jobs:
       # CJK font, which a desktop has and this runner does not.
       - name: Install a CJK font
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci
@@ -125,7 +134,7 @@ jobs:
         with:
           tool: cargo-llvm-cov
       - name: Install a CJK font
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
       - name: Measure, and hold to the floor
         run: |
           floor=$(cat ../docs/coverage-floor.txt)
