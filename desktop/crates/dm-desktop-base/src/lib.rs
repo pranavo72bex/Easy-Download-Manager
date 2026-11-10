@@ -50,6 +50,7 @@ pub mod contrast;
 pub mod control;
 pub mod desktop;
 pub mod details;
+pub mod file_info;
 pub mod format;
 pub mod i18n;
 pub mod jumplist;

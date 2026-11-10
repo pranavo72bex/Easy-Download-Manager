@@ -518,7 +518,6 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
 mod cells;
 mod columns;
 mod menus;
-pub(crate) use menus::delete_after_times;
 mod selection;
 mod status;
 

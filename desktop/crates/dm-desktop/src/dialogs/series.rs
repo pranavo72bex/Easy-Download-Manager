@@ -146,13 +146,6 @@ pub(super) fn series(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// The key a file's kind is remembered under in `last_folders`.
-pub(super) fn kind_key(name: &str) -> &'static str {
-    dm_core::by_name(name)
-        .unwrap_or(dm_core::Category::Other)
-        .folder()
-}
-
 /// Why a series cannot be made, in the language in force.
 pub(super) fn series_error(e: dm_shell::lists::SeriesError) -> &'static str {
     use dm_shell::lists::SeriesError;

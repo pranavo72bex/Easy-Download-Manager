@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use dm_core::{Entry, Id};
-use dm_shell::app::rules::Dup;
+use dm_shell::app::rules::{Dup, GoOn};
 use dm_shell::Settings;
 
 use crate::i18n::t;
@@ -179,6 +179,69 @@ pub fn decide(
     Decided { next, remember }
 }
 
+/// What an answer to "Already in the list" does, asked or remembered.
+#[derive(Debug, Clone)]
+pub enum Carried {
+    /// The row is chosen; a stopped or failed one goes on (`go_on`:
+    /// resumed, or tried again), so the person who clicked the link again
+    /// is not left to find the button.
+    Show {
+        /// The row.
+        id: Id,
+        /// How it goes on, if it does.
+        go_on: Option<GoOn>,
+    },
+    /// Download details for the address: a numbered copy.
+    Details(String),
+    /// The address, added at once over the row's finished file.
+    Replace {
+        /// The address.
+        address: String,
+        /// The options that replace the file.
+        with: Box<dm_core::AddOptions>,
+    },
+}
+
+/// What answering `how` for `address`, already the row `id`, does.
+pub fn carry(rows: &[Arc<Entry>], address: String, id: Id, how: Dup) -> Carried {
+    let row = rows.iter().find(|r| r.id == id);
+    match how {
+        Dup::Show => Carried::Show {
+            id,
+            // Held or not: the person asked for this file again.
+            go_on: row
+                .map(|r| dm_shell::app::rules::go_on(&r.state, false))
+                .filter(|g| matches!(g, GoOn::Resume | GoOn::Retry)),
+        },
+        Dup::Again => Carried::Details(address),
+        Dup::Replace => match row.and_then(|r| dm_shell::app::rules::replacing(r)) {
+            Some(with) => Carried::Replace {
+                address,
+                with: Box::new(with),
+            },
+            // Nothing finished to replace: a numbered copy, as before.
+            None => Carried::Details(address),
+        },
+    }
+}
+
+/// What "Already in the list" offers for the row `id`: whether its first
+/// button goes on with it ("Resume it" rather than "Show it"), and whether
+/// it can replace the row's finished file.
+pub fn duplicate_offers(rows: &[Arc<Entry>], id: Id) -> (bool, bool) {
+    let row = rows.iter().find(|r| r.id == id);
+    let go_on = row.is_some_and(|r| {
+        matches!(
+            dm_shell::app::rules::go_on(&r.state, false),
+            GoOn::Resume | GoOn::Retry
+        )
+    });
+    let replace = row
+        .and_then(|r| dm_shell::app::rules::replacing(r))
+        .is_some();
+    (go_on, replace)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,7 +280,8 @@ mod tests {
         let login = decide("https://e.com/a.zip", true, "me", "pw", &settings, &[]);
         assert_eq!(
             login.next,
-            Next::Details(vec!["https://me:pw@e.com/a.zip".into()])
+            // Built here, as a sign-in in an address is never written out.
+            Next::Details(vec![format!("https://me:{}@e.com/a.zip", "pw")])
         );
         assert_eq!(
             login.remember,

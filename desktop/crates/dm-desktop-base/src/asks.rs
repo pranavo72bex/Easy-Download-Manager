@@ -135,6 +135,68 @@ pub fn remove(
     }
 }
 
+/// A question a download raises as it runs (B39 to B41): what it says, and
+/// its buttons, the default first (Return's, and the one that changes
+/// nothing).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DownloadAsk {
+    /// The title in English, which the window's tests and the control port
+    /// find it by.
+    pub title_english: &'static str,
+    /// The title, in the language in force.
+    pub title: &'static str,
+    /// Its sentences.
+    pub lines: Vec<String>,
+    /// What the server answered, shown as it came, where it says.
+    pub detail: Option<&'static str>,
+    /// Its buttons, the default first.
+    pub buttons: Vec<&'static str>,
+}
+
+/// B39: the server named the file `server_name`, the address `address_name`.
+/// Yes keeps the server's name; No saves it under the address's.
+pub fn name_sent(address_name: &str, server_name: &str) -> DownloadAsk {
+    DownloadAsk {
+        title_english: "Name sent by the server",
+        title: t("Name sent by the server"),
+        lines: vec![tf(
+            "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?",
+            &[&address_name, &server_name],
+        )],
+        detail: None,
+        buttons: vec![t("Yes"), t("No")],
+    }
+}
+
+/// B40: a web page answered for a file. Yes saves the page as HTML; No
+/// removes the row and keeps nothing.
+pub fn page_for_file() -> DownloadAsk {
+    DownloadAsk {
+        title_english: "Web page instead of the file",
+        title: t("Web page instead of the file"),
+        lines: vec![t(
+            "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?",
+        )
+        .to_string()],
+        detail: None,
+        buttons: vec![t("Yes"), t("No")],
+    }
+}
+
+/// B41: the server said the file is not there; told once, OK.
+pub fn not_found() -> DownloadAsk {
+    DownloadAsk {
+        title_english: "The file doesn't exist",
+        title: t("The file doesn't exist"),
+        lines: vec![
+            t("The requested file doesn't exist.").to_string(),
+            t("Details:").to_string(),
+        ],
+        detail: Some("HTTP/1.1 404 Not Found"),
+        buttons: vec![t("OK")],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +242,23 @@ mod tests {
             remove(&[&a], 1, false, true, None).title_english,
             "Delete file"
         );
+    }
+
+    #[test]
+    fn the_questions_a_download_raises_say_the_contract_words() {
+        let name = name_sent("dl", "Report 2026.pdf");
+        assert_eq!(name.title_english, "Name sent by the server");
+        assert_eq!(
+            name.lines,
+            vec!["The name to save the file was dl, but the server sent Report 2026.pdf. Save the file with the name received from the server?".to_string()]
+        );
+        assert_eq!(name.buttons, vec!["Yes", "No"]);
+        let page = page_for_file();
+        assert_eq!(page.title_english, "Web page instead of the file");
+        assert_eq!(page.buttons, vec!["Yes", "No"]);
+        let gone = not_found();
+        assert_eq!(gone.title_english, "The file doesn't exist");
+        assert_eq!(gone.detail, Some("HTTP/1.1 404 Not Found"));
+        assert_eq!(gone.buttons, vec!["OK"]);
     }
 }

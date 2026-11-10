@@ -137,51 +137,26 @@ pub fn default_list_path(settings: &Settings) -> std::path::PathBuf {
 /// How an address already in the list is answered (`dm_shell::app::rules::Dup`).
 pub(crate) use dm_shell::app::rules::Dup;
 
-/// The options that replace the row's finished file, where it has one
-/// (`rules::replacing`).
-fn replaceable(app: &DmApp, id: Id) -> Option<dm_core::AddOptions> {
-    app.row(id).and_then(dm_shell::app::rules::replacing)
-}
-
-/// Whether the row is stopped, or failed: one that "Show it" can also go on
-/// with.
-fn can_go_on(app: &DmApp, id: Id) -> bool {
-    app.row(id).is_some_and(|r| {
-        matches!(
-            dm_shell::app::rules::go_on(&r.state, false),
-            GoOn::Resume | GoOn::Retry
-        )
-    })
-}
-
-/// Carries out an answer: asked, or remembered.
+/// Carries out an answer: asked, or remembered (what it does is dm's,
+/// `dm_desktop_base::add_url::carry`, as every window's).
 pub(crate) fn answer_duplicate(app: &mut DmApp, address: String, id: Id, how: Dup) {
-    match how {
-        Dup::Show => {
+    use dm_desktop_base::add_url::Carried;
+    match dm_desktop_base::add_url::carry(app.rows(), address, id, how) {
+        Carried::Show { id, go_on } => {
             app.selected.clear();
             app.selected.insert(id);
-            // A stopped or failed row goes on, so the person who clicked the
-            // link again is not left to find the button.
-            // Held or not: the person asked for this file again.
-            match app
-                .row(id)
-                .map(|r| dm_shell::app::rules::go_on(&r.state, false))
-            {
+            match go_on {
                 Some(GoOn::Retry) => app.backend.retry(id),
                 Some(GoOn::Resume) => app.backend.resume(id),
                 _ => {}
             }
         }
-        Dup::Again => app.dialogs.open_file_info(vec![address]),
-        Dup::Replace => match replaceable(app, id) {
-            Some(with) => {
-                if let Err(e) = app.add(&[address], with) {
-                    app.said = e.into();
-                }
+        Carried::Details(address) => app.dialogs.open_file_info(vec![address]),
+        Carried::Replace { address, with } => {
+            if let Err(e) = app.add(&[address], *with) {
+                app.said = e.into();
             }
-            // Nothing finished to replace: a numbered copy, as before.
-            None => app.dialogs.open_file_info(vec![address]),
-        },
+        }
     }
 }
 
@@ -192,8 +167,7 @@ pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let status = app.row(id).map(crate::app::status_of).unwrap_or_default();
-    let go_on = can_go_on(app, id);
-    let can_replace = replaceable(app, id).is_some();
+    let (go_on, can_replace) = dm_desktop_base::add_url::duplicate_offers(app.rows(), id);
     let tick = egui::Id::unique("duplicate-remember");
     let mut remember = ctx.data(|d| d.get_temp::<bool>(tick)).unwrap_or(false);
     let (mut again, mut show, mut replace, mut cancel) = (false, false, false, false);

@@ -204,18 +204,6 @@ pub struct FileInfo {
     pub replace: bool,
 }
 
-/// Where the name Download details shows is taken already.
-enum Clash {
-    /// By another download in the list: this one takes a number.
-    Listed,
-    /// By a file in the folder: this one takes `free`, or replaces `taken`
-    /// once it is whole.
-    OnDisk {
-        free: String,
-        taken: std::path::PathBuf,
-    },
-}
-
 /// What Download details learned by asking the server, and the name an HLS
 /// stream is saved under: the application's (`dm_shell::app::lookups`).
 pub use dm_shell::app::lookups::{stream_name, Probed};
