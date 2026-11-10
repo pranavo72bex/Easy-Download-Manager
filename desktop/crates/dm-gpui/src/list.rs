@@ -1,0 +1,189 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The download list as the shell draws it: the application read once each
+//! time the window is woken (a queue change, coalesced over a quarter of a
+//! second as the egui window does; an order or a signal at once; and once a
+//! second for the schedules' and When done's clocks), and only the rows on
+//! screen laid out (`uniform_list`), so a list of 10,000 costs what the
+//! screenful does.
+
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::time::Duration;
+
+use dm_core::{Entry, State};
+use dm_desktop_base::boot::Wake;
+use dm_shell::app::backend::Backend;
+use dm_shell::app::session::Session;
+use gpui::{div, prelude::*, px, uniform_list, Context, Role, SharedString, Window};
+
+use crate::theme::Theme;
+
+/// The rows' height, in points.
+const ROW_HEIGHT: f32 = 26.0;
+
+/// How often a window with nothing moving wakes of its own accord.
+const IDLE: Duration = Duration::from_secs(30);
+
+/// The main window's view: the application, and the rows it last read.
+pub struct Downloads {
+    backend: Backend,
+    session: Session,
+    rows: Vec<Arc<Entry>>,
+}
+
+impl Downloads {
+    /// The view, reading the queue now and each time `woken` says.
+    pub fn new(
+        backend: Backend,
+        woken: async_channel::Receiver<Wake>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Downloads {
+        let mut this = Downloads {
+            backend,
+            session: Session::default(),
+            rows: Vec::new(),
+        };
+        this.read();
+        // One task on the window's thread: each wake is one read, a burst of
+        // queue changes one read a quarter of a second later.
+        // Redrawn in the system's colours when the person switches between
+        // light and dark.
+        cx.observe_window_appearance(window, |_, _, cx| cx.notify())
+            .detach();
+        cx.spawn(async move |this, cx| loop {
+            // Nothing tells the window of a clock (the schedules, When
+            // done's countdown): once a second while a download runs or a
+            // countdown is on, else every 30 seconds, as the egui window.
+            let every = this
+                .read_with(cx, |this, _| this.clock_every())
+                .unwrap_or(IDLE);
+            let wake = futures_lite::future::or(async { woken.recv().await.ok() }, async {
+                cx.background_executor().timer(every).await;
+                Some(Wake::Now)
+            })
+            .await;
+            let Some(wake) = wake else {
+                return;
+            };
+            if wake == Wake::Soon {
+                cx.background_executor()
+                    .timer(Duration::from_millis(250))
+                    .await;
+            }
+            while woken.try_recv().is_ok() {}
+            // Asked to end (a logout, `kill`, an uninstall): as Exit does,
+            // the queue written down first.
+            if dm_desktop_base::signals::SIGNALLED.load(Ordering::SeqCst) {
+                let _ = this.update(cx, |this, cx| {
+                    this.backend.flush();
+                    cx.quit();
+                });
+                return;
+            }
+            if this
+                .update(cx, |this, cx| {
+                    this.read();
+                    cx.notify();
+                })
+                .is_err()
+            {
+                return;
+            }
+        })
+        .detach();
+        this
+    }
+
+    /// How long the window sleeps when nothing wakes it.
+    fn clock_every(&self) -> Duration {
+        if self.session.countdown.is_some() || self.rows.iter().any(|r| r.state == State::Running) {
+            Duration::from_secs(1)
+        } else {
+            IDLE
+        }
+    }
+
+    /// One read of the application: the rows and what follows from them.
+    fn read(&mut self) {
+        dm_shell::app::changes::take();
+        let settings = self.backend.settings();
+        let read = self.session.read(&self.backend, &settings);
+        self.rows = read.snapshot.rows;
+    }
+}
+
+/// What a row's line says, in the shell: its name and its state.
+fn line(row: &Entry) -> (SharedString, SharedString) {
+    let name = if row.filename.is_empty() {
+        dm_shell::app::names::provisional(&row.url)
+    } else {
+        row.filename.clone()
+    };
+    let state = match &row.state {
+        State::Running => match row.progress.total {
+            Some(total) if total > 0 => {
+                format!("{}%", row.progress.downloaded.saturating_mul(100) / total)
+            }
+            _ => dm_desktop_base::format::bytes(row.progress.downloaded),
+        },
+        State::Failed(why) => format!("Failed: {why}"),
+        other => format!("{other:?}"),
+    };
+    (name.into(), state.into())
+}
+
+impl Render for Downloads {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let count = self.rows.len();
+        let theme = Theme::of(window.appearance());
+        div()
+            .id("downloads")
+            .role(Role::Application)
+            .aria_label("dm")
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(theme.background)
+            .text_color(theme.text)
+            .text_sm()
+            .child(
+                div()
+                    .px_3()
+                    .py_2()
+                    .border_b_1()
+                    .border_color(theme.separator)
+                    .text_color(theme.muted)
+                    .child(SharedString::from(format!("{count} downloads"))),
+            )
+            .child(
+                uniform_list(
+                    "rows",
+                    count,
+                    cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
+                        range
+                            .filter_map(|i| this.rows.get(i).map(|row| (i, line(row))))
+                            .map(|(i, (name, state))| {
+                                div()
+                                    .id(i)
+                                    .w_full()
+                                    .h(px(ROW_HEIGHT))
+                                    .px_3()
+                                    .flex()
+                                    .items_center()
+                                    .justify_between()
+                                    .when(i % 2 == 1, |row| row.bg(theme.stripe))
+                                    .child(name)
+                                    .child(div().text_color(theme.muted).child(state))
+                            })
+                            .collect()
+                    }),
+                )
+                .flex_1(),
+            )
+    }
+}

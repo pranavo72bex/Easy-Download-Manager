@@ -126,7 +126,13 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   opens its main window on macOS, type-checks for Windows and builds on Linux (2026-11-10;
   `GPUI_TEST_PLAN.md` section 5's findings). Check 1 (screen readers in a dialog's own window,
   and 50 windows opened and closed) passes on macOS; Windows (NVDA, a Windows computer) and
-  Linux (Orca over AT-SPI, `linux-gui-check.sh`'s image) are to run. Next: the theme and the tick (`changes::subscribe`
+  Linux (Orca over AT-SPI, `linux-gui-check.sh`'s image) are to run. Since: both windows start
+  dm through `dm_desktop_base::boot` (one engine); the shell reads the queue once per wake from one
+  foreground task (a burst of changes coalesced over 250 ms; a clock every second while something
+  runs, else 30 s), draws the rows with `uniform_list` (only those on screen laid out) in the
+  system's own light or dark colours and font, and quits on SIGTERM as Exit does. Seen with
+  10,000 rows. Next: `WindowProbe` for what it draws (so `ui-bench.py` measures it), then the
+  tick (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,
