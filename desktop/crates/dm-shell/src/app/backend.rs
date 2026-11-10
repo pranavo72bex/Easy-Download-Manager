@@ -861,6 +861,60 @@ mod settings_from_tests {
 }
 
 #[cfg(test)]
+mod undo_tests {
+    use super::testing::backend;
+    use super::*;
+
+    fn finished(id: Id) -> Entry {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "url": format!("http://127.0.0.1:9/{id}.bin"),
+            "state": serde_json::to_value(dm_core::State::Completed).unwrap(),
+            "progress": {"downloaded": 1, "total": 1, "speed": 0.0, "eta": null},
+            "filename": format!("{id}.bin"),
+        }))
+        .unwrap()
+    }
+
+    /// Finished rows taken off are put back once, while Undo is on offer,
+    /// and not after its time.
+    #[test]
+    fn undo_puts_the_rows_taken_off_back_once_and_only_in_its_time() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        backend.put_back(vec![(0, finished(7)), (1, finished(8))]);
+        let ids: Vec<Id> = backend.snapshot().rows.iter().map(|r| r.id).collect();
+        assert_eq!(ids.len(), 2, "{ids:?}");
+        let mut undo = Undo::default();
+        assert!(
+            !undo.live() && undo.put_back(&backend).is_none(),
+            "nothing kept"
+        );
+        assert_eq!(undo.keep(backend.finished_rows(&ids)), 2);
+        backend.remove_many(&ids);
+        assert!(backend.snapshot().rows.is_empty());
+        assert!(undo.live());
+        let mut back = undo.put_back(&backend).unwrap();
+        back.sort_unstable();
+        let mut want = ids.clone();
+        want.sort_unstable();
+        assert_eq!(back, want);
+        assert_eq!(backend.snapshot().rows.len(), 2);
+        assert!(undo.put_back(&backend).is_none(), "once");
+        // Its time over: put away, and nothing put back.
+        assert_eq!(undo.keep(backend.finished_rows(&ids)), 2);
+        backend.remove_many(&ids);
+        undo.backdate(UNDO_FOR);
+        assert!(!undo.live() && !undo.is_kept());
+        assert!(undo.put_back(&backend).is_none());
+        assert!(backend.snapshot().rows.is_empty());
+        assert_eq!(undo.keep(Vec::new()), 0, "nothing to keep");
+        assert!(!undo.is_kept());
+    }
+}
+
+#[cfg(test)]
 mod set_url_tests {
     use super::testing::backend;
     use std::time::Duration;
@@ -905,6 +959,67 @@ mod set_url_tests {
         );
         assert!(backend.set_url(id, "not a link").is_err());
         backend.cancel(id);
+    }
+}
+
+/// How long after downloads were taken off the list Undo puts them back.
+pub const UNDO_FOR: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Finished rows taken off the list, kept for [`UNDO_FOR`] so Undo can put
+/// them back where they were.
+#[derive(Debug, Default)]
+pub struct Undo(Option<(std::time::Instant, Vec<(usize, Entry)>)>);
+
+impl Undo {
+    /// Kept since `at` (the window's tests set a time).
+    pub fn since(at: std::time::Instant, rows: Vec<(usize, Entry)>) -> Undo {
+        Undo(Some((at, rows)))
+    }
+
+    /// `rows` were just taken off (`Backend::finished_rows` before the
+    /// removal): kept, in place of any before. How many; none keeps nothing.
+    pub fn keep(&mut self, rows: Vec<(usize, Entry)>) -> usize {
+        let n = rows.len();
+        if n > 0 {
+            self.0 = Some((std::time::Instant::now(), rows));
+        }
+        n
+    }
+
+    /// Whether Undo is still on offer; put away once its time is over.
+    pub fn live(&mut self) -> bool {
+        match &self.0 {
+            Some((at, _)) if at.elapsed() < UNDO_FOR => true,
+            Some(_) => {
+                self.0 = None;
+                false
+            }
+            None => false,
+        }
+    }
+
+    /// Whether anything is kept, on offer or not yet put away.
+    pub fn is_kept(&self) -> bool {
+        self.0.is_some()
+    }
+
+    /// As if kept `by` earlier (the window's tests).
+    pub fn backdate(&mut self, by: std::time::Duration) {
+        if let Some((at, _)) = self.0.as_mut() {
+            *at = at.checked_sub(by).unwrap_or(*at);
+        }
+    }
+
+    /// Puts the rows back through `backend` while Undo is on offer: their
+    /// ids, or `None` (nothing kept, or its time over). Once only.
+    pub fn put_back(&mut self, backend: &Backend) -> Option<Vec<Id>> {
+        let (at, rows) = self.0.take()?;
+        if at.elapsed() >= UNDO_FOR || rows.is_empty() {
+            return None;
+        }
+        let ids = rows.iter().map(|(_, e)| e.id).collect();
+        backend.put_back(rows);
+        Some(ids)
     }
 }
 

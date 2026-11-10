@@ -995,10 +995,10 @@ fn an_undo_whose_time_is_over_is_put_away() {
     let long_ago = Instant::now()
         .checked_sub(Duration::from_secs(600))
         .expect("a time ten minutes ago");
-    harness.state_mut().undo_remove = Some((long_ago, Vec::new()));
+    harness.state_mut().undo_remove = dm_shell::app::backend::Undo::since(long_ago, Vec::new());
     harness.state_mut().said = dm_desktop::i18n::Said::new("Removed 1 download.", &[]);
     harness.run_steps(2);
-    assert!(harness.state().undo_remove.is_none());
+    assert!(!harness.state().undo_remove.is_kept());
     assert!(harness.query_by_label("Undo").is_none());
 }
 

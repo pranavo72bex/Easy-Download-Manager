@@ -121,6 +121,26 @@ impl Session {
         self.detector.own(id);
     }
 
+    /// Adds each address with its options (`Backend::add_each`, the queue
+    /// written once), each row added marked as this presentation's own.
+    pub fn add(&mut self, backend: &Backend, items: Vec<(String, dm_core::AddOptions)>) -> Added {
+        let asked: Vec<(String, bool)> = items.iter().map(|(u, w)| (u.clone(), w.later)).collect();
+        let mut done = Added::default();
+        for ((url, later), outcome) in asked.into_iter().zip(backend.add_each(items)) {
+            match outcome {
+                Ok(id) => {
+                    self.own(id);
+                    done.rows.push((id, url, later));
+                }
+                Err(e) => {
+                    done.failed += 1;
+                    done.error = Some(e);
+                }
+            }
+        }
+        done
+    }
+
     /// Each row's state at the read before the latest (When done's dry-queue
     /// watch compares the latest rows with it).
     pub fn before(&self) -> &HashMap<Id, State> {
@@ -329,6 +349,38 @@ pub fn when_done_asked(home: &std::path::Path) -> Option<WhenDone> {
 /// opens once.
 pub fn new_download_asked(home: &std::path::Path) -> bool {
     std::fs::remove_file(crate::host::inbox(home).join(crate::shell::NEW_DOWNLOAD_FILE)).is_ok()
+}
+
+/// What [`Session::add`] came to.
+#[derive(Debug, Default)]
+pub struct Added {
+    /// Each row added: its id, the address and whether it was added for
+    /// later, in the order asked.
+    pub rows: Vec<(Id, String, bool)>,
+    /// How many were not added.
+    pub failed: usize,
+    /// Why the last of those was not.
+    pub error: Option<String>,
+}
+
+impl Added {
+    /// How many were added; the error when none was and one was refused.
+    /// Some added and some not is still how many: the presentation says the
+    /// rest ([`Self::partly`]).
+    pub fn outcome(&self) -> Result<usize, String> {
+        match (&self.error, self.rows.len()) {
+            (Some(e), 0) => Err(e.clone()),
+            (_, n) => Ok(n),
+        }
+    }
+
+    /// How many were refused, and why the last was, when others went in.
+    pub fn partly(&self) -> Option<(usize, &str)> {
+        match &self.error {
+            Some(e) if !self.rows.is_empty() => Some((self.failed, e.as_str())),
+            _ => None,
+        }
+    }
 }
 
 /// What carrying out a When done action that came due leads to.
@@ -634,6 +686,34 @@ mod no_window_tests {
             );
             assert_eq!(got.last(), Some(&DownloadEvent::Removed(id)), "{got:?}");
         }
+    }
+
+    /// Rows the presentation added are its own (not "started elsewhere"),
+    /// and a refused address is counted without losing the rest.
+    #[test]
+    fn adding_marks_the_rows_as_this_presentations_and_counts_what_was_refused() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        let settings = backend.settings();
+        let mut session = Session::default();
+        session.read(&backend, &settings);
+        let now = dm_core::AddOptions::default();
+        let added = session.add(
+            &backend,
+            vec![
+                ("http://127.0.0.1:9/a.bin".into(), now.clone()),
+                ("not an address".into(), now.clone()),
+            ],
+        );
+        assert_eq!(added.rows.len(), 1);
+        assert_eq!(added.rows[0].1, "http://127.0.0.1:9/a.bin");
+        assert_eq!(added.outcome(), Ok(1));
+        assert!(matches!(added.partly(), Some((1, _))), "{added:?}");
+        let read = session.read(&backend, &settings);
+        assert!(read.detected.started_elsewhere.is_empty(), "its own");
+        let none = session.add(&backend, vec![("not an address".into(), now)]);
+        assert!(none.outcome().is_err() && none.partly().is_none());
     }
 
     #[test]

@@ -926,14 +926,10 @@ fn undo_after_its_time_or_with_nothing_puts_nothing_back() {
     let id = app.rows()[0].id;
     app.remove_finished_with_undo(&[id]);
     assert!(app.rows().is_empty());
-    if let Some((at, _)) = app.undo_remove.as_mut() {
-        *at = Instant::now()
-            .checked_sub(Duration::from_secs(60))
-            .unwrap_or(*at);
-    }
+    app.undo_remove.backdate(Duration::from_secs(60));
     app.undo_remove();
     assert!(app.rows().is_empty(), "put back after its time");
-    app.undo_remove = Some((Instant::now(), Vec::new()));
+    app.undo_remove = dm_shell::app::backend::Undo::since(Instant::now(), Vec::new());
     app.undo_remove();
     assert!(app.rows().is_empty());
 }

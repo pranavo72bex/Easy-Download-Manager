@@ -366,7 +366,7 @@ pub struct DmApp {
     /// The speed limit to go back to when the limiter is turned on again.
     last_limit: u64,
     /// Finished downloads just taken off the list, with when, for Undo.
-    pub undo_remove: Option<(Instant, Vec<(usize, Entry)>)>,
+    pub undo_remove: dm_shell::app::backend::Undo,
     /// A word in the status bar about the last thing done.
     pub said: crate::i18n::Said,
     /// What Copy link asked to put on the clipboard, for the next frame.
@@ -513,7 +513,7 @@ pub struct DmApp {
 // Long enough to read; not standing over what was done since.
 const SAID_FOR: Duration = Duration::from_secs(12);
 /// How long Undo is offered after a download is taken off the list.
-const UNDO_FOR: Duration = Duration::from_secs(5);
+use dm_shell::app::backend::UNDO_FOR;
 
 impl DmApp {
     /// Creates the window's state over `backend`, reading the settings in force.
@@ -559,7 +559,7 @@ impl DmApp {
             clipboard: Clipboard::default(),
             browser_hint: (None, false),
             update_row: None,
-            undo_remove: None,
+            undo_remove: Default::default(),
             show_asked: false,
             hide_asked: false,
             welcome_checked: false,

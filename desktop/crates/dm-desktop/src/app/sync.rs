@@ -617,27 +617,22 @@ impl DmApp {
     pub fn remove_finished_with_undo(&mut self, ids: &[Id]) {
         let rows = self.backend.finished_rows(ids);
         self.remove_now(ids);
-        if !rows.is_empty() {
+        let n = self.undo_remove.keep(rows);
+        if n > 0 {
             self.said = crate::i18n::Said::counting(
                 "Removed {} download from the list.||Removed {} downloads from the list.",
-                rows.len() as u64,
-                &[&rows.len()],
+                n as u64,
+                &[&n],
             );
-            self.undo_remove = Some((Instant::now(), rows));
         }
     }
 
     /// Puts back what was just taken off the list, if it is still in time.
     pub fn undo_remove(&mut self) {
-        let Some((at, rows)) = self.undo_remove.take() else {
+        let Some(ids) = self.undo_remove.put_back(&self.backend) else {
             return;
         };
-        if at.elapsed() >= UNDO_FOR || rows.is_empty() {
-            return;
-        }
-        let ids: Vec<Id> = rows.iter().map(|(_, e)| e.id).collect();
-        let n = rows.len();
-        self.backend.put_back(rows);
+        let n = ids.len();
         self.refresh();
         self.selected = ids.into_iter().collect();
         self.said = crate::i18n::Said::counting(
@@ -766,41 +761,27 @@ impl DmApp {
         items: Vec<(String, dm_core::AddOptions)>,
         sizes: &HashMap<String, u64>,
     ) -> Result<usize, String> {
-        let mut added = 0;
-        let mut last_error = None;
         self.last_added.clear();
         let count = items.len();
-        let asked: Vec<(String, bool)> = items.iter().map(|(u, w)| (u.clone(), w.later)).collect();
-        for ((url, later), outcome) in asked.iter().zip(self.backend.add_each(items)) {
-            match outcome {
-                Ok(id) => {
-                    added += 1;
-                    self.last_added.push(id);
-                    self.session.own(id);
-                    if let Some(size) = sizes.get(url) {
-                        self.sizes_told.insert(id, *size);
-                    }
-                    if !later && self.applied.show_progress && count == 1 {
-                        self.dialogs.progress.insert(id);
-                    }
-                }
-                Err(e) => last_error = Some(e),
+        let added = self.session.add(&self.backend, items);
+        for (id, url, later) in &added.rows {
+            self.last_added.push(*id);
+            if let Some(size) = sizes.get(url) {
+                self.sizes_told.insert(*id, *size);
+            }
+            if !later && self.applied.show_progress && count == 1 {
+                self.dialogs.progress.insert(*id);
             }
         }
         self.refresh();
-        let failed = count.saturating_sub(added);
-        match (added, last_error) {
-            (0, Some(e)) => Err(e),
-            (_, Some(e)) => {
-                // The rest went in; the ones that did not are said, not lost.
-                self.problem(match failed {
-                    1 => format!("One of the links was not added: {e}"),
-                    n => format!("{n} of the links were not added: {e}"),
-                });
-                Ok(added)
-            }
-            _ => Ok(added),
+        if let Some((failed, e)) = added.partly() {
+            // The rest went in; the ones that did not are said, not lost.
+            self.problem(match failed {
+                1 => format!("One of the links was not added: {e}"),
+                n => format!("{n} of the links were not added: {e}"),
+            });
         }
+        added.outcome()
     }
 
     /* ---------------------------------------------------------- drawing */

@@ -382,14 +382,7 @@ impl DmApp {
                 .any(|r| r.state == State::Paused && r.paused_by_schedule);
         let showing = fresh && !stale && !self.said.is_empty() && !self.said.is_limiter();
         // Undo, for the few seconds after downloads were taken off the list.
-        let undo_live = match &self.undo_remove {
-            Some((at, _)) if at.elapsed() < UNDO_FOR => true,
-            Some(_) => {
-                self.undo_remove = None;
-                false
-            }
-            None => false,
-        };
+        let undo_live = self.undo_remove.live();
         let mut undo_asked = false;
         ui.horizontal(|ui| {
             // Each "· …" part starts with its own space: the usual gap as
