@@ -262,6 +262,28 @@ impl PendingRenames {
     }
 }
 
+/// A category's name as the settings and the control protocol write it.
+#[must_use]
+pub fn category_word(c: Category) -> String {
+    serde_json::to_value(c)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+/// A category's folder under `root`, by the category's word (a kind, as
+/// [`category_word`] writes it) or a person's own category's name.
+pub fn category_folder(
+    word: &str,
+    root: &Path,
+    categories: &dm_core::Categories,
+) -> std::path::PathBuf {
+    match Category::ALL.iter().find(|c| category_word(**c) == word) {
+        Some(kind) => categories.destination(root, *kind),
+        None => root.join(word),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -379,5 +401,21 @@ mod tests {
         let finished = |id: Id| (id == 3 || id == 4).then_some(State::Completed);
         assert_eq!(renames.due(finished), vec![(3, "c.bin".to_string())]);
         assert!(renames.due(finished).is_empty(), "each once");
+    }
+
+    #[test]
+    fn a_kinds_folder_is_its_categorys_and_another_word_a_folder_of_that_name() {
+        let root = Path::new("/dl");
+        let categories = dm_core::Categories::default();
+        let videos = category_word(Category::Videos);
+        assert!(!videos.is_empty());
+        assert_eq!(
+            category_folder(&videos, root, &categories),
+            categories.destination(root, Category::Videos)
+        );
+        assert_eq!(
+            category_folder("Work", root, &categories),
+            root.join("Work")
+        );
     }
 }

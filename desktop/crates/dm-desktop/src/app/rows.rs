@@ -17,14 +17,7 @@ pub fn kind(state: &State) -> &'static str {
     }
 }
 
-/// A category's name as the settings and the control protocol write it.
-#[must_use]
-pub fn category_word(c: Category) -> String {
-    serde_json::to_value(c)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_owned))
-        .unwrap_or_default()
-}
+pub use dm_shell::app::names::category_word;
 
 pub use dm_shell::app::rules::link_expired;
 

@@ -154,22 +154,10 @@ pub(crate) fn already_listed(app: &DmApp, address: &str) -> Option<Id> {
 /// How an address already in the list is answered (`dm_shell::app::rules::Dup`).
 pub(crate) use dm_shell::app::rules::Dup;
 
-/// The finished file of row `id` as (path, folder, name), where it is on the
-/// disk to be replaced.
-fn replaceable(app: &DmApp, id: Id) -> Option<(String, String, String)> {
-    let row = app.row(id)?;
-    if row.state != State::Completed || row.path.is_empty() {
-        return None;
-    }
-    let path = std::path::Path::new(&row.path);
-    if !path.exists() {
-        return None;
-    }
-    Some((
-        row.path.clone(),
-        path.parent()?.to_string_lossy().into_owned(),
-        path.file_name()?.to_string_lossy().into_owned(),
-    ))
+/// The options that replace the row's finished file, where it has one
+/// (`rules::replacing`).
+fn replaceable(app: &DmApp, id: Id) -> Option<dm_core::AddOptions> {
+    app.row(id).and_then(dm_shell::app::rules::replacing)
 }
 
 /// Whether the row is stopped, or failed: one that "Show it" can also go on
@@ -203,13 +191,7 @@ pub(crate) fn answer_duplicate(app: &mut DmApp, address: String, id: Id, how: Du
         }
         Dup::Again => app.dialogs.open_file_info(vec![address]),
         Dup::Replace => match replaceable(app, id) {
-            Some((path, dir, name)) => {
-                let with = dm_core::AddOptions {
-                    replaces: Some(path),
-                    save_dir: Some(dir),
-                    save_name: Some(name),
-                    ..Default::default()
-                };
+            Some(with) => {
                 if let Err(e) = app.add(&[address], with) {
                     app.said = e.into();
                 }

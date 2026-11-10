@@ -147,6 +147,26 @@ impl Dup {
     }
 }
 
+/// The options that download a row's address again over its finished file
+/// (Add URL's "Replace the old file"): the same folder and name, the old
+/// file replaced once the new one is whole. `None` when the row is not
+/// finished or its file is gone (a numbered copy is the way then).
+pub fn replacing(row: &Entry) -> Option<dm_core::AddOptions> {
+    if row.state != State::Completed || row.path.is_empty() {
+        return None;
+    }
+    let path = std::path::Path::new(&row.path);
+    if !path.exists() {
+        return None;
+    }
+    Some(dm_core::AddOptions {
+        replaces: Some(row.path.clone()),
+        save_dir: Some(path.parent()?.to_string_lossy().into_owned()),
+        save_name: Some(path.file_name()?.to_string_lossy().into_owned()),
+        ..Default::default()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,5 +257,24 @@ mod tests {
             assert_eq!(Dup::from_word(dup.word()), Some(dup));
         }
         assert_eq!(Dup::from_word("ask"), None);
+    }
+
+    #[test]
+    fn only_a_finished_row_whose_file_is_there_can_be_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("old.zip");
+        std::fs::write(&file, b"old").unwrap();
+        let path = file.display().to_string();
+        let done = row(1, "http://e.com/old.zip", State::Completed, &path);
+        let with = replacing(&done).unwrap();
+        assert_eq!(with.replaces.as_deref(), Some(path.as_str()));
+        assert_eq!(
+            with.save_dir.as_deref(),
+            Some(&*dir.path().to_string_lossy())
+        );
+        assert_eq!(with.save_name.as_deref(), Some("old.zip"));
+        assert!(replacing(&row(2, "http://e.com/old.zip", State::Running, &path)).is_none());
+        std::fs::remove_file(&file).unwrap();
+        assert!(replacing(&done).is_none(), "its file is gone");
     }
 }

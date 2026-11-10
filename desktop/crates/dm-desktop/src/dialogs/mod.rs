@@ -306,17 +306,7 @@ impl LinksImport {
         if let Some(found) = dm_core::lock(&self.found).get(url) {
             return found.html;
         }
-        let path = url.split(['?', '#']).next().unwrap_or(url);
-        let last = path
-            .rsplit('/')
-            .next()
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        path.ends_with('/')
-            || !last.contains('.')
-            || [".html", ".htm", ".php", ".asp", ".aspx", ".jsp"]
-                .iter()
-                .any(|e| last.ends_with(e))
+        dm_shell::app::links::looks_like_page(url)
     }
 
     /// A link that is a picture: by what its server said, or before it
@@ -326,11 +316,8 @@ impl LinksImport {
             .get(url)
             .map(|f| f.name.clone())
             .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| {
-                let path = url.split(['?', '#']).next().unwrap_or(url);
-                path.rsplit('/').next().unwrap_or_default().to_string()
-            });
-        dm_core::classify(&name, None) == dm_core::Category::Pictures
+            .unwrap_or_else(|| dm_shell::app::links::name_in_address(url).to_string());
+        dm_shell::app::links::is_picture(&name)
     }
 
     /// Which rows are listed, in order: what the filters leave, and of an
@@ -354,12 +341,7 @@ impl LinksImport {
         if self.hide_images && self.is_image(url) {
             return false;
         }
-        let wanted: Vec<String> = self
-            .types
-            .split([' ', ',', ';'])
-            .map(|t| t.trim().trim_start_matches('.').to_ascii_lowercase())
-            .filter(|t| !t.is_empty())
-            .collect();
+        let wanted = dm_shell::app::links::wanted_types(&self.types);
         if wanted.is_empty() {
             return true;
         }
@@ -368,15 +350,8 @@ impl LinksImport {
             .get(url)
             .map(|f| f.name.clone())
             .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| {
-                let path = url.split(['?', '#']).next().unwrap_or(url);
-                path.rsplit('/').next().unwrap_or_default().to_string()
-            });
-        let ext = name
-            .rsplit_once('.')
-            .map(|(_, e)| e.to_ascii_lowercase())
-            .unwrap_or_default();
-        wanted.contains(&ext)
+            .unwrap_or_else(|| dm_shell::app::links::name_in_address(url).to_string());
+        dm_shell::app::links::of_wanted_type(&name, &wanted)
     }
 
     /// The links OK would add: checked, and listed.
@@ -441,21 +416,7 @@ impl LinksImport {
     }
 }
 
-/// A category's folder, by the category's word (a kind) or a person's own
-/// category's name.
-pub fn category_folder(
-    word: &str,
-    root: &std::path::Path,
-    categories: &dm_core::Categories,
-) -> std::path::PathBuf {
-    match dm_core::Category::ALL
-        .iter()
-        .find(|c| crate::app::category_word(**c) == word)
-    {
-        Some(kind) => categories.destination(root, *kind),
-        None => root.join(word),
-    }
-}
+pub use dm_shell::app::names::category_folder;
 
 /// The Properties dialog of one download: its name, address, login and checks.
 pub struct Properties {
