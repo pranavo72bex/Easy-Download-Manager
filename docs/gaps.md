@@ -14,7 +14,7 @@ and how it closes; when it closes, its row is deleted (what was done is in
 ## State (2026-11-09)
 
 The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
-can be done here; G3 to G5 come first and need no decision (G1 and G2 closed 2026-11-10). The other rows need a Windows
+can be done here; G4 and G5 come first and need no decision (G1 to G3 closed 2026-11-10). The other rows need a Windows
 computer, a device or a person.
 Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
@@ -39,7 +39,6 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
-| G3  | GPUI migration, A3: about 2,500 lines of application rules still in `DmApp` (`CURRENT_UI_ARCHITECTURE.md` 4.2): question detection (B39 to B41), pending renames, once-only schedule dates, saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the script guard, the inbox order files | OPEN | Each in `dm_shell::app` with its test, `DmApp` holding view state only; tests and both QA runs 64/64 |
 | G4  | GPUI migration, A4: the control port's `ui.*` answers (what `human-qa.py` and MCP read) are written against egui's painted shapes, not as a contract another window can implement | OPEN | A toolkit-free trait and JSON shapes fixed by tests in the shared crate, implemented by the egui window; `human-qa.py` unchanged and 64/64 |
 | G5  | GPUI migration, A5: no baseline of the egui window's own costs at 100 / 1,000 / 10,000 rows (start to first frame, idle CPU, memory, frame time with 20 downloads, scroll and search) | OPEN | A script that measures through the control port only, its egui numbers recorded in `docs/migration/GPUI_TEST_PLAN.md` |
 | G6  | GPUI migration, Phase B: no GPUI shell yet to decide go or no-go (screen readers in every dialog window first; software rendering under Xvfb and GPU-less Windows; B42 placement; tray; drag and drop; IME; size) | OPEN | `desktop/crates/dm-gpui` on the proposed pin, each check of `docs/migration/GPUI_MIGRATION_PLAN.md` Phase B pass or fail on macOS, Windows, X11 and Wayland; the maintainer's D1 (go) and D2 (pin) |
@@ -106,27 +105,16 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). `--help` and MCP's
   `initialize`/`tools/list` byte for byte as before; `launch-latency.py` unchanged;
   `handover-check.py` 67 of 68 (LibreOffice, row 166, failing before G2 too); both QA runs 64/64.
-- **G3, rules into `dm_shell::app`: in progress.** Done (2026-11-10, batch 1): the hand-off
-  cancel counter (`handoff::Cancels`), the one-time hints (`hints::Hint`), the speed limiter's
-  starting value (`commands::remembered_limit`), the inbox orders (`session::new_download_asked`;
-  `commands::when_done_command`) and "only what this computer can do" (`WhenDone::possible`, which
-  the menu, the Scheduler and the command line each wrote out). Batch 2: once-only schedule
-  dates (`schedule::spent_once_put_away`), renames after "use the address's name"
-  (`names::PendingRenames`), finished files' sizes (`snapshot::SavedSizes`). Batch 3: question
-  detection, B39 to B41 (`questions::Questions`); both QA runs 64/64 at a9a9ebd. Batch 4: saved
-  searches (`search::due_now`, `by_site_folder`, `seen_saved`), the weekly update check's stamp
-  (`update::weekly`), the script guard (`control_api::ScriptGuard`), the dial-up hang-up's thread
-  (`dialup::hang_up_later`). Next: adding, remove with Undo's bookkeeping, settings
-  coordination. The list, with files, is
-  `CURRENT_UI_ARCHITECTURE.md` 4.2 (settings coordination and the script guard `by_script`,
-  question detection B39 to B41, pending renames, once-only schedule dates, dial-up hang-up,
-  saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the
-  inbox orders, adding, finished sizes, remove with Undo's bookkeeping, the speed limiter's
-  memory). One rule per commit: the rule becomes a function or a small type in
-  `dm_shell::app` (a module of its own where none fits, listed in `MODULE_BOUNDARIES.md`),
-  `DmApp` calls it, and its tests move with it or are written (a test that fails without the
-  move's code, as the project does). Wording, sounds and which dialog opens stay in the window.
-- **G4, `ui.*` as a contract: can start (G2 is done).** The methods are `ui.texts`, `ui.click`, `ui.type`,
+- **G3, rules into `dm_shell::app`: done** (2026-11-10). Moved, each with a dm-shell test:
+  `handoff::Cancels`, `hints::Hint`, `commands::remembered_limit` and `when_done_command`,
+  `session::new_download_asked`, `WhenDone::possible`, `schedule::spent_once_put_away`,
+  `names::PendingRenames`, `snapshot::SavedSizes`, `questions::Questions` (B39 to B41),
+  `search::due_now`/`by_site_folder`/`seen_saved`, `update::weekly`, `control_api::ScriptGuard`,
+  `dialup::hang_up_later`, `Session::add`, `backend::Undo`, the links dialog's rules
+  (`links::looks_like_page` and the rest), `names::category_folder`, `rules::replacing`. Left in
+  the window by decision (`docs/decisions.md`, 2026-11-10): `apply_settings`' words and view
+  updates, the sounds and notifications' words, dialogs' drafts. Both QA runs 64/64 at 0b0a699.
+- **G4, `ui.*` as a contract: next.** The methods are `ui.texts`, `ui.click`, `ui.type`,
   `ui.key`, `ui.scroll`, `ui.inspect`, `ui.select`, `ui.place`, `ui.windows`, `ui.window`,
   `ui.move_window`, `ui.screenshot`, `ui.accessibility`, plus `commands.list` and
   `command.run` (implemented in `dm-desktop/src/app/human.rs`, `app/control.rs`,

@@ -54,7 +54,7 @@ makes sense with a screen.
   it asks the application (`Backend`, `lookups`, `search`, `update`, `files`),
   which asks the engine.
 - State has one owner: the queue owns rows; `Settings` (behind `Backend`) owns
-  settings; the window owns only its view state (the aim: rules still in
-  `DmApp` are listed in `docs/migration/CURRENT_UI_ARCHITECTURE.md` 4.2 and
-  move under `docs/gaps.md` row G3).
+  settings; the window owns only its view state (the rules `DmApp` kept moved
+  under `docs/gaps.md` row G3, 2026-11-10; what stays and why is in
+  `docs/decisions.md`).
 - Moves keep the old path working with a `pub use` until every caller is moved.

@@ -3,6 +3,20 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: G3 leaves `apply_settings`, the sounds and the dialogs' drafts in the window
+
+At the maintainer's word of 2026-11-09 (take the recommended option). Of the list in
+`docs/migration/CURRENT_UI_ARCHITECTURE.md` 4.2, three stay where they are, each for a reason a
+second window would share: settings coordination is already the application's
+(`Backend::set_settings_from`, with the script rule `Settings::keep_programs_of`), and what is
+left of `DmApp::apply_settings` is the window's (its sentences for a kept program, the language
+it draws in, re-placing its rows, its own timers); notifications and sounds are which words and
+which sound, the presentation's by the row's own wording ("wording, sounds and which dialog opens
+stay in the window"); and a dialog's draft (Download all links' list and ticks, Properties' edits)
+is view state, its rules moved (`links::looks_like_page` and the rest, `rules::replacing`). The
+rows' verbs a dialog calls (`backend.pause`, `retry`, `resume`) are the application's API already.
+Every other entry moved, one rule per type or function, each with a dm-shell test.
+
 ## 2026-11-10: `Desktop` is the base crate's, and the window supplies what its crates do
 
 At the maintainer's word of 2026-11-09 (take the recommended option). The survey counted egui
