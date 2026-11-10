@@ -15,8 +15,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 
 use dm_desktop::app::DmApp;
-use dm_desktop::backend::{Backend, Platform};
-use dm_shell::{host, instance, settings, shell};
+use dm_desktop::backend::Platform;
+use dm_shell::{host, settings, shell};
 
 #[cfg(target_os = "macos")]
 mod dock;
@@ -288,34 +288,15 @@ fn main() {
 
     let handed = shell::orders(&args);
 
-    // One dm at a time. The lock is held for the life of this process by
-    // living to the end of `main`.
+    // One dm at a time (`dm_desktop_base::boot`, as every window starts
+    // dm). The lock is held for the life of this process by living to the
+    // end of `main`.
     let headless = args.iter().any(|a| a == "--headless");
-    let _running = match instance::claim(&settings::home()) {
-        Ok(Some(lock)) => lock,
-        // Registered first: this launch ends at the hand-off, and a browser
-        // installed while dm ran was never told where dm is. The
-        // running dm, asked to show itself, checks again and says what
-        // fails in its window.
-        Ok(None) => {
-            if let Some(why) = shell::hand_off(
-                &settings::home(),
-                &handed,
-                dm_shell::register::ensure_if_claimed,
-            ) {
-                eprintln!("dm: your browsers could not be told where dm is: {why}");
-            }
-            return;
-        }
-        // Not taken for a running dm, which it used to be: dm exited without
-        // a word, every time. Nor started without it: a second dm started
-        // the same way would write the same queue. Said, where a person
-        // launching from the Dock will see it too.
-        Err(e) => {
-            let why = format!(
-                "dm cannot tell whether another dm is running, so it has not started: {e}. \
-                 Remove that file, or make it yours, and start dm again."
-            );
+    let _running = match dm_desktop_base::boot::claim(&handed) {
+        dm_desktop_base::boot::Claimed::Running(lock) => lock,
+        dm_desktop_base::boot::Claimed::HandedOff => return,
+        // Said, where a person launching from the Dock will see it too.
+        dm_desktop_base::boot::Claimed::Refused(why) => {
             eprintln!("dm: {why}");
             if !headless {
                 let _ = rfd::MessageDialog::new()
@@ -327,9 +308,6 @@ fn main() {
             std::process::exit(1);
         }
     };
-    // `--when-done`, for the window this launch starts to take up.
-    shell::leave_when_done(&settings::home(), &handed);
-    shell::leave_new_download(&settings::home(), &handed);
     // A magnet link or a .torrent file the system opens with dm arrives as an
     // Apple event, not a command line: handed to the window as one.
     #[cfg(target_os = "macos")]
@@ -337,180 +315,50 @@ fn main() {
         shell::opened_by_system(&settings::home(), &words);
     });
 
-    // Made before the signals are listened for, so one arriving during
-    // startup still reaches the window once there is one.
+    // Made before dm starts, so a signal or a change during startup still
+    // reaches the window once there is one.
     let repaint_early: Arc<std::sync::OnceLock<egui::Context>> = Arc::default();
-    let runtime = match tokio::runtime::Runtime::new() {
-        Ok(runtime) => runtime,
-        Err(e) => {
-            eprintln!("dm could not start: {e}");
-            std::process::exit(1);
-        }
-    };
-    on_signal(&runtime, {
-        let repaint = Arc::clone(&repaint_early);
-        move || {
-            if let Some(ctx) = repaint.get() {
-                ctx.request_repaint();
-            }
-        }
-    });
-    let shell::Started {
-        queue,
-        settings: mut saved,
-        mut notices,
-    } = runtime.block_on(shell::start(&handed));
-    let hidden = shell::launched_at_login(&args);
-    // Read once: Mica is the window's from its making, so a change waits
-    // for the next start.
-    let mica = dm_desktop::chrome::use_mica(saved.mica);
-    // `--control <port>`, or DM_CONTROL: the control protocol, for tests and
-    // agents to drive the running window. Off unless asked for.
-    let control: Option<u16> = args
-        .iter()
-        .position(|a| a == "--control")
-        .and_then(|i| args.get(i + 1))
-        .cloned()
-        .or_else(|| std::env::var("DM_CONTROL").ok())
-        .and_then(|p| p.parse().ok())
-        // Or the person's own setting (Options › General): the command line.
-        .or_else(|| (saved.allow_command_line || saved.allow_mcp).then_some(0));
-    // Open only because AI assistants are allowed (not asked for by
-    // `--control`, `DM_CONTROL` or the command-line setting): then the port
-    // answers assistants and nothing else, so the default does not hand the
-    // command line to people who never turned it on.
-    let assistants_only = !args.iter().any(|a| a == "--control")
-        && std::env::var_os("DM_CONTROL").is_none()
-        && !saved.allow_command_line;
 
     #[cfg(target_os = "macos")]
     let _ = notify_rust::set_application("com.dm.desktop");
 
     let platform: Arc<dyn Platform> =
         Arc::new(dm_desktop_base::desktop::Desktop { window: EguiWindow });
-    // The login item follows the saved setting, so a reinstall lands in the
-    // state the person last chose. Said in the window, not fatal. One the
-    // person turned off in Task Manager stays off, and so does the setting.
-    // Not for a dm run on a home of its own (`DM_HOME`: a test, a script, a
-    // portable copy): starting at login is on for a new install, and every
-    // test's fresh home would otherwise put a login item on the computer
-    // running it. Turning the setting on in Options still registers one.
-    let own_home = std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty());
-    let at_launch = (!own_home).then(|| {
-        dm_desktop::autostart::at_launch(saved.start_on_login, login_item_turned_off_outside())
-    });
-    match at_launch {
-        None => {}
-        Some(dm_desktop::autostart::AtLaunch::TurnedOffOutside) => {
-            saved.start_on_login = false;
-            notices.push(match saved.save() {
-                Ok(()) => "start on login was turned off in Task Manager, so dm has turned it \
-                           off too; Options › General turns it back on"
-                    .to_string(),
-                Err(e) => format!(
-                    "start on login was turned off in Task Manager and dm leaves it off, \
-                     but the setting could not be saved: {e}"
-                ),
-            });
-        }
-        Some(dm_desktop::autostart::AtLaunch::Follow(wanted)) => {
-            if let Err(why) = platform.set_login_item(wanted) {
-                notices.push(format!(
-                    "could not change start-on-login: {why}; start on login is not in force"
-                ));
-            }
-        }
-    }
-
-    // Anything a browser handed over while the app was closed is waiting in
-    // the inbox; anything that was mid-flight came back queued.
-    let show_asked = Arc::new(AtomicBool::new(false));
-    let repaint = repaint_early;
-    // A change to the queue wakes the window, which then has no need to look
-    // every second for one while nothing moves.
-    {
-        let repaint = Arc::clone(&repaint);
-        // Within a quarter of a second, not at once: while downloads run the
-        // queue changes many times a second, and a repaint for each drew the
-        // window far more often than it is drawn anyway (10 downloads: 9.7 %
-        // of a core became 14.6 %). Requests within the quarter are one.
-        // The queue tells the application (`dm_shell::app::changes`), which
-        // marks the change and tells each presentation subscribed: this
-        // window's is the repaint.
-        dm_shell::app::changes::connect(&queue);
-        dm_shell::app::changes::subscribe(move || {
+    let wake = {
+        let repaint = Arc::clone(&repaint_early);
+        Arc::new(move |wake: dm_desktop_base::boot::Wake| {
             if let Some(ctx) = repaint.get() {
-                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                match wake {
+                    // Requests within the quarter are one.
+                    dm_desktop_base::boot::Wake::Soon => {
+                        ctx.request_repaint_after(std::time::Duration::from_millis(250))
+                    }
+                    dm_desktop_base::boot::Wake::Now => ctx.request_repaint(),
+                }
             }
-        });
-    }
-    let handed: Arc<Mutex<std::collections::VecDeque<dm_shell::host::Request>>> = Arc::default();
-    {
-        let (watched, flag, repaint) =
-            (queue.clone(), Arc::clone(&show_asked), Arc::clone(&repaint));
-        let (asked, ask_flag, ask_repaint) = (
-            Arc::clone(&handed),
-            Arc::clone(&show_asked),
-            Arc::clone(&repaint),
-        );
-        let quit_repaint = Arc::clone(&repaint);
-        runtime.spawn(shell::watch_inbox(
-            watched,
-            move || {
-                flag.store(true, Ordering::Relaxed);
-                if let Some(ctx) = repaint.get() {
-                    ctx.request_repaint();
-                }
-            },
-            // A video from the panel: shown in the window's own dialog.
-            move |request| {
-                dm_core::lock(&asked).push_back(request);
-                ask_flag.store(true, Ordering::Relaxed);
-                if let Some(ctx) = ask_repaint.get() {
-                    ctx.request_repaint();
-                }
-            },
-            // `--unregister` of an uninstall: ended as a stop signal ends dm.
-            move || {
-                SIGNALLED.store(true, Ordering::SeqCst);
-                if let Some(ctx) = quit_repaint.get() {
-                    ctx.request_repaint();
-                }
-            },
-        ));
-        let queue = queue.clone();
-        runtime.spawn(async move { queue.run().await });
-    }
-
-    // The computer kept awake for as long as a download is running.
-    {
-        let (queue, handle) = (queue.clone(), runtime.handle().clone());
-        dm_desktop::awake::watch(move || {
-            handle
-                .block_on(queue.list())
-                .iter()
-                .any(|row| row.state == dm_core::State::Running)
-        });
-    }
-    let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
-    // A sleeping computer woken for the schedule, where the Scheduler says.
-    {
-        let settings = backend.settings_handle();
-        dm_desktop::wake::watch(move || {
-            let now = dm_core::lock(&settings).clone();
-            if !now.schedule.wake {
-                return None;
-            }
-            let starts: Vec<u32> = now
-                .queue_start_list()
-                .into_iter()
-                .map(|(_, at)| at)
-                .collect();
-            let (weekday, minute) = dm_core::weekday_now();
-            dm_core::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
-        });
-    }
-    backend.handed = handed;
+        })
+    };
+    // The engine's runtime lives to the end of `main` (`_runtime`, not `_`,
+    // which would drop it here).
+    let dm_desktop_base::boot::Booted {
+        runtime: _runtime,
+        backend,
+        show_asked,
+        hidden,
+        control,
+        assistants_only,
+        started_with,
+    } = match dm_desktop_base::boot::start(&args, &handed, platform, wake) {
+        Ok(booted) => booted,
+        Err(why) => {
+            eprintln!("{why}");
+            std::process::exit(1);
+        }
+    };
+    // Read once: Mica is the window's from its making, so a change waits
+    // for the next start.
+    let mica = dm_desktop::chrome::use_mica(started_with.mica);
+    let repaint = repaint_early;
 
     // `--headless`: the queue, the browser hand-off and the control
     // protocol, with no window — for a server, a script or an agent.

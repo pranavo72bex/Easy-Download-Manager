@@ -4,7 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What dm's desktop program does that is not drawing, with no window
-//! toolkit, so that any window can use it. `dm_desktop` re-exports each
+//! toolkit, so that any window can use it: `boot`, dm started as every
+//! window starts it, and the rest below. `dm_desktop` re-exports each
 //! module at its old path.
 //!
 //! The system's services: `quiet` (whether the person is busy), `awake`
@@ -40,6 +41,7 @@
 pub mod a11y_tree;
 pub mod autostart;
 pub mod awake;
+pub mod boot;
 pub mod cli;
 pub mod contrast;
 pub mod control;

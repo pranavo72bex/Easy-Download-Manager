@@ -35,7 +35,7 @@ trash = "5.2.9"
 # The window's native handle, for Windows' taskbar progress (taskbar.rs).
 raw-window-handle = "0.6"
 # A logout or `kill` quits dm as Exit does (signals.rs).
-tokio = { version = "1", features = ["rt", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "signal"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # What VoiceOver is given of each window, read from inside (a11y_tree.rs).
