@@ -152,6 +152,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   (screen readers reach OK and Cancel in the dialog's own window on macOS, Windows and Linux)
   passes, or can be made to pass by a patch to GPUI kept in `desktop/vendor/` as eframe's is;
   no-go otherwise, and then the plan stops at Phase A, which stands on its own.
+- **macOS first (maintainer, 2026-11-10: "focus on macos").** The GPUI shell's checks and slices
+  are built and proved on macOS first; Windows and Linux runs (their halves of the Phase B checks,
+  `linux-human-qa.sh`, `windows-check.sh`) wait until the maintainer brings them back, and are
+  owed before anything merges into `main`. Code stays cross-platform (no macOS-only shortcuts
+  where the others would need a rewrite).
 - **Native feel and speed (maintainer, 2026-11-10).** Every GPUI slice (G6 to G8) is built as
   each system's own programs behave and measured against G5's egui numbers: the plan's section
   "Native feel and speed". A contract row a native change alters is updated with its baseline in
