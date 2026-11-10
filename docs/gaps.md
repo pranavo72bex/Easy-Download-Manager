@@ -113,8 +113,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   the menu, the Scheduler and the command line each wrote out). Batch 2: once-only schedule
   dates (`schedule::spent_once_put_away`), renames after "use the address's name"
   (`names::PendingRenames`), finished files' sizes (`snapshot::SavedSizes`). Batch 3: question
-  detection, B39 to B41 (`questions::Questions`). Next: saved searches, the weekly update check, dial-up hang-up, the script guard,
-  adding, remove with Undo's bookkeeping, settings coordination. The list, with files, is
+  detection, B39 to B41 (`questions::Questions`); both QA runs 64/64 at a9a9ebd. Batch 4: saved
+  searches (`search::due_now`, `by_site_folder`, `seen_saved`), the weekly update check's stamp
+  (`update::weekly`), the script guard (`control_api::ScriptGuard`), the dial-up hang-up's thread
+  (`dialup::hang_up_later`). Next: adding, remove with Undo's bookkeeping, settings
+  coordination. The list, with files, is
   `CURRENT_UI_ARCHITECTURE.md` 4.2 (settings coordination and the script guard `by_script`,
   question detection B39 to B41, pending renames, once-only schedule dates, dial-up hang-up,
   saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the
