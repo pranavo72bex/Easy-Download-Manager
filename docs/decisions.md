@@ -3,6 +3,20 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: On macOS the GPUI window asks its questions as sheets
+
+At the maintainer's word of 2026-11-10 ("focus on native improvements … it should feel native to
+users"). A question (Remove, Delete file, Cancel download, the server's name, a page for a file, a
+404, Exit while downloading) is asked on macOS as a sheet on the dm window: GPUI's
+`WindowKind::Dialog` is NSWindow's `beginSheet`, which is how macOS's own programs ask, holds that
+window until answered, and comes back with it when it is brought forward. The dialogs that are
+work rather than a question (Add URL, Download details, Options, the Scheduler, Properties) stay
+windows of their own, movable anywhere, as B42 says. B42's row and `human-qa.py`'s B42 checks are
+changed for the GPUI window's questions on macOS when it becomes the default (D5), in that commit,
+naming this word; until then the egui window, the one shipped, keeps B42 as written. Dropped:
+questions as windows of their own on macOS too (B42 as it reads), which a person on a Mac meets as
+a stray panel they can lose behind the window.
+
 ## 2026-11-10: The GPUI work is proved on macOS first; D1 go for macOS
 
 The maintainer, 2026-11-10: "or we can skip the linux for now", then "focus on macos". The GPUI
