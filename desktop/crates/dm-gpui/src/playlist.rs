@@ -130,22 +130,21 @@ impl Render for PlaylistWindow {
             .iter()
             .map(|(_, words)| SharedString::from(t(words)))
             .collect();
-        let body =
-            match &self.read {
-                None => div()
-                    .text_color(theme.muted)
-                    .child(screen.label(t("Reading the playlist…")))
-                    .into_any_element(),
-                Some(Err(why)) => native::note(
-                    tf("The playlist could not be read: {}", &[why]),
-                    theme.warning,
-                    &screen,
-                )
+        let body = match &self.read {
+            None => div()
+                .text_color(theme.muted)
+                .child(screen.label(t("Reading the playlist…")))
                 .into_any_element(),
-                Some(Ok(list)) => {
-                    let entries = list.entries.clone();
-                    let count = entries.len();
-                    div()
+            Some(Err(why)) => native::note(
+                tf("The playlist could not be read: {}", &[why]),
+                theme.warning,
+                &screen,
+            )
+            .into_any_element(),
+            Some(Ok(list)) => {
+                let entries = list.entries.clone();
+                let count = entries.len();
+                div()
                         .flex()
                         .flex_col()
                         .gap(px(native::ROW_GAP))
@@ -216,7 +215,7 @@ impl Render for PlaylistWindow {
                                                             .copied()
                                                             .unwrap_or(false);
                                                         Some(
-                                                    div().h(px(ROW)).flex().items_center().child(
+                                                    div().w_full().h(px(ROW)).flex().items_center().child(
                                                         native::checkbox(
                                                             ("video", i),
                                                             file_info::playlist_entry_words(
@@ -249,8 +248,8 @@ impl Render for PlaylistWindow {
                                 ),
                         )
                         .into_any_element()
-                }
-            };
+            }
+        };
         let button = |id: &'static str, words: &'static str, default: bool| {
             native::button(id, t(words).into(), default, theme, &screen)
                 .when(!ready && id != "cancel", |b| b.opacity(0.5))

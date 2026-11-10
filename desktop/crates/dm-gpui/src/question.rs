@@ -50,8 +50,10 @@ pub type Answer = Box<dyn FnOnce(usize, bool, &mut App)>;
 pub type Reword = Box<dyn Fn(bool) -> Asked>;
 
 /// What a question says as the list changes under it, asked again each time
-/// it does (Exit's: a download finishing while it is open).
-pub type Live = Box<dyn Fn(&crate::list::Downloads) -> Asked>;
+/// it does (Exit's: a download finishing while it is open); `None` once it
+/// is moot (When done's countdown, run out or cancelled elsewhere), and the
+/// sheet closes as Escape would answer it.
+pub type Live = Box<dyn Fn(&crate::list::Downloads) -> Option<Asked>>;
 
 /// The question's sheet.
 pub struct Question {
@@ -223,10 +225,20 @@ pub fn ask(
                 // first frame is drawn while the list is still updating).
                 let steady = live.is_some();
                 if let Some((live, view)) = live {
-                    cx.observe(&view, move |this: &mut Question, view, cx| {
-                        this.asked = live(view.read(cx));
-                        cx.notify();
-                    })
+                    cx.observe_in(
+                        &view,
+                        window,
+                        move |this: &mut Question, view, window, cx| match live(view.read(cx)) {
+                            Some(asked) => {
+                                this.asked = asked;
+                                cx.notify();
+                            }
+                            None => {
+                                let escape = this.asked.escape;
+                                this.answer(escape, window, cx);
+                            }
+                        },
+                    )
                     .detach();
                 }
                 Question {

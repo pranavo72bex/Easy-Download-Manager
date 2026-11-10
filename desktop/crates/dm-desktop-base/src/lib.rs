@@ -55,8 +55,12 @@ pub mod format;
 pub mod held;
 pub mod i18n;
 pub mod jumplist;
+pub mod links_import;
 pub mod login;
 pub mod mcp;
+pub mod modes;
+#[cfg(target_os = "macos")]
+pub mod opened;
 pub mod power;
 pub mod probe;
 pub mod quiet;
@@ -68,3 +72,4 @@ pub mod taskbar;
 #[cfg(windows)]
 pub mod toast;
 pub mod wake;
+pub mod zip_list;

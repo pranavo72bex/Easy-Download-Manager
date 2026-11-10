@@ -707,5 +707,32 @@ pub fn pattern_name(pattern: &str, n: usize, old: &str) -> String {
     format!("{base}{ending}")
 }
 
+/// A problem from outside the window, in the language in force where dm
+/// knows its words: a saved proxy turned off at launch is said in the
+/// language the person reads. Others are shown as written.
+pub fn worded_problem(problem: &str) -> String {
+    let proxy = problem
+        .strip_prefix("the saved proxy could not be used (")
+        .and_then(|rest| rest.split_once("), so it is turned off"));
+    match proxy {
+        Some((why, _)) => crate::i18n::tf(
+            "The proxy can't be used ({}) and is off. Fix it in Options › Advanced.",
+            &[&why],
+        ),
+        None => problem.to_string(),
+    }
+}
+
+/// A problem as it is shown on its own: begun with a capital. Problems are
+/// worded to sit inside a sentence ("the cookies file … could not be
+/// read"), and alone one read as cut off.
+pub fn as_shown(problem: &str) -> String {
+    let mut chars = problem.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests;

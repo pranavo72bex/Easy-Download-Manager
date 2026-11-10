@@ -25,9 +25,12 @@ mod addurl;
 mod assets;
 mod details;
 mod fit;
+mod links;
 mod list;
 mod menus;
 mod native;
+#[cfg(not(windows))]
+mod notify;
 mod playlist;
 mod popup;
 mod port;
@@ -40,6 +43,7 @@ mod sidebar;
 mod statusbar;
 mod table;
 mod theme;
+mod tick;
 mod toolbar;
 
 use std::sync::Arc;
@@ -130,6 +134,16 @@ fn main() {
         .into_iter()
         .filter(|a| !OWN_FLAGS.contains(&a.as_str()))
         .collect();
+    // Every way dm runs with no window (`dm_desktop_base::modes`): the
+    // browser's host, the warm page reader, --version, --help, the
+    // command-line client, MCP, --register and --unregister, a typo.
+    if let Some(code) = dm_desktop_base::modes::without_window(&args) {
+        if code == 0 {
+            return;
+        }
+        std::process::exit(code);
+    }
+
     let handed = dm_shell::shell::orders(&args);
     let _running = match boot::claim(&handed) {
         boot::Claimed::Running(lock) => lock,
@@ -139,6 +153,13 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    // A magnet link or a .torrent file the system opens with dm arrives as an
+    // Apple event, not a command line: handed to the running dm as one.
+    #[cfg(target_os = "macos")]
+    dm_desktop_base::opened::listen(|words| {
+        dm_shell::shell::opened_by_system(&dm_shell::settings::home(), &words);
+    });
 
     // Woken from any thread; read on the window's own, in `list::Downloads`.
     let (wakes, woken) = async_channel::unbounded::<Wake>();
@@ -181,6 +202,12 @@ fn main() {
         .run(move |cx: &mut App| {
             // The text fields and the system's own menus (gpui-component).
             gpui_component::init(cx);
+            // Notifications are posted as dm's own (macOS: its bundle id),
+            // claimed after GPUI's own notification centre has started: the
+            // claim before it made the system look for a bundle a bare
+            // binary does not have, and dm stopped at launch.
+            #[cfg(not(windows))]
+            notify::claim();
             // Their colours the system's appearance, light or dark.
             gpui_component::Theme::sync_system_appearance(None, cx);
             let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);

@@ -541,32 +541,8 @@ impl DmApp {
     }
 }
 
-/// A problem from outside the window, in the language in force where the
-/// window knows its words: a saved proxy turned off at launch is said in
-/// the language the person reads. Others are shown as written.
-pub fn worded_problem(problem: &str) -> String {
-    let proxy = problem
-        .strip_prefix("the saved proxy could not be used (")
-        .and_then(|rest| rest.split_once("), so it is turned off"));
-    match proxy {
-        Some((why, _)) => crate::i18n::tf(
-            "The proxy can't be used ({}) and is off. Fix it in Options › Advanced.",
-            &[&why],
-        ),
-        None => problem.to_string(),
-    }
-}
-
-/// A problem as it is shown on its own: begun with a capital. Problems are
-/// worded to sit inside a sentence ("the cookies file … could not be
-/// read"), and alone one read as cut off.
-pub fn as_shown(problem: &str) -> String {
-    let mut chars = problem.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
-}
+/// A problem in words, and as shown alone: dm's (`dm_desktop_base::format`).
+pub use dm_desktop_base::format::{as_shown, worded_problem};
 
 /// What a right-click on a place in the category tree can ask for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

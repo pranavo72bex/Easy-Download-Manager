@@ -35,7 +35,11 @@ impl WindowServices for GpuiServices {
         None
     }
 
+    /// The system's own notification centre (`crate::notify`).
     fn say(&self, note: Note) {
-        eprintln!("dm-gpui: {}: {}", note.title, note.body);
+        #[cfg(not(windows))]
+        crate::notify::say(note);
+        #[cfg(windows)]
+        let _ = note;
     }
 }

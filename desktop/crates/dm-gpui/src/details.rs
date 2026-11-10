@@ -5,16 +5,19 @@
 
 //! Download details, a window of its own (B02), with the egui window's
 //! words: where the file goes (its category, its folder, chosen in the
-//! system's own folder panel), its name (the server's, once asked), its size,
-//! a note, when it is deleted, and Start now, Add for later to a queue, or
-//! Cancel. What it offers and adds is dm's (`dm_desktop_base::file_info`).
-//! A video's qualities and part, and a ZIP's files, are still the egui
-//! window's (docs/gaps.md, G7).
+//! system's own folder panel), its name (the server's, once asked), a
+//! video's qualities and a part of it, a ZIP's files (one taken out alone),
+//! its size, a note, when it is deleted, and Start now, Add for later to a
+//! queue, or Cancel. Opened for an address typed in Add URL, or for a
+//! download the browser handed over, with what the browser sent (the page,
+//! the sign-in, the quality picked in its panel, the browser's name). What
+//! it offers and adds is dm's (`dm_desktop_base::file_info`).
 
 use dm_core::Id;
 use dm_desktop_base::file_info::{self, Clash, Form};
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::{t, tf};
+use dm_desktop_base::zip_list::{self, Listing, TakeSlot, ZipSlot};
 use dm_shell::app::backend::Backend;
 use dm_shell::app::lookups::Probed;
 use dm_shell::Settings;
@@ -30,23 +33,85 @@ use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
 
+/// What a browser's hand-off brought with the address; nothing for one
+/// typed in Add URL.
+#[derive(Debug, Clone, Default)]
+pub struct Handed {
+    /// Handed over by the browser, rather than typed in: cancelling it is a
+    /// word against that site's downloads being handed over.
+    pub handed: bool,
+    /// The page it came from, sent as Referer.
+    pub referrer: String,
+    /// The quality picked in the browser's panel.
+    pub quality: Option<String>,
+    /// A separate sound track, fetched and joined with it.
+    pub sound: Option<String>,
+    /// What the panel's list called that quality.
+    pub label: Option<String>,
+    /// The site's sign-in the browser handed over.
+    pub cookies: String,
+    /// Those cookies are for this download alone.
+    pub cookies_once: bool,
+    /// The request headers the browser sent.
+    pub headers: Vec<(String, String)>,
+    /// The form it is the answer to.
+    pub post: Option<dm_core::cookies::Posted>,
+    /// The browser it came from, where the host could tell.
+    pub browser: Option<String>,
+    /// Caught by the browser extension (not asked for from its panel or a
+    /// menu): offered "Always save here without asking".
+    pub caught: bool,
+}
+
+impl Handed {
+    /// The sign-in for `url`, from what the browser sent.
+    fn sign_in(&self, url: &str) -> Option<dm_core::cookies::SignIn> {
+        dm_core::cookies::SignIn::with_headers(url, &self.cookies, &self.headers)
+    }
+
+    /// The page as Referer, where there is one.
+    fn page(&self) -> Option<String> {
+        Some(self.referrer.clone()).filter(|r| !r.is_empty())
+    }
+}
+
 /// The Download details window's view.
 pub struct Details {
     view: WeakEntity<Downloads>,
     backend: Backend,
     settings: Settings,
     urls: Vec<String>,
+    handed: Handed,
     folder: Entity<InputState>,
     name: Entity<InputState>,
     note: Entity<InputState>,
+    part_from: Entity<InputState>,
+    part_to: Entity<InputState>,
     /// What the server said, once it has; `None` while it is asked.
     probed: Option<Probed>,
     /// The folder this kind of file went to last has been offered.
     folder_offered: bool,
+    /// "Always save here without asking" is ticked.
+    always_here: bool,
     queue: String,
     queues: Vec<String>,
     delete_after: Option<u64>,
     replace: bool,
+    /// A video's qualities with their sizes: asked once it is known to be
+    /// a video; `None` until they are read.
+    choices: Option<Vec<dm_core::videopage::Choice>>,
+    choices_asked: bool,
+    /// The quality picked, and its name.
+    quality: Option<String>,
+    label: Option<String>,
+    /// "Only a part of the video", its shape, and as a GIF.
+    part: bool,
+    shape: Option<dm_core::shape::Shape>,
+    gif: bool,
+    /// A ZIP's files, read from its end, and the one taken out alone.
+    zip: Option<ZipSlot>,
+    taken: Option<TakeSlot>,
+    taking: String,
     /// The row begun at once while the dialog asks.
     early: Option<Id>,
     says: Option<SharedString>,
@@ -57,9 +122,24 @@ pub struct Details {
 }
 
 impl Details {
+    /// The address the dialog is about (the first of several).
+    fn first(&self) -> String {
+        self.urls.first().cloned().unwrap_or_default()
+    }
+
     /// The name the server gave, once it has.
     fn server_name(&self) -> Option<&str> {
         self.probed.as_ref().and_then(|p| p.name.as_deref())
+    }
+
+    /// Whether this is a YouTube video's address.
+    fn youtube(&self) -> bool {
+        self.urls.len() == 1 && dm_core::youtube::video_id(&self.first()).is_some()
+    }
+
+    /// Whether it is a video: a YouTube video, or a page with one.
+    fn video(&self) -> bool {
+        self.urls.len() == 1 && (self.youtube() || self.probed.as_ref().is_some_and(|p| p.page))
     }
 
     /// The folder last used for this kind of file, offered once its name
@@ -78,7 +158,8 @@ impl Details {
         }
     }
 
-    /// What the server said: its name put in Save as where nothing is typed.
+    /// What the server said: its name put in Save as where nothing is
+    /// typed, and a video's qualities asked for once it is one.
     fn probed(&mut self, found: Probed, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(name) = found.name.clone() {
             if self.name.read(cx).value().is_empty() {
@@ -87,7 +168,63 @@ impl Details {
         }
         self.probed = Some(found);
         self.offer_folder(window, cx);
+        self.ask_choices(window, cx);
         cx.notify();
+    }
+
+    /// A video's qualities, each with its size, read once (its own data,
+    /// under a second for YouTube); another site's page that lists several
+    /// videos is its videos, listed in the Playlist window instead.
+    fn ask_choices(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.choices_asked || !self.video() {
+            return;
+        }
+        self.choices_asked = true;
+        let url = self.first();
+        let (tell, told) = async_channel::bounded(1);
+        dm_shell::app::lookups::list_choices_later(
+            &self.backend,
+            url.clone(),
+            self.handed.page(),
+            self.handed.sign_in(&url),
+            self.youtube(),
+            move |listed, several| {
+                let _ = tell.try_send((listed, several));
+            },
+        );
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok((listed, several)) = told.recv().await {
+                let _ = this.update_in(cx, |this, window, cx| {
+                    if let Some(playlist) = several {
+                        this.becomes_playlist(playlist, window, cx);
+                        return;
+                    }
+                    this.choices = Some(listed);
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    /// A page that turned out to list several videos: its videos listed
+    /// to be ticked, as a YouTube playlist's are, rather than one download
+    /// refused.
+    fn becomes_playlist(
+        &mut self,
+        playlist: dm_core::youtube::Playlist,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.done {
+            return;
+        }
+        self.done = true;
+        let url = self.first();
+        let view = self.view.clone();
+        crate::playlist::open(view.clone(), url, Some(playlist), cx);
+        let _ = view.update(cx, |view, _| view.handed_closed());
+        window.remove_window();
     }
 
     /// Where the name is taken already, as the dialog stands.
@@ -112,18 +249,41 @@ impl Details {
         if self.done {
             return;
         }
+        // The part's ends, where one was asked for; a pair that is not a
+        // span keeps the dialog, with the shape they take.
+        let span = match file_info::span_of(
+            self.part,
+            &self.part_from.read(cx).value(),
+            &self.part_to.read(cx).value(),
+        ) {
+            Ok(span) => span,
+            Err(words) => {
+                self.says = Some(words.into());
+                cx.notify();
+                return;
+            }
+        };
         let clash = self.clash(cx);
         let name = self.name.read(cx).value().to_string();
         let server_name = self.server_name().map(str::to_string);
         let form = Form {
+            referrer: self.handed.referrer.clone(),
+            quality: self.quality.clone(),
+            sound: self.handed.sound.clone(),
+            span,
+            shape: self.shape,
+            gif: self.gif,
             folder: self.folder.read(cx).value().to_string(),
             name_typed: !name.trim().is_empty() && server_name.as_deref() != Some(name.trim()),
             name: name.clone(),
             description: self.note.read(cx).value().to_string(),
             queue: self.queue.clone(),
             delete_after: self.delete_after,
+            cookies: self.handed.cookies.clone(),
+            cookies_once: self.handed.cookies_once,
+            headers: self.handed.headers.clone(),
+            post: self.handed.post.clone(),
             replace: self.replace && matches!(clash, Some(Clash::OnDisk { .. })),
-            ..Form::default()
         };
         let with = file_info::options(&form, later, server_name.as_deref(), clash.as_ref());
         // Where this kind of file was put, for next time; the kind's own
@@ -135,6 +295,13 @@ impl Details {
                 if let Err(e) = self.backend.remember_folder(kind, folder.as_deref()) {
                     self.says = Some(e.into());
                 }
+            }
+        }
+        // "Always save here without asking": caught downloads go to their
+        // folder unasked from now on.
+        if self.handed.caught && self.always_here {
+            if let Err(e) = self.backend.set_ask_caught_downloads(false) {
+                self.says = Some(e.into());
             }
         }
         let added = match self.early {
@@ -158,14 +325,28 @@ impl Details {
         match added {
             Ok(()) => {
                 self.done = true;
-                // A row begun while it asked is placed now: the list read
-                // again (an added one was read as it was added).
-                if self.early.is_some() {
-                    let _ = self.view.update(cx, |view, cx| {
+                let urls = self.urls.clone();
+                let handed = self.handed.handed;
+                let early = self.early.is_some();
+                let _ = self.view.update(cx, |view, cx| {
+                    // Taken from the browser: the same click a moment later
+                    // is not taken twice.
+                    if handed {
+                        for url in &urls {
+                            view.session
+                                .hands
+                                .recent
+                                .taken(url, std::time::Instant::now());
+                        }
+                        view.handed_closed();
+                    }
+                    // A row begun while it asked is placed now: the list
+                    // read again (an added one was read as it was added).
+                    if early {
                         view.read();
-                        cx.notify();
-                    });
-                }
+                    }
+                    cx.notify();
+                });
                 window.remove_window();
             }
             Err(e) => {
@@ -176,7 +357,8 @@ impl Details {
     }
 
     /// Cancel, Escape or the close button: what was fetched while it asked
-    /// goes with it.
+    /// goes with it, and a handed-over download cancelled is a word against
+    /// that site's downloads being handed over.
     fn cancel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.done {
             return;
@@ -184,11 +366,23 @@ impl Details {
         self.done = true;
         if let Some(id) = self.early.take() {
             self.backend.remove_later(id);
-            let _ = self.view.update(cx, |view, cx| {
-                view.read();
-                cx.notify();
-            });
         }
+        let site = self
+            .handed
+            .handed
+            .then(|| dm_core::host_of(&self.first()))
+            .filter(|host| !host.is_empty());
+        let handed = self.handed.handed;
+        let _ = self.view.update(cx, |view, cx| {
+            if handed {
+                view.handed_closed();
+            }
+            if let Some(site) = site {
+                view.hand_off_cancelled(&site, cx);
+            }
+            view.read();
+            cx.notify();
+        });
         window.remove_window();
     }
 
@@ -213,6 +407,38 @@ impl Details {
             }
         })
         .detach();
+    }
+
+    /// Take out: one file of the ZIP, alone, before the archive is
+    /// fetched, into the folder the archive is going to.
+    fn take_out(&mut self, entry: dm_core::ZipEntry, window: &mut Window, cx: &mut Context<Self>) {
+        let first = self.first();
+        let folder = file_info::folder_for(
+            &self.settings,
+            &self.folder.read(cx).value(),
+            &first,
+            self.name.read(cx).value().trim(),
+        );
+        self.taking = dm_core::sanitize_name(&entry.name);
+        let (tell, told) = async_channel::bounded(1);
+        self.taken = Some(dm_shell::app::files::take_from_zip(
+            &self.backend,
+            first.clone(),
+            self.handed.page(),
+            self.handed.sign_in(&first),
+            entry,
+            folder,
+            move || {
+                let _ = tell.try_send(());
+            },
+        ));
+        cx.spawn_in(window, async move |this, cx| {
+            if told.recv().await.is_ok() {
+                let _ = this.update(cx, |_, cx| cx.notify());
+            }
+        })
+        .detach();
+        cx.notify();
     }
 
     /// A choice from one of the pop-ups.
@@ -245,17 +471,47 @@ impl Details {
     }
 }
 
+/// A segmented choice, as the system's segmented control: each choice a
+/// segment, the chosen one in the accent colour.
+fn segment(
+    id: impl Into<gpui::ElementId>,
+    words: SharedString,
+    on: bool,
+    theme: Theme,
+    screen: &Screen,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .role(Role::RadioButton)
+        .aria_label(words.clone())
+        .aria_toggled(if on {
+            gpui::Toggled::True
+        } else {
+            gpui::Toggled::False
+        })
+        .h(px(native::CONTROL))
+        .px(px(12.0))
+        .flex()
+        .items_center()
+        .rounded(px(native::RADIUS))
+        .when(on, |d| d.bg(theme.accent).text_color(gpui::white()))
+        .when(!on, |d| d.bg(theme.control))
+        .child(screen.label(words))
+}
+
 impl Render for Details {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
-        let first = self.urls.first().cloned().unwrap_or_default();
+        let first = self.first();
         let single = self.urls.len() == 1;
         let folder = self.folder.read(cx).value().trim().to_string();
         let clash = self.clash(cx);
         let page = self.probed.as_ref().is_some_and(|p| p.page);
         let problem = self.probed.as_ref().and_then(|p| p.problem.clone());
+        let video = self.video();
+        let youtube = self.youtube();
 
         let places = file_info::places(&self.settings);
         let as_type = SharedString::from(t("As its type says"));
@@ -299,6 +555,8 @@ impl Render for Details {
             t("Category"),
             t("Save to folder"),
             t("Save as"),
+            t("Quality"),
+            t("Contents"),
             t("Size"),
             t("Note"),
             t("Delete file after"),
@@ -307,6 +565,288 @@ impl Render for Details {
             native::row(Some(t(label)), width, &screen, control)
         };
         let under = |control: gpui::AnyElement| native::row(None, width, &screen, control);
+
+        // A video's qualities: each its class and container over its size,
+        // the one the setting would take picked until another is.
+        let quality_row = video.then(|| {
+            let control = match &self.choices {
+                None => div()
+                    .text_color(theme.muted)
+                    .child(screen.label(t("Reading the video's qualities…")))
+                    .into_any_element(),
+                Some(list) if list.is_empty() => div()
+                    .text_color(theme.muted)
+                    .child(screen.label("—"))
+                    .into_any_element(),
+                Some(list) => {
+                    let setting = dm_core::Quality::named(&self.settings.stream_quality);
+                    let picked = self
+                        .quality
+                        .clone()
+                        .or_else(|| file_info::default_choice(list, setting));
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(6.0))
+                        .children(list.iter().enumerate().map(|(i, choice)| {
+                            let on = picked.as_deref() == Some(choice.quality.as_str());
+                            let words = file_info::chip_words(choice);
+                            let (top, bottom) = words
+                                .split_once('\n')
+                                .map(|(a, b)| (a.to_string(), Some(b.to_string())))
+                                .unwrap_or((words.clone(), None));
+                            let picked_quality = choice.quality.clone();
+                            let picked_label = choice.label.clone();
+                            div()
+                                .id(("quality", i))
+                                .role(Role::RadioButton)
+                                .aria_label(words.replace('\n', " "))
+                                .px(px(10.0))
+                                .py(px(4.0))
+                                .min_w(px(84.0))
+                                .flex()
+                                .flex_col()
+                                .items_center()
+                                .rounded(px(native::RADIUS))
+                                .when(on, |d| d.bg(theme.accent).text_color(gpui::white()))
+                                .when(!on, |d| d.bg(theme.control))
+                                .child(screen.label(top))
+                                .when_some(bottom, |d, b| {
+                                    d.child(
+                                        div()
+                                            .text_size(px(native::SMALL_TEXT))
+                                            .when(!on, |d| d.text_color(theme.muted))
+                                            .child(screen.label(b)),
+                                    )
+                                })
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.quality = Some(picked_quality.clone());
+                                    this.label = Some(picked_label.clone());
+                                    cx.notify();
+                                }))
+                        }))
+                        .into_any_element()
+                }
+            };
+            row("Quality", control)
+        });
+
+        // A ZIP's files, by name and size: text only, never opened.
+        let contents_row = match zip_list::listing(&self.zip) {
+            Listing::Nothing => None,
+            Listing::Reading => Some(row(
+                "Contents",
+                div()
+                    .text_color(theme.muted)
+                    .child(screen.label(zip_list::reading_words()))
+                    .into_any_element(),
+            )),
+            Listing::Files(files, more) => {
+                let taken = zip_list::taken_words(&self.taken, &self.taking);
+                Some(row(
+                    "Contents",
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.0))
+                        .child(
+                            div()
+                                .id("zip-contents")
+                                .max_h(px(140.0))
+                                .overflow_y_scroll()
+                                .rounded(px(native::RADIUS))
+                                .border_1()
+                                .border_color(theme.separator)
+                                .bg(theme.background)
+                                .p(px(4.0))
+                                .children(files.into_iter().enumerate().map(|(i, file)| {
+                                    let takeable =
+                                        !file.is_folder() && file.packed <= dm_core::ZIP_MOST_TAKEN;
+                                    let size =
+                                        (!file.is_folder()).then(|| format::bytes(file.size));
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(8.0))
+                                        .h(px(20.0))
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .min_w_0()
+                                                .overflow_hidden()
+                                                .whitespace_nowrap()
+                                                .text_ellipsis()
+                                                .child(screen.label(file.name.clone())),
+                                        )
+                                        .when_some(size, |d, size| {
+                                            d.child(
+                                                div()
+                                                    .text_color(theme.muted)
+                                                    .child(screen.label(size)),
+                                            )
+                                        })
+                                        .when(takeable, |d| {
+                                            d.child(
+                                                div()
+                                                    .id(("take", i))
+                                                    .role(Role::Button)
+                                                    .aria_label(t("Take out"))
+                                                    .text_color(theme.accent)
+                                                    .child(screen.label(t("Take out")))
+                                                    .on_click(cx.listener(
+                                                        move |this, _, window, cx| {
+                                                            this.take_out(file.clone(), window, cx)
+                                                        },
+                                                    )),
+                                            )
+                                        })
+                                }))
+                                .when(more > 0, |d| {
+                                    d.child(native::note(
+                                        tf("and {} more", &[&more.to_string()]),
+                                        theme.muted,
+                                        &screen,
+                                    ))
+                                }),
+                        )
+                        .when_some(taken, |d, words| {
+                            d.child(native::note(words, theme.muted, &screen))
+                        })
+                        .into_any_element(),
+                ))
+            }
+        };
+
+        // A part of the video, from one moment to another: cut from the
+        // streams dm fetches itself, which today are a YouTube video's.
+        let part_rows = (youtube || self.handed.handed || self.part).then(|| {
+            let starts = dm_core::youtube::start_of(&first);
+            let part = self.part;
+            let gif_possible = dm_core::gif::possible_for(&first);
+            let mut rows = vec![row(
+                "Part",
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(native::LABEL_GAP))
+                    .child(
+                        native::checkbox(
+                            "part",
+                            t("Only a part of the video").into(),
+                            part,
+                            theme,
+                            &screen,
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.part = !this.part;
+                            cx.notify();
+                        })),
+                    )
+                    // A link copied at a moment of the video: that moment
+                    // offered as the part's start.
+                    .when_some(starts.filter(|_| !part), |d, at| {
+                        let at = file_info::clock(at);
+                        let from = at.clone();
+                        d.child(native::note(
+                            tf("This link starts at {}.", &[&at]),
+                            theme.muted,
+                            &screen,
+                        ))
+                        .child(
+                            native::button(
+                                "from-here",
+                                tf("From {}", &[&at]).into(),
+                                false,
+                                theme,
+                                &screen,
+                            )
+                            .on_click(cx.listener(
+                                move |this, _, window, cx| {
+                                    this.part = true;
+                                    let from = from.clone();
+                                    this.part_from
+                                        .update(cx, |f, cx| f.set_value(from, window, cx));
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                    })
+                    .when(part, |d| {
+                        d.child(
+                            screen.label(t("part:from").trim_start_matches("part:").to_string()),
+                        )
+                        .child(div().w(px(64.0)).child(native::field(
+                            &self.part_from,
+                            "part:from",
+                            theme,
+                        )))
+                        .child(screen.label(t("part:to").trim_start_matches("part:").to_string()))
+                        .child(div().w(px(64.0)).child(native::field(
+                            &self.part_to,
+                            "part:to",
+                            theme,
+                        )))
+                    })
+                    .into_any_element(),
+            )];
+            if part {
+                // The part's shape: as it is, or the middle of the picture
+                // made vertical or square, nothing re-encoded.
+                use dm_core::shape::Shape;
+                let shape = self.shape;
+                rows.push(row(
+                    "Shape",
+                    div()
+                        .flex()
+                        .gap(px(4.0))
+                        .children(
+                            [
+                                (None, t("As it is")),
+                                (Some(Shape::Vertical), t("Vertical 9:16")),
+                                (Some(Shape::Square), t("Square 1:1")),
+                            ]
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, (choice, words))| {
+                                segment(("shape", i), words.into(), shape == choice, theme, &screen)
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.shape = choice;
+                                        cx.notify();
+                                    }))
+                            }),
+                        )
+                        .into_any_element(),
+                ));
+                // As a GIF: moving pictures with no sound.
+                if gif_possible {
+                    let gif = self.gif;
+                    rows.push(row(
+                        "Part as",
+                        div()
+                            .flex()
+                            .gap(px(4.0))
+                            .child(
+                                segment("as-video", t("Video").into(), !gif, theme, &screen)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.gif = false;
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                segment("as-gif", "GIF".into(), gif, theme, &screen).on_click(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.gif = true;
+                                        cx.notify();
+                                    }),
+                                ),
+                            )
+                            .into_any_element(),
+                    ));
+                }
+            }
+            rows
+        });
 
         div()
             .id("download-details")
@@ -333,6 +873,18 @@ impl Render for Details {
                             .text_ellipsis()
                             .overflow_hidden()
                             .child(screen.label(format::shown_url(&first))),
+                    )
+                    // Where a handed-over download came from, as the host
+                    // saw it.
+                    .when_some(
+                        self.handed.browser.clone().filter(|_| self.handed.handed),
+                        |d, browser| {
+                            d.child(
+                                div()
+                                    .text_color(theme.muted)
+                                    .child(screen.label(tf("From {}", &[&browser]))),
+                            )
+                        },
                     )
                     .when(self.urls.len() > 1, |d| {
                         d.child(
@@ -380,6 +932,25 @@ impl Render for Details {
                             )
                             .into_any_element(),
                     ))
+                    // A download the browser caught: the next ones can go
+                    // straight to their folder.
+                    .when(self.handed.caught, |d| {
+                        let on = self.always_here;
+                        d.child(under(
+                            native::checkbox(
+                                "always-here",
+                                t("Always save here without asking").into(),
+                                on,
+                                theme,
+                                &screen,
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.always_here = !this.always_here;
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        ))
+                    })
                     .when(single, |d| {
                         d.child(row(
                             "Save as",
@@ -388,7 +959,12 @@ impl Render for Details {
                                 .child(native::field(&self.name, "Save as", theme))
                                 .into_any_element(),
                         ))
-                        .child(row(
+                    })
+                    .children(quality_row)
+                    .children(contents_row)
+                    .children(part_rows.into_iter().flatten())
+                    .when(single, |d| {
+                        d.child(row(
                             "Size",
                             div()
                                 .text_color(theme.muted)
@@ -415,6 +991,14 @@ impl Render for Details {
                         )
                         .into_any_element(),
                     ))
+                    // The quality picked in the browser's panel, where the
+                    // dialog lists none of its own.
+                    .when_some(self.label.clone().filter(|_| !video), |d, label| {
+                        d.child(row(
+                            "Quality",
+                            div().child(screen.label(label)).into_any_element(),
+                        ))
+                    })
                     .when_some(clash.clone(), |d, clash| match clash {
                         Clash::Listed => d.child(under(
                             native::note(
@@ -520,7 +1104,7 @@ impl Render for Details {
 }
 
 /// A radio button, as the system draws one.
-fn radio(
+pub(crate) fn radio(
     id: &'static str,
     words: SharedString,
     on: bool,
@@ -559,13 +1143,52 @@ fn radio(
         .child(screen.label(words))
 }
 
-/// Opens Download details for `urls` (several: a batch, in one).
+/// Opens Download details for `urls` typed in Add URL (several: a batch,
+/// in one).
 pub fn open(view: WeakEntity<Downloads>, urls: Vec<String>, cx: &mut App) {
     // After the update that asked: the main window's view is read.
-    cx.defer(move |cx| open_now(view, urls, cx));
+    cx.defer(move |cx| open_now(view, urls, Handed::default(), None, cx));
 }
 
-fn open_now(view: WeakEntity<Downloads>, urls: Vec<String>, cx: &mut App) {
+/// Opens Download details for a download the browser handed over, with
+/// what the browser sent: the page, the sign-in, the quality picked in its
+/// panel and its "Part" line, the browser's name.
+pub fn open_handed(view: WeakEntity<Downloads>, request: dm_shell::host::Request, cx: &mut App) {
+    // The form for the address it was sent to, before that is moved below.
+    let post = dm_shell::shell::posted(&request.url, request.post.as_ref());
+    let handed = Handed {
+        handed: true,
+        referrer: request.referrer,
+        quality: request.quality,
+        sound: request.sound,
+        label: request.label,
+        cookies: request.cookies,
+        cookies_once: request.cookies_once,
+        headers: request.headers,
+        post,
+        browser: request.browser,
+        caught: request.caught,
+    };
+    // The panel's "Part" line: the dialog opens with the part on.
+    let part = (!(request.from.is_empty() && request.to.is_empty())).then(|| {
+        let from = if request.from.is_empty() && !request.to.is_empty() {
+            "0:00".to_string()
+        } else {
+            request.from
+        };
+        (from, request.to, request.save_name.unwrap_or_default())
+    });
+    let urls = vec![request.url];
+    cx.defer(move |cx| open_now(view, urls, handed, part, cx));
+}
+
+fn open_now(
+    view: WeakEntity<Downloads>,
+    urls: Vec<String>,
+    handed: Handed,
+    part: Option<(String, String, String)>,
+    cx: &mut App,
+) {
     let Some(downloads) = view.upgrade() else {
         return;
     };
@@ -587,26 +1210,67 @@ fn open_now(view: WeakEntity<Downloads>, urls: Vec<String>, cx: &mut App) {
             let hint = file_info::default_folder_words(&settings);
             let first = urls.first().cloned().unwrap_or_default();
             let remux = settings.remux_ts;
+            let titled = handed.quality.is_some();
             let folder = cx.new(|cx| InputState::new(window, cx).placeholder(hint));
             let name = cx.new(|cx| {
-                InputState::new(window, cx).placeholder(file_info::name_hint(&first, false, remux))
+                InputState::new(window, cx).placeholder(file_info::name_hint(&first, titled, remux))
             });
             let note = cx.new(|cx| InputState::new(window, cx));
+            let part_from = cx.new(|cx| InputState::new(window, cx).placeholder(t("m:ss")));
+            let part_to = cx.new(|cx| InputState::new(window, cx).placeholder(t("m:ss")));
+            let mut part_on = false;
+            if let Some((from, to, save_name)) = &part {
+                part_on = true;
+                part_from.update(cx, |f, cx| f.set_value(from.clone(), window, cx));
+                part_to.update(cx, |f, cx| f.set_value(to.clone(), window, cx));
+                if !save_name.is_empty() {
+                    name.update(cx, |n, cx| n.set_value(save_name.clone(), window, cx));
+                }
+            }
             let screen = Screen::default();
             Screens::register(window.window_handle(), screen.clone(), true, cx);
             // Begun at once while it asks, where Options says so.
-            let early = file_info::begins_early(&settings, &urls, &Form::default(), false)
+            let form = Form {
+                quality: handed.quality.clone(),
+                post: handed.post.clone(),
+                ..Form::default()
+            };
+            let youtube = urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
+            let early = file_info::begins_early(&settings, &urls, &form, youtube)
                 .then(|| {
                     backend
-                        .add_with(&first, dm_core::AddOptions::default())
+                        .add_with(
+                            &first,
+                            dm_core::AddOptions {
+                                referrer: handed.referrer.clone(),
+                                cookies: handed.cookies.clone(),
+                                cookies_once: handed.cookies_once,
+                                headers: handed.headers.clone(),
+                                ..dm_core::AddOptions::default()
+                            },
+                        )
                         .ok()
                 })
                 .flatten();
+            // A ZIP's files, read once from the end of the archive.
+            let web = first.starts_with("http://") || first.starts_with("https://");
+            let (zip_tell, zip_told) = async_channel::bounded::<()>(1);
+            let zip = (urls.len() == 1 && web && zip_list::is_zip_address(&first)).then(|| {
+                dm_shell::app::files::list_zip_at(
+                    &backend,
+                    first.clone(),
+                    handed.page(),
+                    handed.sign_in(&first),
+                    move || {
+                        let _ = zip_tell.try_send(());
+                    },
+                )
+            });
             let details = cx.new(|cx| {
                 let focus = cx.focus_handle();
                 // Return in a field is Start now, as in the egui window;
                 // what is typed is weighed again (the name's clash).
-                for input in [&folder, &name, &note] {
+                for input in [&folder, &name, &note, &part_from, &part_to] {
                     cx.subscribe_in(input, window, |this: &mut Details, _, event, window, cx| {
                         match event {
                             InputEvent::PressEnter { .. } => this.add(false, window, cx),
@@ -624,15 +1288,29 @@ fn open_now(view: WeakEntity<Downloads>, urls: Vec<String>, cx: &mut App) {
                     backend: backend.clone(),
                     settings: settings.clone(),
                     urls: urls.clone(),
+                    quality: handed.quality.clone(),
+                    label: handed.label.clone(),
+                    handed: handed.clone(),
                     folder: folder.clone(),
                     name: name.clone(),
                     note,
+                    part_from,
+                    part_to,
                     probed: None,
                     folder_offered: false,
+                    always_here: false,
                     queue: dm_core::MAIN_QUEUE.into(),
                     queues,
                     delete_after: None,
                     replace: false,
+                    choices: None,
+                    choices_asked: false,
+                    part: part_on,
+                    shape: None,
+                    gif: false,
+                    zip,
+                    taken: None,
+                    taking: String::new(),
                     early,
                     says: None,
                     done: false,
@@ -642,7 +1320,29 @@ fn open_now(view: WeakEntity<Downloads>, urls: Vec<String>, cx: &mut App) {
             });
             // Start now has the keyboard, as in the egui window.
             details.update(cx, |d, cx| window.focus(&d.focus, cx));
-            ask_server(&details, &backend, &first, urls.len(), remux, window, cx);
+            ask_server(
+                &details,
+                &backend,
+                &first,
+                urls.len(),
+                remux,
+                &handed,
+                window,
+                cx,
+            );
+            // A YouTube video's qualities are asked at once, from its own
+            // data; a page's once the server says it is one.
+            details.update(cx, |d, cx| d.ask_choices(window, cx));
+            let weak = details.downgrade();
+            window
+                .spawn(cx, async move |cx| {
+                    while zip_told.recv().await.is_ok() {
+                        if weak.update(cx, |_, cx| cx.notify()).is_err() {
+                            return;
+                        }
+                    }
+                })
+                .detach();
             if early.is_some() {
                 let _ = view.update(cx, |v, cx| {
                     v.read();
@@ -660,12 +1360,14 @@ fn open_now(view: WeakEntity<Downloads>, urls: Vec<String>, cx: &mut App) {
 /// The server asked what it calls the file and how big it is, once, as the
 /// dialog opens (not a torrent's: what the server says of a .torrent is the
 /// metainfo's few kilobytes and its file name).
+#[allow(clippy::too_many_arguments)]
 fn ask_server(
     details: &Entity<Details>,
     backend: &Backend,
     url: &str,
     count: usize,
     remux: bool,
+    handed: &Handed,
     window: &mut Window,
     cx: &mut App,
 ) {
@@ -676,12 +1378,11 @@ fn ask_server(
         return;
     }
     let (tell, told) = async_channel::bounded(1);
-    let sign_in = dm_core::cookies::SignIn::with_headers(url, "", &[]);
     dm_shell::app::lookups::probe_later(
         backend,
         url.to_string(),
-        String::new(),
-        sign_in,
+        handed.referrer.clone(),
+        handed.sign_in(url),
         remux,
         move |found| {
             let _ = tell.try_send(found);

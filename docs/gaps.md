@@ -194,13 +194,24 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   "Exit dm?" (Exit while downloads run: its words follow the list while it is open, its
   buttons never move) and "Start outside the schedule?" (Resume or Start now on downloads the
   schedule or the download limit holds) are sheets, with dm's words for both windows
-  (`asks::exit`, `asks::outside`, `dm_desktop_base::held`). Slice 4 still owes, in the GPUI
-  window: B02's video Quality and Part, a ZIP's files, and a caught download's "From …" and
-  "Always save here without asking" (the Playlist window is done: a YouTube playlist read by dm,
-  each video ticked, Select all, one Video quality, what it adds dm's for both windows,
-  `file_info::playlist_adds`); and for `human-qa.py`, a way for
-  the port to choose in a pop-up (the system's menu is modal, so a click on one waits for a
-  person). Then
+  (`asks::exit`, `asks::outside`, `dm_desktop_base::held`). The Playlist window: a YouTube
+  playlist read by dm, each video ticked, Select all, one Video quality (`file_info::playlist_adds`,
+  both windows). Slice 4 is done in the GPUI window: the browser's hand-offs reach it (it had no
+  `--native-host` at all: every way dm runs with no window, the host, the warm page reader,
+  `--version`, `--help`, the command-line client, MCP, `--register`, a typo, now
+  `dm_desktop_base::modes` for both windows, and macOS's "open with" Apple events
+  `dm_desktop_base::opened`); Download details for a hand-off (the page, the sign-in, the panel's
+  quality and Part, "From …", "Always save here without asking", a site's second cancel offering
+  to leave it to the browser), a video's Quality chips, Part, Shape and GIF, a ZIP's Contents with
+  Take out (B44), a page that lists several videos opening Playlist; "Download links" for a page's
+  links (`dm_desktop_base::links_import`, both windows); and the tick each wake (`tick.rs`):
+  `--new-download` and `--when-done` from the command line, notifications and sounds for
+  finished and failed downloads (the window's own notifier, `notify.rs`), an address handed
+  over again said, the schedules' hooks, When done with its countdown as a sheet (Cancel the
+  default), "Delete file after", the watched folder, the big download hint, problems above the
+  list with Dismiss. Still owed for slice 4: a way for the port to choose in a pop-up (the
+  system's menu is modal, so a click on one waits for a person), before `human-qa.py` drives the
+  GPUI window; B44's Properties half comes with slice 6. Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

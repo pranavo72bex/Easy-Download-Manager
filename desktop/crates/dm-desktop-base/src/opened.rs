@@ -80,9 +80,12 @@ define_class!(
 /// # Safety
 /// `text` is null or an NSString.
 unsafe fn text_of(text: *mut NSString) -> Option<String> {
+    // SAFETY: `text` is null or an NSString, as the caller promises.
     let text = unsafe { text.as_ref() }?;
+    // SAFETY: an NSString answers UTF8String with a C string it owns, or null.
     let utf8: *const c_char = unsafe { msg_send![text, UTF8String] };
     (!utf8.is_null()).then(|| {
+        // SAFETY: not null, and alive while `text` is: copied out at once.
         unsafe { CStr::from_ptr(utf8) }
             .to_string_lossy()
             .into_owned()
@@ -94,6 +97,8 @@ unsafe fn text_of(text: *mut NSString) -> Option<String> {
 /// # Safety
 /// `event` is an NSAppleEventDescriptor.
 unsafe fn link_of(event: &AnyObject) -> Vec<String> {
+    // SAFETY: `event` is an NSAppleEventDescriptor, as the caller promises;
+    // each message is one that class (and its descriptors) answer.
     unsafe {
         let direct: *mut AnyObject = msg_send![event, paramDescriptorForKeyword: DIRECT_OBJECT];
         let Some(direct) = direct.as_ref() else {
@@ -110,6 +115,8 @@ unsafe fn link_of(event: &AnyObject) -> Vec<String> {
 /// # Safety
 /// `event` is an NSAppleEventDescriptor.
 unsafe fn files_of(event: &AnyObject) -> Vec<String> {
+    // SAFETY: as in `link_of`; a file descriptor answers fileURLValue, an
+    // NSURL path.
     unsafe {
         let direct: *mut AnyObject = msg_send![event, paramDescriptorForKeyword: DIRECT_OBJECT];
         let Some(direct) = direct.as_ref() else {

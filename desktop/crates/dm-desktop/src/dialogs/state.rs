@@ -127,75 +127,9 @@ impl Dialogs {
         request: dm_shell::host::Request,
         backend: &crate::backend::Backend,
     ) {
-        let found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>> =
-            Default::default();
-        let sign_in = dm_core::cookies::SignIn::new(&request.url, &request.cookies);
-        // Asked by the application (`lookups::probe_links`), six at a time;
-        // the window keeps what each said, its kind in its own words.
-        let into = found.clone();
-        dm_shell::app::lookups::probe_links(
-            backend,
-            request.links.clone(),
-            request.referrer.clone(),
-            sign_in.clone(),
-            move |url, said| {
-                let found = match said {
-                    dm_shell::app::lookups::LinkFound::Known {
-                        name,
-                        kind,
-                        size,
-                        page,
-                    } => Found {
-                        name,
-                        kind: crate::app::category_word(kind),
-                        size,
-                        html: page,
-                        failed: None,
-                    },
-                    // Said, rather than "…" for ever as though still asking.
-                    dm_shell::app::lookups::LinkFound::Failed(why) => Found {
-                        failed: Some(why),
-                        ..Found::default()
-                    },
-                };
-                dm_core::lock(&into).insert(url, found);
-            },
-        );
-        let listed: std::collections::HashSet<String> = backend
-            .list()
-            .iter()
-            .filter(|r| r.state != State::Cancelled)
-            .map(|r| bare(&r.url))
-            .collect();
-        self.links = Some(LinksImport {
-            page: request.referrer,
-            sign_in,
-            cookies: request.cookies,
-            items: request
-                .links
-                .into_iter()
-                .map(|u| {
-                    let new = !listed.contains(&bare(&u));
-                    (u, new)
-                })
-                .collect(),
-            listed,
-            refused: Default::default(),
-            types: String::new(),
-            hide_html: true,
-            found,
-            hide_images: true,
-            hide_repeats: true,
-            save_to: SaveTo::ByCategory,
-            category: crate::app::category_word(dm_core::Category::Archives),
-            folder: String::new(),
-            editing: None,
-            // The names the page's `download` attributes give, as Edit would.
-            names: request.names.into_iter().collect(),
-            texts: request.texts,
-            use_texts: true,
-            queue: dm_core::MAIN_QUEUE.to_string(),
-        });
+        // Opened by dm (`LinksImport::open`): each server asked, six at a
+        // time; the window draws what each said on its next frame.
+        self.links = Some(LinksImport::open(request, backend, || {}));
     }
 
     /// Opens Properties for this row.

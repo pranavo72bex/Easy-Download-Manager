@@ -95,7 +95,10 @@ button whose click opens the system's own menu
 offers and does is dm's, in dm-desktop-base for both windows (`add_url`, `file_info`, `asks`).
 A dialog that needs the main view holds a `WeakEntity<Downloads>`; a task that updates the main
 view runs in the main window by its async context, not by `WeakEntity::update_in`, which GPUI runs
-in whichever window last drew the entity (`docs/decisions.md`, 2026-11-10).
+in whichever window last drew the entity (`docs/decisions.md`, 2026-11-10). What the window does
+on each wake beside reading the list is `tick.rs` (the egui window's tick, each rule the
+application's); a browser's hand-off opens `details.rs` (`open_handed`) or `links.rs`; `main` runs
+`dm_desktop_base::modes` first, as the egui window's does.
 
 **The table** is GPUI's virtualized list *(verify in G6: `uniform_list`)*, drawing only the
 visible rows; a row's cells are formatted when drawn, from the snapshot's `Arc<Entry>`; a

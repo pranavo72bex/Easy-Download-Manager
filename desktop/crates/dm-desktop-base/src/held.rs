@@ -48,6 +48,18 @@ pub fn opens_next(schedule: &dm_core::Schedule) -> Option<String> {
     })
 }
 
+/// The settings with a once-only schedule date that has passed put away
+/// (`schedule::spent_once_put_away`, as of now), where one has.
+pub fn spent_once_now(settings: &Settings) -> Option<Settings> {
+    use chrono::{Datelike, Timelike};
+    let now = chrono::Local::now();
+    dm_shell::app::schedule::spent_once_put_away(
+        settings,
+        (now.year(), now.month() as u8, now.day() as u8),
+        now.hour() * 60 + now.minute(),
+    )
+}
+
 /// Why downloads wait now, where something holds them: the download limit
 /// (`allowance`: how long until it allows more) or the schedule's hours.
 pub fn held_because(settings: &Settings, allowance: Option<Duration>) -> Option<String> {

@@ -42,6 +42,27 @@ fn in_own_window<R>(
         .flatten()
 }
 
+/// When done's countdown as it stands: what dm will do and in how many
+/// seconds; `None` once it is over or cancelled.
+fn countdown_question(view: &Downloads) -> Option<crate::question::Asked> {
+    use dm_desktop_base::i18n::{t, tf};
+    let (action, at) = view.session.countdown?;
+    let left = at
+        .saturating_duration_since(std::time::Instant::now())
+        .as_secs();
+    Some(crate::question::Asked {
+        title: t("Downloads are done").into(),
+        lines: vec![tf("dm will {} in {} seconds.", &[&t(action.verb()), &left]).into()],
+        named: None,
+        detail: None,
+        toggle: None,
+        // Cancel, the default, rightmost: Return and Escape both stop it.
+        buttons: vec![t("Cancel").into(), t("Now").into()],
+        default: 0,
+        escape: 0,
+    })
+}
+
 /// Where Exit stands in "Exit dm?"'s buttons.
 const EXIT: usize = 1;
 
@@ -126,6 +147,20 @@ pub struct Downloads {
     sheet_open: bool,
     /// "Exit dm?" is being asked: Exit again does not ask twice.
     exit_asked: bool,
+    /// What the reads since the last tick detected (`tick.rs`).
+    pub(crate) detected: Vec<dm_shell::app::detect::Detected>,
+    /// Problems to show above the list, each until dismissed.
+    pub(crate) problems: Vec<String>,
+    /// Finished rows' sizes, read once from their files.
+    saved: dm_shell::app::snapshot::SavedSizes,
+    /// A browser's hand-off is being asked about (Download details or
+    /// Download links): the next waits for it.
+    pub(crate) handed_open: bool,
+    /// Hand-offs cancelled, by site (`handoff::Cancels`): the second asks
+    /// whether to leave that site's downloads to the browser.
+    cancelled_hand_offs: dm_shell::app::handoff::Cancels,
+    /// When done's countdown is being shown.
+    countdown_shown: bool,
 }
 
 impl Downloads {
@@ -163,6 +198,12 @@ impl Downloads {
             sheets: Default::default(),
             sheet_open: false,
             exit_asked: false,
+            detected: Vec::new(),
+            problems: Vec::new(),
+            saved: Default::default(),
+            handed_open: false,
+            cancelled_hand_offs: Default::default(),
+            countdown_shown: false,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -217,6 +258,7 @@ impl Downloads {
             }
             if in_own_window(&this, cx, |this, window, cx| {
                 this.read();
+                this.tick(cx);
                 this.watch_asks(cx);
                 this.answer_requests(window, cx);
                 cx.notify();
@@ -426,6 +468,113 @@ impl Downloads {
         self.sheet(asked, None, None, answer, cx);
     }
 
+    /// Adds downloads with options of their own (Download links' each has
+    /// its name, its description, its sign-in), as the person's own; how
+    /// many went in.
+    pub fn add_items(
+        &mut self,
+        items: Vec<(String, dm_core::AddOptions)>,
+        cx: &mut Context<Self>,
+    ) -> Result<usize, String> {
+        let added = self.session.add(&self.backend, items);
+        if let Some((failed, e)) = added.partly() {
+            // The rest went in; the ones that did not are said, not lost.
+            self.say(match failed {
+                1 => format!("One of the links was not added: {e}"),
+                n => format!("{n} of the links were not added: {e}"),
+            });
+        }
+        self.read();
+        cx.notify();
+        added.outcome()
+    }
+
+    /// A handed-over download from `site` was cancelled: the second asks
+    /// whether to leave that site's downloads to the browser (counted by the
+    /// application, `handoff::Cancels`).
+    pub fn hand_off_cancelled(&mut self, site: &str, cx: &mut Context<Self>) {
+        let settings = self.backend.settings();
+        if !self
+            .cancelled_hand_offs
+            .cancelled(site, &settings.catch.skip_hosts)
+        {
+            return;
+        }
+        let asked = crate::question::Asked {
+            title: dm_desktop_base::i18n::t("Leave this site to the browser?").into(),
+            lines: vec![dm_desktop_base::i18n::tf(
+                "You cancelled two downloads from {}. Leave its downloads to the browser?",
+                &[&site],
+            )
+            .into()],
+            named: None,
+            detail: None,
+            toggle: None,
+            buttons: vec![
+                dm_desktop_base::i18n::t("Leave them to the browser").into(),
+                dm_desktop_base::i18n::t("Keep handing them over").into(),
+            ],
+            default: 0,
+            escape: 1,
+        };
+        let site = site.to_string();
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, _, cx| {
+            if button != 0 {
+                return;
+            }
+            let _ = view.update(cx, |view, _| {
+                let mut wanted = view.backend.settings();
+                if !wanted.catch.skip_hosts.contains(&site) {
+                    wanted.catch.skip_hosts.push(site);
+                }
+                if let Err(e) = view.backend.set_settings(wanted) {
+                    view.problems.push(e);
+                }
+            });
+        });
+        self.sheet(asked, None, None, answer, cx);
+    }
+
+    /// When done's countdown, shown once it starts: "dm will sleep in 30
+    /// seconds.", Cancel (the default) and Now. It closes once the countdown
+    /// is over or cancelled.
+    pub(crate) fn show_countdown(&mut self, cx: &mut Context<Self>) {
+        if self.session.countdown.is_none() {
+            self.countdown_shown = false;
+            return;
+        }
+        if self.countdown_shown {
+            return;
+        }
+        self.countdown_shown = true;
+        let Some(asked) = countdown_question(self) else {
+            return;
+        };
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, _, cx| {
+            let _ = view.update(cx, |view, cx| {
+                view.countdown_shown = false;
+                match (button, view.session.countdown) {
+                    // Now: the action at once.
+                    (1, Some((action, _))) => {
+                        view.session.countdown = Some((action, std::time::Instant::now()));
+                        view.countdown_now(cx);
+                    }
+                    _ => view.session.countdown = None,
+                }
+                cx.notify();
+            });
+        });
+        let live: crate::question::Live = Box::new(countdown_question);
+        self.sheet(asked, None, Some(live), answer, cx);
+    }
+
+    /// A browser's hand-off has been answered: the next may be asked.
+    pub fn handed_closed(&mut self) {
+        self.handed_open = false;
+    }
+
     /// Where Add URL's OK sends the address (`add_url::decide`), and the
     /// Recent list it remembers.
     pub fn after_add_url(
@@ -454,7 +603,12 @@ impl Downloads {
 
     /// "Already in the list": show it (or go on with it), download it
     /// again, replace the old file, or leave it.
-    fn ask_duplicate(&mut self, address: String, id: dm_core::Id, cx: &mut Context<Self>) {
+    pub(crate) fn ask_duplicate(
+        &mut self,
+        address: String,
+        id: dm_core::Id,
+        cx: &mut Context<Self>,
+    ) {
         use dm_desktop_base::i18n::{t, tf};
         use dm_shell::app::rules::Dup;
         let status = self
@@ -512,7 +666,7 @@ impl Downloads {
 
     /// Carries out an answer to "Already in the list", asked or remembered
     /// (`add_url::carry`).
-    fn answer_duplicate(
+    pub(crate) fn answer_duplicate(
         &mut self,
         address: String,
         id: dm_core::Id,
@@ -653,7 +807,7 @@ impl Downloads {
                 }
             });
         });
-        let live: crate::question::Live = Box::new(exit_question);
+        let live: crate::question::Live = Box::new(|view| Some(exit_question(view)));
         self.sheet(exit_question(self), None, Some(live), answer, cx);
     }
 
@@ -749,6 +903,9 @@ impl Downloads {
         dm_shell::app::changes::take();
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
+        // What it detected and the problems it met are the tick's.
+        self.detected.push(read.detected);
+        self.problems.extend(read.problems);
         // What the read told beside the rows, which a row's words are said
         // from (ranges tried again, swarms, files taken by a later row, the
         // download limit), as the egui window sets it.
@@ -756,6 +913,8 @@ impl Downloads {
         dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
         dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
         self.rows = read.snapshot.rows;
+        // A finished row's size is its file's, read once from the disk.
+        self.saved.apply(&mut self.rows);
         dm_desktop_base::rows::set_superseded(&self.rows);
         // A row taken off the list is no longer chosen.
         let ids: std::collections::HashSet<dm_core::Id> = self.rows.iter().map(|r| r.id).collect();
@@ -1107,6 +1266,38 @@ impl Render for Downloads {
                             .flex_col()
                             .flex_1()
                             .min_w_0()
+                            // Problems from outside the list, each until
+                            // dismissed, above it.
+                            .children(self.problems.iter().enumerate().map(|(i, problem)| {
+                                gpui::div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(gpui::px(crate::native::LABEL_GAP))
+                                    .px(gpui::px(12.0))
+                                    .py(gpui::px(6.0))
+                                    .border_b_1()
+                                    .border_color(theme.separator)
+                                    .child(gpui::div().flex_1().text_color(theme.warning).child(
+                                        screen.label(dm_desktop_base::format::as_shown(problem)),
+                                    ))
+                                    .child(
+                                        crate::native::button(
+                                            ("dismiss", i),
+                                            dm_desktop_base::i18n::t("Dismiss").into(),
+                                            false,
+                                            theme,
+                                            &screen,
+                                        )
+                                        .on_click(
+                                            cx.listener(move |this, _, _, cx| {
+                                                if i < this.problems.len() {
+                                                    this.problems.remove(i);
+                                                }
+                                                cx.notify();
+                                            }),
+                                        ),
+                                    )
+                            }))
                             .child(crate::table::header(self, theme, &screen, cx))
                             .child(crate::table::rows(self, theme, cx)),
                     ),

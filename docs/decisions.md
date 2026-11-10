@@ -3,6 +3,18 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The ways dm runs without a window are one module for both windows
+
+`dm_desktop_base::modes::without_window` runs the browser's host, the warm page reader,
+`--version`, `--help` (its text byte for byte as before), the command-line client, MCP,
+`--register` and `--unregister`, and refuses a typo, for both windows' `main`; macOS's "open with"
+Apple events (`dm_desktop_base::opened`) likewise. The GPUI window had none of them, so a browser
+could hand it nothing (`--native-host` opened a window). Notifications stay each window's own, as
+the decision on `Desktop` below says (notify-rust is a window crate's): the GPUI window's notifier
+is `dm-gpui/src/notify.rs`, and it claims dm's bundle id for them after gpui-component has started
+its own notification centre, since claiming it first made macOS look for a bundle a bare binary
+does not have, and dm stopped at launch.
+
 ## 2026-11-10: GPUI dialogs take AppKit's measures and macOS's order of buttons
 
 The maintainer, 2026-11-10, looking at the GPUI dialogs: "margin padding is also off. fix it on
