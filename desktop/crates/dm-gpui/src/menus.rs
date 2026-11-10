@@ -90,6 +90,7 @@ pub fn carried_out(command: Command) -> bool {
             | C::FindPrevious
             | C::Scheduler
             | C::SiteFiles
+            | C::ShowProgress
             | C::SpeedLimiterToggle
             | C::SpeedLimiterSettings
             | C::SpeedLow

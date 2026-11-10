@@ -222,7 +222,14 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   The Grabber (B60, B61: a site's pages searched for files, its templates, other sites, the
   site's folders kept, sizes and paths, the files found ticked and added for later) and its
   saved searches, run by themselves on the tick (`dm_desktop_base::grabber`, both windows).
-  Slice 5 is done but B52, which comes with the tray (slice 8). Then
+  Slice 5 is done but B52, which comes with the tray (slice 8). Slice 6 under way: each
+  download's progress window (B53, B54, B63: its status and next step, size, speed, time left,
+  whether it can resume, a bar of its pieces, its own limit, Connections with each piece's bar
+  and speed, a torrent's swarm; opened on Start now where Options says, for a download started
+  elsewhere, and by File › Show progress; closed as it finishes), "Download complete" (each
+  file's Open, Open with…, Open folder; "Don't show this window again"), and "Cancel this
+  download?" as a sheet; `dm_desktop_base::progress` for both windows. The GPUI window's
+  services are the system's own (the clipboard; the open and save panels). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

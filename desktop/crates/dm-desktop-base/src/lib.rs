@@ -65,6 +65,7 @@ pub mod modes;
 pub mod opened;
 pub mod power;
 pub mod probe;
+pub mod progress;
 pub mod quiet;
 pub mod region;
 pub mod rows;

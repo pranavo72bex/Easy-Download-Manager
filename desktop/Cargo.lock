@@ -2322,6 +2322,7 @@ dependencies = [
 name = "dm-gpui"
 version = "0.9.0"
 dependencies = [
+ "arboard",
  "async-channel",
  "dm-core",
  "dm-desktop-base",
@@ -2331,6 +2332,7 @@ dependencies = [
  "gpui-pre",
  "gpui-pre-platform",
  "notify-rust",
+ "rfd",
  "serde_json",
 ]
 

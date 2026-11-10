@@ -177,6 +177,16 @@ pub struct Downloads {
         std::sync::Arc<std::sync::Mutex<Vec<(String, Result<dm_shell::lists::Crawled, String>)>>>,
     /// When the saved searches were last looked at.
     searches_checked: Option<std::time::Instant>,
+    /// Each progress window open, by its download.
+    progress_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
+    /// Progress windows a person closed: not opened again by themselves.
+    progress_closed: std::collections::HashSet<dm_core::Id>,
+    /// The downloads "Download complete" lists.
+    pub(crate) complete: std::collections::BTreeSet<dm_core::Id>,
+    /// "Download complete", while it is open.
+    complete_window: Option<gpui::AnyWindowHandle>,
+    /// What an opener said went wrong, from its thread.
+    opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
 }
 
 impl Downloads {
@@ -230,6 +240,11 @@ impl Downloads {
             menu_queues: Vec::new(),
             search_results: Default::default(),
             searches_checked: None,
+            progress_windows: Default::default(),
+            progress_closed: Default::default(),
+            complete: Default::default(),
+            complete_window: None,
+            opener_said: Default::default(),
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -384,6 +399,18 @@ impl Downloads {
                 cx.notify();
                 return;
             }
+            Command::ShowProgress => {
+                let ids: Vec<dm_core::Id> = chosen
+                    .iter()
+                    .filter(|r| r.state != State::Completed)
+                    .map(|r| r.id)
+                    .collect();
+                for id in ids {
+                    self.progress_closed.remove(&id);
+                    self.show_progress(id, cx);
+                }
+                return;
+            }
             Command::SiteFiles => {
                 crate::grabber::open(cx.entity().downgrade(), cx);
                 return;
@@ -469,6 +496,13 @@ impl Downloads {
             });
         }
         self.read();
+        // Its progress window opens as it starts, where that is asked for
+        // (B63), for one download at a time.
+        if let [(id, _, false)] = added.rows.as_slice() {
+            if self.backend.settings().show_progress {
+                self.show_progress(*id, cx);
+            }
+        }
         // Start now while the schedule or the download limit holds
         // downloads: asked, as Resume asks, whether to start it outside the
         // schedule (asked of the schedule itself: the list, just read, may
@@ -917,6 +951,193 @@ impl Downloads {
         for search in due {
             self.run_search(search);
         }
+    }
+
+    /// The progress window of `id`, opened (or brought forward).
+    pub fn show_progress(&mut self, id: dm_core::Id, cx: &mut Context<Self>) {
+        if let Some(handle) = self.progress_windows.get(&id) {
+            if handle
+                .update(cx, |_, window, _| window.activate_window())
+                .is_ok()
+            {
+                return;
+            }
+        }
+        let nth = self.progress_windows.len();
+        let me = cx.entity().downgrade();
+        let main = self.main;
+        cx.defer(move |cx| {
+            if let Some(handle) = crate::progress::open(me.clone(), id, nth, main, cx) {
+                let _ = me.update(cx, |view, _| {
+                    view.progress_windows.insert(id, handle);
+                });
+            }
+        });
+    }
+
+    /// Whether a person closed the progress window of `id`.
+    pub(crate) fn progress_closed_has(&self, id: dm_core::Id) -> bool {
+        self.progress_closed.contains(&id)
+    }
+
+    /// Closes the progress window of `id`, where one is open.
+    fn close_progress(&mut self, id: dm_core::Id, cx: &mut Context<Self>) {
+        if let Some(handle) = self.progress_windows.remove(&id) {
+            let _ = handle.update(cx, |_, window, _| window.remove_window());
+        }
+    }
+
+    /// Progress windows a person closed: forgotten, and not opened again by
+    /// themselves.
+    pub(crate) fn prune_progress(&mut self, cx: &mut Context<Self>) {
+        let open = cx.windows();
+        let gone: Vec<dm_core::Id> = self
+            .progress_windows
+            .iter()
+            .filter(|(_, handle)| !open.contains(handle))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in gone {
+            self.progress_windows.remove(&id);
+            self.progress_closed.insert(id);
+        }
+        if self.complete_window.is_some_and(|w| !open.contains(&w)) {
+            self.complete_window = None;
+            self.complete.clear();
+        }
+    }
+
+    /// Downloads that finished: their progress windows close, and
+    /// "Download complete" lists them, where that is asked for.
+    pub(crate) fn finished(&mut self, ids: &[dm_core::Id], cx: &mut Context<Self>) {
+        let show = self.backend.settings().show_complete;
+        for id in ids {
+            self.close_progress(*id, cx);
+            if show {
+                self.complete.insert(*id);
+            }
+        }
+        if show && !self.complete.is_empty() && self.complete_window.is_none() {
+            let me = cx.entity().downgrade();
+            cx.defer(move |cx| {
+                let handle = crate::complete::open(me.clone(), cx);
+                let _ = me.update(cx, |view, _| view.complete_window = handle);
+            });
+        }
+    }
+
+    /// "Download complete" closed: a ticked "Don't show this window again"
+    /// kept, and said.
+    pub fn complete_closed(&mut self, never: bool, cx: &mut Context<Self>) {
+        self.complete.clear();
+        self.complete_window = None;
+        if never {
+            let mut wanted = self.backend.settings();
+            wanted.show_complete = false;
+            match self.backend.set_settings(wanted) {
+                Ok(_) => self.say(
+                    dm_desktop_base::i18n::t(
+                        "This window won't open again. Turn it on in Options › General.",
+                    )
+                    .into(),
+                ),
+                Err(e) => self.say(e),
+            }
+        }
+        cx.notify();
+    }
+
+    /// A file acted on in "Download complete": it leaves the list, and the
+    /// window with the last.
+    pub fn complete_done(&mut self, id: dm_core::Id, cx: &mut Context<Self>) {
+        self.complete.remove(&id);
+        if self.complete.is_empty() {
+            if let Some(handle) = self.complete_window.take() {
+                let _ = handle.update(cx, |_, window, _| window.remove_window());
+            }
+        }
+        cx.notify();
+    }
+
+    /// Opens a file with its usual app, off the window's thread.
+    pub fn open_path(&self, path: &str) {
+        let said = self.opener_said.clone();
+        self.backend
+            .platform
+            .open_later(path, Box::new(move |why| *dm_core::lock(&said) = Some(why)));
+    }
+
+    /// Shows a file in the file manager, off the window's thread.
+    pub fn reveal_path(&self, path: &str) {
+        let said = self.opener_said.clone();
+        self.backend
+            .platform
+            .reveal_later(path, Box::new(move |why| *dm_core::lock(&said) = Some(why)));
+    }
+
+    /// Open with…: the app chosen in the system's own panel.
+    pub fn open_path_with(&mut self, path: &str) {
+        let chosen = self.backend.platform.choose_app();
+        if let Some(app) = chosen {
+            if let Err(e) = self.backend.platform.open_with(path, &app) {
+                self.say(e);
+            }
+        }
+    }
+
+    /// What an opener said went wrong, from its thread.
+    pub(crate) fn say_opener(&mut self) {
+        let said = dm_core::lock(&self.opener_said).take();
+        if let Some(why) = said {
+            self.say(why);
+        }
+    }
+
+    /// "Cancel this download?", asked before a download is cancelled: what
+    /// was fetched is discarded.
+    pub fn ask_cancel(&mut self, id: dm_core::Id, cx: &mut Context<Self>) {
+        use dm_desktop_base::i18n::t;
+        let Some(row) = self.rows.iter().find(|r| {
+            r.id == id && matches!(r.state, State::Running | State::Queued | State::Paused)
+        }) else {
+            return;
+        };
+        let fetched = row.progress.downloaded > 0;
+        let settings = self.backend.settings();
+        let named = dm_shell::app::names::name_it_will_get_after(
+            &self.rows,
+            row,
+            &settings.download_dir,
+            &mut settings.categories(),
+            None,
+        );
+        let asked = crate::question::Asked {
+            title: t("Cancel this download?").into(),
+            lines: fetched
+                .then(|| t("Cancelling discards what was downloaded.").into())
+                .into_iter()
+                .collect(),
+            named: Some(named.into()),
+            detail: None,
+            toggle: None,
+            buttons: vec![t("Keep downloading").into(), t("Yes, cancel").into()],
+            default: 0,
+            escape: 0,
+        };
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, _, cx| {
+            if button != 1 {
+                return;
+            }
+            let _ = view.update(cx, |view, cx| {
+                view.backend.cancel(id);
+                view.close_progress(id, cx);
+                view.progress_closed.insert(id);
+                view.read();
+                cx.notify();
+            });
+        });
+        self.sheet(asked, None, None, answer, cx);
     }
 
     /// A browser's hand-off has been answered: the next may be asked.

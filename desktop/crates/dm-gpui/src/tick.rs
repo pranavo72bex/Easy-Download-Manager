@@ -69,10 +69,13 @@ impl Downloads {
     /// download that failed, one for what finished (a batch is one
     /// sentence; a single file keeps its Open), the sounds chosen, and a
     /// hand-off's address already listed said.
-    fn told(&mut self, _cx: &mut Context<Self>) {
+    fn told(&mut self, cx: &mut Context<Self>) {
         let detected = std::mem::take(&mut self.detected);
         let settings = self.backend.settings();
+        self.prune_progress(cx);
+        self.say_opener();
         let mut finished: Vec<(String, String)> = Vec::new();
+        let mut finished_ids: Vec<dm_core::Id> = Vec::new();
         let mut failed = false;
         for read in detected {
             for row in &self.rows {
@@ -90,6 +93,18 @@ impl Downloads {
                 }
                 if read.finished.contains(&row.id) {
                     finished.push((dm_shell::app::names::name_of(row), row.path.clone()));
+                    finished_ids.push(row.id);
+                }
+            }
+            // A download that started without the window starting it (a
+            // browser's hand-off, a second launch) opens its progress window
+            // as one started here does, where that is asked for: one window
+            // for one download, not a stack for a batch.
+            if settings.show_progress {
+                if let [only] = read.started_elsewhere.as_slice() {
+                    if !self.progress_closed_has(*only) {
+                        self.show_progress(*only, cx);
+                    }
                 }
             }
             // A browser's hand-off of an address already listed: added by
@@ -104,6 +119,9 @@ impl Downloads {
                     &[&dm_shell::app::names::name_of(row)],
                 ));
             }
+        }
+        if !finished_ids.is_empty() {
+            self.finished(&finished_ids, cx);
         }
         match finished.as_slice() {
             [] => {}

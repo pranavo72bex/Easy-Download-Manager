@@ -23,6 +23,7 @@
 
 mod addurl;
 mod assets;
+mod complete;
 mod details;
 mod fit;
 mod grabber;
@@ -37,6 +38,7 @@ mod playlist;
 mod popup;
 mod port;
 mod probe;
+mod progress;
 mod question;
 mod rowmenu;
 mod scheduler;
