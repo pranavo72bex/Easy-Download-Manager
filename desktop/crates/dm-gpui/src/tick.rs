@@ -64,6 +64,9 @@ impl Downloads {
             self.show_main(cx);
         }
         self.tray_follow();
+        // Links dragged in from a browser, and the drop target as Options says.
+        self.take_dropped_links(cx);
+        self.follow_drop_target(cx);
         self.refresh_menus(cx);
         let problems = self.backend.problems();
         self.problems.extend(

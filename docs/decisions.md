@@ -3,6 +3,23 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: GPUI takes links dropped from a browser through its window's own drag methods
+
+GPUI's macOS window registers for dragged files alone, so a link dragged from a browser (an
+address, not a file) never reached it. As the egui window does with winit's, `drops.rs` gives
+GPUI's window class (`GPUIWindow`) dm's own `draggingEntered:`, `draggingUpdated:` and
+`performDragOperation:`: a drag that carries a link and no files is taken (its URL, else its text,
+read for links) and the window woken as at any change; every other drag goes on to GPUI's own
+method unchanged, files included, which reach the window as `ExternalPaths` and are read for the
+links they hold (`dm_shell::app::links::links_at`: a `.torrent` is itself the download). Each
+class is given dm's methods once: given twice, a method would keep dm's own as GPUI's and call
+itself. The floating drop target (View › Drop target) is a small always-on-top window of its own
+(`droptarget.rs`): it takes drops the same way, shows how far the downloads are along its foot and
+how fast on hover, moves when dragged, brings the window back on a double-click, and has Show dm and
+Hide the drop target on its right-click menu, as the egui window's card has. The GPUI app is
+bundled beside the egui window's (`make app-gpui`, `desktop/target/release/bundle-gpui/`), with the
+same name, id, icons and the types it opens, until GPUI is the window dm ships (Phase E).
+
 ## 2026-11-10: `human-qa.py` drives the GPUI window as a person does, through the same port
 
 The control port answers every `ui.*` method in the GPUI window as it does in the egui window,

@@ -256,8 +256,13 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   finish, the way to add dm to a browser) and a new install's "Add dm to your browser". The
   control port answers every method in the GPUI window: `ui.inspect` with the dialogs open, the
   status line and problems, `ui.texts` with what fields hold (not a password's),
-  `ui.screenshot` (the system's own picture of the window) and `ui.move_window`. Left: the drop
-  target (the last of the menus' commands), and what `human-qa.py` finds in the GPUI window. Then
+  `ui.screenshot` (the system's own picture of the window) and `ui.move_window`. Links dragged
+  from a browser and files dropped on the window are taken (`drops.rs`), and the floating drop
+  target (View › Drop target, the last of the menus' commands) is a window of its own
+  (`droptarget.rs`). `human-qa.py` on the GPUI window: 63 of 64 on its second run (B48 then failed
+  only because Escape did not close the progress window it found open; put right), and B25's
+  pictures saved as the GPUI window's own baseline (`docs/behaviour-baseline/gpui/macos/`, D3,
+  looked at). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

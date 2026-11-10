@@ -14,6 +14,33 @@ publish = false
 name = "dm-gpui"
 path = "src/main.rs"
 
+
+# The macOS app and its disk image with the GPUI window (Phase D of
+# docs/migration/GPUI_MIGRATION_PLAN.md): the egui window's bundle, its
+# name, id, icons and the types it opens, with this binary in it, built
+# beside it (`make app-gpui`) until GPUI is the window dm ships (Phase E).
+[package.metadata.packager]
+productName = "dm"
+identifier = "com.dm.desktop"
+description = "Multi-connection downloads that resume"
+longDescription = "dm splits a file across several connections, resumes what was interrupted, and takes over the downloads you start in a browser."
+category = "Utility"
+beforePackagingCommand = "cargo build --release -p dm-gpui"
+outDir = "../../target/release/bundle-gpui"
+binaries = [{ path = "dm-gpui", main = true }]
+icons = [
+  "../dm-desktop/icons/32x32.png",
+  "../dm-desktop/icons/128x128.png",
+  "../dm-desktop/icons/128x128@2x.png",
+  "../dm-desktop/icons/icon.icns",
+]
+
+[package.metadata.packager.macos]
+minimumSystemVersion = "11.0"
+# Ad-hoc, as the egui window's bundle is (its Cargo.toml says why).
+signingIdentity = "-"
+infoPlistPath = "../dm-desktop/macos/Info.plist"
+
 [dependencies]
 dm-core = { path = "../dm-core" }
 dm-protocol = { path = "../dm-protocol" }
@@ -50,7 +77,7 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
 # What GPUI cannot ask of a window (appkit.rs): put away into the tray without
 # closing it, moved, pictured.
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSGeometry"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["wayland", "x11"] }

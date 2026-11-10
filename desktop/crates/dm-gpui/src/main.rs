@@ -31,6 +31,8 @@ mod cliplinks;
 mod clipwatch;
 mod complete;
 mod details;
+mod drops;
+mod droptarget;
 mod fit;
 mod grabber;
 mod limiter;

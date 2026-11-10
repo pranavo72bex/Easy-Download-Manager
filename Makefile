@@ -97,7 +97,7 @@ DIM  := $(shell test -t 1 && tput dim 2>/dev/null)
 OFF  := $(shell test -t 1 && tput sgr0 2>/dev/null)
 
 .PHONY: help install client extension register unregister uninstall test doctor app clean \
-        run run-release build build-macos build-linux build-windows build-extension \
+        run run-release build build-macos build-linux build-windows build-extension app-gpui \
         devices analyze format qa qa-docker
 
 help:
@@ -220,6 +220,16 @@ ifeq ($(UNAME),Darwin)
 	@echo "installed $(APPDIR)/dm.app"
 	@echo "$(DIM)unsigned, so the first launch is right-click → Open$(OFF)"
 endif
+
+# The macOS bundle with the GPUI window (docs/gaps.md G8), built beside the
+# egui window's into desktop/target/release/bundle-gpui/, not installed:
+# GPUI is not yet the window dm ships (Phase E).
+app-gpui:
+	@command -v cargo-packager >/dev/null 2>&1 || { \
+	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
+	@cd desktop/crates/dm-gpui && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
+	@echo
+	@echo "built desktop/target/release/bundle-gpui/"
 
 # -------------------------------------------------------------- extension
 

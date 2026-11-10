@@ -39,6 +39,8 @@ pub struct Progress {
     /// Connections is open.
     connections: bool,
     own_limit: Entity<InputState>,
+    /// The window's keyboard: Escape closes it, as its close button does.
+    focus: gpui::FocusHandle,
     screen: Screen,
 }
 
@@ -269,6 +271,14 @@ impl Render for Progress {
             .id(("progress", id as usize))
             .role(Role::Dialog)
             .aria_label(title(&named))
+            .track_focus(&self.focus)
+            // Escape closes it, as its close button does; the list then
+            // knows it was closed, and does not open it again by itself.
+            .on_key_down(cx.listener(|_, event: &gpui::KeyDownEvent, window, _| {
+                if event.keystroke.key == "escape" {
+                    window.remove_window();
+                }
+            }))
             .size_full()
             .bg(theme.window)
             .child(crate::fit::fitted(
@@ -488,6 +498,9 @@ pub fn open(
             Screens::register(window.window_handle(), screen.clone(), true, cx);
             // Known by its name, as the egui window's progress windows are.
             Screens::named(window.window_handle(), "Download progress", cx);
+            // The keyboard in the window as it opens, so Escape reaches it.
+            let focus = cx.focus_handle();
+            window.focus(&focus, cx);
             let own_limit = cx.new(|cx| {
                 let mut s = InputState::new(window, cx);
                 let shown = if row_limit > 0 { row_limit } else { 500 };
@@ -528,6 +541,7 @@ pub fn open(
                     resumable_seen: None,
                     connections: false,
                     own_limit,
+                    focus,
                     screen,
                 }
             });

@@ -209,6 +209,8 @@ pub struct Downloads {
     pub(crate) tray: Option<crate::tray::Tray>,
     /// The window is put away in the tray.
     pub(crate) hidden: bool,
+    /// The floating drop target, while shown (`droptarget.rs`).
+    pub(crate) drop_window: Option<gpui::AnyWindowHandle>,
     /// What the bars above the list remember (`bars.rs`).
     pub(crate) bars: crate::bars::Bars,
     /// The name each row is shown by: the one its file will get, a waiting
@@ -296,6 +298,7 @@ impl Downloads {
             clipboard: Default::default(),
             tray: None,
             hidden,
+            drop_window: None,
             bars: Default::default(),
             shown_names: Default::default(),
             show_asked,
@@ -314,6 +317,8 @@ impl Downloads {
         this.start_tray(window, cx);
         // A new install's first window, once.
         this.welcome_if_new(cx);
+        // A link dragged from a browser is taken, as files are.
+        crate::drops::take_links(window);
         let me = cx.entity().downgrade();
         window.on_window_should_close(cx, move |window, cx| {
             me.update(cx, |view, cx| view.close_asked(window, cx))
@@ -602,6 +607,18 @@ impl Downloads {
             }
             Command::Options => {
                 self.open_options(cx);
+                return;
+            }
+            // View › Drop target: kept in Options, and the card shown or put
+            // away.
+            Command::ToggleDropTarget => {
+                let mut wanted = self.backend.settings();
+                wanted.drop_target = !wanted.drop_target;
+                if let Err(e) = self.apply_settings(wanted, cx) {
+                    self.say(e);
+                }
+                self.follow_drop_target(cx);
+                cx.notify();
                 return;
             }
             Command::About | Command::CheckForUpdates => {
@@ -2155,6 +2172,11 @@ impl Render for Downloads {
             .on_action(
                 cx.listener(|this, _: &crate::menus::TipOfTheDay, _, cx| this.tip_of_the_day(cx)),
             )
+            // Files dropped on the window: the links they hold added.
+            .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| {
+                let paths = paths.paths().to_vec();
+                this.dropped_files(&paths, cx);
+            }))
             .on_action(
                 cx.listener(|this, _: &crate::menus::CloseWindow, window, cx| {
                     if this.close_asked(window, cx) {

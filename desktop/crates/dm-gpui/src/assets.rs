@@ -49,6 +49,8 @@ const ICONS: &[(&str, &[u8])] = icons!(
     // The top bar's button that shows or hides the categories, as the
     // system's sidebar button.
     "sidebar",
+    // The floating drop target's.
+    "drop",
 );
 
 /// The pictures compiled into dm.

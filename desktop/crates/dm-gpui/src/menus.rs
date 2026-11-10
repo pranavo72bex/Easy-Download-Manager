@@ -116,6 +116,7 @@ pub fn carried_out(command: Command) -> bool {
             | C::About
             | C::CheckForUpdates
             | C::Options
+            | C::ToggleDropTarget
             | C::UpdateLink
             | C::MoveToQueue
             | C::MoveRename
