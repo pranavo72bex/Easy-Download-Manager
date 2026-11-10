@@ -12,7 +12,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gpui::{canvas, div, prelude::*, Bounds, Pixels, SharedString};
+use gpui::{canvas, div, prelude::*, AnyWindowHandle, App, Bounds, Global, Pixels, SharedString};
 
 /// A piece of text, and where it was laid out (window points).
 #[derive(Debug, Clone)]
@@ -58,5 +58,37 @@ impl Screen {
             .left_0()
             .size_full(),
         )
+    }
+}
+
+/// Every window's words: the main window's and each dialog's, so the
+/// control port reads and clicks words in any of them, as it does the
+/// egui window's dialogs.
+#[derive(Default)]
+pub struct Screens(Vec<(AnyWindowHandle, Screen, bool)>);
+
+impl Global for Screens {}
+
+impl Screens {
+    /// `screen` is `window`'s (`dialog` if it is a dialog's).
+    pub fn register(window: AnyWindowHandle, screen: Screen, dialog: bool, cx: &mut App) {
+        let screens = cx.default_global::<Screens>();
+        screens.0.retain(|(w, _, _)| *w != window);
+        screens.0.push((window, screen, dialog));
+    }
+
+    /// Each window still open, its words, and whether it is a dialog's;
+    /// dialogs first, as they stand in front.
+    pub fn all(cx: &App) -> Vec<(AnyWindowHandle, Screen, bool)> {
+        let open = cx.windows();
+        let mut all: Vec<_> = cx
+            .try_global::<Screens>()
+            .map(|s| s.0.clone())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(w, _, _)| open.contains(w))
+            .collect();
+        all.sort_by_key(|(_, _, dialog)| !dialog);
+        all
     }
 }

@@ -162,9 +162,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   `commands::applies` says for the rows chosen; and the row menu (right-click or Control-click, the
   egui row menu's items and words, drawn as a macOS context menu); Copy link and Copy details through
   GPUI's clipboard (the system pasteboard), said in the status bar as the egui window says them.
-  Next: dialogs as windows of their own (B42: over the main window's middle, the main window held
-  while a question is asked), so Remove (its question, then Undo) and the commands that open a
-  dialog can follow in slices 4 to 8 (`changes::subscribe`
+  Questions are asked as macOS sheets (`question.rs`; `docs/decisions.md` 2026-11-10: B42 for the
+  GPUI window's questions changes at D5), with dm's words (`dm_desktop_base::asks`, the Remove
+  question's rules moved there from the egui dialog); Remove and Delete file ask, finished rows leave
+  with Undo; every window's words are recorded for the port, so `ui.texts` and `ui.click` reach a
+  sheet as they reach egui's dialogs. Next: slice 4, Add URL (a window of its own) and Download
+  details, then the questions B39 to B41 as sheets (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

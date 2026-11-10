@@ -66,6 +66,8 @@ pub struct Downloads {
     /// A sentence for the status bar, and when it was said: it stands for
     /// a while, as the egui window's does.
     pub(crate) said: Option<(String, std::time::Instant)>,
+    /// Finished rows Remove took off, kept a moment for Undo.
+    pub(crate) undo: dm_shell::app::backend::Undo,
 }
 
 impl Downloads {
@@ -95,11 +97,13 @@ impl Downloads {
             anchor: None,
             menu: None,
             said: None,
+            undo: Default::default(),
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
         this.sort = Column::from_key(&settings.sort_column).map(|c| (c, settings.sort_ascending));
         window.focus(&this.focus, cx);
+        crate::screen::Screens::register(window.window_handle(), this.screen.clone(), false, cx);
         this.read();
         // One task on the window's thread: each wake is one read, a burst of
         // queue changes one read a quarter of a second later.
@@ -211,6 +215,11 @@ impl Downloads {
                     links.len() as u64,
                     &[&links.len()],
                 ));
+                cx.notify();
+                return;
+            }
+            Command::Remove | Command::DeleteFile => {
+                self.remove(&chosen, command == Command::DeleteFile, cx);
                 cx.notify();
                 return;
             }
@@ -329,6 +338,125 @@ impl Downloads {
                 self.anchor = Some(id);
             }
             self.menu = Some(at);
+        }
+    }
+
+    /// Remove (or Delete file, `deleting_files`) on the rows chosen. Finished
+    /// rows only leave the list, nothing lost, Undo on offer for a moment; any
+    /// other is asked about first, as the egui window asks.
+    fn remove(&mut self, chosen: &[Entry], deleting_files: bool, cx: &mut Context<Self>) {
+        let ids: Vec<dm_core::Id> = chosen.iter().map(|r| r.id).collect();
+        if !deleting_files && chosen.iter().all(|r| r.state == State::Completed) {
+            let rows = self.backend.finished_rows(&ids);
+            self.backend.remove_many(&ids);
+            let n = self.undo.keep(rows);
+            if n > 0 {
+                self.say(dm_desktop_base::i18n::tn(
+                    "Removed {} download from the list.||Removed {} downloads from the list.",
+                    n as u64,
+                    &[&n],
+                ));
+            }
+            self.read();
+            return;
+        }
+        // The finished files still on disk that could go with their rows.
+        let files: Vec<String> = chosen
+            .iter()
+            .filter(|r| r.state == State::Completed && std::path::Path::new(&r.path).is_file())
+            .map(|r| r.path.clone())
+            .collect();
+        let named = match chosen {
+            [only] => Some(dm_shell::app::names::name_of(only)),
+            _ => None,
+        };
+        let rows: Vec<Entry> = chosen.to_vec();
+        let count_files = files.len();
+        let words = move |ticked: bool| {
+            let refs: Vec<&Entry> = rows.iter().collect();
+            let ask = dm_desktop_base::asks::remove(
+                &refs,
+                count_files,
+                ticked,
+                deleting_files,
+                named.clone(),
+            );
+            crate::question::Asked {
+                title: ask.title.into(),
+                lines: std::iter::once(ask.sentence)
+                    .chain(ask.files_sentence)
+                    .map(Into::into)
+                    .collect(),
+                named: Some(ask.named.into()),
+                toggle: ask.toggle.map(Into::into),
+                go: ask.go.into(),
+                keep: ask.keep.into(),
+            }
+        };
+        let asked = words(false);
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |go, delete, cx| {
+            if go {
+                let _ = view.update(cx, |view, cx| {
+                    view.removed(&ids, &files, delete);
+                    cx.notify();
+                });
+            }
+        });
+        crate::question::ask(asked, Some(Box::new(words)), answer, cx);
+    }
+
+    /// The rows `ids` taken off the list, their finished `files` with them
+    /// to the Trash where `delete`; the choice goes to the row after them.
+    fn removed(&mut self, ids: &[dm_core::Id], files: &[String], delete: bool) {
+        let mut failed: Vec<String> = Vec::new();
+        if delete {
+            for path in files {
+                // A finished torrent still shared lets go of its files first.
+                dm_core::stop_sharing(std::path::Path::new(path));
+                if let Err(e) = self.backend.platform.trash(path) {
+                    failed.push(format!("{path}: {e}"));
+                }
+            }
+        }
+        // The row after those removed, or the one before where they were
+        // the last, is chosen next, so the keys have somewhere to go on from.
+        let shown: Vec<dm_core::Id> = (0..self.shown.len())
+            .filter_map(|p| self.id_at(p))
+            .collect();
+        let next = shown
+            .iter()
+            .rposition(|id| ids.contains(id))
+            .and_then(|last| {
+                shown[last + 1..]
+                    .iter()
+                    .find(|id| !ids.contains(id))
+                    .or_else(|| shown[..last].iter().rev().find(|id| !ids.contains(id)))
+                    .copied()
+            });
+        self.backend.remove_many(ids);
+        self.read();
+        self.selected = next.into_iter().collect();
+        self.anchor = next;
+        if !failed.is_empty() {
+            self.say(dm_desktop_base::i18n::tf(
+                "Could not delete {}",
+                &[&failed.join("; ")],
+            ));
+        }
+    }
+
+    /// Puts back the rows the last Remove took off, while Undo is on offer.
+    pub fn undo_remove(&mut self) {
+        if let Some(ids) = self.undo.put_back(&self.backend) {
+            let n = ids.len();
+            self.read();
+            self.selected = ids.into_iter().collect();
+            self.say(dm_desktop_base::i18n::tn(
+                "Put back {} download.||Put back {} downloads.",
+                n as u64,
+                &[&n],
+            ));
         }
     }
 
@@ -514,7 +642,7 @@ impl Render for Downloads {
                             .child(crate::table::rows(self, theme, cx)),
                     ),
             )
-            .child(crate::statusbar::statusbar(self, theme, &screen))
+            .child(crate::statusbar::statusbar(self, theme, &screen, cx))
             .when_some(self.menu, |root, at| {
                 root.child(crate::rowmenu::menu(self, at, theme, &screen, cx))
             })

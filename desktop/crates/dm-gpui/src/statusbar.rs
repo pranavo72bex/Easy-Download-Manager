@@ -73,7 +73,14 @@ pub fn parts(view: &Downloads) -> Vec<String> {
 }
 
 /// The status bar.
-pub fn statusbar(view: &Downloads, theme: Theme, screen: &Screen) -> impl IntoElement {
+pub fn statusbar(
+    view: &mut Downloads,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut gpui::Context<Downloads>,
+) -> impl IntoElement {
+    // Undo, for the moment after downloads were taken off the list.
+    let undo = view.undo.live();
     div()
         .id("status")
         .role(Role::Status)
@@ -90,4 +97,19 @@ pub fn statusbar(view: &Downloads, theme: Theme, screen: &Screen) -> impl IntoEl
         .text_xs()
         .text_color(theme.muted)
         .children(parts(view).into_iter().map(|part| screen.label(part)))
+        .when(undo, |bar| {
+            bar.child(
+                div()
+                    .id("undo")
+                    .role(Role::Button)
+                    .aria_label(t("Undo"))
+                    .ml_2()
+                    .text_color(theme.selection)
+                    .on_click(cx.listener(|view, _, _, cx| {
+                        view.undo_remove();
+                        cx.notify();
+                    }))
+                    .child(screen.label(t("Undo"))),
+            )
+        })
 }

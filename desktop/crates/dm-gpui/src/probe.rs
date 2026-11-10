@@ -141,7 +141,30 @@ impl Probe<'_, '_> {
     /// The `nth` piece of text on screen that says `wanted`, nearest the
     /// front first: exactly, else ignoring case, else containing it.
     fn find(&self, wanted: &str, nth: usize) -> Result<Drawn, String> {
-        let drawn: Vec<Drawn> = self.view.screen.drawn().into_iter().rev().collect();
+        Ok(self.find_in(wanted, nth)?.0)
+    }
+
+    /// Every word on screen in every window, nearest the front first (a
+    /// dialog's before the main window's), with its window and whether it
+    /// is a dialog's.
+    fn everything(&self) -> Vec<(Drawn, gpui::AnyWindowHandle, bool)> {
+        let mut all = Vec::new();
+        for (handle, screen, dialog) in crate::screen::Screens::all(self.cx) {
+            all.extend(
+                screen
+                    .drawn()
+                    .into_iter()
+                    .rev()
+                    .map(|d| (d, handle, dialog)),
+            );
+        }
+        all
+    }
+
+    /// As [`Self::find`], with the window the words are in.
+    fn find_in(&self, wanted: &str, nth: usize) -> Result<(Drawn, gpui::AnyWindowHandle), String> {
+        let everything = self.everything();
+        let drawn: Vec<Drawn> = everything.iter().map(|(d, _, _)| d.clone()).collect();
         let lower = wanted.to_lowercase();
         let tries: [&dyn Fn(&Drawn) -> bool; 3] = [
             &|d| d.text.as_ref() == wanted,
@@ -151,7 +174,14 @@ impl Probe<'_, '_> {
         for matches in tries {
             let found: Vec<&Drawn> = drawn.iter().filter(|d| matches(d)).collect();
             if let Some(d) = found.get(nth) {
-                return Ok((*d).clone());
+                let at = drawn
+                    .iter()
+                    .position(|x| std::ptr::eq(x, *d))
+                    .and_then(|i| everything.get(i))
+                    .map(|(_, w, _)| *w);
+                if let Some(window) = at {
+                    return Ok(((*d).clone(), window));
+                }
             }
         }
         let near: Vec<&str> = drawn.iter().map(|d| d.text.as_ref()).take(40).collect();
@@ -187,24 +217,26 @@ impl WindowProbe for Probe<'_, '_> {
     }
 
     fn texts(&mut self) -> Result<probe::Texts, String> {
-        // Nearest the front first: the reverse of the order laid out.
+        // Nearest the front first: dialogs, then the main window, each the
+        // reverse of the order laid out.
         Ok(probe::Texts::new(
-            self.view
-                .screen
-                .drawn()
+            self.everything()
                 .into_iter()
-                .rev()
-                .map(|d| probe::Text {
+                .map(|(d, _, dialog)| probe::Text {
                     text: d.text.to_string(),
                     rect: rect_of(d.bounds),
-                    window: probe::Window::Main,
+                    window: if dialog {
+                        probe::Window::Dialog
+                    } else {
+                        probe::Window::Main
+                    },
                 })
                 .collect(),
         ))
     }
 
     fn click(&mut self, click: probe::Click) -> Result<probe::Clicked, String> {
-        let target = self.find(&click.text, click.nth)?;
+        let (target, in_window) = self.find_in(&click.text, click.nth)?;
         if probe::is_run_a_file(&target.text) {
             return Err(format!("{} is done by a person", target.text));
         }
@@ -214,39 +246,42 @@ impl WindowProbe for Probe<'_, '_> {
             probe::Button::Secondary => MouseButton::Right,
         };
         let clicks = if click.double { 2 } else { 1 };
-        // After this update, through the window's own input path, as a
-        // pointer's: moved there, pressed, released (twice for a double).
-        self.window.defer(self.cx, move |window, cx| {
-            let none = Modifiers::default();
-            window.dispatch_event(
-                PlatformInput::MouseMove(MouseMoveEvent {
-                    position: at,
-                    pressed_button: None,
-                    modifiers: none,
-                }),
-                cx,
-            );
-            for count in 1..=clicks {
+        // After this update, through the input path of the window the words
+        // are in, as a pointer's: moved there, pressed, released (twice for a
+        // double).
+        self.cx.defer(move |cx| {
+            let _ = in_window.update(cx, |_, window, cx| {
+                let none = Modifiers::default();
                 window.dispatch_event(
-                    PlatformInput::MouseDown(MouseDownEvent {
-                        button,
+                    PlatformInput::MouseMove(MouseMoveEvent {
                         position: at,
+                        pressed_button: None,
                         modifiers: none,
-                        click_count: count,
-                        first_mouse: false,
                     }),
                     cx,
                 );
-                window.dispatch_event(
-                    PlatformInput::MouseUp(MouseUpEvent {
-                        button,
-                        position: at,
-                        modifiers: none,
-                        click_count: count,
-                    }),
-                    cx,
-                );
-            }
+                for count in 1..=clicks {
+                    window.dispatch_event(
+                        PlatformInput::MouseDown(MouseDownEvent {
+                            button,
+                            position: at,
+                            modifiers: none,
+                            click_count: count,
+                            first_mouse: false,
+                        }),
+                        cx,
+                    );
+                    window.dispatch_event(
+                        PlatformInput::MouseUp(MouseUpEvent {
+                            button,
+                            position: at,
+                            modifiers: none,
+                            click_count: count,
+                        }),
+                        cx,
+                    );
+                }
+            });
         });
         self.cx.notify();
         Ok(probe::Clicked {
