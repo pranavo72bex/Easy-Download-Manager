@@ -12,7 +12,11 @@
 //! `power` (When done, and the sounds), `autostart` (the Linux login item)
 //! and `toast` (Windows' notifications), with `desktop`, the application's
 //! `Platform` made of them (the window supplying what its crates do), and
-//! `login` (the macOS and Windows login item); and `control`, the control port's
+//! `login` (the macOS and Windows login item), `signals` (a logout or
+//! `kill` quits dm as Exit does), `system_theme` and `contrast` (dark or
+//! light, and Windows' High Contrast colours, where the window library cannot
+//! say), and Windows' taskbar button (`taskbar`'s progress, `jumplist`); and
+//! `control`, the control port's
 //! server, which hands each request to the window through a callback;
 //! `mcp` (the MCP server an AI assistant talks to, over the control port),
 //! `cli` (the command line, over the control port too) and `region` (how
@@ -34,16 +38,21 @@
 pub mod autostart;
 pub mod awake;
 pub mod cli;
+pub mod contrast;
 pub mod control;
 pub mod desktop;
 pub mod details;
 pub mod format;
 pub mod i18n;
+pub mod jumplist;
 pub mod login;
 pub mod mcp;
 pub mod power;
 pub mod quiet;
 pub mod region;
+pub mod signals;
+pub mod system_theme;
+pub mod taskbar;
 #[cfg(windows)]
 pub mod toast;
 pub mod wake;

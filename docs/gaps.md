@@ -107,9 +107,9 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   `tests/i18n.rs` scans both crates' sources. Gated per batch (`docs/decisions.md`, 2026-11-10);
   `human-qa.py` 64/64 after batch 1. `platform.rs`'s `Desktop` and `login.rs` moved too, the
   window supplying the clipboard, file choosers and non-Windows notifications through
-  `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). **Left:** batch 4, modules the
-  survey missed that draw nothing (`contrast`, `system_theme`, `jumplist`, `taskbar`, the
-  binary's `signals`); then `MODULE_BOUNDARIES.md` and `ARCHITECTURE.md`'s crate diagram, the
+  `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). Batch 4, modules the survey
+  missed that draw nothing (`contrast`, `system_theme`, `jumplist`, `taskbar`, the binary's
+  `signals`), moved too. **Left:** `MODULE_BOUNDARIES.md` and `ARCHITECTURE.md`'s crate diagram, the
   binary's modes checked as G2's test-plan row says, both QA runs 64/64, and the row closes.
   As planned: a new crate
   `desktop/crates/dm-desktop-base` that `dm-desktop` depends on and that `cargo xtask layers`

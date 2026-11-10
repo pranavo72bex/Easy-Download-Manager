@@ -25,14 +25,13 @@ mod opened;
 
 mod hidden;
 mod platform;
-mod signals;
 mod tray;
 mod window;
 
 use dm_desktop_base::login::*;
+use dm_desktop_base::signals::*;
 use hidden::*;
 use platform::*;
-use signals::*;
 use tray::*;
 use window::*;
 

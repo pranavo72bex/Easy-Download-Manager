@@ -3,21 +3,25 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-use super::*;
+//! A logout, `kill`, a service manager stopping dm or Ctrl+C in a terminal
+//! ends dm as Program › Exit does: the first asks it to quit, a second
+//! while it is closing ends it there.
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+use dm_shell::settings;
 
 /// Set when the system asks dm to end: SIGTERM, SIGINT or SIGHUP (a
 /// logout, `kill`, a service manager stopping it, Ctrl+C in a terminal),
 /// or Windows' console close, logoff and shutdown events.
-pub(super) static SIGNALLED: AtomicBool = AtomicBool::new(false);
+pub static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
 /// Ends dm as Program › Exit does when the system asks, rather than being
 /// cut off where it stood: its downloads were stopped by nothing, a
 /// video run under it went on alone, and `control.port` was left naming a
 /// port nobody listened on. A second signal while closing ends it at once.
-pub(super) fn on_signal(
-    runtime: &tokio::runtime::Runtime,
-    wake: impl Fn() + Send + Sync + 'static,
-) {
+pub fn on_signal(runtime: &tokio::runtime::Runtime, wake: impl Fn() + Send + Sync + 'static) {
     let wake = Arc::new(wake);
     // The handlers are installed here, now: a stream made inside the task
     // would leave the default action in place until the task first ran.
@@ -75,9 +79,9 @@ pub(super) fn on_signal(
 
 /// The first signal asks dm to quit; a second, while it is still closing,
 /// ends it there. Says whether this one asked.
-pub(super) fn quit_on_signal() -> bool {
+pub fn quit_on_signal() -> bool {
     if SIGNALLED.swap(true, Ordering::SeqCst) {
-        dm_desktop::control::forget_port(&settings::home());
+        crate::control::forget_port(&settings::home());
         std::process::exit(130);
     }
     true

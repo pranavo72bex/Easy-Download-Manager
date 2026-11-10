@@ -30,11 +30,24 @@ url = "2"
 auto-launch = "0.6"
 # A removed file to the Recycle Bin or the Trash (desktop.rs).
 trash = "5.2.9"
+# The window's native handle, for Windows' taskbar progress (taskbar.rs).
+raw-window-handle = "0.6"
+# A logout or `kill` quits dm as Exit does (signals.rs).
+tokio = { version = "1", features = ["rt", "signal"] }
 
 [target.'cfg(windows)'.dependencies]
 # A finished download's toast (toast.rs): WinRT, which windows-sys has no
 # wrappers for. Already in the tree through other crates.
 windows = { version = "0.62", features = [
+  # The taskbar button's jump list (jumplist.rs): COM.
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_Storage_EnhancedStorage",
   "Foundation",
   "Data_Xml_Dom",
   "UI_Notifications",
@@ -55,6 +68,11 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Threading",
   # Whether the person is busy: fullscreen, a game, Focus Assist (quiet.rs).
   "Win32_UI_Shell",
+  # High Contrast: whether it is on, and the colours it sets (contrast.rs).
+  "Win32_UI_Accessibility",
+  "Win32_Graphics_Gdi",
+  # The taskbar button's progress (taskbar.rs): COM.
+  "Win32_System_Com",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
