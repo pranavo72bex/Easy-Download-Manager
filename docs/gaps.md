@@ -135,8 +135,14 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   application's methods; the rest refused by name), so `ui-bench.py` measures it. **Owed:**
   `linux-human-qa.sh` for 43a565d (the shared startup; macOS 64/64): the run of 2026-11-10 failed
   only for a full Docker disk ("0 bytes free"), and the maintainer deferred Linux QA for now; it
-  runs before anything merges into `main`. Next: the shell's release numbers beside egui's, then
-  the tick (`changes::subscribe`
+  runs before anything merges into `main`. Since: the shell's release numbers are beside egui's
+  (`GPUI_TEST_PLAN.md` section 4: at 10,000 rows a third of egui's CPU with 20 downloads, 28 % less
+  footprint, an 11.6 MB binary against 18.0 MB); dm's menus are in macOS's menu bar, built from the
+  command registry, each command's keys bound (⌘Q quits through the menu's action); the words on
+  screen are recorded where each frame lays them out, and `ui.click`, `ui.scroll` and `ui.key` go
+  through GPUI's own input path, so `human-qa.py` can drive the GPUI window. Next: Phase C slice 1
+  (main window: toolbar, side panel, status bar), held to its rows with `DM_BINARY` naming dm-gpui;
+  then the tick (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

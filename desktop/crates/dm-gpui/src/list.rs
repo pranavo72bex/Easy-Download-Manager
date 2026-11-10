@@ -19,9 +19,11 @@ use dm_desktop_base::boot::Wake;
 use dm_shell::app::backend::Backend;
 use dm_shell::app::session::Session;
 use gpui::{
-    div, prelude::*, px, uniform_list, Context, Role, SharedString, UniformListScrollHandle, Window,
+    div, prelude::*, px, uniform_list, Context, FocusHandle, Role, SharedString,
+    UniformListScrollHandle, Window,
 };
 
+use crate::screen::Screen;
 use crate::theme::Theme;
 
 /// The rows' height, in points.
@@ -41,6 +43,10 @@ pub struct Downloads {
     assistants_only: bool,
     /// Where the list is scrolled, and where it is on screen.
     pub(crate) scroll: UniformListScrollHandle,
+    /// The words on screen, where the last frame laid them out.
+    pub(crate) screen: Screen,
+    /// The window's focus: where keys and the menu bar's commands arrive.
+    focus: FocusHandle,
 }
 
 impl Downloads {
@@ -60,7 +66,10 @@ impl Downloads {
             requests,
             assistants_only,
             scroll: UniformListScrollHandle::new(),
+            screen: Screen::default(),
+            focus: cx.focus_handle(),
         };
+        window.focus(&this.focus, cx);
         this.read();
         // One task on the window's thread: each wake is one read, a burst of
         // queue changes one read a quarter of a second later.
@@ -68,7 +77,7 @@ impl Downloads {
         // light and dark.
         cx.observe_window_appearance(window, |_, _, cx| cx.notify())
             .detach();
-        cx.spawn(async move |this, cx| loop {
+        cx.spawn_in(window, async move |this, cx| loop {
             // Nothing tells the window of a clock (the schedules, When
             // done's countdown): once a second while a download runs or a
             // countdown is on, else every 30 seconds, as the egui window.
@@ -92,16 +101,16 @@ impl Downloads {
             // Asked to end (a logout, `kill`, an uninstall): as Exit does,
             // the queue written down first.
             if dm_desktop_base::signals::SIGNALLED.load(Ordering::SeqCst) {
-                let _ = this.update(cx, |this, cx| {
+                let _ = this.update_in(cx, |this, _, cx| {
                     this.backend.flush();
                     cx.quit();
                 });
                 return;
             }
             if this
-                .update(cx, |this, cx| {
+                .update_in(cx, |this, window, cx| {
                     this.read();
-                    this.answer_requests(cx);
+                    this.answer_requests(window, cx);
                     cx.notify();
                 })
                 .is_err()
@@ -125,7 +134,7 @@ impl Downloads {
     /// Answers what the control port asked, in order: who may ask as the
     /// application says, the window's methods through its `WindowProbe`,
     /// the rest through the application (`control_api`).
-    fn answer_requests(&mut self, cx: &mut Context<Self>) {
+    fn answer_requests(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let asked: Vec<_> = match &self.requests {
             Some(requests) => requests.try_iter().collect(),
             None => return,
@@ -138,7 +147,7 @@ impl Downloads {
                 allow_mcp,
             ) {
                 Some(why) => Err(why),
-                None => crate::probe::answer(self, &request.method, &request.params, cx),
+                None => crate::probe::answer(self, &request.method, &request.params, window, cx),
             };
             let _ = request.reply.send(answer);
         }
@@ -196,6 +205,8 @@ impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let count = self.rows.len();
         let theme = Theme::of(window.appearance());
+        self.screen.begin();
+        let screen = self.screen.clone();
         div()
             .id("downloads")
             .role(Role::Application)
@@ -203,6 +214,8 @@ impl Render for Downloads {
             .size_full()
             .flex()
             .flex_col()
+            .track_focus(&self.focus)
+            .on_action(cx.listener(|this, run: &crate::menus::Run, _, cx| this.run(run.0, cx)))
             .bg(theme.background)
             .text_color(theme.text)
             .text_sm()
@@ -213,7 +226,7 @@ impl Render for Downloads {
                     .border_b_1()
                     .border_color(theme.separator)
                     .text_color(theme.muted)
-                    .child(SharedString::from(format!("{count} downloads"))),
+                    .child(self.screen.label(format!("{count} downloads"))),
             )
             .child(
                 uniform_list(
@@ -232,8 +245,8 @@ impl Render for Downloads {
                                     .items_center()
                                     .justify_between()
                                     .when(i % 2 == 1, |row| row.bg(theme.stripe))
-                                    .child(name)
-                                    .child(div().text_color(theme.muted).child(state))
+                                    .child(screen.label(name))
+                                    .child(div().text_color(theme.muted).child(screen.label(state)))
                             })
                             .collect()
                     }),

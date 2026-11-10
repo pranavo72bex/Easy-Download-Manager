@@ -73,6 +73,24 @@ MacBook Air M1 (MacBookAir10,1), macOS 27.0.1, a visible window:
 | Find the last row | Cmd-F, its name typed, Find next, until it is selected | 0.12 s | 0.13 s | 0.36 s | |
 | CPU with 20 downloads at 1 MB/s each | `ps` CPU time over 30 s, % of one core | 12.0 % | 7.6 % | 27.5 % | |
 
+The GPUI shell, measured the same way the same day (dm-gpui at c7f81e3, release build, 11.6 MB
+binary against egui's 18.0 MB): it draws a header and the list only, so these are its floor, not
+a slice's result. Each slice is held to beating egui's column with what it adds.
+
+| Measure | GPUI shell, N = 100 | 1,000 | 10,000 |
+|---|---|---|---|
+| Start to first drawn frame | 0.32 s | 0.34 s | 0.43 s |
+| Idle CPU | 0.2 % | 0.3 % | 1.2 % |
+| Resident at rest | 96 MB | 99 MB | 115 MB |
+| Footprint at rest | 45 MB | 46 MB | 67 MB |
+| `ui.scroll` | not comparable: the shell's words then came from the scroll state, not the painted frame (they are recorded at layout since) | | |
+| Find | not in the shell | | |
+| CPU with 20 downloads | 10.5 % | 4.6 % | 9.3 % |
+
+At 10,000 rows the shell's share with 20 downloads is a third of egui's (9.3 % against 27.5 %)
+and its footprint 28 % less; idle CPU is the same (1.2 % against 1.3 %), which puts that cost in
+dm's own work over the rows (the keep-awake watch lists the queue every 5 s), not in drawing.
+
 What the numbers say for GPUI: idle CPU and the busy share grow with the list (the egui window
 lays the visible table out each frame, and each read compares every row), so the GPUI table is
 held to doing work for visible rows only (G7 slice 2); Find at 10,000 rows is a third of a

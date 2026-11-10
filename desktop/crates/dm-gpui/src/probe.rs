@@ -10,25 +10,30 @@
 //! it did.
 
 use dm_desktop_base::probe::{self, WindowProbe};
-use gpui::{point, px, Context};
+use gpui::{
+    point, px, Bounds, Context, Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, Pixels, PlatformInput, ScrollDelta, ScrollEvent, Window,
+};
 use serde_json::{json, Value};
 
 use crate::list::{line, Downloads, ROW_HEIGHT};
+use crate::screen::Drawn;
 
 /// Answers one request on the window's thread.
 pub fn answer(
     view: &mut Downloads,
     method: &str,
     params: &Value,
+    window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> Result<Value, String> {
     if method == "ui.screenshot" {
         return Err("ui.screenshot is not in the GPUI shell yet".into());
     }
-    if let Some(answer) = probe::input(&mut Probe { view, cx }, method, params) {
+    if let Some(answer) = probe::input(&mut Probe { view, window, cx }, method, params) {
         return answer;
     }
-    answer_inside(view, method, params, cx)
+    answer_inside(view, method, params, window, cx)
 }
 
 /// What a `batch` reaches as well: the view and the application, never the
@@ -37,9 +42,10 @@ fn answer_inside(
     view: &mut Downloads,
     method: &str,
     params: &Value,
+    window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> Result<Value, String> {
-    if let Some(answer) = probe::view(&mut Probe { view, cx }, method, params) {
+    if let Some(answer) = probe::view(&mut Probe { view, window, cx }, method, params) {
         return answer;
     }
     if let Some(answer) =
@@ -72,15 +78,57 @@ fn answer_inside(
             Ok(json!({ "speed_limit_kb": now?.speed_limit }))
         }
         "batch" => dm_shell::app::control_api::batch(params, |method, params| {
-            answer_inside(view, method, params, cx)
+            answer_inside(view, method, params, window, cx)
         }),
         other => Err(format!("no method is called {other}")),
     }
 }
 
+/// A rectangle as the control port says one: left, top, right, bottom.
+fn rect_of(b: Bounds<Pixels>) -> probe::Rect {
+    [
+        f32::from(b.origin.x),
+        f32::from(b.origin.y),
+        f32::from(b.origin.x + b.size.width),
+        f32::from(b.origin.y + b.size.height),
+    ]
+}
+
+/// A key's name as the control port gives it (egui's), as GPUI names it.
+fn key_name(name: &str) -> Option<String> {
+    let lower = name.to_ascii_lowercase();
+    Some(
+        match lower.as_str() {
+            "escape" | "esc" => "escape",
+            "enter" | "return" => "enter",
+            "tab" => "tab",
+            "space" => "space",
+            "backspace" => "backspace",
+            "delete" => "delete",
+            "arrowup" | "up" => "up",
+            "arrowdown" | "down" => "down",
+            "arrowleft" | "left" => "left",
+            "arrowright" | "right" => "right",
+            "home" => "home",
+            "end" => "end",
+            "pageup" => "pageup",
+            "pagedown" => "pagedown",
+            "comma" => ",",
+            "period" => ".",
+            other if other.chars().count() == 1 => return Some(other.to_string()),
+            other if other.starts_with('f') && other[1..].parse::<u8>().is_ok() => {
+                return Some(other.to_string())
+            }
+            _ => return None,
+        }
+        .to_string(),
+    )
+}
+
 /// The shell as a `WindowProbe`.
 struct Probe<'a, 'b> {
     view: &'a mut Downloads,
+    window: &'a mut Window,
     cx: &'a mut Context<'b, Downloads>,
 }
 
@@ -90,6 +138,28 @@ fn not_yet<T>(method: &str) -> Result<T, String> {
 }
 
 impl Probe<'_, '_> {
+    /// The `nth` piece of text on screen that says `wanted`, nearest the
+    /// front first: exactly, else ignoring case, else containing it.
+    fn find(&self, wanted: &str, nth: usize) -> Result<Drawn, String> {
+        let drawn: Vec<Drawn> = self.view.screen.drawn().into_iter().rev().collect();
+        let lower = wanted.to_lowercase();
+        let tries: [&dyn Fn(&Drawn) -> bool; 3] = [
+            &|d| d.text.as_ref() == wanted,
+            &|d| d.text.to_lowercase() == lower,
+            &|d| d.text.to_lowercase().contains(&lower),
+        ];
+        for matches in tries {
+            let found: Vec<&Drawn> = drawn.iter().filter(|d| matches(d)).collect();
+            if let Some(d) = found.get(nth) {
+                return Ok((*d).clone());
+            }
+        }
+        let near: Vec<&str> = drawn.iter().map(|d| d.text.as_ref()).take(40).collect();
+        Err(format!(
+            "nothing on screen says {wanted:?}; some of what does: {near:?}"
+        ))
+    }
+
     /// The rows on screen, with where each line is: (index, top, left, width).
     fn on_screen(&self) -> Vec<(usize, f32, f32, f32)> {
         let state = self.view.scroll.0.borrow();
@@ -117,52 +187,92 @@ impl WindowProbe for Probe<'_, '_> {
     }
 
     fn texts(&mut self) -> Result<probe::Texts, String> {
-        let mut texts = Vec::new();
-        for (i, y, left, width) in self.on_screen() {
-            let (name, state) = line(&self.view.rows[i]);
-            texts.push(probe::Text {
-                text: name.to_string(),
-                rect: [left + 12.0, y, left + width / 2.0, y + ROW_HEIGHT],
-                window: probe::Window::Main,
-            });
-            texts.push(probe::Text {
-                text: state.to_string(),
-                rect: [left + width / 2.0, y, left + width - 12.0, y + ROW_HEIGHT],
-                window: probe::Window::Main,
-            });
-        }
-        let top = {
-            let state = self.view.scroll.0.borrow();
-            f32::from(state.base_handle.bounds().origin.y)
-        };
-        texts.push(probe::Text {
-            text: format!("{} downloads", self.view.rows.len()),
-            rect: [12.0, 0.0, 300.0, top],
-            window: probe::Window::Main,
-        });
-        // Nearest the front first: the header is drawn over nothing.
-        texts.reverse();
-        Ok(probe::Texts::new(texts))
+        // Nearest the front first: the reverse of the order laid out.
+        Ok(probe::Texts::new(
+            self.view
+                .screen
+                .drawn()
+                .into_iter()
+                .rev()
+                .map(|d| probe::Text {
+                    text: d.text.to_string(),
+                    rect: rect_of(d.bounds),
+                    window: probe::Window::Main,
+                })
+                .collect(),
+        ))
     }
 
-    fn click(&mut self, _: probe::Click) -> Result<probe::Clicked, String> {
-        not_yet("ui.click")
+    fn click(&mut self, click: probe::Click) -> Result<probe::Clicked, String> {
+        let target = self.find(&click.text, click.nth)?;
+        if probe::is_run_a_file(&target.text) {
+            return Err(format!("{} is done by a person", target.text));
+        }
+        let at = target.bounds.center();
+        let button = match click.button {
+            probe::Button::Primary => MouseButton::Left,
+            probe::Button::Secondary => MouseButton::Right,
+        };
+        let clicks = if click.double { 2 } else { 1 };
+        // After this update, through the window's own input path, as a
+        // pointer's: moved there, pressed, released (twice for a double).
+        self.window.defer(self.cx, move |window, cx| {
+            let none = Modifiers::default();
+            window.dispatch_event(
+                PlatformInput::MouseMove(MouseMoveEvent {
+                    position: at,
+                    pressed_button: None,
+                    modifiers: none,
+                }),
+                cx,
+            );
+            for count in 1..=clicks {
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button,
+                        position: at,
+                        modifiers: none,
+                        click_count: count,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button,
+                        position: at,
+                        modifiers: none,
+                        click_count: count,
+                    }),
+                    cx,
+                );
+            }
+        });
+        self.cx.notify();
+        Ok(probe::Clicked {
+            clicked: target.text.to_string(),
+            at: [f32::from(at.x), f32::from(at.y)],
+        })
     }
 
     fn scroll(&mut self, scroll: probe::Scroll) -> Result<probe::Scrolled, String> {
-        let shown = self.texts()?;
-        if !shown.texts.iter().any(|t| t.text == scroll.text) {
-            return Err(format!("nothing on screen says {:?}", scroll.text));
-        }
-        {
-            let state = self.view.scroll.0.borrow();
-            let handle = &state.base_handle;
-            let height = f32::from(handle.bounds().size.height);
-            let most = (self.view.rows.len() as f32 * ROW_HEIGHT - height).max(0.0);
-            // A line is 40 points, as the egui window turns a wheel's.
-            let to = (-f32::from(handle.offset().y) + scroll.lines * 40.0).clamp(0.0, most);
-            handle.set_offset(point(px(0.0), px(-to)));
-        }
+        let over = self
+            .find(&scroll.text, 0)
+            .map_err(|_| format!("nothing on screen says {:?}", scroll.text))?;
+        let at = over.bounds.center();
+        // A line is 40 points, as the egui window turns a wheel's; down is
+        // a negative delta, as the system gives it.
+        let delta = ScrollDelta::Pixels(point(px(0.0), px(-scroll.lines * 40.0)));
+        self.window.defer(self.cx, move |window, cx| {
+            window.dispatch_event(
+                PlatformInput::Scroll(ScrollEvent {
+                    position: at,
+                    delta,
+                    ..Default::default()
+                }),
+                cx,
+            );
+        });
         self.cx.notify();
         Ok(probe::Scrolled {
             scrolled: scroll.text,
@@ -174,8 +284,25 @@ impl WindowProbe for Probe<'_, '_> {
         not_yet("ui.type")
     }
 
-    fn key(&mut self, _: probe::KeyPress) -> Result<(), String> {
-        not_yet("ui.key")
+    fn key(&mut self, press: probe::KeyPress) -> Result<(), String> {
+        let key = key_name(&press.key).ok_or_else(|| format!("no key is called {}", press.key))?;
+        let m = press.modifiers;
+        let keystroke = Keystroke {
+            modifiers: Modifiers {
+                control: m.ctrl,
+                alt: m.alt,
+                shift: m.shift,
+                platform: m.cmd,
+                ..Default::default()
+            },
+            key,
+            key_char: None,
+        };
+        self.window.defer(self.cx, move |window, cx| {
+            window.dispatch_keystroke(keystroke, cx);
+        });
+        self.cx.notify();
+        Ok(())
     }
 
     fn accessibility(&mut self) -> Result<Value, String> {

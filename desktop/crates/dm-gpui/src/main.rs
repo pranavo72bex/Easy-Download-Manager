@@ -25,6 +25,7 @@ mod list;
 mod menus;
 mod port;
 mod probe;
+mod screen;
 mod services;
 mod theme;
 
@@ -188,9 +189,10 @@ fn main() {
         // dm's menus in the system's menu bar, and every command's keys.
         menus::bind_keys(cx);
         menus::set(cx);
-        cx.on_action(move |run: &menus::Run, cx| {
-            let _ = main.update(cx, |view, _, cx| view.run(run.0, cx));
-        });
+        // The commands themselves are the window's view's (`Downloads`'
+        // root element handles `menus::Run`), reached through the window's
+        // own dispatch, as a key or the menu bar sends them.
+        let _ = main;
         if dump_accessibility && open_question(cx).is_none() {
             eprintln!("dm-gpui: the dialog's window could not be opened");
         }
