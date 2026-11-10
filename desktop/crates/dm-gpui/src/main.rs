@@ -44,6 +44,7 @@ mod statusbar;
 mod table;
 mod theme;
 mod tick;
+mod titlebar;
 mod toolbar;
 
 use std::sync::Arc;
@@ -220,7 +221,10 @@ fn main() {
                     titlebar: Some(TitlebarOptions {
                         title: Some("dm".into()),
                         appears_transparent: true,
-                        traffic_light_position: Some(point(px(16.0), px(18.0))),
+                        traffic_light_position: Some(point(
+                            px(titlebar::TRAFFIC_LIGHTS_AT.0),
+                            px(titlebar::TRAFFIC_LIGHTS_AT.1),
+                        )),
                     }),
                     ..Default::default()
                 },

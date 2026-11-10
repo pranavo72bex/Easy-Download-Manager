@@ -44,6 +44,8 @@ const ICONS: &[(&str, &[u8])] = icons!(
     "kind-other",
     // A pop-up button's, as the system draws one (up and down).
     "chevron-up-down",
+    // The top bar's search box.
+    "search",
 );
 
 /// The pictures compiled into dm.

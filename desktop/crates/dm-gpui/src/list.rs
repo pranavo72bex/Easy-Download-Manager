@@ -105,7 +105,7 @@ pub struct Downloads {
     /// The words on screen, where the last frame laid them out.
     pub(crate) screen: Screen,
     /// The window's focus: where keys and the menu bar's commands arrive.
-    focus: FocusHandle,
+    pub(crate) focus: FocusHandle,
     /// The place chosen in the side panel.
     pub(crate) place: Place,
     /// Each row's place and the places' counts (`dm_shell::app::places`).
@@ -161,6 +161,10 @@ pub struct Downloads {
     cancelled_hand_offs: dm_shell::app::handoff::Cancels,
     /// When done's countdown is being shown.
     countdown_shown: bool,
+    /// The top bar's search box: the words that narrow the list.
+    pub(crate) filter: gpui::Entity<gpui_component::input::InputState>,
+    /// Its words, as last typed.
+    filter_text: String,
 }
 
 impl Downloads {
@@ -204,6 +208,11 @@ impl Downloads {
             handed_open: false,
             cancelled_hand_offs: Default::default(),
             countdown_shown: false,
+            filter: cx.new(|cx| {
+                gpui_component::input::InputState::new(window, cx)
+                    .placeholder(dm_desktop_base::i18n::t("Name, address or note"))
+            }),
+            filter_text: String::new(),
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -215,6 +224,26 @@ impl Downloads {
         // queue changes one read a quarter of a second later.
         // Redrawn in the system's colours when the person switches between
         // light and dark.
+        // The list narrowed as one types in the top bar's search box;
+        // Return there chooses the first row it leaves.
+        cx.subscribe_in(
+            &this.filter,
+            window,
+            |this: &mut Downloads, field, event, window, cx| match event {
+                gpui_component::input::InputEvent::Change => {
+                    this.filter_text = field.read(cx).value().to_string();
+                    this.reshow();
+                    cx.notify();
+                }
+                gpui_component::input::InputEvent::PressEnter { .. } => {
+                    this.find_step(true);
+                    window.focus(&this.focus, cx);
+                    cx.notify();
+                }
+                _ => {}
+            },
+        )
+        .detach();
         // A question waiting for the main window is asked once it is in
         // front again.
         cx.observe_window_activation(window, |this, window, cx| {
@@ -568,6 +597,52 @@ impl Downloads {
         });
         let live: crate::question::Live = Box::new(countdown_question);
         self.sheet(asked, None, Some(live), answer, cx);
+    }
+
+    /// Clears the search box: every row of the place shown again.
+    pub fn clear_filter(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.filter.update(cx, |f, cx| f.set_value("", window, cx));
+        self.filter_text.clear();
+        self.reshow();
+        cx.notify();
+    }
+
+    /// Find (⌘F): the keyboard to the top bar's search box, its words
+    /// chosen, as a code editor's ⌘P puts it in its command centre.
+    pub fn find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.filter.update(cx, |f, cx| {
+            f.focus(window, cx);
+            f.select_all(window, cx);
+        });
+    }
+
+    /// Find next (`forward`) or previous: the next row shown whose name
+    /// holds the search box's words, going round the list
+    /// (`dm_desktop_base::find`), chosen and brought into view.
+    pub fn find_step(&mut self, forward: bool) {
+        use dm_desktop_base::i18n::tf;
+        let needle = self.filter_text.trim().to_lowercase();
+        if needle.is_empty() {
+            return;
+        }
+        let names: Vec<String> = self
+            .shown
+            .iter()
+            .map(|&i| dm_shell::app::names::name_of(&self.rows[i]))
+            .collect();
+        let from = self
+            .shown
+            .iter()
+            .position(|&i| self.selected.contains(&self.rows[i].id));
+        match dm_desktop_base::find::next_match(&names, from, &needle, forward) {
+            Some(at) => {
+                let row = &self.rows[self.shown[at]];
+                self.selected = std::collections::BTreeSet::from([row.id]);
+                self.scroll.scroll_to_item(at, gpui::ScrollStrategy::Center);
+                self.say(tf("Found {}.", &[&names[at]]));
+            }
+            None => self.say(tf("Nothing is called “{}”.", &[&self.filter_text])),
+        }
     }
 
     /// A browser's hand-off has been answered: the next may be asked.
@@ -1151,7 +1226,10 @@ impl Downloads {
     fn reshow(&mut self) {
         let categories = self.backend.settings().categories();
         let mut shown: Vec<usize> = (0..self.rows.len())
-            .filter(|&i| self.places.within(&self.place, &self.rows[i], &categories))
+            .filter(|&i| {
+                self.places.within(&self.place, &self.rows[i], &categories)
+                    && self.places.matches_filter(&self.filter_text, &self.rows[i])
+            })
             .collect();
         if let Some((column, up)) = self.sort {
             let rows = &self.rows;
@@ -1238,7 +1316,22 @@ impl Render for Downloads {
             .flex()
             .flex_col()
             .track_focus(&self.focus)
-            .on_action(cx.listener(|this, run: &crate::menus::Run, _, cx| this.run(run.0, cx)))
+            .on_action(cx.listener(|this, run: &crate::menus::Run, window, cx| {
+                use dm_shell::app::commands::Command;
+                match run.0 {
+                    // The search box is the window's: these need it.
+                    Command::Find => this.find(window, cx),
+                    Command::FindNext => {
+                        this.find_step(true);
+                        cx.notify();
+                    }
+                    Command::FindPrevious => {
+                        this.find_step(false);
+                        cx.notify();
+                    }
+                    command => this.run(command, cx),
+                }
+            }))
             .on_action(
                 cx.listener(|this, _: &crate::menus::SelectPrevious, _, cx| {
                     this.step(-1);
@@ -1253,6 +1346,7 @@ impl Render for Downloads {
             .text_color(theme.text)
             // The system's size for a list's rows and every control.
             .text_size(gpui::px(crate::native::TEXT))
+            .child(crate::titlebar::titlebar(self, theme, &screen, window, cx))
             .child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
             .child(
                 div()

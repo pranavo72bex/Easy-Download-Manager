@@ -51,6 +51,7 @@ pub mod control;
 pub mod desktop;
 pub mod details;
 pub mod file_info;
+pub mod find;
 pub mod format;
 pub mod held;
 pub mod i18n;

@@ -73,6 +73,9 @@ pub fn carried_out(command: Command) -> bool {
             | C::Remove
             | C::DeleteFile
             | C::CopyDetails
+            | C::Find
+            | C::FindNext
+            | C::FindPrevious
             | C::StartQueue
             | C::StopQueue
             | C::WhenDoneNothing

@@ -3,27 +3,22 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The toolbar, where macOS programs keep theirs: in the window's title bar,
-//! beside the traffic lights, a picture with its word under it (Finder's
-//! "Icon and Text"). The buttons are the application's
-//! (`commands::toolbar_shown`: the person's order, less what they hid);
-//! the bar's empty space moves the window, and a double-click on it does
-//! what the system's settings say (zoom or minimize).
+//! The toolbar, a row of its own under the top bar (`titlebar.rs`), as a
+//! code editor keeps its bars under its title bar: a picture with its word
+//! under it (Finder's "Icon and Text"). The buttons are the application's
+//! (`commands::toolbar_shown`: the person's order, less what they hid).
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
-use gpui::{div, prelude::*, px, svg, Context, MouseButton, Role, Window, WindowControlArea};
+use gpui::{div, prelude::*, px, svg, Context, Role, Window};
 
 use crate::list::Downloads;
 use crate::menus::Run;
 use crate::screen::Screen;
 use crate::theme::Theme;
 
-/// The title bar's height with the toolbar in it.
-pub const HEIGHT: f32 = 52.0;
-
-/// Room for the traffic lights at the left.
-const TRAFFIC_LIGHTS: f32 = 78.0;
+/// The toolbar's height.
+pub const HEIGHT: f32 = 50.0;
 
 /// The picture on a toolbar command's button.
 pub fn icon(command: Command) -> &'static str {
@@ -61,16 +56,9 @@ pub fn toolbar(
         .flex()
         .items_center()
         .gap_1()
-        .pl(px(TRAFFIC_LIGHTS))
-        .pr_2()
+        .px_2()
         .border_b_1()
         .border_color(theme.separator)
-        .window_control_area(WindowControlArea::Drag)
-        .on_mouse_down(MouseButton::Left, |event, window, _| {
-            if event.click_count == 2 {
-                window.titlebar_double_click();
-            }
-        })
         .children(buttons.into_iter().map(|(command, words)| {
             let enabled = view.enabled(command);
             let words = t(words);

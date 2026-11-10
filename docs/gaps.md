@@ -211,7 +211,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   default), "Delete file after", the watched folder, the big download hint, problems above the
   list with Dismiss. Still owed for slice 4: a way for the port to choose in a pop-up (the
   system's menu is modal, so a click on one waits for a person), before `human-qa.py` drives the
-  GPUI window; B44's Properties half comes with slice 6. Then
+  GPUI window; B44's Properties half comes with slice 6. The window's top bar holds the search
+  box, as a code editor's title bar does (the maintainer's word, "take reference from vscode"):
+  the list narrowed as one types, ⌘F, Find next and previous, Escape; the toolbar a row under it.
+  Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

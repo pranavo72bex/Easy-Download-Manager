@@ -3,6 +3,20 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window's top bar holds the search box, as a code editor's title bar does
+
+The maintainer, 2026-11-10, looking at the GPUI window: "search is missing and also top bar is
+missing. take reference from vscode and make similar way." The GPUI window's top row is a title
+bar of its own (`dm-gpui/src/titlebar.rs`): the system's traffic lights at its left and, centred
+on the window, the search box that narrows the list as one types (name, address or note, the
+egui window's top-row box and its words), its magnifier at the left as the editor's command
+centre and the system's search fields draw it, "N shown" and a clear mark once it holds words;
+⌘F puts the keyboard in it with its words chosen, Return finds the first row it leaves, Escape
+clears it and gives the keyboard back to the list, Find next and previous go round the rows it
+leaves (`dm_desktop_base::find`, both windows). The toolbar is a row of its own under it, no
+longer in the title bar. Dropped: the toolbar in the title bar beside the traffic lights (the
+unified style of Finder), which left the search nowhere and the window no top bar.
+
 ## 2026-11-10: The ways dm runs without a window are one module for both windows
 
 `dm_desktop_base::modes::without_window` runs the browser's host, the warm page reader,
