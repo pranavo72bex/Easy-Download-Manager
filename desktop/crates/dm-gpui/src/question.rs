@@ -207,8 +207,15 @@ pub fn ask(
         + if asked.named.is_some() { 20.0 } else { 0.0 }
         + if asked.detail.is_some() { 20.0 } else { 0.0 }
         + if asked.toggle.is_some() { 26.0 } else { 0.0 };
-    // Wide enough for its buttons side by side.
-    let width = 440f32.max(40.0 + 120.0 * asked.buttons.len() as f32);
+    // Wide enough for its buttons side by side, at this system's measures
+    // (each at least `BUTTON_MIN` and its words' room, `BUTTON_GAP` apart,
+    // inside the margins).
+    let n = asked.buttons.len() as f32;
+    let width = 440f32.max(
+        2.0 * native::MARGIN
+            + n * (native::BUTTON_MIN + 40.0)
+            + (n - 1.0).max(0.0) * native::BUTTON_GAP,
+    );
     let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let title = asked.title.clone();
     crate::screen::open_window(
@@ -216,11 +223,14 @@ pub fn ask(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             kind: WindowKind::Dialog,
+            // Named by its title (`screen::open_window`).
+            titlebar: Some(gpui::TitlebarOptions {
+                title: Some(title),
+                ..Default::default()
+            }),
             ..Default::default()
         },
         move |window, cx| {
-            window.set_window_title(&title);
-            crate::screen::Screens::named(window.window_handle(), title.clone(), cx);
             cx.new(|cx| {
                 let focus = cx.focus_handle();
                 window.focus(&focus, cx);

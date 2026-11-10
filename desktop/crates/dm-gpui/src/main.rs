@@ -274,20 +274,24 @@ fn main() {
         // Where and as large as it was left, where that is still on a
         // display; else in the middle (`frame.rs`).
         let least = size(px(640.0), px(400.0));
-        let displays: Vec<Bounds<gpui::Pixels>> = cx
+        let displays: Vec<(u64, Bounds<gpui::Pixels>)> = cx
             .displays()
             .iter()
-            .map(|display| display.bounds())
+            .map(|display| (u64::from(display.id()), display.bounds()))
             .collect();
-        let window_bounds = frame::kept(&dm_shell::settings::home())
-            .and_then(|kept| frame::on_a_display(kept, &displays, least))
-            .unwrap_or_else(|| {
-                WindowBounds::Windowed(Bounds::centered(None, size(px(900.0), px(600.0)), cx))
-            });
+        let kept = frame::kept(&dm_shell::settings::home()).and_then(|(kept, display)| {
+            frame::on_a_display(kept, display, &displays, least)
+                .map(|kept| (kept, display.map(gpui::DisplayId::from)))
+        });
+        let (window_bounds, display_id) = kept.unwrap_or_else(|| {
+            let middle = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
+            (WindowBounds::Windowed(middle), None)
+        });
         let opened = crate::screen::open_window(
             cx,
             WindowOptions {
                 window_bounds: Some(window_bounds),
+                display_id,
                 window_min_size: Some(least),
                 // A login launch goes into the tray, with no window yet.
                 show: !hidden,
@@ -394,4 +398,22 @@ async fn dump(cx: &mut gpui::AsyncApp, churn: bool) {
         }
         cx.quit();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    /// The release tools read dm's version from the egui crate's manifest
+    /// (the Makefile's `APP_VERSION`, the workflows); macOS's package and
+    /// its update check are this crate's: one number, or a release names
+    /// itself twice.
+    #[test]
+    fn this_window_carries_the_version_dm_is_released_under() {
+        let manifest = include_str!("../../dm-desktop/Cargo.toml");
+        let released = manifest
+            .lines()
+            .find_map(|line| line.strip_prefix("version = \""))
+            .and_then(|rest| rest.strip_suffix('"'))
+            .unwrap_or_default();
+        assert_eq!(env!("CARGO_PKG_VERSION"), released);
+    }
 }

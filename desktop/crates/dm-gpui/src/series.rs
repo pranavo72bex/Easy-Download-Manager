@@ -237,12 +237,13 @@ impl Render for Series {
                                 let screen = screen.clone();
                                 d.child(
                                     uniform_list("series-addresses", count, move |range, _, cx| {
+                                        let mono = crate::native::mono(cx);
                                         range
                                             .map(|i| {
                                                 div()
                                                     .h(px(LINE))
                                                     .w_full()
-                                                    .font_family(crate::native::mono(cx))
+                                                    .font_family(mono.clone())
                                                     .text_size(px(native::SMALL_TEXT))
                                                     .whitespace_nowrap()
                                                     .overflow_hidden()

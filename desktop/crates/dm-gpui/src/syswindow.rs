@@ -41,7 +41,7 @@ pub fn hide(window: &Window) {
 
 /// The window's `HWND`, through the system's handle.
 #[cfg(windows)]
-fn hwnd(window: &Window) -> Option<windows_sys::Win32::Foundation::HWND> {
+pub(crate) fn hwnd(window: &Window) -> Option<windows_sys::Win32::Foundation::HWND> {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let handle = HasWindowHandle::window_handle(window).ok()?;
     let RawWindowHandle::Win32(win32) = handle.as_raw() else {
@@ -62,7 +62,7 @@ pub fn hide(window: &Window) {
 }
 
 /// The window's X11 id, where it is an X11 window.
-#[cfg(all(not(target_os = "macos"), not(windows)))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn x_window(window: &Window) -> Option<u32> {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let handle = HasWindowHandle::window_handle(window).ok()?;
@@ -75,7 +75,7 @@ fn x_window(window: &Window) -> Option<u32> {
 
 /// `act` on the X server, through a connection of dm's own, made for it
 /// and closed after.
-#[cfg(all(not(target_os = "macos"), not(windows)))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn on_x<T>(
     act: impl FnOnce(&x11rb::rust_connection::RustConnection) -> Result<T, String>,
 ) -> Result<T, String> {
@@ -89,7 +89,7 @@ fn on_x<T>(
 
 /// A request with no reply, waited on until the server has carried it out:
 /// left in the connection's buffer as it closed, an unmap was lost.
-#[cfg(all(not(target_os = "macos"), not(windows)))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn done<C: x11rb::connection::RequestConnection>(
     sent: Result<x11rb::cookie::VoidCookie<'_, C>, x11rb::errors::ConnectionError>,
 ) -> Result<(), String> {
@@ -101,7 +101,7 @@ fn done<C: x11rb::connection::RequestConnection>(
 /// On X11 the window is unmapped: off the screen and the taskbar, as the
 /// egui window hides into the tray. On Wayland it is minimized, which its
 /// desktop's taskbar brings back.
-#[cfg(all(not(target_os = "macos"), not(windows)))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn hide(window: &Window) {
     use x11rb::protocol::xproto::ConnectionExt;
     let unmapped = x_window(window).map(|id| on_x(|x| done(x.unmap_window(id))));
@@ -119,7 +119,7 @@ pub fn show(window: &Window) {
         // SAFETY: as in `hide`.
         unsafe { windows_sys::Win32::UI::WindowsAndMessaging::ShowWindow(hwnd, 5) };
     }
-    #[cfg(all(not(target_os = "macos"), not(windows)))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     if let Some(id) = x_window(window) {
         use x11rb::protocol::xproto::ConnectionExt;
         let _ = on_x(|x| done(x.map_window(id)));
@@ -174,7 +174,7 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
 }
 
 /// X11 counts in the screen's pixels: points times the window's scale.
-#[cfg(all(not(target_os = "macos"), not(windows)))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
     use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt};
     let id = x_window(window).ok_or("Wayland does not let a program place its own window")?;
@@ -191,10 +191,7 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
 pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
     let ns_window = ns_window(window).ok_or("the window has no system window")?;
     let number = ns_window.windowNumber();
-    if let Some(folder) = path.parent() {
-        std::fs::create_dir_all(folder)
-            .map_err(|e| format!("{} could not be made: {e}", folder.display()))?;
-    }
+    folder_for(path)?;
     let done = std::process::Command::new("/usr/sbin/screencapture")
         .arg("-x")
         .arg("-o")
@@ -261,19 +258,15 @@ pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
         if printed == 0 || read == 0 {
             return Err("the window could not be pictured".into());
         }
-        for pixel in bgra.as_chunks_mut::<4>().0 {
-            pixel.swap(0, 2);
-            pixel[3] = 255;
-        }
         (width as u32, height as u32, bgra)
     };
-    let (width, height, rgba) = pixels;
-    save_png(path, width, height, &rgba)
+    let (width, height, bgra) = pixels;
+    save_png(path, width, height, bgra)
 }
 
 /// The window's pixels as the X server holds them (`GetImage`), saved as
 /// a PNG.
-#[cfg(all(not(target_os = "macos"), not(windows)))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
     use x11rb::protocol::xproto::{ConnectionExt, ImageFormat};
     let id = x_window(window).ok_or("Wayland gives a program no picture of its own window")?;
@@ -305,20 +298,28 @@ pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
     if bgrx.len() < (width * height * 4) as usize {
         return Err("the window's pixels are not 32 bits each".into());
     }
+    save_png(path, width, height, bgrx)
+}
+
+/// The folder `path` goes in, made where it is not there.
+fn folder_for(path: &std::path::Path) -> Result<(), String> {
+    match path.parent() {
+        Some(folder) => std::fs::create_dir_all(folder)
+            .map_err(|e| format!("{} could not be made: {e}", folder.display())),
+        None => Ok(()),
+    }
+}
+
+/// `bgrx` (blue, green, red and a byte the system leaves unset, as Windows
+/// and X11 both hand a window's pixels back), `width` by `height`, saved as
+/// an opaque PNG at `path`.
+#[cfg(not(target_os = "macos"))]
+fn save_png(path: &std::path::Path, width: u32, height: u32, bgrx: Vec<u8>) -> Result<(), String> {
+    folder_for(path)?;
     let mut rgba = bgrx;
     for pixel in rgba.as_chunks_mut::<4>().0 {
         pixel.swap(0, 2);
         pixel[3] = 255;
-    }
-    save_png(path, width, height, &rgba)
-}
-
-/// `rgba`, `width` by `height`, saved as a PNG at `path`.
-#[cfg(not(target_os = "macos"))]
-fn save_png(path: &std::path::Path, width: u32, height: u32, rgba: &[u8]) -> Result<(), String> {
-    if let Some(folder) = path.parent() {
-        std::fs::create_dir_all(folder)
-            .map_err(|e| format!("{} could not be made: {e}", folder.display()))?;
     }
     let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
     let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), width, height);
@@ -326,6 +327,6 @@ fn save_png(path: &std::path::Path, width: u32, height: u32, rgba: &[u8]) -> Res
     encoder.set_depth(png::BitDepth::Eight);
     encoder
         .write_header()
-        .and_then(|mut writer| writer.write_image_data(rgba))
+        .and_then(|mut writer| writer.write_image_data(&rgba))
         .map_err(|e| format!("the picture could not be saved: {e}"))
 }

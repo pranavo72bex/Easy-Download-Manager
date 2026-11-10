@@ -21,7 +21,6 @@
 //!   browser's link (`UniformResourceLocatorW`, else plain text).
 
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
 
 // The queue and Windows' drop target are every window's
 // (`dm_desktop_base::drops`); macOS's drag methods are winit's window's, here.
@@ -29,8 +28,8 @@ use std::sync::OnceLock;
 use dm_desktop_base::drops::arrived;
 pub use dm_desktop_base::drops::{take, Dropped};
 
-/// The window to wake when something is dropped: set once.
-static WINDOW: OnceLock<egui::Context> = OnceLock::new();
+/// The window is told how to be woken once.
+static WATCHED: std::sync::Once = std::sync::Once::new();
 
 /// A file dropped through dm's own drop target, read as one winit hands
 /// over is.
@@ -70,10 +69,10 @@ pub fn attach_floating() {
 /// Has the window take links dropped on it, where the window system offers
 /// them. Called every frame; does its work once a window exists.
 pub fn watch(ctx: &egui::Context) {
-    if WINDOW.set(ctx.clone()).is_ok() {
+    WATCHED.call_once(|| {
         let ctx = ctx.clone();
         dm_desktop_base::drops::on_arrival(move || ctx.request_repaint());
-    }
+    });
     #[cfg(target_os = "macos")]
     mac::install();
 }

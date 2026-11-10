@@ -21,7 +21,7 @@ use crate::theme::Theme;
 /// The measure each system's own dialogs use: macOS's (AppKit's, measured
 /// on the system's own dialog), Windows 11's (WinUI's) or GNOME's
 /// (libadwaita's), so a dm dialog is laid out as its neighbours are.
-const fn pick(macos: f32, windows: f32, gnome: f32) -> f32 {
+pub(crate) const fn pick(macos: f32, windows: f32, gnome: f32) -> f32 {
     if cfg!(target_os = "macos") {
         macos
     } else if cfg!(windows) {
@@ -248,10 +248,9 @@ pub fn tick_box(ticked: bool, theme: Theme) -> Div {
 /// action beside the question's answer, such as Add for later), and
 /// `trailing` at the end, given in macOS's order, the default last
 /// (rightmost), which Windows reverses.
-pub fn buttons(leading: Vec<gpui::AnyElement>, trailing: Vec<gpui::AnyElement>) -> Div {
+pub fn buttons(leading: Vec<gpui::AnyElement>, mut trailing: Vec<gpui::AnyElement>) -> Div {
     // Given as macOS and GNOME order them, the default rightmost; Windows
     // puts the default first and Cancel last.
-    let mut trailing = trailing;
     if cfg!(windows) {
         trailing.reverse();
     }

@@ -7,8 +7,11 @@
 //! it was, as the egui window's does (eframe keeps its frame) and as a
 //! Mac's windows do. The frame is kept in `window.json` in dm's home, so a
 //! run on a home of its own (`DM_HOME`: a test, a check) keeps its own and
-//! starts as a fresh install does. A frame no longer on any display (one
-//! unplugged since) is not used: the window opens in the middle.
+//! starts as a fresh install does. The frame is kept with the display it
+//! was on, since macOS counts a window's frame from its own display's
+//! corner, and the window opens on that display again; one unplugged
+//! since, or a frame no longer on it, is not used: the window opens in
+//! the middle of the main display.
 
 use std::path::Path;
 
@@ -17,10 +20,19 @@ use gpui::{point, px, size, Bounds, Pixels, Size, WindowBounds};
 /// The file, in dm's home.
 const FILE: &str = "window.json";
 
-/// The frame kept at the last quit, if there is one that reads.
-pub fn kept(home: &Path) -> Option<WindowBounds> {
+/// The frame kept at the last quit, and the display it was on, if there is
+/// one that reads.
+pub fn kept(home: &Path) -> Option<(WindowBounds, Option<u64>)> {
     let text = std::fs::read_to_string(home.join(FILE)).ok()?;
-    read(&text)
+    Some((read(&text)?, display_of(&text)))
+}
+
+/// The display `window.json` names.
+fn display_of(text: &str) -> Option<u64> {
+    serde_json::from_str::<serde_json::Value>(text)
+        .ok()?
+        .get("display")?
+        .as_u64()
 }
 
 /// A frame as `window.json` says it.
@@ -46,8 +58,8 @@ fn read(text: &str) -> Option<WindowBounds> {
     })
 }
 
-/// `bounds` as `window.json` keeps it.
-fn written(bounds: WindowBounds) -> String {
+/// `bounds` on `display` as `window.json` keeps them.
+fn written(bounds: WindowBounds, display: Option<u64>) -> String {
     let (state, frame) = match bounds {
         WindowBounds::Windowed(frame) | WindowBounds::Fullscreen(frame) => ("windowed", frame),
         WindowBounds::Maximized(frame) => ("zoomed", frame),
@@ -58,24 +70,31 @@ fn written(bounds: WindowBounds) -> String {
         "width": f32::from(frame.size.width),
         "height": f32::from(frame.size.height),
         "state": state,
+        "display": display,
     })
     .to_string()
 }
 
-/// Keeps `bounds` for the next start. Not being able to is not worth a
-/// word: the window opens in the middle then.
-pub fn keep(home: &Path, bounds: WindowBounds) {
+/// Keeps `bounds` on `display` for the next start. Not being able to is not
+/// worth a word: the window opens in the middle then.
+pub fn keep(home: &Path, bounds: WindowBounds, display: Option<u64>) {
     let _ = std::fs::create_dir_all(home);
-    let _ = dm_core::write_atomic(&home.join(FILE), written(bounds).as_bytes());
+    let _ = dm_core::write_atomic(&home.join(FILE), written(bounds, display).as_bytes());
 }
 
-/// `kept`, where its title bar is still on one of `displays` and it is at
-/// least `least` in size; none otherwise.
+/// `kept`, where its title bar is still on the display it was on (of
+/// `displays`, each its id and bounds; the first where none was kept) and
+/// it is at least `least` in size; none otherwise.
 pub fn on_a_display(
     kept: WindowBounds,
-    displays: &[Bounds<Pixels>],
+    display: Option<u64>,
+    displays: &[(u64, Bounds<Pixels>)],
     least: Size<Pixels>,
 ) -> Option<WindowBounds> {
+    let on = match display {
+        Some(id) => displays.iter().find(|(d, _)| *d == id)?.1,
+        None => displays.first()?.1,
+    };
     let frame = kept.get_bounds();
     if frame.size.width < least.width || frame.size.height < least.height {
         return None;
@@ -85,10 +104,7 @@ pub fn on_a_display(
         frame.origin.x + frame.size.width / 2.0,
         frame.origin.y + px(12.0),
     );
-    displays
-        .iter()
-        .any(|display| display.contains(&grip))
-        .then_some(kept)
+    on.contains(&grip).then_some(kept)
 }
 
 #[cfg(test)]
@@ -102,12 +118,13 @@ mod tests {
     #[test]
     fn a_frame_kept_reads_back_as_it_was() {
         let windowed = WindowBounds::Windowed(frame(120.0, 80.0, 900.0, 600.0));
-        assert_eq!(read(&written(windowed)), Some(windowed));
+        assert_eq!(read(&written(windowed, Some(7))), Some(windowed));
+        assert_eq!(display_of(&written(windowed, Some(7))), Some(7));
         let zoomed = WindowBounds::Maximized(frame(0.0, 25.0, 1440.0, 875.0));
-        assert_eq!(read(&written(zoomed)), Some(zoomed));
+        assert_eq!(read(&written(zoomed, None)), Some(zoomed));
         let full = WindowBounds::Fullscreen(frame(10.0, 10.0, 800.0, 500.0));
         assert_eq!(
-            read(&written(full)),
+            read(&written(full, None)),
             Some(WindowBounds::Windowed(frame(10.0, 10.0, 800.0, 500.0)))
         );
         assert_eq!(read("{}"), None);
@@ -116,14 +133,20 @@ mod tests {
 
     #[test]
     fn a_frame_off_every_display_or_too_small_is_not_used() {
-        let screen = [frame(0.0, 0.0, 1440.0, 900.0)];
+        let screens = [
+            (1, frame(0.0, 0.0, 1440.0, 900.0)),
+            (2, frame(0.0, 0.0, 2560.0, 1440.0)),
+        ];
         let least = size(px(640.0), px(400.0));
         let here = WindowBounds::Windowed(frame(100.0, 100.0, 900.0, 600.0));
-        assert_eq!(on_a_display(here, &screen, least), Some(here));
-        // On a display unplugged since.
-        let gone = WindowBounds::Windowed(frame(2000.0, 100.0, 900.0, 600.0));
-        assert_eq!(on_a_display(gone, &screen, least), None);
+        assert_eq!(on_a_display(here, Some(1), &screens, least), Some(here));
+        // Far along the big display: kept there, not on the laptop's.
+        let far = WindowBounds::Windowed(frame(1800.0, 100.0, 700.0, 600.0));
+        assert_eq!(on_a_display(far, Some(2), &screens, least), Some(far));
+        assert_eq!(on_a_display(far, Some(1), &screens, least), None);
+        // A display unplugged since.
+        assert_eq!(on_a_display(here, Some(9), &screens, least), None);
         let small = WindowBounds::Windowed(frame(100.0, 100.0, 300.0, 200.0));
-        assert_eq!(on_a_display(small, &screen, least), None);
+        assert_eq!(on_a_display(small, Some(1), &screens, least), None);
     }
 }

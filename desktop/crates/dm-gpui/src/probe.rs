@@ -276,25 +276,23 @@ impl Probe<'_, '_> {
         // the port reads it, rather than the system's, which it cannot. Not
         // where a dialog shows the same words (Options' Downloads tab).
         let lower = words.to_lowercase();
-        let in_a_dialog = self
-            .everything()
+        let shown = self.everything();
+        let title = crate::menus::WINDOW_MENUS
             .iter()
-            .any(|(d, _, dialog)| *dialog && d.text.to_lowercase() == lower);
-        let ticks = self.view.menu_ticks.clone().unwrap_or_default();
-        if let Some(menu) = (!in_a_dialog)
-            .then(|| crate::menus::window_menus(&ticks))
-            .into_iter()
-            .flatten()
-            .into_iter()
-            .find(|menu| same(&menu.name))
-        {
-            OPEN_MENU.with(|m| *m.borrow_mut() = Some(menu.owned()));
-            return Some(clicked());
+            .position(|name| same(dm_desktop_base::i18n::t(name)));
+        let in_a_dialog = || {
+            shown
+                .iter()
+                .any(|(d, _, dialog)| *dialog && d.text.to_lowercase() == lower)
+        };
+        if let Some(index) = title.filter(|_| !in_a_dialog()) {
+            let ticks = self.view.menu_ticks.clone().unwrap_or_default();
+            if let Some(menu) = crate::menus::window_menus(&ticks).into_iter().nth(index) {
+                OPEN_MENU.with(|m| *m.borrow_mut() = Some(menu.owned()));
+                return Some(clicked());
+            }
         }
-        let on_screen = self
-            .everything()
-            .iter()
-            .any(|(d, _, _)| d.text.to_lowercase() == lower);
+        let on_screen = shown.iter().any(|(d, _, _)| d.text.to_lowercase() == lower);
         if on_screen {
             return None;
         }

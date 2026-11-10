@@ -30,15 +30,20 @@ fn arrived(text: String) {
     dm_desktop_base::drops::arrived(Dropped::Text(text));
 }
 
+/// The links dropped files hold: a `.torrent` is itself the download; a
+/// `.url`, `.webloc` or text file of links is read for them.
+fn links_in_files(paths: &[std::path::PathBuf]) -> Vec<String> {
+    paths
+        .iter()
+        .flat_map(|path| dm_shell::app::links::links_at(path, || std::fs::read(path).ok()))
+        .collect()
+}
+
 impl Downloads {
     /// Files dropped on a window: the links they hold added, or said where
     /// there are none.
     pub(crate) fn dropped_files(&mut self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
-        let links: Vec<String> = paths
-            .iter()
-            .flat_map(|path| dm_shell::app::links::links_at(path, || std::fs::read(path).ok()))
-            .collect();
-        self.add_dropped(links, cx);
+        self.add_dropped(links_in_files(paths), cx);
     }
 
     /// What dm's own drop targets took since the last look (a browser's
@@ -48,18 +53,13 @@ impl Downloads {
         if dropped.is_empty() {
             return;
         }
-        let (mut links, mut files) = (Vec::new(), Vec::new());
+        let mut links = Vec::new();
         for what in dropped {
             match what {
                 Dropped::Text(text) => links.extend(dm_shell::app::links::links_in(&text)),
-                Dropped::File(path) => files.push(path),
+                Dropped::File(path) => links.extend(links_in_files(&[path])),
             }
         }
-        links.extend(
-            files
-                .iter()
-                .flat_map(|path| dm_shell::app::links::links_at(path, || std::fs::read(path).ok())),
-        );
         self.add_dropped(links, cx);
     }
 
@@ -86,17 +86,14 @@ pub fn take_links(window: &gpui::Window) {
 /// On Windows dm's OLE drop target takes GPUI's place on `window`.
 #[cfg(windows)]
 pub fn take_links(window: &gpui::Window) {
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    if let Ok(handle) = HasWindowHandle::window_handle(window) {
-        if let RawWindowHandle::Win32(win32) = handle.as_raw() {
-            dm_desktop_base::drops::win::install(win32.hwnd.get());
-        }
+    if let Some(hwnd) = crate::syswindow::hwnd(window) {
+        dm_desktop_base::drops::win::install(hwnd as isize);
     }
 }
 
 /// On Linux GPUI's own drop takes files (X11's and Wayland's offer of a
 /// browser's link is not yet taken).
-#[cfg(all(not(target_os = "macos"), not(windows)))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn take_links(_: &gpui::Window) {}
 
 #[cfg(target_os = "macos")]

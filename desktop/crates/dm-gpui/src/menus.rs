@@ -343,6 +343,23 @@ pub fn set(cx: &mut App, ticks: &Ticks) {
     cx.set_menus(build(ticks));
 }
 
+/// The window's menus' titles, in English, in their order: what the top bar
+/// shows, without building the menus themselves (`window_menus`, built on a
+/// click).
+pub const WINDOW_MENUS: [&str; 5] = ["Tasks", "File", "Downloads", "View", "Help"];
+
+/// Every menu of the menu bar, by name.
+struct Bar {
+    app: Menu,
+    tasks: Menu,
+    file: Menu,
+    edit: Menu,
+    downloads: Menu,
+    view: Menu,
+    window: Menu,
+    help: Menu,
+}
+
 /// The menus in the window's own top bar, on every system, as the egui
 /// window's menu row and a code editor's title bar have them: Tasks (Exit
 /// last), File, Downloads (Options last), View and Help (About last), with
@@ -350,13 +367,14 @@ pub fn set(cx: &mut App, ticks: &Ticks) {
 /// them too, beside dm's own app menu, Edit and Window.
 pub fn window_menus(ticks: &Ticks) -> Vec<Menu> {
     use Command as C;
-    // `build`'s order: dm, Tasks, File, Edit, Downloads, View, Window, Help.
-    let mut bar = build(ticks);
-    let mut help = bar.remove(7);
-    let view = bar.remove(5);
-    let mut downloads = bar.remove(4);
-    let file = bar.remove(2);
-    let mut tasks = bar.remove(1);
+    let Bar {
+        mut tasks,
+        file,
+        mut downloads,
+        view,
+        mut help,
+        ..
+    } = bar(ticks);
     tasks.items.extend([MenuItem::separator(), item(C::Quit)]);
     downloads
         .items
@@ -367,6 +385,21 @@ pub fn window_menus(ticks: &Ticks) -> Vec<Menu> {
 
 /// The menu bar's menus, in their order.
 fn build(ticks: &Ticks) -> Vec<Menu> {
+    let Bar {
+        app,
+        tasks,
+        file,
+        edit,
+        downloads,
+        view,
+        window,
+        help,
+    } = bar(ticks);
+    vec![app, tasks, file, edit, downloads, view, window, help]
+}
+
+/// Each of the menu bar's menus.
+fn bar(ticks: &Ticks) -> Bar {
     let queues = &ticks.queues;
     use Command as C;
     // Start Queue and Stop Queue list the queues; the one clicked is started
@@ -627,7 +660,16 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
         MenuItem::separator(),
         MenuItem::action(t("Bring All to Front"), BringAllToFront),
     ]);
-    vec![app, tasks, file, edit, downloads, view, window, help]
+    Bar {
+        app,
+        tasks,
+        file,
+        edit,
+        downloads,
+        view,
+        window,
+        help,
+    }
 }
 
 #[cfg(test)]
@@ -734,7 +776,7 @@ mod tests {
     fn the_window_has_the_egui_windows_five_menus_with_exit_options_and_about() {
         let menus = window_menus(&Ticks::default());
         let names: Vec<String> = menus.iter().map(|m| m.name.to_string()).collect();
-        assert_eq!(names, ["Tasks", "File", "Downloads", "View", "Help"]);
+        assert_eq!(names, WINDOW_MENUS.map(t));
         let last = |menu: &Menu| match menu.items.last() {
             Some(MenuItem::Action { name, .. }) => name.to_string(),
             _ => String::new(),

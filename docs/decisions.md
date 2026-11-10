@@ -3,6 +3,37 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-11: After a review: the top bar's drag areas, a window on its own display, one pass of tidying
+
+From a code review and a cleanup pass over the GPUI work of 2026-11-10:
+
+- On Windows the whole top bar was a drag area, which Windows' hit test put over the window's
+  buttons, the menus and the search box: only the bar's empty spaces move the window now
+  (`titlebar::drag_space`). The menus' titles are measured as drawn (their words are the
+  language's) rather than assumed 330 points wide, so the search box never covers them, and they
+  are a fixed list (`menus::WINDOW_MENUS`): the menus are built on a click, not on every frame,
+  which had looked for the When-done programs on the disk each frame (now looked for once a run,
+  `power::installed`).
+- The window's frame is kept with its display: macOS counts it from that display's corner, and a
+  window left on a second display came back on the first.
+- Bringing dm's window forward (the Dock, a second launch, the port) brings a dialog open over it
+  forward after it, rather than burying it under the main window. `human-qa.py` still waits a
+  moment after asking for the window before opening Add URL: macOS brings the app forward on its
+  own time, and without the wait the GPUI window's B01, B25, B42 and B44 failed again (tried,
+  2026-11-11). The script selects the field before typing an address again, rather than looking
+  for any address on screen.
+- `make install`, `make qa` and the Makefile's `BINARY` build the window each system ships; a test
+  holds dm-gpui's version to dm-desktop's, which the release tools read.
+- The question window is as wide as its buttons at each system's measures. The menus are built by
+  name, not taken out of a list by position; the probe reads the screen once a click; the macOS
+  palette takes `dark` as the others do and its test uses `dm_desktop_base::contrast`; one PNG
+  writer for Windows' and X11's pictures; one helper for the links in dropped files.
+
+Not done, for later: one binary name for both windows (`dm`) so scripts need no per-system crate;
+a shared PNG writer and tray-icon decoder for both windows; the macOS pasteboard readers shared
+by both windows; Linux's `--hidden` window drawn once before it is put away (GPUI's X11 windows
+ignore `show: false`); a reused X connection.
+
 ## 2026-11-10: Each system's own colours, and one way in for what is dropped
 
 At the maintainer's words of 2026-11-10 ("even Windows and Linux should look native on their

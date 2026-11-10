@@ -516,8 +516,9 @@ class Dm:
         # window behind the browser draws no frames on macOS, and the egui
         # window's clicks and keys wait for one (B10 and B63, 2026-11-10).
         self.call("ui.window", to="shown")
-        # Settled first: the GPUI window comes forward a moment later, and
-        # over an Add URL already open it hid it (B01, B25, B42, B44).
+        # macOS brings the app forward on its own time, after dm asked: an
+        # Add URL opened before that was put behind the main window (B01,
+        # B25, B42, B44 on the GPUI window). Not a wait dm can do itself.
         pause(0.6)
         self.click("Add URL")
         for _ in range(40):
@@ -526,21 +527,26 @@ class Dm:
             time.sleep(0.1)
         pause(0.6)
 
+    def wait_for_text(self, text, within):
+        """Whether `text` is on screen within `within` seconds."""
+        end = time.time() + within
+        while time.time() < end:
+            if any(text in t for t in self.texts()):
+                return True
+            pause(0.4)
+        return False
+
     def add(self, url, then="Start now"):
         """Add URL, type the address, OK, then Download details' `then`."""
         self.open_add_url()
-        for _ in range(3):
+        for attempt in range(3):
+            if attempt:
+                # Typed again over what is there, not beside it.
+                self.call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
             self.call("ui.type", text=url)
             # Typed again only once the field shows nothing of it for two
-            # seconds: typed again after 0.4 s on a loaded machine, the first
-            # landed late and the address read twice (B63, 2026-11-10).
-            shown = False
-            for _ in range(5):
-                pause(0.4)
-                if any(url in t for t in self.texts()):
-                    shown = True
-                    break
-            if shown or any(url[:12] in t for t in self.texts()):
+            # seconds (a loaded machine draws late).
+            if self.wait_for_text(url, 2.0):
                 break
         self.click("OK")
         for _ in range(40):

@@ -58,7 +58,7 @@ BINDIR := $(PREFIX)/bin
 # but has no icon and no place in the Applications folder.
 APPDIR ?= /Applications
 
-BINARY := desktop/target/release/dm-desktop
+BINARY := desktop/target/release/$(WINDOW)
 # The building computer's paths taken out of release builds (scripts/release-flags.sh).
 RELEASE_FLAGS := $(shell sh scripts/release-flags.sh)
 # The version the client says it is, for the installers' names.
@@ -194,7 +194,7 @@ doctor:
 
 $(BINARY):
 	@echo "$(BOLD)building the client$(OFF) — a few minutes the first time"
-	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo build --release -p dm-desktop
+	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo build --release -p $(WINDOW)
 
 client: doctor $(BINARY)
 	@install -d "$(BINDIR)"
@@ -421,7 +421,7 @@ format:
 
 # The behaviour contract, every row, in sight (docs/behaviour-contract.md).
 qa:
-	@cd desktop && cargo build -p dm-desktop
+	@cd desktop && cargo build -p $(WINDOW)
 	@test -f $(STAGED)/chrome/manifest.json || sh scripts/package.sh
 	@python3 scripts/human-qa.py
 

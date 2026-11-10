@@ -74,7 +74,7 @@ impl Theme {
         if cfg!(windows) {
             windows(dark)
         } else if cfg!(target_os = "macos") {
-            macos(appearance)
+            macos(dark)
         } else {
             gnome(dark)
         }
@@ -82,9 +82,9 @@ impl Theme {
 }
 
 /// macOS's: AppKit's colours, measured on its own windows.
-fn macos(appearance: WindowAppearance) -> Theme {
-    match appearance {
-        WindowAppearance::Dark | WindowAppearance::VibrantDark => Theme {
+fn macos(dark: bool) -> Theme {
+    if dark {
+        Theme {
             // NSColor.windowBackgroundColor and labelColor, dark.
             background: rgb(0x1e1e1e),
             text: rgba(0xffffffd9),
@@ -110,8 +110,9 @@ fn macos(appearance: WindowAppearance) -> Theme {
             // NSColor.systemGreen, dark.
             success: rgb(0x30d158),
             on_accent: rgb(0xffffff),
-        },
-        WindowAppearance::Light | WindowAppearance::VibrantLight => Theme {
+        }
+    } else {
+        Theme {
             background: rgb(0xffffff),
             text: rgba(0x000000d9),
             muted: rgba(0x00000080),
@@ -129,7 +130,7 @@ fn macos(appearance: WindowAppearance) -> Theme {
             accent: rgb(0x007aff),
             success: rgb(0x34c759),
             on_accent: rgb(0xffffff),
-        },
+        }
     }
 }
 
@@ -242,26 +243,15 @@ pub fn follow(choice: &str, cx: &mut gpui::App) {
 mod tests {
     use super::*;
 
-    /// WCAG's contrast between two opaque colours, `fore` blended onto `back`.
+    /// WCAG's contrast (`dm_desktop_base::contrast`) of `fore` blended onto
+    /// `back`.
     fn contrast(fore: Rgba, back: Rgba) -> f32 {
-        let blend = |f: f32, b: f32| f * fore.a + b * (1.0 - fore.a);
-        let lum = |c: [f32; 3]| {
-            let l = |v: f32| {
-                if v <= 0.03928 {
-                    v / 12.92
-                } else {
-                    ((v + 0.055) / 1.055).powf(2.4)
-                }
-            };
-            0.2126 * l(c[0]) + 0.7152 * l(c[1]) + 0.0722 * l(c[2])
-        };
-        let f = lum([
-            blend(fore.r, back.r),
-            blend(fore.g, back.g),
-            blend(fore.b, back.b),
-        ]);
-        let b = lum([back.r, back.g, back.b]);
-        (f.max(b) + 0.05) / (f.min(b) + 0.05)
+        let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let on = |f: f32, b: f32| byte(f * fore.a + b * (1.0 - fore.a));
+        dm_desktop_base::contrast::ratio(
+            [on(fore.r, back.r), on(fore.g, back.g), on(fore.b, back.b)],
+            [byte(back.r), byte(back.g), byte(back.b)],
+        )
     }
 
     #[test]
@@ -270,12 +260,7 @@ mod tests {
         for dark in [false, true] {
             all.push(("Windows", dark, windows(dark)));
             all.push(("GNOME", dark, gnome(dark)));
-            let appearance = if dark {
-                WindowAppearance::Dark
-            } else {
-                WindowAppearance::Light
-            };
-            all.push(("macOS", dark, macos(appearance)));
+            all.push(("macOS", dark, macos(dark)));
         }
         for (system, dark, theme) in all {
             let at = format!("{system}, dark {dark}");

@@ -60,8 +60,21 @@ pub fn available(action: WhenDone) -> bool {
 }
 
 /// Whether `program` is on the PATH or in the system's own folders, which
-/// a launch from a desktop may leave off the PATH.
-fn installed(program: &str) -> bool {
+/// a launch from a desktop may leave off the PATH. Looked for once a run
+/// for each program: the menus ask each time they are built, and the
+/// system's own programs do not come and go while dm runs.
+fn installed(program: &'static str) -> bool {
+    static FOUND: std::sync::Mutex<Vec<(&str, bool)>> = std::sync::Mutex::new(Vec::new());
+    if let Some(&(_, found)) = dm_core::lock(&FOUND).iter().find(|(p, _)| *p == program) {
+        return found;
+    }
+    let found = look_for(program);
+    dm_core::lock(&FOUND).push((program, found));
+    found
+}
+
+/// [`installed`]'s look, on the disk.
+fn look_for(program: &str) -> bool {
     let mut dirs: Vec<std::path::PathBuf> = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect())
         .unwrap_or_default();

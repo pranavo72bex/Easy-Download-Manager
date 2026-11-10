@@ -175,6 +175,8 @@ pub struct Downloads {
     /// The main window's frame as it last stood, kept as dm quits for the
     /// next start (`frame.rs`).
     frame: gpui::WindowBounds,
+    /// The display it stood on, by its id.
+    display: Option<u64>,
     /// What saved searches found, as each run ends, by the search's name.
     #[allow(clippy::type_complexity)]
     search_results:
@@ -284,6 +286,7 @@ impl Downloads {
             rechecked: Default::default(),
             menu_ticks: None,
             frame: window.window_bounds(),
+            display: window.display(cx).map(|d| u64::from(d.id())),
             search_results: Default::default(),
             searches_checked: None,
             progress_windows: Default::default(),
@@ -370,8 +373,9 @@ impl Downloads {
             window.on_next_frame(|window, _| crate::syswindow::hide(window));
         }
         // Its frame as it moves and is resized, kept as dm quits.
-        cx.observe_window_bounds(window, |this, window, _| {
+        cx.observe_window_bounds(window, |this, window, cx| {
             this.frame = window.window_bounds();
+            this.display = window.display(cx).map(|d| u64::from(d.id()));
         })
         .detach();
         cx.observe_window_appearance(window, |_, window, cx| {
@@ -1658,7 +1662,7 @@ impl Downloads {
         dm_desktop_base::control::closing();
         dm_desktop_base::control::forget_port(&dm_shell::settings::home());
         // Where and as large as the window was, for the next start.
-        crate::frame::keep(&dm_shell::settings::home(), self.frame);
+        crate::frame::keep(&dm_shell::settings::home(), self.frame, self.display);
         for (handle, _, dialog) in crate::screen::Screens::all(cx) {
             if dialog {
                 let _ = handle.update(cx, |_, window, _| window.remove_window());
@@ -1814,6 +1818,14 @@ impl Downloads {
                 crate::syswindow::show(window);
                 window.activate_window();
             });
+            // A dialog open over it stays in front, as a person left it:
+            // brought forward after the main window, not buried under it.
+            if let Some((dialog, _, _)) = crate::screen::Screens::all(cx)
+                .into_iter()
+                .find(|(_, _, dialog)| *dialog)
+            {
+                let _ = dialog.update(cx, |_, window, _| window.activate_window());
+            }
             cx.activate(true);
         });
     }

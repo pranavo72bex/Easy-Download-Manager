@@ -43,11 +43,14 @@ pub const TRAFFIC_LIGHTS_AT: (f32, f32) = (14.0, 12.0);
 
 /// Where the bar's own controls begin: past the traffic lights on macOS,
 /// at the window's edge elsewhere.
-const CONTROLS_AT: f32 = if cfg!(target_os = "macos") { 78.0 } else { 8.0 };
+const CONTROLS_AT: f32 = native::pick(78.0, 8.0, 8.0);
 
-/// The room the sidebar's button and the menus' titles take, give or take,
-/// which the search box leaves them.
-const MENUS_WIDTH: f32 = 330.0;
+thread_local! {
+    /// Where the menus' titles end in the window, as the last frame laid
+    /// them out (their words are the language's, their size the system's):
+    /// the search box starts after it.
+    static MENUS_END: std::cell::Cell<f32> = const { std::cell::Cell::new(CONTROLS_AT + 340.0) };
+}
 
 /// The search box's height and its widest.
 const BOX_HEIGHT: f32 = 26.0;
@@ -68,15 +71,15 @@ pub fn titlebar(
     // widest a title bar's box goes, centred on the window whatever stands
     // at its sides.
     let viewport = f32::from(window.viewport_size().width);
-    let room = viewport - CONTROLS_AT - MENUS_WIDTH - WINDOW_BUTTONS_WIDTH - 16.0;
+    let menus_end = MENUS_END.with(std::cell::Cell::get);
+    let room = viewport - menus_end - WINDOW_BUTTONS_WIDTH - 16.0;
     let width = (viewport * 0.4)
         .clamp(220.0, BOX_WIDEST)
         .min(room.max(140.0));
-    let ticks = view.menu_ticks.clone().unwrap_or_default();
-    let titles: Vec<SharedString> = crate::menus::window_menus(&ticks)
-        .into_iter()
-        .map(|menu| menu.name)
-        .collect();
+    // Centred on the window where the menus leave room, as the editor's
+    // command centre is; else in the middle of the room after them.
+    let centred = (viewport - width) / 2.0;
+    let before = (centred >= menus_end + 8.0).then_some(centred - menus_end);
     div()
         .id("titlebar")
         .role(Role::Group)
@@ -85,62 +88,67 @@ pub fn titlebar(
         .flex_none()
         .flex()
         .items_center()
-        .pl(px(CONTROLS_AT))
         .bg(theme.sidebar)
         .border_b_1()
         .border_color(theme.separator)
-        // As a title bar: its empty space moves the window, a double-click
-        // does the system's setting. Not on Linux, under the desktop's own.
-        .when(DRAWN_BY_DM, |bar| {
-            bar.window_control_area(WindowControlArea::Drag)
-                .on_mouse_down(MouseButton::Left, |event, window, _| {
-                    if event.click_count == 2 {
-                        window.titlebar_double_click();
-                    }
-                })
-        })
+        .child(drag_space().w(px(CONTROLS_AT)).flex_none())
         .child(sidebar_button(view.show_sidebar, theme, cx))
         .child(
             div()
                 .id("menu-titles")
                 .role(Role::MenuBar)
                 .aria_label(t("Menu"))
+                .relative()
                 .flex()
                 .flex_none()
                 .items_center()
                 .ml(px(4.0))
                 .children(
-                    titles
-                        .into_iter()
+                    crate::menus::WINDOW_MENUS
+                        .iter()
                         .enumerate()
-                        .map(|(i, name)| menu_title(i, name, theme, screen, cx)),
+                        .map(|(i, name)| menu_title(i, t(name).into(), theme, screen, cx)),
+                )
+                // Where they end, for the next frame's search box.
+                .child(
+                    gpui::canvas(
+                        |_, _, _| {},
+                        |bounds, _, window, _| {
+                            let end = f32::from(bounds.origin.x + bounds.size.width);
+                            if (MENUS_END.with(std::cell::Cell::get) - end).abs() > 0.5 {
+                                MENUS_END.with(|e| e.set(end));
+                                window.refresh();
+                            }
+                        },
+                    )
+                    .absolute()
+                    .size_full(),
                 ),
         )
-        // Centred on the window where the menus leave room, as the editor's
-        // command centre is; else in the room after them.
-        .map(|bar| {
-            let centred = (viewport - width) / 2.0;
-            let search = search_box(view, width, searching, shown, theme, screen, cx);
-            if centred >= CONTROLS_AT + MENUS_WIDTH + 8.0 {
-                bar.relative().child(div().flex_1()).child(
-                    div()
-                        .absolute()
-                        .left(px(centred))
-                        .top(px((HEIGHT - BOX_HEIGHT) / 2.0))
-                        .child(search),
-                )
-            } else {
-                bar.child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .justify_center()
-                        .child(search),
-                )
-            }
+        // The empty space each side of the search box moves the window; the
+        // controls take their own clicks.
+        .child(match before {
+            Some(gap) => drag_space().w(px(gap)).flex_none(),
+            None => drag_space().flex_1(),
         })
+        .child(search_box(view, width, searching, shown, theme, screen, cx))
+        .child(drag_space().flex_1())
         .children(window_buttons(theme))
+}
+
+/// Empty space in the bar: where it is the window's title bar, it moves the
+/// window and a double-click does the system's setting (zoom or minimize).
+/// Not on Linux, under the desktop's own title bar.
+fn drag_space() -> gpui::Div {
+    div().h_full().when(DRAWN_BY_DM, |space| {
+        space
+            .window_control_area(WindowControlArea::Drag)
+            .on_mouse_down(MouseButton::Left, |event, window, _| {
+                if event.click_count == 2 {
+                    window.titlebar_double_click();
+                }
+            })
+    })
 }
 
 /// The search box.
@@ -267,11 +275,10 @@ fn menu_title(
 
 /// The room the window's own buttons take: on Windows, where the bar is the
 /// window's title bar; elsewhere the system draws them.
-const WINDOW_BUTTONS_WIDTH: f32 = if cfg!(target_os = "windows") {
-    138.0
-} else {
-    0.0
-};
+const WINDOW_BUTTONS_WIDTH: f32 = native::pick(0.0, 3.0 * WINDOW_BUTTON, 0.0);
+
+/// Each of the window's own buttons' width, on Windows.
+const WINDOW_BUTTON: f32 = 46.0;
 
 /// Minimize, maximize and close at the bar's right on Windows, as its own
 /// programs' title bars have them: the system takes their clicks
@@ -290,16 +297,20 @@ fn window_buttons(theme: Theme) -> Vec<gpui::AnyElement> {
         let close = area == WindowControlArea::Close;
         div()
             .id(id)
-            .w(px(46.0))
+            .w(px(WINDOW_BUTTON))
             .h(px(HEIGHT))
             .flex()
             .items_center()
             .justify_center()
             .text_size(px(native::SMALL_TEXT))
-            .when(close, |b| {
-                b.hover(|b| b.bg(gpui::rgb(0xc42b1c)).text_color(gpui::white()))
+            // Close turns Windows' red under the pointer, the others grey.
+            .hover(move |b| {
+                if close {
+                    b.bg(gpui::rgb(0xc42b1c)).text_color(gpui::white())
+                } else {
+                    b.bg(theme.control)
+                }
             })
-            .when(!close, |b| b.hover(|b| b.bg(theme.control)))
             .window_control_area(area)
             .child(glyph)
             .into_any_element()
