@@ -25,6 +25,7 @@ use gpui::{
 
 use crate::screen::Screen;
 use crate::theme::Theme;
+use dm_shell::app::places::{Place, Places};
 
 /// The rows' height, in points.
 pub(crate) const ROW_HEIGHT: f32 = 26.0;
@@ -47,6 +48,12 @@ pub struct Downloads {
     pub(crate) screen: Screen,
     /// The window's focus: where keys and the menu bar's commands arrive.
     focus: FocusHandle,
+    /// The place chosen in the side panel.
+    pub(crate) place: Place,
+    /// Each row's place and the places' counts (`dm_shell::app::places`).
+    pub(crate) places: Places,
+    /// The rows the list shows, in the place chosen: their indices in `rows`.
+    pub(crate) shown: Vec<usize>,
 }
 
 impl Downloads {
@@ -68,6 +75,9 @@ impl Downloads {
             scroll: UniformListScrollHandle::new(),
             screen: Screen::default(),
             focus: cx.focus_handle(),
+            place: Place::All,
+            places: Places::default(),
+            shown: Vec::new(),
         };
         window.focus(&this.focus, cx);
         this.read();
@@ -178,6 +188,22 @@ impl Downloads {
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
         self.rows = read.snapshot.rows;
+        self.places.place_rows(&self.rows, &settings.categories());
+        self.reshow();
+    }
+
+    /// Shows the rows of `place`.
+    pub fn choose(&mut self, place: Place) {
+        self.place = place;
+        self.reshow();
+    }
+
+    /// Which rows the list shows: those in the place chosen.
+    fn reshow(&mut self) {
+        let categories = self.backend.settings().categories();
+        self.shown = (0..self.rows.len())
+            .filter(|&i| self.places.within(&self.place, &self.rows[i], &categories))
+            .collect();
     }
 }
 
@@ -201,9 +227,46 @@ pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
     (name.into(), state.into())
 }
 
+impl Downloads {
+    /// The rows of the place chosen, only those on screen laid out.
+    fn list(&self, theme: Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let screen = self.screen.clone();
+        let count = self.shown.len();
+        uniform_list(
+            "rows",
+            count,
+            cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
+                range
+                    .filter_map(|i| {
+                        this.shown
+                            .get(i)
+                            .and_then(|&r| this.rows.get(r))
+                            .map(|row| (i, line(row)))
+                    })
+                    .map(|(i, (name, state))| {
+                        div()
+                            .id(i)
+                            .w_full()
+                            .h(px(ROW_HEIGHT))
+                            .px_3()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .when(i % 2 == 1, |row| row.bg(theme.stripe))
+                            .child(screen.label(name))
+                            .child(div().text_color(theme.muted).child(screen.label(state)))
+                    })
+                    .collect()
+            }),
+        )
+        .track_scroll(&self.scroll)
+        .flex_1()
+    }
+}
+
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let count = self.rows.len();
+        let count = self.shown.len();
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
@@ -222,38 +285,27 @@ impl Render for Downloads {
             .child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
             .child(
                 div()
-                    .px_3()
-                    .py_2()
-                    .border_b_1()
-                    .border_color(theme.separator)
-                    .text_color(theme.muted)
-                    .child(self.screen.label(format!("{count} downloads"))),
-            )
-            .child(
-                uniform_list(
-                    "rows",
-                    count,
-                    cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
-                        range
-                            .filter_map(|i| this.rows.get(i).map(|row| (i, line(row))))
-                            .map(|(i, (name, state))| {
+                    .flex()
+                    .flex_1()
+                    .min_h_0()
+                    .child(crate::sidebar::sidebar(self, theme, &screen, window, cx))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .child(
                                 div()
-                                    .id(i)
-                                    .w_full()
-                                    .h(px(ROW_HEIGHT))
                                     .px_3()
-                                    .flex()
-                                    .items_center()
-                                    .justify_between()
-                                    .when(i % 2 == 1, |row| row.bg(theme.stripe))
-                                    .child(screen.label(name))
-                                    .child(div().text_color(theme.muted).child(screen.label(state)))
-                            })
-                            .collect()
-                    }),
-                )
-                .track_scroll(&self.scroll)
-                .flex_1(),
+                                    .py_2()
+                                    .border_b_1()
+                                    .border_color(theme.separator)
+                                    .text_color(theme.muted)
+                                    .child(self.screen.label(format!("{count} downloads"))),
+                            )
+                            .child(self.list(theme, cx)),
+                    ),
             )
     }
 }

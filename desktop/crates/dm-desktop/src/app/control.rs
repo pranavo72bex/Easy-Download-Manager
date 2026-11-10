@@ -123,39 +123,13 @@ impl DmApp {
 
     /// `ui.place`: the place a word names.
     pub(super) fn place_named(&mut self, place: &str) -> Result<(), String> {
-        self.place = match place {
-            "all" => Place::All,
-            "unfinished" => Place::Unfinished,
-            "finished" => Place::Finished,
-            other => {
-                if let Some(name) = other.strip_prefix("queue:") {
-                    // A place nothing is filed under showed an empty
-                    // list as if it were a queue.
-                    if !self.backend.queues().iter().any(|q| q == name) {
-                        return Err(format!("no queue is called {name}"));
-                    }
-                    Place::Queue(name.to_string())
-                } else if let Some(name) = other.strip_prefix("custom:") {
-                    if !self
-                        .applied
-                        .custom_categories
-                        .iter()
-                        .any(|c| c.name == name)
-                    {
-                        return Err(format!("no category is called {name}"));
-                    }
-                    Place::Custom(name.to_string())
-                } else if let Some(word) = other.strip_prefix("kind:") {
-                    let kind = Category::ALL
-                        .into_iter()
-                        .find(|c| category_word(*c) == word)
-                        .ok_or_else(|| format!("no category is called {word}"))?;
-                    Place::Kind(kind)
-                } else {
-                    return Err(format!("no place is called {other}"));
-                }
-            }
-        };
+        let customs: Vec<String> = self
+            .applied
+            .custom_categories
+            .iter()
+            .map(|c| c.name.clone())
+            .collect();
+        self.place = Place::from_word(place, &self.backend.queues(), &customs)?;
         Ok(())
     }
 

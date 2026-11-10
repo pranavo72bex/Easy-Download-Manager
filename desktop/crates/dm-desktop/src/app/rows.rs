@@ -21,16 +21,6 @@ pub use dm_shell::app::names::category_word;
 
 pub use dm_shell::app::rules::link_expired;
 
-/// What the filter looks in: a row's name, address and note, lowercased.
-pub(super) fn haystack(row: &Entry) -> String {
-    haystack_named(&name_of(row), row)
-}
-
-/// [`haystack`] with the row's name already worked out.
-pub(super) fn haystack_named(name: &str, row: &Entry) -> String {
-    format!("{name} {} {}", row.url, row.description).to_lowercase()
-}
-
 /// The name a row is shown by, and its kind: the application's
 /// (`dm_shell::app::names`).
 pub use dm_shell::app::names::{kind_of, name_of};

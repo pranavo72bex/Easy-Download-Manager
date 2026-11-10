@@ -28,6 +28,7 @@ pub mod import;
 pub mod links;
 pub mod lookups;
 pub mod names;
+pub mod places;
 pub mod platform;
 pub mod power;
 pub mod questions;

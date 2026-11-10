@@ -23,6 +23,12 @@ pub struct Theme {
     pub stripe: Rgba,
     /// Lines between parts of the window.
     pub separator: Rgba,
+    /// The side panel's background, as a source list's.
+    pub sidebar: Rgba,
+    /// The chosen item's background: the system's selection colour.
+    pub selection: Rgba,
+    /// Text on the chosen item.
+    pub on_selection: Rgba,
 }
 
 impl Theme {
@@ -36,6 +42,10 @@ impl Theme {
                 muted: rgba(0xffffff8c),
                 stripe: rgba(0xffffff0a),
                 separator: rgba(0xffffff1a),
+                sidebar: rgb(0x262626),
+                // NSColor.selectedContentBackgroundColor with the blue accent.
+                selection: rgb(0x0a5fd8),
+                on_selection: rgb(0xffffff),
             },
             WindowAppearance::Light | WindowAppearance::VibrantLight => Theme {
                 background: rgb(0xffffff),
@@ -43,6 +53,9 @@ impl Theme {
                 muted: rgba(0x00000080),
                 stripe: rgba(0x0000000a),
                 separator: rgba(0x0000001a),
+                sidebar: rgb(0xf0f0f0),
+                selection: rgb(0x0064e1),
+                on_selection: rgb(0xffffff),
             },
         }
     }

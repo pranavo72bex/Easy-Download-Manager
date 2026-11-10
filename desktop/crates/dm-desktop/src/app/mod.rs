@@ -104,22 +104,9 @@ struct VisibleKey {
     sizes_told: usize,
 }
 
-/// A place in the category tree: a filter over the one list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Place {
-    /// Every download.
-    All,
-    /// One built-in category.
-    Kind(Category),
-    /// A category a person made, by name.
-    Custom(String),
-    /// The downloads not yet finished.
-    Unfinished,
-    /// The finished downloads.
-    Finished,
-    /// The downloads in the queue of this name.
-    Queue(String),
-}
+/// A place in the category tree: a filter over the one list
+/// (`dm_shell::app::places`).
+pub use dm_shell::app::places::Place;
 
 /// A column of the download table, in its default order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -450,14 +437,9 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
-    /// See [`Self::place_rows`].
-    placed: HashMap<Id, (Option<Category>, Option<String>)>,
-    /// Each row's name, address and note, lowercased once a refresh, for
-    /// the filter: lowercasing them for every row on every frame made a
-    /// frame with a filter typed take 36 ms at 5,000 rows.
-    haystacks: HashMap<Id, String>,
-    /// The filter's words, lowercased, and the filter they were made from.
-    filter_words: std::cell::RefCell<(String, Vec<String>)>,
+    /// Each row's place, the places' counts and the filter's matching
+    /// (`dm_shell::app::places`), kept from read to read.
+    places: dm_shell::app::places::Places,
     /// Counts up whenever `rows` or what places them is made again; what is
     /// worked out from the rows is kept for as long as it stands still.
     rows_gen: u64,
@@ -465,18 +447,9 @@ pub struct DmApp {
     /// (`DmApp::visible_shared`): a frame with no new read of the list
     /// reuses them instead of copying and sorting every row again.
     visible_cache: std::cell::RefCell<Option<(VisibleKey, SharedRows)>>,
-    /// How many rows each place holds, for the generation it was counted at.
-    counts_cache: std::cell::RefCell<(u64, HashMap<String, usize>)>,
     /// The queues the list names, for the generation they were read at
     /// ([`DmApp::queues`]).
     queues_cache: std::cell::RefCell<Option<(u64, std::rc::Rc<[String]>)>>,
-    /// What each row's kind, own category and filter text were made from, so
-    /// a read of the list makes them again only for a row that changed.
-    /// With the row they were made from: the same allocation again means
-    /// the row did not change, and nothing of it is hashed.
-    place_fingerprints: HashMap<Id, (u64, Arc<Entry>)>,
-    /// The categories of a person's own that `placed` was made under.
-    place_rules: String,
     /// The language the places were last drawn in.
     rail_language: Option<String>,
     /// Columns were moved, shown or hidden since the list was drawn.
@@ -601,15 +574,10 @@ impl DmApp {
             last_added: Vec::new(),
             said_about: None,
             sizes_told: HashMap::new(),
-            placed: HashMap::new(),
-            haystacks: HashMap::new(),
-            filter_words: Default::default(),
             rows_gen: 0,
+            places: Default::default(),
             visible_cache: Default::default(),
             queues_cache: Default::default(),
-            counts_cache: Default::default(),
-            place_fingerprints: HashMap::new(),
-            place_rules: String::new(),
             rail_language: None,
             columns_changed: false,
             min_size_zoom: None,

@@ -170,7 +170,7 @@ impl Probe<'_, '_> {
         let scrolled = -f32::from(offset.y);
         let first = (scrolled / ROW_HEIGHT).floor().max(0.0) as usize;
         let count = (height / ROW_HEIGHT).ceil() as usize + 1;
-        (first..(first + count).min(self.view.rows.len()))
+        (first..(first + count).min(self.view.shown.len()))
             .map(|i| (i, top + i as f32 * ROW_HEIGHT - scrolled, left, width))
             .filter(|(_, y, _, _)| *y + ROW_HEIGHT > top && *y < top + height)
             .collect()
@@ -325,8 +325,18 @@ impl WindowProbe for Probe<'_, '_> {
         not_yet("ui.select")
     }
 
-    fn place(&mut self, _: &str) -> Result<(), String> {
-        not_yet("ui.place")
+    fn place(&mut self, place: &str) -> Result<(), String> {
+        let settings = self.view.backend.settings();
+        let customs: Vec<String> = settings
+            .custom_categories
+            .iter()
+            .map(|c| c.name.clone())
+            .collect();
+        let place =
+            dm_shell::app::places::Place::from_word(place, &self.view.backend.queues(), &customs)?;
+        self.view.choose(place);
+        self.cx.notify();
+        Ok(())
     }
 
     fn inspect(&mut self) -> Result<probe::Inspect, String> {
@@ -337,8 +347,9 @@ impl WindowProbe for Probe<'_, '_> {
             .collect();
         let rows = self
             .view
-            .rows
+            .shown
             .iter()
+            .filter_map(|&r| self.view.rows.get(r))
             .enumerate()
             .map(|(i, row)| {
                 let (name, state) = line(row);
@@ -356,7 +367,7 @@ impl WindowProbe for Probe<'_, '_> {
             })
             .collect();
         Ok(probe::Inspect {
-            place: "All".into(),
+            place: format!("{:?}", self.view.place),
             selected: Vec::new(),
             sort: None,
             categories: false,
