@@ -305,7 +305,7 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   moved by dragging its heading, a toolbar button by dragging it onto another; Resume says
   Retry or Start now for the rows chosen, in the File menu and the row menu, as the egui
   window's does (`rows::resume_word`). The main window comes back where and as large as it was
-  left (`frame.rs`). Synced with `main` at a6faac1 (the engine's speed work, the extension's
+  left (`frame.rs`); on Linux as large and zoomed as it was, where the desktop places it. Synced with `main` at a6faac1 (the engine's speed work, the extension's
   background and popup in Rust); `human-qa.py` 64 of 64 on the GPUI window on that tree.
   The release bundle from its .dmg: `smoke.py` and `human-qa.py` 64 of 64. The menus' titles in the
   top bar beside the search box, on every system (the maintainer's words); only the system's fonts.

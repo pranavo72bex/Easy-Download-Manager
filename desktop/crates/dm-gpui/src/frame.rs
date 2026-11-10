@@ -12,6 +12,12 @@
 //! corner, and the window opens on that display again; one unplugged
 //! since, or a frame no longer on it, is not used: the window opens in
 //! the middle of the main display.
+//!
+//! On Linux the desktop places the window, so only its size and whether it
+//! was zoomed come back (`DESKTOP_PLACES_IT`): Wayland tells a program no
+//! position, and on X11 the one GPUI has is its drawing area's (or counted
+//! from the desktop's frame round it), which, asked for again, puts the
+//! frame there and the window a title bar lower at each start.
 
 use std::path::Path;
 
@@ -82,6 +88,27 @@ pub fn keep(home: &Path, bounds: WindowBounds, display: Option<u64>) {
     let _ = dm_core::write_atomic(&home.join(FILE), written(bounds, display).as_bytes());
 }
 
+/// Whether the desktop, not dm, says where the window opens: Linux's.
+pub const DESKTOP_PLACES_IT: bool = cfg!(not(any(target_os = "macos", windows)));
+
+/// `kept` as large as it was, zoomed if it was, in the middle of `display`:
+/// where the desktop places windows. None where it is smaller than `least`.
+pub fn sized(
+    kept: WindowBounds,
+    display: Bounds<Pixels>,
+    least: Size<Pixels>,
+) -> Option<WindowBounds> {
+    let frame = kept.get_bounds();
+    if frame.size.width < least.width || frame.size.height < least.height {
+        return None;
+    }
+    let middle = Bounds::centered_at(display.center(), frame.size);
+    Some(match kept {
+        WindowBounds::Maximized(_) => WindowBounds::Maximized(middle),
+        WindowBounds::Windowed(_) | WindowBounds::Fullscreen(_) => WindowBounds::Windowed(middle),
+    })
+}
+
 /// `kept`, where its title bar is still on the display it was on (of
 /// `displays`, each its id and bounds; the first where none was kept) and
 /// it is at least `least` in size; none otherwise.
@@ -148,5 +175,25 @@ mod tests {
         assert_eq!(on_a_display(here, Some(9), &screens, least), None);
         let small = WindowBounds::Windowed(frame(100.0, 100.0, 300.0, 200.0));
         assert_eq!(on_a_display(small, Some(1), &screens, least), None);
+    }
+
+    #[test]
+    fn where_the_desktop_places_it_only_the_size_and_zoom_come_back() {
+        let display = frame(0.0, 0.0, 1920.0, 1080.0);
+        let least = size(px(640.0), px(400.0));
+        // A position counted from the desktop's frame, or its drawing area's:
+        // not asked for again.
+        let left = WindowBounds::Windowed(frame(3.0, 37.0, 900.0, 600.0));
+        assert_eq!(
+            sized(left, display, least),
+            Some(WindowBounds::Windowed(frame(510.0, 240.0, 900.0, 600.0)))
+        );
+        let zoomed = WindowBounds::Maximized(frame(0.0, 0.0, 1000.0, 800.0));
+        assert_eq!(
+            sized(zoomed, display, least),
+            Some(WindowBounds::Maximized(frame(460.0, 140.0, 1000.0, 800.0)))
+        );
+        let small = WindowBounds::Windowed(frame(0.0, 0.0, 300.0, 200.0));
+        assert_eq!(sized(small, display, least), None);
     }
 }
