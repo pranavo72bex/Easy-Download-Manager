@@ -357,32 +357,4 @@ impl Downloads {
     }
 }
 
-/// Puts `window` away without closing it (`-[NSWindow orderOut:]`), as the
-/// egui window hides into the tray; the system has no other way to.
-#[cfg(target_os = "macos")]
-fn hide(window: &Window) {
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    // The system's handle, not GPUI's own of the same name.
-    let Ok(handle) = HasWindowHandle::window_handle(window) else {
-        return;
-    };
-    let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
-        return;
-    };
-    // SAFETY: `ns_view` is the live content view of `window`, which this
-    // borrow of the window keeps open; only its window is read, and that is
-    // sent `orderOut:` on the main thread, where this runs.
-    unsafe {
-        let view: &objc2_app_kit::NSView = appkit.ns_view.cast().as_ref();
-        if let Some(ns_window) = view.window() {
-            ns_window.orderOut(None);
-        }
-    }
-}
-
-/// Elsewhere the window is minimized, as the system's taskbar brings it back
-/// (Linux and Windows are done on their own computers).
-#[cfg(not(target_os = "macos"))]
-fn hide(window: &Window) {
-    window.minimize_window();
-}
+use crate::appkit::hide;

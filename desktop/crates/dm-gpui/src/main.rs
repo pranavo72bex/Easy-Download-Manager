@@ -24,7 +24,9 @@
 mod about;
 mod actions;
 mod addurl;
+mod appkit;
 mod assets;
+mod bars;
 mod cliplinks;
 mod clipwatch;
 mod complete;
@@ -61,6 +63,7 @@ mod tick;
 mod titlebar;
 mod toolbar;
 mod tray;
+mod welcome;
 
 use std::sync::Arc;
 use std::time::Duration;

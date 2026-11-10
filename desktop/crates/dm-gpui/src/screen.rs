@@ -69,9 +69,13 @@ impl Screen {
 
 /// Every window's words: the main window's and each dialog's, so the
 /// control port reads and clicks words in any of them, as it does the
-/// egui window's dialogs.
+/// egui window's dialogs. A dialog whose title changes as it goes (a
+/// download's progress) is also known by its name.
 #[derive(Default)]
-pub struct Screens(Vec<(AnyWindowHandle, Screen, bool)>);
+pub struct Screens(
+    Vec<(AnyWindowHandle, Screen, bool)>,
+    Vec<(AnyWindowHandle, SharedString)>,
+);
 
 impl Global for Screens {}
 
@@ -81,6 +85,44 @@ impl Screens {
         let screens = cx.default_global::<Screens>();
         screens.0.retain(|(w, _, _)| *w != window);
         screens.0.push((window, screen, dialog));
+    }
+
+    /// `window`'s dialog is called `name`, whatever its title says now (a
+    /// progress window's title starts with how far it is).
+    pub fn named(window: AnyWindowHandle, name: impl Into<SharedString>, cx: &mut App) {
+        let screens = cx.default_global::<Screens>();
+        screens.1.retain(|(w, _)| *w != window);
+        screens.1.push((window, name.into()));
+    }
+
+    /// The name `window`'s dialog was given, if it was.
+    pub fn name_of(window: AnyWindowHandle, cx: &App) -> Option<SharedString> {
+        cx.try_global::<Screens>()?
+            .1
+            .iter()
+            .find(|(w, _)| *w == window)
+            .map(|(_, name)| name.clone())
+    }
+
+    /// `text` drawn at `bounds` in `window`, recorded where the window's own
+    /// words are, as far as it can be seen.
+    pub fn record(window: &gpui::Window, cx: &App, text: String, bounds: Bounds<Pixels>) {
+        if text.is_empty() {
+            return;
+        }
+        let seen = bounds.intersect(&window.content_mask().bounds);
+        if seen.size.width <= gpui::px(0.0) || seen.size.height <= gpui::px(0.0) {
+            return;
+        }
+        let handle = window.window_handle();
+        if let Some(screens) = cx.try_global::<Screens>() {
+            if let Some((_, screen, _)) = screens.0.iter().find(|(w, _, _)| *w == handle) {
+                screen.0.borrow_mut().push(Drawn {
+                    text: text.into(),
+                    bounds: seen,
+                });
+            }
+        }
     }
 
     /// Each window still open, its words, and whether it is a dialog's;

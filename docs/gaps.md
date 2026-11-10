@@ -41,8 +41,8 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
 | G6  | GPUI migration, Phase B: no GPUI shell yet to decide go or no-go (screen readers in every dialog window first; software rendering under Xvfb and GPU-less Windows; B42 placement; tray; drag and drop; IME; size) | OPEN | `desktop/crates/dm-gpui` on the proposed pin, each check of `docs/migration/GPUI_MIGRATION_PLAN.md` Phase B pass or fail on macOS, Windows, X11 and Wayland; the maintainer's D1 (go) and D2 (pin) |
 | G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | OPEN (macOS first; D1 go for macOS, 2026-11-10) | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
-| G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | BLOCKED: D1 | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
-| G9  | GPUI migration, Phase E: parity report, the default switched, egui removed | BLOCKED: D1 | `docs/migration/EGUI_PARITY_REPORT.md` row by row; the maintainer's D5; egui, its three vendored patches and kittest removed in a change of their own |
+| G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | OPEN (macOS under way: the tray, the Dock's reopen, the login launch, the window put away, moved and pictured through AppKit; next, links dropped from a browser and the bundle) | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
+| G9  | GPUI migration, Phase E: parity report, the default switched, egui removed | OPEN after G7 and G8 (D5: the default switched only after 64/64 from release packages on macOS, Windows and Linux) | `docs/migration/EGUI_PARITY_REPORT.md` row by row; the maintainer's D5; egui, its three vendored patches and kittest removed in a change of their own |
 | 166 | `handover-check.py libreoffice` fails: "nothing started". On 2026-11-10 the page's Mac link (`a.os_macos`, the first match) is visible and topmost when measured, yet after the check's click the tab is at `libreoffice.org/download/` and no download starts, in dm or in Edge; the same with the build before G2, so not that change. The link itself is a plain 302 to a mirror's `.dmg`. Tried and dropped: choosing the first link a click reaches, an instant scroll, waiting for the link to hold still | OPEN | Find what the page does with the click (its script, or where the click lands) and make the check click as a person does; the other 18 sites hold |
 | 167 | `window::options::site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue` failed once in a whole `cargo test --workspace` (2026-11-10: the settings file read back said `read_timeout` 30, not the 10 just saved) and passed in the next two whole runs of the window tests and three alone: another test in that binary writes the shared settings file without holding `support::settings_file()` | OPEN | Find the test that saves settings without the guard (a hint, Options' OK, a speed command) and have it take the guard; the window binary passes ten whole runs |
 | 121 | An expired signed stream address is renewed: from the open page (`decide::Handed`, `Start::renews`) and by the browser's next hand-over of the same file (`Entry::fresh_link`, row 57). Tested offline only | OPEN | A real video site's CDN address that runs out mid-download, tab left open in Microsoft Edge, goes on in the same row |
@@ -251,9 +251,13 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   clipboard watched as it says. Slice 8 under way: the tray (B52; the status item, its menu and
   tooltip), the close button as Options says with "Keep running in the tray?", the window back
   from the tray, the Dock, a second launch and the browser, a login launch into the tray, File ›
-  Close (⌘W), and every dialog's close button doing what its Cancel does (B42). Left: the drop
-  target (the last of the menus' commands), the first launch's "Add dm to your browser", then
-  `human-qa.py` run against the GPUI window. Then
+  Close (⌘W), and every dialog's close button doing what its Cancel does (B42). The bars above
+  the list the egui window has (a download paused for want of room, downloads that did not
+  finish, the way to add dm to a browser) and a new install's "Add dm to your browser". The
+  control port answers every method in the GPUI window: `ui.inspect` with the dialogs open, the
+  status line and problems, `ui.texts` with what fields hold (not a password's),
+  `ui.screenshot` (the system's own picture of the window) and `ui.move_window`. Left: the drop
+  target (the last of the menus' commands), and what `human-qa.py` finds in the GPUI window. Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

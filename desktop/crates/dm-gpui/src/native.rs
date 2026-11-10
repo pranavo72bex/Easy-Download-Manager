@@ -101,14 +101,42 @@ pub fn field_if(
     let field = Input::new(input)
         .aria_label(dm_desktop_base::i18n::t(name))
         .disabled(!on);
+    let held = input.clone();
     // `Styled`'s, not the multi-line height `Input::h` sets.
-    gpui::Styled::h(field, px(CONTROL))
-        .text_size(px(TEXT))
-        .px(px(6.0))
-        .py(px(0.0))
-        .rounded(px(RADIUS))
-        .bg(theme.field)
-        .border_color(theme.separator)
+    div()
+        .relative()
+        .w_full()
+        .child(
+            gpui::Styled::h(field, px(CONTROL))
+                .text_size(px(TEXT))
+                .px(px(6.0))
+                .py(px(0.0))
+                .rounded(px(RADIUS))
+                .bg(theme.field)
+                .border_color(theme.separator),
+        )
+        // What the field holds is on screen as a person reads it, for the
+        // control port (`ui.texts`); a password's is not.
+        .child(
+            gpui::canvas(
+                move |bounds, window, cx| {
+                    let state = held.read(cx);
+                    if !state.presentation().is_masked() {
+                        crate::screen::Screens::record(
+                            window,
+                            cx,
+                            state.value().to_string(),
+                            bounds,
+                        );
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full(),
+        )
 }
 
 /// A form's row: `label` right-aligned in a column `label_width` wide, its

@@ -3,6 +3,27 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: `human-qa.py` drives the GPUI window as a person does, through the same port
+
+The control port answers every `ui.*` method in the GPUI window as it does in the egui window,
+so `human-qa.py` runs against either (`DM_BINARY`): `ui.inspect` names the dialogs open (by the
+dialog's name: a progress window is "Download progress" whatever its title says), the status
+line, the problems, and each row by the name the list shows and its status in English;
+`ui.texts` holds only the words in view (a click aimed at words scrolled out of a page's view
+landed on whatever was there) and what fields hold (not a password's); `ui.scroll` turns the
+wheel of the window the words are in; `ui.screenshot` is the system's own picture of the window
+(`screencapture -l`) and `ui.move_window` moves it as a drag by its title bar would (AppKit,
+`appkit.rs`). The system's menu bar and its pop-ups are modal and cannot be clicked by the port,
+so the port walks them as a person does: a click on a menu's title, where no words on screen are
+exactly those, opens it and holds its items; a click on a submenu holds its items; a click on an
+item runs its action in the main window. A click on a pop-up holds its choices, and a click on
+one picks it. The first full run against the GPUI window held 54 of 64 rows; the failures were the
+port's (the menus, the rows' words, the dialogs' names) and three of the window's (Delete
+Completed said nothing; Options did not hold the window, which B42 asks of it; Resume did not
+open the progress window as the egui window's does), all put right. B25's pictures are the GPUI
+window's own: they are kept under `docs/behaviour-baseline/gpui/`, beside the egui window's, until
+GPUI is the window dm ships (D3, D5).
+
 ## 2026-11-10: The GPUI window's tray is a status item; its close buttons do what Cancel does
 
 GPUI has no tray, so the GPUI window takes D4's fallback, `tray-icon`, as the egui window does:

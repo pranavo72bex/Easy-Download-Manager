@@ -39,6 +39,10 @@ BASELINE = ROOT / "docs" / "behaviour-baseline"
 # set for this one where there is one, else the first.
 BASELINE_SET = {"win32": BASELINE / "windows", "linux": BASELINE / "linux"}.get(sys.platform, BASELINE)
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
+# The GPUI window (docs/gaps.md G7) has pictures of its own, beside the egui
+# window's, until it is the window dm ships (D3, D5).
+if BINARY.name.startswith("dm-gpui"):
+    BASELINE_SET = BASELINE / "gpui" / {"win32": "windows", "linux": "linux"}.get(sys.platform, "macos")
 EDGE = os.environ.get("DM_QA_EDGE") or {
     "darwin": "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
     "linux": "/usr/bin/microsoft-edge",
@@ -1349,7 +1353,9 @@ def walk(dm, origin):
     # B52: the tray's Speed menu has Settings…, which the tray cannot be driven
     # here to click: its menu is built from the same command as Downloads ›
     # Speed limiter › Settings…, which a person tries by hand in the tray.
-    tray_src = (ROOT / "desktop" / "crates" / "dm-desktop" / "src" / "tray.rs").read_text(encoding="utf-8")
+    # The tray of the window driven: the GPUI window's has its own.
+    crate = "dm-gpui" if BINARY.name.startswith("dm-gpui") else "dm-desktop"
+    tray_src = (ROOT / "desktop" / "crates" / crate / "src" / "tray.rs").read_text(encoding="utf-8")
     check("B52", "the tray's Speed menu is built with the limiter's Settings… command",
           "Command::SpeedLimiterSettings" in tray_src, "tray.rs does not name the command")
 
@@ -1357,12 +1363,12 @@ def walk(dm, origin):
     for name in ("empty-window", "add-url", "download-details"):
         now = WORK / "pictures" / f"{name}.png"
         if SAVE_BASELINE:
-            BASELINE_SET.mkdir(exist_ok=True)
+            BASELINE_SET.mkdir(parents=True, exist_ok=True)
             shutil.copy(now, BASELINE_SET / f"{name}.png")
             check("B25", f"{name}: saved as the baseline", True)
             continue
         was = BASELINE_SET / f"{name}.png"
-        if not was.exists():
+        if not was.exists() and not BINARY.name.startswith("dm-gpui"):
             was = BASELINE / f"{name}.png"
         share = differing(was, now) if was.exists() and now.exists() else None
         if not now.exists():

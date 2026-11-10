@@ -146,6 +146,7 @@ pub fn header(
 /// One row's cells.
 fn row_cells(
     row: &Entry,
+    names: &std::collections::HashMap<dm_core::Id, String>,
     columns: &[Column],
     kind: Option<dm_core::Category>,
     theme: Theme,
@@ -156,7 +157,10 @@ fn row_cells(
         .map(|&column| match column {
             Column::Name => {
                 let (picture, colour) = kind_picture(kind);
-                let (name, _) = crate::list::line(row);
+                let name: gpui::SharedString = match names.get(&row.id) {
+                    Some(name) => name.clone().into(),
+                    None => crate::list::line(row).0,
+                };
                 cell(column)
                     .gap_2()
                     .child(
@@ -274,7 +278,14 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             }
                             cx.notify();
                         }))
-                        .children(row_cells(row, &columns, kind, theme, &screen))
+                        .children(row_cells(
+                            row,
+                            &this.shown_names,
+                            &columns,
+                            kind,
+                            theme,
+                            &screen,
+                        ))
                 })
                 .collect()
         }),

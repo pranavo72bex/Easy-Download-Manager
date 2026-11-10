@@ -209,6 +209,11 @@ pub struct Downloads {
     pub(crate) tray: Option<crate::tray::Tray>,
     /// The window is put away in the tray.
     pub(crate) hidden: bool,
+    /// What the bars above the list remember (`bars.rs`).
+    pub(crate) bars: crate::bars::Bars,
+    /// The name each row is shown by: the one its file will get, a waiting
+    /// second copy's "name (1)", worked out at each read.
+    pub(crate) shown_names: std::collections::HashMap<dm_core::Id, String>,
     /// Set when a second launch, the browser or the Dock asks for the window.
     show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// What an opener said went wrong, from its thread.
@@ -216,7 +221,7 @@ pub struct Downloads {
     /// View › Categories: the side panel shown.
     pub(crate) show_sidebar: bool,
     /// View › Toolbar: the toolbar shown.
-    show_toolbar: bool,
+    pub(crate) show_toolbar: bool,
 }
 
 impl Downloads {
@@ -291,6 +296,8 @@ impl Downloads {
             clipboard: Default::default(),
             tray: None,
             hidden,
+            bars: Default::default(),
+            shown_names: Default::default(),
             show_asked,
             opener_said: Default::default(),
             show_sidebar: true,
@@ -305,6 +312,8 @@ impl Downloads {
         window.focus(&this.focus, cx);
         // The tray, and the close button that keeps dm in it.
         this.start_tray(window, cx);
+        // A new install's first window, once.
+        this.welcome_if_new(cx);
         let me = cx.entity().downgrade();
         window.on_window_should_close(cx, move |window, cx| {
             me.update(cx, |view, cx| view.close_asked(window, cx))
@@ -433,6 +442,10 @@ impl Downloads {
     pub fn run(&mut self, command: dm_shell::app::commands::Command, cx: &mut Context<Self>) {
         use dm_shell::app::commands::Command;
         if !self.enabled(command) {
+            return;
+        }
+        // Held by Options (B42): Quit and the dialogs' own still go.
+        if command != Command::Quit && command != Command::Options && self.bring_holder(cx) {
             return;
         }
         if command == Command::Quit {
@@ -617,6 +630,23 @@ impl Downloads {
         let queue = self.current_queue();
         let ran = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
         self.read();
+        if let Some(dm_shell::app::commands::Ran::Cleared(n)) = ran {
+            self.say(dm_desktop_base::i18n::tn(
+                "Deleted {} completed or cancelled download from the list.||Deleted {} completed or cancelled downloads from the list.",
+                n as u64,
+                &[&n],
+            ));
+        }
+        // Resume opens each row's progress window where Options says, but
+        // not one its person closed: fifteen Resumes opened it fifteen
+        // times over the list. Show progress still opens it.
+        if command == Command::DownloadNow && self.backend.settings().show_progress {
+            for row in &chosen {
+                if !self.progress_closed.contains(&row.id) {
+                    self.show_progress(row.id, cx);
+                }
+            }
+        }
         // Resume on rows the schedule or the download limit holds: each of
         // the others went on, and these are asked about.
         if let Some(dm_shell::app::commands::Ran::WentOn { held }) = ran {
@@ -1667,6 +1697,25 @@ impl Downloads {
         self.properties_windows.insert(id, window);
     }
 
+    /// The dialog that keeps the clicks to itself and so holds this window
+    /// (B42): Options, while open. Questions are sheets, which the system
+    /// holds the window for.
+    pub(crate) fn holder(&self, cx: &gpui::App) -> Option<gpui::AnyWindowHandle> {
+        let open = cx.windows();
+        self.options_window.filter(|w| open.contains(w))
+    }
+
+    /// Where a dialog holds the window, it comes forward; true if one does.
+    pub(crate) fn bring_holder(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some(holder) = self.holder(cx) else {
+            return false;
+        };
+        cx.defer(move |cx| {
+            let _ = holder.update(cx, |_, window, _| window.activate_window());
+        });
+        true
+    }
+
     /// The main window.
     pub(crate) fn main_window(&self) -> gpui::AnyWindowHandle {
         self.main
@@ -1726,6 +1775,24 @@ impl Downloads {
         self.rows = read.snapshot.rows;
         // A finished row's size is its file's, read once from the disk.
         self.saved.apply(&mut self.rows);
+        // Each row by the name its file will get, as the egui window shows
+        // it: a waiting second copy reads "name (1)".
+        let mut categories = settings.categories();
+        let before = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
+        self.shown_names = self
+            .rows
+            .iter()
+            .map(|row| {
+                let name = dm_shell::app::names::name_it_will_get_after(
+                    &self.rows,
+                    row,
+                    &settings.download_dir,
+                    &mut categories,
+                    Some(before.get(&row.id).copied().unwrap_or(0)),
+                );
+                (row.id, name)
+            })
+            .collect();
         dm_desktop_base::rows::set_superseded(&self.rows);
         // A row taken off the list is no longer chosen.
         let ids: std::collections::HashSet<dm_core::Id> = self.rows.iter().map(|r| r.id).collect();
@@ -2072,6 +2139,8 @@ impl Render for Downloads {
         self.screen.begin();
         let screen = self.screen.clone();
         let update_bar = self.update_bar(theme, &screen, cx);
+        let holding = self.holder(cx).is_some();
+        let browser_bar = self.browser_bar(theme, &screen, cx);
         div()
             .id("downloads")
             .role(Role::Application)
@@ -2095,6 +2164,10 @@ impl Render for Downloads {
             )
             .on_action(cx.listener(|this, run: &crate::menus::Run, window, cx| {
                 use dm_shell::app::commands::Command;
+                // Held by Options: its window comes forward instead (B42).
+                if this.bring_holder(cx) {
+                    return;
+                }
                 match run.0 {
                     // The search box is the window's: these need it.
                     Command::Find => this.find(window, cx),
@@ -2144,6 +2217,11 @@ impl Render for Downloads {
                             // dm's update, downloaded and checked: Install
                             // now, or Later.
                             .children(update_bar)
+                            // A download paused for want of room; those that
+                            // did not finish; the way to add dm to a browser.
+                            .children(self.stalled_bar(theme, &screen, cx))
+                            .children(self.failed_bar(theme, &screen, cx))
+                            .children(browser_bar)
                             // A link copied, offered.
                             .children(self.clipboard_bar(theme, &screen, cx))
                             // While a fresh link is awaited from the
@@ -2188,6 +2266,25 @@ impl Render for Downloads {
             .child(crate::statusbar::statusbar(self, theme, &screen, cx))
             .when_some(self.menu, |root, at| {
                 root.child(crate::rowmenu::menu(self, at, theme, &screen, cx))
+            })
+            // Held by Options, the window takes no click: one brings Options
+            // forward (B42).
+            .when(holding, |root| {
+                root.child(
+                    div()
+                        .id("held")
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .size_full()
+                        .occlude()
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.bring_holder(cx);
+                            }),
+                        ),
+                )
             })
     }
 }

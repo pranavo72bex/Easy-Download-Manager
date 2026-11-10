@@ -486,6 +486,8 @@ pub fn open(
         move |window, cx| {
             let screen = Screen::default();
             Screens::register(window.window_handle(), screen.clone(), true, cx);
+            // Known by its name, as the egui window's progress windows are.
+            Screens::named(window.window_handle(), "Download progress", cx);
             let own_limit = cx.new(|cx| {
                 let mut s = InputState::new(window, cx);
                 let shown = if row_limit > 0 { row_limit } else { 500 };

@@ -27,8 +27,11 @@ pub fn answer(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> Result<Value, String> {
+    // The main window as it stands on screen, pictured by the system.
     if method == "ui.screenshot" {
-        return Err("ui.screenshot is not in the GPUI shell yet".into());
+        let path = dm_shell::app::control_api::screenshot_path(&dm_shell::settings::home(), params);
+        crate::appkit::picture(window, &path)?;
+        return Ok(serde_json::json!({ "path": path.display().to_string() }));
     }
     if let Some(answer) = probe::input(&mut Probe { view, window, cx }, method, params) {
         return answer;
@@ -132,11 +135,6 @@ struct Probe<'a, 'b> {
     cx: &'a mut Context<'b, Downloads>,
 }
 
-/// The words of a method the shell does not draw yet.
-fn not_yet<T>(method: &str) -> Result<T, String> {
-    Err(format!("{method} is not in the GPUI shell yet"))
-}
-
 impl Probe<'_, '_> {
     /// The `nth` piece of text on screen that says `wanted`, nearest the
     /// front first: exactly, else ignoring case, else containing it.
@@ -228,6 +226,88 @@ impl Probe<'_, '_> {
     }
 }
 
+thread_local! {
+    /// The menu the port opened, until an item of it is clicked.
+    static OPEN_MENU: std::cell::RefCell<Option<gpui::OwnedMenu>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+impl Probe<'_, '_> {
+    /// A click the menu bar takes: an item of the menu open (a submenu
+    /// opens in its place; an action runs in the main window, as the
+    /// system's menu sends it), or, where no words on screen are exactly
+    /// these, a menu's title, which opens it. `None` where neither.
+    fn walk_menus(&mut self, words: &str) -> Option<Result<probe::Clicked, String>> {
+        let same = |name: &str| {
+            name.trim_end_matches('…')
+                .eq_ignore_ascii_case(words.trim_end_matches('…'))
+        };
+        let clicked = || {
+            Ok(probe::Clicked {
+                clicked: words.to_string(),
+                at: [0.0, 0.0],
+            })
+        };
+        if let Some(menu) = OPEN_MENU.with(|m| m.borrow_mut().take()) {
+            for item in &menu.items {
+                match item {
+                    gpui::OwnedMenuItem::Submenu(sub) if same(&sub.name) => {
+                        let sub = sub.clone();
+                        OPEN_MENU.with(|m| *m.borrow_mut() = Some(sub));
+                        return Some(clicked());
+                    }
+                    gpui::OwnedMenuItem::Action { name, action, .. } if same(name) => {
+                        self.view.scripted.acted();
+                        let action = action.boxed_clone();
+                        let main = self.view.main_window();
+                        self.cx.defer(move |cx| {
+                            let _ =
+                                main.update(cx, |_, window, cx| window.dispatch_action(action, cx));
+                        });
+                        self.cx.notify();
+                        return Some(clicked());
+                    }
+                    _ => {}
+                }
+            }
+            // Not in it: the menu closes, as a click elsewhere closes it.
+        }
+        let lower = words.to_lowercase();
+        let on_screen = self
+            .everything()
+            .iter()
+            .any(|(d, _, _)| d.text.to_lowercase() == lower);
+        if on_screen {
+            return None;
+        }
+        let menu = self
+            .cx
+            .get_menus()?
+            .into_iter()
+            .find(|menu| same(&menu.name))?;
+        OPEN_MENU.with(|m| *m.borrow_mut() = Some(menu));
+        Some(clicked())
+    }
+
+    /// The titles of the dialogs' windows open, the oldest first.
+    fn dialog_titles(&mut self) -> Vec<String> {
+        crate::screen::Screens::all(self.cx)
+            .into_iter()
+            .rev()
+            .filter(|(_, _, dialog)| *dialog)
+            .filter_map(|(handle, _, _)| {
+                crate::screen::Screens::name_of(handle, self.cx)
+                    .map(|name| name.to_string())
+                    .or_else(|| {
+                        handle
+                            .update(self.cx, |_, window, _| window.window_title())
+                            .ok()
+                    })
+            })
+            .collect()
+    }
+}
+
 impl WindowProbe for Probe<'_, '_> {
     fn may_step(&mut self) -> Result<(), String> {
         Ok(())
@@ -285,6 +365,12 @@ impl WindowProbe for Probe<'_, '_> {
                 }
                 None => crate::popup::hold(held),
             }
+        }
+        // An item of a menu the port opened, or a menu's title where nothing
+        // on screen says these words exactly: the system's menu bar, walked
+        // as a person walks it.
+        if let Some(walked) = self.walk_menus(&click.text) {
+            return walked;
         }
         let (target, in_window) = self.find_in(&click.text, click.nth)?;
         if probe::is_run_a_file(&target.text) {
@@ -433,7 +519,8 @@ impl WindowProbe for Probe<'_, '_> {
         let main = Some(frames(self.window).0);
         let pixels_per_point = Some(self.window.scale_factor());
         let mut dialogs = Vec::new();
-        for (handle, _, dialog) in crate::screen::Screens::all(self.cx) {
+        // The oldest first, as they were opened.
+        for (handle, _, dialog) in crate::screen::Screens::all(self.cx).into_iter().rev() {
             if !dialog {
                 continue;
             }
@@ -477,8 +564,29 @@ impl WindowProbe for Probe<'_, '_> {
         }
     }
 
-    fn move_window(&mut self, _: probe::MoveWindow) -> Result<probe::Moved, String> {
-        not_yet("ui.move_window")
+    fn move_window(&mut self, to: probe::MoveWindow) -> Result<probe::Moved, String> {
+        // The dialog's window by its title, put where a drag by its title
+        // bar would put it.
+        let wanted = to.title.to_lowercase();
+        let found = crate::screen::Screens::all(self.cx)
+            .into_iter()
+            .filter(|(_, _, dialog)| *dialog)
+            .find_map(|(handle, _, _)| {
+                handle
+                    .update(self.cx, |_, window, _| window.window_title())
+                    .ok()
+                    .filter(|title| title.to_lowercase().contains(&wanted))
+                    .map(|title| (handle, title))
+            });
+        let (handle, title) = found.ok_or_else(|| format!("no dialog is titled {:?}", to.title))?;
+        let [x, y] = to.to;
+        handle
+            .update(self.cx, |_, window, _| crate::appkit::move_to(window, x, y))
+            .map_err(|e| e.to_string())??;
+        Ok(probe::Moved {
+            moved: title,
+            to: to.to,
+        })
     }
 
     fn select(&mut self, ids: Vec<u64>) -> Result<Vec<u64>, String> {
@@ -515,11 +623,16 @@ impl WindowProbe for Probe<'_, '_> {
             .filter_map(|&r| self.view.rows.get(r))
             .enumerate()
             .map(|(i, row)| {
-                let (name, state) = line(row);
+                // As the list shows the row, its status in English, as the
+                // egui window reports it.
+                let name = match self.view.shown_names.get(&row.id) {
+                    Some(name) => name.clone(),
+                    None => line(row).0.to_string(),
+                };
                 probe::InspectRow {
                     id: row.id,
-                    name: name.to_string(),
-                    status: state.to_string(),
+                    name,
+                    status: dm_desktop_base::rows::status_in_english(row),
                     queue: row.queue.clone(),
                     description: row.description.clone(),
                     url: dm_desktop_base::format::shown_url(&row.url),
@@ -536,13 +649,22 @@ impl WindowProbe for Probe<'_, '_> {
                 column: c.english().to_string(),
                 ascending: up,
             }),
-            categories: false,
-            toolbar: false,
-            dark: false,
+            categories: self.view.show_sidebar,
+            toolbar: self.view.show_toolbar,
+            dark: matches!(
+                self.window.appearance(),
+                gpui::WindowAppearance::Dark | gpui::WindowAppearance::VibrantDark
+            ),
             hidden: self.view.hidden,
-            said: String::new(),
-            problems: Vec::new(),
-            dialogs: Vec::new(),
+            said: self
+                .view
+                .said
+                .as_ref()
+                .map(|(said, _)| said.clone())
+                .unwrap_or_default(),
+            problems: self.view.problems.clone(),
+            // The dialogs' windows open, by title, the oldest first.
+            dialogs: self.dialog_titles(),
             rows,
         })
     }
