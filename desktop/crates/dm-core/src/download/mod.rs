@@ -322,6 +322,10 @@ struct Job {
     resumable: bool,
     validator: Option<String>,
     parts: PathBuf,
+    /// Each range is written into a plain file of its own (`range_path`) rather than at its
+    /// offset in the one staged file: where the download folder is on another disk than `parts`
+    /// (`stage_by_range`).
+    by_range: bool,
     /// The most one request asks for; see [`StreamHints::chunk`].
     chunk: Option<u64>,
     /// This stream's own headers; see [`Headers`].
@@ -408,6 +412,16 @@ impl Job {
     /// its own offset; renamed into place when whole.
     fn staged(&self) -> PathBuf {
         staged_path(&self.parts)
+    }
+
+    /// The file range `index`, starting at `start`, is written into, and where in it the range's
+    /// first byte is: its own file from the front, or the staged file at its offset.
+    fn held(&self, index: usize, start: u64) -> (PathBuf, u64) {
+        if self.by_range {
+            (range_path(&self.parts, index), 0)
+        } else {
+            (self.staged(), start)
+        }
     }
 
     /// How much of range `index` is on disk, as its ledger last said.
@@ -1015,6 +1029,14 @@ async fn fetch_reporting(
         planned
     };
     let live = segments.clone();
+    // A plain file a range where the download folder is on another disk (gaps row 166).
+    let by_range = {
+        let (parts, dest) = (options.parts_dir.clone(), options.dest_dir.clone());
+        let by_ranges = info.resumable && info.size.is_some_and(|size| size > 0);
+        tokio::task::spawn_blocking(move || stage_by_range(&parts, &dest, by_ranges))
+            .await
+            .unwrap_or(false)
+    };
 
     let job = Arc::new(Job {
         disagreed: std::sync::atomic::AtomicBool::new(false),
@@ -1038,6 +1060,7 @@ async fn fetch_reporting(
         resumable: info.resumable,
         validator: info.validator.clone(),
         parts: options.parts_dir.clone(),
+        by_range,
         chunk: HINTS.try_with(|hints| hints.chunk).ok().flatten(),
         headers: stream_headers(),
         downloaded: Arc::new(AtomicU64::new(0)),

@@ -3,6 +3,36 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: A file a range where the download folder is on another disk
+
+At the maintainer's word of 2026-11-10 (gaps row 166), asked whether dm may stage a download as
+reference A does where its download folder is on another disk than its parts folder: each range is
+now written front to back into a plain file of its own (`range-0000`, `range-0001`…, beside the
+ranges' ledgers in the parts folder), and the finish appends them into the download folder in file
+order, each freed once copied (`assemble::copy_parts_blocking`). On one disk nothing changes: one
+staged file, every range at its own offset, finished by a rename (2026-10, "Written in place,
+finishing is a rename"). Across disks the finish is a copy whichever way the bytes are staged, so
+the reason the part files went in 2026-10 (every byte written twice) does not hold there, and on
+Windows one sparse staged file was the slower thing to write and to copy: in a probe of eight
+threads writing 16 KiB at a time, 512 MiB took 1.8 to 1.95 s into one sparse file and 0.42 s into
+eight plain ones, and 1.6 s against 1.1 s to copy. Measured the same day beside reference A
+(`bench.mjs`, dm's home on the SSD, C:, both apps saving to the hard disk, D:; every file checked
+whole): 512 MiB in 2.09 to 2.87 s from the first request (2.3 to 2.9 s from the address given),
+reference A 3.14 to 4.88 s (3.7 to 6.0); after the last byte dm 0.72 to 0.96 s, reference A 0.80 to
+1.09 s. With the one staged file, forced in the same session, dm took 5.56 to 6.05 s, 2.9 to 3.3 s
+of it after the last byte. 64 MiB at 1 MiB/s a connection, 8.58 and 8.60 s against 8.95 and 9.31.
+What decides is what an earlier run left (`files::stage_by_range`): a resume goes on in the layout
+its bytes are in, a staged file or an earlier dm's part files keeping the staged file; a download
+not fetched by ranges, or of no known length, keeps it too. A range's ledger still says how much of
+it is on disk; on a resume it is held to the length of the range's file, which a power cut can leave
+shorter than the ledger (`ranged::adopt_ranges`). The resume's check of a range's end, the seams and
+the overlaps read the range's own file (`Job::held`, `assemble::bytes_at`); a preview of a partly
+fetched video is its first range's file. `DM_STAGE_BY_RANGE=1` or `0` decides instead, for tests
+(`tests/by_range.rs` runs each of its tests again in a process of its own with it) and for measuring
+the two. Not done: the parts staged on the download folder's disk (slower on a hard disk, in the
+entry below); appending a range to the finished file while the others are still fetched, as most
+ranges end together.
+
 ## 2026-11-10: The background and popup have no JavaScript; the plain scripts' rules are named in Rust
 
 At the maintainer's words of 2026-11-10 to move the extension's JavaScript into Rust and then to

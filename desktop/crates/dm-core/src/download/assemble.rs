@@ -184,7 +184,7 @@ async fn seams_agree(
         let Some(there) = span_again(client, job, index, low, high).await else {
             continue;
         };
-        let Some(here) = span_on_disk(&job.staged(), low, high - low + 1).await else {
+        let Some(here) = bytes_at(job, segments, low, high - low + 1).await else {
             continue;
         };
         if there != here {
@@ -240,7 +240,33 @@ async fn span_again(
     (bytes.len() as u64 == wanted).then(|| bytes.to_vec())
 }
 
-/// `length` bytes of the staged file from `at`.
+/// `length` bytes of the file from `at`, read from where its ranges are: the staged file, or each
+/// range's own file for the part of the span it holds. `None` where any of it is not on disk.
+async fn bytes_at(job: &Job, segments: &[Segment], at: u64, length: u64) -> Option<Vec<u8>> {
+    if !job.by_range {
+        return span_on_disk(&job.staged(), at, length).await;
+    }
+    let end = at.checked_add(length)?;
+    let mut order: Vec<usize> = (0..segments.len()).collect();
+    order.sort_by_key(|&i| segments[i].start);
+    let mut bytes = Vec::with_capacity(usize::try_from(length).ok()?);
+    for index in order {
+        let segment = &segments[index];
+        let (from, to) = (at.max(segment.start), end.min(segment.start + segment.done));
+        if from >= to {
+            continue;
+        }
+        // The ranges meet end to end; a gap before this one is bytes no range holds.
+        if from != at + bytes.len() as u64 {
+            return None;
+        }
+        let path = range_path(&job.parts, index);
+        bytes.extend(span_on_disk(&path, from - segment.start, to - from).await?);
+    }
+    (bytes.len() as u64 == length).then_some(bytes)
+}
+
+/// `length` bytes of the file at `path` from `at`.
 async fn span_on_disk(path: &Path, at: u64, length: u64) -> Option<Vec<u8>> {
     let mut file = fs::File::open(path).await.ok()?;
     file.seek(std::io::SeekFrom::Start(at)).await.ok()?;
@@ -293,7 +319,7 @@ pub(super) async fn assemble(
         let seam = segments[index].start;
         let n = lead.len() as u64;
         let disk_start = seam.saturating_sub(n);
-        let Some(on_disk) = span_on_disk(&job.staged(), disk_start, n).await else {
+        let Some(on_disk) = bytes_at(job, &segments, disk_start, n).await else {
             continue;
         };
         if on_disk != lead {
@@ -328,6 +354,27 @@ pub(super) async fn assemble(
     let length: u64 = info
         .size
         .unwrap_or_else(|| segments.iter().map(|s| s.done).sum());
+    if job.by_range {
+        /* Each range's file held to its range, in file order: an attempt that
+         * ended past where a split later cut the range left bytes after it
+         * that are the next range's. Appended into the finished file by
+         * `finish`, each freed once copied. */
+        let ranges: Vec<(PathBuf, u64)> = order
+            .iter()
+            .map(|&i| (range_path(&job.parts, i), segments[i].span()))
+            .collect();
+        drop(segments);
+        for (path, span) in &ranges {
+            fs::OpenOptions::new()
+                .write(true)
+                .open(path)
+                .await?
+                .set_len(*span)
+                .await?;
+        }
+        let parts: Vec<PathBuf> = ranges.into_iter().map(|(path, _)| path).collect();
+        return finish(&name, info.content_type.as_deref(), &parts, options).await;
+    }
     drop(segments);
     let staged = job.staged();
     fs::OpenOptions::new()
@@ -427,10 +474,12 @@ pub(crate) async fn finish(
         for note in ["plan.json", "rendition", "joined.ts.partial", REMUXED] {
             let _ = std::fs::remove_file(dir.join(note));
         }
-        // And each range's ledger, which the bytes they spoke for have left.
+        // And each range's ledger, which the bytes they spoke for have left,
+        // and a range's own file the join copied but could not free then.
         if let Ok(listing) = std::fs::read_dir(&dir) {
             for entry in listing.flatten() {
-                if entry.file_name().to_string_lossy().starts_with("done-") {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with("done-") || name.starts_with(RANGE) {
                     let _ = std::fs::remove_file(entry.path());
                 }
             }

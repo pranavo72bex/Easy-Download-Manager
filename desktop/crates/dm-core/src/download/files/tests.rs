@@ -46,3 +46,74 @@ fn a_staged_file_takes_its_room_only_as_bytes_land() {
     );
     drop(file);
 }
+
+/// A resume goes on in the layout its bytes are in, whatever the disks: an earlier run's staged
+/// file or part files keep the one staged file, and its range files keep a file a range (gaps row
+/// 166).
+#[test]
+fn a_resume_keeps_the_layout_its_bytes_are_in() {
+    let dir = tempfile::tempdir().unwrap();
+    let (parts, dest) = (dir.path().join("parts"), dir.path().join("out"));
+    std::fs::create_dir_all(&parts).unwrap();
+    std::fs::create_dir_all(&dest).unwrap();
+    std::fs::write(super::range_path(&parts, 0), b"bytes").unwrap();
+    assert!(
+        super::stage_by_range(&parts, &dest, true),
+        "its range files"
+    );
+    assert!(
+        !super::stage_by_range(&parts, &dest, false),
+        "not for a download that is not fetched by ranges"
+    );
+    for earlier in [super::STAGED, "part-0000"] {
+        std::fs::write(parts.join(earlier), b"bytes").unwrap();
+        assert!(
+            !super::stage_by_range(&parts, &dest, true),
+            "{earlier} beside them keeps the staged file"
+        );
+        std::fs::remove_file(parts.join(earlier)).unwrap();
+    }
+}
+
+/// With nothing staged, a file a range only where the download folder is on another disk.
+#[test]
+fn a_file_a_range_only_where_the_folder_is_on_another_disk() {
+    if std::env::var_os("DM_STAGE_BY_RANGE").is_some() {
+        return; // the switch decides instead, as it is meant to
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let (parts, dest) = (dir.path().join("parts"), dir.path().join("out"));
+    std::fs::create_dir_all(&parts).unwrap();
+    std::fs::create_dir_all(&dest).unwrap();
+    assert!(!super::stage_by_range(&parts, &dest, true), "one disk");
+    #[cfg(windows)]
+    {
+        // Another drive letter than the temporary folder's, as `same_disk` tells disks apart.
+        let here = dir.path().to_string_lossy().to_ascii_uppercase();
+        let other = if here.starts_with('Q') {
+            r"R:\out"
+        } else {
+            r"Q:\out"
+        };
+        let other = std::path::Path::new(other);
+        assert!(super::stage_by_range(&parts, other, true), "another disk");
+        assert!(
+            !super::stage_by_range(&parts, other, false),
+            "another disk, but no ranges to stage"
+        );
+    }
+}
+
+/// A range's file name gives its index, as a part file's and a ledger's do: `planned_segments`
+/// removes what is past the plan's last range by it.
+#[test]
+fn a_range_files_name_gives_its_index() {
+    assert_eq!(super::staged_index("range-0012"), Some(12));
+    assert_eq!(super::staged_index("done-0012"), Some(12));
+    assert_eq!(super::staged_index("part-0012"), Some(12));
+    assert_eq!(super::staged_index("staged"), None);
+    assert_eq!(
+        super::range_path(std::path::Path::new("p"), 3),
+        std::path::Path::new("p").join("range-0003")
+    );
+}

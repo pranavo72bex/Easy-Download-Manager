@@ -422,7 +422,7 @@ desktop/
   crates/dm-core/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
                           range workers, resume), http.rs, mirrors.rs, hls.rs (playlists and
-                          live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (parts, names)
+                          live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (the staged file, or a file a range where the download folder is on another disk; names)
     queue/                several downloads, a limit, and the states between: mod.rs (the state),
                           runner.rs (what starts and when), actions.rs (pause, resume, cancel,
                           remove), settings.rs, persist.rs, journal.rs (a long list saves

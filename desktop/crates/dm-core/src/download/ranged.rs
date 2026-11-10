@@ -71,11 +71,60 @@ pub(crate) fn watch(
 /// Picks up where a previous run stopped.
 pub(super) async fn adopt_staged(job: &Job) -> Result<(), Error> {
     let mut segments = job.segments.lock().await;
+    if job.by_range {
+        adopt_ranges(job, &segments).await?;
+    } else {
+        adopt_into_staged(job, &segments).await?;
+    }
+    for index in 0..segments.len() {
+        let segment = &mut segments[index];
+        /* A ledger cannot say more than its range under the plan that was
+         * recorded beside it; one that does was written by something that
+         * did not keep to the plan. Held to the range, so what is adopted
+         * is exactly what assembly will use. */
+        segment.done = job.ledger(index).min(segment.span());
+        if segment.done > 0 {
+            job.downloaded.fetch_add(segment.done, Ordering::Relaxed);
+            // Claimed, so a split never takes bytes already on disk.
+            if let Some(live) = job.live.get(index) {
+                crate::lock(live).reserved = segment.done;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Each range's ledger held to what the range's own file holds: a power cut can leave a ledger
+/// on disk while the end of the bytes it speaks for, or the whole file, is not, and reading them
+/// back for the resume's check would then fail at the file's end rather than find them missing.
+/// A ledger with no file under it vouches for nothing and goes.
+async fn adopt_ranges(job: &Job, segments: &[Segment]) -> Result<(), Error> {
+    let (dir, ranges) = (job.parts.clone(), segments.len());
+    tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+        for index in 0..ranges {
+            let Some(said) = read_ledger(&dir, index) else {
+                continue;
+            };
+            let held = std::fs::metadata(range_path(&dir, index)).map_or(0, |m| m.len());
+            if held == 0 {
+                let _ = std::fs::remove_file(ledger_path(&dir, index));
+            } else if said > held {
+                std::fs::write(ledger_path(&dir, index), format!("{held:020}"))?;
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| Error::Internal(e.to_string()))??;
+    Ok(())
+}
+
+/// Part files an earlier dm left go into the staged file first. A ledger with no staged file
+/// under it vouches for bytes that are not there.
+async fn adopt_into_staged(job: &Job, segments: &[Segment]) -> Result<(), Error> {
     let staged = job.staged();
     let ranges: Vec<(u64, u64)> = segments.iter().map(|s| (s.start, s.span())).collect();
     let (dir, had_staged) = (job.parts.clone(), staged.exists());
-    // Part files an earlier dm left go into the staged file first. A ledger
-    // with no staged file under it vouches for bytes that are not there.
     let adopted = tokio::task::spawn_blocking(move || {
         let mut adopted = Vec::new();
         for (index, &(start, span)) in ranges.iter().enumerate() {
@@ -96,29 +145,18 @@ pub(super) async fn adopt_staged(job: &Job) -> Result<(), Error> {
             ))
         })?;
     }
-    for index in 0..segments.len() {
-        let segment = &mut segments[index];
-        /* A ledger cannot say more than its range under the plan that was
-         * recorded beside it; one that does was written by something that
-         * did not keep to the plan. Held to the range, so what is adopted
-         * is exactly what assembly will use. */
-        segment.done = job.ledger(index).min(segment.span());
-        if segment.done > 0 {
-            job.downloaded.fetch_add(segment.done, Ordering::Relaxed);
-            // Claimed, so a split never takes bytes already on disk.
-            if let Some(live) = job.live.get(index) {
-                crate::lock(live).reserved = segment.done;
-            }
-        }
-    }
     Ok(())
 }
 
 /// The staged file, made as long as the file will be, so every range's
 /// region is there to be written; on most file systems the room is only
 /// taken as bytes land. Never cut: a longer staged file holds nothing a
-/// ledger vouches for past its ranges.
+/// ledger vouches for past its ranges. None where each range has a file of
+/// its own, made by its first write and grown as it is written front to back.
 pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
+    if job.by_range {
+        return Ok(());
+    }
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -644,13 +682,14 @@ async fn spot_check_segment(
 
     // What is on disk.
     let mut on_disk = vec![0u8; DATA_CHECK_SIZE as usize];
-    let open = tokio::fs::File::open(job.staged()).await;
+    let (held, origin) = job.held(index, start);
+    let open = tokio::fs::File::open(held).await;
     let Ok(mut file) = open else {
         return Ok(());
     };
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
     if file
-        .seek(std::io::SeekFrom::Start(check_start))
+        .seek(std::io::SeekFrom::Start(origin + (check_start - start)))
         .await
         .is_err()
     {
@@ -725,6 +764,8 @@ pub(super) async fn attempt_segment(
         (l.start, l.end)
     };
     let span = (end - start).saturating_add(1);
+    // The file this range's bytes are in, and where in it the range begins.
+    let (held, origin) = job.held(index, start);
     // The ledger, read fresh: what it says is on disk is what has arrived.
     let already = job.ledger(index).min(span);
     let mut ledger = job.open_ledger(index).await?;
@@ -906,13 +947,14 @@ pub(super) async fn attempt_segment(
      *
      * clippy suggests `.truncate(true)` here and it would be exactly wrong:
      * the staged file holds every range, so emptying it on any attempt
-     * would throw away the bytes of all of them. Stated explicitly so the
+     * would throw away the bytes of all of them, and a range's own file
+     * the bytes an earlier attempt left. Stated explicitly so the
      * next person to read the lint does not take its advice. */
     let file = tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(false)
-        .open(job.staged())
+        .open(&held)
         .await?;
 
     /* Buffered, because chunks arrive far smaller than a useful write.
@@ -936,9 +978,9 @@ pub(super) async fn attempt_segment(
     let mut carry = None;
     let already = if check > 0 {
         let mut tail = vec![0u8; check as usize];
-        let mut on_disk = tokio::fs::File::open(job.staged()).await?;
+        let mut on_disk = tokio::fs::File::open(&held).await?;
         on_disk
-            .seek(std::io::SeekFrom::Start(start + already - check))
+            .seek(std::io::SeekFrom::Start(origin + already - check))
             .await?;
         tokio::io::AsyncReadExt::read_exact(&mut on_disk, &mut tail).await?;
         drop(on_disk);
@@ -988,9 +1030,9 @@ pub(super) async fn attempt_segment(
                 .is_some_and(|run| run.iter().all(|&b| b == 0));
             if base > 0 && zeros_through_difference {
                 let floor = base.saturating_sub(ZERO_RUN_STEP);
-                // In the staged file, at this range's offset.
+                // In the file the range is in, at the range's place there.
                 let zeros_from =
-                    zeros_ending_at(&job.staged(), start + base, start + floor).await? - start;
+                    zeros_ending_at(&held, origin + base, origin + floor).await? - origin;
                 let cut = zeros_from - zeros_from % DISK_BLOCK;
                 if cut < base {
                     put(&mut ledger, cut).await?;
@@ -1028,8 +1070,9 @@ pub(super) async fn attempt_segment(
      * over ten downloads of eight connections than 16 KiB, and fetched 2 GB
      * over loopback no faster nor with less CPU (qa/after.md). */
     let mut file = tokio::io::BufWriter::with_capacity(16 * 1024, file);
-    // At this range's own place in the staged file.
-    file.seek(std::io::SeekFrom::Start(start + already)).await?;
+    // At this range's own place in the staged file, or in its own file.
+    file.seek(std::io::SeekFrom::Start(origin + already))
+        .await?;
 
     let mut written = already;
     // Where the free space was last looked at (`DISK_LOOK_EVERY`).

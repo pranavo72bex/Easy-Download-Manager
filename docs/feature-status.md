@@ -96,7 +96,12 @@ was removed on 2026-10-12 and is in git history.
       range at its own offset in one staged file, renamed into place when
       whole, so nothing is copied and a 4 GB download needs 4 GB (it used to
       copy every part into the finished file at the end). A test watches the
-      directory and fails at anything approaching 2x
+      directory and fails at anything approaching 2x. Where the download
+      folder is on another disk, the finish is a copy either way, so each
+      range is written front to back into a plain file of its own and the
+      ranges are appended into the finished file, each freed once copied, as
+      reference A does: on Windows that wrote and copied faster than one
+      sparse file (gaps row 166, `tests/by_range.rs`)
 
 ## Browser integration
 - [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`browser/src/decide/excluded.rs`)
