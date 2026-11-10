@@ -22,6 +22,7 @@
 #![warn(clippy::string_add, clippy::needless_for_each)]
 
 mod list;
+mod menus;
 mod port;
 mod probe;
 mod services;
@@ -176,11 +177,20 @@ fn main() {
                 })
             },
         );
-        if let Err(e) = opened {
-            eprintln!("dm-gpui: the window could not be opened: {e}");
-            cx.quit();
-            return;
-        }
+        let main = match opened {
+            Ok(main) => main,
+            Err(e) => {
+                eprintln!("dm-gpui: the window could not be opened: {e}");
+                cx.quit();
+                return;
+            }
+        };
+        // dm's menus in the system's menu bar, and every command's keys.
+        menus::bind_keys(cx);
+        menus::set(cx);
+        cx.on_action(move |run: &menus::Run, cx| {
+            let _ = main.update(cx, |view, _, cx| view.run(run.0, cx));
+        });
         if dump_accessibility && open_question(cx).is_none() {
             eprintln!("dm-gpui: the dialog's window could not be opened");
         }

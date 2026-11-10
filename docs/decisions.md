@@ -3,12 +3,16 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
-## 2026-11-10: The GPUI work is proved on macOS first
+## 2026-11-10: The GPUI work is proved on macOS first; D1 go for macOS
 
 The maintainer, 2026-11-10: "or we can skip the linux for now", then "focus on macos". The GPUI
 shell's Phase B checks and its slices are built and checked on macOS; the Windows and Linux runs
 are deferred, not dropped: owed before a phase merges into `main` (`docs/gaps.md`). The code is
 still written for all three systems, so deferring their runs defers checking, not rewriting.
+Then: "first migrate on macos, all steps, then we will move for linux. windows part will be handled
+on windows so no need to do here." Taken as D1 (go) for macOS, Phase B's check 1 having passed
+there, with D2 the recommended pin (`gpui-pre` and `gpui-pre-platform` 0.3.12); Phases C to E run
+on macOS first, Linux after, and Windows on a Windows computer.
 
 ## 2026-11-10: The GPUI window is built native to each system, and measured
 

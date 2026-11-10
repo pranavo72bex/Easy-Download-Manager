@@ -40,7 +40,7 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
 | G6  | GPUI migration, Phase B: no GPUI shell yet to decide go or no-go (screen readers in every dialog window first; software rendering under Xvfb and GPU-less Windows; B42 placement; tray; drag and drop; IME; size) | OPEN | `desktop/crates/dm-gpui` on the proposed pin, each check of `docs/migration/GPUI_MIGRATION_PLAN.md` Phase B pass or fail on macOS, Windows, X11 and Wayland; the maintainer's D1 (go) and D2 (pin) |
-| G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | BLOCKED: D1 | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
+| G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | OPEN (macOS first; D1 go for macOS, 2026-11-10) | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
 | G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | BLOCKED: D1 | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
 | G9  | GPUI migration, Phase E: parity report, the default switched, egui removed | BLOCKED: D1 | `docs/migration/EGUI_PARITY_REPORT.md` row by row; the maintainer's D5; egui, its three vendored patches and kittest removed in a change of their own |
 | 166 | `handover-check.py libreoffice` fails: "nothing started". On 2026-11-10 the page's Mac link (`a.os_macos`, the first match) is visible and topmost when measured, yet after the check's click the tab is at `libreoffice.org/download/` and no download starts, in dm or in Edge; the same with the build before G2, so not that change. The link itself is a plain 302 to a mirror's `.dmg`. Tried and dropped: choosing the first link a click reaches, an instant scroll, waiting for the link to hold still | OPEN | Find what the page does with the click (its script, or where the click lands) and make the check click as a person does; the other 18 sites hold |
@@ -152,11 +152,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   (screen readers reach OK and Cancel in the dialog's own window on macOS, Windows and Linux)
   passes, or can be made to pass by a patch to GPUI kept in `desktop/vendor/` as eframe's is;
   no-go otherwise, and then the plan stops at Phase A, which stands on its own.
-- **macOS first (maintainer, 2026-11-10: "focus on macos").** The GPUI shell's checks and slices
-  are built and proved on macOS first; Windows and Linux runs (their halves of the Phase B checks,
-  `linux-human-qa.sh`, `windows-check.sh`) wait until the maintainer brings them back, and are
-  owed before anything merges into `main`. Code stays cross-platform (no macOS-only shortcuts
-  where the others would need a rewrite).
+- **macOS first, every step (maintainer, 2026-11-10).** "First migrate on macos, all steps, then
+  we will move for linux. Windows part will be handled on windows so no need to do here. Focus on
+  macos and coding part here." So: Phases B to E are carried out and proved on macOS here (taken
+  as D1 go for macOS, with D2 the recommended pin, `gpui-pre` 0.3.12); Linux follows once macOS is
+  done; Windows (its builds, runs and checks) is done on a Windows computer, not here. The code
+  stays cross-platform. Owed before anything merges into `main`: the Linux runs, and Windows'.
 - **Native feel and speed (maintainer, 2026-11-10).** Every GPUI slice (G6 to G8) is built as
   each system's own programs behave and measured against G5's egui numbers: the plan's section
   "Native feel and speed". A contract row a native change alters is updated with its baseline in

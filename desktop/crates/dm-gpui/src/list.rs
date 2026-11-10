@@ -144,6 +144,25 @@ impl Downloads {
         }
     }
 
+    /// Carries out a command from the menu bar or a key. What the shell
+    /// cannot do yet is greyed in the menus (`menus::carried_out`), and a
+    /// key for it does nothing.
+    pub fn run(&mut self, command: dm_shell::app::commands::Command, cx: &mut Context<Self>) {
+        use dm_shell::app::commands::Command;
+        if !crate::menus::carried_out(command) {
+            return;
+        }
+        if command == Command::Quit {
+            self.backend.flush();
+            cx.quit();
+            return;
+        }
+        // The application's own verbs on the whole list need no selection.
+        let _ = dm_shell::app::commands::verb(command, &self.backend, &[], "");
+        self.read();
+        cx.notify();
+    }
+
     /// One read of the application: the rows and what follows from them.
     fn read(&mut self) {
         dm_shell::app::changes::take();
