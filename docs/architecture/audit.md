@@ -3,7 +3,10 @@
 Phase 1 of the UI-independent refactor (branch `ui-independent-architecture`,
 at `f9d071d`). I read the code and docs only: I built nothing and ran nothing.
 Paths are relative to `desktop/crates/` unless they start with `docs/` or
-`scripts/`. Line numbers are as of `f9d071d`.
+`scripts/`. Line numbers are as of `f9d071d`. A record of that day: much of
+what it lists as in the window has moved since (ARCHITECTURE.md says where
+things are now; `docs/migration/CURRENT_UI_ARCHITECTURE.md` is the audit of
+2026-11-09).
 The binding constraint throughout is `docs/behaviour-contract.md`: nothing
 proposed here may change a row.
 

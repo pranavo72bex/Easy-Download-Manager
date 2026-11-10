@@ -1,7 +1,7 @@
 # GPUI migration plan
 
-Status: **Phase 0 (audit) done, 2026-11-09, on branch `gpui-migration`. Nothing
-of the source has changed.** Next: Phase A, below.
+Status: **Phase 0 (audit) done, 2026-11-09, on branch `gpui-migration`. Phase A
+under way: A1 (docs and code agree) done 2026-11-10; A2 (a toolkit-free crate) next.**
 
 This page turns the specification the maintainer gave on 2026-11-09 ("egui → GPUI
 Migration") into steps on this repository. It rests on four audit documents:

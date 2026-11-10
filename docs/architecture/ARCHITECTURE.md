@@ -54,19 +54,33 @@ drives the application in this order each tick (the egui window does it in
 `DmApp::refresh` and `DmApp::logic`; `session.rs`'s `no_window_tests` does it
 with no window at all):
 
-1. `changes::take`, then `Session::read` (rows, what happened, the command run
-   on each finished file), then `Session::ran_dry` once for that read;
-   `Session::when_done_fires` when it ran dry.
-2. `Session::schedule_tick` after the read.
+1. `changes::take`; the inbox's order files (When done, a new download) are
+   taken; then `Session::read` (rows, what happened, the command run on each
+   finished file).
+2. `Session::schedule_tick` for that read, then `Session::ran_dry` once for
+   it, and `Session::when_done_fires` when it ran dry (the schedules first:
+   a schedule that starts downloads on this read keeps the queue from
+   counting as run dry).
 3. `Hands::next` (on `session.hands`) for each download handed over.
-4. `Session::countdown_due`, `session::delete_due`, `Session::look_at_watched`.
+4. `Session::countdown_due`, `session::delete_due` (which asks for another
+   read when it removed rows), `Session::look_at_watched`.
 5. Control requests: `control_api::refused`, then `control_api::answer`
    (and `batch`), with the presentation answering what is its own.
+
+The egui window runs `DmApp::logic` from `Window::logic`, on every pass of
+eframe's loop, painted or not (so the tick goes on while the window is in the
+tray), and again from `DmApp::ui` on a painted pass, because the window tests
+drive `DmApp::ui` alone; the second run reads only what changed in between.
+A new presentation runs the tick once per wake. Some of what happens between
+steps 3 and 5 is still the window's (hints, saved searches, the clipboard
+watch, the weekly update check): rows G3 and G1 in `docs/gaps.md`, and
+`docs/migration/CURRENT_UI_ARCHITECTURE.md` 4.2.
 
 Headless (`--headless`) still runs `DmApp::logic` against a stand-in
 `egui::Context` (decided 2026-11-08, [decisions.md](../decisions.md)): its
 `command.run` and `ui.*` answers stay exactly as they are, and every rule it
-follows is the application's. `Command` is the application's (step 15): a presentation runs the same
+follows is the application's, except the rules `docs/gaps.md` row G3 lists
+as still in `DmApp`. `Command` is the application's (step 15): a presentation runs the same
 commands, checks them with `commands::applies` and carries out the
 application's with `commands::verb`. What a row is called, imports, the
 clipboard watch and extraction are the application's too (step 16), and a
@@ -92,8 +106,9 @@ cost at 10,000 rows are in [EVENT_FLOW.md](EVENT_FLOW.md).
 
 - `Queue::new` takes a `reqwest::Client` and dm-core re-exports `reqwest`;
   `Error::Network` wraps `reqwest::Error`. A presentation never needs to name
-  them; the shell does, and the window only for the update check and a ZIP's
-  listing (kept, decisions.md 2026-11-09).
+  them; the shell does, and the window does not (the update check and a ZIP's
+  listing moved to `dm_shell::app`, step 17; `pub use reqwest` kept,
+  decisions.md 2026-11-09).
 - `Entry` carries a row's secrets (cookies, headers, a form's body), which
   its own server needs. A reader that shows or sends rows takes
   `Entry::redacted()` (the control port's `queue.list` does).

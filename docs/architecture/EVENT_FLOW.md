@@ -12,7 +12,7 @@ state change ──► Queue::save ──► Queue::on_change ──► changes:
                                                                               │
                                                        frame: logic() ◄───────┘
                                                        read now? (CHANGED, or 250 ms since the last read)
-                                                       changes::take() (QUEUE_CHANGED.store(false))
+                                                       changes::take()
                                                        Session::read: Backend::snapshot() ──► Snapshot {rows, retrying, swarms, allowance_spent}
                                                          ├─► detect::Detector: what finished / failed / started (the window's toasts, sounds, dialogs)
                                                          └─► events::Events::publish ──► each Subscription (typed DownloadEvents)
@@ -46,7 +46,9 @@ For a presentation, a script or a test that wants to know what happened to
 each download rather than draw the list, `session.events.subscribe(wake)` gives
 a `Subscription`, drained when it likes, of `DownloadEvent`s: `Added`,
 `StateChanged`, `Completed`, `Failed` (the engine's words), `Removed` and
-`Progress`. They come from the same reads as everything else (no read, no
+`Progress`. The egui window does not subscribe: it reacts to the same read's
+`Read::detected` (toasts, sounds, dialogs). The events are for a second
+presentation, scripts and tests (`session.rs`'s tests subscribe). They come from the same reads as everything else (no read, no
 events; nothing polls the engine), each read compared with the last.
 
 - **Lifecycle events are never dropped.** Each subscription keeps them in

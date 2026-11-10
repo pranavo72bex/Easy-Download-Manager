@@ -13,9 +13,10 @@
 //! every word it chooses at run time, to be in every catalog and drawable in
 //! the window's fonts.
 //!
-//! Only scripts egui draws correctly are offered: Latin and Cyrillic.
-//! Right-to-left and joined scripts (Arabic, Hindi) need text shaping egui
-//! does not do, and would be drawn wrong.
+//! Only scripts egui draws correctly are offered: Latin, Cyrillic, and
+//! Chinese, Japanese and Korean (in the computer's own fonts, which
+//! `theme::cover` finds). Right-to-left and joined scripts (Arabic, Hindi)
+//! need text shaping egui does not do, and would be drawn wrong.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};

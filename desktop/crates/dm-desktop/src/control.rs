@@ -13,9 +13,13 @@
 //! owner. Then each line is `{"id":…,"method":…,"params":{…}}` and each
 //! reply `{"id":…,"ok":true,"result":…}` or `{"id":…,"ok":false,"error":…}`.
 //!
-//! Methods: `commands.list`, `command.run {id}`, `ui.inspect`,
-//! `ui.select {ids}`, `ui.place {place}`, `queue.list`,
-//! `ui.screenshot {name}` (a PNG under `<dm home>/screenshots`).
+//! Methods: `auth`, `batch`; `commands.list`, `command.run {id}`;
+//! `queue.list`, `downloads.add`, `downloads.pause`, `downloads.resume`,
+//! `downloads.cancel`, `downloads.speed_limit`; and the window's own `ui.*`:
+//! `ui.inspect`, `ui.select {ids}`, `ui.place {place}`, `ui.texts`,
+//! `ui.click`, `ui.type`, `ui.key`, `ui.scroll`, `ui.windows`, `ui.window`,
+//! `ui.move_window`, `ui.accessibility` and `ui.screenshot {name}` (a PNG
+//! under `<dm home>/screenshots`).
 //!
 //! The token is a bearer credential with no per-method authority: keep the
 //! file private and the protocol on loopback.

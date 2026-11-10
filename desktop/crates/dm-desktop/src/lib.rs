@@ -7,8 +7,8 @@
 //!
 //! `commands` is every action by name; `app` holds the window's state and
 //! draws the frame, `table` the download list and `dialogs` the window's
-//! dialogs; `backend` is what
-//! the window asks of the queue, `format` how it says numbers, `icons` the
+//! dialogs; `backend` re-exports the application's `Backend`
+//! (`dm_shell::app::backend`), through which the window asks the queue, `format` how it says numbers, `icons` the
 //! toolbar's drawings and `update` the version check. The binary in
 //! `main.rs` adds what only a real desktop has: the tray, the login item,
 //! notifications.

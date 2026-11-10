@@ -13,7 +13,7 @@ Run in this order, before the step's commit. A step is not done until all four p
 | # | Command | Passes when |
 |---|---|---|
 | 1 | `cd desktop && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` | No diff, no warning, no failed test (about 2,135 tests on 2026-11-09) |
-| 2 | `cd desktop && cargo check --target x86_64-pc-windows-msvc -p dm-desktop` (and each new crate) | Compiles: the Windows-only code that moves in G2 and G3 is never built on the Mac otherwise |
+| 2 | `sh scripts/windows-check.sh clippy` (Docker running; every crate, all targets) | Compiles with no warning for Windows: the Windows-only code that moves in G2 and G3 is never built on the Mac otherwise (a plain `cargo check --target x86_64-pc-windows-msvc` stops at `ring`'s C, which needs the Windows headers the container carries) |
 | 3 | `cd desktop && cargo build -p dm-desktop && cd .. && sh scripts/package.sh && python3 scripts/human-qa.py` | macOS, visible window: `64 of 64 rows hold` |
 | 4 | `sh scripts/linux-human-qa.sh` (Docker running) | Debian 12 on X11, a build of the checkout: `64 of 64 rows hold` |
 

@@ -30,7 +30,7 @@ impl DmApp {
     pub fn refresh(&mut self) {
         // Before the list is read, so a change made while it is read is
         // still owed a read afterwards.
-        QUEUE_CHANGED.store(false, std::sync::atomic::Ordering::Release);
+        dm_shell::app::changes::take();
         self.take_when_done();
         self.take_new_download();
         // One read by the application (`dm_shell::app::session`): the rows,
@@ -411,7 +411,7 @@ impl DmApp {
     /// and watching the clipboard.
     pub fn logic(&mut self, ctx: &egui::Context) {
         let (read_now, look_again) = refresh_plan(
-            QUEUE_CHANGED.load(std::sync::atomic::Ordering::Acquire),
+            dm_shell::app::changes::pending(),
             self.refreshed.map(|at| at.elapsed()),
         );
         if read_now {

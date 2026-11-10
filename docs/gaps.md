@@ -14,7 +14,7 @@ and how it closes; when it closes, its row is deleted (what was done is in
 ## State (2026-11-09)
 
 The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
-can be done here; G1 to G5 come first and need no decision. The other rows need a Windows
+can be done here; G2 to G5 come first and need no decision (G1 closed 2026-11-10). The other rows need a Windows
 computer, a device or a person.
 Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
@@ -39,7 +39,6 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
-| G1  | GPUI migration, A1: the architecture docs and the code disagree in twelve places (`docs/migration/CURRENT_UI_ARCHITECTURE.md` section 9): `changes::take` never called, `schedule_tick` before `ran_dry`, `DmApp::logic` run twice per painted frame, the window never subscribing to typed events, stale comments (`i18n.rs`, `control.rs`, `lib.rs`) | OPEN | Each row made true one way or the other: the docs corrected where the code is right, the code where the docs are; `logic` once per frame only if measured to change nothing a person sees; `cargo test --workspace`, `human-qa.py` 64/64 and `linux-human-qa.sh` 64/64 |
 | G2  | GPUI migration, A2: about 7,100 lines of `dm_desktop` never touch egui (`control` but `ui.*`, `mcp`, `cli`, the `Desktop` Platform, `power`, `autostart`, `awake`, `wake`, `quiet`, `region`, `details`, `i18n` but `pick`, `format`), and a GPUI crate may not depend on `dm_desktop` | OPEN | They live in a toolkit-free crate that `cargo xtask layers` forbids egui; dm-desktop is drawing and `ui.*` only; the binary's modes byte for byte; tests and both QA runs 64/64 |
 | G3  | GPUI migration, A3: about 2,500 lines of application rules still in `DmApp` (`CURRENT_UI_ARCHITECTURE.md` 4.2): question detection (B39 to B41), pending renames, once-only schedule dates, saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the script guard, the inbox order files | OPEN | Each in `dm_shell::app` with its test, `DmApp` holding view state only; tests and both QA runs 64/64 |
 | G4  | GPUI migration, A4: the control port's `ui.*` answers (what `human-qa.py` and MCP read) are written against egui's painted shapes, not as a contract another window can implement | OPEN | A toolkit-free trait and JSON shapes fixed by tests in the shared crate, implemented by the egui window; `human-qa.py` unchanged and 64/64 |
@@ -81,8 +80,9 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
 - **The gate, after every step that touches `desktop/`, `browser/` or `extension/`**, before
   its commit (all four, in this order; report every row they print):
   1. `cd desktop && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
-  2. `cd desktop && cargo check --target x86_64-pc-windows-msvc -p dm-desktop` (the Windows-only
-     code G2 and G3 move is never built on the Mac otherwise; the target is installed)
+  2. `sh scripts/windows-check.sh clippy` (Docker running; the Windows-only code G2 and G3 move
+     is never built on the Mac otherwise; a plain `cargo check --target x86_64-pc-windows-msvc`
+     stops at `ring`'s C, which needs the Windows headers the container carries)
   3. `cd desktop && cargo build -p dm-desktop && cd .. && sh scripts/package.sh && python3 scripts/human-qa.py`
      (macOS, a visible window, about 20 minutes): 64 of 64
   4. `sh scripts/linux-human-qa.sh` (Docker running; builds the checkout in Debian): 64 of 64
@@ -95,17 +95,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
 
 ### State of each row (2026-11-09)
 
-- **G1, docs and code agree: in progress.** Done in the working tree, not yet committed:
-  `refresh()` calls `dm_shell::app::changes::take()` and `logic()` reads
-  `changes::pending()` (both were the same atomic done by hand); `ARCHITECTURE.md` gives the
-  tick order as the code runs it (inbox orders, read, `schedule_tick` before `ran_dry`, why
-  `DmApp::logic` runs from both `Window::logic` and `DmApp::ui`); `EVENT_FLOW.md` says the egui
-  window reacts to `Read::detected` and does not subscribe to typed events; `MODULE_BOUNDARIES.md`
-  and `ARCHITECTURE.md` point at G3 for the rules still in `DmApp`; `audit.md` is marked as a
-  dated record; stale comments fixed in `dm-desktop/src/lib.rs` (`backend`), `control.rs`
-  (all 24 methods), `i18n.rs` (CJK offered). Decided, not changed: `DmApp::logic` keeps running
-  twice per painted pass (the window tests drive `DmApp::ui` alone; the second run reads only
-  what changed). **Left:** the gate's result, then commit "G1: ...", delete the row.
+- **G1, docs and code agree: done** (2026-11-10). `refresh()` calls `changes::take()`, `logic()`
+  reads `changes::pending()`; the architecture docs give the tick as the code runs it; stale
+  comments fixed. Decided, not changed: `DmApp::logic` keeps running from both `Window::logic`
+  and `DmApp::ui` (the window tests drive `DmApp::ui` alone).
 - **G2, a toolkit-free crate: next.** Recommended (take it): a new crate
   `desktop/crates/dm-desktop-base` that `dm-desktop` depends on and that `cargo xtask layers`
   forbids every name in `GUI` (add it to the `crates` list and to the `match` with
