@@ -516,6 +516,9 @@ class Dm:
         # window behind the browser draws no frames on macOS, and the egui
         # window's clicks and keys wait for one (B10 and B63, 2026-11-10).
         self.call("ui.window", to="shown")
+        # Settled first: the GPUI window comes forward a moment later, and
+        # over an Add URL already open it hid it (B01, B25, B42, B44).
+        pause(0.6)
         self.click("Add URL")
         for _ in range(40):
             if "Add URL" in self.dialogs():
