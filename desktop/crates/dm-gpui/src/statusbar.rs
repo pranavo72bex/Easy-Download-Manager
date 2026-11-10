@@ -94,7 +94,7 @@ pub fn statusbar(
         .border_t_1()
         .border_color(theme.separator)
         .bg(theme.sidebar)
-        .text_xs()
+        .text_size(px(crate::native::SMALL_TEXT))
         .text_color(theme.muted)
         .children(parts(view).into_iter().map(|part| screen.label(part)))
         .when(undo, |bar| {

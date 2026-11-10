@@ -22,11 +22,11 @@ use gpui::{
     div, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
     PathPromptOptions, Role, SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
 };
-use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::input::{InputEvent, InputState};
 
 use crate::list::Downloads;
+use crate::native;
 use crate::popup::{self, Pick};
-use crate::question::button;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
 
@@ -245,22 +245,6 @@ impl Details {
     }
 }
 
-/// A label and what it labels, as a row of the dialog's form.
-fn row(label: &'static str, screen: &Screen, what: impl IntoElement) -> gpui::Div {
-    div()
-        .flex()
-        .items_center()
-        .gap_3()
-        .child(
-            div()
-                .w(px(120.0))
-                .flex()
-                .justify_end()
-                .child(screen.label(t(label))),
-        )
-        .child(div().flex_1().flex().items_center().gap_2().child(what))
-}
-
 impl Render for Details {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
@@ -308,6 +292,21 @@ impl Render for Details {
             None if page => t("Known once the video starts").into(),
             None => "—".into(),
         };
+        // A form as macOS lays one out: the labels right-aligned in a
+        // column of their own, every control (and what is said of one) in a
+        // second.
+        let width = native::label_width(&[
+            t("Category"),
+            t("Save to folder"),
+            t("Save as"),
+            t("Size"),
+            t("Note"),
+            t("Delete file after"),
+        ]);
+        let row = |label: &'static str, control: gpui::AnyElement| {
+            native::row(Some(t(label)), width, &screen, control)
+        };
+        let under = |control: gpui::AnyElement| native::row(None, width, &screen, control);
 
         div()
             .id("download-details")
@@ -323,15 +322,10 @@ impl Render for Details {
                 }
             }))
             .size_full()
-            .bg(theme.background)
-            .text_color(theme.text)
-            .text_sm()
+            .bg(theme.window)
             .child(crate::fit::fitted(
-                div()
-                    .p_5()
-                    .flex()
-                    .flex_col()
-                    .gap_2()
+                native::body(theme)
+                    // The address, as the window's subtitle says it.
                     .child(
                         div()
                             .text_color(theme.muted)
@@ -341,12 +335,15 @@ impl Render for Details {
                             .child(screen.label(format::shown_url(&first))),
                     )
                     .when(self.urls.len() > 1, |d| {
-                        d.child(screen.label(tf("and {} more", &[&(self.urls.len() - 1)])))
+                        d.child(
+                            div()
+                                .text_color(theme.muted)
+                                .child(screen.label(tf("and {} more", &[&(self.urls.len() - 1)]))),
+                        )
                     })
-                    .child(div().h(px(1.0)).my_1().bg(theme.separator))
+                    .child(div().h(px(1.0)).my(px(4.0)).bg(theme.separator))
                     .child(row(
                         "Category",
-                        &screen,
                         popup::button(
                             "category",
                             category_words,
@@ -354,53 +351,60 @@ impl Render for Details {
                             category_at,
                             theme,
                             &screen,
-                        ),
+                        )
+                        .into_any_element(),
                     ))
                     .child(row(
                         "Save to folder",
-                        &screen,
                         div()
                             .flex_1()
                             .flex()
-                            .gap_2()
+                            .items_center()
+                            .gap(px(native::LABEL_GAP))
+                            .child(div().flex_1().min_w_0().child(native::field(
+                                &self.folder,
+                                "Save to folder",
+                                theme,
+                            )))
                             .child(
-                                div().flex_1().child(
-                                    Input::new(&self.folder).aria_label(t("Save to folder")),
+                                native::button(
+                                    "browse",
+                                    t("Browse…").into(),
+                                    false,
+                                    theme,
+                                    &screen,
+                                )
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.browse(window, cx)),
                                 ),
                             )
-                            .child(
-                                button("browse", t("Browse…").into(), false, theme, &screen)
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.browse(window, cx)),
-                                    ),
-                            ),
+                            .into_any_element(),
                     ))
                     .when(single, |d| {
                         d.child(row(
                             "Save as",
-                            &screen,
                             div()
                                 .flex_1()
-                                .child(Input::new(&self.name).aria_label(t("Save as"))),
+                                .child(native::field(&self.name, "Save as", theme))
+                                .into_any_element(),
                         ))
                         .child(row(
                             "Size",
-                            &screen,
                             div()
                                 .text_color(theme.muted)
-                                .child(screen.label(size_words)),
+                                .child(screen.label(size_words))
+                                .into_any_element(),
                         ))
                     })
                     .child(row(
                         "Note",
-                        &screen,
                         div()
                             .flex_1()
-                            .child(Input::new(&self.note).aria_label(t("Note"))),
+                            .child(native::field(&self.note, "Note", theme))
+                            .into_any_element(),
                     ))
                     .child(row(
                         "Delete file after",
-                        &screen,
                         popup::button(
                             "delete-after",
                             times[time_at].0.into(),
@@ -408,101 +412,109 @@ impl Render for Details {
                             Some(time_at),
                             theme,
                             &screen,
-                        ),
+                        )
+                        .into_any_element(),
                     ))
                     .when_some(clash.clone(), |d, clash| match clash {
-                        Clash::Listed => {
-                            d.child(div().text_color(theme.warning).child(screen.label(t(
-                                "A download with this name exists. This one will be numbered.",
-                            ))))
-                        }
+                        Clash::Listed => d.child(under(
+                            native::note(
+                                t("A download with this name exists. This one will be numbered."),
+                                theme.warning,
+                                &screen,
+                            )
+                            .into_any_element(),
+                        )),
                         Clash::OnDisk { free, .. } => {
                             let replace = self.replace;
-                            d.child(div().text_color(theme.warning).child(
-                                screen.label(t("A file of that name is in the folder already.")),
+                            d.child(under(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(6.0))
+                                    .child(native::note(
+                                        t("A file of that name is in the folder already."),
+                                        theme.warning,
+                                        &screen,
+                                    ))
+                                    .child(
+                                        radio(
+                                            "keep-both",
+                                            tf("Save this one as {}", &[&free]).into(),
+                                            !replace,
+                                            theme,
+                                            &screen,
+                                        )
+                                        .on_click(
+                                            cx.listener(|this, _, _, cx| {
+                                                this.replace = false;
+                                                cx.notify();
+                                            }),
+                                        ),
+                                    )
+                                    .child(
+                                        radio(
+                                            "replace",
+                                            t("Replace that file once this one is whole").into(),
+                                            replace,
+                                            theme,
+                                            &screen,
+                                        )
+                                        .on_click(
+                                            cx.listener(|this, _, _, cx| {
+                                                this.replace = true;
+                                                cx.notify();
+                                            }),
+                                        ),
+                                    )
+                                    .into_any_element(),
                             ))
-                            .child(
-                                radio(
-                                    "keep-both",
-                                    tf("Save this one as {}", &[&free]).into(),
-                                    !replace,
-                                    theme,
-                                    &screen,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, _, cx| {
-                                        this.replace = false;
-                                        cx.notify();
-                                    },
-                                )),
-                            )
-                            .child(
-                                radio(
-                                    "replace",
-                                    t("Replace that file once this one is whole").into(),
-                                    replace,
-                                    theme,
-                                    &screen,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, _, cx| {
-                                        this.replace = true;
-                                        cx.notify();
-                                    },
-                                )),
-                            )
                         }
                     })
                     .when_some(problem, |d, why| {
-                        d.child(
-                            div()
-                                .text_color(theme.warning)
-                                .child(screen.label(file_info::problem_words(&why))),
-                        )
+                        d.child(under(
+                            native::note(file_info::problem_words(&why), theme.warning, &screen)
+                                .into_any_element(),
+                        ))
                     })
                     .when_some(self.says.clone(), |d, says| {
-                        d.child(div().text_color(theme.warning).child(screen.label(says)))
+                        d.child(under(
+                            native::note(says, theme.warning, &screen).into_any_element(),
+                        ))
                     })
-                    .child(
-                        div()
-                            .mt_2()
-                            .flex()
-                            .items_center()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                button("start", t("Start now").into(), true, theme, &screen)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.add(false, window, cx)
-                                    })),
-                            )
-                            .child(
-                                button("later", t("Add for later").into(), false, theme, &screen)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.add(true, window, cx)
-                                    })),
-                            )
-                            // "to" by itself is many words in other languages: the
-                            // key says which one.
-                            .child(
-                                screen
-                                    .label(t("queue:to").trim_start_matches("queue:").to_string()),
-                            )
-                            .child(popup::button(
-                                "queue",
-                                queue_words,
-                                queues,
-                                queue_at,
+                    // As on a Mac: Add for later, to a queue, at the leading
+                    // side; Cancel, then Start now (the default) at the end.
+                    .child(native::buttons(
+                        vec![
+                            native::button(
+                                "later",
+                                t("Add for later").into(),
+                                false,
                                 theme,
                                 &screen,
-                            ))
-                            .child(
-                                button("cancel", t("Cancel").into(), false, theme, &screen)
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.cancel(window, cx)),
-                                    ),
-                            ),
-                    ),
+                            )
+                            .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
+                            .into_any_element(),
+                            // "to" by itself is many words in other
+                            // languages: the key says which one.
+                            screen
+                                .label(t("queue:to").trim_start_matches("queue:").to_string())
+                                .into_any_element(),
+                            popup::button("queue", queue_words, queues, queue_at, theme, &screen)
+                                .into_any_element(),
+                        ],
+                        vec![
+                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.cancel(window, cx)),
+                                )
+                                .into_any_element(),
+                            native::button("start", t("Start now").into(), true, theme, &screen)
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.add(false, window, cx)),
+                                )
+                                .into_any_element(),
+                        ],
+                    )),
             ))
     }
 }
@@ -526,19 +538,22 @@ fn radio(
         })
         .flex()
         .items_center()
-        .gap_2()
+        .gap(px(6.0))
         .child(
             div()
                 .size(px(14.0))
+                .flex_none()
                 .rounded_full()
                 .border_1()
                 .border_color(theme.muted)
+                .bg(theme.field)
                 .flex()
                 .items_center()
                 .justify_center()
                 .when(on, |b| {
-                    b.bg(theme.selection)
-                        .child(div().size(px(6.0)).rounded_full().bg(theme.on_selection))
+                    b.bg(theme.accent)
+                        .border_color(theme.accent)
+                        .child(div().size(px(6.0)).rounded_full().bg(gpui::white()))
                 }),
         )
         .child(screen.label(words))

@@ -85,7 +85,8 @@ pub fn toolbar(
                 .px_2()
                 .py_1()
                 .rounded_md()
-                .text_xs()
+                // A toolbar item's label: the system's small size.
+                .text_size(px(crate::native::SMALL_TEXT))
                 .when(!enabled, |b| b.opacity(0.4))
                 .when(enabled, |b| {
                     b.hover(|s| s.bg(theme.stripe)).on_click(cx.listener(

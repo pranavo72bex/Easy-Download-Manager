@@ -86,8 +86,11 @@ the main window (B42), so dialogs are normal or floating windows with dm's own m
 
 **As built (G7, slice 4, 2026-11-10).** `dm-gpui/src/addurl.rs` (Add URL) and `details.rs`
 (Download details) are windows of their own, each its view inside gpui-component's `Root` (its
-text fields need it), as tall as what they hold (`fit.rs`); `question.rs` asks the questions as
-macOS sheets; `popup.rs` is the pop-up button whose click opens the system's own menu
+text fields need it), as tall as what they hold (`fit.rs`), built from the system's measures
+(`native.rs`: text sizes, control heights, margins, the form's label column, the order of
+buttons); `question.rs` asks the questions as macOS sheets, queued by the main view
+(`Downloads::sheet`) and opened on the main window once it is in front; `popup.rs` is the pop-up
+button whose click opens the system's own menu
 (`NativeMenu`), its choice coming back as a `Pick` action to the window's view. What each dialog
 offers and does is dm's, in dm-desktop-base for both windows (`add_url`, `file_info`, `asks`).
 A dialog that needs the main view holds a `WeakEntity<Downloads>`; a task that updates the main

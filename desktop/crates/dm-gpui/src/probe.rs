@@ -409,8 +409,23 @@ impl WindowProbe for Probe<'_, '_> {
         })
     }
 
-    fn window_to(&mut self, _: probe::WindowTo) -> Result<(), String> {
-        not_yet("ui.window")
+    fn window_to(&mut self, to: probe::WindowTo) -> Result<(), String> {
+        match to {
+            // Brought in front, dm with it, as a click on its Dock icon does.
+            probe::WindowTo::Shown => {
+                self.window.defer(self.cx, |window, cx| {
+                    cx.activate(true);
+                    window.activate_window();
+                });
+                Ok(())
+            }
+            probe::WindowTo::Minimized => {
+                self.window
+                    .defer(self.cx, |window, _| window.minimize_window());
+                Ok(())
+            }
+            probe::WindowTo::Tray => not_yet("ui.window tray"),
+        }
     }
 
     fn move_window(&mut self, _: probe::MoveWindow) -> Result<probe::Moved, String> {

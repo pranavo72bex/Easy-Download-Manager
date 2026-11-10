@@ -90,10 +90,13 @@ pub fn sidebar(
                     let chosen = place == view.place;
                     let heading = heading.map(|h| {
                         div()
+                            // A source list's section heading: small,
+                            // in the secondary colour, a little bolder.
                             .px_4()
                             .pt_3()
                             .pb_1()
-                            .text_xs()
+                            .text_size(px(crate::native::SMALL_TEXT))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
                             .text_color(theme.muted)
                             .when(!h.is_empty(), |d| d.child(screen.label(t(h))))
                     });
@@ -104,12 +107,12 @@ pub fn sidebar(
                             .aria_label(label.clone())
                             .mx_2()
                             .px_2()
-                            .h(px(24.0))
-                            .rounded_md()
+                            .h(px(26.0))
+                            .rounded(px(crate::native::RADIUS))
                             .flex()
                             .items_center()
                             .justify_between()
-                            .text_sm()
+                            .text_size(px(crate::native::TEXT))
                             .when(chosen, |d| {
                                 d.bg(theme.selection).text_color(theme.on_selection)
                             })
@@ -121,7 +124,7 @@ pub fn sidebar(
                             .child(screen.label(label))
                             .child(
                                 div()
-                                    .text_xs()
+                                    .text_size(px(crate::native::SMALL_TEXT))
                                     .when(!chosen, |d| d.text_color(theme.muted))
                                     .child(screen.label(count.to_string())),
                             ),

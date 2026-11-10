@@ -14,6 +14,7 @@ use gpui::{
     Window, WindowBounds, WindowKind, WindowOptions,
 };
 
+use crate::native;
 use crate::theme::Theme;
 
 /// What a question says and offers.
@@ -65,53 +66,21 @@ impl Question {
     }
 }
 
-/// A button on a sheet or a dialog; `default` is drawn as macOS draws the
-/// default button, in the selection colour.
-pub(crate) fn button(
-    id: impl Into<gpui::ElementId>,
-    words: SharedString,
-    default: bool,
-    theme: Theme,
-    screen: &crate::screen::Screen,
-) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .role(Role::Button)
-        .aria_label(words.clone())
-        .px_4()
-        .h(px(24.0))
-        .min_w(px(80.0))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_md()
-        .border_1()
-        .border_color(theme.separator)
-        .when(default, |b| {
-            b.bg(theme.selection).text_color(theme.on_selection)
-        })
-        .when(!default, |b| b.bg(theme.stripe))
-        .child(screen.label(words))
-}
-
-/// A check box, as the system draws one: ticked, in the selection colour
-/// with a white check mark.
-pub(crate) fn tick_box(ticked: bool, theme: Theme) -> gpui::Div {
-    div()
-        .size(px(14.0))
-        .rounded(px(3.0))
-        .border_1()
-        .border_color(theme.muted)
-        .flex()
-        .items_center()
-        .justify_center()
-        .text_size(px(10.0))
-        .when(ticked, |b| {
-            b.bg(theme.selection)
-                .border_color(theme.selection)
-                .text_color(theme.on_selection)
-                .child("✓")
-        })
+/// Where each button stands, as macOS lays out an alert's: the default
+/// (the first) rightmost, the one Escape presses beside it, the rest at the
+/// leading side; with two, both at the end, the other left of the default.
+/// Each is its place in [`Asked::buttons`].
+fn placed(count: usize, escape: usize) -> (Vec<usize>, Vec<usize>) {
+    if count <= 2 {
+        return (Vec::new(), (0..count).rev().collect());
+    }
+    let leading = (1..count).filter(|&i| i != escape).collect();
+    let trailing = if escape != 0 && escape < count {
+        vec![escape, 0]
+    } else {
+        vec![0]
+    };
+    (leading, trailing)
 }
 
 impl Render for Question {
@@ -120,6 +89,20 @@ impl Render for Question {
         let ticked = self.ticked;
         self.screen.begin();
         let screen = self.screen.clone();
+        let button = |i: usize, cx: &mut Context<Self>| {
+            native::button(
+                ("button", i),
+                self.asked.buttons[i].clone(),
+                i == 0,
+                theme,
+                &screen,
+            )
+            .on_click(cx.listener(move |this, _, window, cx| this.answer(i, window, cx)))
+            .into_any_element()
+        };
+        let (leading, trailing) = placed(self.asked.buttons.len(), self.asked.escape);
+        let leading: Vec<_> = leading.into_iter().map(|i| button(i, cx)).collect();
+        let trailing: Vec<_> = trailing.into_iter().map(|i| button(i, cx)).collect();
         div()
             .id("question")
             .role(Role::AlertDialog)
@@ -139,72 +122,48 @@ impl Render for Question {
                 }
             }))
             .size_full()
-            .bg(theme.background)
-            .text_color(theme.text)
-            .text_sm()
+            .bg(theme.window)
             .child(crate::fit::fitted(
-                div()
-                    .p_5()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
+                // As an alert says it: its title in bold at the system's
+                // size, what it explains in the small size under it.
+                native::body(theme)
                     .child(
                         div()
                             .font_weight(gpui::FontWeight::BOLD)
                             .child(screen.label(self.asked.title.clone())),
                     )
-                    .children(self.asked.lines.iter().cloned().map(|l| screen.label(l)))
-                    .when_some(self.asked.named.clone(), |d, named| {
-                        d.child(
-                            div()
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .child(screen.label(named)),
-                        )
-                    })
-                    .when_some(self.asked.detail.clone(), |d, detail| {
-                        d.child(div().font_family("Menlo").child(screen.label(detail)))
-                    })
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(6.0))
+                            .text_size(px(native::SMALL_TEXT))
+                            .children(self.asked.lines.iter().cloned().map(|l| screen.label(l)))
+                            .when_some(self.asked.named.clone(), |d, named| {
+                                d.child(
+                                    div()
+                                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                                        .child(screen.label(named)),
+                                )
+                            })
+                            .when_some(self.asked.detail.clone(), |d, detail| {
+                                d.child(div().font_family("Menlo").child(screen.label(detail)))
+                            }),
+                    )
                     .when_some(self.asked.toggle.clone(), |d, toggle| {
                         d.child(
-                            div()
-                                .id("toggle")
-                                .role(Role::CheckBox)
-                                .aria_label(toggle.clone())
-                                .aria_toggled(if ticked {
-                                    gpui::Toggled::True
-                                } else {
-                                    gpui::Toggled::False
-                                })
-                                .flex()
-                                .items_center()
-                                .gap_2()
-                                .on_click(cx.listener(|this, _, _, cx| {
+                            native::checkbox("toggle", toggle, ticked, theme, &screen).on_click(
+                                cx.listener(|this, _, _, cx| {
                                     this.ticked = !this.ticked;
                                     if let Some(reword) = &this.reword {
                                         this.asked = reword(this.ticked);
                                     }
                                     cx.notify();
-                                }))
-                                .child(tick_box(ticked, theme))
-                                .child(screen.label(toggle)),
+                                }),
+                            ),
                         )
                     })
-                    .child(
-                        div().mt_2().flex().justify_end().gap_2().children(
-                            self.asked
-                                .buttons
-                                .iter()
-                                .cloned()
-                                .enumerate()
-                                .map(|(i, words)| {
-                                    button(("button", i), words, i == 0, theme, &screen).on_click(
-                                        cx.listener(move |this, _, window, cx| {
-                                            this.answer(i, window, cx)
-                                        }),
-                                    )
-                                }),
-                        ),
-                    ),
+                    .child(native::buttons(leading, trailing)),
             ))
     }
 }
@@ -246,4 +205,21 @@ pub fn ask(asked: Asked, reword: Option<Reword>, answer: Answer, cx: &mut App) -
         },
     )
     .is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::placed;
+
+    #[test]
+    fn the_default_stands_rightmost_and_cancel_beside_it_as_on_a_mac() {
+        // Yes / No: No, then Yes at the end.
+        assert_eq!(placed(2, 0), (vec![], vec![1, 0]));
+        assert_eq!(placed(1, 0), (vec![], vec![0]));
+        // Show it, Download again, Replace the old file, Cancel (Escape's):
+        // the other two at the leading side, Cancel beside Show it.
+        assert_eq!(placed(4, 3), (vec![1, 2], vec![3, 0]));
+        // Escape the default itself: the rest leading.
+        assert_eq!(placed(3, 0), (vec![1, 2], vec![0]));
+    }
 }

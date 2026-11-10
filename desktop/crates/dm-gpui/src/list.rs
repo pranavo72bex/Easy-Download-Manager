@@ -43,7 +43,7 @@ fn in_own_window<R>(
 }
 
 /// The rows' height, in points.
-pub(crate) const ROW_HEIGHT: f32 = 26.0;
+pub(crate) const ROW_HEIGHT: f32 = 24.0;
 
 /// How often a window with nothing moving wakes of its own accord.
 const IDLE: Duration = Duration::from_secs(30);
@@ -91,6 +91,16 @@ pub struct Downloads {
     renames: dm_shell::app::names::PendingRenames,
     /// A question is being asked: the next waits for its answer.
     asking: bool,
+    /// The main window: a sheet is opened on it alone.
+    main: gpui::AnyWindowHandle,
+    /// Questions waiting to be asked as sheets, one at a time.
+    sheets: std::collections::VecDeque<(
+        crate::question::Asked,
+        Option<crate::question::Reword>,
+        crate::question::Answer,
+    )>,
+    /// A sheet is open on the main window.
+    sheet_open: bool,
 }
 
 impl Downloads {
@@ -124,6 +134,9 @@ impl Downloads {
             asks: Default::default(),
             renames: Default::default(),
             asking: false,
+            main: window.window_handle(),
+            sheets: Default::default(),
+            sheet_open: false,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -135,6 +148,14 @@ impl Downloads {
         // queue changes one read a quarter of a second later.
         // Redrawn in the system's colours when the person switches between
         // light and dark.
+        // A question waiting for the main window is asked once it is in
+        // front again.
+        cx.observe_window_activation(window, |this, window, cx| {
+            if window.is_window_active() {
+                this.show_sheets(cx);
+            }
+        })
+        .detach();
         cx.observe_window_appearance(window, |_, window, cx| {
             // The text fields and menus (gpui-component's) follow too.
             gpui_component::Theme::sync_system_appearance(Some(window), cx);
@@ -390,7 +411,7 @@ impl Downloads {
                 view.answer_duplicate(address, id, how, cx);
             });
         });
-        crate::question::ask(asked, None, answer, cx);
+        self.sheet(asked, None, answer, cx);
     }
 
     /// Carries out an answer to "Already in the list", asked or remembered
@@ -483,7 +504,8 @@ impl Downloads {
                 cx.notify();
             });
         });
-        self.asking = crate::question::ask(asked, None, answer, cx);
+        self.sheet(asked, None, answer, cx);
+        self.asking = true;
     }
 
     /// Carries out the answer to a question a download raised: `yes` the
@@ -523,6 +545,41 @@ impl Downloads {
             }
         }
         cx.quit();
+    }
+
+    /// Asks `asked` as a sheet on the main window, after any question
+    /// already asked. macOS opens a sheet on whichever window is main: with
+    /// Add URL in front the question went with Add URL as it closed, and
+    /// with dm in the background it was never shown, so a question waits
+    /// until the main window is in front.
+    pub fn sheet(
+        &mut self,
+        asked: crate::question::Asked,
+        reword: Option<crate::question::Reword>,
+        answer: crate::question::Answer,
+        cx: &mut Context<Self>,
+    ) {
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, ticked, cx| {
+            answer(button, ticked, cx);
+            let _ = view.update(cx, |view, cx| {
+                view.sheet_open = false;
+                view.show_sheets(cx);
+            });
+        });
+        self.sheets.push_back((asked, reword, answer));
+        self.show_sheets(cx);
+    }
+
+    /// Opens the next waiting question, when none is open and the main
+    /// window is in front.
+    fn show_sheets(&mut self, cx: &mut Context<Self>) {
+        while !self.sheet_open && cx.active_window() == Some(self.main) {
+            let Some((asked, reword, answer)) = self.sheets.pop_front() else {
+                return;
+            };
+            self.sheet_open = crate::question::ask(asked, reword, answer, cx);
+        }
     }
 
     /// Whether `command` can be run now: the shell carries it out, and it
@@ -681,7 +738,7 @@ impl Downloads {
                 });
             }
         });
-        crate::question::ask(asked, Some(Box::new(words)), answer, cx);
+        self.sheet(asked, Some(Box::new(words)), answer, cx);
     }
 
     /// The rows `ids` taken off the list, their finished `files` with them
@@ -902,7 +959,8 @@ impl Render for Downloads {
             }))
             .bg(theme.background)
             .text_color(theme.text)
-            .text_sm()
+            // The system's size for a list's rows and every control.
+            .text_size(gpui::px(crate::native::TEXT))
             .child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
             .child(
                 div()

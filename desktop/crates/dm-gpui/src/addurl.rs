@@ -15,9 +15,10 @@ use gpui::{
     div, prelude::*, px, size, App, Bounds, Context, Entity, KeyDownEvent, Role, SharedString,
     WeakEntity, Window, WindowBounds, WindowOptions,
 };
-use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::input::{InputEvent, InputState};
 
 use crate::list::Downloads;
+use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
@@ -104,14 +105,40 @@ impl Render for AddUrl {
         self.screen.begin();
         let screen = self.screen.clone();
         let authorize = self.authorize;
-        let field = |label: &'static str, input: &Entity<InputState>, screen: &Screen| {
-            div()
-                .flex()
-                .items_center()
-                .gap_2()
-                .child(div().w(px(80.0)).child(screen.label(t(label))))
-                .child(div().flex_1().child(Input::new(input)))
-        };
+        // A form as macOS lays one out: the labels right-aligned in a
+        // column of their own, every control in a second.
+        let labels = [t("Address"), t("Recent"), t("Login"), t("Password")];
+        let width = native::label_width(&labels);
+        let recent = (!self.recent.is_empty()).then(|| {
+            let shown: Vec<SharedString> = self
+                .recent
+                .iter()
+                .map(|u| dm_desktop_base::format::shown_url(u).into())
+                .collect();
+            // Addresses added here before, to pick again, and a way to
+            // forget them.
+            native::row(
+                Some(t("Recent")),
+                width,
+                &screen,
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(native::BUTTON_GAP))
+                    .child(popup::button(
+                        "recent",
+                        SharedString::default(),
+                        shown,
+                        None,
+                        theme,
+                        &screen,
+                    ))
+                    .child(
+                        native::button("forget", t("Clear history").into(), false, theme, &screen)
+                            .on_click(cx.listener(|this, _, _, cx| this.forget(cx))),
+                    ),
+            )
+        });
         div()
             .id("add-url")
             .role(Role::Dialog)
@@ -125,103 +152,66 @@ impl Render for AddUrl {
                 }
             }))
             .size_full()
-            .bg(theme.background)
-            .text_color(theme.text)
-            .text_sm()
+            .bg(theme.window)
             .child(crate::fit::fitted(
-                div()
-                    .p_5()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
-                    .child(field("Address", &self.address, &screen))
-                    // Addresses added here before, to pick again, and a way to
-                    // forget them.
-                    .when(!self.recent.is_empty(), |d| {
-                        let shown: Vec<SharedString> = self
-                            .recent
-                            .iter()
-                            .map(|u| dm_desktop_base::format::shown_url(u).into())
-                            .collect();
-                        d.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap_2()
-                                .child(div().w(px(80.0)).child(screen.label(t("Recent"))))
-                                .child(popup::button(
-                                    "recent",
-                                    SharedString::default(),
-                                    shown,
-                                    None,
-                                    theme,
-                                    &screen,
-                                ))
-                                .child(
-                                    crate::question::button(
-                                        "forget",
-                                        t("Clear history").into(),
-                                        false,
-                                        theme,
-                                        &screen,
-                                    )
-                                    .on_click(cx.listener(|this, _, _, cx| this.forget(cx))),
-                                ),
-                        )
-                    })
-                    .child(
-                        div()
-                            .id("authorize")
-                            .role(Role::CheckBox)
-                            .aria_label(t("Needs a sign-in"))
-                            .aria_toggled(if authorize {
-                                gpui::Toggled::True
-                            } else {
-                                gpui::Toggled::False
-                            })
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.authorize = !this.authorize;
-                                cx.notify();
-                            }))
-                            .child(crate::question::tick_box(authorize, theme))
-                            .child(screen.label(t("Needs a sign-in"))),
-                    )
-                    .when(authorize, |d| {
-                        d.child(field("Login", &self.login, &screen)).child(field(
-                            "Password",
-                            &self.password,
+                native::body(theme)
+                    .child(native::row(
+                        Some(t("Address")),
+                        width,
+                        &screen,
+                        native::field(&self.address, "Address", theme),
+                    ))
+                    .children(recent)
+                    .child(native::row(
+                        None,
+                        width,
+                        &screen,
+                        native::checkbox(
+                            "authorize",
+                            t("Needs a sign-in").into(),
+                            authorize,
+                            theme,
                             &screen,
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.authorize = !this.authorize;
+                            cx.notify();
+                        })),
+                    ))
+                    .when(authorize, |d| {
+                        d.child(native::row(
+                            Some(t("Login")),
+                            width,
+                            &screen,
+                            native::field(&self.login, "Login", theme),
+                        ))
+                        .child(native::row(
+                            Some(t("Password")),
+                            width,
+                            &screen,
+                            native::field(&self.password, "Password", theme),
                         ))
                     })
                     .when_some(self.says.clone(), |d, says| {
-                        d.child(div().text_color(theme.warning).child(screen.label(says)))
+                        d.child(native::row(
+                            None,
+                            width,
+                            &screen,
+                            native::note(says, theme.warning, &screen),
+                        ))
                     })
-                    .child(
-                        div()
-                            .mt_2()
-                            .flex()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                crate::question::button("ok", t("OK").into(), true, theme, &screen)
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.ok(window, cx)),
-                                    ),
-                            )
-                            .child(
-                                crate::question::button(
-                                    "cancel",
-                                    t("Cancel").into(),
-                                    false,
-                                    theme,
-                                    &screen,
-                                )
-                                .on_click(cx.listener(|this, _, window, _| this.cancel(window))),
-                            ),
-                    ),
+                    // The default rightmost, Cancel beside it, as on a Mac.
+                    .child(native::buttons(
+                        Vec::new(),
+                        vec![
+                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
+                                .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
+                                .into_any_element(),
+                            native::button("ok", t("OK").into(), true, theme, &screen)
+                                .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
+                                .into_any_element(),
+                        ],
+                    )),
             ))
     }
 }

@@ -27,6 +27,7 @@ mod details;
 mod fit;
 mod list;
 mod menus;
+mod native;
 mod popup;
 mod port;
 mod probe;

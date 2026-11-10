@@ -34,23 +34,35 @@ pub fn button(
     theme: Theme,
     screen: &Screen,
 ) -> gpui::Stateful<gpui::Div> {
+    use crate::native::{CONTROL, RADIUS, TEXT};
     div()
         .id(field)
         .role(Role::ComboBox)
         .aria_label(words.clone())
-        .h(px(22.0))
-        .min_w(px(120.0))
-        .px_2()
+        .h(px(CONTROL))
+        .min_w(px(100.0))
+        .pl(px(9.0))
+        .pr(px(5.0))
         .flex()
+        .flex_none()
         .items_center()
         .justify_between()
-        .gap_2()
-        .rounded_md()
+        .gap(px(8.0))
+        .rounded(px(RADIUS))
         .border_1()
-        .border_color(theme.separator)
-        .bg(theme.stripe)
+        .border_color(theme.control_border)
+        .bg(theme.control)
+        .text_size(px(TEXT))
+        .whitespace_nowrap()
         .child(screen.label(words))
-        .child(div().text_color(theme.muted).child("⌄"))
+        // The system's up-and-down chevrons, at the trailing end.
+        .child(
+            gpui::svg()
+                .path("icons/chevron-up-down.svg")
+                .size(px(11.0))
+                .flex_none()
+                .text_color(theme.muted),
+        )
         .on_click(move |event, window, cx| {
             open(field, &choices, chosen, event.position(), window, cx)
         })

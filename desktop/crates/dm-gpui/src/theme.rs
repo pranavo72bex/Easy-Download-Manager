@@ -33,6 +33,17 @@ pub struct Theme {
     pub menu: Rgba,
     /// What a dialog says is wrong: the system's red.
     pub warning: Rgba,
+    /// A control's face: a push button's, a pop-up's.
+    pub control: Rgba,
+    /// A control's edge, where the system draws one (light).
+    pub control_border: Rgba,
+    /// A text field's inside.
+    pub field: Rgba,
+    /// A dialog's, a sheet's and the window's own background
+    /// (`NSColor.windowBackgroundColor`); `background` is a list's.
+    pub window: Rgba,
+    /// The default button's face: the system's accent.
+    pub accent: Rgba,
 }
 
 impl Theme {
@@ -64,6 +75,15 @@ impl Theme {
                 menu: rgb(0x2c2c2c),
                 // NSColor.systemRed, dark.
                 warning: rgb(0xff453a),
+                // Measured on macOS's own dialog, dark: a push button is
+                // white at 8% over the window, with no edge; a text field
+                // nearly black; the window #2e2c2b (tinted by the
+                // wallpaper; untinted, #2d2d2d).
+                control: rgba(0xffffff14),
+                control_border: rgba(0x00000000),
+                field: rgb(0x1a1a1a),
+                window: rgb(0x2d2d2d),
+                accent: rgb(0x007aff),
             },
             WindowAppearance::Light | WindowAppearance::VibrantLight => Theme {
                 background: rgb(0xffffff),
@@ -76,6 +96,11 @@ impl Theme {
                 on_selection: rgb(0xffffff),
                 menu: rgb(0xf6f6f6),
                 warning: rgb(0xff3b30),
+                control: rgb(0xffffff),
+                control_border: rgba(0x00000026),
+                field: rgb(0xffffff),
+                window: rgb(0xececec),
+                accent: rgb(0x007aff),
             },
         }
     }

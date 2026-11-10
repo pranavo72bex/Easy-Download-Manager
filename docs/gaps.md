@@ -186,7 +186,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   about a name the server never sent, fixed for both windows (`names::address_file_name`). Quit
   is the application's (⌘Q from a dialog in front too, as on every Mac), and Exit closes the
   dialogs first: macOS held its terminate while a sheet asked, so a logout or `kill` waited on an
-  unanswered question. Slice 4 still owes, in the GPUI window: B02's video Quality and Part, the
+  unanswered question. The dialogs, sheets and main window take AppKit's measures, taken from the
+  system's own dialog (`native.rs`: 13 and 11-point text, 24-point controls, 20-point margins,
+  forms with a label column, the default button rightmost); a question is asked on dm's own
+  window once it is in front (it went with Add URL as Add URL closed, and was never shown while
+  dm was in the background). `human-qa.py` 64/64 on macOS for the egui window at 1711002.
+  Slice 4 still owes, in the GPUI window: B02's video Quality and Part, the
   Playlist window (a playlist address is only said in the status bar), a ZIP's files, a caught
   download's "From …" and "Always save here without asking", and the question to start outside
   the schedule; and for `human-qa.py`, a way for the port to choose in a pop-up (the system's

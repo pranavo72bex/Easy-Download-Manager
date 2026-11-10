@@ -85,7 +85,7 @@ pub fn menu(
                     .rounded(px(4.0))
                     .flex()
                     .items_center()
-                    .text_sm()
+                    .text_size(px(crate::native::TEXT))
                     .when(!enabled, |d| d.text_color(theme.muted).opacity(0.6))
                     .when(enabled, |d| {
                         d.hover(|s| s.bg(theme.selection).text_color(theme.on_selection))

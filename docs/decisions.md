@@ -3,6 +3,35 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: GPUI dialogs take AppKit's measures and macOS's order of buttons
+
+The maintainer, 2026-11-10, looking at the GPUI dialogs: "margin padding is also off. fix it on
+macos too". Every GPUI dialog and sheet is built from one set of measures (`dm-gpui/src/native.rs`),
+AppKit's regular controls: 13-point system text, 11 for what is said under a control and an
+alert's informative text; a text field, a push button and a pop-up all 22 points tall; 20 points
+from the window's edges, 8 between rows and from a label to its control, 12 between buttons. A
+form is laid out as macOS lays one: the labels right-aligned in a column of their own, every
+control, check box and warning in a second. A row of buttons is in macOS's order: the default
+rightmost, the button Escape presses beside it, any other action at the leading side (Download
+details: Add for later to a queue at the left; Cancel, then Start now, at the right; a question's
+Yes / No reads No, Yes). The main window takes the same sizes: rows and the side panel's places at
+13 points, rows 24 points tall; toolbar labels, column headings, section headings and the status
+bar at 11. The words are unchanged. B02 and B42 list buttons in the egui window's order; their rows
+change for the GPUI window on macOS when it becomes the default (D5), in that commit, naming this
+word, as for the sheets. Dropped: gpui-component's own sizes (32-point fields, 14-point text),
+which read as a web page's form beside the system's pop-ups. The measures were taken from the
+system's own dialog on this Mac (`display dialog` with a text field, measured pixel by pixel):
+push buttons and fields 24 points tall, OK and Cancel 80 points wide, 12 between them, 20 from the
+window's edges, corners of 5 points, a dark dialog's background #2e2c2b (tinted by the wallpaper)
+and its push button white at 8% with no edge, the default button #007aff.
+
+A question is asked as a sheet on dm's main window only, once that window is in front
+(`Downloads::sheet`): GPUI begins a sheet on whichever window AppKit calls main, so "Already in the
+list", asked as Add URL closed, went with Add URL, and a question raised while dm was in the
+background (a 404 while the person is in the browser) was never shown, and every later question
+waited behind it. A question waits, in order, and is asked when the main window is activated, as
+a Mac program's alert waits for its person to come back.
+
 ## 2026-11-10: GPUI pickers open the system's menu; dialogs fit what they hold; loops use their own window
 
 Under the maintainer's native word of 2026-11-10. A picker in a GPUI dialog (Download details'

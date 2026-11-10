@@ -42,6 +42,8 @@ const ICONS: &[(&str, &[u8])] = icons!(
     "kind-archives",
     "kind-pictures",
     "kind-other",
+    // A pop-up button's, as the system draws one (up and down).
+    "chevron-up-down",
 );
 
 /// The pictures compiled into dm.
