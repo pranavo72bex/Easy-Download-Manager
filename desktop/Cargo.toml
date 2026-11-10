@@ -7,7 +7,7 @@
 # rather than the place the logic hides.
 [workspace]
 resolver = "2"
-members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop-base", "crates/dm-desktop", "xtask"]
+members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop-base", "crates/dm-desktop", "crates/dm-gpui", "xtask"]
 # A patched copy, used through [patch.crates-io], not a member.
 exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/eframe"]
 

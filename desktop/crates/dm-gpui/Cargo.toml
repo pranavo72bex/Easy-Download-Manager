@@ -1,0 +1,28 @@
+[package]
+name = "dm-gpui"
+version = "0.9.0"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+description = "dm — the GPUI window (Phase B shell, docs/migration/GPUI_MIGRATION_PLAN.md)"
+publish = false
+
+# The GPUI window, beside the egui one until it holds every contract row
+# (docs/gaps.md G6 to G9). It uses dm-core, dm-shell and dm-desktop-base,
+# never dm-desktop. Pinned together: docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1.
+[[bin]]
+name = "dm-gpui"
+path = "src/main.rs"
+
+[dependencies]
+dm-core = { path = "../dm-core" }
+dm-shell = { path = "../dm-shell" }
+dm-desktop-base = { path = "../dm-desktop-base" }
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "runtime_shaders"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["wayland", "x11"] }
+[target.'cfg(windows)'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }

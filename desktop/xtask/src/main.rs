@@ -293,6 +293,10 @@ const GUI: &[&str] = &[
     "rfd",
     "notify-rust",
     "arboard",
+    // GPUI, under the names dm's manifests give it (docs/gaps.md G6).
+    "gpui",
+    "gpui_platform",
+    "gpui-component",
 ];
 const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 
@@ -304,6 +308,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-desktop/Cargo.toml",
+        "desktop/crates/dm-gpui/Cargo.toml",
         "browser/Cargo.toml",
     ]
     .iter()
@@ -329,6 +334,12 @@ fn layers() -> Result<(), String> {
             // may use it, so it uses none.
             "dm-desktop-base" => (&["dm-core", "dm-protocol", "dm-shell"], true, false),
             "dm-desktop" => (
+                &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
+                false,
+                false,
+            ),
+            // The GPUI window (docs/gaps.md G6): never the egui one.
+            "dm-gpui" => (
                 &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
                 false,
                 false,
@@ -364,6 +375,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-desktop/src",
+        "desktop/crates/dm-gpui/src",
         "browser/src",
     ] {
         for file in walk(&root.join(dir)) {
@@ -447,6 +459,7 @@ fn privacy() -> Result<(), String> {
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-desktop/src",
+        "desktop/crates/dm-gpui/src",
         "browser/src",
         "extension",
     ] {

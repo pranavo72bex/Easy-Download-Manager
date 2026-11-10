@@ -121,7 +121,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
 - **G5, egui's own costs: done** (2026-11-10). `scripts/ui-bench.py`; egui's numbers at 100,
   1,000 and 10,000 rows are in `GPUI_TEST_PLAN.md` section 4 (release build, M1, macOS 27).
   Linux and Windows numbers come with G6, measured the same way beside GPUI's.
-- **G6, the GPUI shell: next.** Recommended pin (D2):
+- **G6, the GPUI shell: in progress.** `desktop/crates/dm-gpui` (binary `dm-gpui`) on the pins
+  opens its main window on macOS, type-checks for Windows and builds on Linux (2026-11-10;
+  `GPUI_TEST_PLAN.md` section 5's findings). Next: the theme and the tick (`changes::subscribe`
+  waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
+  checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,
   `gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }` (macOS features
   `font-kit`, `runtime_shaders`; Linux `wayland`, `x11`; Windows none),

@@ -102,6 +102,23 @@ PLATFORM_GAP_ANALYSIS.md section 11.
 
 D1 (go): check 1 passes on all four, or a patch to GPUI kept in `desktop/vendor/` makes it pass.
 
+Findings so far (2026-11-10, `desktop/crates/dm-gpui` on `gpui-pre` and `gpui-pre-platform`
+0.3.12, the pins of GPUI_DEPENDENCY_DECISION.md 3.1 without `gpui-component` yet):
+
+- **Builds.** macOS (Rust 1.99.1, Apple M1): `cargo build -p dm-gpui` in 1 min 34 s from cold;
+  the window opens with macOS's own title bar and buttons, titled "dm". Windows:
+  `windows-check.sh clippy` type-checks the workspace with dm-gpui, no warning (not linked or
+  run). Linux: Debian 12 (`dm-linux-check`, aarch64) builds once `libfontconfig-dev`,
+  `libfreetype-dev`, `libxkbcommon-dev`, `libxkbcommon-x11-dev`, `libwayland-dev`,
+  `libxcb1-dev`, `libx11-xcb-dev` and `libvulkan-dev` are installed; the binary links `libxcb`,
+  `libxkbcommon` and `libxkbcommon-x11` (the rest is loaded at run time). These go into the
+  image and the `.deb`'s `depends` when the shell is packaged (check 7).
+- **Layers and privacy.** `cargo xtask layers` knows dm-gpui (dm-core, dm-protocol, dm-shell,
+  dm-desktop-base, never dm-desktop) and forbids `gpui`, `gpui_platform` and `gpui-component`
+  to every crate that is not a window; the privacy check finds no crate in GPUI's tree that
+  reports anywhere.
+
+
 ## 6. Tests that move
 
 | Today | Count (2026-11-09) | Where they go |
