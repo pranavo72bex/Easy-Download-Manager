@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use dm_core::{Entry, Id, State};
 
-use super::names::provisional;
+use super::names::address_file_name;
 
 /// A question a row raised.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,7 +85,7 @@ impl Questions {
             // person has said yes to saving as an HTML page, which is named so.
             let typed_in = row.referrer.is_empty() && !row.accept_page;
             if was_unnamed && !row.filename.is_empty() && !chosen && typed_in && fresh < 2 {
-                let address_name = provisional(&row.url);
+                let address_name = address_file_name(&row.url);
                 if row.filename != address_name
                     && without_copy_number(&row.filename) != address_name
                 {
@@ -215,7 +215,7 @@ mod tests {
             questions.next(|_| true),
             Some(Question::Name {
                 id: 1,
-                address_name: provisional("http://e.com/get?id=7"),
+                address_name: "get".into(),
                 server_name: "report.pdf".into(),
             })
         );
@@ -232,6 +232,35 @@ mod tests {
                 State::Failed("answered 404".into()),
             ),
         ]);
+        assert_eq!(questions.next(|_| true), None);
+    }
+
+    #[test]
+    fn a_query_address_is_named_by_its_last_segment_and_no_name_sent_asks_nothing() {
+        // B39's own example: the address names the file "dl", the server
+        // "Report 2026.pdf".
+        let mut questions = Questions::default();
+        questions.watch(&[]);
+        questions.watch(&[row(1, "http://e.com/dl?id=7", "", State::Queued)]);
+        questions.watch(&[row(
+            1,
+            "http://e.com/dl?id=7",
+            "Report 2026.pdf",
+            State::Running,
+        )]);
+        assert_eq!(
+            questions.next(|_| true),
+            Some(Question::Name {
+                id: 1,
+                address_name: "dl".into(),
+                server_name: "Report 2026.pdf".into(),
+            })
+        );
+        // A server that sends no name: the engine names it by the address,
+        // and nothing was sent to ask about (it asked "the name was
+        // e.com/plain?id=7, but the server sent plain").
+        questions.watch(&[row(2, "http://e.com/plain?id=7", "", State::Queued)]);
+        questions.watch(&[row(2, "http://e.com/plain?id=7", "plain", State::Running)]);
         assert_eq!(questions.next(|_| true), None);
     }
 

@@ -70,6 +70,30 @@ pub fn provisional(url: &str) -> String {
     }
 }
 
+/// The name the address itself gives the file, as the engine names it when
+/// the server sends none: its last path segment, decoded (a magnet's `dn`).
+/// What B39 sets against the server's name, and what No saves it as; not
+/// `provisional`, which shows a script's page by its short address
+/// (`example.com/dl?id=7`), a row's label rather than a file's name.
+pub fn address_file_name(url: &str) -> String {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return url.to_string();
+    };
+    if parsed.scheme() == "magnet" {
+        return provisional(url);
+    }
+    let last = parsed
+        .path_segments()
+        .and_then(|mut s| s.next_back().map(str::to_owned))
+        .unwrap_or_default();
+    let last = percent_decode(&last);
+    if last.is_empty() {
+        host(url)
+    } else {
+        last
+    }
+}
+
 fn percent_decode(text: &str) -> String {
     url::form_urlencoded::parse(format!("x={}", text.replace('+', "%2B")).as_bytes())
         .next()

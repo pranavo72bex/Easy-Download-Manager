@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: "Name sent by the server" (B39) named the address's file as the list shows a script's page, `example.com/dl?id=7`, where it is `dl`, as the contract says; and it asked about a name the server never sent ("the name was example.com/plain?id=7, but the server sent plain"), which dm had taken from the address itself. It now sets the server's name against the address's own file name, and No saves the file under that name.
 - Tools: `scripts/ui-bench.py` measures the window through the control port (start to first frame, idle CPU, memory, scrolling, Find, CPU with 20 downloads) at 100, 1,000 and 10,000 rows (GPUI migration step A5).
 - Inside, no change to what a person sees: the control port's window methods (`ui.*`, what `human-qa.py` and the MCP tools use) are a contract with fixed answers that any window can implement (GPUI migration step A4).
 - Inside, no change to what a person sees: the rules the window still kept (the questions a download raises, renames, once-only schedule dates, saved searches' timing, the weekly update check's stamp, one-time hints, the script guard, adding and Undo's bookkeeping, and more) are the application layer's, each with a test of its own (GPUI migration step A3).
