@@ -26,6 +26,7 @@ mod list;
 mod menus;
 mod port;
 mod probe;
+mod rowmenu;
 mod screen;
 mod services;
 mod sidebar;

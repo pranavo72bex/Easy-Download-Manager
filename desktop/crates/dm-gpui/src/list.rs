@@ -61,6 +61,8 @@ pub struct Downloads {
     pub(crate) selected: std::collections::BTreeSet<dm_core::Id>,
     /// Where a ⇧-click's range starts: the row last clicked alone.
     anchor: Option<dm_core::Id>,
+    /// The row menu, open where it was asked for.
+    menu: Option<gpui::Point<gpui::Pixels>>,
 }
 
 impl Downloads {
@@ -88,6 +90,7 @@ impl Downloads {
             sort: None,
             selected: Default::default(),
             anchor: None,
+            menu: None,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -276,6 +279,24 @@ impl Downloads {
         }
     }
 
+    /// A right-click on the row at `position`, at `at`: the row is chosen
+    /// if it was not (a right-click on a chosen row keeps the choice), and
+    /// the row menu opens there.
+    pub fn open_menu(&mut self, position: usize, at: gpui::Point<gpui::Pixels>) {
+        if let Some(id) = self.id_at(position) {
+            if !self.selected.contains(&id) {
+                self.selected = [id].into();
+                self.anchor = Some(id);
+            }
+            self.menu = Some(at);
+        }
+    }
+
+    /// Closes the row menu.
+    pub fn close_menu(&mut self) {
+        self.menu = None;
+    }
+
     /// Moves the choice one row up (`-1`) or down (`1`), as the arrow keys
     /// do, keeping the row on screen.
     pub fn step(&mut self, by: isize) {
@@ -449,5 +470,8 @@ impl Render for Downloads {
                     ),
             )
             .child(crate::statusbar::statusbar(self, theme, &screen))
+            .when_some(self.menu, |root, at| {
+                root.child(crate::rowmenu::menu(self, at, theme, &screen, cx))
+            })
     }
 }

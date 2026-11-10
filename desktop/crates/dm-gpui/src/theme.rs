@@ -29,6 +29,8 @@ pub struct Theme {
     pub selection: Rgba,
     /// Text on the chosen item.
     pub on_selection: Rgba,
+    /// A menu's background.
+    pub menu: Rgba,
 }
 
 impl Theme {
@@ -57,6 +59,7 @@ impl Theme {
                 // NSColor.selectedContentBackgroundColor with the blue accent.
                 selection: rgb(0x0a5fd8),
                 on_selection: rgb(0xffffff),
+                menu: rgb(0x2c2c2c),
             },
             WindowAppearance::Light | WindowAppearance::VibrantLight => Theme {
                 background: rgb(0xffffff),
@@ -67,6 +70,7 @@ impl Theme {
                 sidebar: rgb(0xf0f0f0),
                 selection: rgb(0x0064e1),
                 on_selection: rgb(0xffffff),
+                menu: rgb(0xf6f6f6),
             },
         }
     }

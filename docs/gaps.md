@@ -159,8 +159,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   Slice 3 under way: every command the application carries out by itself (`commands::verb`: Resume,
   Stop, Download again, the queue moves, Resume all, Stop all, Delete completed, Start and Stop
   Queue, When done) runs from the toolbar, the menu bar, its keys and `command.run`, enabled as
-  `commands::applies` says for the rows chosen. Next in slice 3: the row's context menu, Remove
-  (with its question and Undo), Copy link; the commands that open a dialog come with slices 4 to 8 (`changes::subscribe`
+  `commands::applies` says for the rows chosen; and the row menu (right-click or Control-click, the
+  egui row menu's items and words, drawn as a macOS context menu). Next in slice 3: Remove (with its
+  question and Undo), Copy link and Copy details (the clipboard through GPUI's), then the commands
+  that open a dialog with slices 4 to 8 (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

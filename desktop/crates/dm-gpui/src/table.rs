@@ -251,7 +251,22 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .flex()
                         .when(chosen, |r| r.bg(background).text_color(theme.text))
                         .when(!chosen && i % 2 == 1, |r| r.bg(theme.stripe))
+                        .on_mouse_down(
+                            gpui::MouseButton::Right,
+                            cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
+                                view.open_menu(i, event.position);
+                                cx.notify();
+                            }),
+                        )
                         .on_click(cx.listener(move |view, event: &gpui::ClickEvent, _, cx| {
+                            // A Control-click is a right-click on macOS.
+                            if event.modifiers().control && cfg!(target_os = "macos") {
+                                if let Some(at) = event.mouse_position() {
+                                    view.open_menu(i, at);
+                                    cx.notify();
+                                    return;
+                                }
+                            }
                             let held = event.modifiers();
                             view.click_row(i, held.platform || held.control, held.shift);
                             cx.notify();
