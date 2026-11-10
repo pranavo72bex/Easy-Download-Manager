@@ -14,7 +14,7 @@ and how it closes; when it closes, its row is deleted (what was done is in
 ## State (2026-11-09)
 
 The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
-can be done here; G5 comes first and needs no decision (G1 to G4 closed 2026-11-10). The other rows need a Windows
+can be done here: G6, the GPUI shell (G1 to G5, Phase A, closed 2026-11-10). The other rows need a Windows
 computer, a device or a person.
 Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
@@ -39,7 +39,6 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
-| G5  | GPUI migration, A5: no baseline of the egui window's own costs at 100 / 1,000 / 10,000 rows (start to first frame, idle CPU, memory, frame time with 20 downloads, scroll and search) | OPEN | A script that measures through the control port only, its egui numbers recorded in `docs/migration/GPUI_TEST_PLAN.md` |
 | G6  | GPUI migration, Phase B: no GPUI shell yet to decide go or no-go (screen readers in every dialog window first; software rendering under Xvfb and GPU-less Windows; B42 placement; tray; drag and drop; IME; size) | OPEN | `desktop/crates/dm-gpui` on the proposed pin, each check of `docs/migration/GPUI_MIGRATION_PLAN.md` Phase B pass or fail on macOS, Windows, X11 and Wayland; the maintainer's D1 (go) and D2 (pin) |
 | G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | BLOCKED: D1 | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
 | G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | BLOCKED: D1 | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
@@ -119,15 +118,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   JSON. The egui window implements it (`app/human.rs`'s `Probe`); `ui.screenshot` stays in
   `answer_control` (its answer comes when the frame's pixels do). `human-qa.py` unchanged, both QA
   runs 64/64 at 7cf34db.
-- **G5, egui's own costs: in progress.** `scripts/ui-bench.py` written (2026-11-10); its egui
-  run on a release build is next. As planned: `scripts/ui-bench.py`,
-  using only the control port (so it measures a GPUI window the same way): a home seeded
-  with 100, 1,000 and 10,000 rows (as `stress-check.py window` seeds them), then start to
-  first `ui.texts` answer, idle CPU over 60 s (`ps`), memory (`memory-check.py`'s sampling),
-  `ui.scroll` and Find (`ui.type` into the search box) latency, and the window's CPU with 20
-  downloads running against a local server. Release build, three runs, medians. Record in a
-  new `docs/migration/GPUI_TEST_PLAN.md` as the egui baseline.
-- **G6, the GPUI shell: after G2 to G5.** Recommended pin (D2):
+- **G5, egui's own costs: done** (2026-11-10). `scripts/ui-bench.py`; egui's numbers at 100,
+  1,000 and 10,000 rows are in `GPUI_TEST_PLAN.md` section 4 (release build, M1, macOS 27).
+  Linux and Windows numbers come with G6, measured the same way beside GPUI's.
+- **G6, the GPUI shell: next.** Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,
   `gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }` (macOS features
   `font-kit`, `runtime_shaders`; Linux `wayland`, `x11`; Windows none),

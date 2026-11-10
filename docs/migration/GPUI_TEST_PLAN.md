@@ -55,19 +55,28 @@ checked first, in G6 (section 5, check 2), because every Linux row above depends
 
 ## 4. Performance: the egui baseline (G5) and the GPUI comparison (G6, G7)
 
-Measured by `scripts/ui-bench.py` (to write in G5) through the control port only, so that the
-same script measures either window. Release build, a home of its own seeded with N rows (as
-`stress-check.py window` seeds them), three runs, medians.
+Measured by `scripts/ui-bench.py` through the control port only, so that the same script
+measures either window: release build, a home seeded once with N rows (added for later, against a
+local server) and copied for each run, three runs, medians. Each figure's method is in the
+script's opening comment.
+
+egui, measured 2026-11-10 at 794799c (`cargo build --release -p dm-desktop`, 18.0 MB binary), on a
+MacBook Air M1 (MacBookAir10,1), macOS 27.0.1, a visible window:
 
 | Measure | How | egui, N = 100 | 1,000 | 10,000 | GPUI |
 |---|---|---|---|---|---|
-| Start to first answered `ui.texts` | wall clock from spawn | | | | |
-| Idle CPU, 60 s, nothing running | `ps` samples | | | | |
-| Memory at rest | `memory-check.py`'s sampling | | | | |
-| CPU with 20 downloads against a local server | `ps` samples over 60 s | | | | |
-| `ui.scroll` 10 pages, answered | per call | | | | |
-| Find: type 5 letters, rows filtered | `ui.type` into the search box, then `ui.texts` | | | | |
-| Open and close Options | `command.run`, then `ui.windows` | | | | |
+| Start to first drawn frame | spawn to the first `ui.texts` with words | 0.33 s | 0.37 s | 0.44 s | |
+| Idle CPU, 60 s, nothing running | `ps` CPU time, % of one core | 0.2 % | 0.3 % | 1.3 % | |
+| Resident at rest | `ps` rss after the idle spell | 113 MB | 119 MB | 136 MB | |
+| Footprint at rest | macOS `footprint` | 80 MB | 80 MB | 93 MB | |
+| `ui.scroll` 10 lines | until the words on screen change | 0.03 s | 0.04 s | 0.05 s | |
+| Find the last row | Cmd-F, its name typed, Find next, until it is selected | 0.12 s | 0.13 s | 0.36 s | |
+| CPU with 20 downloads at 1 MB/s each | `ps` CPU time over 30 s, % of one core | 12.0 % | 7.6 % | 27.5 % | |
+
+What the numbers say for GPUI: idle CPU and the busy share grow with the list (the egui window
+lays the visible table out each frame, and each read compares every row), so the GPUI table is
+held to doing work for visible rows only (G7 slice 2); Find at 10,000 rows is a third of a
+second, the application's `next_match` over every name.
 
 Known figures to compare with: the application layer's tick at 10,000 rows is 2.8 ms
 (`EVENT_FLOW.md`); a 5,060-row window answered a call in a median 3 ms, worst 19 ms (Linux,

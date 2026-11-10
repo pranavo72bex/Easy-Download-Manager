@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Tools: `scripts/ui-bench.py` measures the window through the control port (start to first frame, idle CPU, memory, scrolling, Find, CPU with 20 downloads) at 100, 1,000 and 10,000 rows (GPUI migration step A5).
 - Inside, no change to what a person sees: the control port's window methods (`ui.*`, what `human-qa.py` and the MCP tools use) are a contract with fixed answers that any window can implement (GPUI migration step A4).
 - Inside, no change to what a person sees: the rules the window still kept (the questions a download raises, renames, once-only schedule dates, saved searches' timing, the weekly update check's stamp, one-time hints, the script guard, adding and Undo's bookkeeping, and more) are the application layer's, each with a test of its own (GPUI migration step A3).
 - Inside, no change to what a person sees: what the desktop program does that is not drawing (the system's services, the login item, the control port, MCP, the command line, the words and numbers, and the application's `Platform`) is a crate of its own, `dm-desktop-base`, with no window toolkit, so a second window can use it (GPUI migration step A2); the translations moved with it to `desktop/crates/dm-desktop-base/i18n`.
