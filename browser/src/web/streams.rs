@@ -99,29 +99,54 @@ async fn read_track(tab: i64, url: &str, requester: &str) {
     keep_streams(tab).await;
 }
 
-/// A form a page sent (its body, as `background.js` read it): kept a moment
-/// by address, in memory, for a download that is its answer.
+/// A request a page's frame is sending (`webRequest.onBeforeRequest`, handed on whole by
+/// `background.js`): a form it posts is kept a moment by address, in memory, for a download that
+/// is its answer. Which bodies, and how they are written down, is `decide::posted_body`.
 #[wasm_bindgen]
-pub fn on_form_sent(details: JsValue) {
-    let got = from_js(&details);
-    let Some(url) = got.get("url").and_then(|u| u.as_str()) else {
+pub fn on_before_request(details: JsValue) {
+    let Some(url) = get(&details, "url").as_string() else {
         return;
     };
-    let text = |key: &str| {
-        got.get(key)
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string()
-    };
-    let post = dm_protocol::Posted {
-        form: text("form"),
-        raw: text("raw"),
-        content_type: String::new(),
-    };
-    if post.form.is_empty() && post.raw.is_empty() {
+    let method = get(&details, "method").as_string().unwrap_or_default();
+    let body = get(&details, "requestBody");
+    if method != "POST" || !body.is_object() {
         return;
     }
-    FORMS.with(|f| f.borrow_mut().keep(url, post, now()));
+    // The fields as the browser parsed them: each name with its list of values, in order.
+    let form = get(&body, "formData");
+    let fields: Option<Vec<(String, String)>> = form.is_object().then(|| {
+        js_sys::Object::entries(&form.unchecked_into())
+            .iter()
+            .flat_map(|entry| {
+                let entry: js_sys::Array = entry.unchecked_into();
+                let name = entry.get(0).as_string().unwrap_or_default();
+                let values: js_sys::Array = js_sys::Array::from(&entry.get(1));
+                values
+                    .iter()
+                    .map(|value| {
+                        let value = js_sys::JsString::from(value)
+                            .as_string()
+                            .unwrap_or_default();
+                        (name.clone(), value)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    });
+    // Else the raw body, in the parts the browser gives it in; a part with no bytes (a file the
+    // form uploads) is left out.
+    let raw = get(&body, "raw");
+    let parts: Option<Vec<Vec<u8>>> = js_sys::Array::is_array(&raw).then(|| {
+        js_sys::Array::from(&raw)
+            .iter()
+            .map(|part| get(&part, "bytes"))
+            .filter(|bytes| bytes.is_object())
+            .map(|bytes| js_sys::Uint8Array::new(&bytes).to_vec())
+            .collect()
+    });
+    if let Some(post) = decide::posted_body(&method, fields.as_deref(), parts.as_deref()) {
+        FORMS.with(|f| f.borrow_mut().keep(&url, post, now()));
+    }
 }
 
 /// A request the browser is sending, read for its headers (never changed:

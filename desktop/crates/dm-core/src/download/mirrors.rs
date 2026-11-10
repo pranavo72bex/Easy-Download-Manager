@@ -63,7 +63,12 @@ pub(super) async fn planned_segments(
     // One range a connection: as few requests as there are connections, so
     // a server that limits how fast requests may come (nginx's 429) is not
     // met with a burst; the halving below shares the work out as it goes.
-    let segments = plan::plan(info.size, options.connections, info.resumable);
+    // As many as open at once: the connections added past them halve these (`ranged::grow`).
+    let segments = plan::plan(
+        info.size,
+        options.connections.min(OPENED_AT_ONCE),
+        info.resumable,
+    );
     let (dir, size, resumable, validator, written) = (
         options.parts_dir.clone(),
         info.size,

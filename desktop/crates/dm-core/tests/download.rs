@@ -734,6 +734,11 @@ async fn a_paused_download_stops_and_keeps_what_it_had() {
 /// `qa/after.md`).
 #[tokio::test]
 async fn ranges_are_written_in_place_and_finishing_copies_nothing() {
+    // On one disk, as here; `DM_STAGE_BY_RANGE=1` takes the layout of a download going to
+    // another disk instead, a file a range (`tests/by_range.rs`).
+    if std::env::var("DM_STAGE_BY_RANGE").as_deref() == Ok("1") {
+        return;
+    }
     let body = bytes(12 * MB);
     let (addr, _) = serve(Mode::Honest, body.clone()).await;
     let dir = tempdir();

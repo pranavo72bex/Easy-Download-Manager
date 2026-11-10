@@ -10,9 +10,9 @@
 #   sh scripts/package.sh --build    build extension/pkg only, for loading
 #                                    extension/ unpacked
 #
-# The extension is Rust (browser/), compiled to WebAssembly, plus the loader
-# and manifests in extension/. wasm-bindgen turns the build into the module
-# the loader imports, and its CLI must be exactly the version of the
+# The extension is Rust (browser/), compiled to WebAssembly, plus the page
+# scripts and manifests in extension/. wasm-bindgen turns the build into the
+# module the background and the popup import, and its CLI must be exactly the version of the
 # wasm-bindgen crate in browser/Cargo.lock — a mismatch is refused at load
 # time, in the browser, with an error nobody sees — so it is checked here and
 # installed if it is missing or different.
@@ -99,19 +99,30 @@ pathlib.Path(sys.argv[2]).write_text(
     + "__dmPanelCode.catch(() => {});\n})();\n")
 PY
 rm -rf "$panel"
-# The digest of the WebAssembly, in a module the background imports beside the
-# glue. A browser keeps an unpacked extension's worker scripts (background.js,
-# the glue, this) from when the extension was loaded, but fetches the .wasm from
-# the folder each time the worker starts: after a rebuild in place it paired old
-# glue with new WebAssembly and failed with "wasm.__wasm_bindgen_func_elem_… is
-# not a function" (gaps row 114). The background compares the bytes it fetched
-# with this digest and reloads the extension when they differ.
-"$py" - "$pkg/dm_catcher_bg.wasm" "$pkg/build.js" <<'PY'
-import hashlib, pathlib, sys
-digest = hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
-pathlib.Path(sys.argv[2]).write_text(
-    "// Built by scripts/package.sh: the SHA-256 of dm_catcher_bg.wasm from the same build.\n"
-    + f"export const WASM_SHA256 = '{digest}';\n")
+# The background and the popup, started by two scripts written here: the extension has no
+# JavaScript of its own for them (gaps row 169). The background's WebAssembly is written into its
+# script and started at once (initSync), so the listeners Rust registers (web/listen.rs) are there
+# on the worker's first turn, as Manifest V3 requires; and a rebuild in place cannot pair this glue
+# with another build's WebAssembly, which the background once fetched apart from it (gaps row 114).
+"$py" - "$pkg" <<'PY'
+import base64, pathlib, sys
+pkg = pathlib.Path(sys.argv[1])
+data = base64.b64encode((pkg / "dm_catcher_bg.wasm").read_bytes()).decode()
+(pkg / "background.js").write_text(
+    "// Built by scripts/package.sh: starts the extension's background, which is Rust (browser/src)\n"
+    + "// compiled to WebAssembly, with the WebAssembly written in here.\n"
+    + "import * as dm from './dm_catcher.js';\n"
+    + "const text = atob('" + data + "');\n"
+    + "const bytes = new Uint8Array(text.length);\n"
+    + "for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);\n"
+    + "dm.initSync({ module: bytes });\n"
+    + "dm.background_start();\n"
+    + "// For a test harness attached to the worker; nothing in the extension uses it.\n"
+    + "globalThis.dmReady = Promise.resolve(dm);\n")
+(pkg / "popup.js").write_text(
+    "// Built by scripts/package.sh: starts the toolbar popup, which is Rust (browser/src/popup.rs).\n"
+    + "import init, { popup_start } from './dm_catcher.js';\n"
+    + "init().then(() => popup_start()).catch((e) => console.error('dm:', e));\n")
 PY
 echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAssembly"
 
@@ -121,7 +132,7 @@ echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAss
 
 # Everything the browser loads, listed rather than globbed so nothing stray
 # ships; the check below compares it with what the manifests name.
-files="background.js content.js document.js popup.html popup.js pkg icons"
+files="content.js document.js popup.html pkg icons"
 
 # Built beside the folder and swapped in whole: a browser with dist/chrome
 # loaded as an unpacked extension (a developer's, or a tester's) restarts the
@@ -148,14 +159,14 @@ pack() {
 
   # Every file a manifest names must be in what ships, and so must the
   # module the loader imports and the WebAssembly that module fetches.
-  for named in $(sed -n 's/.*"\(icons\/[^"]*\)".*/\1/p; s/.*"\(background\.js\)".*/\1/p; s/.*"\(content\.js\)".*/\1/p; s/.*"\(document\.js\)".*/\1/p; s/.*"\(popup\.html\)".*/\1/p' "$stage/manifest.json") \
-               popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js pkg/build.js; do
+  for named in $(sed -n 's/.*"\(icons\/[^"]*\)".*/\1/p; s/.*"\(pkg\/background\.js\)".*/\1/p; s/.*"\(content\.js\)".*/\1/p; s/.*"\(document\.js\)".*/\1/p; s/.*"\(popup\.html\)".*/\1/p' "$stage/manifest.json") \
+               pkg/popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js pkg/background.js; do
     if [ ! -f "$stage/$named" ]; then
       echo "the $browser build is missing $named" >&2
       exit 1
     fi
   done
-  if find "$stage" -name '*.js' | grep -v -e '/background.js$' -e '/content.js$' -e '/document.js$' -e '/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' -e '/pkg/build.js$' >/dev/null; then
+  if find "$stage" -name '*.js' | grep -v -e '/content.js$' -e '/document.js$' -e '/pkg/background.js$' -e '/pkg/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' >/dev/null; then
     echo "the $browser build carries JavaScript that is neither the loader nor wasm-bindgen's" >&2
     exit 1
   fi

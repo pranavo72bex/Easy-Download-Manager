@@ -71,6 +71,144 @@ pub(in crate::download) async fn slow_enough_to_help(
     }
 }
 
+/// What [`grow`] has decided for the connections past `OPENED_AT_ONCE`: how many of them may
+/// work now, and whether it has done deciding (those still waiting are then not needed).
+#[derive(Debug, Clone, Copy, Default)]
+pub(in crate::download) struct Gate {
+    pub(in crate::download) allowed: usize,
+    pub(in crate::download) closed: bool,
+}
+
+/// How long the first connections run before the rate they bring is measured.
+const GROW_START: Duration = Duration::from_millis(250);
+
+/// The window a rate is measured over.
+const GROW_WINDOW: Duration = Duration::from_secs(1);
+
+/// The longest wait for the added connections' first bytes before the rate is measured anyway:
+/// a slow link takes some round trips to answer a new request.
+const GROW_FIRST_BYTES: Duration = Duration::from_secs(3);
+
+/// After the added connections' first bytes, before the rate is measured: a moment for them to
+/// come up to speed.
+const GROW_SETTLE: Duration = Duration::from_millis(250);
+
+/// How much of what each connection brought on average an added connection must add to the
+/// whole to be kept. A server that shares one rate among them all gives nearly nothing; one that
+/// holds each connection down gives a whole connection's worth.
+const GROW_SHARE: f64 = 0.5;
+
+/// How much of the file must be left, at the rate seen, for another connection to be worth
+/// opening and judging.
+const GROW_WORTH_SECS: f64 = 2.0;
+
+/// How long after connections were taken back more are tried again, doubling each time: a
+/// server's or a link's limit can change, and one window can misjudge.
+const GROW_AGAIN: Duration = Duration::from_secs(10);
+
+/// Lets in the `grown` connections past `OPENED_AT_ONCE` only while they raise the rate, as
+/// reference A treats its number of connections as a ceiling (gaps row 168): one, then twice as
+/// many each time the last ones added each raised the total by [`GROW_SHARE`] of what a
+/// connection brought; the last ones are taken back when they did not, and finish the pieces they
+/// hold. Done once the connections opened at once are (`wave_over`), or too little is left.
+pub(in crate::download) async fn grow(
+    job: Arc<Job>,
+    grown: usize,
+    gate: tokio::sync::watch::Sender<Gate>,
+    active: Arc<AtomicUsize>,
+    mut wave_over: tokio::sync::watch::Receiver<bool>,
+) {
+    tokio::select! {
+        () = growing(&job, grown, &gate, &active) => {}
+        _ = wave_over.wait_for(|over| *over) => {}
+    }
+    gate.send_modify(|g| g.closed = true);
+}
+
+async fn growing(
+    job: &Job,
+    grown: usize,
+    gate: &tokio::sync::watch::Sender<Gate>,
+    active: &AtomicUsize,
+) {
+    let Some(size) = job.size else { return };
+    tokio::time::sleep(GROW_START).await;
+    let mut before = rate_over(job).await;
+    let (mut allowed, mut batch, mut again) = (0usize, 1usize, GROW_AGAIN);
+    loop {
+        let left = size.saturating_sub(job.downloaded.load(Ordering::Relaxed)) as f64;
+        if left == 0.0 || allowed >= grown {
+            return;
+        }
+        // Nothing arrived over the window (a link gone quiet): looked at again.
+        if before <= 0.0 {
+            before = rate_over(job).await;
+            continue;
+        }
+        if left / before < GROW_WORTH_SECS {
+            return;
+        }
+        let at_work = active.load(Ordering::SeqCst).max(1);
+        let added = batch.min(grown - allowed);
+        let flowing = job.flowing.load(Ordering::SeqCst);
+        allowed += added;
+        gate.send_modify(|g| g.allowed = allowed);
+        let asked = tokio::time::Instant::now();
+        while job.flowing.load(Ordering::SeqCst) < flowing + added
+            && asked.elapsed() < GROW_FIRST_BYTES
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        tokio::time::sleep(GROW_SETTLE).await;
+        let after = rate_over(job).await;
+        if raised(before, after, at_work, added) {
+            before = after;
+            batch *= 2;
+            continue;
+        }
+        allowed -= added;
+        gate.send_modify(|g| g.allowed = allowed);
+        batch = 1;
+        tokio::time::sleep(again).await;
+        again *= 2;
+        before = rate_over(job).await;
+    }
+}
+
+/// Whether `added` connections beside `at_work` raised the rate from `before` to `after` by
+/// [`GROW_SHARE`] of what each connection brought before, each.
+fn raised(before: f64, after: f64, at_work: usize, added: usize) -> bool {
+    let each = before / at_work.max(1) as f64;
+    after - before >= GROW_SHARE * each * added as f64
+}
+
+/// The rate bytes arrive at over the next [`GROW_WINDOW`], in bytes a second.
+async fn rate_over(job: &Job) -> f64 {
+    let (from, had) = (
+        tokio::time::Instant::now(),
+        job.downloaded.load(Ordering::Relaxed),
+    );
+    tokio::time::sleep(GROW_WINDOW).await;
+    let got = job.downloaded.load(Ordering::Relaxed).saturating_sub(had);
+    got as f64 / from.elapsed().as_secs_f64().max(f64::EPSILON)
+}
+
+/// A request counted among those bringing bytes in (`Job::flowing`) while it lives.
+pub(in crate::download) struct Flowing<'a>(&'a AtomicUsize);
+
+impl<'a> Flowing<'a> {
+    pub(in crate::download) fn new(count: &'a AtomicUsize) -> Self {
+        count.fetch_add(1, Ordering::SeqCst);
+        Flowing(count)
+    }
+}
+
+impl Drop for Flowing<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 /// How long a connection is watched before it is judged against the rest.
 const STALL_WINDOW: Duration = Duration::from_secs(5);
 
@@ -154,9 +292,23 @@ fn behind(all: u64, mine: u64, connections: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::behind;
+    use super::{behind, raised};
 
     const MB: u64 = 1024 * 1024;
+
+    #[test]
+    fn a_connection_is_kept_only_where_it_raised_the_whole() {
+        // Each held to 1 MiB/s: eight bring 8, nine 9.
+        assert!(raised(8.0, 9.0, 8, 1));
+        // Then two more, four more.
+        assert!(raised(9.0, 11.0, 9, 2));
+        assert!(raised(11.0, 15.0, 11, 4));
+        // One rate shared among them all: the ninth takes from the others.
+        assert!(!raised(8.0, 8.1, 8, 1));
+        assert!(!raised(8.0, 7.6, 8, 1));
+        // Two added that brought one connection's worth between them.
+        assert!(!raised(8.0, 8.9, 8, 2));
+    }
 
     #[test]
     fn a_connection_far_behind_its_peers_is_dropped_however_many_there_are() {

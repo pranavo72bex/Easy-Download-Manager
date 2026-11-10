@@ -38,7 +38,7 @@ was removed on 2026-10-12 and is in git history.
 - [x] Edge checks for the seven magnet variants and a master playlist's line (`DM_NO_SWARM` keeps the check's torrents off the network)
 - [x] Served site rules name a title element (`SiteProfile::title`, `Rules::title_for`, `content.js` `dmTitleRule`)
 - [x] "Download links" as reference A's: Save to column and choice, Hide images, Hide repeated files, Edit (`dialogs/links.rs`, `LinksImport::visible`, `SaveTo`)
-- [x] Who opens magnet links and `.torrent` files, shown in Options › Browser on Windows, with Use dm (the other program's keys kept by `reg export`) and Give back (`register.rs` `magnet_owner`, `take_magnet_windows`, `give_back_magnet_windows`); a copied link taken at once where that is on (`app/clipboard.rs`)
+- [x] Who opens magnet links and `.torrent` files, shown in Options › Browser on Windows, with Use dm (the other program's keys kept by `reg export`) and Give back (`register.rs` `magnet_owner`, `take_magnet_windows`, `give_back_magnet_windows`); a magnet opened through dm's key becomes a row in the running dm (`dm-desktop/tests/magnet_registry.rs`, run on Windows 11 on 2026-11-10); a copied link taken at once where that is on (`app/clipboard.rs`)
 - [x] Windows: dm listed in Settings › Default apps for magnet links and `.torrent` files, with ProgIds of its own, taking nothing from another program (`register.rs` `default_apps_keys`, `list_in_default_apps`, `unlist_from_default_apps`; tests `dm_is_listed_in_default_apps_with_keys_of_its_own_alone`, `taken_out_of_default_apps_only_dms_own_keys_are_deleted`); not yet seen in Windows' Settings by a person
 - [x] macOS: `magnet:` links and `.torrent` files open dm (Info.plist `CFBundleURLTypes` and `CFBundleDocumentTypes`; `opened.rs` takes the `GURL` and `odoc` Apple events from the event manager once AppKit says the app will finish launching; `shell::opened_by_system`, tested in `shell/tests.rs`). Clicked on a Mac with dm.app installed in /Applications on 2026-11-07: a magnet and a `.torrent` each started a download, with dm closed and with it running (gaps row 105, closed)
 - [x] Torrents: peers connected and known and the bytes sent in the progress window; files chosen in Properties (`only_files`), those left out not moved in; a peer blocklist in Options › Advanced › BitTorrent, fetched through the proxy, failing closed (`torrent.rs` `Swarm`, `TorrentFile`, `blocklist_file`; `tests/torrent_features.rs`)
@@ -96,7 +96,12 @@ was removed on 2026-10-12 and is in git history.
       range at its own offset in one staged file, renamed into place when
       whole, so nothing is copied and a 4 GB download needs 4 GB (it used to
       copy every part into the finished file at the end). A test watches the
-      directory and fails at anything approaching 2x
+      directory and fails at anything approaching 2x. Where the download
+      folder is on another disk, the finish is a copy either way, so each
+      range is written front to back into a plain file of its own and the
+      ranges are appended into the finished file, each freed once copied, as
+      reference A does: on Windows that wrote and copied faster than one
+      sparse file (gaps row 166, `tests/by_range.rs`)
 
 ## Browser integration
 - [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`browser/src/decide/excluded.rs`)

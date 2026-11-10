@@ -316,6 +316,14 @@ pub const MAGNET_MESSAGE: &str = "dm.magnet";
 /// the browser opens it as it would have where the app cannot.
 pub const INLINE_MESSAGE: &str = "dm.inline";
 
+/// The page script asking for the panel's code once its page shows media: the background puts
+/// [`PANEL_FILE`] into the asking frame itself (an `import()` from the page was checked against
+/// the page's origin, and Brave refused it on YouTube).
+pub const PANEL_LOAD_MESSAGE: &str = "dm.panel-load";
+
+/// The panel's code with its WebAssembly, as `scripts/package.sh` builds it.
+pub const PANEL_FILE: &str = "pkg/panel.js";
+
 /// The address a plain click on an inline file asks the app to take.
 pub fn inline_url(click: &PanelClick) -> Result<String, String> {
     if click.kind != INLINE_MESSAGE {

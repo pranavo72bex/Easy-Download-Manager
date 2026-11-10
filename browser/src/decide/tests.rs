@@ -64,11 +64,14 @@ fn the_panel_is_put_in_by_the_browser_and_fetched_from_no_page() {
     // panel's file; the page itself never loads anything of the extension's
     // (Brave refused that on YouTube), so no manifest offers a file to pages.
     let content = include_str!("../../../extension/content.js");
-    let background = include_str!("../../../extension/background.js");
     assert!(!content.contains("import("));
     assert!(!content.contains("getURL('pkg/"));
-    assert!(background.contains("'dm.panel-load'"));
-    assert!(background.contains("files: ['pkg/panel.js']"));
+    assert!(content.contains(&format!("'{PANEL_LOAD_MESSAGE}'")));
+    // Answered in Rust (web/page.rs), with the file scripts/package.sh builds (gaps row 169).
+    assert!(include_str!("../web/page.rs").contains("decide::PANEL_LOAD_MESSAGE"));
+    assert!(
+        include_str!("../../../scripts/package.sh").contains(&format!("$pkg/{}", &PANEL_FILE[4..]))
+    );
     for manifest in [
         include_str!("../../../extension/manifest.json"),
         include_str!("../../../extension/manifest.firefox.json"),
@@ -2668,4 +2671,112 @@ fn whole_files_by_ranges_are_not_lines_beside_a_manifest_nor_change_a_plain_mp4(
         "bytes 10-20/30000",
     );
     assert!(stream_seen(&tiny).is_none());
+}
+
+#[test]
+fn a_posted_form_is_kept_as_the_browser_would_send_it_again() {
+    let fields = |pairs: &[(&str, &str)]| -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(n, v)| (n.to_string(), v.to_string()))
+            .collect()
+    };
+    // Fields as URLSearchParams writes them: a space as +, *-._ and alphanumerics as they are,
+    // every other byte of the UTF-8 as %XX.
+    let sent = posted_body(
+        "POST",
+        Some(&fields(&[("a b", "c&d"), ("é", "~*'()-._")])),
+        None,
+    )
+    .unwrap();
+    assert_eq!(sent.form, "a+b=c%26d&%C3%A9=%7E*%27%28%29-._");
+    assert_eq!(sent.raw, "");
+    // A name given twice keeps both values, in order.
+    let twice = posted_body("POST", Some(&fields(&[("k", "1"), ("k", "2")])), None).unwrap();
+    assert_eq!(twice.form, "k=1&k=2");
+    // A raw body, in base64 as btoa writes it, from the parts the browser gives.
+    let raw = posted_body("POST", None, Some(&[b"hel".to_vec(), b"lo".to_vec()])).unwrap();
+    assert_eq!((raw.form.as_str(), raw.raw.as_str()), ("", "aGVsbG8="));
+    assert_eq!(base64(b""), "");
+    assert_eq!(base64(b"f"), "Zg==");
+    assert_eq!(base64(b"fo"), "Zm8=");
+    assert_eq!(base64(b"foo"), "Zm9v");
+    assert_eq!(base64(&[0, 255, 254]), "AP/+");
+}
+
+#[test]
+fn only_a_post_with_a_body_that_fits_is_kept() {
+    let one = vec![("q".to_string(), "x".to_string())];
+    assert!(posted_body("GET", Some(&one), None).is_none());
+    assert!(posted_body("POST", None, None).is_none());
+    // Nothing in it.
+    assert!(posted_body("POST", Some(&[]), None).is_none());
+    assert!(posted_body("POST", None, Some(&[])).is_none());
+    // At most 64 KiB, encoded or raw.
+    let big = vec![("f".to_string(), "x".repeat(MOST_FORM))];
+    assert!(posted_body("POST", Some(&big), None).is_none());
+    let fits = vec![("f".to_string(), "x".repeat(MOST_FORM - 2))];
+    assert!(posted_body("POST", Some(&fits), None).is_some());
+    assert!(posted_body("POST", None, Some(&[vec![1; MOST_FORM + 1]])).is_none());
+    assert!(posted_body("POST", None, Some(&[vec![1; MOST_FORM]])).is_some());
+}
+
+#[test]
+fn the_background_and_the_popup_have_no_javascript_of_their_own() {
+    // A Manifest V3 worker registers its listeners on its first turn (decisions, 2026-10-12).
+    // Rust does that itself (web/listen.rs): the WebAssembly is written into the background's
+    // script and started at once, and that script and the popup's are written by
+    // scripts/package.sh to start the Rust and nothing else (gaps row 169).
+    let extension = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../extension");
+    for gone in ["background.js", "popup.js"] {
+        assert!(!extension.join(gone).exists(), "extension/{gone} is back");
+    }
+    let package = include_str!("../../../scripts/package.sh");
+    assert!(package.contains("dm.initSync({ module: bytes });"));
+    assert!(package.contains("dm.background_start();"));
+    assert!(package.contains("popup_start()"));
+    // The two started scripts register nothing and decide nothing themselves.
+    for decided in [
+        "addListener",
+        "sendMessage",
+        "storage",
+        "executeScript",
+        "'dm.",
+    ] {
+        let start = package
+            .split("(pkg / \"background.js\").write_text(")
+            .nth(1)
+            .and_then(|rest| rest.split("\nPY\n").next())
+            .unwrap_or_default();
+        assert!(!start.contains(decided), "a start script uses {decided}");
+    }
+    // What background.js registered, Rust registers, with the form's body read in Rust.
+    let listen = include_str!("../web/listen.rs");
+    for event in [
+        "downloads.onCreated",
+        "downloads.onDeterminingFilename",
+        "contextMenus.onClicked",
+        "action.onClicked",
+        "runtime.onInstalled",
+        "runtime.onStartup",
+        "tabs.onRemoved",
+        "webRequest.onResponseStarted",
+        "webRequest.onSendHeaders",
+        "webRequest.onBeforeRequest",
+        "runtime.onMessage",
+    ] {
+        assert!(
+            listen.contains(&format!("\"{event}\"")),
+            "{event} is not registered"
+        );
+    }
+    assert!(include_str!("../web/streams.rs").contains("decide::posted_body"));
+    // The manifests and the popup's page start what package.sh writes.
+    for manifest in [
+        include_str!("../../../extension/manifest.json"),
+        include_str!("../../../extension/manifest.firefox.json"),
+    ] {
+        assert!(manifest.contains("\"pkg/background.js\""));
+    }
+    assert!(include_str!("../../../extension/popup.html").contains("src=\"pkg/popup.js\""));
 }

@@ -284,11 +284,12 @@ A line clicked on the first list is taken at its height.
 WebAssembly with wasm-bindgen. Every decision — which downloads are
 candidates, what a menu click hands over, how long an answer about the app is
 believed — is plain Rust tested on the build machine; the browser side reads
-events into those types and does what they say. The only hand-written
-JavaScript is `extension/background.js`, a loader of a few lines, and it
-cannot be Rust: a Manifest V3 background must register its listeners on its
-first turn, before any WebAssembly can have loaded, so the loader registers
-them and forwards each event once the module is ready. Permissions:
+events into those types and does what they say. The background and the popup
+have no hand-written JavaScript: a Manifest V3 background must register its
+listeners on its first turn, so `scripts/package.sh` writes the WebAssembly
+into the background's script (`pkg/background.js`), which starts it at once
+(`initSync`) and Rust registers them (`web/listen.rs`); the popup's script
+(`pkg/popup.js`) only starts the Rust. Permissions:
 `downloads`, `contextMenus`, `nativeMessaging`, `notifications`, `storage`
 (the app's catch rules, kept so a download is held at once; the popup's
 switches), `webRequest` with access to all sites (the media a page's player
@@ -413,15 +414,15 @@ browser/                  the extension, in Rust (crate dm-catcher)
   src/content.rs          the page script's panel; content/ holds rules, dom, build, show,
                           keyboard, visible, events, handoff
 extension/
-  background.js           the loader: registers listeners, forwards to the WebAssembly
   manifest.json           Chrome, Edge, Brave, Vivaldi, Opera
   manifest.firefox.json   Firefox
-  pkg/                    built by scripts/package.sh (not in git)
+  pkg/                    built by scripts/package.sh (not in git): the WebAssembly and its glue,
+                          background.js and popup.js that start it, panel.js for a page's frame
 desktop/
   crates/dm-core/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
                           range workers, resume), http.rs, mirrors.rs, hls.rs (playlists and
-                          live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (parts, names)
+                          live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (the staged file, or a file a range where the download folder is on another disk; names)
     queue/                several downloads, a limit, and the states between: mod.rs (the state),
                           runner.rs (what starts and when), actions.rs (pause, resume, cancel,
                           remove), settings.rs, persist.rs, journal.rs (a long list saves

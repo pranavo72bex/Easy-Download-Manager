@@ -28,6 +28,48 @@ pub(crate) fn staged_path(parts_dir: &Path) -> PathBuf {
     parts_dir.join(STAGED)
 }
 
+/// What the file of one range is called, before its index, where each range is written into a
+/// plain file of its own ([`range_path`]).
+pub(crate) const RANGE: &str = "range-";
+
+/// The file range `index` is written into, front to back, where the download folder is on
+/// another disk than the parts folder, and the ranges are appended into the finished file in file
+/// order at the end (reference A's layout). The finish there is a copy whichever way the bytes are
+/// staged, and on Windows one sparse staged file wrote and copied slower than plain files: in a
+/// probe of eight threads writing 16 KiB at a time, 512 MiB took 1.8 to 1.95 s into one sparse file
+/// against 0.42 s into eight plain ones, and 1.6 s against 1.1 s to copy (gaps row 166; the
+/// maintainer's choice of 2026-11-10). On one disk the staged file stays, finished by a rename.
+pub(crate) fn range_path(parts_dir: &Path, index: usize) -> PathBuf {
+    parts_dir.join(format!("{RANGE}{index:04}"))
+}
+
+/// Whether a download's ranges go into a plain file each ([`range_path`]) rather than into one
+/// staged file: only one of known length fetched by ranges, whose download folder is on another
+/// disk than its parts folder. What an earlier run left decides first, so a resume goes on in the
+/// layout its bytes are in: a staged file, or an earlier dm's part files, keep the staged file.
+/// `DM_STAGE_BY_RANGE` set to `1` or `0` decides instead, for tests and for measuring the two.
+pub(crate) fn stage_by_range(parts_dir: &Path, dest_dir: &Path, by_ranges: bool) -> bool {
+    let mut ranges = false;
+    if let Ok(listing) = std::fs::read_dir(parts_dir) {
+        for entry in listing.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name == STAGED || name.starts_with("part-") {
+                return false;
+            }
+            ranges |= name.starts_with(RANGE);
+        }
+    }
+    if ranges {
+        return by_ranges;
+    }
+    match std::env::var("DM_STAGE_BY_RANGE").as_deref() {
+        Ok("1") => by_ranges,
+        Ok("0") => false,
+        _ => by_ranges && !super::space::same_disk(parts_dir, dest_dir),
+    }
+}
+
 /// `file` made sparse on Windows, so it takes its room only as bytes land,
 /// as files on other systems do. A staged file is made as long as the
 /// download first (`ranged::preallocate`); NTFS then wrote zeros over
@@ -89,9 +131,10 @@ pub(crate) fn read_ledger(parts_dir: &Path, index: usize) -> Option<u64> {
         .ok()
 }
 
-/// The index a staged file's name gives it: `part-0003` or `done-0003`.
+/// The index a staged file's name gives it: `part-0003`, `range-0003` or `done-0003`.
 pub(super) fn staged_index(name: &str) -> Option<usize> {
     name.strip_prefix("part-")
+        .or_else(|| name.strip_prefix(RANGE))
         .or_else(|| name.strip_prefix("done-"))
         .and_then(|n| n.parse().ok())
 }

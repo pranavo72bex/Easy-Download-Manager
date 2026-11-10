@@ -322,6 +322,10 @@ struct Job {
     resumable: bool,
     validator: Option<String>,
     parts: PathBuf,
+    /// Each range is written into a plain file of its own (`range_path`) rather than at its
+    /// offset in the one staged file: where the download folder is on another disk than `parts`
+    /// (`stage_by_range`).
+    by_range: bool,
     /// The most one request asks for; see [`StreamHints::chunk`].
     chunk: Option<u64>,
     /// This stream's own headers; see [`Headers`].
@@ -347,7 +351,17 @@ struct Job {
     /// the job — which is what lets streams, which have no job, use the same
     /// sampler instead of a second copy of it.
     downloaded: Arc<AtomicU64>,
+    /// How many requests are bringing bytes in now: counted from a request's first byte to its
+    /// end, so the connections added past [`OPENED_AT_ONCE`] are judged once they are flowing.
+    flowing: AtomicUsize,
 }
+
+/// The most connections a download opens at once, whatever more it is allowed. Past these, one
+/// more is opened only while the last ones added raised the total rate, and given back when they
+/// did not (`ranged::grow`): reference A treats its number as a ceiling in the same way. Allowed 16,
+/// on a server that shares 8 MiB/s among all of them and cuts each, opening every one took 10.1
+/// and 11.1 s where reference A's 8 took 8.4 and 8.2 s (gaps row 168, 2026-11-09).
+pub(super) const OPENED_AT_ONCE: usize = 8;
 
 /// Where a range under way has got to, and where it now ends.
 ///
@@ -362,6 +376,13 @@ struct Live {
     reserved: u64,
     /// A connection has taken it, so it is not waiting for one.
     taken: bool,
+    /// Every byte its ledger vouches for was written by this run, or its end has been checked
+    /// against the server once in it: a reconnect then goes on from the ledger without asking
+    /// for that end again (`ranged::attempt_segment`). The check is for what a power cut or a
+    /// crash leaves, which cannot happen to a run that is still going; asked again on every
+    /// reconnect, it was a sixteenth of each request on a server that cuts connections every
+    /// megabyte or so (gaps row 167).
+    trusted: bool,
 }
 
 /// The least free space a download of no known length may leave. Such a body
@@ -391,6 +412,16 @@ impl Job {
     /// its own offset; renamed into place when whole.
     fn staged(&self) -> PathBuf {
         staged_path(&self.parts)
+    }
+
+    /// The file range `index`, starting at `start`, is written into, and where in it the range's
+    /// first byte is: its own file from the front, or the staged file at its offset.
+    fn held(&self, index: usize, start: u64) -> (PathBuf, u64) {
+        if self.by_range {
+            (range_path(&self.parts, index), 0)
+        } else {
+            (self.staged(), start)
+        }
     }
 
     /// How much of range `index` is on disk, as its ledger last said.
@@ -555,7 +586,11 @@ pub async fn download(
     url: &str,
     options: &Options,
 ) -> Result<Finished, Error> {
-    download_reporting(client, url, options, None).await
+    let finished = download_reporting(client, url, options, None).await?;
+    // Nothing more is done to it here; the queue's runner starts it after its own renames and
+    // the mark of where the file came from instead.
+    sync_after(finished.path.clone());
+    Ok(finished)
 }
 
 /// What the engine tells a caller while a download is in flight.
@@ -994,6 +1029,14 @@ async fn fetch_reporting(
         planned
     };
     let live = segments.clone();
+    // A plain file a range where the download folder is on another disk (gaps row 166).
+    let by_range = {
+        let (parts, dest) = (options.parts_dir.clone(), options.dest_dir.clone());
+        let by_ranges = info.resumable && info.size.is_some_and(|size| size > 0);
+        tokio::task::spawn_blocking(move || stage_by_range(&parts, &dest, by_ranges))
+            .await
+            .unwrap_or(false)
+    };
 
     let job = Arc::new(Job {
         disagreed: std::sync::atomic::AtomicBool::new(false),
@@ -1009,6 +1052,7 @@ async fn fetch_reporting(
                     end: s.end,
                     reserved: 0,
                     taken: false,
+                    trusted: false,
                 }))
             })
             .collect(),
@@ -1016,9 +1060,11 @@ async fn fetch_reporting(
         resumable: info.resumable,
         validator: info.validator.clone(),
         parts: options.parts_dir.clone(),
+        by_range,
         chunk: HINTS.try_with(|hints| hints.chunk).ok().flatten(),
         headers: stream_headers(),
         downloaded: Arc::new(AtomicU64::new(0)),
+        flowing: AtomicUsize::new(0),
         control: options.control.clone(),
         // The ranges go straight to where the probe landed: past a redirect
         // to another host they carry what the hop carried, the page's origin.
@@ -1067,9 +1113,11 @@ async fn fetch_reporting(
     let again = report.clone();
     let reporter = report.map(|tx| watch(Arc::clone(&job.downloaded), info.size, tx));
     let wanted = options.connections.clamp(1, plan::MAX_CONNECTIONS);
-    let workers = wanted.min(planned);
+    // No more at once than `OPENED_AT_ONCE`, even on a plan an earlier run recorded with more.
+    let workers = wanted.min(planned).min(OPENED_AT_ONCE);
     // Connections beyond the ranges planned, for a file small enough to be one
-    // or two: they join late and only if the server is slow (`ranged::run`).
+    // or two: they join late and only if the server is slow (`ranged::run`);
+    // and those past `OPENED_AT_ONCE`, only while they raise the rate (`ranged::grow`).
     let helpers = if info.resumable && info.size.is_some() {
         wanted - workers
     } else {

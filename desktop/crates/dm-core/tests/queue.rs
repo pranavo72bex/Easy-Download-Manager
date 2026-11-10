@@ -1760,10 +1760,19 @@ async fn serve_stalled_counting() -> (SocketAddr, Arc<AtomicUsize>, Arc<Open>) {
             if !probe {
                 hits.fetch_add(1, Ordering::SeqCst);
             }
+            // The range asked for is the range answered: a reconnect goes on from the byte its
+            // range has, and an answer naming another start is refused as dishonest.
+            let from = headers
+                .get("range")
+                .and_then(|r| r.to_str().ok())
+                .and_then(|r| r.strip_prefix("bytes="))
+                .and_then(|r| r.split('-').next())
+                .and_then(|a| a.parse::<u64>().ok())
+                .unwrap_or(0);
             let (status, range, body) = if probe {
                 (
                     StatusCode::PARTIAL_CONTENT,
-                    "bytes 0-0/4194304",
+                    "bytes 0-0/4194304".to_string(),
                     Body::from(vec![0u8]),
                 )
             } else {
@@ -1776,7 +1785,7 @@ async fn serve_stalled_counting() -> (SocketAddr, Arc<AtomicUsize>, Arc<Open>) {
                 });
                 (
                     StatusCode::PARTIAL_CONTENT,
-                    "bytes 0-4194303/4194304",
+                    format!("bytes {from}-4194303/4194304"),
                     Body::from_stream(stalled),
                 )
             };

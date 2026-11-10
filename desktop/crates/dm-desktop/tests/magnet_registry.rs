@@ -155,7 +155,15 @@ fn a_magnet_opened_through_dms_key_becomes_a_row_in_the_running_dm() {
         eprintln!("not run: DM_REGISTRY_TEST is not set");
         return;
     }
-    let exe = Path::new(env!("CARGO_BIN_EXE_dm-desktop"));
+    // Spelled as the running dm finds itself (`register::ensure_this_copy`). Cargo
+    // keeps a `CARGO_TARGET_DIR` as given, so `D:/dm-target` makes the path
+    // `D:/dm-target\debug\…`, and Windows' shell refuses a key whose command
+    // names its program with a forward slash: "Access is denied" (2026-11-10).
+    let exe = Path::new(env!("CARGO_BIN_EXE_dm-desktop"))
+        .canonicalize()
+        .map(dm_core::plain_path)
+        .unwrap();
+    let exe = exe.as_path();
     let home = tempfile::tempdir().unwrap();
     let dm_home = home.path().join("dm");
     std::fs::create_dir_all(&dm_home).unwrap();

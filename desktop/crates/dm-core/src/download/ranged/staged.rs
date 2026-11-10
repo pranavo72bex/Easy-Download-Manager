@@ -51,6 +51,7 @@ pub(in crate::download) async fn discard_staged(dir: &Path) {
                 let name = entry.file_name().to_string_lossy().into_owned();
                 if name.starts_with("part-")
                     || name.starts_with("done-")
+                    || name.starts_with(RANGE)
                     || name == STAGED
                     || name.starts_with(crate::queue::PREVIEW)
                 {

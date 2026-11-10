@@ -293,7 +293,7 @@ pub(super) fn clicked() {
         p.settled = true;
         // Short enough for the bar's title, which cut the longer one to
         // "Reading the vi…".
-        set_title(p, "Reading qualities…");
+        set_title(p, decide::SAY_READING);
         close_list(p);
         // Said, so a wait is not taken for a hang: reading a video page can
         // take up to half a minute.
@@ -360,7 +360,7 @@ pub(super) fn clicked() {
             Ok(reply) => reply,
             Err(e) => {
                 web_sys::console::debug_2(&"dm: the panel's message was not delivered:".into(), &e);
-                failed("dm was updated: reload this page to use it");
+                failed(decide::SAY_UPDATED);
                 return;
             }
         };
@@ -481,7 +481,7 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     // kind and quality (gaps row 72a).
     let title = video_title(&document);
     let first = with_panel(|p| {
-        set_title(p, "Download video");
+        set_title(p, decide::SAY_DOWNLOAD_VIDEO);
         close_list(p);
         // Reference A's first line: every quality listed, handed over at
         // once; the app asks about each in turn (gaps row 72b).
@@ -598,7 +598,7 @@ pub(super) fn failed(said: &str) {
     with_panel(|p| {
         p.settled = true;
         p.wrap.set_class_name("wrap dead");
-        set_title(p, "dm could not take it");
+        set_title(p, decide::SAY_NOT_TAKEN);
         say(p, said);
     });
     hide_soon(6000);
@@ -647,7 +647,7 @@ pub(super) fn hand_with(
     with_panel(|p| {
         p.settled = true;
         close_list(p);
-        set_title(p, "Sending to dm…");
+        set_title(p, decide::SAY_SENDING);
     });
     wasm_bindgen_futures::spawn_local(async move {
         let answer = send(message.into()).await;
@@ -662,7 +662,7 @@ pub(super) fn hand_with(
             // The extension was updated or removed under this page.
             Err(e) => {
                 web_sys::console::debug_2(&"dm: the panel's message was not delivered:".into(), &e);
-                (false, "dm was updated: reload this page to use it".into())
+                (false, decide::SAY_UPDATED.into())
             }
         };
         if !ok {

@@ -937,6 +937,8 @@ async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
             }
         } else if name != "plan.json"
             && name != crate::download::STAGED
+            // A range's own file: its ledger above says what of it is on disk.
+            && !name.starts_with(crate::download::RANGE)
             && !name.starts_with(PREVIEW)
         {
             others += 1;
@@ -948,13 +950,19 @@ async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
 /// The file a player is given for [`Queue::preview`]: what is fetched of
 /// `filename` under `parts`, under a name that ends as `filename` does.
 fn preview_of(parts: &std::path::Path, filename: &str) -> Result<PathBuf, String> {
-    // The staged file of a ranged download, a stream's recording, or the
-    // one part of a download over one connection.
-    let source = [crate::download::STAGED, "live.recording", "part-0000"]
-        .iter()
-        .map(|name| parts.join(name))
-        .find(|p| std::fs::metadata(p).is_ok_and(|m| m.len() > 0))
-        .ok_or("nothing of it is on disk to preview yet")?;
+    // The staged file of a ranged download, the first range's own file of
+    // one going to another disk (which holds the file's beginning), a
+    // stream's recording, or the one part of a download over one connection.
+    let first_range = crate::download::range_path(parts, 0);
+    let source = [
+        parts.join(crate::download::STAGED),
+        first_range,
+        parts.join("live.recording"),
+        parts.join("part-0000"),
+    ]
+    .into_iter()
+    .find(|p| std::fs::metadata(p).is_ok_and(|m| m.len() > 0))
+    .ok_or("nothing of it is on disk to preview yet")?;
     let extension = std::path::Path::new(filename)
         .extension()
         .map(|e| e.to_string_lossy().into_owned())
@@ -1000,6 +1008,34 @@ mod preview_tests {
         std::fs::write(parts.join(crate::download::STAGED), b"first bytes, more").unwrap();
         let again = preview_of(parts, "talk.mp4").unwrap();
         assert_eq!(std::fs::read(again).unwrap(), b"first bytes, more");
+    }
+
+    /// A download going to another disk has a file a range (gaps row 166): the first holds the
+    /// file's beginning, which is what a player needs; the others are not the file's start.
+    #[test]
+    fn the_preview_of_a_download_with_a_file_a_range_is_its_first_range() {
+        let dir = tempfile::tempdir().unwrap();
+        let parts = dir.path();
+        std::fs::write(crate::download::range_path(parts, 1), b"the middle").unwrap();
+        assert!(
+            preview_of(parts, "talk.mp4").is_err(),
+            "not the file's start"
+        );
+        std::fs::write(crate::download::range_path(parts, 0), b"the start").unwrap();
+        let preview = preview_of(parts, "talk.mp4").unwrap();
+        assert_eq!(std::fs::read(preview).unwrap(), b"the start");
+    }
+
+    /// What an earlier run left is counted once: by each range's ledger, not again by the length
+    /// of the range's own file.
+    #[tokio::test]
+    async fn a_range_file_is_counted_by_its_ledger_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let parts = dir.path();
+        std::fs::write(crate::download::range_path(parts, 0), vec![1u8; 5000]).unwrap();
+        std::fs::write(parts.join("done-0000"), format!("{:020}", 4096)).unwrap();
+        std::fs::write(parts.join("plan.json"), b"{}").unwrap();
+        assert_eq!(staged_bytes(parts).await, Some(4096));
     }
 }
 

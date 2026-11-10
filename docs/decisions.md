@@ -322,6 +322,142 @@ A row that fails sends the batch back module by module. The gate's step 2 is
 `scripts/windows-check.sh`: a plain `cargo check --target x86_64-pc-windows-msvc` stops at
 `ring`'s C without the Windows headers that container carries.
 
+## 2026-11-10: A file a range where the download folder is on another disk
+
+At the maintainer's word of 2026-11-10 (gaps row 166), asked whether dm may stage a download as
+reference A does where its download folder is on another disk than its parts folder: each range is
+now written front to back into a plain file of its own (`range-0000`, `range-0001`…, beside the
+ranges' ledgers in the parts folder), and the finish appends them into the download folder in file
+order, each freed once copied (`assemble::copy_parts_blocking`). On one disk nothing changes: one
+staged file, every range at its own offset, finished by a rename (2026-10, "Written in place,
+finishing is a rename"). Across disks the finish is a copy whichever way the bytes are staged, so
+the reason the part files went in 2026-10 (every byte written twice) does not hold there, and on
+Windows one sparse staged file was the slower thing to write and to copy: in a probe of eight
+threads writing 16 KiB at a time, 512 MiB took 1.8 to 1.95 s into one sparse file and 0.42 s into
+eight plain ones, and 1.6 s against 1.1 s to copy. Measured the same day beside reference A
+(`bench.mjs`, dm's home on the SSD, C:, both apps saving to the hard disk, D:; every file checked
+whole): 512 MiB in 2.09 to 2.87 s from the first request (2.3 to 2.9 s from the address given),
+reference A 3.14 to 4.88 s (3.7 to 6.0); after the last byte dm 0.72 to 0.96 s, reference A 0.80 to
+1.09 s. With the one staged file, forced in the same session, dm took 5.56 to 6.05 s, 2.9 to 3.3 s
+of it after the last byte. 64 MiB at 1 MiB/s a connection, 8.58 and 8.60 s against 8.95 and 9.31.
+What decides is what an earlier run left (`files::stage_by_range`): a resume goes on in the layout
+its bytes are in, a staged file or an earlier dm's part files keeping the staged file; a download
+not fetched by ranges, or of no known length, keeps it too. A range's ledger still says how much of
+it is on disk; on a resume it is held to the length of the range's file, which a power cut can leave
+shorter than the ledger (`ranged::adopt_ranges`). The resume's check of a range's end, the seams and
+the overlaps read the range's own file (`Job::held`, `assemble::bytes_at`); a preview of a partly
+fetched video is its first range's file. `DM_STAGE_BY_RANGE=1` or `0` decides instead, for tests
+(`tests/by_range.rs` runs each of its tests again in a process of its own with it) and for measuring
+the two. Not done: the parts staged on the download folder's disk (slower on a hard disk, in the
+entry below); appending a range to the finished file while the others are still fetched, as most
+ranges end together.
+
+## 2026-11-10: The background and popup have no JavaScript; the plain scripts' rules are named in Rust
+
+At the maintainer's words of 2026-11-10 to move the extension's JavaScript into Rust and then to
+"make it fully rust" (gaps row 169). A Manifest V3 worker must register its listeners on its first
+turn (2026-10-12), before WebAssembly loaded the usual way can have; so `scripts/package.sh` now
+writes the WebAssembly into the background's script (`pkg/background.js`, as `pkg/panel.js`
+already carried it), which starts it at once (`initSync`), and Rust registers the listeners
+itself (`web/listen.rs`). `extension/background.js` and `extension/popup.js` are gone; the two
+scripts `package.sh` writes only start the Rust. A rebuild in place can no longer pair the glue
+with another build's WebAssembly (gaps row 114), so the digest check and reload went with the
+loader. Before that, the same day, the loader only registered the listeners and forwarded each
+event: the form a
+page posts is handed over whole (`on_before_request`) and Rust decides which bodies to keep and
+writes them as the browser would (`decide::posted_body`: the fields as `URLSearchParams` writes
+them, a raw body as `btoa` does, 64 KiB at most), and the page script's request for the panel is
+answered in Rust (`web/page.rs`), which puts `pkg/panel.js` into the asking frame. A test holds
+the loader to forwarding. `content.js` and `document.js` must stay plain JavaScript (a page that
+forbids WebAssembly, which Firefox applies to content scripts, 2026-10-17; the page's own world),
+so their rules are named once in `decide/scripts.rs` and each script is held to them by a test,
+as the message names already were; the full panel takes the five phrases it shares with the plain
+one, and the click-as-drawn limits, from there too. Kept JavaScript, at the maintainer's word the same day when the cost was
+put to them: the logic of `content.js` and `document.js`. They must run where a page forbids
+WebAssembly (in Chromium as in Firefox, `chrome-check.py`), so Rust could run there only compiled
+to plain JavaScript; a prototype of one of `document.js`'s hooks, built with binaryen's `wasm2js`
+(Rust's features lowered for it, the page's functions wrapped through a `Proxy`, so no JavaScript
+by hand), came to 110 KB of JavaScript (19 KB gzipped) and 1.1 MB of memory in every page and
+frame before any of their logic, against 22 and 30 KB for the scripts themselves. Not done either: generating their rules into them at
+packaging rather than holding them by a test, which changes what the extension loads; and the
+two panels' wording made one ("dm did not answer…" against "dm did not answer in time…"), a
+change a person sees.
+
+## 2026-11-10: Completed before the flush; the end of a part checked once a run; connections a ceiling
+
+Measured beside reference A on Windows on 2026-11-09 (gaps rows 166 to 168), dm was slower in
+three cases; the maintainer said "fix the download speed problem" on 2026-11-10 and, asked, chose
+the first option offered for each of the two that undo a decision.
+
+Completed before the flush (row 166, undoing the sync before Completed of 2026-11-08 below). A
+file saved to another drive than dm's home spent most of its finish waiting for the flush to a
+hard disk: 512 MiB took 10 to 12.7 s where reference A took 5.7 to 6.4 s. The finished file is
+now in place (renamed, or across drives copied by the system's own copy: CopyFileEx on Windows,
+`std::fs::copy`) and its digest checked before the row says Completed, and it goes to the disk
+after, with nothing waiting for it (`assemble::sync_after`, called by the queue's runner once its
+renames and the mark of where the file came from are written). On macOS and Linux that is an
+fsync on a thread of its own. On Windows it is the system's own write-behind, as for reference A's
+files, and no flush is asked for: measured on 2026-11-10, a flush of a file (`FlushFileBuffers`,
+or `NtFlushBuffersFileEx` with the data-sync flag) holds it against every other open while it
+runs, 4 to 8 s for 512 MiB on this hard disk. Started after Completed, it kept the mark's stream
+waiting (6.9 s, 0.06 s with no flush) and the window's look at the finished file's size, made on
+its own thread (`app/sync.rs` `saved_sizes`), so the window froze for the flush; Explorer or a
+double-click on the file would have waited the same. Asked again, the maintainer chose the
+write-behind that day over a flush put off about 30 s (still a lock on a slow stick) and over the
+flush before Completed. Measured the same day on the 2026-11-09 setup: 512 MiB in 5.4 and 6.4 s
+from the first request (10.0 and 12.7 s before), reference A 3.5 and 4.4 s; saved on dm's own
+drive, Completed 0.09 s after the last byte. What is left is the copy (row 166): dm's of its one
+staged file took 1.4 to 3.2 s whether by Windows' copy or a 4 MiB buffered one (six traced runs),
+reference A appends its eight part files at about 450 MB/s; in a probe of eight threads writing
+16 KiB at a time, eight plain files were written in 0.42 s and one sparse file in 1.8 to 1.95 s,
+copied in 1.1 s on average against 1.6, and any copy made right after the writing swung from 0.4
+to 3.8 s with what the system still had to write. Given up for it: a power cut in the seconds after Completed can leave the
+file's last blocks unwritten, as reference A's can. Not done: staging the
+parts on the download folder's drive, which makes the finish a rename but was slower on a hard
+disk (13.6 to 14.9 s, eight connections writing all over it); keeping the flush with only the
+faster copy, which would have left dm 1.5 to 2 times slower there.
+
+Tried and dropped later the same day, at the maintainer's word to make dm faster than reference A
+and to verify it: copying the file to its folder's drive while it downloads, so little is left to
+copy after the last byte. First each range's bytes at their own place in a sparse copy: whole
+0.16 to 0.47 s after the last byte in a probe, but a file that was sparse while it was written
+could not be opened afresh on the hard disk for 5 to 13 s after (512 MiB; the first open of any
+kind waited, a rename included, and clearing the sparse flag took 12 to 16 s itself), where a
+plain file written front to back opened in 0.6 to 0.9 s and reference A's at once. Then the
+pieces fetched in file order (four a connection) and the whole front appended to a plain copy:
+in one session beside the committed build and reference A, 512 MiB took 5.25 to 5.85 s against
+the committed 2.31 to 5.77 s and reference A's 3.65 to 3.94 s. On this two-core laptop, a local
+server at 180 MB/s outruns the hard disk, so the copying during the download slowed the download
+by about a second and still left 1.3 to 1.9 s after the last byte; at 18 MB/s the two tied
+(28.9 and 29.3 s against 28.3 and 29.3 s). Not tried: reference A's layout, a plain file a range
+appended together at the end, which would make the finish on one drive a copy where it is now a
+rename (Completed 0.09 s after the last byte, dm's file opened at once).
+
+The end of a part checked once a run (row 167). The 64 KiB a part's end is fetched again and
+compared with on a resume (`RESUME_CHECK`, 2026-10-15) was asked for on every reconnect within
+one run as well, where nothing written can have been lost: on a server cutting connections every
+megabyte or so it was most of what dm fetched twice. A range's end is now checked once in a run,
+on its first attempt, when its ledger came from an earlier one (`Live::trusted`); a resume, after
+a pause, a restart or a power cut, checks as before. A file changed during the run is still
+caught by the validator (`If-Range`), the total in `Content-Range`, each range's checked last
+bytes and the seams. Measured the same day (64 MiB at 8 MiB/s, each connection cut after 0.25 to
+3 MiB): dm 8.50 and 8.63 s, 1.1% fetched twice (4.8 to 6.7% before); reference A 8.34 and 8.27 s.
+
+Connections a ceiling (row 168; contract rows B06 and B08 edited). dm opened every connection
+it was allowed; allowed 16, on a server sharing 8 MiB/s among them and cutting each, that took
+10.1 and 11.1 s where reference A, opening 8 or fewer, took 8.4 and 8.2. A download now opens at
+most 8 at once (`OPENED_AT_ONCE`) and plans its ranges for them; past 8, `ranged::grow` lets in
+one, then two, then four, each time the last ones added raised the total rate by at least half of
+what a connection had brought on average (measured over a second, once their first bytes are in),
+and takes the last ones back, after the pieces they hold, when they did not, trying one again after
+10 s, then 20, 40. Too little left to judge one (under 2 s at the rate seen) ends the growing. At
+the default of 8 nothing changes. Not done: trying connections past 8 one at a time each time,
+slower to reach 16 on a server that holds each connection down; opening them all and closing the
+ones that add nothing, which is what cost the time. Measured the same day with both set to 16: on
+a server holding each connection to 1 MiB/s dm opened 16 and took 6.58 and 6.87 s, reference A
+6.74 and 6.65; on the cutting server dm had at most 10 open and took 8.46 and 8.42 s, reference A
+8.26 and 8.27.
+
 ## 2026-11-08: A finished file is synced once; a server with no version is not taken for a changed one
 
 From a review of the engine. A finished file and its folder are synced before the row is called
@@ -5238,3 +5374,14 @@ GPUI views over `DmApp` as it is, which would copy its application rules into a 
 window, and replacing the control port's `ui.*` answers, which `human-qa.py` and MCP read.
 New B25 pictures, any contract row GPUI cannot hold as written, the go/no-go and the switch
 of the default window are the maintainer's to approve (`GPUI_MIGRATION_PLAN.md`, D1 to D5).
+
+## 2026-11-10: The bottom line: faster than reference A in every benchmark, and easier to use
+
+The maintainer set the standard every change is judged by: dm's engine must be faster than
+reference A in every benchmark, and dm must be easier to use than reference A. It is at the
+top of `docs/gaps.md` and never closes. A speed row closes only when dm is faster on the same
+run, so row 166's old target, within 10% of reference A, is replaced by "faster". "Every
+benchmark" means every case of the side-by-side harness (`bench.mjs`) and any added to it later,
+with `idle` judged by CPU and memory at rest. Being easier to use does not override
+`docs/behaviour-contract.md`: a row proposes the change, and the maintainer approves it in
+words before it is made.

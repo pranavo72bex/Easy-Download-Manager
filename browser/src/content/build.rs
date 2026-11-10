@@ -188,17 +188,14 @@ pub(super) fn as_drawn() -> bool {
     let opaque = value("opacity")
         .trim()
         .parse::<f64>()
-        .is_ok_and(|o| o >= 0.99);
+        .is_ok_and(|o| o >= decide::DRAWN_OPACITY);
     opaque
         && value("visibility").trim() == "visible"
         && value("filter").trim() == "none"
         && value("clip-path").trim() == "none"
-        && rect.width() <= MAX_DRAWN.0
-        && rect.height() <= MAX_DRAWN.1
+        && rect.width() <= decide::MAX_DRAWN.0
+        && rect.height() <= decide::MAX_DRAWN.1
 }
-
-/// The panel's largest size, with its quality list open.
-pub(super) const MAX_DRAWN: (f64, f64) = (480.0, 640.0);
 
 /// The panel, if built. `None` too when it is already in use further up
 /// the stack: moving the focus fires focus events at once, and their

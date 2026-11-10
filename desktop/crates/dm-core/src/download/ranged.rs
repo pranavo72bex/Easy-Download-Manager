@@ -71,11 +71,60 @@ pub(crate) fn watch(
 /// Picks up where a previous run stopped.
 pub(super) async fn adopt_staged(job: &Job) -> Result<(), Error> {
     let mut segments = job.segments.lock().await;
+    if job.by_range {
+        adopt_ranges(job, &segments).await?;
+    } else {
+        adopt_into_staged(job, &segments).await?;
+    }
+    for index in 0..segments.len() {
+        let segment = &mut segments[index];
+        /* A ledger cannot say more than its range under the plan that was
+         * recorded beside it; one that does was written by something that
+         * did not keep to the plan. Held to the range, so what is adopted
+         * is exactly what assembly will use. */
+        segment.done = job.ledger(index).min(segment.span());
+        if segment.done > 0 {
+            job.downloaded.fetch_add(segment.done, Ordering::Relaxed);
+            // Claimed, so a split never takes bytes already on disk.
+            if let Some(live) = job.live.get(index) {
+                crate::lock(live).reserved = segment.done;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Each range's ledger held to what the range's own file holds: a power cut can leave a ledger
+/// on disk while the end of the bytes it speaks for, or the whole file, is not, and reading them
+/// back for the resume's check would then fail at the file's end rather than find them missing.
+/// A ledger with no file under it vouches for nothing and goes.
+async fn adopt_ranges(job: &Job, segments: &[Segment]) -> Result<(), Error> {
+    let (dir, ranges) = (job.parts.clone(), segments.len());
+    tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+        for index in 0..ranges {
+            let Some(said) = read_ledger(&dir, index) else {
+                continue;
+            };
+            let held = std::fs::metadata(range_path(&dir, index)).map_or(0, |m| m.len());
+            if held == 0 {
+                let _ = std::fs::remove_file(ledger_path(&dir, index));
+            } else if said > held {
+                std::fs::write(ledger_path(&dir, index), format!("{held:020}"))?;
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| Error::Internal(e.to_string()))??;
+    Ok(())
+}
+
+/// Part files an earlier dm left go into the staged file first. A ledger with no staged file
+/// under it vouches for bytes that are not there.
+async fn adopt_into_staged(job: &Job, segments: &[Segment]) -> Result<(), Error> {
     let staged = job.staged();
     let ranges: Vec<(u64, u64)> = segments.iter().map(|s| (s.start, s.span())).collect();
     let (dir, had_staged) = (job.parts.clone(), staged.exists());
-    // Part files an earlier dm left go into the staged file first. A ledger
-    // with no staged file under it vouches for bytes that are not there.
     let adopted = tokio::task::spawn_blocking(move || {
         let mut adopted = Vec::new();
         for (index, &(start, span)) in ranges.iter().enumerate() {
@@ -96,29 +145,18 @@ pub(super) async fn adopt_staged(job: &Job) -> Result<(), Error> {
             ))
         })?;
     }
-    for index in 0..segments.len() {
-        let segment = &mut segments[index];
-        /* A ledger cannot say more than its range under the plan that was
-         * recorded beside it; one that does was written by something that
-         * did not keep to the plan. Held to the range, so what is adopted
-         * is exactly what assembly will use. */
-        segment.done = job.ledger(index).min(segment.span());
-        if segment.done > 0 {
-            job.downloaded.fetch_add(segment.done, Ordering::Relaxed);
-            // Claimed, so a split never takes bytes already on disk.
-            if let Some(live) = job.live.get(index) {
-                crate::lock(live).reserved = segment.done;
-            }
-        }
-    }
     Ok(())
 }
 
 /// The staged file, made as long as the file will be, so every range's
 /// region is there to be written; on most file systems the room is only
 /// taken as bytes land. Never cut: a longer staged file holds nothing a
-/// ledger vouches for past its ranges.
+/// ledger vouches for past its ranges. None where each range has a file of
+/// its own, made by its first write and grown as it is written front to back.
 pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
+    if job.by_range {
+        return Ok(());
+    }
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -182,8 +220,26 @@ pub(super) async fn run(
     // goes out on it (`second_path`). The ranges are taken as connections
     // free up, so the faster path fetches more of them.
     let second = crate::second_path::second_client();
+    /* The connections past `OPENED_AT_ONCE` wait to be let in by `grow`, which lets them in
+     * while they raise the rate and takes them back when they do not. One taken back finishes
+     * its piece and waits again; once `grow` is done, those still waiting are not needed. */
+    let grown_from = OPENED_AT_ONCE.max(workers.max(1));
+    let grown = (workers.max(1) + helpers).saturating_sub(grown_from);
+    let (gate, gate_seen) = tokio::sync::watch::channel(Gate::default());
+    let grower = (grown > 0).then(|| {
+        tokio::spawn(grow(
+            Arc::clone(job),
+            grown,
+            gate,
+            Arc::clone(&active),
+            wave_over_seen.clone(),
+        ))
+    });
     for ordinal in 0..workers.max(1) + helpers {
         let helper = ordinal >= workers.max(1);
+        // Which of the connections `grow` lets in this one is.
+        let grown_as = ordinal.checked_sub(grown_from);
+        let mut gate_seen = gate_seen.clone();
         let on_second = second.is_some() && ordinal % 2 == 1;
         let client = match &second {
             Some(second) if on_second => second.clone(),
@@ -204,90 +260,116 @@ pub(super) async fn run(
             let mut joined = false;
             // Whether this connection, left alone, has had its second go.
             let mut alone_again = false;
-            if helper {
+            if helper && grown_as.is_none() {
                 tokio::select! {
                     () = tokio::time::sleep(HELP_AFTER) => {}
                     _ = wave_over_seen.wait_for(|over| *over) => return Ok(()),
                 }
                 job.control.check()?;
             }
-            loop {
-                let index = next.fetch_add(1, Ordering::Relaxed);
-                let orphan = if index < planned {
-                    None
-                } else {
-                    crate::lock(&orphans).pop()
-                };
-                let index = if index < planned {
-                    index
-                } else if let Some(index) = orphan {
-                    index
-                } else {
-                    /* The watching ends early once the connections with
-                     * ranges of their own are done: they end only when no
-                     * range is left to halve (or a refusal, which ends a
-                     * helper here anyway), and ranges only shrink, so
-                     * there is nothing for a helper either. The last helper
-                     * to finish its range otherwise watched out its whole
-                     * window after the file was in, and the download waited
-                     * for it: 80 ms of every small slow file (gaps row 165). */
-                    if helper
-                        && (refused.load(Ordering::SeqCst)
-                            || !tokio::select! {
-                                worth = slow_enough_to_help(&job, started) => worth,
-                                _ = wave_over_seen.wait_for(|over| *over) => false,
-                            }
+            'connection: loop {
+                if let Some(me) = grown_as {
+                    let let_in = tokio::select! {
+                        gate = gate_seen.wait_for(|g| g.closed || me < g.allowed) => {
+                            gate.is_ok_and(|g| me < g.allowed)
+                        }
+                        _ = wave_over_seen.wait_for(|over| *over) => false,
+                    };
+                    if !let_in {
+                        break 'connection;
+                    }
+                    job.control.check()?;
+                }
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let orphan = if index < planned {
+                        None
+                    } else {
+                        crate::lock(&orphans).pop()
+                    };
+                    let index = if index < planned {
+                        index
+                    } else if let Some(index) = orphan {
+                        index
+                    } else {
+                        /* The watching ends early once the connections with
+                         * ranges of their own are done: they end only when no
+                         * range is left to halve (or a refusal, which ends a
+                         * helper here anyway), and ranges only shrink, so
+                         * there is nothing for a helper either. The last helper
+                         * to finish its range otherwise watched out its whole
+                         * window after the file was in, and the download waited
+                         * for it: 80 ms of every small slow file (gaps row 165). */
+                        // One `grow` let in has been judged worth it already.
+                        if helper
+                            && (refused.load(Ordering::SeqCst)
+                            || (grown_as.is_none()
+                                && !tokio::select! {
+                                    worth = slow_enough_to_help(&job, started) => worth,
+                                    _ = wave_over_seen.wait_for(|over| *over) => false,
+                                })
                             // Looked at again after the watching: a refusal
                             // while it went on is as good as one before.
                             || refused.load(Ordering::SeqCst))
-                    {
-                        break;
+                        {
+                            break 'connection;
+                        }
+                        match split_largest(&job).await {
+                            Some(index) => index,
+                            None => break 'connection,
+                        }
+                    };
+                    if helper && !joined {
+                        joined = true;
+                        active.fetch_add(1, Ordering::SeqCst);
                     }
-                    match split_largest(&job).await {
-                        Some(index) => index,
-                        None => break,
+                    crate::lock(&job.live[index]).taken = true;
+                    crate::second_path::fetched_by(&job.parts, index, on_second);
+                    let first = if index == 0 {
+                        crate::lock(&probe).take()
+                    } else {
+                        None
+                    };
+                    match fetch_segment(&client, &job, index, resumable, &active, first).await {
+                        Ok(()) => {}
+                        /* The server would not take this connection (a 429 or
+                         * 503 at once, a refused connect after its retries)
+                         * while others are working: this one steps aside and
+                         * leaves its range to them, as a server that limits
+                         * connections asks, rather than failing a download the
+                         * rest are fetching. */
+                        Err(e)
+                            if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 =>
+                        {
+                            refused.store(true, Ordering::SeqCst);
+                            crate::lock(&job.live[index]).taken = false;
+                            crate::lock(&orphans).push(index);
+                            break 'connection;
+                        }
+                        /* The others stepped aside between the judgement and
+                         * now, and this is the last connection: its range is
+                         * nobody else's to fetch, so it is tried once more
+                         * here, with the tries a connection alone gets. */
+                        Err(e) if crate::retry::transient(&e) && !alone_again => {
+                            alone_again = true;
+                            // Given back, so it is this range that is tried
+                            // again and not a fresh one taken in its place.
+                            crate::lock(&job.live[index]).taken = false;
+                            crate::lock(&orphans).push(index);
+                            continue;
+                        }
+                        Err(e) => return Err(e),
                     }
-                };
-                if helper && !joined {
-                    joined = true;
-                    active.fetch_add(1, Ordering::SeqCst);
+                    alone_again = false;
+                    // Taken back by `grow`, with its piece done: it waits to be let in again.
+                    if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
+                        if joined {
+                            joined = false;
+                            active.fetch_sub(1, Ordering::SeqCst);
+                        }
+                        continue 'connection;
+                    }
                 }
-                crate::lock(&job.live[index]).taken = true;
-                crate::second_path::fetched_by(&job.parts, index, on_second);
-                let first = if index == 0 {
-                    crate::lock(&probe).take()
-                } else {
-                    None
-                };
-                match fetch_segment(&client, &job, index, resumable, &active, first).await {
-                    Ok(()) => {}
-                    /* The server would not take this connection (a 429 or
-                     * 503 at once, a refused connect after its retries)
-                     * while others are working: this one steps aside and
-                     * leaves its range to them, as a server that limits
-                     * connections asks, rather than failing a download the
-                     * rest are fetching. */
-                    Err(e) if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 => {
-                        refused.store(true, Ordering::SeqCst);
-                        crate::lock(&job.live[index]).taken = false;
-                        crate::lock(&orphans).push(index);
-                        break;
-                    }
-                    /* The others stepped aside between the judgement and
-                     * now, and this is the last connection: its range is
-                     * nobody else's to fetch, so it is tried once more
-                     * here, with the tries a connection alone gets. */
-                    Err(e) if crate::retry::transient(&e) && !alone_again => {
-                        alone_again = true;
-                        // Given back, so it is this range that is tried
-                        // again and not a fresh one taken in its place.
-                        crate::lock(&job.live[index]).taken = false;
-                        crate::lock(&orphans).push(index);
-                        continue;
-                    }
-                    Err(e) => return Err(e),
-                }
-                alone_again = false;
             }
             if !helper || joined {
                 active.fetch_sub(1, Ordering::SeqCst);
@@ -344,6 +426,10 @@ pub(super) async fn run(
                 failed = Some(e);
             }
         }
+    }
+    // Nothing is left for it to let in.
+    if let Some(grower) = grower {
+        grower.abort();
     }
     if let Some(e) = failed {
         return Err(e);
@@ -423,11 +509,13 @@ pub(super) async fn split_largest(job: &Job) -> Option<usize> {
     });
     // A new range starts with nothing written down for it.
     let _ = fs::remove_file(ledger_path(&job.parts, index)).await;
+    // Every byte of it will be this run's.
     *crate::lock(&job.live[index]) = Live {
         start,
         end,
         reserved: 0,
         taken: true,
+        trusted: true,
     };
     Some(index)
 }
@@ -594,13 +682,14 @@ async fn spot_check_segment(
 
     // What is on disk.
     let mut on_disk = vec![0u8; DATA_CHECK_SIZE as usize];
-    let open = tokio::fs::File::open(job.staged()).await;
+    let (held, origin) = job.held(index, start);
+    let open = tokio::fs::File::open(held).await;
     let Ok(mut file) = open else {
         return Ok(());
     };
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
     if file
-        .seek(std::io::SeekFrom::Start(check_start))
+        .seek(std::io::SeekFrom::Start(origin + (check_start - start)))
         .await
         .is_err()
     {
@@ -675,16 +764,19 @@ pub(super) async fn attempt_segment(
         (l.start, l.end)
     };
     let span = (end - start).saturating_add(1);
+    // The file this range's bytes are in, and where in it the range begins.
+    let (held, origin) = job.held(index, start);
     // The ledger, read fresh: what it says is on disk is what has arrived.
     let already = job.ledger(index).min(span);
     let mut ledger = job.open_ledger(index).await?;
-    {
+    let trusted = {
         let mut l = crate::lock(&job.live[index]);
         l.reserved = l.reserved.max(already);
-    }
+        l.trusted
+    };
     // A whole part needs nothing more, unless its tail is to be checked
-    // against the server below.
-    if already >= span && !resumable {
+    // against the server below: one this run wrote or checked has nothing to check.
+    if already >= span && (!resumable || trusted) {
         job.segments.lock().await[index].done = span;
         return Ok(());
     }
@@ -709,8 +801,10 @@ pub(super) async fn attempt_segment(
      * be on disk while the last bytes are not — zeros, on NTFS, exFAT and
      * others — which a resume would have kept and built on, and called the
      * file finished. Where the two differ the part is cut back to the last
-     * byte they agree on and fetched from there: repaired, not restarted. */
-    let check = if resumable {
+     * byte they agree on and fetched from there: repaired, not restarted.
+     * Only for a ledger an earlier run wrote: a reconnect within this run
+     * goes on from bytes this run put there (`Live::trusted`). */
+    let check = if resumable && !trusted {
         already.min(RESUME_CHECK)
     } else {
         0
@@ -853,13 +947,14 @@ pub(super) async fn attempt_segment(
      *
      * clippy suggests `.truncate(true)` here and it would be exactly wrong:
      * the staged file holds every range, so emptying it on any attempt
-     * would throw away the bytes of all of them. Stated explicitly so the
+     * would throw away the bytes of all of them, and a range's own file
+     * the bytes an earlier attempt left. Stated explicitly so the
      * next person to read the lint does not take its advice. */
     let file = tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(false)
-        .open(job.staged())
+        .open(&held)
         .await?;
 
     /* Buffered, because chunks arrive far smaller than a useful write.
@@ -883,9 +978,9 @@ pub(super) async fn attempt_segment(
     let mut carry = None;
     let already = if check > 0 {
         let mut tail = vec![0u8; check as usize];
-        let mut on_disk = tokio::fs::File::open(job.staged()).await?;
+        let mut on_disk = tokio::fs::File::open(&held).await?;
         on_disk
-            .seek(std::io::SeekFrom::Start(start + already - check))
+            .seek(std::io::SeekFrom::Start(origin + already - check))
             .await?;
         tokio::io::AsyncReadExt::read_exact(&mut on_disk, &mut tail).await?;
         drop(on_disk);
@@ -935,9 +1030,9 @@ pub(super) async fn attempt_segment(
                 .is_some_and(|run| run.iter().all(|&b| b == 0));
             if base > 0 && zeros_through_difference {
                 let floor = base.saturating_sub(ZERO_RUN_STEP);
-                // In the staged file, at this range's offset.
+                // In the file the range is in, at the range's place there.
                 let zeros_from =
-                    zeros_ending_at(&job.staged(), start + base, start + floor).await? - start;
+                    zeros_ending_at(&held, origin + base, origin + floor).await? - origin;
                 let cut = zeros_from - zeros_from % DISK_BLOCK;
                 if cut < base {
                     put(&mut ledger, cut).await?;
@@ -967,14 +1062,17 @@ pub(super) async fn attempt_segment(
     } else {
         already
     };
+    // What the ledger vouches for is checked, or this run's own, from here on.
+    crate::lock(&job.live[index]).trusted = true;
 
     /* Small: tokio's file keeps a copy of every write it hands to the
      * disk, so each connection holds this twice. 256 KiB cost 20–30 MB more
      * over ten downloads of eight connections than 16 KiB, and fetched 2 GB
      * over loopback no faster nor with less CPU (qa/after.md). */
     let mut file = tokio::io::BufWriter::with_capacity(16 * 1024, file);
-    // At this range's own place in the staged file.
-    file.seek(std::io::SeekFrom::Start(start + already)).await?;
+    // At this range's own place in the staged file, or in its own file.
+    file.seek(std::io::SeekFrom::Start(origin + already))
+        .await?;
 
     let mut written = already;
     // Where the free space was last looked at (`DISK_LOOK_EVERY`).
@@ -990,6 +1088,8 @@ pub(super) async fn attempt_segment(
     let mut lead_buf: Vec<u8> = Vec::with_capacity(lead_n);
     let mut reader = Reader::new();
     let mut window = Window::open(written, job);
+    // Counted among the requests bringing bytes in from its first byte (`grow`).
+    let mut flowing = None;
 
     loop {
         // A connection far slower than the rest is dropped and asked again,
@@ -1109,6 +1209,7 @@ pub(super) async fn attempt_segment(
         }
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
+        flowing.get_or_insert_with(|| Flowing::new(&job.flowing));
         // With no length to have planned the room for, the disk is looked at as
         // the bytes come, and the download stopped before it fills it.
         if job.size.is_none() && written - disk_looked >= DISK_LOOK_EVERY {

@@ -220,6 +220,24 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     if get(&sender, "id").as_string().unwrap_or_default() != own_id() {
         return answer(false, "that message did not come from dm");
     }
+    // The panel's code, put into the asking frame by the browser itself: only into a frame of a
+    // tab, the one that asked.
+    if get(&message, "type").as_string().as_deref() == Some(decide::PANEL_LOAD_MESSAGE) {
+        let (Some(tab), Some(frame)) = (
+            get(&sender, "tab.id").as_f64(),
+            get(&sender, "frameId").as_f64(),
+        ) else {
+            return answer(false, "the panel goes only into a page's frame");
+        };
+        let target = to_js(&serde_json::json!({
+            "target": { "tabId": tab as i64, "frameIds": [frame as i64] },
+            "files": [decide::PANEL_FILE],
+        }));
+        return match call("scripting", "executeScript", &[target]).await {
+            Ok(_) => to_js(&serde_json::json!({ "ok": true })),
+            Err(why) => answer(false, &why),
+        };
+    }
     // What the page's player asked for, as the page script saw it: read as
     // a response of the tab it came from, which is all the list needs.
     if get(&message, "type").as_string().as_deref() == Some(decide::MEDIA_SEEN_MESSAGE) {
