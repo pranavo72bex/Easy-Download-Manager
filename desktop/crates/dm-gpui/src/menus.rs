@@ -44,11 +44,30 @@ pub struct HideOthers;
 #[action(namespace = dm, no_json)]
 pub struct ShowAll;
 
-/// What the shell can carry out today.
+/// What the shell can carry out today: Exit, and the commands the
+/// application carries out by itself (`commands::verb`); the rest open a
+/// dialog, which comes with its slice.
 pub fn carried_out(command: Command) -> bool {
+    use Command as C;
     matches!(
         command,
-        Command::Quit | Command::ResumeAll | Command::StopAll | Command::DeleteCompleted
+        C::Quit
+            | C::DownloadNow
+            | C::StopDownload
+            | C::Redownload
+            | C::RemoveFromQueue
+            | C::MoveUp
+            | C::MoveDown
+            | C::ResumeAll
+            | C::StopAll
+            | C::DeleteCompleted
+            | C::StartQueue
+            | C::StopQueue
+            | C::WhenDoneNothing
+            | C::WhenDoneQuit
+            | C::WhenDoneSleep
+            | C::WhenDoneHibernate
+            | C::WhenDoneShutDown
     )
 }
 

@@ -15,7 +15,7 @@ use dm_shell::app::commands::Command;
 use gpui::{div, prelude::*, px, svg, Context, MouseButton, Role, Window, WindowControlArea};
 
 use crate::list::Downloads;
-use crate::menus::{carried_out, Run};
+use crate::menus::Run;
 use crate::screen::Screen;
 use crate::theme::Theme;
 
@@ -72,7 +72,7 @@ pub fn toolbar(
             }
         })
         .children(buttons.into_iter().map(|(command, words)| {
-            let enabled = carried_out(command);
+            let enabled = view.enabled(command);
             let words = t(words);
             div()
                 .id(command.id())

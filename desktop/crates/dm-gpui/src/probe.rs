@@ -388,10 +388,35 @@ impl WindowProbe for Probe<'_, '_> {
     }
 
     fn commands(&mut self) -> Vec<probe::CommandState> {
-        Vec::new()
+        dm_shell::app::commands::Command::ALL
+            .iter()
+            .map(|c| probe::CommandState {
+                id: c.id(),
+                label: c.label(),
+                enabled: self.view.enabled(*c),
+            })
+            .collect()
     }
 
     fn run_command(&mut self, id: &str) -> Result<probe::Ran, String> {
-        not_yet(&format!("command.run {id}"))
+        let command = dm_shell::app::commands::Command::from_id(id)
+            .ok_or_else(|| format!("no command is called {id}"))?;
+        // Opening a downloaded file is a person's click in the window.
+        if let Some(why) = dm_shell::app::control_api::person_only(command.id()) {
+            return Err(why);
+        }
+        if !dm_shell::app::commands::Command::ALL.contains(&command) || !self.view.enabled(command)
+        {
+            return Err(if crate::menus::carried_out(command) {
+                format!("{id} has nothing to act on")
+            } else {
+                format!("{id} is not in the GPUI shell yet")
+            });
+        }
+        self.view.run(command, self.cx);
+        Ok(probe::Ran {
+            ran: id.to_string(),
+            said: String::new(),
+        })
     }
 }

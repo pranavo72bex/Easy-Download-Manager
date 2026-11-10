@@ -155,10 +155,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   words and the columns moved to `dm_desktop_base::rows` and `columns`; the GPUI table shows the
   person's columns with the egui window's headings and words, sorts by a heading's click, cuts long
   words with an ellipsis, a progress bar under a running row's status) and its selection (click,
-  ⌘-click, ⇧-click, ↑ and ↓; chosen rows in the selection colour; `ui.select`, `ui.inspect`). Next:
-  slice 3, the row commands (Resume, Stop, Delete and the rest through `commands::applies` and
-  `verb`, the row's context menu), then the double-click as Options says and column widths a
-  person drags (`changes::subscribe`
+  ⌘-click, ⇧-click, ↑ and ↓; chosen rows in the selection colour; `ui.select`, `ui.inspect`).
+  Slice 3 under way: every command the application carries out by itself (`commands::verb`: Resume,
+  Stop, Download again, the queue moves, Resume all, Stop all, Delete completed, Start and Stop
+  Queue, When done) runs from the toolbar, the menu bar, its keys and `command.run`, enabled as
+  `commands::applies` says for the rows chosen. Next in slice 3: the row's context menu, Remove
+  (with its question and Undo), Copy link; the commands that open a dialog come with slices 4 to 8 (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

@@ -181,7 +181,7 @@ impl Downloads {
     /// key for it does nothing.
     pub fn run(&mut self, command: dm_shell::app::commands::Command, cx: &mut Context<Self>) {
         use dm_shell::app::commands::Command;
-        if !crate::menus::carried_out(command) {
+        if !self.enabled(command) {
             return;
         }
         if command == Command::Quit {
@@ -189,10 +189,41 @@ impl Downloads {
             cx.quit();
             return;
         }
-        // The application's own verbs on the whole list need no selection.
-        let _ = dm_shell::app::commands::verb(command, &self.backend, &[], "");
+        let chosen: Vec<Entry> = self.chosen().into_iter().cloned().collect();
+        let queue = self.current_queue();
+        let _ = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
         self.read();
         cx.notify();
+    }
+
+    /// Whether `command` can be run now: the shell carries it out, and it
+    /// applies to the rows chosen (`commands::applies`), as the egui
+    /// window greys its buttons and menu items.
+    pub fn enabled(&self, command: dm_shell::app::commands::Command) -> bool {
+        if !crate::menus::carried_out(command) {
+            return false;
+        }
+        let chosen = self.chosen();
+        dm_shell::app::commands::applies(command, &chosen, &self.rows, false, &Looks)
+    }
+
+    /// The rows chosen, in the list's order.
+    pub fn chosen(&self) -> Vec<&Entry> {
+        self.shown
+            .iter()
+            .filter_map(|&r| self.rows.get(r))
+            .filter(|r| self.selected.contains(&r.id))
+            .map(|r| &**r)
+            .collect()
+    }
+
+    /// The queue Start and Stop Queue act on: the one shown, else the Main
+    /// queue.
+    pub fn current_queue(&self) -> String {
+        match &self.place {
+            Place::Queue(name) => name.clone(),
+            _ => dm_core::MAIN_QUEUE.to_string(),
+        }
     }
 
     /// One read of the application: the rows and what follows from them.
@@ -313,6 +344,27 @@ impl Downloads {
             });
         }
         self.shown = shown;
+    }
+}
+
+/// What the application asks of the window about a row, from what the
+/// last read told beside the rows (`dm_desktop_base::rows`).
+struct Looks;
+
+impl dm_shell::app::commands::Looks for Looks {
+    fn retrying(&self, id: dm_core::Id) -> bool {
+        dm_desktop_base::rows::retrying(id).is_some()
+    }
+
+    fn gone(&self, row: &Entry) -> bool {
+        dm_desktop_base::rows::gone(row)
+    }
+
+    fn plays(&self, row: &Entry) -> bool {
+        matches!(
+            dm_shell::app::names::kind_of(row),
+            Some(dm_core::Category::Videos | dm_core::Category::Audio)
+        )
     }
 }
 
