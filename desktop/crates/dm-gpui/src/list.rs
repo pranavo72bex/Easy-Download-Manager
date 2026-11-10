@@ -171,6 +171,12 @@ pub struct Downloads {
     rechecked: std::sync::Arc<std::sync::Mutex<Option<(usize, usize)>>>,
     /// The queues the menu bar lists, to build it again when they change.
     menu_queues: Vec<String>,
+    /// What saved searches found, as each run ends, by the search's name.
+    #[allow(clippy::type_complexity)]
+    search_results:
+        std::sync::Arc<std::sync::Mutex<Vec<(String, Result<dm_shell::lists::Crawled, String>)>>>,
+    /// When the saved searches were last looked at.
+    searches_checked: Option<std::time::Instant>,
 }
 
 impl Downloads {
@@ -222,6 +228,8 @@ impl Downloads {
             last_limit: 0,
             rechecked: Default::default(),
             menu_queues: Vec::new(),
+            search_results: Default::default(),
+            searches_checked: None,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -374,6 +382,10 @@ impl Downloads {
             Command::Remove | Command::DeleteFile => {
                 self.remove(&chosen, command == Command::DeleteFile, cx);
                 cx.notify();
+                return;
+            }
+            Command::SiteFiles => {
+                crate::grabber::open(cx.entity().downgrade(), cx);
                 return;
             }
             Command::Scheduler => {
@@ -779,6 +791,131 @@ impl Downloads {
                 checked as u64,
                 &[&checked, &changed],
             ));
+        }
+    }
+
+    /// Adds what a search found. With `keep_layout` each file goes in a
+    /// folder under the download folder that mirrors its address, one add
+    /// for each folder; otherwise all of them in one.
+    pub fn add_found(
+        &mut self,
+        urls: Vec<String>,
+        with: dm_core::AddOptions,
+        keep_layout: bool,
+        cx: &mut Context<Self>,
+    ) -> Result<usize, String> {
+        if !keep_layout {
+            let items = urls.into_iter().map(|u| (u, with.clone())).collect();
+            return self.add_items(items, cx);
+        }
+        let root = self.backend.settings().download_dir;
+        let mut items = Vec::new();
+        for (folder, group) in dm_shell::app::search::by_site_folder(&urls, &root) {
+            let mut here = with.clone();
+            if folder.is_some() {
+                here.save_dir = folder;
+            }
+            items.extend(group.into_iter().map(|u| (u, here.clone())));
+        }
+        self.add_items(items, cx)
+    }
+
+    /// Runs a saved search now, in the background; what it finds is taken
+    /// in on a later wake (`take_searches`).
+    pub fn run_search(&mut self, search: dm_shell::lists::Search) {
+        let mut search = search;
+        // The login Options › Sign-ins keeps for the site, where it keeps one.
+        search.page = self.backend.settings().with_login(&search.page);
+        let results = self.search_results.clone();
+        let name = search.name.clone();
+        dm_shell::app::search::crawl_later(&self.backend, search, move |found| {
+            dm_core::lock(&results).push((name, found));
+            dm_shell::app::changes::changed();
+        });
+    }
+
+    /// Takes in what finished saved searches found (their new files added
+    /// for later, said; what they have seen kept), and starts any saved
+    /// search whose time has come, looked at once a minute.
+    pub(crate) fn take_searches(&mut self, cx: &mut Context<Self>) {
+        use dm_desktop_base::i18n::{tf, tn};
+        let done: Vec<_> = std::mem::take(&mut *dm_core::lock(&self.search_results));
+        for (name, found) in done {
+            let settings = self.backend.settings();
+            match found {
+                Ok(found) => {
+                    let saved = settings.site_searches.iter().find(|s| s.name == name);
+                    let seen: Vec<String> = saved.map(|s| s.seen.clone()).unwrap_or_default();
+                    let keep_layout = saved.is_some_and(|s| s.keep_layout);
+                    // New: neither in the list nor found by this search
+                    // before (`dm_shell::app::search`).
+                    let finds = dm_shell::app::search::sort_finds(&found.files, &self.rows, &seen);
+                    let new = finds.new;
+                    let mut remember = finds.listed;
+                    if new.is_empty() {
+                        self.say(tf("The search {} found nothing new.", &[&name]));
+                    } else {
+                        let with = dm_core::AddOptions {
+                            later: true,
+                            queue: dm_core::MAIN_QUEUE.into(),
+                            ..Default::default()
+                        };
+                        let added = self.add_found(new.clone(), with, keep_layout, cx);
+                        let now = dm_shell::app::search::listed(&self.rows);
+                        remember.extend(
+                            new.iter()
+                                .map(|f| dm_shell::lists::bare(f))
+                                .filter(|f| now.contains(f)),
+                        );
+                        match added {
+                            Ok(n) => self.say(tn(
+                                "Added {} download to {}.||Added {} downloads to {}.",
+                                n as u64,
+                                &[&n, &dm_desktop_base::i18n::name(dm_core::MAIN_QUEUE)],
+                            )),
+                            Err(e) => self.problems.push(format!(
+                                "the search {name} found files that could not be added: {e}"
+                            )),
+                        }
+                    }
+                    let settings = self.backend.settings();
+                    if let Some(wanted) =
+                        dm_shell::app::search::seen_saved(&settings, &name, remember)
+                    {
+                        if let Err(e) = self.backend.set_settings(wanted) {
+                            self.problems.push(format!(
+                                "what the search {name} has seen could not be saved: {e}"
+                            ));
+                        }
+                    }
+                }
+                Err(e) => self.problems.push(format!("the search {name} failed: {e}")),
+            }
+        }
+        let now = std::time::Instant::now();
+        if self
+            .searches_checked
+            .is_some_and(|at| now.duration_since(at) < std::time::Duration::from_secs(60))
+        {
+            return;
+        }
+        self.searches_checked = Some(now);
+        let epoch = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let settings = self.backend.settings();
+        let Some((due, wanted)) = dm_shell::app::search::due_now(&settings, epoch) else {
+            return;
+        };
+        if let Err(e) = self.backend.set_settings(wanted) {
+            // Still run, and not again for a minute; but said, since an
+            // unsaved last run means the search runs again at every launch.
+            self.problems.push(format!(
+                "when the saved searches last ran could not be saved: {e}"
+            ));
+        }
+        for search in due {
+            self.run_search(search);
         }
     }
 

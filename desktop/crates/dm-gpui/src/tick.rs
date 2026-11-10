@@ -55,6 +55,7 @@ impl Downloads {
         self.delete_due_files();
         self.take_watched(cx);
         self.say_rechecked();
+        self.take_searches(cx);
         self.refresh_menus(cx);
         let problems = self.backend.problems();
         self.problems.extend(

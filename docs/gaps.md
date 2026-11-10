@@ -219,7 +219,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   run; `dm_desktop_base::scheduler::SchedulerDraft`, both windows), the Speed limiter (its
   presets, on and off, the download limit, slower hours), Start Queue and Stop Queue saying what
   they did, and their queue lists in Downloads' menu and beside the toolbar's buttons (B64).
-  Next in slice 5: the Grabber (B60, B61) and its saved searches; B52 comes with the tray. Then
+  The Grabber (B60, B61: a site's pages searched for files, its templates, other sites, the
+  site's folders kept, sizes and paths, the files found ticked and added for later) and its
+  saved searches, run by themselves on the tick (`dm_desktop_base::grabber`, both windows).
+  Slice 5 is done but B52, which comes with the tray (slice 8). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

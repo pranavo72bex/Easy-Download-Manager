@@ -25,6 +25,7 @@ mod addurl;
 mod assets;
 mod details;
 mod fit;
+mod grabber;
 mod limiter;
 mod links;
 mod list;

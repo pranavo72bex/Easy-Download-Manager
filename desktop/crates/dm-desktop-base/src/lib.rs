@@ -53,6 +53,7 @@ pub mod details;
 pub mod file_info;
 pub mod find;
 pub mod format;
+pub mod grabber;
 pub mod held;
 pub mod i18n;
 pub mod jumplist;
