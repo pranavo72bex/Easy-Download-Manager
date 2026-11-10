@@ -732,7 +732,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::dialogs::QUALITIES.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::DAYS);
     words.extend(TOOL_STYLES.iter().map(|(_, w)| *w));
-    words.extend(TOOLBAR.iter().map(|(_, _, w)| *w));
+    words.extend(dm_shell::app::commands::TOOLBAR.iter().map(|(_, w)| *w));
     words.extend(Command::ALL.iter().map(|c| c.label()));
     words.extend(Column::ALL.iter().map(|c| c.english()));
     words.extend(crate::power::WhenDone::ALL.iter().map(|w| w.verb()));

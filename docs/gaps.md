@@ -140,9 +140,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   footprint, an 11.6 MB binary against 18.0 MB); dm's menus are in macOS's menu bar, built from the
   command registry, each command's keys bound (⌘Q quits through the menu's action); the words on
   screen are recorded where each frame lays them out, and `ui.click`, `ui.scroll` and `ui.key` go
-  through GPUI's own input path, so `human-qa.py` can drive the GPUI window. Next: Phase C slice 1
-  (main window: toolbar, side panel, status bar), held to its rows with `DM_BINARY` naming dm-gpui;
-  then the tick (`changes::subscribe`
+  through GPUI's own input path, so `human-qa.py` can drive the GPUI window. Phase C slice 1 under
+  way: the toolbar in a unified title bar (macOS's traffic lights beside it, a picture with its word
+  on each button, the person's order and hiding from `commands::toolbar_shown`, moved out of the egui
+  crate; the bar's space drags the window, a double-click on it does the system's setting). Next: the
+  side panel (places, kinds, queues) and the status bar, then slice 1's rows with `DM_BINARY` naming
+  dm-gpui; then the tick (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

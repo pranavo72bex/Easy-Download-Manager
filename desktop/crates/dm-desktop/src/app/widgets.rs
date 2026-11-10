@@ -445,43 +445,30 @@ pub(super) fn nav_item(
     response
 }
 
-/// The toolbar's buttons, in their default order.
-pub(super) const TOOLBAR: [(Command, Icon, &str); 11] = [
-    (Command::AddUrl, Icon::Add, "Add URL"),
-    (Command::DownloadNow, Icon::Resume, "Resume"),
-    (Command::StopDownload, Icon::Stop, "Stop"),
-    (Command::StopAll, Icon::StopAll, "Stop All"),
-    (Command::Remove, Icon::Delete, "Delete"),
-    (
-        Command::DeleteCompleted,
-        Icon::DeleteCompleted,
-        "Delete Completed",
-    ),
-    (Command::Options, Icon::Options, "Options"),
-    (Command::Scheduler, Icon::Scheduler, "Scheduler"),
-    (Command::StartQueue, Icon::StartQueue, "Start Queue"),
-    (Command::StopQueue, Icon::StopQueue, "Stop Queue"),
-    (Command::SiteFiles, Icon::SiteFiles, "Grabber"),
-];
+/// The picture on a toolbar button's command.
+pub(super) fn toolbar_icon(command: Command) -> Icon {
+    match command {
+        Command::AddUrl => Icon::Add,
+        Command::DownloadNow => Icon::Resume,
+        Command::StopDownload => Icon::Stop,
+        Command::StopAll => Icon::StopAll,
+        Command::Remove => Icon::Delete,
+        Command::DeleteCompleted => Icon::DeleteCompleted,
+        Command::Options => Icon::Options,
+        Command::Scheduler => Icon::Scheduler,
+        Command::StartQueue => Icon::StartQueue,
+        Command::StopQueue => Icon::StopQueue,
+        _ => Icon::SiteFiles,
+    }
+}
 
-/// The toolbar's buttons in the order a person chose (by command id), with
-/// any not named after them in the default order. Unknown ids are skipped.
+/// The toolbar's buttons in the order a person chose
+/// (`dm_shell::app::commands::toolbar_in`), each with its picture.
 pub fn toolbar_in(order: &[String]) -> Vec<(Command, Icon, &'static str)> {
-    let mut buttons: Vec<(Command, Icon, &'static str)> = Vec::new();
-    // A hand-edited settings file can name a button twice; it is drawn once.
-    for id in order {
-        if let Some(button) = TOOLBAR.iter().find(|(c, _, _)| c.id() == id) {
-            if !buttons.iter().any(|(c, _, _)| *c == button.0) {
-                buttons.push(*button);
-            }
-        }
-    }
-    for button in TOOLBAR {
-        if !buttons.iter().any(|(c, _, _)| *c == button.0) {
-            buttons.push(button);
-        }
-    }
-    buttons
+    dm_shell::app::commands::toolbar_in(order)
+        .into_iter()
+        .map(|(c, words)| (c, toolbar_icon(c), words))
+        .collect()
 }
 
 /// The toolbar styles.
@@ -669,7 +656,7 @@ mod toolbar_tests {
             toolbar_in(&order).iter().map(|(c, _, _)| c.id()).collect()
         };
         let default = ids(&[]);
-        assert_eq!(default.len(), TOOLBAR.len());
+        assert_eq!(default.len(), dm_shell::app::commands::TOOLBAR.len());
         assert_eq!(default[0], Command::AddUrl.id());
         let moved = ids(&[
             "program.site_files",
@@ -679,7 +666,7 @@ mod toolbar_tests {
         assert_eq!(moved[0], "program.site_files");
         assert_eq!(
             moved.len(),
-            TOOLBAR.len(),
+            dm_shell::app::commands::TOOLBAR.len(),
             "each button once, unknown ids dropped"
         );
         assert_eq!(ToolStyle::named("text"), ToolStyle::Text);

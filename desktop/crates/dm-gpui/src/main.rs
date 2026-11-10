@@ -21,6 +21,7 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 
+mod assets;
 mod list;
 mod menus;
 mod port;
@@ -28,14 +29,15 @@ mod probe;
 mod screen;
 mod services;
 mod theme;
+mod toolbar;
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use dm_desktop_base::boot::{self, Wake};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Role, Window, WindowBounds, WindowHandle,
-    WindowKind, WindowOptions,
+    div, point, prelude::*, px, size, App, Bounds, Context, Role, TitlebarOptions, Window,
+    WindowBounds, WindowHandle, WindowKind, WindowOptions,
 };
 
 /// A dialog in a window of its own, as dm's are (B42): a question, OK and
@@ -163,44 +165,53 @@ fn main() {
         }
     });
 
-    gpui_platform::application().run(move |cx: &mut App| {
-        let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
-        let opened = cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                window_min_size: Some(size(px(640.0), px(400.0))),
-                ..Default::default()
-            },
-            |window, cx| {
-                window.set_window_title("dm");
-                cx.new(|cx| {
-                    list::Downloads::new(backend, woken, requests, assistants_only, window, cx)
-                })
-            },
-        );
-        let main = match opened {
-            Ok(main) => main,
-            Err(e) => {
-                eprintln!("dm-gpui: the window could not be opened: {e}");
-                cx.quit();
-                return;
+    gpui_platform::application()
+        .with_assets(assets::Assets)
+        .run(move |cx: &mut App| {
+            let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
+            let opened = cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    window_min_size: Some(size(px(640.0), px(400.0))),
+                    // A unified title bar, as macOS programs have: the toolbar is
+                    // drawn in it, beside the system's own traffic lights.
+                    titlebar: Some(TitlebarOptions {
+                        title: Some("dm".into()),
+                        appears_transparent: true,
+                        traffic_light_position: Some(point(px(16.0), px(18.0))),
+                    }),
+                    ..Default::default()
+                },
+                |window, cx| {
+                    window.set_window_title("dm");
+                    cx.new(|cx| {
+                        list::Downloads::new(backend, woken, requests, assistants_only, window, cx)
+                    })
+                },
+            );
+            let main = match opened {
+                Ok(main) => main,
+                Err(e) => {
+                    eprintln!("dm-gpui: the window could not be opened: {e}");
+                    cx.quit();
+                    return;
+                }
+            };
+            // dm's menus in the system's menu bar, and every command's keys.
+            menus::bind_keys(cx);
+            menus::set(cx);
+            // The commands themselves are the window's view's (`Downloads`'
+            // root element handles `menus::Run`), reached through the window's
+            // own dispatch, as a key or the menu bar sends them.
+            let _ = main;
+            if dump_accessibility && open_question(cx).is_none() {
+                eprintln!("dm-gpui: the dialog's window could not be opened");
             }
-        };
-        // dm's menus in the system's menu bar, and every command's keys.
-        menus::bind_keys(cx);
-        menus::set(cx);
-        // The commands themselves are the window's view's (`Downloads`'
-        // root element handles `menus::Run`), reached through the window's
-        // own dispatch, as a key or the menu bar sends them.
-        let _ = main;
-        if dump_accessibility && open_question(cx).is_none() {
-            eprintln!("dm-gpui: the dialog's window could not be opened");
-        }
-        cx.activate(true);
-        if dump_accessibility {
-            cx.spawn(async move |cx| dump(cx, churn).await).detach();
-        }
-    });
+            cx.activate(true);
+            if dump_accessibility {
+                cx.spawn(async move |cx| dump(cx, churn).await).detach();
+            }
+        });
 }
 
 /// What VoiceOver is given of each window, then out (Phase B check 1). The

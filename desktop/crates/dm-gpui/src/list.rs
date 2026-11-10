@@ -219,6 +219,7 @@ impl Render for Downloads {
             .bg(theme.background)
             .text_color(theme.text)
             .text_sm()
+            .child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
             .child(
                 div()
                     .px_3()

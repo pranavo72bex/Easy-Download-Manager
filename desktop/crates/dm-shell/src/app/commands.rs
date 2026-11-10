@@ -654,6 +654,51 @@ pub fn when_done(command: Command) -> Option<WhenDone> {
     })
 }
 
+/// The toolbar's buttons, in their default order: each command and the
+/// English word under its picture.
+pub const TOOLBAR: [(Command, &str); 11] = [
+    (Command::AddUrl, "Add URL"),
+    (Command::DownloadNow, "Resume"),
+    (Command::StopDownload, "Stop"),
+    (Command::StopAll, "Stop All"),
+    (Command::Remove, "Delete"),
+    (Command::DeleteCompleted, "Delete Completed"),
+    (Command::Options, "Options"),
+    (Command::Scheduler, "Scheduler"),
+    (Command::StartQueue, "Start Queue"),
+    (Command::StopQueue, "Stop Queue"),
+    (Command::SiteFiles, "Grabber"),
+];
+
+/// The toolbar's buttons in the order a person chose (by command id), with
+/// any not named after them in the default order. Unknown ids are skipped,
+/// and one named twice (a hand-edited settings file) is drawn once.
+pub fn toolbar_in(order: &[String]) -> Vec<(Command, &'static str)> {
+    let mut buttons: Vec<(Command, &'static str)> = Vec::new();
+    for id in order {
+        if let Some(button) = TOOLBAR.iter().find(|(c, _)| c.id() == id) {
+            if !buttons.iter().any(|(c, _)| *c == button.0) {
+                buttons.push(*button);
+            }
+        }
+    }
+    for button in TOOLBAR {
+        if !buttons.iter().any(|(c, _)| *c == button.0) {
+            buttons.push(button);
+        }
+    }
+    buttons
+}
+
+/// The buttons the toolbar shows: [`toolbar_in`] the settings' order, less
+/// those the person hid.
+pub fn toolbar_shown(settings: &Settings) -> Vec<(Command, &'static str)> {
+    toolbar_in(&settings.toolbar_order)
+        .into_iter()
+        .filter(|(c, _)| !settings.toolbar_hidden.iter().any(|h| h == c.id()))
+        .collect()
+}
+
 /// The command that chooses `wanted`, as the Downloads menu does: what an
 /// order from the command line (`dm --when-done`) runs. [`when_done`] the
 /// other way.
@@ -1062,5 +1107,38 @@ mod tests {
         for w in WhenDone::ALL {
             assert_eq!(when_done(when_done_command(w)), Some(w), "{w:?}");
         }
+    }
+
+    #[test]
+    fn the_toolbar_keeps_a_persons_order_and_hides_what_they_hid() {
+        let order: Vec<String> = [
+            Command::Options.id(),
+            "no.such.command",
+            Command::Options.id(),
+            Command::AddUrl.id(),
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let buttons = toolbar_in(&order);
+        assert_eq!(buttons.len(), TOOLBAR.len(), "each once, none lost");
+        assert_eq!(
+            buttons[0].0,
+            Command::Options,
+            "the person's first is first"
+        );
+        assert_eq!(buttons[1].0, Command::AddUrl);
+        assert_eq!(
+            buttons[2].0,
+            Command::DownloadNow,
+            "then the rest as they come"
+        );
+        let settings = Settings {
+            toolbar_hidden: vec![Command::Scheduler.id().to_string()],
+            ..Settings::default()
+        };
+        let shown = toolbar_shown(&settings);
+        assert!(!shown.iter().any(|(c, _)| *c == Command::Scheduler));
+        assert_eq!(shown.len(), TOOLBAR.len() - 1);
     }
 }
