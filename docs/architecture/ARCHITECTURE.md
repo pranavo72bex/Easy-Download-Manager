@@ -80,16 +80,17 @@ The egui window runs `DmApp::logic` from `Window::logic`, on every pass of
 eframe's loop, painted or not (so the tick goes on while the window is in the
 tray), and again from `DmApp::ui` on a painted pass, because the window tests
 drive `DmApp::ui` alone; the second run reads only what changed in between.
-A new presentation runs the tick once per wake. Some of what happens between
-steps 3 and 5 is still the window's (hints, saved searches, the clipboard
-watch, the weekly update check): rows G3 and G1 in `docs/gaps.md`, and
-`docs/migration/CURRENT_UI_ARCHITECTURE.md` 4.2.
+A new presentation runs the tick once per wake. Between steps 3 and 5 the
+window also drives the hints, saved searches, the clipboard watch and the
+weekly update check, each decided by the application (`hints`, `search`,
+`links`, `update`; G3, 2026-11-10): the window says and shows what they
+decide, and starts their timers.
 
 Headless (`--headless`) still runs `DmApp::logic` against a stand-in
 `egui::Context` (decided 2026-11-08, [decisions.md](../decisions.md)): its
 `command.run` and `ui.*` answers stay exactly as they are, and every rule it
-follows is the application's, except the rules `docs/gaps.md` row G3 lists
-as still in `DmApp`. `Command` is the application's (step 15): a presentation runs the same
+follows is the application's (what stays in `DmApp` is view state and
+wording: `docs/decisions.md`, 2026-11-10). `Command` is the application's (step 15): a presentation runs the same
 commands, checks them with `commands::applies` and carries out the
 application's with `commands::verb`. What a row is called, imports, the
 clipboard watch and extraction are the application's too (step 16), and a
