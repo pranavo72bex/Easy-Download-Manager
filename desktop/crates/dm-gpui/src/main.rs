@@ -218,7 +218,7 @@ fn main() {
             // every macOS program: the main window's view ends dm.
             if let Ok(view) = main.update(cx, |_, _, cx| cx.entity().downgrade()) {
                 cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
-                    Some(view) => view.update(cx, |view, cx| view.quit(cx)),
+                    Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
                     None => cx.quit(),
                 });
             }

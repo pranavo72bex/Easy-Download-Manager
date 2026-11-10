@@ -42,6 +42,28 @@ fn in_own_window<R>(
         .flatten()
 }
 
+/// Where Exit stands in "Exit dm?"'s buttons.
+const EXIT: usize = 1;
+
+/// "Exit dm?" as the list stands (`asks::exit`). Keep downloading (Stay,
+/// once nothing runs) stands rightmost and Exit beside it, each where it is
+/// whatever the words say: a download finishing while it is open changes
+/// the words and moves the default to Exit, and moves no button.
+fn exit_question(view: &Downloads) -> crate::question::Asked {
+    let (busy, waiting) = view.running_and_waiting();
+    let ask = dm_desktop_base::asks::exit(busy, waiting);
+    crate::question::Asked {
+        title: ask.title.into(),
+        lines: vec![ask.sentence.into()],
+        named: None,
+        detail: None,
+        toggle: None,
+        buttons: vec![ask.keep.into(), ask.exit.into()],
+        default: if ask.finished { EXIT } else { 0 },
+        escape: 0,
+    }
+}
+
 /// The rows' height, in points.
 pub(crate) const ROW_HEIGHT: f32 = 24.0;
 
@@ -97,10 +119,13 @@ pub struct Downloads {
     sheets: std::collections::VecDeque<(
         crate::question::Asked,
         Option<crate::question::Reword>,
+        Option<crate::question::Live>,
         crate::question::Answer,
     )>,
     /// A sheet is open on the main window.
     sheet_open: bool,
+    /// "Exit dm?" is being asked: Exit again does not ask twice.
+    exit_asked: bool,
 }
 
 impl Downloads {
@@ -137,6 +162,7 @@ impl Downloads {
             main: window.window_handle(),
             sheets: Default::default(),
             sheet_open: false,
+            exit_asked: false,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -244,7 +270,7 @@ impl Downloads {
             return;
         }
         if command == Command::Quit {
-            self.quit(cx);
+            self.ask_quit(cx);
             return;
         }
         let chosen: Vec<Entry> = self.chosen().into_iter().cloned().collect();
@@ -294,8 +320,13 @@ impl Downloads {
             _ => {}
         }
         let queue = self.current_queue();
-        let _ = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
+        let ran = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
         self.read();
+        // Resume on rows the schedule or the download limit holds: each of
+        // the others went on, and these are asked about.
+        if let Some(dm_shell::app::commands::Ran::WentOn { held }) = ran {
+            self.ask_outside(held, cx);
+        }
         cx.notify();
     }
 
@@ -307,6 +338,7 @@ impl Downloads {
         with: dm_core::AddOptions,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
+        let later = with.later;
         let items = urls.into_iter().map(|u| (u, with.clone())).collect();
         let added = self.session.add(&self.backend, items);
         if let Some(id) = added.rows.first().map(|(id, _, _)| *id) {
@@ -323,8 +355,75 @@ impl Downloads {
             });
         }
         self.read();
+        // Start now while the schedule or the download limit holds
+        // downloads: asked, as Resume asks, whether to start it outside the
+        // schedule (asked of the schedule itself: the list, just read, may
+        // hold no row waiting on it yet).
+        let settings = self.backend.settings();
+        let shut = settings.schedule.enabled && !settings.schedule.open();
+        if !later && (shut || self.backend.allowance_spent().is_some()) {
+            let ids = added.rows.iter().map(|(id, _, _)| *id).collect();
+            self.ask_outside(ids, cx);
+        }
         cx.notify();
         added.outcome().map(|_| ())
+    }
+
+    /// "Start outside the schedule?" for the rows `ids` the schedule or the
+    /// download limit holds: Start now starts them this once; Keep waiting
+    /// leaves them.
+    pub fn ask_outside(&mut self, ids: Vec<dm_core::Id>, cx: &mut Context<Self>) {
+        if ids.is_empty() {
+            return;
+        }
+        let settings = self.backend.settings();
+        let mut categories = settings.categories();
+        // The name the list shows: "big.zip" was asked about while the row
+        // read "big (1).zip".
+        let names: Vec<String> = ids
+            .iter()
+            .filter_map(|id| self.rows.iter().find(|r| r.id == *id))
+            .map(|row| {
+                dm_shell::app::names::name_it_will_get_after(
+                    &self.rows,
+                    row,
+                    &settings.download_dir,
+                    &mut categories,
+                    None,
+                )
+            })
+            .collect();
+        let why = dm_desktop_base::held::held_because(&settings, self.backend.allowance_spent());
+        let ask = dm_desktop_base::asks::outside(&names, why);
+        let asked = crate::question::Asked {
+            title: ask.title.into(),
+            lines: std::iter::once(ask.sentence)
+                .chain(ask.why)
+                .chain(std::iter::once(ask.question.to_string()))
+                .map(Into::into)
+                .collect(),
+            named: None,
+            detail: None,
+            toggle: None,
+            // Keep waiting beside Start now, the default, rightmost.
+            buttons: vec![ask.start.into(), ask.wait.into()],
+            default: 0,
+            escape: 1,
+        };
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, _, cx| {
+            if button != 0 {
+                return;
+            }
+            let _ = view.update(cx, |view, cx| {
+                for id in &ids {
+                    view.backend.start_outside_schedule(*id);
+                }
+                view.read();
+                cx.notify();
+            });
+        });
+        self.sheet(asked, None, None, answer, cx);
     }
 
     /// Where Add URL's OK sends the address (`add_url::decide`), and the
@@ -393,6 +492,7 @@ impl Downloads {
             detail: None,
             toggle: Some(t("Remember my choice").into()),
             buttons: choices.iter().map(|(w, _)| (*w).into()).collect(),
+            default: 0,
             escape: choices.len() - 1,
         };
         let view = cx.entity().downgrade();
@@ -411,7 +511,7 @@ impl Downloads {
                 view.answer_duplicate(address, id, how, cx);
             });
         });
-        self.sheet(asked, None, answer, cx);
+        self.sheet(asked, None, None, answer, cx);
     }
 
     /// Carries out an answer to "Already in the list", asked or remembered
@@ -492,6 +592,7 @@ impl Downloads {
             toggle: None,
             buttons: ask.buttons.into_iter().map(Into::into).collect(),
             // Escape keeps the default, which changes nothing.
+            default: 0,
             escape: 0,
         };
         let view = cx.entity().downgrade();
@@ -504,7 +605,7 @@ impl Downloads {
                 cx.notify();
             });
         });
-        self.sheet(asked, None, answer, cx);
+        self.sheet(asked, None, None, answer, cx);
         self.asking = true;
     }
 
@@ -533,6 +634,39 @@ impl Downloads {
         }
     }
 
+    /// Exit, as the menu, ⌘Q or the toolbar ask for it: at once with nothing
+    /// downloading, else asked first ("Exit dm?"): exiting pauses the
+    /// downloads, and they go on the next time dm opens. A signal (a logout,
+    /// `kill`) ends dm without asking, as before.
+    pub fn ask_quit(&mut self, cx: &mut Context<Self>) {
+        let (busy, waiting) = self.running_and_waiting();
+        if busy + waiting == 0 {
+            self.quit(cx);
+            return;
+        }
+        if self.exit_asked {
+            return;
+        }
+        self.exit_asked = true;
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, _, cx| {
+            let _ = view.update(cx, |view, cx| {
+                view.exit_asked = false;
+                if button == EXIT {
+                    view.quit(cx);
+                }
+            });
+        });
+        let live: crate::question::Live = Box::new(exit_question);
+        self.sheet(exit_question(self), None, Some(live), answer, cx);
+    }
+
+    /// How many downloads are running, and how many are in line to start.
+    pub fn running_and_waiting(&self) -> (usize, usize) {
+        let count = |state: State| self.rows.iter().filter(|r| r.state == state).count();
+        (count(State::Running), count(State::Queued))
+    }
+
     /// Ends dm as Exit does: the queue written down, then every dialog
     /// closed (macOS holds its terminate while a sheet is still asking: a
     /// logout or `kill` waited on an unanswered question), then the
@@ -556,6 +690,7 @@ impl Downloads {
         &mut self,
         asked: crate::question::Asked,
         reword: Option<crate::question::Reword>,
+        live: Option<crate::question::Live>,
         answer: crate::question::Answer,
         cx: &mut Context<Self>,
     ) {
@@ -567,7 +702,7 @@ impl Downloads {
                 view.show_sheets(cx);
             });
         });
-        self.sheets.push_back((asked, reword, answer));
+        self.sheets.push_back((asked, reword, live, answer));
         self.show_sheets(cx);
     }
 
@@ -575,10 +710,11 @@ impl Downloads {
     /// window is in front.
     fn show_sheets(&mut self, cx: &mut Context<Self>) {
         while !self.sheet_open && cx.active_window() == Some(self.main) {
-            let Some((asked, reword, answer)) = self.sheets.pop_front() else {
+            let Some((asked, reword, live, answer)) = self.sheets.pop_front() else {
                 return;
             };
-            self.sheet_open = crate::question::ask(asked, reword, answer, cx);
+            let live = live.map(|live| (live, cx.entity()));
+            self.sheet_open = crate::question::ask(asked, reword, live, answer, cx);
         }
     }
 
@@ -725,6 +861,7 @@ impl Downloads {
                 detail: None,
                 toggle: ask.toggle.map(Into::into),
                 buttons: vec![ask.keep.into(), ask.go.into()],
+                default: 0,
                 escape: 0,
             }
         };
@@ -738,7 +875,7 @@ impl Downloads {
                 });
             }
         });
-        self.sheet(asked, Some(Box::new(words)), answer, cx);
+        self.sheet(asked, Some(Box::new(words)), None, answer, cx);
     }
 
     /// The rows `ids` taken off the list, their finished `files` with them

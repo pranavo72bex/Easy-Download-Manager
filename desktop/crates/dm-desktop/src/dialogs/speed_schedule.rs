@@ -5,7 +5,7 @@
 
 use super::*;
 /// The Scheduler's days, Sunday first, as `Schedule::days` numbers them.
-pub const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+pub use dm_desktop_base::held::DAYS;
 
 /// The Scheduler as it is being edited: every queue's hours, and the queue
 /// whose hours show, as reference A's lists its queues beside their

@@ -52,6 +52,7 @@ pub mod desktop;
 pub mod details;
 pub mod file_info;
 pub mod format;
+pub mod held;
 pub mod i18n;
 pub mod jumplist;
 pub mod login;

@@ -721,20 +721,7 @@ impl DmApp {
     /// Why held rows wait, and until when: the download limit's time left,
     /// or when the schedule next opens. `None` when nothing holds them.
     pub fn held_because(&self) -> Option<String> {
-        if let Some(wait) = self.backend.allowance_spent() {
-            return Some(tf(
-                "Held by the download limit; it goes on by itself in {}.",
-                &[&format::span(wait)],
-            ));
-        }
-        let schedule = &self.applied.schedule;
-        if schedule.enabled && !schedule.open() {
-            return Some(match opens_next(schedule) {
-                Some(at) => tf("Held by the schedule; it starts by itself at {}.", &[&at]),
-                None => t("Held by the schedule.").to_string(),
-            });
-        }
-        None
+        dm_desktop_base::held::held_because(&self.applied, self.backend.allowance_spent())
     }
 
     /// Adds downloads, as "Start now" and "Add for later" do.

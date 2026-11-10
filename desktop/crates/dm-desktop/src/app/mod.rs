@@ -642,36 +642,9 @@ pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
     }
 }
 
-/// When a closed schedule next opens, as a person reads it: "01:00" later
-/// today, "Mon 01:00" on another day. `None` if it never does.
-pub fn opens_next(schedule: &dm_core::Schedule) -> Option<String> {
-    use chrono::{Datelike, Timelike};
-    let now = chrono::Local::now();
-    let today = now.weekday().num_days_from_sunday();
-    let minute = now.time().hour() * 60 + now.time().minute();
-    opens_after(schedule, today, minute).map(|(days, at)| {
-        let clock = format!("{:02}:{:02}", at / 60, at % 60);
-        if days == 0 {
-            clock
-        } else {
-            let day = crate::dialogs::DAYS
-                .get(((today + days) % 7) as usize)
-                .copied()
-                .unwrap_or_default();
-            format!("{} {clock}", t(day))
-        }
-    })
-}
-
-/// The first minute after `minute` of weekday `today` that the schedule is
-/// open: how many days on, and the minute of that day.
-pub fn opens_after(schedule: &dm_core::Schedule, today: u32, minute: u32) -> Option<(u32, u32)> {
-    (1..=8 * 1440).map(|step| minute + step).find_map(|at| {
-        let (days, at) = (at / 1440, at % 1440);
-        let weekday = ((today + days) % 7) as u8;
-        schedule.open_at(weekday, at).then_some((days, at))
-    })
-}
+/// When a closed schedule next opens, and the minute it does: dm's
+/// (`dm_desktop_base::held`), as every window says it.
+pub use dm_desktop_base::held::{opens_after, opens_next};
 
 /// Writes what egui captured as a PNG.
 fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), String> {

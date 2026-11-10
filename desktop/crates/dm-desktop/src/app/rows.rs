@@ -67,30 +67,7 @@ pub(super) mod status_tests {
     }
 
     #[test]
-    fn a_closed_schedule_says_when_it_next_opens() {
-        let schedule = dm_core::Schedule {
-            enabled: true,
-            from: "01:00".into(),
-            to: "07:00".into(),
-            days: vec![1],
-            wake: false,
-            when_done: String::new(),
-            retries: 0,
-            run_when_done: String::new(),
-            hang_up: false,
-            once_at: None,
-            force: false,
-        };
-        // Monday 00:30: later today. Monday 08:00: next Monday.
-        assert_eq!(opens_after(&schedule, 1, 30), Some((0, 60)));
-        assert_eq!(opens_after(&schedule, 1, 480), Some((7, 60)));
-        let never = dm_core::Schedule {
-            days: vec![],
-            from: "bad".into(),
-            ..schedule
-        };
-        // A time that is not one is no schedule: open at once.
-        assert_eq!(opens_after(&never, 1, 480), Some((0, 481)));
+    fn a_sign_in_is_asked_for_by_a_401_alone() {
         assert!(needs_sign_in("the server answered 401 Unauthorized for x"));
         assert!(!needs_sign_in(
             "the server answered 404 Not Found for /4013"

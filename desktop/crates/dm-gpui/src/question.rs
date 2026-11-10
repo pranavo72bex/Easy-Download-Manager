@@ -6,8 +6,8 @@
 //! A question, asked as macOS's own programs ask one: a sheet on the dm
 //! window (GPUI's `WindowKind::Dialog`), which holds that window until it
 //! is answered (`docs/decisions.md`, 2026-11-10). Its words are dm's
-//! (`dm_desktop_base::asks`); the first button is the default, Return's,
-//! and the one that loses nothing.
+//! (`dm_desktop_base::asks`); the buttons stand as macOS sets an alert's
+//! (the first rightmost), and the default is Return's.
 
 use gpui::{
     div, prelude::*, px, size, App, Bounds, Context, FocusHandle, KeyDownEvent, Role, SharedString,
@@ -30,9 +30,13 @@ pub struct Asked {
     pub detail: Option<SharedString>,
     /// A choice to tick, where there is one.
     pub toggle: Option<SharedString>,
-    /// Its buttons, in order: the first is the default, Return's, and
-    /// loses nothing.
+    /// Its buttons, in order: the first stands rightmost, the place of
+    /// the default (`placed`).
     pub buttons: Vec<SharedString>,
+    /// Which button is the default, highlighted and Return's: the first,
+    /// which loses nothing, but for a question whose answer changes under
+    /// it (Exit's), where the highlight moves and the buttons do not.
+    pub default: usize,
     /// Which button Escape and the close button press.
     pub escape: usize,
 }
@@ -45,11 +49,17 @@ pub type Answer = Box<dyn FnOnce(usize, bool, &mut App)>;
 /// say something else then (Remove's: "Their files are deleted too.").
 pub type Reword = Box<dyn Fn(bool) -> Asked>;
 
+/// What a question says as the list changes under it, asked again each time
+/// it does (Exit's: a download finishing while it is open).
+pub type Live = Box<dyn Fn(&crate::list::Downloads) -> Asked>;
+
 /// The question's sheet.
 pub struct Question {
     screen: crate::screen::Screen,
     asked: Asked,
     reword: Option<Reword>,
+    /// Its words follow the list: room is kept for them.
+    steady: bool,
     ticked: bool,
     answer: Option<Answer>,
     focus: FocusHandle,
@@ -87,13 +97,15 @@ impl Render for Question {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
         let ticked = self.ticked;
+        let steady = self.steady;
         self.screen.begin();
         let screen = self.screen.clone();
+        let default = self.asked.default;
         let button = |i: usize, cx: &mut Context<Self>| {
             native::button(
                 ("button", i),
                 self.asked.buttons[i].clone(),
-                i == 0,
+                i == default,
                 theme,
                 &screen,
             )
@@ -113,7 +125,10 @@ impl Render for Question {
                 // the question's own (Remove's: the same, so a slip of
                 // either keeps everything).
                 match event.keystroke.key.as_str() {
-                    "enter" => this.answer(0, window, cx),
+                    "enter" => {
+                        let default = this.asked.default;
+                        this.answer(default, window, cx)
+                    }
                     "escape" => {
                         let escape = this.asked.escape;
                         this.answer(escape, window, cx)
@@ -138,6 +153,10 @@ impl Render for Question {
                             .flex_col()
                             .gap(px(6.0))
                             .text_size(px(native::SMALL_TEXT))
+                            // A question whose words change as it stands
+                            // keeps room for three lines, so its buttons do
+                            // not move under a pointer on its way to one.
+                            .when(steady, |d| d.min_h(px(3.0 * native::SMALL_TEXT * 1.4)))
                             .children(self.asked.lines.iter().cloned().map(|l| screen.label(l)))
                             .when_some(self.asked.named.clone(), |d, named| {
                                 d.child(
@@ -170,7 +189,13 @@ impl Render for Question {
 
 /// Asks `asked` as a sheet on the dm window; `answer` is told how it was
 /// answered. No answer if the sheet could not open.
-pub fn ask(asked: Asked, reword: Option<Reword>, answer: Answer, cx: &mut App) -> bool {
+pub fn ask(
+    asked: Asked,
+    reword: Option<Reword>,
+    live: Option<(Live, gpui::Entity<crate::list::Downloads>)>,
+    answer: Answer,
+    cx: &mut App,
+) -> bool {
     let height = 150.0
         + 20.0 * asked.lines.len() as f32
         + if asked.named.is_some() { 20.0 } else { 0.0 }
@@ -193,10 +218,22 @@ pub fn ask(asked: Asked, reword: Option<Reword>, answer: Answer, cx: &mut App) -
                 window.focus(&focus, cx);
                 let screen = crate::screen::Screen::default();
                 crate::screen::Screens::register(window.window_handle(), screen.clone(), true, cx);
+                // Said again each time the list changes, where it follows
+                // the list: after the list's update, never inside it (the
+                // first frame is drawn while the list is still updating).
+                let steady = live.is_some();
+                if let Some((live, view)) = live {
+                    cx.observe(&view, move |this: &mut Question, view, cx| {
+                        this.asked = live(view.read(cx));
+                        cx.notify();
+                    })
+                    .detach();
+                }
                 Question {
                     screen,
                     asked,
                     reword,
+                    steady,
                     ticked: false,
                     answer: Some(answer),
                     focus,

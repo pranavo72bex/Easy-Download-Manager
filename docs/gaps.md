@@ -191,11 +191,14 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   forms with a label column, the default button rightmost); a question is asked on dm's own
   window once it is in front (it went with Add URL as Add URL closed, and was never shown while
   dm was in the background). `human-qa.py` 64/64 on macOS for the egui window at 1711002.
-  Slice 4 still owes, in the GPUI window: B02's video Quality and Part, the
-  Playlist window (a playlist address is only said in the status bar), a ZIP's files, a caught
-  download's "From …" and "Always save here without asking", and the question to start outside
-  the schedule; and for `human-qa.py`, a way for the port to choose in a pop-up (the system's
-  menu is modal, so a click on one waits for a person). Then
+  "Exit dm?" (Exit while downloads run: its words follow the list while it is open, its
+  buttons never move) and "Start outside the schedule?" (Resume or Start now on downloads the
+  schedule or the download limit holds) are sheets, with dm's words for both windows
+  (`asks::exit`, `asks::outside`, `dm_desktop_base::held`). Slice 4 still owes, in the GPUI
+  window: B02's video Quality and Part, the Playlist window, a ZIP's files, and a caught
+  download's "From …" and "Always save here without asking"; and for `human-qa.py`, a way for
+  the port to choose in a pop-up (the system's menu is modal, so a click on one waits for a
+  person). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

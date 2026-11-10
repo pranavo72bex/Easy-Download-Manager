@@ -175,23 +175,15 @@ pub(super) fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
         .filter_map(|id| app.row(*id))
         .map(|r| app.name_it_will_get(r, &mut categories))
         .collect();
-    let why = app.held_because().unwrap_or_default();
-    window(ctx, "Start outside the schedule?").show(ctx, |ui| {
-        ui.label(if names.len() == 1 {
-            tf(
-                "{} waits for the schedule or the download limit.",
-                &[&names.join(", ")],
-            )
-        } else {
-            tf(
-                "{} downloads wait for the schedule or the download limit.",
-                &[&names.len()],
-            )
-        });
-        if !why.is_empty() {
+    // What it says is dm's (`dm_desktop_base::asks::outside`), as every
+    // window's.
+    let ask = dm_desktop_base::asks::outside(&names, app.held_because());
+    window(ctx, ask.title_english).show(ctx, |ui| {
+        ui.label(&ask.sentence);
+        if let Some(why) = &ask.why {
             ui.label(RichText::new(why).small().weak());
         }
-        ui.label(t("Start it now? Only your selection starts."));
+        ui.label(ask.question);
         footer(ui, |ui| {
             start = primary(ui, "Start now").clicked() || enter_free(ui);
             wait = ui.button(t("Keep waiting")).clicked();
@@ -220,44 +212,13 @@ pub(super) fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
     // Running and waiting counted apart: a queued row is not running, and
     // counting it as one told of downloads that were not.
     let (busy, waiting) = app.running_and_waiting();
-    let mut said = Vec::new();
-    // Finished meanwhile: the question changes, and dm still waits for the
-    // person's answer. It used to quit by itself in the first frame that
-    // counted nothing running, so a person reading the question, or
-    // reaching for "Keep downloading", saw dm vanish. Only Exit
-    // quits.
-    let finished = busy + waiting == 0;
-    if finished {
-        said.push(t("Nothing is downloading any more. Exit dm?").to_string());
-    }
-    if busy > 0 {
-        said.push(crate::i18n::tn(
-            "{} download is still running.||{} downloads are still running.",
-            busy as u64,
-            &[&busy],
-        ));
-    }
-    if waiting > 0 && busy > 0 {
-        said.push(crate::i18n::tn(
-            "{} more is waiting to start.||{} more are waiting to start.",
-            waiting as u64,
-            &[&waiting],
-        ));
-    } else if waiting > 0 {
-        said.push(crate::i18n::tn(
-            "{} download is waiting to start.||{} downloads are waiting to start.",
-            waiting as u64,
-            &[&waiting],
-        ));
-    }
-    if !finished {
-        // As plural as the count it speaks of.
-        said.push(crate::i18n::tn(
-            "Exiting pauses it. It picks up where it left off the next time you open dm.||Exiting pauses them. They pick up where they left off the next time you open dm.",
-            (busy + waiting) as u64,
-            &[],
-        ));
-    }
+    // What it says is dm's (`dm_desktop_base::asks::exit`), as every
+    // window's. Finished meanwhile: the question changes, and dm still waits
+    // for the person's answer. It used to quit by itself in the first frame
+    // that counted nothing running, so a person reading the question, or
+    // reaching for "Keep downloading", saw dm vanish. Only Exit quits.
+    let ask = dm_desktop_base::asks::exit(busy, waiting);
+    let finished = ask.finished;
     // Narrower on a screen that has not the room, as the other dialogs.
     let width = EXIT_WIDTH.min(super::room(ctx).width() - 48.0).max(220.0);
     window(ctx, "Exit dm?").show(ctx, |ui| {
@@ -273,7 +234,7 @@ pub(super) fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
                 ui.set_min_height(lines);
-                ui.add(egui::Label::new(said.join(" ")).wrap());
+                ui.add(egui::Label::new(&ask.sentence).wrap());
             },
         );
         footer(ui, |ui| {

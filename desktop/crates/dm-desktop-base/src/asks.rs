@@ -10,7 +10,7 @@
 
 use dm_core::{Entry, State};
 
-use crate::i18n::{t, tf};
+use crate::i18n::{t, tf, tn};
 
 /// The question asked before Remove (B17's neighbour: every way of asking,
 /// the Delete key, the toolbar, the menus).
@@ -197,6 +197,126 @@ pub fn not_found() -> DownloadAsk {
     }
 }
 
+/// "Exit dm?", asked when Exit is chosen while downloads run: what it says
+/// with `busy` downloads running and `waiting` in line, and its buttons.
+/// Asked again as the list changes: a download finishing while it is open
+/// changes the words and which button is the default, never where each
+/// button stands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExitAsk {
+    /// The title in English, which the window's tests and the control port
+    /// find it by.
+    pub title_english: &'static str,
+    /// The title, in the language in force.
+    pub title: &'static str,
+    /// What it says.
+    pub sentence: String,
+    /// Nothing runs any more: Exit is the default, and the other button
+    /// says Stay.
+    pub finished: bool,
+    /// The button that exits.
+    pub exit: &'static str,
+    /// The button that keeps dm open: Keep downloading, or Stay.
+    pub keep: &'static str,
+}
+
+/// The Exit question with `busy` downloads running and `waiting` in line.
+pub fn exit(busy: usize, waiting: usize) -> ExitAsk {
+    // Running and waiting counted apart: a queued row is not running, and
+    // counting it as one told of downloads that were not.
+    let finished = busy + waiting == 0;
+    let mut said = Vec::new();
+    if finished {
+        said.push(t("Nothing is downloading any more. Exit dm?").to_string());
+    }
+    if busy > 0 {
+        said.push(tn(
+            "{} download is still running.||{} downloads are still running.",
+            busy as u64,
+            &[&busy],
+        ));
+    }
+    if waiting > 0 && busy > 0 {
+        said.push(tn(
+            "{} more is waiting to start.||{} more are waiting to start.",
+            waiting as u64,
+            &[&waiting],
+        ));
+    } else if waiting > 0 {
+        said.push(tn(
+            "{} download is waiting to start.||{} downloads are waiting to start.",
+            waiting as u64,
+            &[&waiting],
+        ));
+    }
+    if !finished {
+        // As plural as the count it speaks of.
+        said.push(tn(
+            "Exiting pauses it. It picks up where it left off the next time you open dm.||Exiting pauses them. They pick up where they left off the next time you open dm.",
+            (busy + waiting) as u64,
+            &[],
+        ));
+    }
+    ExitAsk {
+        title_english: "Exit dm?",
+        title: t("Exit dm?"),
+        sentence: said.join(" "),
+        finished,
+        exit: t("Exit"),
+        keep: if finished {
+            t("Stay")
+        } else {
+            t("Keep downloading")
+        },
+    }
+}
+
+/// "Start outside the schedule?", asked when Resume or Start now meets
+/// downloads the schedule or the download limit holds: start them now
+/// anyway (this time only), or let them wait.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutsideAsk {
+    /// The title in English, which the window's tests and the control port
+    /// find it by.
+    pub title_english: &'static str,
+    /// The title, in the language in force.
+    pub title: &'static str,
+    /// Which wait: the one by name, or how many.
+    pub sentence: String,
+    /// What holds them, and until when, where that is known.
+    pub why: Option<String>,
+    /// The question itself.
+    pub question: &'static str,
+    /// The button that starts them: the default.
+    pub start: &'static str,
+    /// The button that lets them wait.
+    pub wait: &'static str,
+}
+
+/// The question for the downloads named `names` (as the list shows them),
+/// held because `why`.
+pub fn outside(names: &[String], why: Option<String>) -> OutsideAsk {
+    OutsideAsk {
+        title_english: "Start outside the schedule?",
+        title: t("Start outside the schedule?"),
+        sentence: if names.len() == 1 {
+            tf(
+                "{} waits for the schedule or the download limit.",
+                &[&names.join(", ")],
+            )
+        } else {
+            tf(
+                "{} downloads wait for the schedule or the download limit.",
+                &[&names.len()],
+            )
+        },
+        why: why.filter(|w| !w.is_empty()),
+        question: t("Start it now? Only your selection starts."),
+        start: t("Start now"),
+        wait: t("Keep waiting"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,5 +380,43 @@ mod tests {
         assert_eq!(gone.title_english, "The file doesn't exist");
         assert_eq!(gone.detail, Some("HTTP/1.1 404 Not Found"));
         assert_eq!(gone.buttons, vec!["OK"]);
+    }
+
+    #[test]
+    fn exit_says_what_runs_and_what_waits_and_stays_once_all_have_finished() {
+        let both = exit(2, 1);
+        assert_eq!(
+            both.sentence,
+            "2 downloads are still running. 1 more is waiting to start. Exiting pauses them. They pick up where they left off the next time you open dm."
+        );
+        assert!(!both.finished);
+        assert_eq!((both.exit, both.keep), ("Exit", "Keep downloading"));
+        let one = exit(0, 1);
+        assert_eq!(
+            one.sentence,
+            "1 download is waiting to start. Exiting pauses it. It picks up where it left off the next time you open dm."
+        );
+        let done = exit(0, 0);
+        assert!(done.finished);
+        assert_eq!(done.sentence, "Nothing is downloading any more. Exit dm?");
+        assert_eq!(done.keep, "Stay");
+    }
+
+    #[test]
+    fn outside_names_the_one_or_counts_them_and_says_what_holds_them() {
+        let one = outside(&["big.zip".into()], Some("Held by the schedule.".into()));
+        assert_eq!(one.title_english, "Start outside the schedule?");
+        assert_eq!(
+            one.sentence,
+            "big.zip waits for the schedule or the download limit."
+        );
+        assert_eq!(one.why.as_deref(), Some("Held by the schedule."));
+        assert_eq!((one.start, one.wait), ("Start now", "Keep waiting"));
+        let two = outside(&["a".into(), "b".into()], Some(String::new()));
+        assert_eq!(
+            two.sentence,
+            "2 downloads wait for the schedule or the download limit."
+        );
+        assert_eq!(two.why, None);
     }
 }
