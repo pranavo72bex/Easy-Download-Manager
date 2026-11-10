@@ -131,8 +131,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   foreground task (a burst of changes coalesced over 250 ms; a clock every second while something
   runs, else 30 s), draws the rows with `uniform_list` (only those on screen laid out) in the
   system's own light or dark colours and font, and quits on SIGTERM as Exit does. Seen with
-  10,000 rows. Next: `WindowProbe` for what it draws (so `ui-bench.py` measures it), then the
-  tick (`changes::subscribe`
+  10,000 rows; it answers the control port (`ui.texts`, `ui.scroll`, `ui.inspect`, the
+  application's methods; the rest refused by name), so `ui-bench.py` measures it. **Owed:**
+  `linux-human-qa.sh` for 43a565d (the shared startup; macOS 64/64): the run of 2026-11-10 failed
+  only for a full Docker disk ("0 bytes free"), and the maintainer deferred Linux QA for now; it
+  runs before anything merges into `main`. Next: the shell's release numbers beside egui's, then
+  the tick (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,
