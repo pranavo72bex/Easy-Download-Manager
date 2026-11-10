@@ -18,6 +18,8 @@ path = "src/lib.rs"
 dm-core = { path = "../dm-core" }
 dm-shell = { path = "../dm-shell" }
 serde_json = "1"
+# The control port's window answers, as typed shapes (probe.rs).
+serde = { version = "1", features = ["derive"] }
 # The control protocol's token (control.rs).
 getrandom = "0.4"
 # The system's language, for the window's first one: from the OS itself,

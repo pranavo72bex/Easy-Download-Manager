@@ -1799,6 +1799,7 @@ dependencies = [
  "dm-shell",
  "getrandom 0.4.3",
  "raw-window-handle",
+ "serde",
  "serde_json",
  "sys-locale",
  "tempfile",

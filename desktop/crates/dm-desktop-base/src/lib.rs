@@ -17,7 +17,8 @@
 //! light, and Windows' High Contrast colours, where the window library cannot
 //! say), and Windows' taskbar button (`taskbar`'s progress, `jumplist`); and
 //! `control`, the control port's
-//! server, which hands each request to the window through a callback;
+//! server, which hands each request to the window through a callback, and
+//! `probe`, the window methods it asks as a contract any window answers;
 //! `mcp` (the MCP server an AI assistant talks to, over the control port),
 //! `cli` (the command line, over the control port too) and `region` (how
 //! the computer writes numbers and dates); `i18n` (the words in the
@@ -48,6 +49,7 @@ pub mod jumplist;
 pub mod login;
 pub mod mcp;
 pub mod power;
+pub mod probe;
 pub mod quiet;
 pub mod region;
 pub mod signals;
