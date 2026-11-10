@@ -2300,6 +2300,7 @@ dependencies = [
  "futures-lite",
  "gpui-pre",
  "gpui-pre-platform",
+ "serde_json",
 ]
 
 [[package]]

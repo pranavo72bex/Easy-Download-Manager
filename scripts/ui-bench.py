@@ -146,13 +146,19 @@ def run_once(root, base, home, out, rows, idle, run):
         last = f"bench{rows - 1:05}"
         ids = [r["id"] for r in dm.rows() if r["url"].endswith(f"/{last}.bin")]
         t = time.time()
-        dm.call("ui.key", key="F", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
-        until(lambda: any(w == "Find next" for w in texts(dm)), 20)
-        dm.call("ui.type", text=last)
-        dm.call("ui.click", text="Find next")
-        until(lambda: dm.call("ui.inspect").get("result", {}).get("selected") == ids, 30)
-        took["find"] = time.time() - t
-        dm.call("ui.key", key="Escape")
+        pressed = dm.call("ui.key", key="F", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
+        # A window that has no keys yet (the GPUI shell) says so: Find is not measured.
+        if not pressed.get("ok"):
+            print(f"  find: {pressed.get('error')}", flush=True)
+            ids = None
+        else:
+            until(lambda: any(w == "Find next" for w in texts(dm)), 20)
+        if ids is not None:
+            dm.call("ui.type", text=last)
+            dm.call("ui.click", text="Find next")
+            until(lambda: dm.call("ui.inspect").get("result", {}).get("selected") == ids, 30)
+            took["find"] = time.time() - t
+            dm.call("ui.key", key="Escape")
 
         dm.add([f"{base}/f/busy{run}-{i}/{200 * MB}/busy{i}.bin?rate={MB}" for i in range(20)])
         time.sleep(5)

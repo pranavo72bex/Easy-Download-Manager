@@ -22,6 +22,8 @@
 #![warn(clippy::string_add, clippy::needless_for_each)]
 
 mod list;
+mod port;
+mod probe;
 mod services;
 mod theme;
 
@@ -125,9 +127,12 @@ fn main() {
 
     // Woken from any thread; read on the window's own, in `list::Downloads`.
     let (wakes, woken) = async_channel::unbounded::<Wake>();
-    let wake = Arc::new(move |wake: Wake| {
-        let _ = wakes.try_send(wake);
-    });
+    let wake = {
+        let wakes = wakes.clone();
+        Arc::new(move |wake: Wake| {
+            let _ = wakes.try_send(wake);
+        })
+    };
     let platform: Arc<dyn dm_shell::app::backend::Platform> =
         Arc::new(dm_desktop_base::desktop::Desktop {
             window: services::GpuiServices,
@@ -135,6 +140,8 @@ fn main() {
     let boot::Booted {
         runtime: _runtime,
         backend,
+        control,
+        assistants_only,
         ..
     } = match boot::start(&args, &handed, platform, wake) {
         Ok(booted) => booted,
@@ -143,6 +150,16 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    // The control port, where asked for (`--control`, DM_CONTROL, or the
+    // person's setting), as the egui window opens it.
+    let requests = control.and_then(|port| match port::open(port, wakes) {
+        Ok(requests) => Some(requests),
+        Err(e) => {
+            backend.note(format!("the control protocol could not start: {e}"));
+            None
+        }
+    });
 
     gpui_platform::application().run(move |cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
@@ -154,7 +171,9 @@ fn main() {
             },
             |window, cx| {
                 window.set_window_title("dm");
-                cx.new(|cx| list::Downloads::new(backend, woken, window, cx))
+                cx.new(|cx| {
+                    list::Downloads::new(backend, woken, requests, assistants_only, window, cx)
+                })
             },
         );
         if let Err(e) = opened {

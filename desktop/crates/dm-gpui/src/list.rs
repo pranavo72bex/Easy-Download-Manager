@@ -18,21 +18,29 @@ use dm_core::{Entry, State};
 use dm_desktop_base::boot::Wake;
 use dm_shell::app::backend::Backend;
 use dm_shell::app::session::Session;
-use gpui::{div, prelude::*, px, uniform_list, Context, Role, SharedString, Window};
+use gpui::{
+    div, prelude::*, px, uniform_list, Context, Role, SharedString, UniformListScrollHandle, Window,
+};
 
 use crate::theme::Theme;
 
 /// The rows' height, in points.
-const ROW_HEIGHT: f32 = 26.0;
+pub(crate) const ROW_HEIGHT: f32 = 26.0;
 
 /// How often a window with nothing moving wakes of its own accord.
 const IDLE: Duration = Duration::from_secs(30);
 
 /// The main window's view: the application, and the rows it last read.
 pub struct Downloads {
-    backend: Backend,
-    session: Session,
-    rows: Vec<Arc<Entry>>,
+    pub(crate) backend: Backend,
+    pub(crate) session: Session,
+    pub(crate) rows: Vec<Arc<Entry>>,
+    /// The control port's requests, answered on this thread.
+    requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
+    /// The port was opened only for AI assistants.
+    assistants_only: bool,
+    /// Where the list is scrolled, and where it is on screen.
+    pub(crate) scroll: UniformListScrollHandle,
 }
 
 impl Downloads {
@@ -40,6 +48,8 @@ impl Downloads {
     pub fn new(
         backend: Backend,
         woken: async_channel::Receiver<Wake>,
+        requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
+        assistants_only: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Downloads {
@@ -47,6 +57,9 @@ impl Downloads {
             backend,
             session: Session::default(),
             rows: Vec::new(),
+            requests,
+            assistants_only,
+            scroll: UniformListScrollHandle::new(),
         };
         this.read();
         // One task on the window's thread: each wake is one read, a burst of
@@ -88,6 +101,7 @@ impl Downloads {
             if this
                 .update(cx, |this, cx| {
                     this.read();
+                    this.answer_requests(cx);
                     cx.notify();
                 })
                 .is_err()
@@ -108,6 +122,28 @@ impl Downloads {
         }
     }
 
+    /// Answers what the control port asked, in order: who may ask as the
+    /// application says, the window's methods through its `WindowProbe`,
+    /// the rest through the application (`control_api`).
+    fn answer_requests(&mut self, cx: &mut Context<Self>) {
+        let asked: Vec<_> = match &self.requests {
+            Some(requests) => requests.try_iter().collect(),
+            None => return,
+        };
+        let allow_mcp = self.backend.settings().allow_mcp;
+        for request in asked {
+            let answer = match dm_shell::app::control_api::refused(
+                request.via_mcp,
+                self.assistants_only,
+                allow_mcp,
+            ) {
+                Some(why) => Err(why),
+                None => crate::probe::answer(self, &request.method, &request.params, cx),
+            };
+            let _ = request.reply.send(answer);
+        }
+    }
+
     /// One read of the application: the rows and what follows from them.
     fn read(&mut self) {
         dm_shell::app::changes::take();
@@ -118,7 +154,7 @@ impl Downloads {
 }
 
 /// What a row's line says, in the shell: its name and its state.
-fn line(row: &Entry) -> (SharedString, SharedString) {
+pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
     let name = if row.filename.is_empty() {
         dm_shell::app::names::provisional(&row.url)
     } else {
@@ -183,6 +219,7 @@ impl Render for Downloads {
                             .collect()
                     }),
                 )
+                .track_scroll(&self.scroll)
                 .flex_1(),
             )
     }
