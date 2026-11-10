@@ -44,6 +44,9 @@ pub struct Theme {
     pub window: Rgba,
     /// The default button's face: the system's accent.
     pub accent: Rgba,
+    /// What is in order (an extension that has spoken to dm): the system's
+    /// green.
+    pub success: Rgba,
 }
 
 impl Theme {
@@ -84,6 +87,8 @@ impl Theme {
                 field: rgb(0x1a1a1a),
                 window: rgb(0x2d2d2d),
                 accent: rgb(0x007aff),
+                // NSColor.systemGreen, dark.
+                success: rgb(0x30d158),
             },
             WindowAppearance::Light | WindowAppearance::VibrantLight => Theme {
                 background: rgb(0xffffff),
@@ -101,7 +106,20 @@ impl Theme {
                 field: rgb(0xffffff),
                 window: rgb(0xececec),
                 accent: rgb(0x007aff),
+                success: rgb(0x34c759),
             },
         }
     }
+}
+
+/// The look Options › General asks for: Light or Dark whatever the
+/// computer's, else the computer's (`classic` is the egui window's own look,
+/// drawn here as the computer's). Every window follows, as the system's own
+/// setting would have it.
+pub fn follow(choice: &str, cx: &mut gpui::App) {
+    cx.set_window_appearance(match choice {
+        "light" => Some(WindowAppearance::Light),
+        "dark" => Some(WindowAppearance::Dark),
+        _ => None,
+    });
 }

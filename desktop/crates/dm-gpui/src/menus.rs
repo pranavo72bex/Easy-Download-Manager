@@ -109,6 +109,7 @@ pub fn carried_out(command: Command) -> bool {
             | C::AddFromClipboard
             | C::About
             | C::CheckForUpdates
+            | C::Options
             | C::UpdateLink
             | C::MoveToQueue
             | C::MoveRename

@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 dm-core = { path = "../dm-core" }
+dm-protocol = { path = "../dm-protocol" }
 dm-shell = { path = "../dm-shell" }
 dm-desktop-base = { path = "../dm-desktop-base" }
 gpui = { package = "gpui-pre", version = "=0.3.12" }

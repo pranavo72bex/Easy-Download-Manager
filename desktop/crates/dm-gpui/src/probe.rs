@@ -163,10 +163,6 @@ impl Probe<'_, '_> {
         self.cx.notify();
     }
 
-    fn find(&self, wanted: &str, nth: usize) -> Result<Drawn, String> {
-        Ok(self.find_in(wanted, nth)?.0)
-    }
-
     /// Every word on screen in every window, nearest the front first (a
     /// dialog's before the main window's), with its window and whether it
     /// is a dialog's.
@@ -259,6 +255,35 @@ impl WindowProbe for Probe<'_, '_> {
     }
 
     fn click(&mut self, click: probe::Click) -> Result<probe::Clicked, String> {
+        // One of the choices of a pop-up the port clicked a moment ago.
+        if let Some(held) = crate::popup::held() {
+            let lower = click.text.to_lowercase();
+            match held
+                .choices
+                .iter()
+                .position(|c| c.as_ref() == click.text || c.to_lowercase() == lower)
+            {
+                Some(index) => {
+                    self.view.scripted.acted();
+                    let pick = crate::popup::Pick {
+                        field: held.field,
+                        item: held.item,
+                        index,
+                    };
+                    self.cx.defer(move |cx| {
+                        let _ = held.window.update(cx, |_, window, cx| {
+                            window.dispatch_action(Box::new(pick), cx)
+                        });
+                    });
+                    self.cx.notify();
+                    return Ok(probe::Clicked {
+                        clicked: click.text,
+                        at: [0.0, 0.0],
+                    });
+                }
+                None => crate::popup::hold(held),
+            }
+        }
         let (target, in_window) = self.find_in(&click.text, click.nth)?;
         if probe::is_run_a_file(&target.text) {
             return Err(format!("{} is done by a person", target.text));
@@ -276,36 +301,38 @@ impl WindowProbe for Probe<'_, '_> {
         // double).
         self.cx.defer(move |cx| {
             let _ = in_window.update(cx, |_, window, cx| {
-                let none = Modifiers::default();
-                window.dispatch_event(
-                    PlatformInput::MouseMove(MouseMoveEvent {
-                        position: at,
-                        pressed_button: None,
-                        modifiers: none,
-                    }),
-                    cx,
-                );
-                for count in 1..=clicks {
+                crate::popup::scripted(|| {
+                    let none = Modifiers::default();
                     window.dispatch_event(
-                        PlatformInput::MouseDown(MouseDownEvent {
-                            button,
+                        PlatformInput::MouseMove(MouseMoveEvent {
                             position: at,
+                            pressed_button: None,
                             modifiers: none,
-                            click_count: count,
-                            first_mouse: false,
                         }),
                         cx,
                     );
-                    window.dispatch_event(
-                        PlatformInput::MouseUp(MouseUpEvent {
-                            button,
-                            position: at,
-                            modifiers: none,
-                            click_count: count,
-                        }),
-                        cx,
-                    );
-                }
+                    for count in 1..=clicks {
+                        window.dispatch_event(
+                            PlatformInput::MouseDown(MouseDownEvent {
+                                button,
+                                position: at,
+                                modifiers: none,
+                                click_count: count,
+                                first_mouse: false,
+                            }),
+                            cx,
+                        );
+                        window.dispatch_event(
+                            PlatformInput::MouseUp(MouseUpEvent {
+                                button,
+                                position: at,
+                                modifiers: none,
+                                click_count: count,
+                            }),
+                            cx,
+                        );
+                    }
+                })
             });
         });
         self.cx.notify();
@@ -316,23 +343,26 @@ impl WindowProbe for Probe<'_, '_> {
     }
 
     fn scroll(&mut self, scroll: probe::Scroll) -> Result<probe::Scrolled, String> {
-        let over = self
-            .find(&scroll.text, 0)
+        let (over, in_window) = self
+            .find_in(&scroll.text, 0)
             .map_err(|_| format!("nothing on screen says {:?}", scroll.text))?;
         let at = over.bounds.center();
         self.view.scripted.acted();
         // A line is 40 points, as the egui window turns a wheel's; down is
-        // a negative delta, as the system gives it.
+        // a negative delta, as the system gives it. In the window the words
+        // are in: a dialog's page scrolls in its own.
         let delta = ScrollDelta::Pixels(point(px(0.0), px(-scroll.lines * 40.0)));
-        self.window.defer(self.cx, move |window, cx| {
-            window.dispatch_event(
-                PlatformInput::Scroll(ScrollEvent {
-                    position: at,
-                    delta,
-                    ..Default::default()
-                }),
-                cx,
-            );
+        self.cx.defer(move |cx| {
+            let _ = in_window.update(cx, |_, window, cx| {
+                window.dispatch_event(
+                    PlatformInput::Scroll(ScrollEvent {
+                        position: at,
+                        delta,
+                        ..Default::default()
+                    }),
+                    cx,
+                );
+            });
         });
         self.cx.notify();
         Ok(probe::Scrolled {

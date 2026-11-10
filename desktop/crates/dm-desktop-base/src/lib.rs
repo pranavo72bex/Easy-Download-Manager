@@ -63,6 +63,7 @@ pub mod mcp;
 pub mod modes;
 #[cfg(target_os = "macos")]
 pub mod opened;
+pub mod options;
 pub mod power;
 pub mod probe;
 pub mod progress;

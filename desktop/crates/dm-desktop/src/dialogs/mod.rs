@@ -282,134 +282,24 @@ pub struct Series {
 /// (`dm_desktop_base::grabber`), as every window's.
 pub use dm_desktop_base::grabber::{Grab, SiteFiles};
 
-/// The pages of Options.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Tab {
-    /// The General page.
-    General,
-    /// The File types page.
-    FileTypes,
-    /// The Save to page.
-    SaveTo,
-    /// The Downloads page.
-    Downloads,
-    /// The expert settings, in one page: the connection's and the proxy's.
-    Advanced,
-    /// The Sign-ins page.
-    SiteLogins,
-}
-
-/// The settings each tab of Options edits, by the names they are saved under:
-/// what its Restore defaults puts back. Sign-ins hold a person's own logins,
-/// which are not a default to go back to.
-pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
-    match tab {
-        Tab::General => &[
-            "language",
-            "theme",
-            "start_on_login",
-            "allow_command_line",
-            "allow_mcp",
-            "check_updates",
-            "sound_on_complete",
-            "sound_on_failure",
-            "mica",
-            "show_progress",
-            "show_complete",
-            "watch_clipboard",
-            "ask_panel_downloads",
-            "ask_caught_downloads",
-            "offer_new_link",
-            "server_dates",
-            "double_click",
-            "on_close",
-        ],
-        Tab::FileTypes => &["catch"],
-        Tab::SaveTo => &[
-            "categorize",
-            "category_folders",
-            "download_dir",
-            "parts_dir",
-        ],
-        Tab::Downloads => &[
-            "concurrency",
-            "connections",
-            "fetch_tools",
-            "on_complete",
-            "queue_limits",
-            "queue_starts",
-            "recheck_hours",
-            "record_minutes",
-            "remux_ts",
-            "start_queue_on_launch",
-            "stream_quality",
-            "subtitles",
-            "watch_folder",
-        ],
-        Tab::Advanced => &[
-            "attempts",
-            "cookies_file",
-            "dialup",
-            "host_limits",
-            "proxy",
-            "read_timeout",
-            "retry_wait",
-            "site_rules",
-            "speed_limit",
-        ],
-        Tab::SiteLogins => &[],
-    }
-}
+/// Options' pages, the settings each puts back, and their names
+/// (`dm_desktop_base::options`, both windows).
+pub use dm_desktop_base::options::{tab_settings, Tab, TABS, THEMES};
 
 impl OptionsDialog {
     /// Puts the tab's settings back to what a new install has, in the draft:
     /// OK keeps them, Cancel leaves everything as it was. The words typed for
     /// the lists are read again from what they now hold.
     pub fn restore_defaults(&mut self) {
-        let (Ok(serde_json::Value::Object(mut now)), Ok(serde_json::Value::Object(fresh))) = (
-            serde_json::to_value(&self.draft),
-            serde_json::to_value(Settings::default()),
-        ) else {
-            return;
-        };
-        for key in tab_settings(self.tab) {
-            if let Some(value) = fresh.get(*key) {
-                now.insert((*key).to_string(), value.clone());
-            }
-        }
-        if let Ok(draft) = serde_json::from_value(serde_json::Value::Object(now)) {
-            self.draft = draft;
-        }
-        let s = &self.draft;
-        self.types = s.catch.extensions.join(" ");
-        self.skip = s.catch.skip_hosts.join(" ");
-        self.once = s.catch.once_hosts.join(" ");
-        self.bypass = s.proxy.bypass.join(" ");
-        self.custom = s
-            .custom_categories
-            .iter()
-            .map(|c| [c.name.clone(), c.extensions.join(" "), c.sites.join(" ")])
-            .collect();
+        self.draft = dm_desktop_base::options::restore_defaults(self.tab, &self.draft);
+        let typed = dm_desktop_base::options::Typed::of(&self.draft);
+        self.types = typed.types;
+        self.skip = typed.skip;
+        self.once = typed.once;
+        self.bypass = typed.bypass;
+        self.custom = typed.custom;
     }
 }
-
-/// Every page of Options, with the name it shows.
-pub const TABS: [(Tab, &str); 6] = [
-    (Tab::General, "General"),
-    (Tab::FileTypes, "Browser"),
-    (Tab::SaveTo, "Folders"),
-    (Tab::Downloads, "Downloads"),
-    (Tab::Advanced, "Advanced"),
-    (Tab::SiteLogins, "Sign-ins"),
-];
-
-/// Options › General's looks: the setting's word, and what the choice says.
-pub const THEMES: [(&str, &str); 4] = [
-    ("system", "As the computer is"),
-    ("light", "Light"),
-    ("dark", "Dark"),
-    ("classic", "Classic"),
-];
 
 /// Options › Downloads' video qualities: the setting's word, and its name.
 pub use dm_desktop_base::file_info::QUALITIES;

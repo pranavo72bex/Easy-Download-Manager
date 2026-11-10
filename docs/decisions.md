@@ -3,6 +3,28 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: GPUI's Options is macOS's settings layout over the shared rules; a sidebar button
+
+Options' rules are `dm_desktop_base::options` for both windows: its six pages (B43) and what
+each page's Restore defaults puts back, the lists typed as words, and OK, which reads the lists
+into the draft, refuses a proxy with nowhere to connect to (on Advanced, at its proxy) and a
+category made or renamed that cannot be a folder on every computer (on Folders), and keeps only
+what Options changed over what is in force. The GPUI window draws the pages as macOS's settings
+are: the pages as a tab view's segments at the top, the settings in sections under bold headings,
+each check box with what it does under it, the system's pop-ups and fields, one size for every
+page with the page scrolling. Its Theme offers the computer's look, Light and Dark, and forces
+the application's appearance for the last two (`set_window_appearance`); `classic` is the egui
+window's own look and is drawn as the computer's. Text size is the egui window's zoom; a macOS
+program follows the system's text, so the GPUI page has none. Mica, who opens magnet links and
+Dial Up / VPN are Windows' and are drawn there by the egui window until the Windows work is done
+on a Windows computer. The clipboard is watched as the egui window watches it ("Offer to download
+links I copy": the bar above the list; "Take a copied link at once").
+
+The maintainer, 2026-11-10, looking at the GPUI window: "no option to close side pannel here".
+The categories could be hidden only from View › Categories. The title bar now has the system's
+sidebar button just past the traffic lights, where Finder, Mail and Notes put it, and ⌃⌘S (macOS's
+own keys for Show and Hide Sidebar) does the same.
+
 ## 2026-11-10: The GPUI window keeps the script guard; its own actions are registered once
 
 The GPUI window had no script guard: a control client could double-click a finished row (with

@@ -103,27 +103,9 @@ pub(super) fn list_file(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// Sites as the rules match them, by host name: an address pasted whole,
-/// scheme and path and all, was kept as it was and matched nothing.
-/// A bare name, or one with a leading dot, is kept.
-pub fn sites(words: &[String]) -> Vec<String> {
-    words
-        .iter()
-        .map(|w| {
-            let host = if w.contains("://") {
-                url::Url::parse(w)
-                    .ok()
-                    .and_then(|u| u.host_str().map(str::to_string))
-            } else {
-                // "example.com/path" or "example.com:8080": the name alone.
-                w.split(['/', ':']).next().map(str::to_string)
-            };
-            host.filter(|h| !h.is_empty())
-                .unwrap_or_else(|| w.clone())
-                .to_ascii_lowercase()
-        })
-        .collect()
-}
+/// Sites as the rules match them, by host name (`dm_desktop_base::options`,
+/// both windows).
+pub use dm_desktop_base::options::sites;
 
 /// A `.torrent` on this computer named by a path or `file://` address
 /// (`dm_desktop_base::add_url`).

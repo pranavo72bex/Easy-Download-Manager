@@ -7,6 +7,9 @@
 //! system's own menu of the choices (an `NSMenu`, through gpui-component's
 //! `NativeMenu`; drawn by GPUI where the system has none), the chosen one
 //! ticked. The choice comes back as a [`Pick`] action to the window's view.
+//! The system's menu waits for a person, so a click the control port gives
+//! a pop-up holds its choices instead ([`held`]), and the port's next click
+//! on one of their words picks it, as a person's would.
 
 use gpui::{div, prelude::*, px, Action, App, Role, SharedString, Window};
 use gpui_component::native_menu::NativeMenu;
@@ -25,6 +28,42 @@ pub struct Pick {
     pub item: usize,
     /// The choice's place in its list.
     pub index: usize,
+}
+
+/// A pop-up the control port clicked: its window, which pop-up, and its
+/// choices, waiting for the port to click one.
+#[derive(Clone)]
+pub struct Held {
+    pub window: gpui::AnyWindowHandle,
+    pub field: &'static str,
+    pub item: usize,
+    pub choices: Vec<SharedString>,
+}
+
+thread_local! {
+    /// Whether the click being given is the control port's.
+    static SCRIPTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The pop-up the port clicked last, until one of its choices is.
+    static HELD: std::cell::RefCell<Option<Held>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Gives the control port's click: pop-ups hold their choices instead of
+/// opening the system's menu, which would wait for a person.
+pub fn scripted<R>(click: impl FnOnce() -> R) -> R {
+    SCRIPTED.with(|s| s.set(true));
+    let done = click();
+    SCRIPTED.with(|s| s.set(false));
+    done
+}
+
+/// The pop-up the port clicked, taken.
+pub fn held() -> Option<Held> {
+    HELD.with(|h| h.borrow_mut().take())
+}
+
+/// The pop-up the port clicked, put back (its choice was not among them).
+pub fn hold(held: Held) {
+    HELD.with(|h| *h.borrow_mut() = Some(held));
 }
 
 /// The pop-up `field`, showing `words`; a click opens `choices`, the one at
@@ -80,6 +119,15 @@ pub fn button_of(
                 .text_color(theme.muted),
         )
         .on_click(move |event, window, cx| {
+            if SCRIPTED.with(|s| s.get()) {
+                hold(Held {
+                    window: window.window_handle(),
+                    field,
+                    item,
+                    choices: choices.clone(),
+                });
+                return;
+            }
             open(field, item, &choices, chosen, event.position(), window, cx)
         })
 }

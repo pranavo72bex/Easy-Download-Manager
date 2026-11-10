@@ -2326,6 +2326,7 @@ dependencies = [
  "async-channel",
  "dm-core",
  "dm-desktop-base",
+ "dm-protocol",
  "dm-shell",
  "futures-lite",
  "gpui-base",

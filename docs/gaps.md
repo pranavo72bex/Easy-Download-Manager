@@ -209,9 +209,9 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   finished and failed downloads (the window's own notifier, `notify.rs`), an address handed
   over again said, the schedules' hooks, When done with its countdown as a sheet (Cancel the
   default), "Delete file after", the watched folder, the big download hint, problems above the
-  list with Dismiss. Still owed for slice 4: a way for the port to choose in a pop-up (the
-  system's menu is modal, so a click on one waits for a person), before `human-qa.py` drives the
-  GPUI window; B44's Properties half comes with slice 6. The window's top bar holds the search
+  list with Dismiss. The port chooses in a pop-up as a person does (a click on the pop-up holds
+  its choices instead of opening the system's modal menu; a click on a choice's words picks it),
+  and reads only the words in view, so `human-qa.py` can drive the GPUI window. The window's top bar holds the search
   box, as a code editor's title bar does (the maintainer's word, "take reference from vscode"):
   the list narrowed as one types, ⌘F, Find next and previous, Escape; the toolbar a row under it.
   Slice 5 under way: the Scheduler (B49, B62, B65: the queues at its left with Start now and Stop,
@@ -245,8 +245,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   the update, the update offered above the list once verified (Install now, Later), the
   weekly check, and Help's topics, Tip of the day, home page, support and Tell a friend
   (`dm_desktop_base::project`, both windows). A control client's click a moment ago runs no
-  file and installs no update (the script guard, gaps row 159 f). Left of the menus: Options
-  (slice 7) and the drop target (slice 8). Then
+  file and installs no update (the script guard, gaps row 159 f). Slice 7 is done: Options, its
+  six pages (B43, B51, B56, B57) with the egui window's words in macOS's settings layout, OK and
+  Restore defaults on `dm_desktop_base::options` for both windows, the look it asks for, and the
+  clipboard watched as it says. Left of the menus: the drop target (slice 8). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

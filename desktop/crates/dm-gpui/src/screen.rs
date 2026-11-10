@@ -45,11 +45,17 @@ impl Screen {
         let words = text.clone();
         div().relative().child(text).child(
             canvas(
-                move |bounds, _, _| {
-                    record.borrow_mut().push(Drawn {
-                        text: words,
-                        bounds,
-                    });
+                move |bounds, window, _| {
+                    // Only what can be seen: words scrolled out of a page's
+                    // view are not on screen, and a click aimed at them
+                    // landed on whatever was there.
+                    let seen = bounds.intersect(&window.content_mask().bounds);
+                    if seen.size.width > gpui::px(0.0) && seen.size.height > gpui::px(0.0) {
+                        record.borrow_mut().push(Drawn {
+                            text: words,
+                            bounds: seen,
+                        });
+                    }
                 },
                 |_, _, _, _| {},
             )

@@ -26,6 +26,7 @@ mod actions;
 mod addurl;
 mod assets;
 mod cliplinks;
+mod clipwatch;
 mod complete;
 mod details;
 mod fit;
@@ -37,6 +38,8 @@ mod menus;
 mod native;
 #[cfg(not(windows))]
 mod notify;
+mod options;
+mod options_pages;
 mod playlist;
 mod popup;
 mod port;

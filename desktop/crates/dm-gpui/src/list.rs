@@ -176,7 +176,7 @@ pub struct Downloads {
     search_results:
         std::sync::Arc<std::sync::Mutex<Vec<(String, Result<dm_shell::lists::Crawled, String>)>>>,
     /// When the saved searches were last looked at.
-    searches_checked: Option<std::time::Instant>,
+    pub(crate) searches_checked: Option<std::time::Instant>,
     /// Each progress window open, by its download.
     progress_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
     /// Progress windows a person closed: not opened again by themselves.
@@ -200,6 +200,10 @@ pub struct Downloads {
     pub(crate) about_window: Option<gpui::AnyWindowHandle>,
     /// Tip of the day, while open.
     pub(crate) tip_window: Option<gpui::AnyWindowHandle>,
+    /// Options, while open.
+    pub(crate) options_window: Option<gpui::AnyWindowHandle>,
+    /// The clipboard, watched where Options says (`clipwatch.rs`).
+    pub(crate) clipboard: dm_shell::app::links::Clipboard,
     /// What an opener said went wrong, from its thread.
     opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
     /// View › Categories: the side panel shown.
@@ -272,6 +276,8 @@ impl Downloads {
             weekly_pending: false,
             about_window: None,
             tip_window: None,
+            options_window: None,
+            clipboard: Default::default(),
             opener_said: Default::default(),
             show_sidebar: true,
             show_toolbar: true,
@@ -279,6 +285,9 @@ impl Downloads {
         // The sort the person left the list in.
         let settings = this.backend.settings();
         this.sort = Column::from_key(&settings.sort_column).map(|c| (c, settings.sort_ascending));
+        // The clipboard watched, and the look asked for, as Options says.
+        this.watch_clipboard(settings.watch_clipboard);
+        crate::theme::follow(&settings.theme, cx);
         window.focus(&this.focus, cx);
         crate::screen::Screens::register(window.window_handle(), this.screen.clone(), false, cx);
         this.read();
@@ -365,7 +374,10 @@ impl Downloads {
 
     /// How long the window sleeps when nothing wakes it.
     fn clock_every(&self) -> Duration {
-        if self.session.countdown.is_some() || self.rows.iter().any(|r| r.state == State::Running) {
+        if self.session.countdown.is_some()
+            || self.clipboard.on
+            || self.rows.iter().any(|r| r.state == State::Running)
+        {
             Duration::from_secs(1)
         } else {
             IDLE
@@ -552,6 +564,10 @@ impl Downloads {
             }
             Command::AddFromClipboard => {
                 self.add_from_clipboard(cx);
+                return;
+            }
+            Command::Options => {
+                self.open_options(cx);
                 return;
             }
             Command::About | Command::CheckForUpdates => {
@@ -2073,6 +2089,8 @@ impl Render for Downloads {
                             // dm's update, downloaded and checked: Install
                             // now, or Later.
                             .children(update_bar)
+                            // A link copied, offered.
+                            .children(self.clipboard_bar(theme, &screen, cx))
                             // While a fresh link is awaited from the
                             // browser: what to do, and a way out.
                             .children(self.awaiting_bar(theme, &screen, cx))

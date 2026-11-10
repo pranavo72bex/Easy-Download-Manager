@@ -197,9 +197,3 @@ pub(super) fn about(app: &mut DmApp, ctx: &egui::Context) {
     });
     app.dialogs.about_open = open;
 }
-
-/// A folder name every computer can make: what a category made or renamed
-/// in Options is held to, since settings travel between computers.
-pub(super) fn portable_folder(name: &str) -> bool {
-    dm_core::portable_folder(name).is_ok()
-}
