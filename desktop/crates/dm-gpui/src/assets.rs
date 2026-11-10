@@ -10,47 +10,39 @@ use std::borrow::Cow;
 
 use gpui::{AssetSource, Result, SharedString};
 
+/// The pictures named, each at `icons/<name>.svg`, compiled in.
+macro_rules! icons {
+    ($($name:literal),* $(,)?) => {
+        &[$((
+            concat!("icons/", $name, ".svg"),
+            include_bytes!(concat!("../assets/icons/", $name, ".svg")) as &[u8],
+        )),*]
+    };
+}
+
 /// Every picture, by the path a view asks for.
-const ICONS: [(&str, &[u8]); 11] = [
-    ("icons/add.svg", include_bytes!("../assets/icons/add.svg")),
-    (
-        "icons/resume.svg",
-        include_bytes!("../assets/icons/resume.svg"),
-    ),
-    ("icons/stop.svg", include_bytes!("../assets/icons/stop.svg")),
-    (
-        "icons/stop-all.svg",
-        include_bytes!("../assets/icons/stop-all.svg"),
-    ),
-    (
-        "icons/delete.svg",
-        include_bytes!("../assets/icons/delete.svg"),
-    ),
-    (
-        "icons/delete-completed.svg",
-        include_bytes!("../assets/icons/delete-completed.svg"),
-    ),
-    (
-        "icons/options.svg",
-        include_bytes!("../assets/icons/options.svg"),
-    ),
-    (
-        "icons/scheduler.svg",
-        include_bytes!("../assets/icons/scheduler.svg"),
-    ),
-    (
-        "icons/start-queue.svg",
-        include_bytes!("../assets/icons/start-queue.svg"),
-    ),
-    (
-        "icons/stop-queue.svg",
-        include_bytes!("../assets/icons/stop-queue.svg"),
-    ),
-    (
-        "icons/grabber.svg",
-        include_bytes!("../assets/icons/grabber.svg"),
-    ),
-];
+const ICONS: &[(&str, &[u8])] = icons!(
+    // The toolbar's.
+    "add",
+    "resume",
+    "stop",
+    "stop-all",
+    "delete",
+    "delete-completed",
+    "options",
+    "scheduler",
+    "start-queue",
+    "stop-queue",
+    "grabber",
+    // Each file kind's, before a row's name (B45).
+    "kind-videos",
+    "kind-audio",
+    "kind-documents",
+    "kind-apps",
+    "kind-archives",
+    "kind-pictures",
+    "kind-other",
+);
 
 /// The pictures compiled into dm.
 pub struct Assets;
@@ -85,6 +77,14 @@ mod tests {
                 "{} has no picture at {path}",
                 command.id()
             );
+        }
+    }
+
+    #[test]
+    fn every_kind_has_its_picture() {
+        for kind in dm_core::Category::ALL.into_iter().map(Some).chain([None]) {
+            let (path, _) = crate::list::kind_picture(kind);
+            assert!(matches!(Assets.load(path), Ok(Some(_))), "{kind:?}: {path}");
         }
     }
 }

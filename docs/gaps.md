@@ -148,8 +148,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   egui crate to `dm_shell::app::places`, with `Place::from_word` for `ui.place`), and the status
   bar (its counts from `rules::tally`, moved out of the egui crate with `fetched_all` and
   `waits_for_its_queue`; the egui window's own sentences). `human-qa.py` 64/64 on macOS for the egui
-  window after these moves (f02e438). Next: the file-kind pictures in rows (B45), then slice 1's
-  rows with `DM_BINARY` naming dm-gpui; then the tick (`changes::subscribe`
+  window after these moves (f02e438). The file-kind pictures in rows (B45: told apart by shape, each
+  in its kind's colour, the row's height unchanged; seen with one file of each kind). Next: slice 1's
+  rows checked through `human-qa.py` with `DM_BINARY` naming dm-gpui (the GPUI window still lacks
+  Add URL and the progress windows B63 needs: slices 4 and 6), then slice 2, the table's columns (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

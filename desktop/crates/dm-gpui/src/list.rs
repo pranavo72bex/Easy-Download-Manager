@@ -207,6 +207,22 @@ impl Downloads {
     }
 }
 
+/// A row's picture of its file's kind, and the kind's colour (B45): told
+/// apart by shape (a play mark, a note, lines, a window, a zip, a hill and a
+/// sun, a plain sheet), in the egui window's colours.
+pub(crate) fn kind_picture(kind: Option<dm_core::Category>) -> (&'static str, gpui::Rgba) {
+    use dm_core::Category as K;
+    match kind {
+        Some(K::Videos) => ("icons/kind-videos.svg", gpui::rgb(0x8e44ad)),
+        Some(K::Audio) => ("icons/kind-audio.svg", gpui::rgb(0xe67e22)),
+        Some(K::Documents) => ("icons/kind-documents.svg", gpui::rgb(0x2b6cc4)),
+        Some(K::Apps) => ("icons/kind-apps.svg", gpui::rgb(0x3d8b37)),
+        Some(K::Archives) => ("icons/kind-archives.svg", gpui::rgb(0xb7931f)),
+        Some(K::Pictures) => ("icons/kind-pictures.svg", gpui::rgb(0xc0395a)),
+        _ => ("icons/kind-other.svg", gpui::rgb(0x7f8c8d)),
+    }
+}
+
 /// What a row's line says, in the shell: its name and its state.
 pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
     let name = if row.filename.is_empty() {
@@ -236,14 +252,18 @@ impl Downloads {
             "rows",
             count,
             cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
+                let categories = this.backend.settings().categories();
                 range
                     .filter_map(|i| {
                         this.shown
                             .get(i)
                             .and_then(|&r| this.rows.get(r))
-                            .map(|row| (i, line(row)))
+                            .map(|row| {
+                                let kind = this.places.placed(row, &categories).0;
+                                (i, line(row), kind_picture(kind))
+                            })
                     })
-                    .map(|(i, (name, state))| {
+                    .map(|(i, (name, state), (picture, colour))| {
                         div()
                             .id(i)
                             .w_full()
@@ -253,7 +273,20 @@ impl Downloads {
                             .items_center()
                             .justify_between()
                             .when(i % 2 == 1, |row| row.bg(theme.stripe))
-                            .child(screen.label(name))
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(
+                                        gpui::svg()
+                                            .path(picture)
+                                            .size(px(16.0))
+                                            .flex_none()
+                                            .text_color(colour),
+                                    )
+                                    .child(screen.label(name)),
+                            )
                             .child(div().text_color(theme.muted).child(screen.label(state)))
                     })
                     .collect()
