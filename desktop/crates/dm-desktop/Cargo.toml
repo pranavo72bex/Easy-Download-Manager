@@ -31,6 +31,9 @@ dm-protocol = { path = "../dm-protocol" }
 # Checks the ed25519 signature on the update manifest; already in the tree
 # through rustls.
 dm-shell = { path = "../dm-shell" }
+# What is not drawing (the system's services, the control port, the command
+# line), re-exported at the old paths.
+dm-desktop-base = { path = "../dm-desktop-base" }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "persistence", "wayland", "x11", "accesskit", "clipboard"] }
 # The emoji fonts 0.36 bundled (◀ ▶ and the like in menus and buttons),
 # which 0.37 left out of its default fonts.

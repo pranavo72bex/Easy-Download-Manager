@@ -302,6 +302,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
+        "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-desktop/Cargo.toml",
         "browser/Cargo.toml",
     ]
@@ -324,7 +325,14 @@ fn layers() -> Result<(), String> {
             "dm-core" => (&[], true, false),
             // Around the window but not the window.
             "dm-shell" => (&["dm-core", "dm-protocol"], true, false),
-            "dm-desktop" => (&["dm-core", "dm-protocol", "dm-shell"], false, false),
+            // What the desktop program does that is not drawing: any window
+            // may use it, so it uses none.
+            "dm-desktop-base" => (&["dm-core", "dm-protocol", "dm-shell"], true, false),
+            "dm-desktop" => (
+                &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
+                false,
+                false,
+            ),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
             other => {
@@ -354,6 +362,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
+        "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-desktop/src",
         "browser/src",
     ] {
@@ -436,6 +445,7 @@ fn privacy() -> Result<(), String> {
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-protocol/src",
+        "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-desktop/src",
         "browser/src",
         "extension",

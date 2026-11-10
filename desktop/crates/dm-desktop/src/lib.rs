@@ -48,7 +48,7 @@ pub mod jumplist;
 pub mod mcp;
 pub mod motion;
 pub mod power;
-pub mod quiet;
+pub use dm_desktop_base::quiet;
 pub mod region;
 pub mod system_theme;
 pub mod table;

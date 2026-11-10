@@ -32,9 +32,10 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Shel
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_Shell_PropertiesSystem", "Win32_Storage_EnhancedStorage"] }
 TOML
 : > "$work/src/lib.rs"
-for module in quiet contrast jumplist; do
+for module in contrast jumplist; do
   printf '#[path = "%s/%s.rs"]\npub mod %s;\n' "$src" "$module" "$module" >> "$work/src/lib.rs"
 done
+printf '#[path = "%s/desktop/crates/dm-desktop-base/src/quiet.rs"]\npub mod quiet;\n' "$root" >> "$work/src/lib.rs"
 # The native host's look for the browser that started it.
 printf '#[path = "%s/desktop/crates/dm-shell/src/host/parent.rs"]\npub mod parent;\n' "$root" >> "$work/src/lib.rs"
 cd "$work"
