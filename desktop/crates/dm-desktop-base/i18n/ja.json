@@ -905,5 +905,10 @@
  "Take out": "取り出す",
  "Taking out {}…": "{} を取り出しています…",
  "{} saved to {}": "{} を {} に保存しました",
- "Could not take out {}: {}": "{} を取り出せませんでした: {}"
+ "Could not take out {}: {}": "{} を取り出せませんでした: {}",
+ "Redo": "やり直す",
+ "Window": "ウインドウ",
+ "Minimize": "しまう",
+ "Zoom": "拡大/縮小",
+ "Bring All to Front": "すべてを手前に移動"
 }

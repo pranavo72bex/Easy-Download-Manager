@@ -905,5 +905,10 @@
  "Take out": "꺼내기",
  "Taking out {}…": "{} 꺼내는 중…",
  "{} saved to {}": "{}을(를) {}에 저장했습니다",
- "Could not take out {}: {}": "{}을(를) 꺼내지 못했습니다: {}"
+ "Could not take out {}: {}": "{}을(를) 꺼내지 못했습니다: {}",
+ "Redo": "실행 복귀",
+ "Window": "윈도우",
+ "Minimize": "최소화",
+ "Zoom": "확대/축소",
+ "Bring All to Front": "모두 앞으로 가져오기"
 }

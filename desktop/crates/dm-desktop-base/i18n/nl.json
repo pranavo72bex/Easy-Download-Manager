@@ -905,5 +905,10 @@
  "Take out": "Uitpakken",
  "Taking out {}…": "{} wordt uitgepakt…",
  "{} saved to {}": "{} opgeslagen in {}",
- "Could not take out {}: {}": "Kon {} niet uitpakken: {}"
+ "Could not take out {}: {}": "Kon {} niet uitpakken: {}",
+ "Redo": "Opnieuw",
+ "Window": "Venster",
+ "Minimize": "Minimaliseer",
+ "Zoom": "Zoom",
+ "Bring All to Front": "Breng alles naar voren"
 }

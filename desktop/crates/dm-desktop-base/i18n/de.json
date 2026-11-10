@@ -905,5 +905,10 @@
  "Take out": "Herausnehmen",
  "Taking out {}…": "{} wird herausgenommen…",
  "{} saved to {}": "{} gespeichert in {}",
- "Could not take out {}: {}": "{} konnte nicht herausgenommen werden: {}"
+ "Could not take out {}: {}": "{} konnte nicht herausgenommen werden: {}",
+ "Redo": "Wiederholen",
+ "Window": "Fenster",
+ "Minimize": "Im Dock ablegen",
+ "Zoom": "Zoomen",
+ "Bring All to Front": "Alle nach vorne bringen"
 }

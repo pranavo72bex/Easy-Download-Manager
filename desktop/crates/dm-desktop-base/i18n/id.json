@@ -905,5 +905,10 @@
  "Take out": "Ambil",
  "Taking out {}…": "Mengambil {}…",
  "{} saved to {}": "{} disimpan di {}",
- "Could not take out {}: {}": "Tidak dapat mengambil {}: {}"
+ "Could not take out {}: {}": "Tidak dapat mengambil {}: {}",
+ "Redo": "Ulangi",
+ "Window": "Jendela",
+ "Minimize": "Minimalkan",
+ "Zoom": "Perbesar",
+ "Bring All to Front": "Bawa Semua ke Depan"
 }

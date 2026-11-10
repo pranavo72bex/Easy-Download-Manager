@@ -905,5 +905,10 @@
  "Take out": "Çıkar",
  "Taking out {}…": "{} çıkarılıyor…",
  "{} saved to {}": "{}, {} konumuna kaydedildi",
- "Could not take out {}: {}": "{} çıkarılamadı: {}"
+ "Could not take out {}: {}": "{} çıkarılamadı: {}",
+ "Redo": "Yinele",
+ "Window": "Pencere",
+ "Minimize": "Küçült",
+ "Zoom": "Büyüt",
+ "Bring All to Front": "Tümünü Öne Getir"
 }

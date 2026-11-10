@@ -12,7 +12,7 @@
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::{Chord, Command, Key};
-use gpui::{Action, App, KeyBinding, Menu, MenuItem, SystemMenuType};
+use gpui::{Action, App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
 
 /// A command of dm's, as a menu item or a key runs it.
 #[derive(Clone, PartialEq, Action)]
@@ -62,6 +62,21 @@ pub struct OpenPage {
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
 pub struct CloseWindow;
+
+/// Window › Minimize (⌘M), as every macOS program's Window menu has it.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct Minimize;
+
+/// Window › Zoom.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct Zoom;
+
+/// Window › Bring All to Front.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct BringAllToFront;
 
 /// Help › Tip of the day.
 #[derive(Clone, PartialEq, Default, Action)]
@@ -220,6 +235,7 @@ pub fn bind_keys(cx: &mut App) {
         None,
     ));
     bindings.push(KeyBinding::new("cmd-w", CloseWindow, None));
+    bindings.push(KeyBinding::new("cmd-m", Minimize, None));
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
     bindings.push(KeyBinding::new("down", SelectNext, None));
     cx.bind_keys(bindings);
@@ -231,6 +247,22 @@ pub fn bind_keys(cx: &mut App) {
     cx.on_action(|page: &OpenPage, cx| cx.open_url(&page.address));
     // ⌘W in a dialog: its own close (the main window hears it first).
     cx.on_action(|_: &CloseWindow, cx| crate::native::close_front(cx));
+    // The Window menu, on the window in front.
+    cx.on_action(|_: &Minimize, cx| {
+        if let Some(front) = cx.active_window() {
+            cx.defer(move |cx| {
+                let _ = front.update(cx, |_, window, _| window.minimize_window());
+            });
+        }
+    });
+    cx.on_action(|_: &Zoom, cx| {
+        if let Some(front) = cx.active_window() {
+            cx.defer(move |cx| {
+                let _ = front.update(cx, |_, window, _| window.zoom_window());
+            });
+        }
+    });
+    cx.on_action(|_: &BringAllToFront, cx| cx.activate(true));
 }
 
 fn item(command: Command) -> MenuItem {
@@ -404,5 +436,23 @@ pub fn set(cx: &mut App, queues: &[String]) {
         MenuItem::separator(),
         item(C::CheckForUpdates),
     ]);
-    cx.set_menus([app, tasks, file, downloads, view, help]);
+    // Edit, as every macOS program has it: the text fields' own Undo, Redo,
+    // Cut, Copy and Paste (the system's actions, so its services and
+    // dictation work too). The list's Select all stays in File.
+    let edit = Menu::new(t("Edit")).items([
+        MenuItem::os_action(t("Undo"), gpui_base::input::Undo, OsAction::Undo),
+        MenuItem::os_action(t("Redo"), gpui_base::input::Redo, OsAction::Redo),
+        MenuItem::separator(),
+        MenuItem::os_action(t("Cut"), gpui_base::input::Cut, OsAction::Cut),
+        MenuItem::os_action(t("Copy"), gpui_base::input::Copy, OsAction::Copy),
+        MenuItem::os_action(t("Paste"), gpui_base::input::Paste, OsAction::Paste),
+    ]);
+    // Window, as every macOS program has it.
+    let window = Menu::new(t("Window")).items([
+        MenuItem::action(t("Minimize"), Minimize),
+        MenuItem::action(t("Zoom"), Zoom),
+        MenuItem::separator(),
+        MenuItem::action(t("Bring All to Front"), BringAllToFront),
+    ]);
+    cx.set_menus([app, tasks, file, edit, downloads, view, window, help]);
 }

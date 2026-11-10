@@ -905,5 +905,10 @@
  "Take out": "Extraire",
  "Taking out {}…": "Extraction de {}…",
  "{} saved to {}": "{} enregistré dans {}",
- "Could not take out {}: {}": "Impossible d’extraire {} : {}"
+ "Could not take out {}: {}": "Impossible d’extraire {} : {}",
+ "Redo": "Rétablir",
+ "Window": "Fenêtre",
+ "Minimize": "Réduire",
+ "Zoom": "Agrandir/réduire",
+ "Bring All to Front": "Tout ramener au premier plan"
 }

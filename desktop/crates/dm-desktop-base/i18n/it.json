@@ -905,5 +905,10 @@
  "Take out": "Estrai",
  "Taking out {}…": "Estrazione di {}…",
  "{} saved to {}": "{} salvato in {}",
- "Could not take out {}: {}": "Impossibile estrarre {}: {}"
+ "Could not take out {}: {}": "Impossibile estrarre {}: {}",
+ "Redo": "Ripeti",
+ "Window": "Finestra",
+ "Minimize": "Contrai",
+ "Zoom": "Ridimensiona",
+ "Bring All to Front": "Porta tutto in primo piano"
 }

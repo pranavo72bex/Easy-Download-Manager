@@ -905,5 +905,10 @@
  "Take out": "Wypakuj",
  "Taking out {}…": "Wypakowywanie {}…",
  "{} saved to {}": "Zapisano {} w {}",
- "Could not take out {}: {}": "Nie udało się wypakować {}: {}"
+ "Could not take out {}: {}": "Nie udało się wypakować {}: {}",
+ "Redo": "Ponów",
+ "Window": "Okno",
+ "Minimize": "Minimalizuj",
+ "Zoom": "Powiększ",
+ "Bring All to Front": "Przenieś wszystko na wierzch"
 }

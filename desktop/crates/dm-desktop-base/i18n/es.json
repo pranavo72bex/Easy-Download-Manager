@@ -905,5 +905,10 @@
  "Take out": "Extraer",
  "Taking out {}…": "Extrayendo {}…",
  "{} saved to {}": "{} guardado en {}",
- "Could not take out {}: {}": "No se pudo extraer {}: {}"
+ "Could not take out {}: {}": "No se pudo extraer {}: {}",
+ "Redo": "Rehacer",
+ "Window": "Ventana",
+ "Minimize": "Minimizar",
+ "Zoom": "Zoom",
+ "Bring All to Front": "Traer todo al frente"
 }

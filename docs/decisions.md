@@ -3,6 +3,15 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window's menu bar has macOS's own Edit and Window menus
+
+As the plan's "Native feel and speed" asks of the menus on macOS ("the standard app, Edit and
+Window menus and their usual shortcuts"), the GPUI window's menu bar has Edit (Undo, Redo, Cut,
+Copy, Paste: the text fields' own actions, given as the system's, so its services and dictation
+reach them) after File, and Window (Minimize ⌘M, Zoom, Bring All to Front) before Help. The list's
+Select all stays in File, as in the egui window. Their words are in every catalog; Redo, Window,
+Minimize, Zoom and Bring All to Front are new there, in each system's own words for them.
+
 ## 2026-11-10: GPUI takes links dropped from a browser through its window's own drag methods
 
 GPUI's macOS window registers for dragged files alone, so a link dragged from a browser (an

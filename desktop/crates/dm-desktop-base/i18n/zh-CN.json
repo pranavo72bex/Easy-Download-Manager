@@ -905,5 +905,10 @@
  "Take out": "取出",
  "Taking out {}…": "正在取出 {}…",
  "{} saved to {}": "{} 已保存到 {}",
- "Could not take out {}: {}": "无法取出 {}：{}"
+ "Could not take out {}: {}": "无法取出 {}：{}",
+ "Redo": "重做",
+ "Window": "窗口",
+ "Minimize": "最小化",
+ "Zoom": "缩放",
+ "Bring All to Front": "前置全部窗口"
 }
