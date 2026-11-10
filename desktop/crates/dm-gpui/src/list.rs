@@ -1039,6 +1039,13 @@ impl Downloads {
             sidebar: self.show_sidebar,
             toolbar: self.show_toolbar,
             drop_target: settings.drop_target,
+            column_order: settings.column_order.clone(),
+            columns_hidden: settings.columns_hidden.clone(),
+            toolbar_style: settings.toolbar_style.clone(),
+            toolbar_order: settings.toolbar_order.clone(),
+            toolbar_hidden: settings.toolbar_hidden.clone(),
+            language: settings.language.clone(),
+            sorted_by: self.sort.and_then(|(column, _)| sort_command(column)),
         };
         if self.menu_ticks.as_ref() != Some(&ticks) {
             crate::menus::set(cx, &ticks);
@@ -2134,6 +2141,22 @@ impl Downloads {
     }
 }
 
+/// The command that sorts by `column`, for View › Sort by's tick; none for
+/// a column the menu does not sort by.
+fn sort_command(column: Column) -> Option<dm_shell::app::commands::Command> {
+    use dm_shell::app::commands::Command;
+    Some(match column {
+        Column::Name => Command::SortByName,
+        Column::Size => Command::SortBySize,
+        Column::Status => Command::SortByStatus,
+        Column::TimeLeft => Command::SortByTimeLeft,
+        Column::Rate => Command::SortByRate,
+        Column::LastTry => Command::SortByDate,
+        Column::Description => Command::SortByDescription,
+        _ => return None,
+    })
+}
+
 /// A row's picture of its file's kind, and the kind's colour (B45): told
 /// apart by shape (a play mark, a note, lines, a window, a zip, a hill and a
 /// sun, a plain sheet), in the egui window's colours.
@@ -2191,6 +2214,27 @@ impl Render for Downloads {
             }))
             .on_action(
                 cx.listener(|this, _: &crate::menus::TipOfTheDay, _, cx| this.tip_of_the_day(cx)),
+            )
+            // View › Columns, Customize toolbar and Language.
+            .on_action(
+                cx.listener(|this, it: &crate::viewmenu::ToggleColumn, _, cx| {
+                    this.toggle_column(&it.key, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, it: &crate::viewmenu::ToolbarStyle, _, cx| {
+                    this.set_toolbar_style(&it.style, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, it: &crate::viewmenu::ToggleToolbarButton, _, cx| {
+                    this.toggle_toolbar_button(&it.id, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, it: &crate::viewmenu::SetLanguage, _, cx| {
+                    this.set_language(&it.code, cx)
+                }),
             )
             // Files dropped on the window: the links they hold added.
             .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| {

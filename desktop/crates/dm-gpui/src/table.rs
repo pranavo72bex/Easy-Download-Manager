@@ -8,13 +8,16 @@
 //! the rows of the place chosen, only those on screen laid out. The columns
 //! (their order, which are hidden) and every cell's words are the egui
 //! window's (`dm_desktop_base::columns` and `rows`); numbers stand against
-//! their column's right edge so their digits line up down the list.
+//! their column's right edge so their digits line up down the list. A
+//! heading dragged onto another takes its place, as a macOS table's do.
 
 use dm_core::{Entry, State};
 use dm_desktop_base::columns::Column;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
-use gpui::{div, prelude::*, px, relative, uniform_list, AnyElement, Context, Role, SharedString};
+use gpui::{
+    div, prelude::*, px, relative, uniform_list, AnyElement, Context, Role, SharedString, Window,
+};
 
 use crate::list::{kind_picture, Downloads, ROW_HEIGHT};
 use crate::screen::Screen;
@@ -130,6 +133,8 @@ pub fn header(
                 Some((c, false)) if c == column => " ▼",
                 _ => "",
             };
+            // The file name stays first: every other heading moves.
+            let movable = column != Column::Name;
             cell(column)
                 .id(column.key())
                 .role(Role::ColumnHeader)
@@ -137,10 +142,75 @@ pub fn header(
                 .hover(|s| s.bg(theme.stripe))
                 .on_click(cx.listener(move |view, _, _, cx| {
                     view.sort_by(column);
+                    // View › Sort by's tick follows.
+                    view.refresh_menus(cx);
                     cx.notify();
                 }))
+                .when(movable, |heading| {
+                    heading
+                        .on_drag(DraggedColumn { column, theme }, |dragged, _, _, cx| {
+                            cx.new(|_| dragged.clone())
+                        })
+                        .drag_over::<DraggedColumn>(move |style, _, _, _| style.bg(theme.stripe))
+                        .on_drop(cx.listener(move |view, dragged: &DraggedColumn, _, cx| {
+                            view.move_column(dragged.column, column, cx)
+                        }))
+                })
                 .child(screen.label(format!("{heading}{arrow}")))
         }))
+}
+
+/// `order` with `moved` in `onto`'s place: after it when it came from its
+/// left, before it from its right. `None` where either is not there.
+fn moved_onto(mut order: Vec<Column>, moved: Column, onto: Column) -> Option<Vec<Column>> {
+    let from = order.iter().position(|c| *c == moved)?;
+    order.remove(from);
+    let to = order.iter().position(|c| *c == onto)?;
+    order.insert(if from > to { to } else { to + 1 }, moved);
+    Some(order)
+}
+
+/// A heading being dragged to a new place: what is drawn under the pointer
+/// meanwhile.
+#[derive(Clone)]
+pub struct DraggedColumn {
+    column: Column,
+    theme: Theme,
+}
+
+impl Render for DraggedColumn {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .px_2()
+            .py(px(2.0))
+            .rounded(px(4.0))
+            .border_1()
+            .border_color(self.theme.separator)
+            .bg(self.theme.window)
+            .text_size(px(crate::native::SMALL_TEXT))
+            .text_color(self.theme.text)
+            .child(self.column.title())
+    }
+}
+
+impl Downloads {
+    /// A heading dropped on another's: the column takes that one's place
+    /// (after it when dropped further right, before it further left), kept
+    /// in the settings as the order of every column, hidden ones too.
+    pub(crate) fn move_column(&mut self, moved: Column, onto: Column, cx: &mut Context<Self>) {
+        if moved == onto || moved == Column::Name || onto == Column::Name {
+            return;
+        }
+        let mut wanted = self.backend.settings();
+        let Some(order) = moved_onto(Column::ordered(&wanted.column_order), moved, onto) else {
+            return;
+        };
+        wanted.column_order = order.iter().map(|c| c.key().to_string()).collect();
+        if let Err(e) = self.apply_settings(wanted, cx) {
+            self.say(e);
+        }
+        cx.notify();
+    }
 }
 
 /// One row's cells.
@@ -292,4 +362,26 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
     )
     .track_scroll(&view.scroll)
     .flex_1()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_heading_dropped_on_another_takes_its_place() {
+        use Column::{Name, Queue, Size, Status};
+        let order = vec![Name, Queue, Size, Status];
+        // From the left: after the one dropped on.
+        assert_eq!(
+            moved_onto(order.clone(), Queue, Status),
+            Some(vec![Name, Size, Status, Queue])
+        );
+        // From the right: before it.
+        assert_eq!(
+            moved_onto(order.clone(), Status, Queue),
+            Some(vec![Name, Status, Queue, Size])
+        );
+        assert_eq!(moved_onto(order, Column::Rate, Queue), None);
+    }
 }

@@ -3,6 +3,18 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window's View menu is the egui window's, in the menu bar's own items
+
+The egui window's View menu holds controls a menu bar cannot: a checkbox with move-up and
+move-down arrows beside each column and each toolbar button, and a zoom with a percentage. The
+GPUI window has the same choices as the system's menu items: View › Columns ticks each column
+shown (the file name always stays), Customize toolbar the style (Icons and text, Small buttons,
+Text only, now drawn as chosen; `dm_desktop_base::toolbar`, moved out of the egui crate) and each
+button shown, Language each language with the one in force ticked, and Sort by the sort in force.
+A column is moved as a macOS table's are, by dragging its heading onto another (after it from the
+left, before it from the right); a toolbar button is not moved yet, and View › Text size is not in
+the GPUI window: GPUI has no zoom, and every size there is in points (gaps row G7).
+
 ## 2026-11-10: `--headless` is a loop of its own in dm-desktop-base, with no GPUI
 
 The GPUI binary had no `--headless`, which `smoke.py` (the release workflow), `app-check.py`,

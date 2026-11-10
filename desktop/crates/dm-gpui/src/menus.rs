@@ -33,6 +33,21 @@ pub struct Ticks {
     pub toolbar: bool,
     /// View › Drop target.
     pub drop_target: bool,
+    /// The columns' order and those hidden, by key (View › Columns).
+    pub column_order: Vec<String>,
+    /// The columns hidden, by key.
+    pub columns_hidden: Vec<String>,
+    /// The toolbar's style, its buttons' order and those hidden (View ›
+    /// Customize toolbar).
+    pub toolbar_style: String,
+    /// The toolbar's buttons in the person's order, by command id.
+    pub toolbar_order: Vec<String>,
+    /// The toolbar's buttons hidden, by command id.
+    pub toolbar_hidden: Vec<String>,
+    /// The language setting (View › Language).
+    pub language: String,
+    /// The sort in force, as the command that sorts so (View › Sort by).
+    pub sorted_by: Option<Command>,
 }
 
 /// A command of dm's, as a menu item or a key runs it.
@@ -451,9 +466,66 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
             ),
         ),
     ]);
-    let mut view = menu(
-        "View",
-        &[&[
+    // View, as the egui window's: Categories, Toolbar and Drop target
+    // ticked while shown; then Columns, Customize toolbar, Language and Sort
+    // by, each ticked as it stands.
+    let columns = Menu::new(t("Columns")).items(
+        dm_desktop_base::columns::Column::ordered(&ticks.column_order)
+            .into_iter()
+            // The file name always stays.
+            .skip(1)
+            .map(|c| {
+                MenuItem::action(
+                    c.title(),
+                    crate::viewmenu::ToggleColumn {
+                        key: c.key().to_string(),
+                    },
+                )
+                .checked(!ticks.columns_hidden.iter().any(|h| h == c.key()))
+            }),
+    );
+    let style = dm_desktop_base::toolbar::ToolStyle::named(&ticks.toolbar_style);
+    let customize = Menu::new(t("Customize toolbar")).items(
+        dm_desktop_base::toolbar::TOOL_STYLES
+            .iter()
+            .map(|(s, words)| {
+                MenuItem::action(
+                    t(words),
+                    crate::viewmenu::ToolbarStyle {
+                        style: s.name().to_string(),
+                    },
+                )
+                .checked(*s == style)
+            })
+            .chain([MenuItem::separator()])
+            .chain(
+                dm_shell::app::commands::toolbar_in(&ticks.toolbar_order)
+                    .into_iter()
+                    .map(|(c, words)| {
+                        MenuItem::action(
+                            t(words),
+                            crate::viewmenu::ToggleToolbarButton {
+                                id: c.id().to_string(),
+                            },
+                        )
+                        .checked(!ticks.toolbar_hidden.iter().any(|h| h == c.id()))
+                    }),
+            ),
+    );
+    let speaks = dm_desktop_base::i18n::chosen(&ticks.language);
+    let language = Menu::new(t("Language")).items(dm_desktop_base::i18n::LANGUAGES.iter().map(
+        |(code, name)| {
+            MenuItem::action(
+                *name,
+                crate::viewmenu::SetLanguage {
+                    code: code.to_string(),
+                },
+            )
+            .checked(*code == speaks)
+        },
+    ));
+    let sort = Menu::new(t("Sort by")).items(
+        [
             C::SortByName,
             C::SortBySize,
             C::SortByStatus,
@@ -461,18 +533,20 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
             C::SortByRate,
             C::SortByDate,
             C::SortByDescription,
-        ]],
+        ]
+        .into_iter()
+        .map(|c| item(c).checked(ticks.sorted_by == Some(c))),
     );
-    // Categories, Toolbar and Drop target ticked while shown.
-    view.items.splice(
-        0..0,
-        [
-            item(C::ToggleCategories).checked(ticks.sidebar),
-            item(C::ToggleToolbar).checked(ticks.toolbar),
-            item(C::ToggleDropTarget).checked(ticks.drop_target),
-            MenuItem::separator(),
-        ],
-    );
+    let view = Menu::new(t("View")).items([
+        item(C::ToggleCategories).checked(ticks.sidebar),
+        item(C::ToggleToolbar).checked(ticks.toolbar),
+        item(C::ToggleDropTarget).checked(ticks.drop_target),
+        MenuItem::separator(),
+        MenuItem::submenu(columns),
+        MenuItem::submenu(customize),
+        MenuItem::submenu(language),
+        MenuItem::submenu(sort),
+    ]);
     // Help: dm's guide and its topics, Tip of the day, the project's home
     // page, support and telling a friend (gaps row 91), as the egui
     // window's Help menu has them.
@@ -581,6 +655,32 @@ mod tests {
         // One that acts at once has none.
         assert!(find(&menus, Command::StopDownload.label()).is_some());
         assert!(find(&menus, "Add numbered series").is_none());
+    }
+
+    #[test]
+    fn the_view_menu_ticks_the_columns_the_toolbar_the_language_and_the_sort() {
+        let menus = build(&Ticks {
+            columns_hidden: vec!["size".into()],
+            toolbar_style: "icons".into(),
+            toolbar_hidden: vec![Command::StopAll.id().into()],
+            language: "en".into(),
+            sorted_by: Some(Command::SortBySize),
+            ..Default::default()
+        });
+        use dm_desktop_base::columns::Column;
+        assert!(!state(&menus, Column::Size.title()).0, "Size hidden");
+        assert!(state(&menus, Column::Status.title()).0, "Status shown");
+        assert!(
+            find(&menus, Column::Name.title()).is_none(),
+            "the name stays"
+        );
+        assert!(state(&menus, "Small buttons").0);
+        assert!(!state(&menus, "Icons and text").0);
+        assert!(!state(&menus, "Stop All").0, "a hidden button unticked");
+        assert!(state(&menus, "English").0);
+        assert!(!state(&menus, "Deutsch").0);
+        assert!(state(&menus, Command::SortBySize.label()).0);
+        assert!(!state(&menus, Command::SortByName.label()).0);
     }
 
     #[test]

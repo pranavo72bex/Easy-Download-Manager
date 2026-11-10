@@ -67,6 +67,7 @@ mod tick;
 mod titlebar;
 mod toolbar;
 mod tray;
+mod viewmenu;
 mod welcome;
 
 use std::sync::Arc;

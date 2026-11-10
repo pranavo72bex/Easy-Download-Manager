@@ -266,7 +266,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   offered and did nothing) and the menus' ticks (When done, the speed limiter, View's toggles) and
   "…" as the egui window's; `control.port` forgotten as the window quits; and `--headless` in the
   GPUI binary (`dm_desktop_base::headless`, no GPUI at all, so it needs no display):
-  `app-check.py` 98 of 98 and `smoke.py` pass with dm-gpui. Then
+  `app-check.py` 98 of 98 and `smoke.py` pass with dm-gpui. View's Columns, Customize toolbar
+  (its three styles drawn), Language and Sort by as menu items, ticked as they stand; a column
+  moved by dragging its heading. **Still owed in G7:** View › Text size (GPUI has no zoom: every
+  size in points; it needs sizes in rems and `Window::set_rem_size`), moving a toolbar button,
+  and Resume's menu item saying Retry or Start now as the egui window's does. Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

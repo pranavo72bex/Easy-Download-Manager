@@ -555,12 +555,8 @@ pub enum TreeAction {
     OpenFolder,
 }
 
-/// The toolbar's looks, and what View › Customize toolbar calls them.
-const TOOL_STYLES: [(ToolStyle, &str); 3] = [
-    (ToolStyle::Both, "Icons and text"),
-    (ToolStyle::Icons, "Small buttons"),
-    (ToolStyle::Text, "Text only"),
-];
+// The toolbar's looks, and what View › Customize toolbar calls them.
+use dm_desktop_base::toolbar::TOOL_STYLES;
 
 /// Every English string the window puts through `t` that is not written in
 /// the call itself but chosen at run time: choices from lists, a place's

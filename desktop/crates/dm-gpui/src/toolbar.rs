@@ -47,6 +47,11 @@ pub fn toolbar(
 ) -> impl IntoElement {
     let settings = view.backend.settings();
     let buttons = dm_shell::app::commands::toolbar_shown(&settings);
+    // View › Customize toolbar: a picture with its word, the picture alone
+    // (its word on hover), or the word alone.
+    let style = dm_desktop_base::toolbar::ToolStyle::named(&settings.toolbar_style);
+    let picture = style != dm_desktop_base::toolbar::ToolStyle::Text;
+    let worded = style != dm_desktop_base::toolbar::ToolStyle::Icons;
     div()
         .id("toolbar")
         .role(Role::Toolbar)
@@ -122,13 +127,21 @@ pub fn toolbar(
                         },
                     ))
                 })
-                .child(
-                    svg()
-                        .path(icon(command))
-                        .size(px(18.0))
-                        .text_color(theme.text),
-                )
-                .child(screen.label(words));
+                .when(picture, |b| {
+                    b.child(
+                        svg()
+                            .path(icon(command))
+                            .size(px(18.0))
+                            .text_color(theme.text),
+                    )
+                })
+                .when(worded, |b| b.child(screen.label(words)))
+                .when(!worded, |b| {
+                    b.tooltip(move |window, cx| {
+                        gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(words))
+                            .build(window, cx)
+                    })
+                });
             div().flex().items_center().child(button).children(arrow)
         }))
 }

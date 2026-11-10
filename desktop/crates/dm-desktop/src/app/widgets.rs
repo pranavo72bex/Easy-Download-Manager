@@ -471,38 +471,8 @@ pub fn toolbar_in(order: &[String]) -> Vec<(Command, Icon, &'static str)> {
         .collect()
 }
 
-/// The toolbar styles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ToolStyle {
-    /// Icons with their words.
-    Both,
-    /// Icons only.
-    Icons,
-    /// Words only.
-    Text,
-}
-
-impl ToolStyle {
-    /// The style called `name`; the default for any other word.
-    #[must_use]
-    pub fn named(name: &str) -> ToolStyle {
-        match name {
-            "icons" => ToolStyle::Icons,
-            "text" => ToolStyle::Text,
-            _ => ToolStyle::Both,
-        }
-    }
-
-    /// The word the style is saved under.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            ToolStyle::Both => "both",
-            ToolStyle::Icons => "icons",
-            ToolStyle::Text => "text",
-        }
-    }
-}
+/// The toolbar styles (`dm_desktop_base::toolbar`).
+pub use dm_desktop_base::toolbar::ToolStyle;
 
 /// A menu item that is on or off: a plain item, its words where the other
 /// items' start, with a tick drawn at its right while it is on. As a
