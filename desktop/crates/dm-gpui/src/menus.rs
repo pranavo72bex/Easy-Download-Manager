@@ -91,6 +91,25 @@ pub fn carried_out(command: Command) -> bool {
             | C::Scheduler
             | C::SiteFiles
             | C::ShowProgress
+            | C::OpenFile
+            | C::OpenWith
+            | C::Preview
+            | C::OpenFolder
+            | C::ExtractHere
+            | C::ExtractTo
+            | C::SelectAll
+            | C::Import
+            | C::Export
+            | C::Help
+            | C::ToggleCategories
+            | C::ToggleToolbar
+            | C::SortByName
+            | C::SortBySize
+            | C::SortByStatus
+            | C::SortByTimeLeft
+            | C::SortByRate
+            | C::SortByDate
+            | C::SortByDescription
             | C::SpeedLimiterToggle
             | C::SpeedLimiterSettings
             | C::SpeedLow

@@ -229,7 +229,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   elsewhere, and by File › Show progress; closed as it finishes), "Download complete" (each
   file's Open, Open with…, Open folder; "Don't show this window again"), and "Cancel this
   download?" as a sheet; `dm_desktop_base::progress` for both windows. The GPUI window's
-  services are the system's own (the clipboard; the open and save panels). Then
+  services are the system's own (the clipboard; the open and save panels). The file and list
+  commands: Open, Open with…, Preview, Show in Finder, Extract here and Extract to…, Select all,
+  Import (asked first where some of a list is listed already) and Export, Help, the categories
+  and toolbar shown or hidden, and Sort by (`actions.rs`). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

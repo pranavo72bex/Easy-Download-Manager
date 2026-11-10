@@ -187,6 +187,10 @@ pub struct Downloads {
     complete_window: Option<gpui::AnyWindowHandle>,
     /// What an opener said went wrong, from its thread.
     opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    /// View › Categories: the side panel shown.
+    show_sidebar: bool,
+    /// View › Toolbar: the toolbar shown.
+    show_toolbar: bool,
 }
 
 impl Downloads {
@@ -245,6 +249,8 @@ impl Downloads {
             complete: Default::default(),
             complete_window: None,
             opener_said: Default::default(),
+            show_sidebar: true,
+            show_toolbar: true,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -396,6 +402,62 @@ impl Downloads {
             }
             Command::Remove | Command::DeleteFile => {
                 self.remove(&chosen, command == Command::DeleteFile, cx);
+                cx.notify();
+                return;
+            }
+            Command::OpenFile
+            | Command::OpenWith
+            | Command::Preview
+            | Command::OpenFolder
+            | Command::ExtractHere
+            | Command::ExtractTo => {
+                self.act_on_file(command, &chosen, cx);
+                return;
+            }
+            Command::SelectAll => {
+                self.select_all(cx);
+                return;
+            }
+            Command::Import => {
+                self.import(cx);
+                return;
+            }
+            Command::Export => {
+                self.export(cx);
+                return;
+            }
+            Command::Help => {
+                self.help();
+                cx.notify();
+                return;
+            }
+            Command::ToggleCategories => {
+                self.show_sidebar = !self.show_sidebar;
+                cx.notify();
+                return;
+            }
+            Command::ToggleToolbar => {
+                self.show_toolbar = !self.show_toolbar;
+                cx.notify();
+                return;
+            }
+            Command::SortByName
+            | Command::SortBySize
+            | Command::SortByStatus
+            | Command::SortByTimeLeft
+            | Command::SortByRate
+            | Command::SortByDate
+            | Command::SortByDescription => {
+                let column = match command {
+                    Command::SortByName => Column::Name,
+                    Command::SortBySize => Column::Size,
+                    Command::SortByStatus => Column::Status,
+                    Command::SortByTimeLeft => Column::TimeLeft,
+                    Command::SortByRate => Column::Rate,
+                    Command::SortByDate => Column::LastTry,
+                    _ => Column::Description,
+                };
+                self.sort_by(column);
                 cx.notify();
                 return;
             }
@@ -1057,6 +1119,11 @@ impl Downloads {
             }
         }
         cx.notify();
+    }
+
+    /// Where an opener says what went wrong, from its thread.
+    pub(crate) fn opener_said(&self) -> std::sync::Arc<std::sync::Mutex<Option<String>>> {
+        self.opener_said.clone()
     }
 
     /// Opens a file with its usual app, off the window's thread.
@@ -1845,13 +1912,17 @@ impl Render for Downloads {
             // The system's size for a list's rows and every control.
             .text_size(gpui::px(crate::native::TEXT))
             .child(crate::titlebar::titlebar(self, theme, &screen, window, cx))
-            .child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
+            .when(self.show_toolbar, |root| {
+                root.child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
+            })
             .child(
                 div()
                     .flex()
                     .flex_1()
                     .min_h_0()
-                    .child(crate::sidebar::sidebar(self, theme, &screen, window, cx))
+                    .when(self.show_sidebar, |row| {
+                        row.child(crate::sidebar::sidebar(self, theme, &screen, window, cx))
+                    })
                     .child(
                         div()
                             .flex()

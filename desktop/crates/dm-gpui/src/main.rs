@@ -21,6 +21,7 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 
+mod actions;
 mod addurl;
 mod assets;
 mod complete;

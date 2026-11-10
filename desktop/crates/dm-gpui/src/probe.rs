@@ -527,7 +527,12 @@ impl WindowProbe for Probe<'_, '_> {
         self.view.run(command, self.cx);
         Ok(probe::Ran {
             ran: id.to_string(),
-            said: String::new(),
+            said: self
+                .view
+                .said
+                .as_ref()
+                .map(|(said, _)| said.clone())
+                .unwrap_or_default(),
         })
     }
 }
