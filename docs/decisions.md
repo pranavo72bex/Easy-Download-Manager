@@ -37,6 +37,22 @@ parts on the download folder's drive, which makes the finish a rename but was sl
 disk (13.6 to 14.9 s, eight connections writing all over it); keeping the flush with only the
 faster copy, which would have left dm 1.5 to 2 times slower there.
 
+Tried and dropped later the same day, at the maintainer's word to make dm faster than reference A
+and to verify it: copying the file to its folder's drive while it downloads, so little is left to
+copy after the last byte. First each range's bytes at their own place in a sparse copy: whole
+0.16 to 0.47 s after the last byte in a probe, but a file that was sparse while it was written
+could not be opened afresh on the hard disk for 5 to 13 s after (512 MiB; the first open of any
+kind waited, a rename included, and clearing the sparse flag took 12 to 16 s itself), where a
+plain file written front to back opened in 0.6 to 0.9 s and reference A's at once. Then the
+pieces fetched in file order (four a connection) and the whole front appended to a plain copy:
+in one session beside the committed build and reference A, 512 MiB took 5.25 to 5.85 s against
+the committed 2.31 to 5.77 s and reference A's 3.65 to 3.94 s. On this two-core laptop, a local
+server at 180 MB/s outruns the hard disk, so the copying during the download slowed the download
+by about a second and still left 1.3 to 1.9 s after the last byte; at 18 MB/s the two tied
+(28.9 and 29.3 s against 28.3 and 29.3 s). Not tried: reference A's layout, a plain file a range
+appended together at the end, which would make the finish on one drive a copy where it is now a
+rename (Completed 0.09 s after the last byte, dm's file opened at once).
+
 The end of a part checked once a run (row 167). The 64 KiB a part's end is fetched again and
 compared with on a resume (`RESUME_CHECK`, 2026-10-15) was asked for on every reconnect within
 one run as well, where nothing written can have been lost: on a server cutting connections every
