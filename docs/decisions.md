@@ -3,6 +3,25 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The extension's loader decides nothing; the plain scripts' rules are named in Rust
+
+At the maintainer's word of 2026-11-10 to move the extension's JavaScript into Rust (gaps row
+169). `background.js` stays a loader, because a Manifest V3 worker must register its listeners on
+its first turn (2026-10-12), but it now only registers them and forwards each event: the form a
+page posts is handed over whole (`on_before_request`) and Rust decides which bodies to keep and
+writes them as the browser would (`decide::posted_body`: the fields as `URLSearchParams` writes
+them, a raw body as `btoa` does, 64 KiB at most), and the page script's request for the panel is
+answered in Rust (`web/page.rs`), which puts `pkg/panel.js` into the asking frame. A test holds
+the loader to forwarding. `content.js` and `document.js` must stay plain JavaScript (a page that
+forbids WebAssembly, which Firefox applies to content scripts, 2026-10-17; the page's own world),
+so their rules are named once in `decide/scripts.rs` and each script is held to them by a test,
+as the message names already were; the full panel takes the five phrases it shares with the plain
+one, and the click-as-drawn limits, from there too. Not done: making the plain scripts' logic
+Rust's, which needs them to run where WebAssembly cannot; generating their rules into them at
+packaging rather than holding them by a test, which changes what the extension loads; and the
+two panels' wording made one ("dm did not answer…" against "dm did not answer in time…"), a
+change a person sees.
+
 ## 2026-11-10: Completed before the flush; the end of a part checked once a run; connections a ceiling
 
 Measured beside reference A on Windows on 2026-11-09 (gaps rows 166 to 168), dm was slower in

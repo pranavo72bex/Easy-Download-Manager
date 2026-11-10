@@ -63,6 +63,88 @@ pub struct Forms {
 /// How long a form is kept for the download it may start.
 pub const FORM_KEPT_MS: f64 = 120_000.0;
 
+/// The most of a sent form that is kept, its fields encoded or its raw body.
+pub const MOST_FORM: usize = 64 * 1024;
+
+/// What of a request's body is kept for a download that is its answer: a POST's form fields,
+/// encoded as the browser encodes them, or else its raw body in base64, each at most
+/// [`MOST_FORM`]; nothing for another method, a body that is empty or too large. The browser
+/// hands `background.js` the fields as lists of values under each name, in the page's order.
+/// Decided here, not in the loader (gaps row 169).
+pub fn posted_body(
+    method: &str,
+    fields: Option<&[(String, String)]>,
+    raw: Option<&[Vec<u8>]>,
+) -> Option<dm_protocol::Posted> {
+    if method != "POST" {
+        return None;
+    }
+    let (form, raw) = match (fields, raw) {
+        (Some(fields), _) => (form_encoded(fields), String::new()),
+        (None, Some(parts)) => {
+            let size: usize = parts.iter().map(Vec::len).sum();
+            if size == 0 || size > MOST_FORM {
+                return None;
+            }
+            (String::new(), base64(&parts.concat()))
+        }
+        (None, None) => return None,
+    };
+    if (form.is_empty() && raw.is_empty()) || form.len() > MOST_FORM {
+        return None;
+    }
+    Some(dm_protocol::Posted {
+        form,
+        raw,
+        content_type: String::new(),
+    })
+}
+
+/// Fields as a form sends them (`application/x-www-form-urlencoded`, as `URLSearchParams`
+/// writes it): a space as `+`, letters, digits and `*-._` as they are, every other byte of the
+/// UTF-8 as `%XX`.
+pub fn form_encoded(fields: &[(String, String)]) -> String {
+    let encode = |text: &str| {
+        let mut out = String::with_capacity(text.len());
+        for byte in text.bytes() {
+            match byte {
+                b' ' => out.push('+'),
+                b'*' | b'-' | b'.' | b'_' | b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' => {
+                    out.push(byte as char)
+                }
+                _ => out.push_str(&format!("%{byte:02X}")),
+            }
+        }
+        out
+    };
+    fields
+        .iter()
+        .map(|(name, value)| format!("{}={}", encode(name), encode(value)))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+/// Bytes in standard base64, padded, as the browser's `btoa` writes them.
+pub fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let n = chunk
+            .iter()
+            .enumerate()
+            .fold(0u32, |n, (i, &b)| n | u32::from(b) << (16 - 8 * i));
+        for i in 0..4 {
+            if i <= chunk.len() {
+                let six = (n >> (18 - 6 * i) & 63) as usize;
+                out.push(ALPHABET.get(six).copied().map_or('=', char::from));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 impl Forms {
     /// A form sent to `url` at `at` (milliseconds).
     pub fn keep(&mut self, url: &str, post: dm_protocol::Posted, at: f64) {
