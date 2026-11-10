@@ -473,20 +473,16 @@ impl DmApp {
     pub(super) fn weekly_update(&mut self, ctx: &egui::Context) {
         // Due again a week after the last, however long dm has been running
         // in the tray: the time of the last check is what decides.
-        if self.applied.check_updates {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| d.as_secs());
-            if crate::update::due(self.applied.update_checked, now) {
-                self.weekly_pending = true;
-                crate::update::check(&self.backend, Arc::clone(&self.update), ctx.clone());
-                let mut wanted = self.applied.clone();
-                wanted.update_checked = now;
-                if let Err(e) = self.apply_settings(wanted) {
-                    self.said = e.into();
-                    // Not saved, but not asked again every frame either.
-                    self.applied.update_checked = now;
-                }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        if let Some(wanted) = dm_shell::app::update::weekly(&self.applied, now) {
+            self.weekly_pending = true;
+            crate::update::check(&self.backend, Arc::clone(&self.update), ctx.clone());
+            if let Err(e) = self.apply_settings(wanted) {
+                self.said = e.into();
+                // Not saved, but not asked again every frame either.
+                self.applied.update_checked = now;
             }
         }
         if self.weekly_pending && matches!(*dm_core::lock(&self.update), Update::Newer(..)) {

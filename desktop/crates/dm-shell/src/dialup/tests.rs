@@ -397,3 +397,21 @@ fn windows_names_a_connection_it_does_not_know() {
 fn away_from_windows_there_are_no_connections_to_offer() {
     assert!(super::connections().is_empty());
 }
+
+/// Off Windows nothing is dialled, so what the thread leaves is "none set".
+#[cfg(not(windows))]
+#[test]
+fn hanging_up_later_leaves_its_answer_for_the_window() {
+    let slot = std::sync::Arc::new(std::sync::Mutex::new(None));
+    assert_eq!(
+        hang_up_later(std::sync::Arc::clone(&slot)),
+        None,
+        "on a thread"
+    );
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while dm_core::lock(&slot).is_none() {
+        assert!(std::time::Instant::now() < deadline, "never answered");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(*dm_core::lock(&slot), Some(HungUp::NoneSet));
+}

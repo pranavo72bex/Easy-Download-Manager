@@ -324,6 +324,37 @@ pub fn screenshot_path(home: &std::path::Path, params: &Value) -> std::path::Pat
     home.join("screenshots").join(format!("{name}.png"))
 }
 
+/// How long after a control client clicked, typed or pressed a key what is
+/// done is taken for the script's, not a person's.
+pub const SCRIPT_ACTS_FOR: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// When a control client last acted on the window. What runs a downloaded
+/// file, and the commands dm runs when a download finishes, are refused for
+/// a moment after: words on a button are no proof of what it does, so the
+/// refusal is made where the file would be run, not only where the click is
+/// aimed (security review of 2026-11-07, gaps row 159 f).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ScriptGuard(Option<std::time::Instant>);
+
+impl ScriptGuard {
+    /// A control client acted now.
+    pub fn acted(&mut self) {
+        self.0 = Some(std::time::Instant::now());
+    }
+
+    /// Whether a control client acted a moment ago ([`SCRIPT_ACTS_FOR`]).
+    pub fn by_script(&self) -> bool {
+        self.0.is_some_and(|at| at.elapsed() < SCRIPT_ACTS_FOR)
+    }
+
+    /// Why a downloaded file may not be run now, or `None` when a person's
+    /// click may run it.
+    pub fn run_refused(&self) -> Option<&'static str> {
+        self.by_script()
+            .then_some("Opening a file is done by a person, not by a script")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -518,5 +549,22 @@ mod tests {
         assert!(answer(&backend, &[], "downloads.pause", &json!({"ids": []})).is_some());
         assert_eq!(answer(&backend, &[], "ui.inspect", &Value::Null), None);
         assert_eq!(answer(&backend, &[], "command.run", &Value::Null), None);
+    }
+
+    #[test]
+    fn a_file_is_not_run_for_a_moment_after_a_script_acted() {
+        let mut guard = ScriptGuard::default();
+        assert!(
+            !guard.by_script() && guard.run_refused().is_none(),
+            "no script yet"
+        );
+        guard.acted();
+        assert!(guard.by_script());
+        assert_eq!(
+            guard.run_refused(),
+            Some("Opening a file is done by a person, not by a script")
+        );
+        let long_ago = ScriptGuard(std::time::Instant::now().checked_sub(SCRIPT_ACTS_FOR));
+        assert!(!long_ago.by_script(), "a moment is {SCRIPT_ACTS_FOR:?}");
     }
 }

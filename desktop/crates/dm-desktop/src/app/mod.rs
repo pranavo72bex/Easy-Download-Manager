@@ -436,7 +436,7 @@ pub struct DmApp {
     delivered_at: Option<Instant>,
     /// When a control client last clicked, typed or pressed a key: what is
     /// done within moments of it is a script's, not a person's.
-    scripted_at: Option<Instant>,
+    scripted_at: dm_shell::app::control_api::ScriptGuard,
     /// The filter is in the top row's search box this frame.
     title_search: bool,
     /// The control port answers AI assistants only (see `main.rs`).
@@ -595,7 +595,7 @@ impl DmApp {
             passes: 0,
             delivered_at_pass: None,
             delivered_at: None,
-            scripted_at: None,
+            scripted_at: Default::default(),
             title_search: false,
             mcp_only: false,
             last_added: Vec::new(),

@@ -64,15 +64,8 @@ impl DmApp {
     /// the window's thread (Windows takes a moment to end it); what it came
     /// to is said when it is known.
     fn hang_up_later(&mut self) {
-        let slot = Arc::clone(&self.hung_up);
-        let spawned = std::thread::Builder::new()
-            .name("dm-hang-up".into())
-            .spawn(move || {
-                let hung = dm_shell::dialup::hang_up();
-                *dm_core::lock(&slot) = Some(hung);
-            });
-        if spawned.is_err() {
-            self.say_hung_up(dm_shell::dialup::hang_up());
+        if let Some(hung) = dm_shell::dialup::hang_up_later(Arc::clone(&self.hung_up)) {
+            self.say_hung_up(hung);
         }
     }
 

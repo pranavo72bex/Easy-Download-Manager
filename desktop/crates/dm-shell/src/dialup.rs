@@ -301,6 +301,23 @@ fn hang_up_with(dialer: &dyn Dialer) -> HungUp {
     }
 }
 
+/// [`hang_up`] off the caller's thread (it waits on the system), its answer
+/// left in `into` for the presentation to say. Where no thread can be
+/// started it is done here, and the answer given back.
+pub fn hang_up_later(into: std::sync::Arc<std::sync::Mutex<Option<HungUp>>>) -> Option<HungUp> {
+    let slot = std::sync::Arc::clone(&into);
+    let spawned = std::thread::Builder::new()
+        .name("dm-hang-up".into())
+        .spawn(move || {
+            let hung = hang_up();
+            *dm_core::lock(&slot) = Some(hung);
+        });
+    match spawned {
+        Ok(_) => None,
+        Err(_) => Some(hang_up()),
+    }
+}
+
 /// The connections Windows knows, by name, for Options to offer; none
 /// elsewhere.
 pub fn connections() -> Vec<String> {

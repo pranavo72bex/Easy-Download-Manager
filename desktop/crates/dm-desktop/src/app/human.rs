@@ -58,8 +58,7 @@ impl DmApp {
     /// on a row opens it, once Options says so), so the refusal is made
     /// where the file would be run, not only where the click is aimed.
     pub(super) fn by_script(&self) -> bool {
-        self.scripted_at
-            .is_some_and(|at| at.elapsed() < Duration::from_secs(3))
+        self.scripted_at.by_script()
     }
 
     /// Why a downloaded file may not be run now: a control client acted a moment ago
@@ -68,8 +67,7 @@ impl DmApp {
     /// on a focused button (Tab, then Enter) reaches it where a scripted click on its word is
     /// refused (security review of 2026-11-07, gaps row 159 f).
     pub(crate) fn run_refused(&self) -> Option<&'static str> {
-        self.by_script()
-            .then_some("Opening a file is done by a person, not by a script")
+        self.scripted_at.run_refused()
     }
 
     /// Reads the words drawn this frame. Run at the end of the frame, and
@@ -166,7 +164,7 @@ impl DmApp {
         // The moment an event is given to the window is the script's, not
         // the moment it was asked for.
         if !events.is_empty() {
-            self.scripted_at = Some(Instant::now());
+            self.scripted_at.acted();
         }
         // A dialog's own window takes its input when it is drawn, a moment
         // later in this frame (`dialogs::apart::feed`).
@@ -204,7 +202,7 @@ impl DmApp {
                 ));
             }
             // Only what was taken counts as a script's moment.
-            self.scripted_at = Some(Instant::now());
+            self.scripted_at.acted();
         }
         let wake = || {
             if let Some(ctx) = ctx {
