@@ -145,8 +145,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   on each button, the person's order and hiding from `commands::toolbar_shown`, moved out of the egui
   crate; the bar's space drags the window, a double-click on it does the system's setting), and the
   side panel as a macOS source list (places, their counts and the filter's matching moved out of the
-  egui crate to `dm_shell::app::places`, with `Place::from_word` for `ui.place`). Next: the status
-  bar, then slice 1's rows with `DM_BINARY` naming dm-gpui; then the tick (`changes::subscribe`
+  egui crate to `dm_shell::app::places`, with `Place::from_word` for `ui.place`), and the status
+  bar (its counts from `rules::tally`, moved out of the egui crate with `fetched_all` and
+  `waits_for_its_queue`; the egui window's own sentences). `human-qa.py` 64/64 on macOS for the egui
+  window after these moves (f02e438). Next: the file-kind pictures in rows (B45), then slice 1's
+  rows with `DM_BINARY` naming dm-gpui; then the tick (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

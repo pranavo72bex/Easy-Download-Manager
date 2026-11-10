@@ -114,22 +114,8 @@ pub fn failure_as_said(row: &Entry) -> Option<&str> {
     }
 }
 
-/// A running row that has every byte of a file of known length: it is
-/// joining its parts, not fetching.
-pub fn fetched_all(row: &Entry) -> bool {
-    row.progress
-        .total
-        .is_some_and(|total| total > 0 && row.progress.downloaded >= total)
-}
-
-/// Whether a row was added for later and waits for its queue: stopped,
-/// in a queue, nothing fetched and not held by the schedule.
-pub fn waits_for_its_queue(row: &Entry) -> bool {
-    row.state == State::Paused
-        && !row.paused_by_schedule
-        && !row.queue.is_empty()
-        && row.progress.downloaded == 0
-}
+/// Row rules the status bar and the list share: the application's.
+pub use dm_shell::app::rules::{fetched_all, waits_for_its_queue};
 
 /// A fraction as a whole percent, rounded down.
 pub fn whole_percent(fraction: f64) -> u32 {

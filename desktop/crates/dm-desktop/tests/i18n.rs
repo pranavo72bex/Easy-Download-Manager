@@ -36,14 +36,19 @@ fn rust_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 /// at run time, as the window itself lists them.
 fn wanted() -> BTreeSet<String> {
     let mut keys = BTreeSet::new();
-    // The window's own source, and what it says through dm-desktop-base
-    // (`format`, `i18n`, moved there for the GPUI migration).
+    // The window's own source, what it says through dm-desktop-base
+    // (`format`, `i18n`, moved there for the GPUI migration), and the GPUI
+    // window's, which says the same words.
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let base = here.join("../dm-desktop-base/src");
-    assert!(base.is_dir(), "{} is not there", base.display());
+    let gpui = here.join("../dm-gpui/src");
+    for dir in [&base, &gpui] {
+        assert!(dir.is_dir(), "{} is not there", dir.display());
+    }
     let files = rust_files(&here.join("src"))
         .into_iter()
-        .chain(rust_files(&base));
+        .chain(rust_files(&base))
+        .chain(rust_files(&gpui));
     for file in files {
         let text = std::fs::read_to_string(file).unwrap();
         // The window's source, not its tests' made-up strings.

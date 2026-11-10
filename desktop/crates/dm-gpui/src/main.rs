@@ -29,6 +29,7 @@ mod probe;
 mod screen;
 mod services;
 mod sidebar;
+mod statusbar;
 mod theme;
 mod toolbar;
 

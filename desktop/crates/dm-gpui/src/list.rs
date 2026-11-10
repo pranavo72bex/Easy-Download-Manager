@@ -307,5 +307,6 @@ impl Render for Downloads {
                             .child(self.list(theme, cx)),
                     ),
             )
+            .child(crate::statusbar::statusbar(self, theme, &screen))
     }
 }
