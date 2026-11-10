@@ -140,6 +140,22 @@ fn not_yet<T>(method: &str) -> Result<T, String> {
 impl Probe<'_, '_> {
     /// The `nth` piece of text on screen that says `wanted`, nearest the
     /// front first: exactly, else ignoring case, else containing it.
+    /// Runs `send` after this update in the window in front: a dialog's,
+    /// where one is open (it stands in front of dm's window), else dm's.
+    fn in_front(&mut self, send: impl FnOnce(&mut Window, &mut gpui::App) + 'static) {
+        let front = crate::screen::Screens::all(self.cx)
+            .into_iter()
+            .find(|(_, _, dialog)| *dialog)
+            .map(|(handle, _, _)| handle);
+        match front {
+            Some(handle) => self.cx.defer(move |cx| {
+                let _ = handle.update(cx, |_, window, cx| send(window, cx));
+            }),
+            None => self.window.defer(self.cx, send),
+        }
+        self.cx.notify();
+    }
+
     fn find(&self, wanted: &str, nth: usize) -> Result<Drawn, String> {
         Ok(self.find_in(wanted, nth)?.0)
     }
@@ -315,8 +331,25 @@ impl WindowProbe for Probe<'_, '_> {
         })
     }
 
-    fn type_text(&mut self, _: &str) -> Result<usize, String> {
-        not_yet("ui.type")
+    fn type_text(&mut self, text: &str) -> Result<usize, String> {
+        // Each character as a key that types it, into the field with the
+        // keyboard in the window in front: through the window's own text
+        // input, as the system sends a person's typing.
+        let keystrokes: Vec<Keystroke> = text
+            .chars()
+            .map(|c| Keystroke {
+                modifiers: Modifiers::default(),
+                key: c.to_lowercase().to_string(),
+                key_char: Some(c.to_string()),
+            })
+            .collect();
+        let typed = keystrokes.len();
+        self.in_front(move |window, cx| {
+            for keystroke in &keystrokes {
+                window.dispatch_keystroke(keystroke.clone(), cx);
+            }
+        });
+        Ok(typed)
     }
 
     fn key(&mut self, press: probe::KeyPress) -> Result<(), String> {
@@ -333,10 +366,9 @@ impl WindowProbe for Probe<'_, '_> {
             key,
             key_char: None,
         };
-        self.window.defer(self.cx, move |window, cx| {
+        self.in_front(move |window, cx| {
             window.dispatch_keystroke(keystroke, cx);
         });
-        self.cx.notify();
         Ok(())
     }
 
@@ -345,7 +377,36 @@ impl WindowProbe for Probe<'_, '_> {
     }
 
     fn windows(&mut self) -> Result<probe::Windows, String> {
-        not_yet("ui.windows")
+        // Each window's frame on the screen (points, from the top left), and
+        // its inside: the frame less its title bar.
+        let frames = |window: &Window| {
+            let outer = window.bounds();
+            let inside = window.viewport_size();
+            let top = outer.size.height - inside.height;
+            let inner = Bounds::new(point(outer.origin.x, outer.origin.y + top), inside);
+            (rect_of(outer), rect_of(inner))
+        };
+        let main = Some(frames(self.window).0);
+        let pixels_per_point = Some(self.window.scale_factor());
+        let mut dialogs = Vec::new();
+        for (handle, _, dialog) in crate::screen::Screens::all(self.cx) {
+            if !dialog {
+                continue;
+            }
+            let _ = handle.update(self.cx, |_, window, _| {
+                let (outer, inner) = frames(window);
+                dialogs.push(probe::DialogWindow {
+                    title: window.window_title(),
+                    outer: Some(outer),
+                    inner: Some(inner),
+                });
+            });
+        }
+        Ok(probe::Windows {
+            pixels_per_point,
+            main,
+            dialogs,
+        })
     }
 
     fn window_to(&mut self, _: probe::WindowTo) -> Result<(), String> {

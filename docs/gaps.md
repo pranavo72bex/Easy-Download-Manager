@@ -166,8 +166,32 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   GPUI window's questions changes at D5), with dm's words (`dm_desktop_base::asks`, the Remove
   question's rules moved there from the egui dialog); Remove and Delete file ask, finished rows leave
   with Undo; every window's words are recorded for the port, so `ui.texts` and `ui.click` reach a
-  sheet as they reach egui's dialogs. Next: slice 4, Add URL (a window of its own) and Download
-  details, then the questions B39 to B41 as sheets (`changes::subscribe`
+  sheet as they reach egui's dialogs. Slice 4 under way: Add URL is a window of its own (B01,
+  B42): the address (a link on the clipboard put in and selected), Recent with Clear history, the
+  sign-in, the warning line; what OK does is dm's for both windows (`dm_desktop_base::add_url`).
+  Download details is a window of its own (B02 for a plain file): Category, Save to folder with
+  Browse… (the system's folder panel), Save as (the server's name, once asked), Size, Note, Delete
+  file after, the name's clash (numbered, or Replace once whole), Start now and Add for later to a
+  queue, the row begun while it asks where Options says so; what it offers and adds moved to
+  `dm_desktop_base::file_info` for both windows. "Already in the list" is a sheet with its four
+  answers and Remember my choice (`add_url::carry`, both windows). Pickers are pop-up buttons
+  opening the system's own menu (gpui-component's `NativeMenu`, an `NSMenu` on macOS), and a
+  dialog's window is as tall as what it holds (`fit.rs`). The port types (`ui.type`) and says
+  where the GPUI windows are (`ui.windows`). Found and fixed on the way: the main window's wake
+  loop ended for good once a dialog that read the main view closed (GPUI's
+  `WeakEntity::update_in` runs in whichever window last drew the view); it updates in its own
+  window now. The questions a download raises (B39 to B41) are sheets, one at a time, with dm's
+  words for both windows (`dm_desktop_base::asks`); running them found B39 naming a query
+  address's file by the list's label (`127.0.0.1/dl?id=7`, the contract says `dl`) and asking
+  about a name the server never sent, fixed for both windows (`names::address_file_name`). Quit
+  is the application's (⌘Q from a dialog in front too, as on every Mac), and Exit closes the
+  dialogs first: macOS held its terminate while a sheet asked, so a logout or `kill` waited on an
+  unanswered question. Slice 4 still owes, in the GPUI window: B02's video Quality and Part, the
+  Playlist window (a playlist address is only said in the status bar), a ZIP's files, a caught
+  download's "From …" and "Always save here without asking", and the question to start outside
+  the schedule; and for `human-qa.py`, a way for the port to choose in a pop-up (the system's
+  menu is modal, so a click on one waits for a person). Then
+  (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

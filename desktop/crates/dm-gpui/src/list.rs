@@ -27,6 +27,21 @@ use crate::theme::Theme;
 use dm_desktop_base::columns::Column;
 use dm_shell::app::places::{Place, Places};
 
+/// Runs `update` on the view in the window the loop was started in, the
+/// main window: not `WeakEntity::update_in`, which runs in whichever window
+/// last drew the view (Download details reads it as it draws, and once that
+/// dialog closed the view had no window, and the loop ended). `None` once
+/// the window or the view is gone.
+fn in_own_window<R>(
+    this: &gpui::WeakEntity<Downloads>,
+    cx: &mut gpui::AsyncWindowContext,
+    update: impl FnOnce(&mut Downloads, &mut Window, &mut Context<Downloads>) -> R,
+) -> Option<R> {
+    cx.update(|window, cx| this.update(cx, |this, cx| update(this, window, cx)).ok())
+        .ok()
+        .flatten()
+}
+
 /// The rows' height, in points.
 pub(crate) const ROW_HEIGHT: f32 = 26.0;
 
@@ -68,6 +83,14 @@ pub struct Downloads {
     pub(crate) said: Option<(String, std::time::Instant)>,
     /// Finished rows Remove took off, kept a moment for Undo.
     pub(crate) undo: dm_shell::app::backend::Undo,
+    /// The questions the rows raise as they run (B39 to B41), asked one at
+    /// a time in the order they came.
+    asks: dm_shell::app::questions::Questions,
+    /// Names a person chose for rows still downloading, given as each
+    /// finishes.
+    renames: dm_shell::app::names::PendingRenames,
+    /// A question is being asked: the next waits for its answer.
+    asking: bool,
 }
 
 impl Downloads {
@@ -98,6 +121,9 @@ impl Downloads {
             menu: None,
             said: None,
             undo: Default::default(),
+            asks: Default::default(),
+            renames: Default::default(),
+            asking: false,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -109,8 +135,12 @@ impl Downloads {
         // queue changes one read a quarter of a second later.
         // Redrawn in the system's colours when the person switches between
         // light and dark.
-        cx.observe_window_appearance(window, |_, _, cx| cx.notify())
-            .detach();
+        cx.observe_window_appearance(window, |_, window, cx| {
+            // The text fields and menus (gpui-component's) follow too.
+            gpui_component::Theme::sync_system_appearance(Some(window), cx);
+            cx.notify();
+        })
+        .detach();
         cx.spawn_in(window, async move |this, cx| loop {
             // Nothing tells the window of a clock (the schedules, When
             // done's countdown): once a second while a download runs or a
@@ -135,19 +165,16 @@ impl Downloads {
             // Asked to end (a logout, `kill`, an uninstall): as Exit does,
             // the queue written down first.
             if dm_desktop_base::signals::SIGNALLED.load(Ordering::SeqCst) {
-                let _ = this.update_in(cx, |this, _, cx| {
-                    this.backend.flush();
-                    cx.quit();
-                });
+                let _ = in_own_window(&this, cx, |this, _, cx| this.quit(cx));
                 return;
             }
-            if this
-                .update_in(cx, |this, window, cx| {
-                    this.read();
-                    this.answer_requests(window, cx);
-                    cx.notify();
-                })
-                .is_err()
+            if in_own_window(&this, cx, |this, window, cx| {
+                this.read();
+                this.watch_asks(cx);
+                this.answer_requests(window, cx);
+                cx.notify();
+            })
+            .is_none()
             {
                 return;
             }
@@ -196,8 +223,7 @@ impl Downloads {
             return;
         }
         if command == Command::Quit {
-            self.backend.flush();
-            cx.quit();
+            self.quit(cx);
             return;
         }
         let chosen: Vec<Entry> = self.chosen().into_iter().cloned().collect();
@@ -223,6 +249,10 @@ impl Downloads {
                 cx.notify();
                 return;
             }
+            Command::AddUrl => {
+                crate::addurl::open(cx.entity().downgrade(), cx);
+                return;
+            }
             Command::CopyDetails => {
                 let settings = self.backend.settings();
                 if let Some((text, count)) = dm_desktop_base::details::blocks_for(
@@ -246,6 +276,253 @@ impl Downloads {
         let _ = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
         self.read();
         cx.notify();
+    }
+
+    /// Adds `urls` with the options Download details chose, as the person's
+    /// own; the rows are read again.
+    pub fn add(
+        &mut self,
+        urls: Vec<String>,
+        with: dm_core::AddOptions,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let items = urls.into_iter().map(|u| (u, with.clone())).collect();
+        let added = self.session.add(&self.backend, items);
+        if let Some(id) = added.rows.first().map(|(id, _, _)| *id) {
+            // The new row is the one chosen, as the person expects of a row
+            // just added.
+            self.selected.clear();
+            self.selected.insert(id);
+        }
+        if let Some((failed, e)) = added.partly() {
+            // The rest went in; the ones that did not are said, not lost.
+            self.say(match failed {
+                1 => format!("One of the links was not added: {e}"),
+                n => format!("{n} of the links were not added: {e}"),
+            });
+        }
+        self.read();
+        cx.notify();
+        added.outcome().map(|_| ())
+    }
+
+    /// Where Add URL's OK sends the address (`add_url::decide`), and the
+    /// Recent list it remembers.
+    pub fn after_add_url(
+        &mut self,
+        decided: dm_desktop_base::add_url::Decided,
+        cx: &mut Context<Self>,
+    ) {
+        use dm_desktop_base::add_url::Next;
+        if let Some(recent) = decided.remember {
+            if let Err(e) = self.backend.remember_urls(recent) {
+                self.say(e);
+            }
+        }
+        let me = cx.entity().downgrade();
+        match decided.next {
+            Next::Says(_) => {}
+            Next::Details(addresses) => crate::details::open(me, addresses, cx),
+            Next::Duplicate { address, id } => self.ask_duplicate(address, id, cx),
+            Next::Answered { address, id, how } => self.answer_duplicate(address, id, how, cx),
+            // The Playlist window is still the egui window's (docs/gaps.md,
+            // G7): said rather than nothing happening.
+            Next::Playlist(address) => self.say(format!(
+                "{} {}",
+                dm_desktop_base::i18n::t("Playlist"),
+                dm_desktop_base::format::shown_url(&address)
+            )),
+        }
+        cx.notify();
+    }
+
+    /// "Already in the list": show it (or go on with it), download it
+    /// again, replace the old file, or leave it.
+    fn ask_duplicate(&mut self, address: String, id: dm_core::Id, cx: &mut Context<Self>) {
+        use dm_desktop_base::i18n::{t, tf};
+        use dm_shell::app::rules::Dup;
+        let status = self
+            .rows
+            .iter()
+            .find(|r| r.id == id)
+            .map(|r| dm_desktop_base::rows::status_of(r))
+            .unwrap_or_default();
+        let (go_on, can_replace) = dm_desktop_base::add_url::duplicate_offers(&self.rows, id);
+        // The first, which changes nothing, is Return's: an Return pressed
+        // for Download details, a moment before this asked, fetched the file
+        // a second time.
+        let mut choices = vec![
+            (
+                if go_on { t("Resume it") } else { t("Show it") },
+                Some(Dup::Show),
+            ),
+            (t("Download again"), Some(Dup::Again)),
+        ];
+        if can_replace {
+            choices.push((t("Replace the old file"), Some(Dup::Replace)));
+        }
+        choices.push((t("Cancel"), None));
+        let asked = crate::question::Asked {
+            title: t("Already in the list").into(),
+            lines: vec![
+                dm_desktop_base::format::shown_url(&address).into(),
+                tf("This address is already in the list ({}).", &[&status]).into(),
+            ],
+            named: None,
+            detail: None,
+            toggle: Some(t("Remember my choice").into()),
+            buttons: choices.iter().map(|(w, _)| (*w).into()).collect(),
+            escape: choices.len() - 1,
+        };
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, remember, cx| {
+            let Some(how) = choices.get(button).and_then(|(_, how)| *how) else {
+                return;
+            };
+            let _ = view.update(cx, |view, cx| {
+                if remember {
+                    let mut wanted = view.backend.settings();
+                    wanted.duplicate_choice = how.word().to_string();
+                    if let Err(e) = view.backend.set_settings(wanted) {
+                        view.say(e);
+                    }
+                }
+                view.answer_duplicate(address, id, how, cx);
+            });
+        });
+        crate::question::ask(asked, None, answer, cx);
+    }
+
+    /// Carries out an answer to "Already in the list", asked or remembered
+    /// (`add_url::carry`).
+    fn answer_duplicate(
+        &mut self,
+        address: String,
+        id: dm_core::Id,
+        how: dm_shell::app::rules::Dup,
+        cx: &mut Context<Self>,
+    ) {
+        use dm_desktop_base::add_url::Carried;
+        use dm_shell::app::rules::GoOn;
+        match dm_desktop_base::add_url::carry(&self.rows, address, id, how) {
+            Carried::Show { id, go_on } => {
+                self.selected.clear();
+                self.selected.insert(id);
+                match go_on {
+                    Some(GoOn::Retry) => self.backend.retry(id),
+                    Some(GoOn::Resume) => self.backend.resume(id),
+                    _ => {}
+                }
+                self.read();
+            }
+            Carried::Details(address) => {
+                crate::details::open(cx.entity().downgrade(), vec![address], cx)
+            }
+            Carried::Replace { address, with } => {
+                if let Err(e) = self.add(vec![address], *with, cx) {
+                    self.say(e);
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    /// Looks at the rows as just read for the questions they raise, gives
+    /// the names chosen for rows that have now finished, and asks the next
+    /// question when none is being asked.
+    fn watch_asks(&mut self, cx: &mut Context<Self>) {
+        self.asks.watch(&self.rows);
+        let rows = &self.rows;
+        let due = self
+            .renames
+            .due(|id| rows.iter().find(|r| r.id == id).map(|r| r.state.clone()));
+        for (id, name) in due {
+            let _ = self.backend.rename(id, &name);
+        }
+        self.promote_asks(cx);
+    }
+
+    /// Asks the next waiting question, as a sheet, when no other is being
+    /// asked: none for a row that is gone.
+    fn promote_asks(&mut self, cx: &mut Context<Self>) {
+        use dm_desktop_base::asks;
+        use dm_shell::app::questions::Question;
+        if self.asking {
+            return;
+        }
+        let rows = &self.rows;
+        let Some(question) = self.asks.next(|id| rows.iter().any(|r| r.id == id)) else {
+            return;
+        };
+        let ask = match &question {
+            Question::Name {
+                address_name,
+                server_name,
+                ..
+            } => asks::name_sent(address_name, server_name),
+            Question::Page(_) => asks::page_for_file(),
+            Question::NotFound(_) => asks::not_found(),
+        };
+        let asked = crate::question::Asked {
+            title: ask.title.into(),
+            lines: ask.lines.into_iter().map(Into::into).collect(),
+            named: None,
+            detail: ask.detail.map(Into::into),
+            toggle: None,
+            buttons: ask.buttons.into_iter().map(Into::into).collect(),
+            // Escape keeps the default, which changes nothing.
+            escape: 0,
+        };
+        let view = cx.entity().downgrade();
+        let answer: crate::question::Answer = Box::new(move |button, _, cx| {
+            let _ = view.update(cx, |view, cx| {
+                view.asking = false;
+                view.answered(question, button == 0);
+                view.read();
+                view.promote_asks(cx);
+                cx.notify();
+            });
+        });
+        self.asking = crate::question::ask(asked, None, answer, cx);
+    }
+
+    /// Carries out the answer to a question a download raised: `yes` the
+    /// default (Yes, or OK).
+    fn answered(&mut self, question: dm_shell::app::questions::Question, yes: bool) {
+        use dm_shell::app::questions::Question;
+        match question {
+            // No: the file is given the address's name, at once if it has
+            // finished, else as it finishes.
+            Question::Name {
+                id, address_name, ..
+            } if !yes => {
+                let state = self
+                    .rows
+                    .iter()
+                    .find(|r| r.id == id)
+                    .map(|r| r.state.clone());
+                if let Some(now) = self.renames.ask(id, state.as_ref(), &address_name) {
+                    let _ = self.backend.rename(id, &now);
+                }
+            }
+            Question::Page(id) if yes => self.backend.accept_page(id),
+            Question::Page(id) => self.backend.remove(id),
+            _ => {}
+        }
+    }
+
+    /// Ends dm as Exit does: the queue written down, then every dialog
+    /// closed (macOS holds its terminate while a sheet is still asking: a
+    /// logout or `kill` waited on an unanswered question), then the
+    /// application.
+    pub fn quit(&mut self, cx: &mut Context<Self>) {
+        self.backend.flush();
+        for (handle, _, dialog) in crate::screen::Screens::all(cx) {
+            if dialog {
+                let _ = handle.update(cx, |_, window, _| window.remove_window());
+            }
+        }
+        cx.quit();
     }
 
     /// Whether `command` can be run now: the shell carries it out, and it
@@ -279,7 +556,7 @@ impl Downloads {
     }
 
     /// One read of the application: the rows and what follows from them.
-    fn read(&mut self) {
+    pub(crate) fn read(&mut self) {
         dm_shell::app::changes::take();
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
@@ -388,15 +665,16 @@ impl Downloads {
                     .map(Into::into)
                     .collect(),
                 named: Some(ask.named.into()),
+                detail: None,
                 toggle: ask.toggle.map(Into::into),
-                go: ask.go.into(),
-                keep: ask.keep.into(),
+                buttons: vec![ask.keep.into(), ask.go.into()],
+                escape: 0,
             }
         };
         let asked = words(false);
         let view = cx.entity().downgrade();
-        let answer: crate::question::Answer = Box::new(move |go, delete, cx| {
-            if go {
+        let answer: crate::question::Answer = Box::new(move |button, delete, cx| {
+            if button == 1 {
                 let _ = view.update(cx, |view, cx| {
                     view.removed(&ids, &files, delete);
                     cx.notify();

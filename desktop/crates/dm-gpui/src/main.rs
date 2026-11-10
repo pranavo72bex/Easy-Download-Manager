@@ -21,9 +21,13 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 
+mod addurl;
 mod assets;
+mod details;
+mod fit;
 mod list;
 mod menus;
+mod popup;
 mod port;
 mod probe;
 mod question;
@@ -173,6 +177,10 @@ fn main() {
     gpui_platform::application()
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {
+            // The text fields and the system's own menus (gpui-component).
+            gpui_component::init(cx);
+            // Their colours the system's appearance, light or dark.
+            gpui_component::Theme::sync_system_appearance(None, cx);
             let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
             let opened = cx.open_window(
                 WindowOptions {
@@ -205,6 +213,14 @@ fn main() {
             // dm's menus in the system's menu bar, and every command's keys.
             menus::bind_keys(cx);
             menus::set(cx);
+            // Quit is heard from any window in front (a dialog's too), as in
+            // every macOS program: the main window's view ends dm.
+            if let Ok(view) = main.update(cx, |_, _, cx| cx.entity().downgrade()) {
+                cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
+                    Some(view) => view.update(cx, |view, cx| view.quit(cx)),
+                    None => cx.quit(),
+                });
+            }
             // The commands themselves are the window's view's (`Downloads`'
             // root element handles `menus::Run`), reached through the window's
             // own dispatch, as a key or the menu bar sends them.

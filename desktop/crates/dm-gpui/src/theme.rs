@@ -31,6 +31,8 @@ pub struct Theme {
     pub on_selection: Rgba,
     /// A menu's background.
     pub menu: Rgba,
+    /// What a dialog says is wrong: the system's red.
+    pub warning: Rgba,
 }
 
 impl Theme {
@@ -60,6 +62,8 @@ impl Theme {
                 selection: rgb(0x0a5fd8),
                 on_selection: rgb(0xffffff),
                 menu: rgb(0x2c2c2c),
+                // NSColor.systemRed, dark.
+                warning: rgb(0xff453a),
             },
             WindowAppearance::Light | WindowAppearance::VibrantLight => Theme {
                 background: rgb(0xffffff),
@@ -71,6 +75,7 @@ impl Theme {
                 selection: rgb(0x0064e1),
                 on_selection: rgb(0xffffff),
                 menu: rgb(0xf6f6f6),
+                warning: rgb(0xff3b30),
             },
         }
     }

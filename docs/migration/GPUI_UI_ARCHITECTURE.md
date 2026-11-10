@@ -84,6 +84,16 @@ window takes no input while a modal dialog is open and a click on it raises the 
 the main window (B42), so dialogs are normal or floating windows with dm's own modality
 *(verify in G6)*.
 
+**As built (G7, slice 4, 2026-11-10).** `dm-gpui/src/addurl.rs` (Add URL) and `details.rs`
+(Download details) are windows of their own, each its view inside gpui-component's `Root` (its
+text fields need it), as tall as what they hold (`fit.rs`); `question.rs` asks the questions as
+macOS sheets; `popup.rs` is the pop-up button whose click opens the system's own menu
+(`NativeMenu`), its choice coming back as a `Pick` action to the window's view. What each dialog
+offers and does is dm's, in dm-desktop-base for both windows (`add_url`, `file_info`, `asks`).
+A dialog that needs the main view holds a `WeakEntity<Downloads>`; a task that updates the main
+view runs in the main window by its async context, not by `WeakEntity::update_in`, which GPUI runs
+in whichever window last drew the entity (`docs/decisions.md`, 2026-11-10).
+
 **The table** is GPUI's virtualized list *(verify in G6: `uniform_list`)*, drawing only the
 visible rows; a row's cells are formatted when drawn, from the snapshot's `Arc<Entry>`; a
 progress tick notifies only the table, not the window.

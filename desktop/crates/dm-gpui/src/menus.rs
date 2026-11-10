@@ -19,6 +19,13 @@ use gpui::{Action, App, KeyBinding, Menu, MenuItem, SystemMenuType};
 #[action(namespace = dm, no_json)]
 pub struct Run(pub Command);
 
+/// Ends dm (Exit, ⌘Q): the application's, so it is heard from any window
+/// in front, as Quit is in every macOS program; the list's commands
+/// (`Run`) are the main window's.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct Quit;
+
 /// Chooses the row above, as ↑ does in a macOS list.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
@@ -52,6 +59,7 @@ pub fn carried_out(command: Command) -> bool {
     matches!(
         command,
         C::Quit
+            | C::AddUrl
             | C::DownloadNow
             | C::StopDownload
             | C::Redownload
@@ -125,7 +133,11 @@ pub fn bind_keys(cx: &mut App) {
                 eprintln!("dm-gpui: {} cannot be bound to {keys}: {e:?}", command.id());
                 continue;
             }
-            bindings.push(KeyBinding::new(keys, Run(*command), None));
+            if *command == Command::Quit {
+                bindings.push(KeyBinding::new(keys, Quit, None));
+            } else {
+                bindings.push(KeyBinding::new(keys, Run(*command), None));
+            }
         }
     }
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
@@ -134,6 +146,9 @@ pub fn bind_keys(cx: &mut App) {
 }
 
 fn item(command: Command) -> MenuItem {
+    if command == Command::Quit {
+        return MenuItem::action(t(command.label()), Quit);
+    }
     MenuItem::action(t(command.label()), Run(command)).disabled(!carried_out(command))
 }
 

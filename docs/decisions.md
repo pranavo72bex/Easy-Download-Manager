@@ -3,6 +3,28 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: GPUI pickers open the system's menu; dialogs fit what they hold; loops use their own window
+
+Under the maintainer's native word of 2026-11-10. A picker in a GPUI dialog (Download details'
+Category, Delete file after and queue; Add URL's Recent) is a pop-up button whose click opens the
+system's own menu, the chosen item ticked: gpui-component's `NativeMenu`, an `NSMenu` on macOS and
+Windows' own menu there, drawn by GPUI on Linux (`dm-gpui/src/popup.rs`). Dropped: a list drawn by
+GPUI inside the window, which a person on a Mac meets as a web page's menu, clipped at the window's
+edge. The cost: the system's menu is modal, so while one is open the control port waits, as the
+app does; `human-qa.py` needs a way to choose in a pop-up without opening it before it drives
+these rows. A dialog's window is as tall as what it holds (`fit.rs`: laid out at its own height,
+the window resized on the next frame), as the system's dialogs grow when a warning or a sign-in's
+fields appear; a fixed height put Download details' buttons past its bottom edge once the name's
+clash was shown. A task that updates the main view from its window (the wake loop) runs in that
+window by the async context (`AsyncWindowContext::update`), never by `WeakEntity::update_in`:
+GPUI runs that in whichever window last drew the entity, and Download details draws the main
+view's rows for the name's clash; when it closed, the entity had no window, `update_in` failed and
+the loop ended, so the main window stopped reading the queue. Quit is an action of the
+application's (`menus::Quit`, heard from any window in front), the list's commands (`menus::Run`)
+the main window's, as on a Mac Quit reaches the application from any window while a list's
+commands belong to its window; and Exit closes every dialog before it ends dm, since AppKit holds
+`terminate:` while a sheet is up.
+
 ## 2026-11-10: On macOS the GPUI window asks its questions as sheets
 
 At the maintainer's word of 2026-11-10 ("focus on native improvements … it should feel native to
