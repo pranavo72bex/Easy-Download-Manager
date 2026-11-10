@@ -365,6 +365,28 @@ pub fn gone(entry: &Entry) -> bool {
     SUPERSEDED.with(|s| dm_shell::app::rules::file_gone(entry, &s.borrow()))
 }
 
+/// How a row stands for the commands' rules (`commands::applies`), as
+/// every presentation and the headless dm see it: waiting to try again
+/// after a failure, its file gone, or something a player can show.
+pub struct Looks;
+
+impl dm_shell::app::commands::Looks for Looks {
+    fn retrying(&self, id: Id) -> bool {
+        retrying(id).is_some()
+    }
+
+    fn gone(&self, row: &Entry) -> bool {
+        gone(row)
+    }
+
+    fn plays(&self, row: &Entry) -> bool {
+        matches!(
+            kind_of(row),
+            Some(dm_core::Category::Videos | dm_core::Category::Audio)
+        )
+    }
+}
+
 thread_local! {
     /// Finished rows whose path a row finished since also wrote: the
     /// file there is that one's. A row whose file was deleted turned

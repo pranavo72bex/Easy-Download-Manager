@@ -8,6 +8,8 @@
 //! reads the queue once each time it is woken, and draws its rows; each check
 //! of docs/migration/GPUI_MIGRATION_PLAN.md Phase B is made on it.
 //!
+//! `--headless` runs dm with no window and no GPUI at all
+//! (`dm_desktop_base::headless`), as the egui binary's does.
 //! `--accessibility` prints what VoiceOver is given of each window and
 //! quits; `--churn` first opens and closes a dialog window 50 times.
 
@@ -182,10 +184,18 @@ fn main() {
         dm_shell::shell::opened_by_system(&dm_shell::settings::home(), &words);
     });
 
-    // Woken from any thread; read on the window's own, in `list::Downloads`.
+    // `--headless`: no window and no GPUI at all, so it runs where there is
+    // no display (`dm_desktop_base::headless`).
+    let headless = args.iter().any(|a| a == "--headless");
+    // Woken from any thread; read on the window's own, in `list::Downloads`,
+    // or by the headless loop.
     let (wakes, woken) = async_channel::unbounded::<Wake>();
-    let wake = {
-        let wakes = wakes.clone();
+    let (headless_wakes, headless_woken) = std::sync::mpsc::channel::<Wake>();
+    let wake: Arc<dyn Fn(Wake) + Send + Sync> = if headless {
+        Arc::new(move |wake: Wake| {
+            let _ = headless_wakes.send(wake);
+        })
+    } else {
         Arc::new(move |wake: Wake| {
             let _ = wakes.try_send(wake);
         })
@@ -212,13 +222,24 @@ fn main() {
 
     // The control port, where asked for (`--control`, DM_CONTROL, or the
     // person's setting), as the egui window opens it.
-    let requests = control.and_then(|port| match port::open(port, wakes) {
+    let requests = control.and_then(|port| match port::open(port, Arc::clone(&wake)) {
         Ok(requests) => Some(requests),
         Err(e) => {
             backend.note(format!("the control protocol could not start: {e}"));
             None
         }
     });
+
+    // `--headless`: the queue, the browser's hand-offs and the control
+    // protocol with no window, for a server, a script or an agent, until
+    // Exit over the port, When done or a signal ends it.
+    if headless {
+        #[cfg(not(windows))]
+        notify::claim();
+        dm_desktop_base::headless::run(backend, requests, assistants_only, &headless_woken);
+        return;
+    }
+    drop(headless_woken);
 
     let application = gpui_platform::application().with_assets(assets::Assets);
     // A click on the Dock icon with the window put away in the tray asks
@@ -286,10 +307,7 @@ fn main() {
         };
         // dm's menus in the system's menu bar, and every command's keys.
         menus::bind_keys(cx);
-        let queues = main
-            .update(cx, |view, _, _| view.backend.queues())
-            .unwrap_or_default();
-        menus::set(cx, &queues);
+        let _ = main.update(cx, |view, _, cx| view.refresh_menus(cx));
         // Quit is heard from any window in front (a dialog's too), as in
         // every macOS program: the main window's view ends dm.
         if let Ok(view) = main.update(cx, |_, _, cx| cx.entity().downgrade()) {

@@ -429,7 +429,7 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | The crates keep their layers | PASS | `cargo xtask layers` (a test too): the engine has no window, the extension no sockets |
 | Nothing phones home: no analytics or crash reporting, no address but the release page | PASS | `cargo xtask privacy` (a test too) |
 | A generated scorecard | PASS | [scorecard.md](scorecard.md), `cargo xtask scorecard`, held up to date by a test |
-| Headless, for a server or a script | PASS | `dm-desktop --headless --control 0`, driven in `app-check.py` |
+| Headless, for a server or a script | PASS | `dm-desktop --headless --control 0`, driven in `app-check.py`; the GPUI binary's too (`dm-gpui --headless`, `dm_desktop_base::headless`, no GPUI started): `app-check.py` and `smoke.py` with `DM_BINARY` naming it, `dm-gpui/tests/quit.rs` |
 | A batch of up to 256 control requests | PASS | `a_batch_runs_its_steps_in_order` |
 | An MCP server for AI clients | PASS | `dm-desktop mcp`, driven in `the_mcp_bridge_gives_an_agent_dm_as_tools` and, as a real subprocess, in `app-check.py`; a dm that restarts on another port is connected to again (`mcp.rs` `a_dm_that_restarts_is_connected_to_again`) |
 | A script or AI assistant runs no downloaded file: a click on Open, Open with… or Preview by their words is refused, and a moment after any step a script took (a key on a focused button included) File › Open and the Open of Download complete and of Properties run nothing and say why | PASS | `window/dialogs.rs` `a_dialogs_open_runs_nothing_a_moment_after_a_script_pressed_a_key` (2026-11-08) |

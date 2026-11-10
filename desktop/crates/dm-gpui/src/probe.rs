@@ -318,20 +318,42 @@ impl WindowProbe for Probe<'_, '_> {
     }
 
     fn texts(&mut self) -> Result<probe::Texts, String> {
-        // Nearest the front first: dialogs, then the main window, each the
-        // reverse of the order laid out.
-        Ok(probe::Texts::new(
-            self.everything()
-                .into_iter()
-                .map(|(d, _, dialog)| probe::Text {
-                    text: d.text.to_string(),
-                    rect: rect_of(d.bounds),
-                    window: if dialog {
-                        probe::Window::Dialog
-                    } else {
-                        probe::Window::Main
-                    },
+        // A menu the port opened first, as its list is in front of
+        // everything while it is open: each item's words (the menu bar
+        // is the system's, so where they are drawn is not dm's to say).
+        let menu: Vec<probe::Text> = OPEN_MENU.with(|m| {
+            m.borrow()
+                .iter()
+                .flat_map(|menu| &menu.items)
+                .filter_map(|item| match item {
+                    gpui::OwnedMenuItem::Action { name, .. } => Some(name.to_string()),
+                    gpui::OwnedMenuItem::Submenu(sub) => Some(sub.name.to_string()),
+                    _ => None,
                 })
+                .map(|text| probe::Text {
+                    text,
+                    rect: [0.0; 4],
+                    window: probe::Window::Main,
+                })
+                .collect()
+        });
+        // Then the dialogs, then the main window, each the reverse of the
+        // order laid out: nearest the front first.
+        Ok(probe::Texts::new(
+            menu.into_iter()
+                .chain(
+                    self.everything()
+                        .into_iter()
+                        .map(|(d, _, dialog)| probe::Text {
+                            text: d.text.to_string(),
+                            rect: rect_of(d.bounds),
+                            window: if dialog {
+                                probe::Window::Dialog
+                            } else {
+                                probe::Window::Main
+                            },
+                        }),
+                )
                 .collect(),
         ))
     }
@@ -483,6 +505,11 @@ impl WindowProbe for Probe<'_, '_> {
 
     fn key(&mut self, press: probe::KeyPress) -> Result<(), String> {
         let key = key_name(&press.key).ok_or_else(|| format!("no key is called {}", press.key))?;
+        // Escape closes a menu the port opened, as it closes an open menu,
+        // and goes no further.
+        if key == "escape" && OPEN_MENU.with(|m| m.borrow_mut().take()).is_some() {
+            return Ok(());
+        }
         let m = press.modifiers;
         let keystroke = Keystroke {
             modifiers: Modifiers {

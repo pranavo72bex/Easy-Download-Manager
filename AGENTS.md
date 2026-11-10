@@ -107,6 +107,7 @@ cd desktop && cargo test -p dm-desktop --test window   # the window, through its
 DM_SHOTS=docs cargo test -p dm-desktop --test window shots   # the README's pictures, rendered
 ./target/debug/dm-desktop --control 0      # drive the running window: see control.rs
 ./target/debug/dm-desktop --headless --control 0   # no window, for scripts and agents
+./target/debug/dm-gpui --control 0         # the GPUI window (gaps.md G6-G9), driven the same way; --headless too
 ./target/debug/dm-desktop mcp              # MCP tools for an AI client, relayed to a running dm
 ./target/debug/dm-desktop list | status N | pause N | resume N | cancel N   # the command line, against a running dm
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home

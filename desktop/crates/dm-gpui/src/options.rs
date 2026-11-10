@@ -567,11 +567,12 @@ impl Downloads {
         }
         if before.language != now.language {
             // The menus and every window in the language picked.
-            let queues = self.backend.queues();
-            crate::menus::set(cx, &queues);
+            self.menu_ticks = None;
             cx.refresh_windows();
         }
         self.read();
+        // The menus' ticks too (the speed limit, the drop target).
+        self.refresh_menus(cx);
         cx.notify();
         Ok(())
     }

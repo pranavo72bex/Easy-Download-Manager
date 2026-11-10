@@ -3,6 +3,36 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: `--headless` is a loop of its own in dm-desktop-base, with no GPUI
+
+The GPUI binary had no `--headless`, which `smoke.py` (the release workflow), `app-check.py`,
+the site checks and a server need. GPUI has a headless platform, but dm's list view cannot exist
+without a window (its text field, its window's wake loop), and a GPUI application on macOS is
+still an application. So `dm-gpui --headless` starts no GPUI at all: `dm_desktop_base::headless`
+runs the application's rules (`dm_shell::app`) in a loop of its own, woken by the engine and the
+control port and once a second by its clock, as the egui binary's headless mode runs `DmApp` with
+no window. It settles what a window would ask as egui's does: hand-offs go straight in
+(`Asking::Nobody`), Exit when done is at once, Resume on held rows waits and says so, Exit over
+the port ends dm, `ui.screenshot` is refused, `ui.texts` is empty. Two differences, both for a
+script's sake: a step (`ui.click`, `ui.type`, `ui.key`, `ui.scroll`) is refused at once, saying
+there is no window, where egui's queued it for frames that never came; and `command.run` of a
+command that needs a window (a dialog, the clipboard) is refused, naming it, where egui's opened
+the dialog unseen. With nobody to see it, the weekly update check is not made and the clipboard
+is not watched. `app-check.py` (98 of 98) and `smoke.py` pass with dm-gpui, and
+`dm-gpui/tests/quit.rs` signals it headless as `dm-desktop/tests/quit.rs` does.
+
+## 2026-11-10: The GPUI window carries out When done, and its menus tick as the egui window's
+
+Downloads › When done's choices did nothing in the GPUI window: the command reached no branch
+and fell through. Fixed, and the menus now say what is in force, as the egui window's do: When
+done's choice ticked (and greyed where the computer cannot do it), Limit speed ticked while a
+limit holds and the preset it is, View's Categories, Toolbar and Drop target ticked while shown.
+The menu bar is built again when any of them, or the queues, change. An item that opens a dialog
+ends with "…", as the egui window's and macOS's own menus say it (found by `app-check.py` looking
+for "Add numbered series…"). The port lists a menu it opened as the egui window shows one, and
+Escape closes it. The window forgets `control.port` as it quits (it was left naming a port nobody
+answered: nothing after GPUI's run is reached on macOS).
+
 ## 2026-11-10: The GPUI window's menu bar has macOS's own Edit and Window menus
 
 As the plan's "Native feel and speed" asks of the menus on macOS ("the standard app, Edit and

@@ -12,7 +12,28 @@
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::{Chord, Command, Key};
+use dm_shell::app::power::WhenDone;
 use gpui::{Action, App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
+
+/// What the menus show ticked, and the queues Start Queue and Stop Queue
+/// list, as the egui window's menus show them: the menu bar is built again
+/// when any of it changes (`Downloads::refresh_menus`).
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Ticks {
+    /// The queues, for Start Queue's and Stop Queue's submenus.
+    pub queues: Vec<String>,
+    /// Downloads › When done's choice.
+    pub when_done: WhenDone,
+    /// The speed limit in force, in KB/s (0: none): Limit speed is ticked
+    /// while there is one, and so is the preset it is.
+    pub speed_limit: u64,
+    /// View › Categories.
+    pub sidebar: bool,
+    /// View › Toolbar.
+    pub toolbar: bool,
+    /// View › Drop target.
+    pub drop_target: bool,
+}
 
 /// A command of dm's, as a menu item or a key runs it.
 #[derive(Clone, PartialEq, Action)]
@@ -269,7 +290,19 @@ fn item(command: Command) -> MenuItem {
     if command == Command::Quit {
         return MenuItem::action(t(command.label()), Quit);
     }
-    MenuItem::action(t(command.label()), Run(command)).disabled(!carried_out(command))
+    MenuItem::action(shown(command), Run(command)).disabled(!carried_out(command))
+}
+
+/// A command's words on its menu item: with "…" where it opens a dialog
+/// that asks for more first, as the egui window's menus and macOS's own
+/// say it.
+fn shown(command: Command) -> String {
+    let title = t(command.label());
+    if command.asks_more() && !title.ends_with('…') {
+        format!("{title}…")
+    } else {
+        title.to_string()
+    }
 }
 
 fn items(commands: &[Command]) -> Vec<MenuItem> {
@@ -288,7 +321,13 @@ fn menu(title: &'static str, groups: &[&[Command]]) -> Menu {
 }
 
 /// The menu bar.
-pub fn set(cx: &mut App, queues: &[String]) {
+pub fn set(cx: &mut App, ticks: &Ticks) {
+    cx.set_menus(build(ticks));
+}
+
+/// The menu bar's menus, in their order.
+fn build(ticks: &Ticks) -> Vec<Menu> {
+    let queues = &ticks.queues;
     use Command as C;
     // Start Queue and Stop Queue list the queues; the one clicked is started
     // or stopped, whatever the list shows (B64).
@@ -375,39 +414,63 @@ pub fn set(cx: &mut App, queues: &[String]) {
         on_queues(C::StopQueue),
         MenuItem::separator(),
         MenuItem::submenu(
+            // Limit speed ticked while a limit is in force, and the preset
+            // that is.
             Menu::new(t("Speed limiter")).items(
-                [item(C::SpeedLimiterToggle), MenuItem::separator()]
-                    .into_iter()
-                    .chain(items(&[
-                        C::SpeedLow,
-                        C::SpeedMedium,
-                        C::SpeedHigh,
-                        C::SpeedUnlimited,
-                    ]))
-                    .chain([MenuItem::separator(), item(C::SpeedLimiterSettings)]),
+                [
+                    item(C::SpeedLimiterToggle).checked(ticks.speed_limit > 0),
+                    MenuItem::separator(),
+                ]
+                .into_iter()
+                .chain(
+                    [C::SpeedLow, C::SpeedMedium, C::SpeedHigh, C::SpeedUnlimited]
+                        .into_iter()
+                        .map(|c| item(c).checked(c.speed_preset() == Some(ticks.speed_limit))),
+                )
+                .chain([MenuItem::separator(), item(C::SpeedLimiterSettings)]),
             ),
         ),
-        MenuItem::submenu(Menu::new(t("When done")).items(items(&[
-            C::WhenDoneNothing,
-            C::WhenDoneQuit,
-            C::WhenDoneSleep,
-            C::WhenDoneHibernate,
-            C::WhenDoneShutDown,
-        ]))),
+        // The choice ticked; greyed where this computer gives dm no way to
+        // do it (macOS does not hibernate), rather than failing when the
+        // queue runs dry.
+        MenuItem::submenu(
+            Menu::new(t("When done")).items(
+                [
+                    (C::WhenDoneNothing, WhenDone::Nothing),
+                    (C::WhenDoneQuit, WhenDone::Quit),
+                    (C::WhenDoneSleep, WhenDone::Sleep),
+                    (C::WhenDoneHibernate, WhenDone::Hibernate),
+                    (C::WhenDoneShutDown, WhenDone::ShutDown),
+                ]
+                .into_iter()
+                .map(|(c, w)| {
+                    item(c)
+                        .checked(ticks.when_done == w)
+                        .disabled(!w.possible(dm_desktop_base::power::available))
+                }),
+            ),
+        ),
     ]);
-    let view = menu(
+    let mut view = menu(
         "View",
-        &[
-            &[C::ToggleCategories, C::ToggleToolbar, C::ToggleDropTarget],
-            &[
-                C::SortByName,
-                C::SortBySize,
-                C::SortByStatus,
-                C::SortByTimeLeft,
-                C::SortByRate,
-                C::SortByDate,
-                C::SortByDescription,
-            ],
+        &[&[
+            C::SortByName,
+            C::SortBySize,
+            C::SortByStatus,
+            C::SortByTimeLeft,
+            C::SortByRate,
+            C::SortByDate,
+            C::SortByDescription,
+        ]],
+    );
+    // Categories, Toolbar and Drop target ticked while shown.
+    view.items.splice(
+        0..0,
+        [
+            item(C::ToggleCategories).checked(ticks.sidebar),
+            item(C::ToggleToolbar).checked(ticks.toolbar),
+            item(C::ToggleDropTarget).checked(ticks.drop_target),
+            MenuItem::separator(),
         ],
     );
     // Help: dm's guide and its topics, Tip of the day, the project's home
@@ -454,5 +517,82 @@ pub fn set(cx: &mut App, queues: &[String]) {
         MenuItem::separator(),
         MenuItem::action(t("Bring All to Front"), BringAllToFront),
     ]);
-    cx.set_menus([app, tasks, file, edit, downloads, view, window, help]);
+    vec![app, tasks, file, edit, downloads, view, window, help]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The item called `name` in `menus`, looked for in every submenu.
+    fn find<'a>(menus: &'a [Menu], name: &str) -> Option<&'a MenuItem> {
+        fn within<'a>(items: &'a [MenuItem], name: &str) -> Option<&'a MenuItem> {
+            items.iter().find_map(|item| match item {
+                MenuItem::Action { name: n, .. } if n.as_ref() == name => Some(item),
+                MenuItem::Submenu(menu) => within(&menu.items, name),
+                _ => None,
+            })
+        }
+        menus.iter().find_map(|menu| within(&menu.items, name))
+    }
+
+    /// Whether the item called `name` is ticked, and whether it is greyed.
+    fn state(menus: &[Menu], name: &str) -> (bool, bool) {
+        match find(menus, name) {
+            Some(MenuItem::Action {
+                checked, disabled, ..
+            }) => (*checked, *disabled),
+            _ => panic!("no menu item {name}"),
+        }
+    }
+
+    #[test]
+    fn when_done_ticks_its_choice_and_greys_what_the_computer_cannot_do() {
+        let ticks = Ticks {
+            when_done: WhenDone::Quit,
+            ..Default::default()
+        };
+        let menus = build(&ticks);
+        assert_eq!(state(&menus, "Exit dm"), (true, false));
+        assert!(!state(&menus, "Do nothing").0);
+        let hibernate = WhenDone::Hibernate.possible(dm_desktop_base::power::available);
+        assert_eq!(state(&menus, "Hibernate"), (false, !hibernate));
+    }
+
+    #[test]
+    fn the_speed_limiter_ticks_while_a_limit_holds_and_the_preset_it_is() {
+        let off = build(&Ticks::default());
+        assert!(!state(&off, "Limit speed").0);
+        let low = Command::SpeedLow.speed_preset().unwrap_or(0);
+        let on = build(&Ticks {
+            speed_limit: low,
+            ..Default::default()
+        });
+        assert!(state(&on, "Limit speed").0);
+        assert!(state(&on, Command::SpeedLow.label()).0);
+        assert!(!state(&on, Command::SpeedHigh.label()).0);
+    }
+
+    #[test]
+    fn an_item_that_opens_a_dialog_says_so_with_an_ellipsis() {
+        let menus = build(&Ticks::default());
+        assert!(find(&menus, "Add numbered series…").is_some());
+        assert!(find(&menus, "Options…").is_some());
+        // One that acts at once has none.
+        assert!(find(&menus, Command::StopDownload.label()).is_some());
+        assert!(find(&menus, "Add numbered series").is_none());
+    }
+
+    #[test]
+    fn the_view_menu_ticks_what_is_shown() {
+        let menus = build(&Ticks {
+            sidebar: true,
+            toolbar: false,
+            drop_target: true,
+            ..Default::default()
+        });
+        assert!(state(&menus, Command::ToggleCategories.label()).0);
+        assert!(!state(&menus, Command::ToggleToolbar.label()).0);
+        assert!(state(&menus, Command::ToggleDropTarget.label()).0);
+    }
 }

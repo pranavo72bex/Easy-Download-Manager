@@ -83,3 +83,7 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["wayland", "x11"] }
 [target.'cfg(windows)'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
+
+[dev-dependencies]
+# A home of its own for each run of the real binary (tests/quit.rs).
+tempfile = "3"

@@ -169,8 +169,9 @@ pub struct Downloads {
     last_limit: u64,
     /// The Recheck queue's counts, once a check of it is done.
     rechecked: std::sync::Arc<std::sync::Mutex<Option<(usize, usize)>>>,
-    /// The queues the menu bar lists, to build it again when they change.
-    menu_queues: Vec<String>,
+    /// What the menu bar was last built with (its queues and ticks); none
+    /// builds it again.
+    pub(crate) menu_ticks: Option<crate::menus::Ticks>,
     /// What saved searches found, as each run ends, by the search's name.
     #[allow(clippy::type_complexity)]
     search_results:
@@ -278,7 +279,7 @@ impl Downloads {
             filter_text: String::new(),
             last_limit: 0,
             rechecked: Default::default(),
-            menu_queues: Vec::new(),
+            menu_ticks: None,
             search_results: Default::default(),
             searches_checked: None,
             progress_windows: Default::default(),
@@ -445,6 +446,13 @@ impl Downloads {
     /// cannot do yet is greyed in the menus (`menus::carried_out`), and a
     /// key for it does nothing.
     pub fn run(&mut self, command: dm_shell::app::commands::Command, cx: &mut Context<Self>) {
+        self.carry_out(command, cx);
+        // The menus' ticks follow what it changed: When done, the speed
+        // limiter, the View menu's.
+        self.refresh_menus(cx);
+    }
+
+    fn carry_out(&mut self, command: dm_shell::app::commands::Command, cx: &mut Context<Self>) {
         use dm_shell::app::commands::Command;
         if !self.enabled(command) {
             return;
@@ -591,6 +599,19 @@ impl Downloads {
             Command::StartQueue | Command::StopQueue => {
                 let queue = self.current_queue();
                 self.run_on_queue(command, &queue, cx);
+                return;
+            }
+            // Downloads › When done: what dm does once the queue has run
+            // dry, for this session.
+            Command::WhenDoneNothing
+            | Command::WhenDoneQuit
+            | Command::WhenDoneSleep
+            | Command::WhenDoneHibernate
+            | Command::WhenDoneShutDown => {
+                if let Some(chosen) = dm_shell::app::commands::when_done(command) {
+                    self.session.when_done = chosen;
+                }
+                cx.notify();
                 return;
             }
             Command::AddUrl => {
@@ -1010,10 +1031,18 @@ impl Downloads {
 
     /// The menu bar's queue submenus, built again when the queues change.
     pub(crate) fn refresh_menus(&mut self, cx: &mut Context<Self>) {
-        let queues = self.backend.queues();
-        if queues != self.menu_queues {
-            crate::menus::set(cx, &queues);
-            self.menu_queues = queues;
+        let settings = self.backend.settings();
+        let ticks = crate::menus::Ticks {
+            queues: self.backend.queues(),
+            when_done: self.session.when_done,
+            speed_limit: settings.speed_limit,
+            sidebar: self.show_sidebar,
+            toolbar: self.show_toolbar,
+            drop_target: settings.drop_target,
+        };
+        if self.menu_ticks.as_ref() != Some(&ticks) {
+            crate::menus::set(cx, &ticks);
+            self.menu_ticks = Some(ticks);
         }
     }
 
@@ -1599,6 +1628,12 @@ impl Downloads {
     /// application.
     pub fn quit(&mut self, cx: &mut Context<Self>) {
         self.backend.flush();
+        // As the egui window ends: a request still waiting is told dm is
+        // quitting, and `control.port` no longer sends a client to a port
+        // nobody answers. Here, before the system ends the process:
+        // nothing after GPUI's run is reached on macOS.
+        dm_desktop_base::control::closing();
+        dm_desktop_base::control::forget_port(&dm_shell::settings::home());
         for (handle, _, dialog) in crate::screen::Screens::all(cx) {
             if dialog {
                 let _ = handle.update(cx, |_, window, _| window.remove_window());
@@ -1656,7 +1691,13 @@ impl Downloads {
             return false;
         }
         let chosen = self.chosen();
-        dm_shell::app::commands::applies(command, &chosen, &self.rows, false, &Looks)
+        dm_shell::app::commands::applies(
+            command,
+            &chosen,
+            &self.rows,
+            false,
+            &dm_desktop_base::rows::Looks,
+        )
     }
 
     /// The name the list shows for `row`: one not yet placed reads as the
@@ -2090,27 +2131,6 @@ impl Downloads {
             });
         }
         self.shown = shown;
-    }
-}
-
-/// What the application asks of the window about a row, from what the
-/// last read told beside the rows (`dm_desktop_base::rows`).
-struct Looks;
-
-impl dm_shell::app::commands::Looks for Looks {
-    fn retrying(&self, id: dm_core::Id) -> bool {
-        dm_desktop_base::rows::retrying(id).is_some()
-    }
-
-    fn gone(&self, row: &Entry) -> bool {
-        dm_desktop_base::rows::gone(row)
-    }
-
-    fn plays(&self, row: &Entry) -> bool {
-        matches!(
-            dm_shell::app::names::kind_of(row),
-            Some(dm_core::Category::Videos | dm_core::Category::Audio)
-        )
     }
 }
 

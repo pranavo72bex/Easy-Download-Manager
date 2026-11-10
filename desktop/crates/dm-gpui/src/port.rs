@@ -13,18 +13,17 @@ use dm_desktop_base::boot::Wake;
 use dm_desktop_base::control::Request;
 
 /// Opens the port (`0`: one the system picks) and writes where it is for
-/// clients; the requests, or why it could not open.
+/// clients; the requests, or why it could not open. `wake` is called as
+/// each request arrives.
 pub fn open(
     port: u16,
-    wakes: async_channel::Sender<Wake>,
+    wake: std::sync::Arc<dyn Fn(Wake) + Send + Sync>,
 ) -> Result<mpsc::Receiver<Request>, String> {
     let home = dm_shell::settings::home();
     let token = dm_desktop_base::control::fresh_token(&home).map_err(|e| e.to_string())?;
     let (to_window, requests) = mpsc::channel();
-    let port = dm_desktop_base::control::listen(port, token, to_window, move || {
-        let _ = wakes.try_send(Wake::Now);
-    })
-    .map_err(|e| e.to_string())?;
+    let port = dm_desktop_base::control::listen(port, token, to_window, move || wake(Wake::Now))
+        .map_err(|e| e.to_string())?;
     dm_desktop_base::control::write_port(&home, port).map_err(|e| e.to_string())?;
     Ok(requests)
 }

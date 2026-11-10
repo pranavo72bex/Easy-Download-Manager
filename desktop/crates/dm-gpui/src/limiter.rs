@@ -82,6 +82,8 @@ impl Limiter {
                 // Put in force at once, by the hours as they are now.
                 let _ = self.view.update(cx, |view, cx| {
                     view.session.forget_limit();
+                    // Limit speed's tick in the menu bar.
+                    view.refresh_menus(cx);
                     cx.notify();
                 });
                 window.remove_window();
