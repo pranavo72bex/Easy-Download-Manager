@@ -34,6 +34,7 @@ A future GPUI crate takes `dm-desktop`'s place: `dm-core`, `dm-protocol`,
 | `links` | links in text and files, the clipboard watch's memory and what it offers | reading the system's clipboard |
 | `lookups` | what dm asks a server before a download starts: a file's name and size, a page's links, a video page's qualities, a playlist | the words shown, the dialog's slots |
 | `update` | the update check (the release manifest, the version, the installer and its digest) and the site rules that ride along | what is said of the answer |
+| `hints` | the hints given once ever: when each is due, and the setting that marks it given | what a hint says, and where |
 | `events` | typed `DownloadEvent`s from each read, for any number of subscribers: lifecycle never dropped, progress coalesced | words, sounds, dialogs |
 
 What belongs in `dm_shell::app`: a command's rules and validation, state a

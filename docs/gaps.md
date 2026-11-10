@@ -106,7 +106,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). `--help` and MCP's
   `initialize`/`tools/list` byte for byte as before; `launch-latency.py` unchanged;
   `handover-check.py` 67 of 68 (LibreOffice, row 166, failing before G2 too); both QA runs 64/64.
-- **G3, rules into `dm_shell::app`: next.** The list, with files, is
+- **G3, rules into `dm_shell::app`: in progress.** Done (2026-11-10, batch 1): the hand-off
+  cancel counter (`handoff::Cancels`), the one-time hints (`hints::Hint`), the speed limiter's
+  starting value (`commands::remembered_limit`), the inbox orders (`session::new_download_asked`;
+  `commands::when_done_command`) and "only what this computer can do" (`WhenDone::possible`, which
+  the menu, the Scheduler and the command line each wrote out). Next: the rest of the list. The list, with files, is
   `CURRENT_UI_ARCHITECTURE.md` 4.2 (settings coordination and the script guard `by_script`,
   question detection B39 to B41, pending renames, once-only schedule dates, dial-up hang-up,
   saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the

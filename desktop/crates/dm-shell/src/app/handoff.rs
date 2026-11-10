@@ -235,6 +235,35 @@ fn links_of(request: &Request) -> Vec<(String, dm_core::AddOptions)> {
         .collect()
 }
 
+/// How many hand-overs in a row from a site the person cancelled before
+/// they are asked whether that site's downloads should stay with the
+/// browser.
+pub const CANCELS_BEFORE_ASKING: u32 = 2;
+
+/// Hand-overs cancelled in Download details, by site. At
+/// [`CANCELS_BEFORE_ASKING`] the person is asked whether the site's
+/// downloads should stay with the browser, and the count starts again; a
+/// site already left there is not counted.
+#[derive(Debug, Default)]
+pub struct Cancels(std::collections::HashMap<String, u32>);
+
+impl Cancels {
+    /// A hand-over from `site` was cancelled; `left` is the sites already
+    /// left with the browser. Whether to ask about `site` now.
+    pub fn cancelled(&mut self, site: &str, left: &[String]) -> bool {
+        if left.iter().any(|h| h == site) {
+            return false;
+        }
+        let count = self.0.entry(site.to_string()).or_insert(0);
+        *count += 1;
+        if *count >= CANCELS_BEFORE_ASKING {
+            *count = 0;
+            return true;
+        }
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,5 +470,30 @@ mod tests {
             Route::Added(Ok(_))
         ));
         assert!(hands.awaiting_link.is_none(), "given up");
+    }
+
+    #[test]
+    fn a_site_is_asked_about_after_two_cancels_and_not_once_left_with_the_browser() {
+        let left = vec!["kept.example".to_string()];
+        let mut cancels = Cancels::default();
+        assert!(!cancels.cancelled("kept.example", &left));
+        assert!(
+            !cancels.cancelled("kept.example", &left),
+            "a site already left there"
+        );
+        assert!(
+            !cancels.cancelled("files.example", &left),
+            "once is not twice"
+        );
+        assert!(cancels.cancelled("files.example", &left));
+        assert!(
+            !cancels.cancelled("files.example", &left),
+            "counted again from none"
+        );
+        assert!(cancels.cancelled("files.example", &left));
+        assert!(
+            !cancels.cancelled("other.example", &left),
+            "each site its own count"
+        );
     }
 }

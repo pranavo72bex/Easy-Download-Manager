@@ -292,8 +292,7 @@ impl DmApp {
                             // Greyed where this computer has no such command
                             // (macOS does not hibernate), rather than failing
                             // when the queue runs dry.
-                            let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
-                                || crate::power::available(w);
+                            let can = w.possible(crate::power::available);
                             if ui
                                 .add_enabled_ui(can, |ui| {
                                     crate::dialogs::radio_flag(

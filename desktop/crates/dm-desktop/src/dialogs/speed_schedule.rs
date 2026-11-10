@@ -367,8 +367,7 @@ fn schedule_form(ui: &mut egui::Ui, draft: &mut SchedulerDraft, apply: &mut bool
                 ] {
                     // As the Downloads menu greys them: only what this
                     // computer can do.
-                    let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
-                        || crate::power::available(w);
+                    let can = w.possible(crate::power::available);
                     ui.add_enabled_ui(can, |ui| {
                         if radio_flag(ui, now == w, command.title()).clicked() {
                             schedule.when_done = w.word().to_string();

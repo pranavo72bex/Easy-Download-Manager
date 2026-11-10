@@ -654,6 +654,32 @@ pub fn when_done(command: Command) -> Option<WhenDone> {
     })
 }
 
+/// The command that chooses `wanted`, as the Downloads menu does: what an
+/// order from the command line (`dm --when-done`) runs. [`when_done`] the
+/// other way.
+pub fn when_done_command(wanted: WhenDone) -> Command {
+    match wanted {
+        WhenDone::Nothing => Command::WhenDoneNothing,
+        WhenDone::Quit => Command::WhenDoneQuit,
+        WhenDone::Sleep => Command::WhenDoneSleep,
+        WhenDone::Hibernate => Command::WhenDoneHibernate,
+        WhenDone::ShutDown => Command::WhenDoneShutDown,
+    }
+}
+
+/// The limit Limit speed turns back on at, as dm starts: the one in force,
+/// else the one last turned off (kept in the settings, so it survives a
+/// restart), else [`DEFAULT_LIMIT`]. [`limited`] keeps it from then on.
+pub fn remembered_limit(settings: &Settings) -> u64 {
+    [settings.speed_limit, settings.last_speed_limit]
+        .into_iter()
+        .find(|kb| *kb > 0)
+        .unwrap_or(DEFAULT_LIMIT)
+}
+
+/// The limit, in KB/s, Limit speed turns on at when none was ever set.
+pub const DEFAULT_LIMIT: u64 = 512;
+
 /// The settings a speed command asks for, from those in force (`now`):
 /// Limit speed (`SpeedLimiterToggle`) turns the limit off, or back on at the
 /// last one (`last`, at least 1 KB/s); a preset holds downloads to its
@@ -1014,6 +1040,27 @@ mod tests {
         );
         for presentations in [Command::AddUrl, Command::Properties, Command::SortByName] {
             assert_eq!(verb(presentations, &backend, &[row(a)], ""), None);
+        }
+    }
+
+    #[test]
+    fn limit_speed_comes_back_at_the_limit_in_force_else_the_last_one_else_512() {
+        let mut settings = Settings {
+            speed_limit: 300,
+            last_speed_limit: 80,
+            ..Settings::default()
+        };
+        assert_eq!(remembered_limit(&settings), 300);
+        settings.speed_limit = 0;
+        assert_eq!(remembered_limit(&settings), 80);
+        settings.last_speed_limit = 0;
+        assert_eq!(remembered_limit(&settings), DEFAULT_LIMIT);
+    }
+
+    #[test]
+    fn each_when_done_has_its_command_and_back() {
+        for w in WhenDone::ALL {
+            assert_eq!(when_done(when_done_command(w)), Some(w), "{w:?}");
         }
     }
 }

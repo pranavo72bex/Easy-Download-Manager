@@ -419,9 +419,9 @@ pub struct DmApp {
     /// Whether a menu, combo box or right-click menu was open at the end
     /// of the last frame: an Escape this frame was theirs, not a dialog's.
     pub popup_was_open: bool,
-    /// Handed-over downloads cancelled, by site, since one was accepted:
-    /// at two, the site is offered to the browser.
-    cancelled_hand_offs: std::collections::HashMap<String, u32>,
+    /// Handed-over downloads cancelled, by site: at two, the site is
+    /// offered to the browser.
+    cancelled_hand_offs: dm_shell::app::handoff::Cancels,
     /// The failed downloads the failed bar was hidden over: it stays away
     /// until another one fails.
     failed_hidden: BTreeSet<Id>,
@@ -561,12 +561,7 @@ impl DmApp {
             list_page: 1,
             dialogs: Dialogs::default(),
             problems: Vec::new(),
-            // The limit in force, else the one last turned off — kept in
-            // the settings, so it survives a restart — else 512 KB/s.
-            last_limit: [settings.speed_limit, settings.last_speed_limit]
-                .into_iter()
-                .find(|kb| *kb > 0)
-                .unwrap_or(512),
+            last_limit: dm_shell::app::commands::remembered_limit(&settings),
             applied: settings,
             clipboard: Clipboard::default(),
             browser_hint: (None, false),
@@ -599,7 +594,7 @@ impl DmApp {
             hung_up: Arc::default(),
             focus_before: None,
             was_behind: false,
-            cancelled_hand_offs: std::collections::HashMap::new(),
+            cancelled_hand_offs: Default::default(),
             failed_hidden: BTreeSet::new(),
             headless: false,
             hidden: false,

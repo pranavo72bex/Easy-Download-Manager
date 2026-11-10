@@ -324,6 +324,13 @@ pub fn when_done_asked(home: &std::path::Path) -> Option<WhenDone> {
     WhenDone::ALL.into_iter().find(|w| w.word() == word.trim())
 }
 
+/// Whether another dm asked for a new download (`dm --new-download`, the
+/// jump list's Add URL), left in the inbox under `home`: taken, so Add URL
+/// opens once.
+pub fn new_download_asked(home: &std::path::Path) -> bool {
+    std::fs::remove_file(crate::host::inbox(home).join(crate::shell::NEW_DOWNLOAD_FILE)).is_ok()
+}
+
 /// What carrying out a When done action that came due leads to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Carried {
@@ -455,6 +462,17 @@ mod when_done_tests {
         std::fs::write(&file, "dance").unwrap();
         assert_eq!(when_done_asked(home.path()), None, "unknown word");
         assert!(!file.exists(), "dropped");
+    }
+
+    #[test]
+    fn a_new_download_another_dm_asked_for_is_taken_once() {
+        let home = tempfile::tempdir().unwrap();
+        assert!(!new_download_asked(home.path()), "nothing asked");
+        let inbox = crate::host::inbox(home.path());
+        std::fs::create_dir_all(&inbox).unwrap();
+        std::fs::write(inbox.join(crate::shell::NEW_DOWNLOAD_FILE), "").unwrap();
+        assert!(new_download_asked(home.path()));
+        assert!(!new_download_asked(home.path()), "taken");
     }
 }
 

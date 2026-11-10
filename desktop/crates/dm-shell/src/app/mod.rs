@@ -23,6 +23,7 @@ pub mod detect;
 pub mod events;
 pub mod files;
 pub mod handoff;
+pub mod hints;
 pub mod import;
 pub mod links;
 pub mod lookups;

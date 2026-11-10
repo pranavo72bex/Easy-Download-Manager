@@ -11,16 +11,11 @@ impl DmApp {
     /// downloads should stay with the browser; a site already left there,
     /// or one asked about, is not asked about again.
     pub fn hand_off_cancelled(&mut self, site: &str) {
-        if self.applied.catch.skip_hosts.iter().any(|h| h == site) {
-            return;
-        }
-        let count = self
+        // The counting is the application's (`handoff::Cancels`).
+        if self
             .cancelled_hand_offs
-            .entry(site.to_string())
-            .or_insert(0);
-        *count += 1;
-        if *count >= 2 {
-            *count = 0;
+            .cancelled(site, &self.applied.catch.skip_hosts)
+        {
             self.dialogs.skip_offer = Some(site.to_string());
         }
     }
@@ -295,30 +290,21 @@ impl DmApp {
     /// `--new-download`, left in the inbox by this launch or a later one:
     /// the window comes forward with Add URL open.
     pub fn take_new_download(&mut self) {
-        let file = dm_shell::host::inbox(&dm_shell::settings::home())
-            .join(dm_shell::shell::NEW_DOWNLOAD_FILE);
-        if std::fs::remove_file(&file).is_ok() && !self.headless {
+        if dm_shell::app::session::new_download_asked(&dm_shell::settings::home()) && !self.headless
+        {
             self.show_asked = true;
             self.run(Command::AddUrl);
         }
     }
 
     pub(super) fn take_when_done(&mut self) {
-        use crate::power::WhenDone;
         let Some(wanted) = dm_shell::app::session::when_done_asked(&dm_shell::settings::home())
         else {
             return;
         };
-        let command = match wanted {
-            WhenDone::Nothing => Command::WhenDoneNothing,
-            WhenDone::Quit => Command::WhenDoneQuit,
-            WhenDone::Sleep => Command::WhenDoneSleep,
-            WhenDone::Hibernate => Command::WhenDoneHibernate,
-            WhenDone::ShutDown => Command::WhenDoneShutDown,
-        };
         // As the menu greys them: only what this computer can do.
-        if matches!(wanted, WhenDone::Nothing | WhenDone::Quit) || crate::power::available(wanted) {
-            self.run(command);
+        if wanted.possible(crate::power::available) {
+            self.run(dm_shell::app::commands::when_done_command(wanted));
         } else {
             self.said = crate::i18n::Said::new(
                 "This computer has no way to do that when the downloads are done.",
@@ -621,13 +607,8 @@ impl DmApp {
     /// A very big download that has started: said once, ever, that the
     /// Scheduler can run it at night. Not said again once it has been.
     pub fn big_download_hint(&mut self) {
-        const BIG: u64 = 5 << 30;
-        if self.applied.hinted_big
-            || self.headless
-            || !self
-                .rows
-                .iter()
-                .any(|r| r.state == State::Running && r.progress.total.is_some_and(|t| t >= BIG))
+        use dm_shell::app::hints::Hint;
+        if self.headless || !Hint::BigDownload.due(&self.applied, &self.rows, self.said.is_empty())
         {
             return;
         }
@@ -636,7 +617,7 @@ impl DmApp {
             &[],
         );
         let mut wanted = self.applied.clone();
-        wanted.hinted_big = true;
+        Hint::BigDownload.mark(&mut wanted);
         if let Err(e) = self.apply_settings(wanted) {
             self.said = e.into();
         }
@@ -647,12 +628,8 @@ impl DmApp {
     /// itself, and without the words a person has nothing to say it is there.
     /// Waits while something else is being said.
     pub fn details_hint(&mut self) {
-        if self.applied.hinted_details
-            || self.applied.show_progress
-            || self.headless
-            || !self.said.is_empty()
-            || !self.rows.iter().any(|r| r.state == State::Running)
-        {
+        use dm_shell::app::hints::Hint;
+        if self.headless || !Hint::Details.due(&self.applied, &self.rows, self.said.is_empty()) {
             return;
         }
         self.said = crate::i18n::Said::new(
@@ -660,7 +637,7 @@ impl DmApp {
             &[],
         );
         let mut wanted = self.applied.clone();
-        wanted.hinted_details = true;
+        Hint::Details.mark(&mut wanted);
         if let Err(e) = self.apply_settings(wanted) {
             self.said = e.into();
         }
