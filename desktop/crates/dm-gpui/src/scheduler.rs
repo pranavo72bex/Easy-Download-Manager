@@ -117,11 +117,14 @@ impl Scheduler {
         let Some(view) = self.view.upgrade() else {
             return;
         };
-        let backend = view.read(cx).backend.clone();
-        let mut wanted = backend.settings();
+        let mut wanted = view.read(cx).backend.settings();
         wanted.schedule = self.draft.shared.clone();
         wanted.queue_schedules = self.draft.queues.clone();
-        match backend.set_settings(wanted) {
+        // Through the window's guarded way in, as Options and the egui
+        // Scheduler save: the program run when the hours end is a person's
+        // to set, so a script driving the window a moment ago keeps the one
+        // in force, and the window says so (security review, 2026-11-11).
+        match view.update(cx, |view, cx| view.apply_settings(wanted, cx)) {
             Ok(_) => {
                 self.done = true;
                 let _ = self.view.update(cx, |_, cx| cx.notify());

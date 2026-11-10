@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Security: on macOS, a script on the control port or an AI assistant could set the Scheduler's "Run this program when they are done", which dm then ran when the scheduled hours ended. The Scheduler now keeps the program in force when a script was driving the window a moment ago, and says so, as Options already did.
 - macOS: dm's window is drawn with GPUI, natively: its menus in the system's menu bar and in the window's top bar beside the search box, the system's own menus, fonts, sheets and settings layout, a window that comes back where it was left, and a third of the CPU at 10,000 rows. Every row of the behaviour contract holds, checked from the release .dmg. The program inside dm.app is now `dm-gpui`; browsers and the login item are pointed at it on its first start.
 - Fixed: in Add URL, with a link on the clipboard, an address typed or pasted the moment the dialog opened went in beside that link, not over it.
 - Fixed: "Name sent by the server" (B39) named the address's file as the list shows a script's page, `example.com/dl?id=7`, where it is `dl`, as the contract says; and it asked about a name the server never sent ("the name was example.com/plain?id=7, but the server sent plain"), which dm had taken from the address itself. It now sets the server's name against the address's own file name, and No saves the file under that name.

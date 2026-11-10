@@ -279,7 +279,11 @@ fn main() {
             .iter()
             .map(|display| (u64::from(display.id()), display.bounds()))
             .collect();
+        let main_display = cx.primary_display().map(|display| display.bounds());
         let kept = frame::kept(&dm_shell::settings::home()).and_then(|(kept, display)| {
+            if frame::DESKTOP_PLACES_IT {
+                return frame::sized(kept, main_display?, least).map(|kept| (kept, None));
+            }
             frame::on_a_display(kept, display, &displays, least)
                 .map(|kept| (kept, display.map(gpui::DisplayId::from)))
         });
@@ -415,5 +419,47 @@ mod tests {
             .and_then(|rest| rest.strip_suffix('"'))
             .unwrap_or_default();
         assert_eq!(env!("CARGO_PKG_VERSION"), released);
+    }
+
+    /// The windows that save a program dm runs (the command after each
+    /// download, the scheduled hours' program, the proxy script) save
+    /// through `Downloads::apply_settings`, which keeps those programs when
+    /// a script was driving the window a moment ago. A direct
+    /// `backend.set_settings` there let a control-port client set the
+    /// Scheduler's program (security review, 2026-11-11).
+    #[test]
+    fn windows_that_set_a_program_save_through_the_guard() {
+        // Split so this test's own source does not match it.
+        let direct = concat!(".set_", "settings(");
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut read = 0;
+        for entry in std::fs::read_dir(&src).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|e| e != "rs") {
+                continue;
+            }
+            let whole = std::fs::read_to_string(&path).unwrap();
+            // The window's own code, not its tests (this one names both).
+            let source = whole.split("#[cfg(test)]").next().unwrap_or_default();
+            read += 1;
+            let sets_a_program = [
+                ".run_when_done",
+                ".on_complete",
+                ".proxy.script",
+                ".queue_schedules",
+            ]
+            .iter()
+            .any(|field| source.contains(field));
+            assert!(
+                !(sets_a_program && source.contains(direct)),
+                "{} saves around the guard on programs dm runs",
+                path.display()
+            );
+        }
+        assert!(
+            read > 10,
+            "the window's sources were not found in {}",
+            src.display()
+        );
     }
 }

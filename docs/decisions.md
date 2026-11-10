@@ -16,6 +16,11 @@ From a code review and a cleanup pass over the GPUI work of 2026-11-10:
   `power::installed`).
 - The window's frame is kept with its display: macOS counts it from that display's corner, and a
   window left on a second display came back on the first.
+- On Linux only the window's size and zoom are kept, not where it was: Wayland gives a program no
+  position, and X11's (GPUI's ConfigureNotify) is the drawing area's or counted from the desktop's
+  frame, which, asked for again, puts the frame there and the window a title bar lower at each
+  start (review, 2026-11-11). It opens in the middle of the main display, where the desktop may
+  place it otherwise.
 - Bringing dm's window forward (the Dock, a second launch, the port) brings a dialog open over it
   forward after it, rather than burying it under the main window. `human-qa.py` still waits a
   moment after asking for the window before opening Add URL: macOS brings the app forward on its
@@ -5520,3 +5525,16 @@ benchmark" means every case of the side-by-side harness (`bench.mjs`) and any ad
 with `idle` judged by CPU and memory at rest. Being easier to use does not override
 `docs/behaviour-contract.md`: a row proposes the change, and the maintainer approves it in
 words before it is made.
+
+## 2026-11-11: Every GPUI window that saves a program goes through the guard
+
+Security review of 2026-11-11: the GPUI Scheduler's OK saved with `backend.set_settings`, past
+`Backend::set_settings_from` and its script rule (`Settings::keep_programs_of`). A control-port
+or MCP client could open the Scheduler (`command.run scheduler`), type a program into "Run this
+program when they are done" and click OK, and dm ran it as the person when the hours ended; the
+egui Scheduler and GPUI Options refused the same. The Scheduler now saves through
+`Downloads::apply_settings`, as Options does, so a script's program is kept as it was and the
+window says so. The other direct `set_settings` callers in `dm-gpui` each start from the
+settings in force and change no program. A test in `dm-gpui` (`main.rs`) fails where a source
+file both names a program field (`.run_when_done`, `.on_complete`, `.proxy.script`,
+`.queue_schedules`) and calls `.set_settings(`.
