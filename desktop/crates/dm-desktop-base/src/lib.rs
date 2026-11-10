@@ -39,6 +39,7 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod a11y_tree;
+pub mod add_url;
 pub mod asks;
 pub mod autostart;
 pub mod awake;
