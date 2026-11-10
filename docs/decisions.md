@@ -3,11 +3,18 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
-## 2026-11-10: The extension's loader decides nothing; the plain scripts' rules are named in Rust
+## 2026-11-10: The background and popup have no JavaScript; the plain scripts' rules are named in Rust
 
-At the maintainer's word of 2026-11-10 to move the extension's JavaScript into Rust (gaps row
-169). `background.js` stays a loader, because a Manifest V3 worker must register its listeners on
-its first turn (2026-10-12), but it now only registers them and forwards each event: the form a
+At the maintainer's words of 2026-11-10 to move the extension's JavaScript into Rust and then to
+"make it fully rust" (gaps row 169). A Manifest V3 worker must register its listeners on its first
+turn (2026-10-12), before WebAssembly loaded the usual way can have; so `scripts/package.sh` now
+writes the WebAssembly into the background's script (`pkg/background.js`, as `pkg/panel.js`
+already carried it), which starts it at once (`initSync`), and Rust registers the listeners
+itself (`web/listen.rs`). `extension/background.js` and `extension/popup.js` are gone; the two
+scripts `package.sh` writes only start the Rust. A rebuild in place can no longer pair the glue
+with another build's WebAssembly (gaps row 114), so the digest check and reload went with the
+loader. Before that, the same day, the loader only registered the listeners and forwarded each
+event: the form a
 page posts is handed over whole (`on_before_request`) and Rust decides which bodies to keep and
 writes them as the browser would (`decide::posted_body`: the fields as `URLSearchParams` writes
 them, a raw body as `btoa` does, 64 KiB at most), and the page script's request for the panel is

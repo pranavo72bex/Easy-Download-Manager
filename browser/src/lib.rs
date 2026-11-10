@@ -19,9 +19,10 @@
 //!
 //! [`decide`] is every decision, in plain Rust tested on the host. `web` is
 //! the browser side, compiled only for wasm32: it reads events into those
-//! types and does what they say. The listeners themselves are registered by
-//! `extension/background.js`, a loader of a few lines, because a Manifest V3
-//! background must register them before any WebAssembly can have loaded.
+//! types and does what they say. It registers the background's listeners
+//! itself (`web/listen.rs`): a Manifest V3 background must have them on its
+//! first turn, so `scripts/package.sh` writes the WebAssembly into the
+//! background's script, which starts it at once (`initSync`).
 
 // Never crash on what comes from outside: no unwrap, expect or panic in
 // shipped code (tests may), checked by clippy in CI.

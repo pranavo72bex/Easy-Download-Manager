@@ -48,12 +48,12 @@ extension that hands it the browser's downloads.
   compiled to WebAssembly. It catches downloads and hands them to the app,
   and downloads nothing itself: with no app the browser keeps them.
   `extension/` holds what the browser loads around it: two manifests, the
-  icons, `background.js`, a 20-line loader (a Manifest V3 background must
-  register its listeners before any WebAssembly can load), and
-  `content.js`, which has the background put the panel's code
+  icons, the popup's page, and `content.js`, which has the background put the panel's code
   (`pkg/panel.js`) into the page's frame and itself answers Alt-click
   and "Download all links", so a page that forbids WebAssembly keeps them. `scripts/package.sh` builds it into
-  `extension/pkg`, `dist/chrome` and `dist/firefox`.
+  `extension/pkg`, `dist/chrome` and `dist/firefox`, and writes the scripts that start the background
+  and the popup (`pkg/background.js`, with the WebAssembly in it so Rust registers the listeners on the
+  worker's first turn, `web/listen.rs`; `pkg/popup.js`): they have no JavaScript of their own.
 - `scripts/` holds the checks that drive the built program, a browser or a
   container; `docs/testing.md` lists them.
 - `shared/naming-cases.json` holds the filename cases the engine is held to.

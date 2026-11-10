@@ -231,9 +231,22 @@ async fn cookies_switch(ext: JsValue) {
     });
 }
 
-/// Wires the popup, once its WebAssembly has loaded.
+/// The extension's API: `browser` where there is one (Firefox, promise-based), else `chrome`.
+fn extension() -> JsValue {
+    let global: JsValue = js_sys::global().into();
+    let browser = Reflect::get(&global, &"browser".into()).unwrap_or(JsValue::UNDEFINED);
+    if browser.is_object() {
+        browser
+    } else {
+        Reflect::get(&global, &"chrome".into()).unwrap_or(JsValue::UNDEFINED)
+    }
+}
+
+/// Wires the popup, once its WebAssembly has loaded (`pkg/popup.js`, which `scripts/package.sh`
+/// writes, starts it).
 #[wasm_bindgen]
-pub fn popup_start(ext: JsValue) {
+pub fn popup_start() {
+    let ext = extension();
     // The app, asked through the background, which owns the connection.
     let asked = ext.clone();
     wasm_bindgen_futures::spawn_local(async move {

@@ -64,13 +64,10 @@ fn the_panel_is_put_in_by_the_browser_and_fetched_from_no_page() {
     // panel's file; the page itself never loads anything of the extension's
     // (Brave refused that on YouTube), so no manifest offers a file to pages.
     let content = include_str!("../../../extension/content.js");
-    let background = include_str!("../../../extension/background.js");
     assert!(!content.contains("import("));
     assert!(!content.contains("getURL('pkg/"));
     assert!(content.contains(&format!("'{PANEL_LOAD_MESSAGE}'")));
-    // Answered in Rust (web/page.rs), with the file scripts/package.sh builds; the loader only
-    // forwards the message (gaps row 169).
-    assert!(!background.contains(PANEL_LOAD_MESSAGE));
+    // Answered in Rust (web/page.rs), with the file scripts/package.sh builds (gaps row 169).
     assert!(include_str!("../web/page.rs").contains("decide::PANEL_LOAD_MESSAGE"));
     assert!(
         include_str!("../../../scripts/package.sh").contains(&format!("$pkg/{}", &PANEL_FILE[4..]))
@@ -2725,24 +2722,61 @@ fn only_a_post_with_a_body_that_fits_is_kept() {
 }
 
 #[test]
-fn the_background_loader_registers_and_forwards_and_decides_nothing() {
-    // A Manifest V3 worker registers its listeners on its first turn, before the WebAssembly
-    // has loaded (decisions, 2026-10-12): so background.js registers them, and hands each event
-    // to Rust as it came. What a form's body is, or the panel's file, is not its to decide.
-    let background = include_str!("../../../extension/background.js");
+fn the_background_and_the_popup_have_no_javascript_of_their_own() {
+    // A Manifest V3 worker registers its listeners on its first turn (decisions, 2026-10-12).
+    // Rust does that itself (web/listen.rs): the WebAssembly is written into the background's
+    // script and started at once, and that script and the popup's are written by
+    // scripts/package.sh to start the Rust and nothing else (gaps row 169).
+    let extension = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../extension");
+    for gone in ["background.js", "popup.js"] {
+        assert!(!extension.join(gone).exists(), "extension/{gone} is back");
+    }
+    let package = include_str!("../../../scripts/package.sh");
+    assert!(package.contains("dm.initSync({ module: bytes });"));
+    assert!(package.contains("dm.background_start();"));
+    assert!(package.contains("popup_start()"));
+    // The two started scripts register nothing and decide nothing themselves.
     for decided in [
-        "URLSearchParams",
-        "btoa",
-        "formData",
-        "65536",
+        "addListener",
+        "sendMessage",
+        "storage",
         "executeScript",
         "'dm.",
     ] {
+        let start = package
+            .split("(pkg / \"background.js\").write_text(")
+            .nth(1)
+            .and_then(|rest| rest.split("\nPY\n").next())
+            .unwrap_or_default();
+        assert!(!start.contains(decided), "a start script uses {decided}");
+    }
+    // What background.js registered, Rust registers, with the form's body read in Rust.
+    let listen = include_str!("../web/listen.rs");
+    for event in [
+        "downloads.onCreated",
+        "downloads.onDeterminingFilename",
+        "contextMenus.onClicked",
+        "action.onClicked",
+        "runtime.onInstalled",
+        "runtime.onStartup",
+        "tabs.onRemoved",
+        "webRequest.onResponseStarted",
+        "webRequest.onSendHeaders",
+        "webRequest.onBeforeRequest",
+        "runtime.onMessage",
+    ] {
         assert!(
-            !background.contains(decided),
-            "background.js decides with {decided}"
+            listen.contains(&format!("\"{event}\"")),
+            "{event} is not registered"
         );
     }
-    assert!(background.contains("forward('on_before_request')"));
     assert!(include_str!("../web/streams.rs").contains("decide::posted_body"));
+    // The manifests and the popup's page start what package.sh writes.
+    for manifest in [
+        include_str!("../../../extension/manifest.json"),
+        include_str!("../../../extension/manifest.firefox.json"),
+    ] {
+        assert!(manifest.contains("\"pkg/background.js\""));
+    }
+    assert!(include_str!("../../../extension/popup.html").contains("src=\"pkg/popup.js\""));
 }
