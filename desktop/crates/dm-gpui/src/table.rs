@@ -224,7 +224,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
     uniform_list(
         "rows",
         count,
-        cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
+        cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
             let categories = this.backend.settings().categories();
             let columns = columns(this);
             range
@@ -236,14 +236,26 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                 })
                 .map(|(i, row)| {
                     let kind = this.places.placed(row, &categories).0;
+                    let chosen = this.selected.contains(&row.id);
+                    // A chosen row in the selection colour, its words on it,
+                    // as a macOS list draws one.
+                    let background = theme.selection;
+                    let theme = if chosen { theme.chosen() } else { theme };
                     div()
                         .id(i)
                         .role(Role::Row)
+                        .aria_selected(chosen)
                         .w_full()
                         .h(px(ROW_HEIGHT))
                         .px_1()
                         .flex()
-                        .when(i % 2 == 1, |r| r.bg(theme.stripe))
+                        .when(chosen, |r| r.bg(background).text_color(theme.text))
+                        .when(!chosen && i % 2 == 1, |r| r.bg(theme.stripe))
+                        .on_click(cx.listener(move |view, event: &gpui::ClickEvent, _, cx| {
+                            let held = event.modifiers();
+                            view.click_row(i, held.platform || held.control, held.shift);
+                            cx.notify();
+                        }))
                         .children(row_cells(row, &columns, kind, theme, &screen))
                 })
                 .collect()

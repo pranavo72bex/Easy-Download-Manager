@@ -32,6 +32,17 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// The colours on a chosen row: its words and marks on the selection
+    /// colour.
+    pub fn chosen(self) -> Theme {
+        Theme {
+            text: self.on_selection,
+            muted: self.on_selection,
+            selection: self.on_selection,
+            ..self
+        }
+    }
+
     /// The colours for the system's appearance.
     pub fn of(appearance: WindowAppearance) -> Theme {
         match appearance {

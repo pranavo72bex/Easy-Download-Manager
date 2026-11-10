@@ -154,8 +154,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   Add URL and the progress windows B63 needs: slices 4 and 6). Slice 2 under way: the table (a row's
   words and the columns moved to `dm_desktop_base::rows` and `columns`; the GPUI table shows the
   person's columns with the egui window's headings and words, sorts by a heading's click, cuts long
-  words with an ellipsis, a progress bar under a running row's status). Next in slice 2: selection
-  (click, ⌘-click, ⇧-click, arrows), a double-click as Options says, column widths a person drags (`changes::subscribe`
+  words with an ellipsis, a progress bar under a running row's status) and its selection (click,
+  ⌘-click, ⇧-click, ↑ and ↓; chosen rows in the selection colour; `ui.select`, `ui.inspect`). Next:
+  slice 3, the row commands (Resume, Stop, Delete and the rest through `commands::applies` and
+  `verb`, the row's context menu), then the double-click as Options says and column widths a
+  person drags (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

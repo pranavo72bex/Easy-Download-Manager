@@ -321,8 +321,11 @@ impl WindowProbe for Probe<'_, '_> {
         not_yet("ui.move_window")
     }
 
-    fn select(&mut self, _: Vec<u64>) -> Result<Vec<u64>, String> {
-        not_yet("ui.select")
+    fn select(&mut self, ids: Vec<u64>) -> Result<Vec<u64>, String> {
+        let listed: std::collections::HashSet<u64> = self.view.rows.iter().map(|r| r.id).collect();
+        self.view.selected = ids.into_iter().filter(|id| listed.contains(id)).collect();
+        self.cx.notify();
+        Ok(self.view.selected.iter().copied().collect())
     }
 
     fn place(&mut self, place: &str) -> Result<(), String> {
@@ -368,7 +371,7 @@ impl WindowProbe for Probe<'_, '_> {
             .collect();
         Ok(probe::Inspect {
             place: format!("{:?}", self.view.place),
-            selected: Vec::new(),
+            selected: self.view.selected.iter().copied().collect(),
             sort: self.view.sort.map(|(c, up)| probe::Sort {
                 column: c.english().to_string(),
                 ascending: up,

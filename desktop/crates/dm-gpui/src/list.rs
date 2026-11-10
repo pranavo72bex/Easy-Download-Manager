@@ -56,6 +56,11 @@ pub struct Downloads {
     pub(crate) shown: Vec<usize>,
     /// The column the list is sorted by, and whether up; none: as added.
     pub(crate) sort: Option<(Column, bool)>,
+    /// The rows chosen, by id: they stay chosen as the list is read again
+    /// and sorted, as a person expects of a selection.
+    pub(crate) selected: std::collections::BTreeSet<dm_core::Id>,
+    /// Where a ⇧-click's range starts: the row last clicked alone.
+    anchor: Option<dm_core::Id>,
 }
 
 impl Downloads {
@@ -81,6 +86,8 @@ impl Downloads {
             places: Places::default(),
             shown: Vec::new(),
             sort: None,
+            selected: Default::default(),
+            anchor: None,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -201,6 +208,9 @@ impl Downloads {
         dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
         self.rows = read.snapshot.rows;
         dm_desktop_base::rows::set_superseded(&self.rows);
+        // A row taken off the list is no longer chosen.
+        let ids: std::collections::HashSet<dm_core::Id> = self.rows.iter().map(|r| r.id).collect();
+        self.selected.retain(|id| ids.contains(id));
         self.places.place_rows(&self.rows, &settings.categories());
         self.reshow();
     }
@@ -209,6 +219,69 @@ impl Downloads {
     pub fn choose(&mut self, place: Place) {
         self.place = place;
         self.reshow();
+    }
+
+    /// A click on the row at `position` in the list, with ⌘ (`toggle`) or
+    /// ⇧ (`range`) held, as a macOS list takes it.
+    pub fn click_row(&mut self, position: usize, toggle: bool, range: bool) {
+        let Some(id) = self.id_at(position) else {
+            return;
+        };
+        if range {
+            let from = self
+                .anchor
+                .and_then(|a| self.position_of(a))
+                .unwrap_or(position);
+            let (low, high) = (from.min(position), from.max(position));
+            self.selected = (low..=high).filter_map(|p| self.id_at(p)).collect();
+        } else if toggle {
+            if !self.selected.remove(&id) {
+                self.selected.insert(id);
+            }
+            self.anchor = Some(id);
+        } else {
+            self.selected = [id].into();
+            self.anchor = Some(id);
+        }
+    }
+
+    /// Moves the choice one row up (`-1`) or down (`1`), as the arrow keys
+    /// do, keeping the row on screen.
+    pub fn step(&mut self, by: isize) {
+        let count = self.shown.len();
+        if count == 0 {
+            return;
+        }
+        let now = self
+            .anchor
+            .filter(|a| self.selected.contains(a))
+            .and_then(|a| self.position_of(a));
+        let to = match now {
+            Some(p) => (p as isize + by).clamp(0, count as isize - 1) as usize,
+            None if by < 0 => count - 1,
+            None => 0,
+        };
+        if let Some(id) = self.id_at(to) {
+            self.selected = [id].into();
+            self.anchor = Some(id);
+            self.scroll
+                .scroll_to_item(to, gpui::ScrollStrategy::Nearest);
+        }
+    }
+
+    /// The id of the row at `position` in the list as shown.
+    pub(crate) fn id_at(&self, position: usize) -> Option<dm_core::Id> {
+        self.shown
+            .get(position)
+            .and_then(|&r| self.rows.get(r))
+            .map(|r| r.id)
+    }
+
+    /// Where the row `id` is in the list as shown.
+    fn position_of(&self, id: dm_core::Id) -> Option<usize> {
+        self.shown
+            .iter()
+            .position(|&r| self.rows.get(r).is_some_and(|row| row.id == id))
     }
 
     /// Sorts by `column`: up, then the other way on a second click, as
@@ -293,6 +366,16 @@ impl Render for Downloads {
             .flex_col()
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, run: &crate::menus::Run, _, cx| this.run(run.0, cx)))
+            .on_action(
+                cx.listener(|this, _: &crate::menus::SelectPrevious, _, cx| {
+                    this.step(-1);
+                    cx.notify();
+                }),
+            )
+            .on_action(cx.listener(|this, _: &crate::menus::SelectNext, _, cx| {
+                this.step(1);
+                cx.notify();
+            }))
             .bg(theme.background)
             .text_color(theme.text)
             .text_sm()

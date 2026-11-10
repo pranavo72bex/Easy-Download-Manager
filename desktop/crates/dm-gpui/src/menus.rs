@@ -19,6 +19,16 @@ use gpui::{Action, App, KeyBinding, Menu, MenuItem, SystemMenuType};
 #[action(namespace = dm, no_json)]
 pub struct Run(pub Command);
 
+/// Chooses the row above, as ↑ does in a macOS list.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct SelectPrevious;
+
+/// Chooses the row below, as ↓ does.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct SelectNext;
+
 /// Hides dm, as every macOS program's app menu does.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
@@ -95,6 +105,8 @@ pub fn bind_keys(cx: &mut App) {
             bindings.push(KeyBinding::new(keys, Run(*command), None));
         }
     }
+    bindings.push(KeyBinding::new("up", SelectPrevious, None));
+    bindings.push(KeyBinding::new("down", SelectNext, None));
     cx.bind_keys(bindings);
 }
 
