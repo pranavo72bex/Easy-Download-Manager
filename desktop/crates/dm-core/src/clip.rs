@@ -826,7 +826,7 @@ mod coverage_tests {
                             .status(StatusCode::SERVICE_UNAVAILABLE)
                             .body(Body::empty())
                             .unwrap(),
-                        "gone" => Response::builder()
+                        "gone" | "gone-again" => Response::builder()
                             .status(StatusCode::NOT_FOUND)
                             .body(Body::empty())
                             .unwrap(),
@@ -1124,12 +1124,15 @@ mod coverage_tests {
             assert_one_try(&served, how);
         }
         // A missing piece is not asked again however many tries are left.
+        // A case of its own name: the "gone" case's last slice, sent as its
+        // first one failed, can reach the server after the log is cleared,
+        // and was counted as this one's (seen under a full test run's load).
         served.asked.lock().unwrap().clear();
         let error = fetch_part(
             &crate::client(),
             &source(
                 &base,
-                "gone",
+                "gone-again",
                 Some((init, index)),
                 dir.path().join("gone.mp4"),
             ),
@@ -1143,7 +1146,7 @@ mod coverage_tests {
             matches!(error, Error::Refused { status: 404, .. }),
             "{error:?}"
         );
-        assert_one_try(&served, "gone, five tries");
+        assert_one_try(&served, "gone-again, five tries");
     }
 
     fn assert_one_try(served: &Served, how: &str) {
