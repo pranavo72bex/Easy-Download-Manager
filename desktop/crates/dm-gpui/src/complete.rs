@@ -207,7 +207,8 @@ impl Render for Complete {
 pub fn open(view: WeakEntity<Downloads>, cx: &mut App) -> Option<gpui::AnyWindowHandle> {
     let downloads = view.upgrade()?;
     let bounds = Bounds::centered(None, size(px(440.0), px(220.0)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

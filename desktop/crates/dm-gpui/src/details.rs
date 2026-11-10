@@ -1157,7 +1157,8 @@ fn open_now(
     let queues = backend.queues();
     let height = if urls.len() == 1 { 360.0 } else { 300.0 };
     let bounds = Bounds::centered(None, size(px(600.0), px(height)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

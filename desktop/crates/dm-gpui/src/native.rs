@@ -395,3 +395,14 @@ pub fn close_front(cx: &mut gpui::App) {
         });
     });
 }
+
+/// The system's own monospaced font, for a digest, an address or a list of
+/// links: gpui-component's choice for each system (Menlo on macOS, Consolas
+/// on Windows, DejaVu Sans Mono on Linux, the next installed one where that
+/// is not). dm brings no font of its own: every word on screen is in one the
+/// system has, the rest in its interface font (`.SystemUIFont`).
+pub fn mono(cx: &gpui::App) -> gpui::SharedString {
+    gpui_component::ActiveTheme::theme(cx)
+        .mono_font_family
+        .clone()
+}

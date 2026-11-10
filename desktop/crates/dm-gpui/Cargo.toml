@@ -72,6 +72,11 @@ rfd = "0.17"
 [target.'cfg(not(windows))'.dependencies]
 notify-rust = "4"
 
+# dm's own icon in a taskbar's tray, and Windows' window pictures, read and
+# written as PNGs (tray.rs, syswindow.rs).
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+png = "0.18"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "runtime_shaders"] }
 # What GPUI cannot ask of a window (appkit.rs): put away into the tray without
@@ -81,8 +86,19 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["wayland", "x11"] }
+# The X server itself, for what GPUI cannot ask of an X11 window (syswindow.rs):
+# put away into the tray and back, moved, pictured. Already in the tree (GPUI's).
+x11rb = "0.13"
 [target.'cfg(windows)'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
+# What GPUI cannot ask of the window there (syswindow.rs): hidden into the
+# tray and shown again, moved, pictured; the picture saved as a PNG.
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_Xps",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [dev-dependencies]
 # A home of its own for each run of the real binary (tests/quit.rs).

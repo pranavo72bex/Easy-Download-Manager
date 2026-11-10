@@ -246,7 +246,8 @@ fn open_small<V: Render + 'static>(
     build: impl FnOnce(gpui::FocusHandle, Screen) -> V + 'static,
 ) -> Option<gpui::AnyWindowHandle> {
     let bounds = Bounds::centered(None, size(px(width), px(200.0)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

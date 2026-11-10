@@ -141,3 +141,24 @@ impl Screens {
         all
     }
 }
+
+/// Opens a window as `App::open_window` does, and keeps the title it was
+/// opened with as its name, where it was not named as it was built: the
+/// port names dialogs by it, and Linux's windows do not say their title
+/// back (GPUI's X11 and Wayland windows have no `get_title`). Every dm
+/// window opens through here.
+pub fn open_window<V: 'static + gpui::Render>(
+    cx: &mut App,
+    options: gpui::WindowOptions,
+    build: impl FnOnce(&mut gpui::Window, &mut App) -> gpui::Entity<V>,
+) -> gpui::Result<gpui::WindowHandle<V>> {
+    let title = options.titlebar.as_ref().and_then(|t| t.title.clone());
+    let opened = cx.open_window(options, build)?;
+    let handle: AnyWindowHandle = opened.into();
+    if let Some(title) = title.filter(|t| !t.is_empty()) {
+        if Screens::name_of(handle, cx).is_none() {
+            Screens::named(handle, title, cx);
+        }
+    }
+    Ok(opened)
+}

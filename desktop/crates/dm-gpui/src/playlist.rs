@@ -319,7 +319,8 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
     let backend = downloads.read(cx).backend.clone();
     let quality = backend.settings().stream_quality.clone();
     let bounds = Bounds::centered(None, size(px(560.0), px(420.0)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

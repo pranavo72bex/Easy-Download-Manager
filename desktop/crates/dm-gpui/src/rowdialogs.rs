@@ -33,7 +33,8 @@ fn open_window<V: Render + crate::native::CloseButton>(
 ) {
     cx.defer(move |cx| {
         let bounds = Bounds::centered(None, size(px(width), px(160.0)), cx);
-        let opened = cx.open_window(
+        let opened = crate::screen::open_window(
+            cx,
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(gpui::TitlebarOptions {

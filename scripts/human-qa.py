@@ -522,8 +522,16 @@ class Dm:
         self.open_add_url()
         for _ in range(3):
             self.call("ui.type", text=url)
-            pause(0.4)
-            if any(url in t for t in self.texts()):
+            # Typed again only once the field shows nothing of it for two
+            # seconds: typed again after 0.4 s on a loaded machine, the first
+            # landed late and the address read twice (B63, 2026-11-10).
+            shown = False
+            for _ in range(5):
+                pause(0.4)
+                if any(url in t for t in self.texts()):
+                    shown = True
+                    break
+            if shown or any(url[:12] in t for t in self.texts()):
                 break
         self.click("OK")
         for _ in range(40):

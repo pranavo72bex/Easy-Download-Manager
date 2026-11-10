@@ -240,7 +240,8 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
     };
     let settings = downloads.read(cx).backend.settings();
     let bounds = Bounds::centered(None, size(px(560.0), px(300.0)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

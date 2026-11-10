@@ -431,7 +431,7 @@ impl Render for Properties {
                     // running past the window's edge.
                     .w_full()
                     .min_w_0()
-                    .font_family("Menlo")
+                    .font_family(crate::native::mono(cx))
                     .text_size(px(native::SMALL_TEXT))
                     .child(gpui_base::SelectableText::new("sha-256", hex))
                     .into_any_element(),
@@ -699,7 +699,8 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
     bounds.origin.x += px(24.0 * nth as f32);
     bounds.origin.y += px(24.0 * nth as f32);
     let watched = downloads.clone();
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

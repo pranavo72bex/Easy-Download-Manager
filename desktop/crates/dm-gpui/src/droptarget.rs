@@ -240,7 +240,8 @@ fn open_window(
             )
         })
         .unwrap_or_else(|| gpui::point(px(200.0), px(200.0)));
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::new(
                 corner,

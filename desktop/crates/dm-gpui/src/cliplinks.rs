@@ -233,7 +233,8 @@ impl Downloads {
 fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut App) {
     cx.defer(move |cx| {
         let bounds = Bounds::centered(None, size(px(520.0), px(300.0)), cx);
-        let opened = cx.open_window(
+        let opened = crate::screen::open_window(
+            cx,
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(gpui::TitlebarOptions {

@@ -586,7 +586,8 @@ fn open_window(
     cx: &mut App,
 ) -> Option<gpui::AnyWindowHandle> {
     let bounds = Bounds::centered(None, size(px(WIDTH), px(HEIGHT)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

@@ -343,6 +343,28 @@ pub fn set(cx: &mut App, ticks: &Ticks) {
     cx.set_menus(build(ticks));
 }
 
+/// The menus in the window's own top bar, on every system, as the egui
+/// window's menu row and a code editor's title bar have them: Tasks (Exit
+/// last), File, Downloads (Options last), View and Help (About last), with
+/// the menu bar's items and ticks. On macOS the system's menu bar holds
+/// them too, beside dm's own app menu, Edit and Window.
+pub fn window_menus(ticks: &Ticks) -> Vec<Menu> {
+    use Command as C;
+    // `build`'s order: dm, Tasks, File, Edit, Downloads, View, Window, Help.
+    let mut bar = build(ticks);
+    let mut help = bar.remove(7);
+    let view = bar.remove(5);
+    let mut downloads = bar.remove(4);
+    let file = bar.remove(2);
+    let mut tasks = bar.remove(1);
+    tasks.items.extend([MenuItem::separator(), item(C::Quit)]);
+    downloads
+        .items
+        .extend([MenuItem::separator(), item(C::Options)]);
+    help.items.push(item(C::About));
+    vec![tasks, file, downloads, view, help]
+}
+
 /// The menu bar's menus, in their order.
 fn build(ticks: &Ticks) -> Vec<Menu> {
     let queues = &ticks.queues;
@@ -706,6 +728,20 @@ mod tests {
         });
         assert!(find(&retry, "Retry").is_some());
         assert!(find(&retry, Command::DownloadNow.label()).is_none());
+    }
+
+    #[test]
+    fn the_window_has_the_egui_windows_five_menus_with_exit_options_and_about() {
+        let menus = window_menus(&Ticks::default());
+        let names: Vec<String> = menus.iter().map(|m| m.name.to_string()).collect();
+        assert_eq!(names, ["Tasks", "File", "Downloads", "View", "Help"]);
+        let last = |menu: &Menu| match menu.items.last() {
+            Some(MenuItem::Action { name, .. }) => name.to_string(),
+            _ => String::new(),
+        };
+        assert_eq!(last(&menus[0]), Command::Quit.label());
+        assert_eq!(last(&menus[2]), "Options…");
+        assert_eq!(last(&menus[4]), Command::About.label());
     }
 
     #[test]

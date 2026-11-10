@@ -484,7 +484,8 @@ pub fn open(
         .map(|b| b.origin + point(px(24.0 + step), px(96.0 + step)))
         .unwrap_or_else(|| point(px(120.0 + step), px(120.0 + step)));
     let bounds = Bounds::new(origin, size(px(480.0), px(320.0)));
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

@@ -2337,11 +2337,14 @@ dependencies = [
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "png 0.18.1",
  "raw-window-handle",
  "rfd",
  "serde_json",
  "tempfile",
  "tray-icon",
+ "windows-sys 0.61.2",
+ "x11rb",
 ]
 
 [[package]]

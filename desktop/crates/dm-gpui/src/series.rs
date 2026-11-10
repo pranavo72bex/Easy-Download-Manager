@@ -236,13 +236,13 @@ impl Render for Series {
                             .when(!listed.is_empty(), |d| {
                                 let screen = screen.clone();
                                 d.child(
-                                    uniform_list("series-addresses", count, move |range, _, _| {
+                                    uniform_list("series-addresses", count, move |range, _, cx| {
                                         range
                                             .map(|i| {
                                                 div()
                                                     .h(px(LINE))
                                                     .w_full()
-                                                    .font_family("Menlo")
+                                                    .font_family(crate::native::mono(cx))
                                                     .text_size(px(native::SMALL_TEXT))
                                                     .whitespace_nowrap()
                                                     .overflow_hidden()
@@ -292,7 +292,8 @@ impl Render for Series {
 pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
     cx.defer(move |cx| {
         let bounds = Bounds::centered(None, size(px(520.0), px(300.0)), cx);
-        let opened = cx.open_window(
+        let opened = crate::screen::open_window(
+            cx,
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(gpui::TitlebarOptions {

@@ -234,7 +234,8 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
         .and_then(|text| dm_shell::app::links::looks_downloadable(&text))
         .unwrap_or_default();
     let bounds = Bounds::centered(None, size(px(520.0), px(220.0)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

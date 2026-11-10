@@ -30,7 +30,7 @@ pub fn answer(
     // The main window as it stands on screen, pictured by the system.
     if method == "ui.screenshot" {
         let path = dm_shell::app::control_api::screenshot_path(&dm_shell::settings::home(), params);
-        crate::appkit::picture(window, &path)?;
+        crate::syswindow::picture(window, &path)?;
         return Ok(serde_json::json!({ "path": path.display().to_string() }));
     }
     if let Some(answer) = probe::input(&mut Probe { view, window, cx }, method, params) {
@@ -272,7 +272,25 @@ impl Probe<'_, '_> {
             }
             // Not in it: the menu closes, as a click elsewhere closes it.
         }
+        // A menu's title in the window's top bar: its menu opened here, as
+        // the port reads it, rather than the system's, which it cannot. Not
+        // where a dialog shows the same words (Options' Downloads tab).
         let lower = words.to_lowercase();
+        let in_a_dialog = self
+            .everything()
+            .iter()
+            .any(|(d, _, dialog)| *dialog && d.text.to_lowercase() == lower);
+        let ticks = self.view.menu_ticks.clone().unwrap_or_default();
+        if let Some(menu) = (!in_a_dialog)
+            .then(|| crate::menus::window_menus(&ticks))
+            .into_iter()
+            .flatten()
+            .into_iter()
+            .find(|menu| same(&menu.name))
+        {
+            OPEN_MENU.with(|m| *m.borrow_mut() = Some(menu.owned()));
+            return Some(clicked());
+        }
         let on_screen = self
             .everything()
             .iter()
@@ -608,7 +626,9 @@ impl WindowProbe for Probe<'_, '_> {
         let (handle, title) = found.ok_or_else(|| format!("no dialog is titled {:?}", to.title))?;
         let [x, y] = to.to;
         handle
-            .update(self.cx, |_, window, _| crate::appkit::move_to(window, x, y))
+            .update(self.cx, |_, window, _| {
+                crate::syswindow::move_to(window, x, y)
+            })
             .map_err(|e| e.to_string())??;
         Ok(probe::Moved {
             moved: title,

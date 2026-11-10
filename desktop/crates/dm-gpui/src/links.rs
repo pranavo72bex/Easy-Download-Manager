@@ -652,7 +652,8 @@ fn open_now(view: WeakEntity<Downloads>, request: dm_shell::host::Request, cx: &
     let queues = backend.queues();
     let failed = view.clone();
     let bounds = Bounds::centered(None, size(px(760.0), px(560.0)), cx);
-    let opened = cx.open_window(
+    let opened = crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {

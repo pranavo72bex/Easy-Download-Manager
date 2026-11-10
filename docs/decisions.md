@@ -3,6 +3,61 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window on Windows and Linux: its title bar, the tray, the port
+
+At the maintainer's word of 2026-11-10 ("make coding part of migration of windows and linux
+here"), the GPUI window's system-specific code is written here for all three, and run on each
+system's own computer: `syswindow.rs` (was `appkit.rs`) does what GPUI cannot ask of a window, each
+system its own way. Windows: put away into the tray with `ShowWindow(SW_HIDE)` and shown again (it
+was only minimized), moved with `SetWindowPos` for `ui.move_window`, pictured with `PrintWindow`
+for `ui.screenshot` (a PNG). Linux on X11: unmapped into the tray and mapped back, moved and pictured (`GetImage`) through a
+connection of dm's own to the X server (`x11rb`; each request waited on, since one left in the
+buffer as the connection closed was lost); on Wayland minimized, and the port says it can neither
+place nor picture the window. GPUI's X11 windows are shown however they were asked to open, so a
+login launch's window is put away after its first frame. GPUI's X11 and Wayland windows do not say
+their title back, so every dm window opens through `screen::open_window`, which keeps its title as
+its name for the port. The top
+bar is the title bar on macOS and Windows (with Windows' own buttons); on Linux the desktop draws
+its title bar (server-side decorations) and the top bar is the row under it, as a code editor's is
+with the system's title bar, since a program drawing its own on Linux must draw its frame, shadow
+and resize edges too. The tray shows dm's own icon on Windows and Linux (the template picture is
+macOS's). Checked here: macOS's build, tests and `human-qa.py`; Windows by `windows-check.sh
+clippy` (Docker, the whole workspace); Linux in `linux-check.sh`'s Debian container: clippy, and
+the GPUI binary under Xvfb with no GPU passing `smoke.py` and `app-check.py` in full. Running them
+with a person, and Windows at all, is for those systems' own computers.
+
+## 2026-11-10: The GPUI window's menus are in its top bar, on every system, beside the search box
+
+At the maintainer's words of 2026-11-10 ("make the search bar and options like Tasks File
+Downloads View Help to top bar like in vs code", "in windows too", "in linux too"), the GPUI
+window's top bar holds, as a code editor's title bar does, the sidebar's button, the egui
+window's five menus by title (Tasks, File, Downloads, View, Help; Exit last in Tasks, Options in
+Downloads, About in Help, as in the egui window), and the search box, centred on the window where
+the menus leave room. A title opens its menu as the system draws one (an `NSMenu` on macOS,
+Windows' own, a drawn one on Linux: gpui-component's `NativeMenu`), with the menu bar's items and
+ticks (`menus::window_menus`). On macOS the system's menu bar keeps them too, with dm's app menu,
+Edit and Window. On Windows the bar is the title bar and ends with the window's buttons, whose
+clicks the system takes (`WindowControlArea`, so Snap layouts work). B25's GPUI pictures were
+drawn again for it. The port opens a title's menu as it reads one (and a dialog's words of the
+same name, Options' Downloads tab, still go to the dialog).
+
+## 2026-11-10: dm brings no font: the system's interface font, and its monospaced one
+
+At the maintainer's word ("use system fonts or os fonts, no need to provide fonts explicitly"):
+the GPUI window draws every word in the system's interface font (`.SystemUIFont`: San Francisco,
+Segoe UI, the Linux desktop's) and its monospaced text (a digest, links) in the system's own,
+gpui-component's choice for each (Menlo, Consolas, DejaVu Sans Mono, else the next installed),
+where it named Menlo, which only macOS has.
+
+## 2026-11-10: Add URL's address selected as the field is asked to take the keyboard
+
+In the egui window, Add URL offers a link on the clipboard selected, so what is typed replaces
+it. It was selected once the field had the keyboard, a frame after it asked; a window behind
+another, drawn only as input arrives, took the first keys in that same frame, beside the link
+(`human-qa.py`'s B63 and its walk failed so, 2026-11-10). It is selected as the field asks for
+the keyboard now (`select_on_focus_asked`); a person's typing is not selected again once it has
+begun. `human-qa.py` types an address again only after two seconds without it on screen.
+
 ## 2026-11-10: The GPUI window comes back where and as large as it was left
 
 The egui window keeps its frame across launches (eframe's `persist_window`); the GPUI window

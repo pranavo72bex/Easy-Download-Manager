@@ -306,7 +306,13 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   Retry or Start now for the rows chosen, in the File menu and the row menu, as the egui
   window's does (`rows::resume_word`). The main window comes back where and as large as it was
   left (`frame.rs`). Synced with `main` at a6faac1 (the engine's speed work, the extension's
-  background and popup in Rust). **Still owed in G7:** View › Text size (GPUI has no zoom:
+  background and popup in Rust); `human-qa.py` 64 of 64 on the GPUI window on that tree.
+  The release bundle from its .dmg: `smoke.py` and `human-qa.py` 64 of 64. The menus' titles in the
+  top bar beside the search box, on every system (the maintainer's words); only the system's fonts.
+  Windows and Linux coded here (`syswindow.rs`, the title bar, the tray's icon, window names): Linux's
+  GPUI binary passes `smoke.py` and `app-check.py` under Xvfb; Windows builds and lints. Owed on
+  Windows: running it, and a browser's link dropped on the window (the egui window's OLE target).
+  **Still owed in G7:** View › Text size (GPUI has no zoom:
   every size in points; it needs sizes in rems and `Window::set_rem_size`). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the

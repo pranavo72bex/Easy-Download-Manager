@@ -221,7 +221,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         }
         // The link it was opened with is selected, so a link pasted or
         // typed replaces it rather than joining it.
-        select_on_focus(ui, &address, &d.address);
+        select_on_focus_asked(ui, &address, &d.address, focus);
         ok |= entered(&address);
         // Addresses added here before, to pick again, and a way to forget
         // them.

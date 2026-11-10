@@ -135,9 +135,14 @@ impl Tray {
             }
         }));
         // One id across launches: the system remembers an item's place by it.
-        let icon = TrayIconBuilder::new()
-            .with_id("dm")
-            .with_icon_templated(template_icon()?)
+        let icon = TrayIconBuilder::new().with_id("dm");
+        // macOS draws a template picture in the menu bar's own colour;
+        // Windows and Linux show dm's own icon, as the egui window's tray.
+        #[cfg(target_os = "macos")]
+        let icon = icon.with_icon_templated(template_icon()?);
+        #[cfg(not(target_os = "macos"))]
+        let icon = icon.with_icon(app_icon()?);
+        let icon = icon
             .with_tooltip(tooltip)
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(false)
@@ -176,9 +181,23 @@ impl Tray {
     }
 }
 
+/// dm's own icon, for a taskbar's tray (Windows, Linux).
+#[cfg(not(target_os = "macos"))]
+fn app_icon() -> Result<tray_icon::Icon, String> {
+    const PNG: &[u8] = include_bytes!("../../dm-desktop/icons/32x32.png");
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(PNG));
+    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::ALPHA);
+    let mut reader = decoder.read_info().map_err(|e| e.to_string())?;
+    let mut rgba = vec![0; reader.output_buffer_size().unwrap_or(0)];
+    let frame = reader.next_frame(&mut rgba).map_err(|e| e.to_string())?;
+    rgba.truncate(frame.buffer_size());
+    tray_icon::Icon::from_rgba(rgba, frame.width, frame.height).map_err(|e| e.to_string())
+}
+
 /// The icon: an arrow down into a tray, black on clear, for the system to
 /// draw in the menu bar's colour (a template image), 18 points at twice the
 /// pixels.
+#[cfg(target_os = "macos")]
 fn template_icon() -> Result<tray_icon::Icon, String> {
     const SIDE: usize = 36;
     // Four samples a pixel's side, for smooth edges.
@@ -351,10 +370,11 @@ impl Downloads {
 
     /// The window back from the tray, in front.
     pub(crate) fn show_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        crate::syswindow::show(window);
         self.hidden = false;
         window.activate_window();
         cx.activate(true);
     }
 }
 
-use crate::appkit::hide;
+use crate::syswindow::hide;

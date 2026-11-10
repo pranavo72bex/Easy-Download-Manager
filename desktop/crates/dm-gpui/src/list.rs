@@ -363,6 +363,12 @@ impl Downloads {
             }
         })
         .detach();
+        // A login launch into the tray: GPUI's X11 windows are shown however
+        // they were asked to open, so it is put away there once its first
+        // frame is drawn (GPUI has mapped it on its own connection by then).
+        if hidden && cfg!(all(unix, not(target_os = "macos"))) {
+            window.on_next_frame(|window, _| crate::syswindow::hide(window));
+        }
         // Its frame as it moves and is resized, kept as dm quits.
         cx.observe_window_bounds(window, |this, window, _| {
             this.frame = window.window_bounds();
@@ -1804,7 +1810,10 @@ impl Downloads {
         self.hidden = false;
         let main = self.main;
         cx.defer(move |cx| {
-            let _ = main.update(cx, |_, window, _| window.activate_window());
+            let _ = main.update(cx, |_, window, _| {
+                crate::syswindow::show(window);
+                window.activate_window();
+            });
             cx.activate(true);
         });
     }

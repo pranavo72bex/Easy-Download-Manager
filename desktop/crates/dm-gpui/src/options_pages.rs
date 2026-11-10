@@ -1726,7 +1726,7 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
     };
     p.add(
         div()
-            .font_family("Menlo")
+            .font_family(crate::native::mono(cx))
             .text_size(px(native::SMALL_TEXT))
             .text_color(theme.muted)
             .child(screen.label(agent)),

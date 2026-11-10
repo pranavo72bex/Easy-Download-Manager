@@ -26,7 +26,6 @@
 mod about;
 mod actions;
 mod addurl;
-mod appkit;
 mod assets;
 mod bars;
 mod cliplinks;
@@ -62,6 +61,7 @@ mod series;
 mod services;
 mod sidebar;
 mod statusbar;
+mod syswindow;
 mod table;
 mod theme;
 mod tick;
@@ -122,7 +122,8 @@ impl Render for Question {
 /// Opens the question in a dialog window of its own, over the screen's middle.
 fn open_question(cx: &mut App) -> Option<WindowHandle<Question>> {
     let dialog = Bounds::centered(None, size(px(360.0), px(140.0)), cx);
-    cx.open_window(
+    crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(dialog)),
             kind: WindowKind::Dialog,
@@ -277,22 +278,28 @@ fn main() {
             .unwrap_or_else(|| {
                 WindowBounds::Windowed(Bounds::centered(None, size(px(900.0), px(600.0)), cx))
             });
-        let opened = cx.open_window(
+        let opened = crate::screen::open_window(
+            cx,
             WindowOptions {
                 window_bounds: Some(window_bounds),
                 window_min_size: Some(least),
                 // A login launch goes into the tray, with no window yet.
                 show: !hidden,
-                // A unified title bar, as macOS programs have: the toolbar is
-                // drawn in it, beside the system's own traffic lights.
+                // The top bar is the title bar on macOS (beside the system's
+                // traffic lights) and on Windows (ending with the window's
+                // buttons); on Linux the desktop draws its own title bar and
+                // the top bar is the row under it, as a code editor's is
+                // there with the system's title bar (`titlebar.rs`).
                 titlebar: Some(TitlebarOptions {
                     title: Some("dm".into()),
-                    appears_transparent: true,
+                    appears_transparent: titlebar::DRAWN_BY_DM,
                     traffic_light_position: Some(point(
                         px(titlebar::TRAFFIC_LIGHTS_AT.0),
                         px(titlebar::TRAFFIC_LIGHTS_AT.1),
                     )),
                 }),
+                window_decorations: (!titlebar::DRAWN_BY_DM)
+                    .then_some(gpui::WindowDecorations::Server),
                 ..Default::default()
             },
             |window, cx| {

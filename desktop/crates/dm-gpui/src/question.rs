@@ -168,7 +168,11 @@ impl Render for Question {
                                 )
                             })
                             .when_some(self.asked.detail.clone(), |d, detail| {
-                                d.child(div().font_family("Menlo").child(screen.label(detail)))
+                                d.child(
+                                    div()
+                                        .font_family(crate::native::mono(cx))
+                                        .child(screen.label(detail)),
+                                )
                             }),
                     )
                     .when_some(self.asked.toggle.clone(), |d, toggle| {
@@ -207,7 +211,8 @@ pub fn ask(
     let width = 440f32.max(40.0 + 120.0 * asked.buttons.len() as f32);
     let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let title = asked.title.clone();
-    cx.open_window(
+    crate::screen::open_window(
+        cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             kind: WindowKind::Dialog,
@@ -215,6 +220,7 @@ pub fn ask(
         },
         move |window, cx| {
             window.set_window_title(&title);
+            crate::screen::Screens::named(window.window_handle(), title.clone(), cx);
             cx.new(|cx| {
                 let focus = cx.focus_handle();
                 window.focus(&focus, cx);
