@@ -23,8 +23,13 @@ the loader to forwarding. `content.js` and `document.js` must stay plain JavaScr
 forbids WebAssembly, which Firefox applies to content scripts, 2026-10-17; the page's own world),
 so their rules are named once in `decide/scripts.rs` and each script is held to them by a test,
 as the message names already were; the full panel takes the five phrases it shares with the plain
-one, and the click-as-drawn limits, from there too. Not done: making the plain scripts' logic
-Rust's, which needs them to run where WebAssembly cannot; generating their rules into them at
+one, and the click-as-drawn limits, from there too. Kept JavaScript, at the maintainer's word the same day when the cost was
+put to them: the logic of `content.js` and `document.js`. They must run where a page forbids
+WebAssembly (in Chromium as in Firefox, `chrome-check.py`), so Rust could run there only compiled
+to plain JavaScript; a prototype of one of `document.js`'s hooks, built with binaryen's `wasm2js`
+(Rust's features lowered for it, the page's functions wrapped through a `Proxy`, so no JavaScript
+by hand), came to 110 KB of JavaScript (19 KB gzipped) and 1.1 MB of memory in every page and
+frame before any of their logic, against 22 and 30 KB for the scripts themselves. Not done either: generating their rules into them at
 packaging rather than holding them by a test, which changes what the extension loads; and the
 two panels' wording made one ("dm did not answer…" against "dm did not answer in time…"), a
 change a person sees.
