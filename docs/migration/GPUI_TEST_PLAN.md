@@ -92,7 +92,7 @@ PLATFORM_GAP_ANALYSIS.md section 11.
 
 | # | Check | How | macOS | Windows | X11 | Wayland |
 |---|---|---|---|---|---|---|
-| 1 | A screen reader reaches OK and Cancel in a dialog that is a window of its own, and the tree survives windows opening and closing 50 times | `ui.accessibility` (macOS), `windows-a11y-check.py`, Orca/AT-SPI as `linux-gui-check.sh` reads it | | | | |
+| 1 | A screen reader reaches OK and Cancel in a dialog that is a window of its own, and the tree survives windows opening and closing 50 times | `ui.accessibility` (macOS), `windows-a11y-check.py`, Orca/AT-SPI as `linux-gui-check.sh` reads it | **pass** (2026-11-10: `dm-gpui --accessibility --churn`) | | | |
 | 2 | Draws with no GPU | Xvfb with Mesa (llvmpipe/lavapipe) in `linux-human-qa.sh`'s image; a Windows VM without a GPU | n/a | | | |
 | 3 | A dialog opens over the middle of the main window, is modal, and can be moved outside it (B42) | `ui.windows`, `ui.move_window` | | | | |
 | 4 | Tray (`tray-icon`) works beside GPUI's run loop; a login launch makes no window until shown | `linux-gui-check.sh`'s tray steps; by hand elsewhere | | | | |
@@ -113,6 +113,14 @@ Findings so far (2026-11-10, `desktop/crates/dm-gpui` on `gpui-pre` and `gpui-pr
   `libxcb1-dev`, `libx11-xcb-dev` and `libvulkan-dev` are installed; the binary links `libxcb`,
   `libxkbcommon` and `libxkbcommon-x11` (the rest is loaded at run time). These go into the
   image and the `.deb`'s `depends` when the shell is packaged (check 7).
+- **Check 1 on macOS: pass.** `dm-gpui --accessibility` reads what VoiceOver is given of each
+  window through NSAccessibility from inside (`a11y_tree`, moved to dm-desktop-base, as
+  `ui.accessibility` reads it for egui): the dialog's own window (`WindowKind::Dialog`) gives
+  `AXWindow "Delete the file?"` with `AXButton "OK"` and `AXButton "Cancel"`. GPUI's AccessKit is
+  on by default (`Application::with_platform`; Zed opts out with `new_inaccessible`) and wakes
+  lazily: the first ask gets a placeholder, the real tree comes with the next frame. With
+  `--churn`, 50 dialog windows opened, read and closed first: no panic, and the tree after is the
+  same. Each element needs `.id(..)` and `.role(..)`; the name arrives as the AX title.
 - **Layers and privacy.** `cargo xtask layers` knows dm-gpui (dm-core, dm-protocol, dm-shell,
   dm-desktop-base, never dm-desktop) and forbids `gpui`, `gpui_platform` and `gpui-component`
   to every crate that is not a window; the privacy check finds no crate in GPUI's tree that

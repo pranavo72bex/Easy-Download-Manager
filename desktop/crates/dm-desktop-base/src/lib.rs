@@ -12,7 +12,8 @@
 //! `power` (When done, and the sounds), `autostart` (the Linux login item)
 //! and `toast` (Windows' notifications), with `desktop`, the application's
 //! `Platform` made of them (the window supplying what its crates do), and
-//! `login` (the macOS and Windows login item), `signals` (a logout or
+//! `login` (the macOS and Windows login item), `a11y_tree` (what VoiceOver
+//! is given of each window), `signals` (a logout or
 //! `kill` quits dm as Exit does), `system_theme` and `contrast` (dark or
 //! light, and Windows' High Contrast colours, where the window library cannot
 //! say), and Windows' taskbar button (`taskbar`'s progress, `jumplist`); and
@@ -36,6 +37,7 @@
 #![warn(missing_docs)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
+pub mod a11y_tree;
 pub mod autostart;
 pub mod awake;
 pub mod cli;

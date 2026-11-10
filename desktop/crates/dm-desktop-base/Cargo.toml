@@ -37,6 +37,12 @@ raw-window-handle = "0.6"
 # A logout or `kill` quits dm as Exit does (signals.rs).
 tokio = { version = "1", features = ["rt", "signal"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# What VoiceOver is given of each window, read from inside (a11y_tree.rs).
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSAccessibility", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray"] }
+
 [target.'cfg(windows)'.dependencies]
 # A finished download's toast (toast.rs): WinRT, which windows-sys has no
 # wrappers for. Already in the tree through other crates.

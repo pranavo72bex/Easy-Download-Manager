@@ -5,7 +5,7 @@
 
 //! What a screen reader is given of each of dm's windows on macOS, read in dm itself: each
 //! window's accessibility children, walked through the NSAccessibility protocol, which is where
-//! VoiceOver's requests end up (AccessKit answers them for egui's widgets). Read from inside, as
+//! VoiceOver's requests end up (AccessKit answers them for the window's widgets, egui's or GPUI's). Read from inside, as
 //! another program would need the Accessibility permission to read it from outside (gaps row
 //! 160). Behind the control protocol's `ui.accessibility`.
 

@@ -123,7 +123,9 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   Linux and Windows numbers come with G6, measured the same way beside GPUI's.
 - **G6, the GPUI shell: in progress.** `desktop/crates/dm-gpui` (binary `dm-gpui`) on the pins
   opens its main window on macOS, type-checks for Windows and builds on Linux (2026-11-10;
-  `GPUI_TEST_PLAN.md` section 5's findings). Next: the theme and the tick (`changes::subscribe`
+  `GPUI_TEST_PLAN.md` section 5's findings). Check 1 (screen readers in a dialog's own window,
+  and 50 windows opened and closed) passes on macOS; Windows (NVDA, a Windows computer) and
+  Linux (Orca over AT-SPI, `linux-gui-check.sh`'s image) are to run. Next: the theme and the tick (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,
