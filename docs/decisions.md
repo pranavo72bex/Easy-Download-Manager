@@ -8,8 +8,9 @@ can see what it is undoing.
 At the maintainer's word of 2026-11-09 (take the recommended option). G2 moves the desktop
 program's modules that draw nothing into `desktop/crates/dm-desktop-base`, which `cargo xtask
 layers` forbids every window crate; `dm_desktop` keeps each at its old path with a `pub use`, so
-no caller, test or script changes. Each module is its own commit, held to the gate's steps 1
-and 2 (fmt, clippy, `cargo test --workspace`; `scripts/windows-check.sh clippy`); the two
+no caller, test or script changes. Each batch of the survey in `docs/gaps.md` is a commit (the
+first, `quiet`, came with the crate; a batch's manifests share lines, so a commit per module
+would be hand-split and its middle states never built), held to the gate's steps 1 and 2 (fmt, clippy, `cargo test --workspace`; `scripts/windows-check.sh clippy`); the two
 visible QA runs (`human-qa.py` and `linux-human-qa.sh`, about 20 minutes each) are run once per
 batch of the survey in `docs/gaps.md` (the first after G1 and batch 1), since a move with a
 re-export changes no code path and a QA run per module would cost a day for the same evidence.

@@ -58,8 +58,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
 auto-launch = "0.6"
 arboard = "3"
-# The control protocol's token.
-getrandom = "0.4"
 # Import and Export's file choosers.
 rfd = "0.17"
 image = { version = "0.25", default-features = false, features = ["png"] }
@@ -92,9 +90,9 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray"] }
 
 # AttachConsole, so `--register` and `--unregister` print to the terminal
-# that ran them; SetSuspendState for Sleep; RegGetValueW
-# for the login item, read as UTF-16; MessageBeep for the
-# sounds. Already in the tree through dm-core.
+# that ran them. Already in the tree through dm-core. (Sleep, the login
+# item's Run key, the sounds, the wake timer and toasts are
+# dm-desktop-base's.)
 [target.'cfg(windows)'.dependencies]
 # The taskbar button's jump list (jumplist.rs): COM, which windows-sys has no
 # wrappers for. Already in the tree through other crates.
@@ -107,23 +105,12 @@ windows = { version = "0.62", features = [
   "Win32_UI_Shell_Common",
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_Storage_EnhancedStorage",
-  # A finished download's toast (toast.rs).
-  "Foundation",
-  "Data_Xml_Dom",
-  "UI_Notifications",
 ] }
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
-  # A sound file of the person's own (power.rs, play_file).
-  "Win32_Media_Audio",
   # The title bar dark, and in the window's colour (chrome.rs).
   "Win32_Graphics_Dwm",
   "Win32_System_Console",
-  "Win32_System_Diagnostics_Debug",
-  "Win32_System_Power",
-  # A wake timer for the schedule (wake.rs).
-  "Win32_System_Threading",
-  "Win32_System_Registry",
   "Win32_UI_WindowsAndMessaging",
   # dm's own drop target, for a link dragged from a browser (drops.rs).
   # STGMEDIUM is behind Gdi as well as StructuredStorage: named here rather

@@ -29,15 +29,15 @@
 pub mod a11y_tree;
 pub mod accent;
 pub mod app;
-pub mod autostart;
-pub mod awake;
+pub use dm_desktop_base::autostart;
+pub use dm_desktop_base::awake;
 pub mod backend;
 pub mod bidi;
 pub mod chrome;
 pub mod cli;
 pub mod commands;
 pub mod contrast;
-pub mod control;
+pub use dm_desktop_base::control;
 pub mod details;
 pub mod dialogs;
 pub mod drops;
@@ -47,7 +47,7 @@ pub mod icons;
 pub mod jumplist;
 pub mod mcp;
 pub mod motion;
-pub mod power;
+pub use dm_desktop_base::power;
 pub use dm_desktop_base::quiet;
 pub mod region;
 pub mod system_theme;
@@ -55,8 +55,8 @@ pub mod table;
 pub mod taskbar;
 pub mod theme;
 #[cfg(windows)]
-pub mod toast;
+pub use dm_desktop_base::toast;
 pub mod update;
-pub mod wake;
+pub use dm_desktop_base::wake;
 #[cfg(target_os = "linux")]
 pub mod xdnd;

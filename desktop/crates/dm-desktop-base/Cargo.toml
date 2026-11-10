@@ -15,9 +15,37 @@ name = "dm_desktop_base"
 path = "src/lib.rs"
 
 [dependencies]
+dm-core = { path = "../dm-core" }
+dm-shell = { path = "../dm-shell" }
+serde_json = "1"
+# The control protocol's token (control.rs).
+getrandom = "0.4"
 
 [target.'cfg(windows)'.dependencies]
+# A finished download's toast (toast.rs): WinRT, which windows-sys has no
+# wrappers for. Already in the tree through other crates.
+windows = { version = "0.62", features = [
+  "Foundation",
+  "Data_Xml_Dom",
+  "UI_Notifications",
+] }
 windows-sys = { version = "0.61", features = [
+  # The login item's Run key, read as UTF-16 (autostart.rs).
+  "Win32_Foundation",
+  "Win32_System_Registry",
+  # Sleep and hibernate (power.rs), and keeping the computer awake
+  # (awake.rs).
+  "Win32_System_Power",
+  # The sounds: MessageBeep, and a sound file of the person's own
+  # (power.rs).
+  "Win32_System_Diagnostics_Debug",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_Media_Audio",
+  # A wake timer for the schedule (wake.rs).
+  "Win32_System_Threading",
   # Whether the person is busy: fullscreen, a game, Focus Assist (quiet.rs).
   "Win32_UI_Shell",
 ] }
+
+[dev-dependencies]
+tempfile = "3"

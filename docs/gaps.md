@@ -99,7 +99,9 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   reads `changes::pending()`; the architecture docs give the tick as the code runs it; stale
   comments fixed. Decided, not changed: `DmApp::logic` keeps running from both `Window::logic`
   and `DmApp::ui` (the window tests drive `DmApp::ui` alone).
-- **G2, a toolkit-free crate: next.** Recommended (take it): a new crate
+- **G2, a toolkit-free crate: in progress.** Done (2026-11-10): the crate, and batch 1 below
+  (`quiet`, `awake`, `wake`, `autostart`, `power`, `toast`, `control`), each re-exported at its
+  old path; gated per batch (`docs/decisions.md`, 2026-11-10). Next: batch 2. As planned: a new crate
   `desktop/crates/dm-desktop-base` that `dm-desktop` depends on and that `cargo xtask layers`
   forbids every name in `GUI` (add it to the `crates` list and to the `match` with
   `may = dm-core, dm-protocol, dm-shell`, `no_gui = true`, sockets allowed). Move one module per

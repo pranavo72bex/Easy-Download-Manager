@@ -1765,7 +1765,6 @@ dependencies = [
  "egui_kittest",
  "embed-resource",
  "futures-util",
- "getrandom 0.4.3",
  "image",
  "memmap2",
  "notify-rust",
@@ -1798,6 +1797,12 @@ dependencies = [
 name = "dm-desktop-base"
 version = "0.9.0"
 dependencies = [
+ "dm-core",
+ "dm-shell",
+ "getrandom 0.4.3",
+ "serde_json",
+ "tempfile",
+ "windows 0.62.2",
  "windows-sys 0.61.2",
 ]
 
