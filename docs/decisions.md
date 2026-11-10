@@ -3,6 +3,18 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window is built native to each system, and measured
+
+The maintainer, 2026-11-10, mid-migration: "while migrating focus on native improvements and
+optimization too. it should feel native to users." So the GPUI slices are not a pixel copy of
+the egui window: menus in macOS's menu bar, the systems' own title bars, fonts, text input,
+scrolling, choosers and accessibility, where GPUI or the system offers them
+(`docs/migration/GPUI_MIGRATION_PLAN.md`, "Native feel and speed"). The features stay as they
+are. A contract row or B25 picture a native way changes is updated in the same commit, naming
+this word, as an approved change (CLAUDE.md). Speed is judged on numbers against G5's egui
+baseline, a slice slower on any of them not done. Dropped: matching egui first and making it
+native after (every slice would be drawn twice).
+
 ## 2026-11-10: G3 leaves `apply_settings`, the sounds and the dialogs' drafts in the window
 
 At the maintainer's word of 2026-11-09 (take the recommended option). Of the list in

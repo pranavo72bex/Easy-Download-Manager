@@ -157,6 +157,34 @@ Done when the release workflow's packages, downloaded from a draft, hold 64/64
 change, egui removed in a later one (dependencies, the three vendored patches,
 kittest, `--headless`'s stand-in `egui::Context`, docs, CI).
 
+## Native feel and speed (the maintainer's word of 2026-11-10)
+
+"While migrating focus on native improvements and optimization too. It should feel native to
+users." The GPUI window is not a copy of the egui one's pixels: each slice is built as that
+system's own programs behave, and measured against the egui baseline (G5). Features stay as they
+are (none added, none dropped); where a native way changes what a contract row says or a B25
+picture shows, the row and its baseline change in the same commit, naming this word.
+
+What "native" means, slice by slice, where GPUI or the system offers it (each checked on the
+system, not assumed; a gap falls back to dm's own code, as PLATFORM_GAP_ANALYSIS.md says):
+
+| Area | macOS | Windows | Linux |
+|---|---|---|---|
+| Menus | The app's menus in the system menu bar (GPUI's `set_menus`), with the standard app, Edit and Window menus and their usual shortcuts | Menus in the window, Alt and access keys | Menus in the window, as GTK and Qt programs place them |
+| Title bar and window | The system's traffic lights and full-screen; the window remembered where it was | The system's caption buttons, Snap layouts, dark title bar and accent (dm's `chrome.rs` today) | Server-side decorations where offered (X11, KDE Wayland), client-side otherwise |
+| Text and type | The system font and its sizes; text input with IME, dictation, emoji and the system's word and line keys | Segoe UI, ClearType-like text, IME | The desktop's font (fontconfig), IME (IBus, Fcitx) |
+| Look | Dark and light, the system accent colour, Increase contrast, Reduce motion | Dark and light, accent, High Contrast (`contrast.rs`) | The portal's colour scheme and accent (`system_theme.rs`, `accent.rs`) |
+| Scrolling and pointer | Trackpad momentum and rubber-banding; pointer shapes as the system's | Precision touchpad, wheel lines as Settings says | Smooth scrolling where the compositor gives it |
+| Dialogs and choosers | Sheets or windows as macOS programs use them; the system's open and save panels | The system's file dialogs; Escape and Enter as Windows does | The portal's file chooser |
+| Notifications, tray, Dock, taskbar | Kept as they are (`toast`, `taskbar`, `jumplist`, the Dock's menu): they are native already | | |
+| Accessibility | VoiceOver reads every control and dialog (Phase B check 1) | NVDA and Narrator | Orca |
+
+Speed, held to numbers rather than to "GPU means faster": start to the first usable frame, no
+drawing while nothing changes (idle CPU near zero, where egui repaints while a download runs),
+memory at 10,000 rows, frame time while 20 downloads run, scroll and Find at 10,000 rows, and the
+release's size. Each slice reports its numbers beside G5's egui ones in GPUI_TEST_PLAN.md; a slice
+slower than egui on any of them is not done.
+
 ## Sizes, for scale
 
 dm-desktop is 35,818 lines (2026-11-09), of which about 7,100 move in A2 and
