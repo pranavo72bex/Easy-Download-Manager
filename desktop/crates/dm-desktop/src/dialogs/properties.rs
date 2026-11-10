@@ -312,46 +312,42 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         if cancel {
             app.dialogs.properties.remove(&id);
         }
-        let files = app.dialogs.properties.get(&id).map(|d| d.files.clone());
-        let ok = ok && files.is_none_or(|files| choose_files(app, id, &row, &files));
-        let priorities = app
-            .dialogs
-            .properties
-            .get(&id)
-            .map(|d| d.priorities.clone());
-        let ok = ok && priorities.is_none_or(|p| choose_priorities(app, id, &row, &p));
-        if ok {
-            if description != row.description {
-                app.backend.set_description(id, &description);
-            }
-            let changed = address.trim() != row.url;
-            let result = if changed {
-                app.backend.set_url(id, &address)
-            } else {
-                Ok(())
-            };
-            match result {
-                Ok(()) => {
-                    app.dialogs.properties.remove(&id);
-                    // A sign-in given to a download that failed for want
-                    // of one is what it was waiting for: tried again with it.
-                    if changed && wants_login {
-                        app.backend.retry(id);
-                        app.said = crate::i18n::Said::new(
-                            "Trying {} again with the sign-in.",
-                            &[&name_of(&row)],
-                        );
-                        app.said_about = Some((id, app.said.clone(), false));
-                    }
-                }
-                Err(e) => {
-                    if let Some(d) = app.dialogs.properties.get_mut(&id) {
-                        d.says = e;
-                    }
+        // A torrent's choice of files and their priorities, the note and
+        // the address kept, and a sign-in given to a download that failed
+        // for want of one tried (`row_edits::keep_properties`, both
+        // windows).
+        let kept = match app.dialogs.properties.get(&id) {
+            Some(d) if ok => Some(dm_desktop_base::row_edits::keep_properties(
+                &app.backend,
+                &row,
+                &dm_desktop_base::row_edits::Edited {
+                    description: &description,
+                    address: &address,
+                    files: &d.files,
+                    priorities: &d.priorities,
+                },
+            )),
+            _ => None,
+        };
+        match kept {
+            None => continue,
+            Some(Ok(retried)) => {
+                app.dialogs.properties.remove(&id);
+                if retried {
+                    app.said = crate::i18n::Said::new(
+                        "Trying {} again with the sign-in.",
+                        &[&name_of(&row)],
+                    );
+                    app.said_about = Some((id, app.said.clone(), false));
                 }
             }
-            app.refresh();
+            Some(Err(e)) => {
+                if let Some(d) = app.dialogs.properties.get_mut(&id) {
+                    d.says = e;
+                }
+            }
         }
+        app.refresh();
     }
 }
 
@@ -411,76 +407,8 @@ fn torrent_files(ui: &mut egui::Ui, row: &dm_core::Entry, d: &mut Properties) {
     });
 }
 
-/// A priority in the window's words.
-fn priority_words(p: dm_core::TorrentPriority) -> &'static str {
-    match p {
-        dm_core::TorrentPriority::High => t("High"),
-        dm_core::TorrentPriority::Normal => t("Normal"),
-        dm_core::TorrentPriority::Low => t("Low"),
-    }
-}
-
-/// Keeps changed priorities of a torrent's files; false, with the reason
-/// said in the dialog, where they cannot be kept.
-fn choose_priorities(
-    app: &mut DmApp,
-    id: Id,
-    row: &dm_core::Entry,
-    priorities: &[dm_core::TorrentPriority],
-) -> bool {
-    let now: Vec<_> = row.torrent_files.iter().map(|f| f.priority).collect();
-    if priorities.is_empty() || priorities == now.as_slice() {
-        return true;
-    }
-    match app.backend.set_torrent_priorities(id, priorities) {
-        Ok(()) => true,
-        Err(e) => {
-            if let Some(d) = app.dialogs.properties.get_mut(&id) {
-                d.says = files_refusal(&e);
-            }
-            false
-        }
-    }
-}
-
-/// Keeps a changed choice of a torrent's files; false, with the reason
-/// said in the dialog, where it cannot be kept.
-fn choose_files(app: &mut DmApp, id: Id, row: &dm_core::Entry, files: &[bool]) -> bool {
-    let now: Vec<bool> = row.torrent_files.iter().map(|f| f.wanted).collect();
-    if files.is_empty() || files == now.as_slice() {
-        return true;
-    }
-    let refused = if !files.iter().any(|w| *w) {
-        Some(t("Tick at least one file.").to_string())
-    } else {
-        app.backend
-            .set_torrent_files(id, files)
-            .err()
-            .map(|e| files_refusal(&e))
-    };
-    match refused {
-        None => true,
-        Some(why) => {
-            if let Some(d) = app.dialogs.properties.get_mut(&id) {
-                d.says = why;
-            }
-            false
-        }
-    }
-}
-
-/// The queue's refusal of a choice of files, in the language in force.
-fn files_refusal(why: &str) -> String {
-    match why {
-        "Tick at least one file." => t("Tick at least one file."),
-        "Stop the download to change which files are fetched." => {
-            t("Stop the download to change which files are fetched.")
-        }
-        "The torrent's files are not known yet." => t("The torrent's files are not known yet."),
-        other => other,
-    }
-    .to_string()
-}
+/// A priority in the window's words (`row_edits`, both windows).
+use dm_desktop_base::row_edits::priority_words;
 
 /// Hashing a finished file is the application's (`files::hash_later`).
 fn start_sum(
@@ -554,21 +482,5 @@ fn digest_rows(
             }
         }
         ui.end_row();
-    }
-}
-
-#[cfg(test)]
-mod refusal_tests {
-    #[test]
-    fn the_queues_refusals_are_said_and_others_kept_as_they_are() {
-        for why in [
-            "Tick at least one file.",
-            "Stop the download to change which files are fetched.",
-            "The torrent's files are not known yet.",
-            "the disk is full",
-        ] {
-            // In English, each is its own words.
-            assert_eq!(super::files_refusal(why), why);
-        }
     }
 }

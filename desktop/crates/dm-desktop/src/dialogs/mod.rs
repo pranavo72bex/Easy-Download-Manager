@@ -80,20 +80,9 @@ fn warn(ui: &egui::Ui) -> Color32 {
 }
 
 /// Move/Rename: the finished downloads it moves, the new name where it is
-/// one, and the folder they go to.
-#[derive(Debug, Clone, Default)]
-pub struct MoveRename {
-    /// The finished downloads to move.
-    pub ids: Vec<Id>,
-    /// The new name, where one download is moved.
-    pub name: String,
-    /// The folder they go to.
-    pub folder: String,
-    /// For several files: how to name them. Empty keeps their names;
-    /// `{n}` counts from 1 in the order they are listed, `{name}` is the
-    /// old name without its ending, and the ending is kept.
-    pub pattern: String,
-}
+/// one, and the folder they go to (`dm_desktop_base::row_edits`, both
+/// windows).
+pub use dm_desktop_base::row_edits::MoveRename;
 
 /// The Add URL dialog: an address, and a login if it needs one.
 #[derive(Default)]
@@ -250,37 +239,9 @@ pub use dm_shell::app::files::{TakeSlot, ZipSlot};
 /// What the background hashing of a finished file has found so far.
 pub use dm_shell::app::files::Sums;
 
-/// An address split into itself and the user and password in it.
-fn split_login(url: &str) -> (String, String, String) {
-    match url::Url::parse(url) {
-        Ok(mut parsed) if !parsed.username().is_empty() => {
-            let decode = |s: &str| {
-                url::form_urlencoded::parse(format!("x={}", s.replace('+', "%2B")).as_bytes())
-                    .next()
-                    .map(|(_, v)| v.into_owned())
-                    .unwrap_or_default()
-            };
-            let login = decode(parsed.username());
-            let password = decode(parsed.password().unwrap_or(""));
-            let _ = parsed.set_username("");
-            let _ = parsed.set_password(None);
-            (parsed.to_string(), login, password)
-        }
-        _ => (url.to_string(), String::new(), String::new()),
-    }
-}
-
-/// The address with a user and password put back in it.
-fn join_login(address: &str, login: &str, password: &str) -> String {
-    match url::Url::parse(address.trim()) {
-        Ok(mut parsed) if !login.is_empty() => {
-            let _ = parsed.set_username(login);
-            let _ = parsed.set_password(Some(password).filter(|p| !p.is_empty()));
-            parsed.to_string()
-        }
-        _ => address.trim().to_string(),
-    }
-}
+/// An address's sign-in taken out for its own fields, and put back on OK
+/// (`dm_desktop_base::row_edits`, both windows).
+use dm_desktop_base::row_edits::{join_login, split_login};
 
 /// A playlist being read for the dialog: `None` until it is; the reading's
 /// own words where it could not be.

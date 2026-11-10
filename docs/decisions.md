@@ -3,6 +3,24 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The row dialogs' rules are one module; GPUI's take the system's ways of a field
+
+What OK does in Update download link, Move to queue, Move/Rename and File properties (a fresh
+address and the retry of a download that failed for want of it; the queue picked or named, in
+dm's own name; each file moved, then renamed, and a name already taken said; a torrent's files
+and priorities, the note, the address with its sign-in, and the retry with a sign-in given) is
+`dm_desktop_base::row_edits`, which both windows call, so they cannot differ. In the GPUI
+window each is a window of its own, as Add URL is, and keeps the system's ways where the egui
+window had none: Move/Rename opens with the name without its ending chosen, as Finder's rename
+does (typing replaces the name and keeps the kind); Move to queue opens with the keyboard in
+"Or a new queue"; the finished file's SHA-256 is text that can be selected and copied, as the
+system's labels can be (`gpui-base`'s `SelectableText`, the base gpui-component itself pins at
+the same version, added as a window crate in `cargo xtask layers`), not a field one can type
+in. These follow the maintainer's word on native feel (2026-11-10); no contract row names them.
+The window's double-click on a row does what Options › General says (B46), as the egui
+window's. Dropped: the digest in a text field whose typing was undone (it took a Tab stop
+between Note and Check against, so Tab put the keyboard where nothing could be typed).
+
 ## 2026-11-10: The GPUI window's top bar holds the search box, as a code editor's title bar does
 
 The maintainer, 2026-11-10, looking at the GPUI window: "search is missing and also top bar is

@@ -77,6 +77,10 @@ impl Downloads {
         let mut finished: Vec<(String, String)> = Vec::new();
         let mut finished_ids: Vec<dm_core::Id> = Vec::new();
         let mut failed = false;
+        let expired = detected
+            .iter()
+            .find_map(|read| read.expired.first().copied());
+        self.offer_new_link(expired, cx);
         for read in detected {
             for row in &self.rows {
                 if read.failed.contains(&row.id) {

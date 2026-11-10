@@ -91,6 +91,10 @@ pub fn carried_out(command: Command) -> bool {
             | C::Scheduler
             | C::SiteFiles
             | C::ShowProgress
+            | C::UpdateLink
+            | C::MoveToQueue
+            | C::MoveRename
+            | C::Properties
             | C::OpenFile
             | C::OpenWith
             | C::Preview

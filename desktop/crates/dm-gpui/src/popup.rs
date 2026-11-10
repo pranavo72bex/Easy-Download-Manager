@@ -14,12 +14,15 @@ use gpui_component::native_menu::NativeMenu;
 use crate::screen::Screen;
 use crate::theme::Theme;
 
-/// The choice `index` made in the pop-up `field`.
+/// The choice `index` made in the pop-up `field` (of a list's `item`,
+/// where there is one a row, as a torrent's files each have one).
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = dm, no_json)]
 pub struct Pick {
     /// Which pop-up.
     pub field: &'static str,
+    /// Which row's, where each row of a list has one; else 0.
+    pub item: usize,
     /// The choice's place in its list.
     pub index: usize,
 }
@@ -34,9 +37,22 @@ pub fn button(
     theme: Theme,
     screen: &Screen,
 ) -> gpui::Stateful<gpui::Div> {
+    button_of(field, 0, words, choices, chosen, theme, screen)
+}
+
+/// The pop-up `field` of a list's row `item`, as [`button`].
+pub fn button_of(
+    field: &'static str,
+    item: usize,
+    words: SharedString,
+    choices: Vec<SharedString>,
+    chosen: Option<usize>,
+    theme: Theme,
+    screen: &Screen,
+) -> gpui::Stateful<gpui::Div> {
     use crate::native::{CONTROL, RADIUS, TEXT};
     div()
-        .id(field)
+        .id((field, item))
         .role(Role::ComboBox)
         .aria_label(words.clone())
         .h(px(CONTROL))
@@ -64,13 +80,14 @@ pub fn button(
                 .text_color(theme.muted),
         )
         .on_click(move |event, window, cx| {
-            open(field, &choices, chosen, event.position(), window, cx)
+            open(field, item, &choices, chosen, event.position(), window, cx)
         })
 }
 
 /// The system's menu of `choices`, at `at`.
 fn open(
     field: &'static str,
+    item: usize,
     choices: &[SharedString],
     chosen: Option<usize>,
     at: gpui::Point<gpui::Pixels>,
@@ -84,7 +101,7 @@ fn open(
             menu.menu_with_check(
                 words.clone(),
                 chosen == Some(index),
-                Box::new(Pick { field, index }),
+                Box::new(Pick { field, item, index }),
             )
         });
     menu.show(at, window, cx);

@@ -185,6 +185,8 @@ pub struct Downloads {
     pub(crate) complete: std::collections::BTreeSet<dm_core::Id>,
     /// "Download complete", while it is open.
     complete_window: Option<gpui::AnyWindowHandle>,
+    /// Each download's File properties window, while open.
+    properties_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
     /// What an opener said went wrong, from its thread.
     opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
     /// View › Categories: the side panel shown.
@@ -248,6 +250,7 @@ impl Downloads {
             progress_closed: Default::default(),
             complete: Default::default(),
             complete_window: None,
+            properties_windows: Default::default(),
             opener_said: Default::default(),
             show_sidebar: true,
             show_toolbar: true,
@@ -475,6 +478,25 @@ impl Downloads {
             }
             Command::SiteFiles => {
                 crate::grabber::open(cx.entity().downgrade(), cx);
+                return;
+            }
+            Command::UpdateLink => {
+                crate::rowdialogs::update_link(cx.entity().downgrade(), chosen[0].id, cx);
+                return;
+            }
+            Command::MoveToQueue => {
+                let ids = chosen.iter().map(|r| r.id).collect();
+                crate::rowdialogs::move_to_queue(cx.entity().downgrade(), ids, cx);
+                return;
+            }
+            Command::MoveRename => {
+                crate::rowdialogs::move_rename(cx.entity().downgrade(), chosen, cx);
+                return;
+            }
+            Command::Properties => {
+                for row in &chosen {
+                    crate::properties::open(cx.entity().downgrade(), row.id, cx);
+                }
                 return;
             }
             Command::Scheduler => {
@@ -1516,6 +1538,61 @@ impl Downloads {
         dm_shell::app::commands::applies(command, &chosen, &self.rows, false, &Looks)
     }
 
+    /// The name the list shows for `row`: one not yet placed reads as the
+    /// name it will get ("big (1).zip", not "big.zip").
+    pub(crate) fn name_shown(&self, row: &Entry) -> String {
+        let settings = self.backend.settings();
+        dm_shell::app::names::name_it_will_get_after(
+            &self.rows,
+            row,
+            &settings.download_dir,
+            &mut settings.categories(),
+            None,
+        )
+    }
+
+    /// Whether a dialog stands in front of the list: a question, or a
+    /// dialog's window. Progress windows and "Download complete" stand
+    /// beside it, not in front, as in the egui window.
+    pub(crate) fn dialog_in_front(&self, cx: &gpui::App) -> bool {
+        self.sheet_open
+            || crate::screen::Screens::all(cx)
+                .iter()
+                .any(|(w, _, dialog)| {
+                    *dialog
+                        && !self.progress_windows.values().any(|p| p == w)
+                        && self.complete_window.as_ref() != Some(w)
+                })
+    }
+
+    /// Row `id`'s File properties window, where it is still open.
+    pub(crate) fn properties_window(
+        &self,
+        id: dm_core::Id,
+        cx: &gpui::App,
+    ) -> Option<gpui::AnyWindowHandle> {
+        let open = cx.windows();
+        self.properties_windows
+            .get(&id)
+            .filter(|w| open.contains(w))
+            .copied()
+    }
+
+    /// How many File properties windows are open.
+    pub(crate) fn properties_open(&self, cx: &gpui::App) -> usize {
+        let open = cx.windows();
+        self.properties_windows
+            .values()
+            .filter(|w| open.contains(w))
+            .count()
+    }
+
+    /// Row `id`'s File properties window opened; those since closed are
+    /// forgotten.
+    pub(crate) fn properties_opened(&mut self, id: dm_core::Id, window: gpui::AnyWindowHandle) {
+        self.properties_windows.insert(id, window);
+    }
+
     /// The rows chosen, in the list's order.
     pub fn chosen(&self) -> Vec<&Entry> {
         self.shown
@@ -1588,6 +1665,33 @@ impl Downloads {
             self.selected = [id].into();
             self.anchor = Some(id);
         }
+    }
+
+    /// A double-click on the row at `position`: what Options › General
+    /// says a double-click does, Properties by default, for any download;
+    /// Open or its folder for a finished one. A download that is running,
+    /// waiting or stopped shows its progress window instead, which is what
+    /// a person looking at one still going wants to see.
+    pub fn double_click(&mut self, position: usize, cx: &mut Context<Self>) {
+        use dm_shell::app::commands::Command;
+        let Some(row) = self
+            .id_at(position)
+            .and_then(|id| self.rows.iter().find(|r| r.id == id))
+        else {
+            return;
+        };
+        let finished = row.state == State::Completed;
+        let going = matches!(row.state, State::Running | State::Queued | State::Paused);
+        let id = row.id;
+        let command = match self.backend.settings().double_click.as_str() {
+            "open" if finished => Command::OpenFile,
+            "folder" if finished => Command::OpenFolder,
+            _ if going => Command::ShowProgress,
+            _ => Command::Properties,
+        };
+        self.selected = [id].into();
+        self.anchor = Some(id);
+        self.run(command, cx);
     }
 
     /// A right-click on the row at `position`, at `at`: the row is chosen
@@ -1929,6 +2033,9 @@ impl Render for Downloads {
                             .flex_col()
                             .flex_1()
                             .min_w_0()
+                            // While a fresh link is awaited from the
+                            // browser: what to do, and a way out.
+                            .children(self.awaiting_bar(theme, &screen, cx))
                             // Problems from outside the list, each until
                             // dismissed, above it.
                             .children(self.problems.iter().enumerate().map(|(i, problem)| {

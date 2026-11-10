@@ -269,6 +269,9 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             }
                             let held = event.modifiers();
                             view.click_row(i, held.platform || held.control, held.shift);
+                            if event.click_count() == 2 {
+                                view.double_click(i, cx);
+                            }
                             cx.notify();
                         }))
                         .children(row_cells(row, &columns, kind, theme, &screen))

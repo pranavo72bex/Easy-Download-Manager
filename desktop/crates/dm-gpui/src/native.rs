@@ -87,7 +87,20 @@ pub fn button(
 /// A one-line text field, as tall as the other controls, its text 6 points
 /// in, as the system's.
 pub fn field(input: &Entity<InputState>, name: &'static str, theme: Theme) -> impl IntoElement {
-    let field = Input::new(input).aria_label(dm_desktop_base::i18n::t(name));
+    field_if(input, name, true, theme)
+}
+
+/// A field that takes no typing while `on` is false, greyed as the
+/// system greys one.
+pub fn field_if(
+    input: &Entity<InputState>,
+    name: &'static str,
+    on: bool,
+    theme: Theme,
+) -> impl IntoElement {
+    let field = Input::new(input)
+        .aria_label(dm_desktop_base::i18n::t(name))
+        .disabled(!on);
     // `Styled`'s, not the multi-line height `Input::h` sets.
     gpui::Styled::h(field, px(CONTROL))
         .text_size(px(TEXT))
@@ -216,4 +229,53 @@ pub fn note(words: impl Into<SharedString>, color: gpui::Rgba, screen: &Screen) 
         .text_size(px(SMALL_TEXT))
         .text_color(color)
         .child(screen.label(words))
+}
+
+/// A radio button and its words, as the system draws one: chosen, in the
+/// accent colour with a white dot.
+pub fn radio(
+    id: impl Into<gpui::ElementId>,
+    words: SharedString,
+    on: bool,
+    theme: Theme,
+    screen: &Screen,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .role(Role::RadioButton)
+        .aria_label(words.clone())
+        .aria_toggled(if on {
+            gpui::Toggled::True
+        } else {
+            gpui::Toggled::False
+        })
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .child(
+            div()
+                .size(px(14.0))
+                .flex_none()
+                .rounded_full()
+                .border_1()
+                .border_color(theme.muted)
+                .bg(theme.field)
+                .flex()
+                .items_center()
+                .justify_center()
+                .when(on, |b| {
+                    b.bg(theme.accent)
+                        .border_color(theme.accent)
+                        .child(div().size(px(6.0)).rounded_full().bg(gpui::white()))
+                }),
+        )
+        .child(screen.label(words))
+}
+
+/// A control that takes no clicks while `on` is false, drawn faded, as the
+/// system greys a control it has disabled.
+pub fn enabled<E: IntoElement>(on: bool, element: E) -> Div {
+    div()
+        .when(!on, |d| d.opacity(0.45).occlude())
+        .child(element)
 }

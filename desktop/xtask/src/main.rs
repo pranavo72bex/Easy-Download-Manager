@@ -297,6 +297,7 @@ const GUI: &[&str] = &[
     "gpui",
     "gpui_platform",
     "gpui-component",
+    "gpui-base",
 ];
 const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 

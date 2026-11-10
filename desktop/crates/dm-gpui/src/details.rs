@@ -1021,7 +1021,7 @@ impl Render for Details {
                                         &screen,
                                     ))
                                     .child(
-                                        radio(
+                                        native::radio(
                                             "keep-both",
                                             tf("Save this one as {}", &[&free]).into(),
                                             !replace,
@@ -1036,7 +1036,7 @@ impl Render for Details {
                                         ),
                                     )
                                     .child(
-                                        radio(
+                                        native::radio(
                                             "replace",
                                             t("Replace that file once this one is whole").into(),
                                             replace,
@@ -1101,46 +1101,6 @@ impl Render for Details {
                     )),
             ))
     }
-}
-
-/// A radio button, as the system draws one.
-pub(crate) fn radio(
-    id: &'static str,
-    words: SharedString,
-    on: bool,
-    theme: Theme,
-    screen: &Screen,
-) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .role(Role::RadioButton)
-        .aria_label(words.clone())
-        .aria_toggled(if on {
-            gpui::Toggled::True
-        } else {
-            gpui::Toggled::False
-        })
-        .flex()
-        .items_center()
-        .gap(px(6.0))
-        .child(
-            div()
-                .size(px(14.0))
-                .flex_none()
-                .rounded_full()
-                .border_1()
-                .border_color(theme.muted)
-                .bg(theme.field)
-                .flex()
-                .items_center()
-                .justify_center()
-                .when(on, |b| {
-                    b.bg(theme.accent)
-                        .border_color(theme.accent)
-                        .child(div().size(px(6.0)).rounded_full().bg(gpui::white()))
-                }),
-        )
-        .child(screen.label(words))
 }
 
 /// Opens Download details for `urls` typed in Add URL (several: a batch,

@@ -232,7 +232,14 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   services are the system's own (the clipboard; the open and save panels). The file and list
   commands: Open, Open with…, Preview, Show in Finder, Extract here and Extract to…, Select all,
   Import (asked first where some of a list is listed already) and Export, Help, the categories
-  and toolbar shown or hidden, and Sort by (`actions.rs`). Then
+  and toolbar shown or hidden, and Sort by (`actions.rs`). The row dialogs: Update download
+  link (a fresh address, or "Get it from the browser" with the bar above the list until the
+  next download clicked there is taken; offered by itself when a link runs out part-way,
+  where Options says), Move to queue, Move/Rename and File properties (status and next step,
+  size, category, where it is saved, the page it came from, address, sign-in and note, a
+  torrent's files and their priorities, a finished file's SHA-256 and Check against, a
+  finished ZIP's Contents: B44's Properties half), each a window of its own, their OK
+  `dm_desktop_base::row_edits` for both windows; a double-click on a row (B46). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

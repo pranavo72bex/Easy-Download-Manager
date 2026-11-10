@@ -22,6 +22,9 @@ gpui = { package = "gpui-pre", version = "=0.3.12" }
 # Text fields and the controls core GPUI does not have, built for the same
 # GPUI (it pins gpui-pre =0.3.12): docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1.
 gpui-component = "=0.9.1"
+# gpui-component's own base, for text a person can select and copy (a
+# digest) as the system's labels can be; the same version it pins.
+gpui-base = "=0.9.1"
 # The wake-ups from any thread to the window's own, and waiting for the
 # first of a wake and a second (both already in the tree through GPUI).
 async-channel = "2"

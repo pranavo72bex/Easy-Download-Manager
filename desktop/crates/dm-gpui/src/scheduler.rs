@@ -25,7 +25,7 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::list::Downloads;
-use crate::native;
+use crate::native::{self, enabled};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
 
@@ -139,14 +139,6 @@ impl Scheduler {
         self.done = true;
         window.remove_window();
     }
-}
-
-/// A control that takes no clicks while `on` is false, drawn faded, as the
-/// system greys a control it has disabled.
-fn enabled<E: IntoElement>(on: bool, element: E) -> gpui::Div {
-    div()
-        .when(!on, |d| d.opacity(0.45).occlude())
-        .child(element)
 }
 
 impl Render for Scheduler {
@@ -290,7 +282,7 @@ impl Render for Scheduler {
                             // Every week on the days ticked, or once on a
                             // date, as reference A's "Daily" and "Once at".
                             .child(
-                                crate::details::radio(
+                                native::radio(
                                     "weekly",
                                     t("Every week, on the days ticked").into(),
                                     !once,
@@ -334,7 +326,7 @@ impl Render for Scheduler {
                                     .items_center()
                                     .gap(px(native::LABEL_GAP))
                                     .child(
-                                        crate::details::radio(
+                                        native::radio(
                                             "once",
                                             t("Once, on this date").into(),
                                             once,
@@ -384,7 +376,7 @@ impl Render for Scheduler {
                                         let can = w.possible(dm_desktop_base::power::available);
                                         enabled(
                                             can,
-                                            crate::details::radio(
+                                            native::radio(
                                                 command.id(),
                                                 t(command.label()).into(),
                                                 when_done == w,

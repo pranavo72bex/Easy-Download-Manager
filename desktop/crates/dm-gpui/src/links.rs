@@ -294,7 +294,7 @@ impl Render for Links {
         let queue_at = self.queues.iter().position(|q| *q == self.d.queue);
         let save_to = self.d.save_to;
         let radio = |id: &'static str, words: &'static str, on: bool| {
-            crate::details::radio(id, t(words).into(), on, theme, &screen)
+            native::radio(id, t(words).into(), on, theme, &screen)
         };
         let check = |id: &'static str, words: &'static str, on: bool| {
             native::checkbox(id, t(words).into(), on, theme, &screen)

@@ -78,7 +78,7 @@ impl Screens {
     }
 
     /// Each window still open, its words, and whether it is a dialog's;
-    /// dialogs first, as they stand in front.
+    /// dialogs first, as they stand in front, the newest first.
     pub fn all(cx: &App) -> Vec<(AnyWindowHandle, Screen, bool)> {
         let open = cx.windows();
         let mut all: Vec<_> = cx
@@ -87,6 +87,7 @@ impl Screens {
             .unwrap_or_default()
             .into_iter()
             .filter(|(w, _, _)| open.contains(w))
+            .rev()
             .collect();
         all.sort_by_key(|(_, _, dialog)| !dialog);
         all

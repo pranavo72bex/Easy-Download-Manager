@@ -143,10 +143,17 @@ impl Probe<'_, '_> {
     /// Runs `send` after this update in the window in front: a dialog's,
     /// where one is open (it stands in front of dm's window), else dm's.
     fn in_front(&mut self, send: impl FnOnce(&mut Window, &mut gpui::App) + 'static) {
-        let front = crate::screen::Screens::all(self.cx)
+        // The dialog the system has in front, else the newest.
+        let dialogs: Vec<gpui::AnyWindowHandle> = crate::screen::Screens::all(self.cx)
             .into_iter()
-            .find(|(_, _, dialog)| *dialog)
-            .map(|(handle, _, _)| handle);
+            .filter(|(_, _, dialog)| *dialog)
+            .map(|(handle, _, _)| handle)
+            .collect();
+        let front = self
+            .cx
+            .active_window()
+            .filter(|active| dialogs.contains(active))
+            .or_else(|| dialogs.first().copied());
         match front {
             Some(handle) => self.cx.defer(move |cx| {
                 let _ = handle.update(cx, |_, window, cx| send(window, cx));
