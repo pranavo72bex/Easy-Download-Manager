@@ -46,6 +46,9 @@ const ICONS: &[(&str, &[u8])] = icons!(
     "chevron-up-down",
     // The top bar's search box.
     "search",
+    // The top bar's button that shows or hides the categories, as the
+    // system's sidebar button.
+    "sidebar",
 );
 
 /// The pictures compiled into dm.

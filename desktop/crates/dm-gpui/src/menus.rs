@@ -205,6 +205,12 @@ pub fn bind_keys(cx: &mut App) {
             }
         }
     }
+    // Showing and hiding the categories: macOS's own keys for a sidebar.
+    bindings.push(KeyBinding::new(
+        "ctrl-cmd-s",
+        Run(Command::ToggleCategories),
+        None,
+    ));
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
     bindings.push(KeyBinding::new("down", SelectNext, None));
     cx.bind_keys(bindings);

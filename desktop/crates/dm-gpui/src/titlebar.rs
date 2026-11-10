@@ -8,9 +8,11 @@
 //! vscode"): the system's traffic lights at the left and, in the middle of
 //! the window, the search box that narrows the list as one types (its name,
 //! address or note, as the egui window's top-row box), how many rows it
-//! leaves and a way to clear it once it holds words. The bar's empty space
-//! moves the window; a double-click on it does what the system's settings
-//! say (zoom or minimize).
+//! leaves and a way to clear it once it holds words. Beside the traffic
+//! lights, the button that shows or hides the categories, where macOS's own
+//! programs put their sidebar's (⌃⌘S as well). The bar's empty space moves
+//! the window; a double-click on it does what the system's settings say
+//! (zoom or minimize).
 
 use dm_desktop_base::i18n::{t, tn};
 use gpui::{div, prelude::*, px, svg, Context, MouseButton, Role, Window, WindowControlArea};
@@ -26,6 +28,9 @@ pub const HEIGHT: f32 = 38.0;
 
 /// Where the system draws the traffic lights, in the bar.
 pub const TRAFFIC_LIGHTS_AT: (f32, f32) = (14.0, 12.0);
+
+/// Where the sidebar's button stands: just past the traffic lights.
+const SIDEBAR_BUTTON_AT: f32 = 78.0;
 
 /// The search box's height and its widest.
 const BOX_HEIGHT: f32 = 26.0;
@@ -65,6 +70,7 @@ pub fn titlebar(
                 window.titlebar_double_click();
             }
         })
+        .child(sidebar_button(view.show_sidebar, theme, cx))
         .child(
             div()
                 .id("search")
@@ -137,5 +143,43 @@ pub fn titlebar(
                             })),
                     )
                 }),
+        )
+}
+
+/// The button that shows or hides the categories at the window's left, as
+/// the system's sidebar button: its symbol, a highlight under the pointer.
+fn sidebar_button(shown: bool, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
+    use dm_shell::app::commands::Command;
+    let words = t(Command::ToggleCategories.label());
+    div()
+        .id("sidebar-button")
+        .role(Role::Button)
+        .aria_label(words)
+        .aria_toggled(if shown {
+            gpui::Toggled::True
+        } else {
+            gpui::Toggled::False
+        })
+        .absolute()
+        .left(px(SIDEBAR_BUTTON_AT))
+        .top(px((HEIGHT - 24.0) / 2.0))
+        .w(px(30.0))
+        .h(px(24.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(native::RADIUS))
+        .hover(|b| b.bg(theme.control))
+        .tooltip(move |window, cx| {
+            gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(words)).build(window, cx)
+        })
+        // Its own click: not the bar's, whose double-click zooms the window.
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(cx.listener(|view, _, _, cx| view.run(Command::ToggleCategories, cx)))
+        .child(
+            svg()
+                .path("icons/sidebar.svg")
+                .size(px(17.0))
+                .text_color(theme.muted),
         )
 }

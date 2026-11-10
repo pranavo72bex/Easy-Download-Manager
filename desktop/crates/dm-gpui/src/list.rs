@@ -203,7 +203,7 @@ pub struct Downloads {
     /// What an opener said went wrong, from its thread.
     opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
     /// View › Categories: the side panel shown.
-    show_sidebar: bool,
+    pub(crate) show_sidebar: bool,
     /// View › Toolbar: the toolbar shown.
     show_toolbar: bool,
 }
