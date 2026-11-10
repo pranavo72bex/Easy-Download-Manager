@@ -776,6 +776,7 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
                     screen,
                 }
             });
+            crate::native::close_is_cancel(&properties, window, cx);
             cx.new(|cx| gpui_component::Root::new(properties, window, cx))
         },
     );
@@ -786,5 +787,11 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
             });
         }
         Err(e) => eprintln!("dm-gpui: File properties could not be opened: {e}"),
+    }
+}
+
+impl crate::native::CloseButton for Properties {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
     }
 }

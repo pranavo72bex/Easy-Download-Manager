@@ -34,6 +34,10 @@ serde_json = "1"
 # The window's services to the desktop (services.rs): the clipboard, and
 # the system's own open and save panels for the application's choosers.
 arboard = "3"
+# The status item in the menu bar (the tray), as the egui window has it: GPUI
+# has none (D4's fallback).
+tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
+raw-window-handle = "0.6"
 rfd = "0.17"
 
 # The window's notifier (notify.rs). Not on Windows, where dm posts its
@@ -43,6 +47,8 @@ notify-rust = "4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "runtime_shaders"] }
+# The window put away into the tray without closing it (`-[NSWindow orderOut:]`).
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["wayland", "x11"] }
 [target.'cfg(windows)'.dependencies]

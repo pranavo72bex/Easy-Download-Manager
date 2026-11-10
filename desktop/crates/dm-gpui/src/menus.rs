@@ -57,6 +57,12 @@ pub struct OpenPage {
     pub address: String,
 }
 
+/// File › Close (⌘W), as every macOS program has it: the main window's
+/// close button, whatever Options says it does.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct CloseWindow;
+
 /// Help › Tip of the day.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
@@ -212,6 +218,7 @@ pub fn bind_keys(cx: &mut App) {
         Run(Command::ToggleCategories),
         None,
     ));
+    bindings.push(KeyBinding::new("cmd-w", CloseWindow, None));
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
     bindings.push(KeyBinding::new("down", SelectNext, None));
     cx.bind_keys(bindings);
@@ -221,6 +228,8 @@ pub fn bind_keys(cx: &mut App) {
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
     cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
     cx.on_action(|page: &OpenPage, cx| cx.open_url(&page.address));
+    // ⌘W in a dialog: its own close (the main window hears it first).
+    cx.on_action(|_: &CloseWindow, cx| crate::native::close_front(cx));
 }
 
 fn item(command: Command) -> MenuItem {
@@ -315,6 +324,11 @@ pub fn set(cx: &mut App, queues: &[String]) {
             ],
         ],
     );
+    let mut file = file;
+    file.items.extend([
+        MenuItem::separator(),
+        MenuItem::action(t("Close"), CloseWindow),
+    ]);
     let mut downloads = menu(
         "Downloads",
         &[

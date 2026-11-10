@@ -78,5 +78,6 @@ pub mod system_theme;
 pub mod taskbar;
 #[cfg(windows)]
 pub mod toast;
+pub mod tray;
 pub mod wake;
 pub mod zip_list;

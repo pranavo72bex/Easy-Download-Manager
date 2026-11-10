@@ -1309,6 +1309,7 @@ fn open_now(
                     cx.notify();
                 });
             }
+            crate::native::close_is_cancel(&details, window, cx);
             cx.new(|cx| gpui_component::Root::new(details, window, cx))
         },
     );
@@ -1356,4 +1357,10 @@ fn ask_server(
             }
         })
         .detach();
+}
+
+impl crate::native::CloseButton for Details {
+    fn close_button(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.cancel(window, cx);
+    }
 }

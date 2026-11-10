@@ -326,25 +326,10 @@ impl DmApp {
         ui.separator();
     }
 
-    /// What the tray's tooltip says while downloads run: how many and how
-    /// fast, as the status bar says it; `None` when nothing is downloading.
-    /// It said only "downloads keep running here".
+    /// What the tray's tooltip says while downloads run, `None` when nothing
+    /// is downloading (`dm_desktop_base::tray`, both windows).
     pub fn tray_activity(&self) -> Option<String> {
-        let running: Vec<&Entry> = self
-            .rows
-            .iter()
-            .map(|r| &**r)
-            .filter(|r| r.state == State::Running && !fetched_all(r))
-            .collect();
-        if running.is_empty() {
-            return None;
-        }
-        let rate: f64 = running.iter().map(|r| r.progress.speed).sum();
-        Some(crate::i18n::tn(
-            "{} downloading at {}||{} downloading at {}",
-            running.len() as u64,
-            &[&running.len(), &format::rate(rate)],
-        ))
+        dm_desktop_base::tray::activity(&self.rows)
     }
 
     pub(super) fn status_bar(&mut self, ui: &mut egui::Ui) {

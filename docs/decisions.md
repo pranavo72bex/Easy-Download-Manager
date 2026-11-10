@@ -3,6 +3,26 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window's tray is a status item; its close buttons do what Cancel does
+
+GPUI has no tray, so the GPUI window takes D4's fallback, `tray-icon`, as the egui window does:
+the status item in the menu bar with the egui window's menu (Show dm, Start Queue, Stop All, the
+speed limiter ticked while a limit is in force, Speed with its presets and Settings… (B52), the
+Scheduler, Exit dm) and its tooltip (`dm_desktop_base::tray`, both windows). Its picture is a
+template image drawn by dm (an arrow into a tray), as the system's own status items are, so it
+takes the menu bar's colour; the egui window's coloured icon was not. The close button follows
+Options › "When I close the window": into the tray (the window put away with `orderOut:`, not
+closed, so it comes back as it was), Exit, or asked once ("Keep running in the tray?", a sheet);
+with no tray it ends dm, asked first while downloads run. The window comes back from the tray,
+from the Dock icon, from a second launch and from the browser's button (the inbox's `show`,
+which the GPUI window had ignored); a login launch starts in the tray, with no window shown.
+File › Close (⌘W), as every macOS program has it, does what the close button does.
+
+Every GPUI dialog's close button now does what its Cancel does (B42), through one hook
+(`native::close_is_cancel`). It had simply closed the window: Download details or Download links
+closed that way left the hand-off unanswered, and every later hand-off waited behind it, and
+"Download complete" lost its "Don't show this window again" tick. ⌘W in a dialog does the same.
+
 ## 2026-11-10: GPUI's Options is macOS's settings layout over the shared rules; a sidebar button
 
 Options' rules are `dm_desktop_base::options` for both windows: its six pages (B43) and what

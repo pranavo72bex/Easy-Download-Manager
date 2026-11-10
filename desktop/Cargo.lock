@@ -2334,8 +2334,11 @@ dependencies = [
  "gpui-pre",
  "gpui-pre-platform",
  "notify-rust",
+ "objc2-app-kit 0.3.2",
+ "raw-window-handle",
  "rfd",
  "serde_json",
+ "tray-icon",
 ]
 
 [[package]]

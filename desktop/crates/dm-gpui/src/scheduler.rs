@@ -544,10 +544,17 @@ fn open_now(view: WeakEntity<Downloads>, queue: String, cx: &mut App) {
                 s.fields_from_draft(window, cx);
                 window.focus(&s.focus, cx);
             });
+            crate::native::close_is_cancel(&scheduler, window, cx);
             cx.new(|cx| gpui_component::Root::new(scheduler, window, cx))
         },
     );
     if let Err(e) = opened {
         eprintln!("dm-gpui: the Scheduler could not be opened: {e}");
+    }
+}
+
+impl crate::native::CloseButton for Scheduler {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
     }
 }

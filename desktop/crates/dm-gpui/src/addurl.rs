@@ -286,10 +286,17 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
                     screen,
                 }
             });
+            crate::native::close_is_cancel(&add, window, cx);
             cx.new(|cx| gpui_component::Root::new(add, window, cx))
         },
     );
     if let Err(e) = opened {
         eprintln!("dm-gpui: Add URL could not be opened: {e}");
+    }
+}
+
+impl crate::native::CloseButton for AddUrl {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
     }
 }

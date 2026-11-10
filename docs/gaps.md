@@ -248,7 +248,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   file and installs no update (the script guard, gaps row 159 f). Slice 7 is done: Options, its
   six pages (B43, B51, B56, B57) with the egui window's words in macOS's settings layout, OK and
   Restore defaults on `dm_desktop_base::options` for both windows, the look it asks for, and the
-  clipboard watched as it says. Left of the menus: the drop target (slice 8). Then
+  clipboard watched as it says. Slice 8 under way: the tray (B52; the status item, its menu and
+  tooltip), the close button as Options says with "Keep running in the tray?", the window back
+  from the tray, the Dock, a second launch and the browser, a login launch into the tray, File ›
+  Close (⌘W), and every dialog's close button doing what its Cancel does (B42). Left: the drop
+  target (the last of the menus' commands), the first launch's "Add dm to your browser", then
+  `human-qa.py` run against the GPUI window. Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

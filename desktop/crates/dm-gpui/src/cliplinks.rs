@@ -254,6 +254,7 @@ fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut 
                     done: false,
                     screen,
                 });
+                crate::native::close_is_cancel(&links, window, cx);
                 cx.new(|cx| gpui_component::Root::new(links, window, cx))
             },
         );
@@ -261,4 +262,10 @@ fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut 
             eprintln!("dm-gpui: Links on the clipboard could not be opened: {e}");
         }
     });
+}
+
+impl crate::native::CloseButton for ClipLinks {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
+    }
 }

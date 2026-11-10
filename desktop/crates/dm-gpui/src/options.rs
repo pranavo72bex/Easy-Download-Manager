@@ -617,6 +617,7 @@ fn open_window(
                 done: false,
                 screen,
             });
+            crate::native::close_is_cancel(&options, window, cx);
             cx.new(|cx| gpui_component::Root::new(options, window, cx))
         },
     );
@@ -626,5 +627,11 @@ fn open_window(
             eprintln!("dm-gpui: Options could not be opened: {e}");
             None
         }
+    }
+}
+
+impl crate::native::CloseButton for Options {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
     }
 }

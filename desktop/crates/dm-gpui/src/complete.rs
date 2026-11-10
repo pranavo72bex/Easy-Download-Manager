@@ -228,8 +228,15 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) -> Option<gpui::AnyWindow
                     screen,
                 }
             });
+            crate::native::close_is_cancel(&complete, window, cx);
             cx.new(|cx| gpui_component::Root::new(complete, window, cx))
         },
     );
     opened.ok().map(Into::into)
+}
+
+impl crate::native::CloseButton for Complete {
+    fn close_button(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close(window, cx);
+    }
 }

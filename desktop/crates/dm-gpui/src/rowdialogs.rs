@@ -25,7 +25,7 @@ use crate::theme::Theme;
 /// Opens a dialog's window over the middle of the screen, `width` wide and
 /// as tall as it turns out (`fit`), after the update that asked, so the
 /// main window's view can be read.
-fn open_window<V: Render + 'static>(
+fn open_window<V: Render + crate::native::CloseButton>(
     title: &'static str,
     width: f32,
     cx: &mut App,
@@ -46,7 +46,10 @@ fn open_window<V: Render + 'static>(
                 let screen = Screen::default();
                 Screens::register(window.window_handle(), screen.clone(), true, cx);
                 match build(window, cx, screen) {
-                    Some(view) => cx.new(|cx| gpui_component::Root::new(view, window, cx)),
+                    Some(view) => {
+                        crate::native::close_is_cancel(&view, window, cx);
+                        cx.new(|cx| gpui_component::Root::new(view, window, cx))
+                    }
                     // The row went while the window opened: an empty one,
                     // closed at once.
                     None => {
@@ -666,5 +669,23 @@ impl Downloads {
         if self.backend.settings().offer_new_link && !self.dialog_in_front(cx) {
             update_link(cx.entity().downgrade(), id, cx);
         }
+    }
+}
+
+impl crate::native::CloseButton for UpdateLink {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
+    }
+}
+
+impl crate::native::CloseButton for MoveToQueue {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
+    }
+}
+
+impl crate::native::CloseButton for MoveRenameDialog {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
     }
 }

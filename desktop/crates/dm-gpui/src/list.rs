@@ -204,6 +204,13 @@ pub struct Downloads {
     pub(crate) options_window: Option<gpui::AnyWindowHandle>,
     /// The clipboard, watched where Options says (`clipwatch.rs`).
     pub(crate) clipboard: dm_shell::app::links::Clipboard,
+    /// The status item in the menu bar (`tray.rs`); `None` where the system
+    /// would not make one, and closing the window then ends dm.
+    pub(crate) tray: Option<crate::tray::Tray>,
+    /// The window is put away in the tray.
+    pub(crate) hidden: bool,
+    /// Set when a second launch, the browser or the Dock asks for the window.
+    show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// What an opener said went wrong, from its thread.
     opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
     /// View › Categories: the side panel shown.
@@ -214,11 +221,15 @@ pub struct Downloads {
 
 impl Downloads {
     /// The view, reading the queue now and each time `woken` says.
+    // What the launch hands the window, each needed from its first frame.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         backend: Backend,
         woken: async_channel::Receiver<Wake>,
         requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
         assistants_only: bool,
+        show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        hidden: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Downloads {
@@ -278,6 +289,9 @@ impl Downloads {
             tip_window: None,
             options_window: None,
             clipboard: Default::default(),
+            tray: None,
+            hidden,
+            show_asked,
             opener_said: Default::default(),
             show_sidebar: true,
             show_toolbar: true,
@@ -289,6 +303,13 @@ impl Downloads {
         this.watch_clipboard(settings.watch_clipboard);
         crate::theme::follow(&settings.theme, cx);
         window.focus(&this.focus, cx);
+        // The tray, and the close button that keeps dm in it.
+        this.start_tray(window, cx);
+        let me = cx.entity().downgrade();
+        window.on_window_should_close(cx, move |window, cx| {
+            me.update(cx, |view, cx| view.close_asked(window, cx))
+                .unwrap_or(true)
+        });
         crate::screen::Screens::register(window.window_handle(), this.screen.clone(), false, cx);
         this.read();
         // One task on the window's thread: each wake is one read, a burst of
@@ -1552,6 +1573,10 @@ impl Downloads {
         answer: crate::question::Answer,
         cx: &mut Context<Self>,
     ) {
+        // Asked over the window: one put away in the tray comes back for it.
+        if self.hidden {
+            self.show_main(cx);
+        }
         let view = cx.entity().downgrade();
         let answer: crate::question::Answer = Box::new(move |button, ticked, cx| {
             answer(button, ticked, cx);
@@ -1640,6 +1665,29 @@ impl Downloads {
     /// forgotten.
     pub(crate) fn properties_opened(&mut self, id: dm_core::Id, window: gpui::AnyWindowHandle) {
         self.properties_windows.insert(id, window);
+    }
+
+    /// The main window.
+    pub(crate) fn main_window(&self) -> gpui::AnyWindowHandle {
+        self.main
+    }
+
+    /// The main window back in front, from the tray or wherever it is, after
+    /// the update that asked.
+    pub(crate) fn show_main(&mut self, cx: &mut Context<Self>) {
+        self.hidden = false;
+        let main = self.main;
+        cx.defer(move |cx| {
+            let _ = main.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+        });
+    }
+
+    /// Whether a second launch, the browser or the Dock asked for the
+    /// window since the last look.
+    pub(crate) fn take_show_asked(&self) -> bool {
+        self.show_asked
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
     }
 
     /// The rows chosen, in the list's order.
@@ -2037,6 +2085,13 @@ impl Render for Downloads {
             }))
             .on_action(
                 cx.listener(|this, _: &crate::menus::TipOfTheDay, _, cx| this.tip_of_the_day(cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::menus::CloseWindow, window, cx| {
+                    if this.close_asked(window, cx) {
+                        window.remove_window();
+                    }
+                }),
             )
             .on_action(cx.listener(|this, run: &crate::menus::Run, window, cx| {
                 use dm_shell::app::commands::Command;

@@ -279,3 +279,91 @@ pub fn enabled<E: IntoElement>(on: bool, element: E) -> Div {
         .when(!on, |d| d.opacity(0.45).occlude())
         .child(element)
 }
+
+/// A dialog's own way out, which its window's close button takes too, as
+/// Cancel and Escape do (B42: "its close button does what Cancel does"): a
+/// hand-off answered, an early download removed, a tick kept.
+pub trait CloseButton: 'static + Sized {
+    /// What the close button does: the dialog's Cancel, which closes it.
+    fn close_button(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>);
+}
+
+/// What closes a window as its close button does: true where the window
+/// is to go as it is (its dialog gone already).
+type Closer = std::rc::Rc<dyn Fn(&mut gpui::Window, &mut gpui::App) -> bool>;
+
+thread_local! {
+    /// Each dialog window's closer, for File › Close (⌘W) as for its button.
+    static CLOSERS: std::cell::RefCell<Vec<(gpui::AnyWindowHandle, Closer)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    /// The window keys are being given to by the control port, which is not
+    /// the system's key window when dm is not in front.
+    static KEYS_TO: std::cell::Cell<Option<gpui::AnyWindowHandle>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Gives the control port's keys to `window`: what they ask of "the window
+/// in front" is asked of it.
+pub fn keys_to<R>(window: gpui::AnyWindowHandle, give: impl FnOnce() -> R) -> R {
+    KEYS_TO.with(|k| k.set(Some(window)));
+    let given = give();
+    KEYS_TO.with(|k| k.set(None));
+    given
+}
+
+/// `view`'s window closes by the dialog's own Cancel, not by the window
+/// simply going: from its close button, and from File › Close (⌘W).
+pub fn close_is_cancel<V: CloseButton>(
+    view: &Entity<V>,
+    window: &mut gpui::Window,
+    cx: &gpui::App,
+) {
+    let view = view.downgrade();
+    let closer: Closer = std::rc::Rc::new(move |window, cx| {
+        // The dialog closes itself, as its Cancel does; gone already, the
+        // window closes.
+        view.update(cx, |this, cx| this.close_button(window, cx))
+            .is_err()
+    });
+    let open = cx.windows();
+    let handle = window.window_handle();
+    CLOSERS.with(|all| {
+        let mut all = all.borrow_mut();
+        all.retain(|(w, _)| open.contains(w) && *w != handle);
+        all.push((handle, closer.clone()));
+    });
+    window.on_window_should_close(cx, move |window, cx| closer(window, cx));
+}
+
+/// File › Close (⌘W) on the window in front that is not the main window's
+/// (which keeps its own rule): a dialog's Cancel, else the window closed.
+pub fn close_front(cx: &mut gpui::App) {
+    let Some(front) = KEYS_TO.with(|k| k.get()).or_else(|| cx.active_window()) else {
+        return;
+    };
+    // Only a dialog's window: the main window keeps its own rule, and is
+    // never simply closed.
+    let dialog = crate::screen::Screens::all(cx)
+        .iter()
+        .any(|(w, _, dialog)| *w == front && *dialog);
+    if !dialog {
+        return;
+    }
+    let closer = CLOSERS.with(|all| {
+        all.borrow()
+            .iter()
+            .find(|(w, _)| *w == front)
+            .map(|(_, c)| c.clone())
+    });
+    // After the dispatch that asked: the window is busy with it until then.
+    cx.defer(move |cx| {
+        let _ = front.update(cx, |_, window, cx| match closer {
+            Some(closer) => {
+                if closer(window, cx) {
+                    window.remove_window();
+                }
+            }
+            None => window.remove_window(),
+        });
+    });
+}

@@ -60,6 +60,7 @@ mod theme;
 mod tick;
 mod titlebar;
 mod toolbar;
+mod tray;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -193,8 +194,10 @@ fn main() {
         backend,
         control,
         assistants_only,
+        show_asked,
+        hidden,
         ..
-    } = match boot::start(&args, &handed, platform, wake) {
+    } = match boot::start(&args, &handed, platform, wake.clone()) {
         Ok(booted) => booted,
         Err(why) => {
             eprintln!("{why}");
@@ -212,77 +215,96 @@ fn main() {
         }
     });
 
-    gpui_platform::application()
-        .with_assets(assets::Assets)
-        .run(move |cx: &mut App| {
-            // The text fields and the system's own menus (gpui-component).
-            gpui_component::init(cx);
-            // Notifications are posted as dm's own (macOS: its bundle id),
-            // claimed after GPUI's own notification centre has started: the
-            // claim before it made the system look for a bundle a bare
-            // binary does not have, and dm stopped at launch.
-            #[cfg(not(windows))]
-            notify::claim();
-            // Their colours the system's appearance, light or dark.
-            gpui_component::Theme::sync_system_appearance(None, cx);
-            let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
-            let opened = cx.open_window(
-                WindowOptions {
-                    window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    window_min_size: Some(size(px(640.0), px(400.0))),
-                    // A unified title bar, as macOS programs have: the toolbar is
-                    // drawn in it, beside the system's own traffic lights.
-                    titlebar: Some(TitlebarOptions {
-                        title: Some("dm".into()),
-                        appears_transparent: true,
-                        traffic_light_position: Some(point(
-                            px(titlebar::TRAFFIC_LIGHTS_AT.0),
-                            px(titlebar::TRAFFIC_LIGHTS_AT.1),
-                        )),
-                    }),
-                    ..Default::default()
-                },
-                |window, cx| {
-                    window.set_window_title("dm");
-                    cx.new(|cx| {
-                        list::Downloads::new(backend, woken, requests, assistants_only, window, cx)
-                    })
-                },
-            );
-            let main = match opened {
-                Ok(main) => main,
-                Err(e) => {
-                    eprintln!("dm-gpui: the window could not be opened: {e}");
-                    cx.quit();
-                    return;
-                }
-            };
-            // dm's menus in the system's menu bar, and every command's keys.
-            menus::bind_keys(cx);
-            let queues = main
-                .update(cx, |view, _, _| view.backend.queues())
-                .unwrap_or_default();
-            menus::set(cx, &queues);
-            // Quit is heard from any window in front (a dialog's too), as in
-            // every macOS program: the main window's view ends dm.
-            if let Ok(view) = main.update(cx, |_, _, cx| cx.entity().downgrade()) {
-                cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
-                    Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
-                    None => cx.quit(),
-                });
-            }
-            // The commands themselves are the window's view's (`Downloads`'
-            // root element handles `menus::Run`), reached through the window's
-            // own dispatch, as a key or the menu bar sends them.
-            let _ = main;
-            if dump_accessibility && open_question(cx).is_none() {
-                eprintln!("dm-gpui: the dialog's window could not be opened");
-            }
-            cx.activate(true);
-            if dump_accessibility {
-                cx.spawn(async move |cx| dump(cx, churn).await).detach();
-            }
+    let application = gpui_platform::application().with_assets(assets::Assets);
+    // A click on the Dock icon with the window put away in the tray asks
+    // for it back; without this the click did nothing.
+    {
+        let (flag, wake) = (Arc::clone(&show_asked), Arc::clone(&wake));
+        application.on_reopen(move |_| {
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            wake(Wake::Now);
         });
+    }
+    application.run(move |cx: &mut App| {
+        // The text fields and the system's own menus (gpui-component).
+        gpui_component::init(cx);
+        // Notifications are posted as dm's own (macOS: its bundle id),
+        // claimed after GPUI's own notification centre has started: the
+        // claim before it made the system look for a bundle a bare
+        // binary does not have, and dm stopped at launch.
+        #[cfg(not(windows))]
+        notify::claim();
+        // Their colours the system's appearance, light or dark.
+        gpui_component::Theme::sync_system_appearance(None, cx);
+        let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
+        let opened = cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                window_min_size: Some(size(px(640.0), px(400.0))),
+                // A login launch goes into the tray, with no window yet.
+                show: !hidden,
+                // A unified title bar, as macOS programs have: the toolbar is
+                // drawn in it, beside the system's own traffic lights.
+                titlebar: Some(TitlebarOptions {
+                    title: Some("dm".into()),
+                    appears_transparent: true,
+                    traffic_light_position: Some(point(
+                        px(titlebar::TRAFFIC_LIGHTS_AT.0),
+                        px(titlebar::TRAFFIC_LIGHTS_AT.1),
+                    )),
+                }),
+                ..Default::default()
+            },
+            |window, cx| {
+                window.set_window_title("dm");
+                cx.new(|cx| {
+                    list::Downloads::new(
+                        backend,
+                        woken,
+                        requests,
+                        assistants_only,
+                        show_asked,
+                        hidden,
+                        window,
+                        cx,
+                    )
+                })
+            },
+        );
+        let main = match opened {
+            Ok(main) => main,
+            Err(e) => {
+                eprintln!("dm-gpui: the window could not be opened: {e}");
+                cx.quit();
+                return;
+            }
+        };
+        // dm's menus in the system's menu bar, and every command's keys.
+        menus::bind_keys(cx);
+        let queues = main
+            .update(cx, |view, _, _| view.backend.queues())
+            .unwrap_or_default();
+        menus::set(cx, &queues);
+        // Quit is heard from any window in front (a dialog's too), as in
+        // every macOS program: the main window's view ends dm.
+        if let Ok(view) = main.update(cx, |_, _, cx| cx.entity().downgrade()) {
+            cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
+                Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
+                None => cx.quit(),
+            });
+        }
+        // The commands themselves are the window's view's (`Downloads`'
+        // root element handles `menus::Run`), reached through the window's
+        // own dispatch, as a key or the menu bar sends them.
+        let _ = main;
+        if dump_accessibility && open_question(cx).is_none() {
+            eprintln!("dm-gpui: the dialog's window could not be opened");
+        }
+        cx.activate(true);
+        if dump_accessibility {
+            cx.spawn(async move |cx| dump(cx, churn).await).detach();
+        }
+    });
 }
 
 /// What VoiceOver is given of each window, then out (Phase B check 1). The

@@ -156,7 +156,9 @@ impl Probe<'_, '_> {
             .or_else(|| dialogs.first().copied());
         match front {
             Some(handle) => self.cx.defer(move |cx| {
-                let _ = handle.update(cx, |_, window, cx| send(window, cx));
+                let _ = handle.update(cx, |_, window, cx| {
+                    crate::native::keys_to(handle, || send(window, cx))
+                });
             }),
             None => self.window.defer(self.cx, send),
         }
@@ -455,10 +457,7 @@ impl WindowProbe for Probe<'_, '_> {
         match to {
             // Brought in front, dm with it, as a click on its Dock icon does.
             probe::WindowTo::Shown => {
-                self.window.defer(self.cx, |window, cx| {
-                    cx.activate(true);
-                    window.activate_window();
-                });
+                self.view.show_main(self.cx);
                 Ok(())
             }
             probe::WindowTo::Minimized => {
@@ -466,7 +465,15 @@ impl WindowProbe for Probe<'_, '_> {
                     .defer(self.cx, |window, _| window.minimize_window());
                 Ok(())
             }
-            probe::WindowTo::Tray => not_yet("ui.window tray"),
+            // As the close button does where Options says to keep dm in the
+            // tray; refused where there is no tray to keep it in.
+            probe::WindowTo::Tray => {
+                if self.view.tray.is_none() {
+                    return Err("there is no tray to keep dm in here".into());
+                }
+                self.view.hide_window(self.window);
+                Ok(())
+            }
         }
     }
 
@@ -532,7 +539,7 @@ impl WindowProbe for Probe<'_, '_> {
             categories: false,
             toolbar: false,
             dark: false,
-            hidden: false,
+            hidden: self.view.hidden,
             said: String::new(),
             problems: Vec::new(),
             dialogs: Vec::new(),

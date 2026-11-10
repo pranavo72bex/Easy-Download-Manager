@@ -368,10 +368,17 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
                     })
                     .detach();
             }
+            crate::native::close_is_cancel(&playlist, window, cx);
             cx.new(|cx| gpui_component::Root::new(playlist, window, cx))
         },
     );
     if let Err(e) = opened {
         eprintln!("dm-gpui: Playlist could not be opened: {e}");
+    }
+}
+
+impl crate::native::CloseButton for PlaylistWindow {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
     }
 }

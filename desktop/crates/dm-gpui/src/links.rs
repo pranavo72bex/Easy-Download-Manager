@@ -710,11 +710,18 @@ fn open_now(view: WeakEntity<Downloads>, request: dm_shell::host::Request, cx: &
                     }
                 })
                 .detach();
+            crate::native::close_is_cancel(&links, window, cx);
             cx.new(|cx| gpui_component::Root::new(links, window, cx))
         },
     );
     if let Err(e) = opened {
         eprintln!("dm-gpui: Download links could not be opened: {e}");
         let _ = failed.update(cx, |view, _| view.handed_closed());
+    }
+}
+
+impl crate::native::CloseButton for Links {
+    fn close_button(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.cancel(window, cx);
     }
 }

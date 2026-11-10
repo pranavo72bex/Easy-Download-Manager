@@ -337,6 +337,7 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
                         screen,
                     }
                 });
+                crate::native::close_is_cancel(&series, window, cx);
                 cx.new(|cx| gpui_component::Root::new(series, window, cx))
             },
         );
@@ -344,4 +345,10 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
             eprintln!("dm-gpui: Add numbered series could not be opened: {e}");
         }
     });
+}
+
+impl crate::native::CloseButton for Series {
+    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+        self.cancel(window);
+    }
 }

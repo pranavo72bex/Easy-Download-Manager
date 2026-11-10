@@ -5,17 +5,10 @@
 
 use super::*;
 
-/// The tray's words in the language in force: its four menu items, then
-/// its tooltip.
+/// The tray's words in the language in force (`dm_desktop_base::tray`,
+/// both windows).
 pub(super) fn tray_words() -> [&'static str; 5] {
-    use dm_desktop::i18n::t;
-    [
-        t("Show dm"),
-        t("Speed limiter"),
-        t("Scheduler…"),
-        t("Exit dm"),
-        t("dm — downloads keep running here"),
-    ]
+    dm_desktop_base::tray::words()
 }
 
 /// The tray icon: Show, Start queue and Stop all, the speed limiter and

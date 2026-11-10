@@ -58,6 +58,12 @@ impl Downloads {
         self.take_searches(cx);
         self.weekly_update(cx);
         self.check_clipboard(cx);
+        // A second launch, the browser's button or the Dock asked for the
+        // window; the tray says how the downloads go.
+        if self.take_show_asked() {
+            self.show_main(cx);
+        }
+        self.tray_follow();
         self.refresh_menus(cx);
         let problems = self.backend.problems();
         self.problems.extend(
