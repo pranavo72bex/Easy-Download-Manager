@@ -151,7 +151,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   window after these moves (f02e438). The file-kind pictures in rows (B45: told apart by shape, each
   in its kind's colour, the row's height unchanged; seen with one file of each kind). Next: slice 1's
   rows checked through `human-qa.py` with `DM_BINARY` naming dm-gpui (the GPUI window still lacks
-  Add URL and the progress windows B63 needs: slices 4 and 6), then slice 2, the table's columns (`changes::subscribe`
+  Add URL and the progress windows B63 needs: slices 4 and 6). Slice 2 under way: the table (a row's
+  words and the columns moved to `dm_desktop_base::rows` and `columns`; the GPUI table shows the
+  person's columns with the egui window's headings and words, sorts by a heading's click, cuts long
+  words with an ellipsis, a progress bar under a running row's status). Next in slice 2: selection
+  (click, ⌘-click, ⇧-click, arrows), a double-click as Options says, column widths a person drags (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
   `gpui = { package = "gpui-pre", version = "=0.3.12" }`,

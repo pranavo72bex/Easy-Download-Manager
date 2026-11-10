@@ -369,7 +369,10 @@ impl WindowProbe for Probe<'_, '_> {
         Ok(probe::Inspect {
             place: format!("{:?}", self.view.place),
             selected: Vec::new(),
-            sort: None,
+            sort: self.view.sort.map(|(c, up)| probe::Sort {
+                column: c.english().to_string(),
+                ascending: up,
+            }),
             categories: false,
             toolbar: false,
             dark: false,

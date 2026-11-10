@@ -30,6 +30,7 @@ mod screen;
 mod services;
 mod sidebar;
 mod statusbar;
+mod table;
 mod theme;
 mod toolbar;
 

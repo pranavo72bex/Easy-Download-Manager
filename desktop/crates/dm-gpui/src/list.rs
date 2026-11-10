@@ -19,12 +19,12 @@ use dm_desktop_base::boot::Wake;
 use dm_shell::app::backend::Backend;
 use dm_shell::app::session::Session;
 use gpui::{
-    div, prelude::*, px, uniform_list, Context, FocusHandle, Role, SharedString,
-    UniformListScrollHandle, Window,
+    div, prelude::*, Context, FocusHandle, Role, SharedString, UniformListScrollHandle, Window,
 };
 
 use crate::screen::Screen;
 use crate::theme::Theme;
+use dm_desktop_base::columns::Column;
 use dm_shell::app::places::{Place, Places};
 
 /// The rows' height, in points.
@@ -54,6 +54,8 @@ pub struct Downloads {
     pub(crate) places: Places,
     /// The rows the list shows, in the place chosen: their indices in `rows`.
     pub(crate) shown: Vec<usize>,
+    /// The column the list is sorted by, and whether up; none: as added.
+    pub(crate) sort: Option<(Column, bool)>,
 }
 
 impl Downloads {
@@ -78,7 +80,11 @@ impl Downloads {
             place: Place::All,
             places: Places::default(),
             shown: Vec::new(),
+            sort: None,
         };
+        // The sort the person left the list in.
+        let settings = this.backend.settings();
+        this.sort = Column::from_key(&settings.sort_column).map(|c| (c, settings.sort_ascending));
         window.focus(&this.focus, cx);
         this.read();
         // One task on the window's thread: each wake is one read, a burst of
@@ -187,7 +193,14 @@ impl Downloads {
         dm_shell::app::changes::take();
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
+        // What the read told beside the rows, which a row's words are said
+        // from (ranges tried again, swarms, files taken by a later row, the
+        // download limit), as the egui window sets it.
+        dm_desktop_base::rows::set_retrying(read.snapshot.retrying);
+        dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
+        dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
         self.rows = read.snapshot.rows;
+        dm_desktop_base::rows::set_superseded(&self.rows);
         self.places.place_rows(&self.rows, &settings.categories());
         self.reshow();
     }
@@ -198,12 +211,35 @@ impl Downloads {
         self.reshow();
     }
 
-    /// Which rows the list shows: those in the place chosen.
+    /// Sorts by `column`: up, then the other way on a second click, as
+    /// the egui window's header does.
+    pub fn sort_by(&mut self, column: Column) {
+        self.sort = match self.sort {
+            Some((c, up)) if c == column => Some((c, !up)),
+            _ => Some((column, true)),
+        };
+        self.reshow();
+    }
+
+    /// Which rows the list shows, in order: those in the place chosen,
+    /// sorted as chosen.
     fn reshow(&mut self) {
         let categories = self.backend.settings().categories();
-        self.shown = (0..self.rows.len())
+        let mut shown: Vec<usize> = (0..self.rows.len())
             .filter(|&i| self.places.within(&self.place, &self.rows[i], &categories))
             .collect();
+        if let Some((column, up)) = self.sort {
+            let rows = &self.rows;
+            shown.sort_by(|&a, &b| {
+                let order = dm_desktop_base::columns::compare(column, &rows[a], &rows[b]);
+                if up {
+                    order
+                } else {
+                    order.reverse()
+                }
+            });
+        }
+        self.shown = shown;
     }
 }
 
@@ -243,63 +279,8 @@ pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
     (name.into(), state.into())
 }
 
-impl Downloads {
-    /// The rows of the place chosen, only those on screen laid out.
-    fn list(&self, theme: Theme, cx: &mut Context<Self>) -> impl IntoElement {
-        let screen = self.screen.clone();
-        let count = self.shown.len();
-        uniform_list(
-            "rows",
-            count,
-            cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
-                let categories = this.backend.settings().categories();
-                range
-                    .filter_map(|i| {
-                        this.shown
-                            .get(i)
-                            .and_then(|&r| this.rows.get(r))
-                            .map(|row| {
-                                let kind = this.places.placed(row, &categories).0;
-                                (i, line(row), kind_picture(kind))
-                            })
-                    })
-                    .map(|(i, (name, state), (picture, colour))| {
-                        div()
-                            .id(i)
-                            .w_full()
-                            .h(px(ROW_HEIGHT))
-                            .px_3()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .when(i % 2 == 1, |row| row.bg(theme.stripe))
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap_2()
-                                    .child(
-                                        gpui::svg()
-                                            .path(picture)
-                                            .size(px(16.0))
-                                            .flex_none()
-                                            .text_color(colour),
-                                    )
-                                    .child(screen.label(name)),
-                            )
-                            .child(div().text_color(theme.muted).child(screen.label(state)))
-                    })
-                    .collect()
-            }),
-        )
-        .track_scroll(&self.scroll)
-        .flex_1()
-    }
-}
-
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let count = self.shown.len();
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
@@ -328,16 +309,8 @@ impl Render for Downloads {
                             .flex_col()
                             .flex_1()
                             .min_w_0()
-                            .child(
-                                div()
-                                    .px_3()
-                                    .py_2()
-                                    .border_b_1()
-                                    .border_color(theme.separator)
-                                    .text_color(theme.muted)
-                                    .child(self.screen.label(format!("{count} downloads"))),
-                            )
-                            .child(self.list(theme, cx)),
+                            .child(crate::table::header(self, theme, &screen, cx))
+                            .child(crate::table::rows(self, theme, cx)),
                     ),
             )
             .child(crate::statusbar::statusbar(self, theme, &screen))

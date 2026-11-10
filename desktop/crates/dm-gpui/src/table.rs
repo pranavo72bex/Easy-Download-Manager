@@ -1,0 +1,254 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The download table, as a macOS list view draws one: a header of column
+//! headings (a click sorts by that column, a second the other way), and
+//! the rows of the place chosen, only those on screen laid out. The columns
+//! (their order, which are hidden) and every cell's words are the egui
+//! window's (`dm_desktop_base::columns` and `rows`); numbers stand against
+//! their column's right edge so their digits line up down the list.
+
+use dm_core::{Entry, State};
+use dm_desktop_base::columns::Column;
+use dm_desktop_base::format;
+use dm_desktop_base::i18n::t;
+use gpui::{div, prelude::*, px, relative, uniform_list, AnyElement, Context, Role, SharedString};
+
+use crate::list::{kind_picture, Downloads, ROW_HEIGHT};
+use crate::screen::Screen;
+use crate::theme::Theme;
+
+/// The header's height, in points.
+pub const HEADER_HEIGHT: f32 = 24.0;
+
+/// A column's width in points; the file name takes what the others leave.
+fn width(column: Column) -> Option<f32> {
+    match column {
+        Column::Name => None,
+        Column::Queue => Some(22.0),
+        Column::Size => Some(72.0),
+        Column::Status => Some(150.0),
+        Column::TimeLeft => Some(68.0),
+        Column::Rate => Some(84.0),
+        Column::LastTry => Some(118.0),
+        Column::Description | Column::Referrer | Column::Folder => Some(140.0),
+    }
+}
+
+/// Whether a column's figures stand against its right edge.
+fn numeric(column: Column) -> bool {
+    matches!(column, Column::Size | Column::TimeLeft | Column::Rate)
+}
+
+/// The columns shown, in the person's order.
+pub fn columns(view: &Downloads) -> Vec<Column> {
+    let settings = view.backend.settings();
+    Column::ordered(&settings.column_order)
+        .into_iter()
+        .filter(|c| !settings.columns_hidden.iter().any(|h| h == c.key()))
+        .collect()
+}
+
+/// The file name's column never narrower than this: the other columns
+/// scroll sideways first, as a macOS list does.
+const NAME_AT_LEAST: f32 = 180.0;
+
+/// A cell of `column` sized as its column is: one line, cut short with an
+/// ellipsis where its words are longer.
+fn cell(column: Column) -> gpui::Div {
+    let cell = div()
+        .h_full()
+        .flex()
+        .items_center()
+        .px_2()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis();
+    let cell = match width(column) {
+        Some(w) => cell.w(px(w)).flex_none(),
+        None => cell.flex_1().min_w(px(NAME_AT_LEAST)),
+    };
+    if numeric(column) {
+        cell.justify_end()
+    } else {
+        cell
+    }
+}
+
+/// What a cell says, where it says words.
+fn words(column: Column, row: &Entry) -> String {
+    match column {
+        Column::Name | Column::Queue => String::new(),
+        Column::Size => dm_desktop_base::rows::size_of(row),
+        Column::Status => dm_desktop_base::rows::status_of(row),
+        Column::TimeLeft if row.state == State::Running => match row.progress.eta {
+            Some(eta) => format::span(eta),
+            // A file of known size with no rate to go on yet says so.
+            None if row.progress.total.is_some() => t("Calculating…").to_string(),
+            None => String::new(),
+        },
+        Column::Rate if row.state == State::Running && row.progress.speed > 1.0 => {
+            format::rate(row.progress.speed)
+        }
+        Column::LastTry => format::when(row.finished_at),
+        Column::Description => row.description.clone(),
+        Column::Referrer if !row.referrer.is_empty() => format::shown_url(&row.referrer),
+        Column::Folder => dm_desktop_base::rows::folder_of(row),
+        _ => String::new(),
+    }
+}
+
+/// The header.
+pub fn header(
+    view: &Downloads,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> impl IntoElement {
+    let sort = view.sort;
+    div()
+        .id("header")
+        .role(Role::Row)
+        .h(px(HEADER_HEIGHT))
+        .flex_none()
+        .flex()
+        .px_1()
+        .border_b_1()
+        .border_color(theme.separator)
+        .text_xs()
+        .text_color(theme.muted)
+        .children(columns(view).into_iter().map(|column| {
+            let heading = if column == Column::Queue {
+                String::new()
+            } else {
+                column.title().to_string()
+            };
+            let arrow = match sort {
+                Some((c, true)) if c == column => " ▲",
+                Some((c, false)) if c == column => " ▼",
+                _ => "",
+            };
+            cell(column)
+                .id(column.key())
+                .role(Role::ColumnHeader)
+                .aria_label(column.title())
+                .hover(|s| s.bg(theme.stripe))
+                .on_click(cx.listener(move |view, _, _, cx| {
+                    view.sort_by(column);
+                    cx.notify();
+                }))
+                .child(screen.label(format!("{heading}{arrow}")))
+        }))
+}
+
+/// One row's cells.
+fn row_cells(
+    row: &Entry,
+    columns: &[Column],
+    kind: Option<dm_core::Category>,
+    theme: Theme,
+    screen: &Screen,
+) -> Vec<AnyElement> {
+    columns
+        .iter()
+        .map(|&column| match column {
+            Column::Name => {
+                let (picture, colour) = kind_picture(kind);
+                let (name, _) = crate::list::line(row);
+                cell(column)
+                    .gap_2()
+                    .child(
+                        gpui::svg()
+                            .path(picture)
+                            .size(px(16.0))
+                            .flex_none()
+                            .text_color(colour),
+                    )
+                    .child(screen.label(name))
+                    .into_any_element()
+            }
+            // Reference A's Q: a mark for a download in a queue.
+            Column::Queue => cell(column)
+                .justify_center()
+                .when(!row.queue.is_empty(), |c| {
+                    c.child(div().size(px(8.0)).rounded_full().bg(theme.selection))
+                })
+                .into_any_element(),
+            Column::Status => {
+                let said = words(column, row);
+                let fraction = (row.state == State::Running)
+                    .then(|| row.progress.fraction())
+                    .flatten();
+                cell(column)
+                    .flex_col()
+                    .items_start()
+                    .justify_center()
+                    .child(screen.label(said))
+                    .when_some(fraction, |c, f| {
+                        c.child(
+                            div()
+                                .mt(px(2.0))
+                                .w_full()
+                                .h(px(3.0))
+                                .rounded_full()
+                                .bg(theme.separator)
+                                .child(
+                                    div()
+                                        .h_full()
+                                        .rounded_full()
+                                        .bg(theme.selection)
+                                        .w(relative(f.clamp(0.0, 1.0) as f32)),
+                                ),
+                        )
+                    })
+                    .into_any_element()
+            }
+            _ => {
+                let said = words(column, row);
+                let numeric = numeric(column);
+                cell(column)
+                    .when(!numeric, |c| c.text_color(theme.muted))
+                    .child(screen.label(SharedString::from(said)))
+                    .into_any_element()
+            }
+        })
+        .collect()
+}
+
+/// The rows of the place chosen.
+pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
+    let screen = view.screen.clone();
+    let count = view.shown.len();
+    uniform_list(
+        "rows",
+        count,
+        cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
+            let categories = this.backend.settings().categories();
+            let columns = columns(this);
+            range
+                .filter_map(|i| {
+                    this.shown
+                        .get(i)
+                        .and_then(|&r| this.rows.get(r))
+                        .map(|row| (i, row))
+                })
+                .map(|(i, row)| {
+                    let kind = this.places.placed(row, &categories).0;
+                    div()
+                        .id(i)
+                        .role(Role::Row)
+                        .w_full()
+                        .h(px(ROW_HEIGHT))
+                        .px_1()
+                        .flex()
+                        .when(i % 2 == 1, |r| r.bg(theme.stripe))
+                        .children(row_cells(row, &columns, kind, theme, &screen))
+                })
+                .collect()
+        }),
+    )
+    .track_scroll(&view.scroll)
+    .flex_1()
+}
