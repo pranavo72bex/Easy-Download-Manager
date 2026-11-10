@@ -110,7 +110,11 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   cancel counter (`handoff::Cancels`), the one-time hints (`hints::Hint`), the speed limiter's
   starting value (`commands::remembered_limit`), the inbox orders (`session::new_download_asked`;
   `commands::when_done_command`) and "only what this computer can do" (`WhenDone::possible`, which
-  the menu, the Scheduler and the command line each wrote out). Next: the rest of the list. The list, with files, is
+  the menu, the Scheduler and the command line each wrote out). Batch 2: once-only schedule
+  dates (`schedule::spent_once_put_away`), renames after "use the address's name"
+  (`names::PendingRenames`), finished files' sizes (`snapshot::SavedSizes`). Next: question
+  detection, saved searches, the weekly update check, dial-up hang-up, the script guard,
+  adding, remove with Undo's bookkeeping, settings coordination. The list, with files, is
   `CURRENT_UI_ARCHITECTURE.md` 4.2 (settings coordination and the script guard `by_script`,
   question detection B39 to B41, pending renames, once-only schedule dates, dial-up hang-up,
   saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the

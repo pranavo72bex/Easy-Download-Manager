@@ -395,7 +395,7 @@ pub struct DmApp {
     asks_primed: bool,
     /// Names to give a file once it has finished: the address's, where a person
     /// said no to the server's while it was still coming.
-    pending_renames: std::collections::HashMap<Id, String>,
+    pending_renames: dm_shell::app::names::PendingRenames,
     /// What saved site searches found, by name, waiting to be added.
     search_results: Arc<std::sync::Mutex<Vec<SearchResult>>>,
     /// How many searches are out, so the window keeps drawing to take
@@ -507,10 +507,8 @@ pub struct DmApp {
     /// Where the toolbar ends (the menu bar's bottom with no toolbar):
     /// windows a download opens on its own start below it, not over Add URL.
     pub bars_bottom: f32,
-    /// Each finished file's size on disk, by the path it was read at: a
-    /// stream put into an MP4 is not the size of the joined stream the
-    /// engine counted. Read once a path.
-    pub saved: HashMap<Id, (String, u64)>,
+    /// Each finished file's size on disk (`snapshot::SavedSizes`).
+    pub saved: dm_shell::app::snapshot::SavedSizes,
     /// The status line's sentence and when it was said: an old one is not
     /// left standing beside rows it no longer describes.
     said_at: Option<(crate::i18n::Said, Instant)>,
@@ -630,7 +628,7 @@ impl DmApp {
             row_menu_by_key: false,
             menu_bottom: 0.0,
             bars_bottom: 0.0,
-            saved: HashMap::new(),
+            saved: Default::default(),
             said_at: None,
         };
         app.sort = Column::from_key(&app.applied.sort_column)

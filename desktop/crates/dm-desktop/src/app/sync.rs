@@ -169,35 +169,7 @@ impl DmApp {
     /// each path, and put in place of the bytes the engine counted, which
     /// for a stream remuxed into an MP4 were the joined stream's.
     pub(super) fn saved_sizes(&mut self) {
-        let saved = &mut self.saved;
-        saved.retain(|id, _| {
-            self.rows
-                .iter()
-                .any(|r| r.id == *id && r.state == State::Completed)
-        });
-        for row in &mut self.rows {
-            if row.state != State::Completed || row.path.is_empty() {
-                continue;
-            }
-            let known = saved.get(&row.id).filter(|(path, _)| *path == row.path);
-            let size = match known {
-                Some((_, size)) => *size,
-                None => match std::fs::metadata(&row.path) {
-                    Ok(meta) if meta.is_file() => {
-                        saved.insert(row.id, (row.path.clone(), meta.len()));
-                        meta.len()
-                    }
-                    _ => continue,
-                },
-            };
-            // Copied only where the figures differ: an unchanged row stays
-            // the queue's own, which is how the next read knows it.
-            if row.progress.total != Some(size) || row.progress.downloaded != size {
-                let row = Arc::make_mut(row);
-                row.progress.total = Some(size);
-                row.progress.downloaded = size;
-            }
-        }
+        self.saved.apply(&mut self.rows);
     }
 
     /// "When done": once everything that was downloading has settled,
@@ -939,32 +911,18 @@ impl DmApp {
     /// A person said no to the server's name: the file is given the
     /// address's, at once if it is finished, else as it finishes.
     pub(crate) fn use_address_name(&mut self, id: Id, name: &str) {
-        match self.row(id).map(|r| r.state.clone()) {
-            Some(State::Completed) => {
-                let _ = self.backend.rename(id, name);
-            }
-            Some(State::Failed(_) | State::Cancelled) | None => {}
-            Some(_) => {
-                self.pending_renames.insert(id, name.to_string());
-            }
+        let state = self.row(id).map(|r| r.state.clone());
+        if let Some(now) = self.pending_renames.ask(id, state.as_ref(), name) {
+            let _ = self.backend.rename(id, &now);
         }
     }
-
-    /// Renames what finished since a person said no to the server's name.
     pub(super) fn apply_pending_renames(&mut self) {
-        let ids: Vec<Id> = self.pending_renames.keys().copied().collect();
-        for id in ids {
-            match self.row(id).map(|r| r.state.clone()) {
-                Some(State::Completed) => {
-                    if let Some(name) = self.pending_renames.remove(&id) {
-                        let _ = self.backend.rename(id, &name);
-                    }
-                }
-                Some(State::Failed(_) | State::Cancelled) | None => {
-                    self.pending_renames.remove(&id);
-                }
-                Some(_) => {}
-            }
+        let rows = &self.rows;
+        let due = self
+            .pending_renames
+            .due(|id| rows.iter().find(|r| r.id == id).map(|r| r.state.clone()));
+        for (id, name) in due {
+            let _ = self.backend.rename(id, &name);
         }
     }
 }

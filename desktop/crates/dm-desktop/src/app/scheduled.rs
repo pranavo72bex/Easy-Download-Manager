@@ -17,41 +17,19 @@
 
 use super::*;
 
-/// Whether a once-only date of `schedule` has been and gone, by the clock now.
-fn once_over_now(schedule: &dm_core::Schedule) -> bool {
-    use chrono::{Datelike, Timelike};
-    let now = chrono::Local::now();
-    schedule.once_at.is_some()
-        && schedule.once_over(
-            (now.year(), now.month() as u8, now.day() as u8),
-            now.hour() * 60 + now.minute(),
-        )
-}
-
 impl DmApp {
     /// A once-only date that is over is put away, so the schedule goes back to its weekly window
     /// (left set, its queue would stay shut for good).
     fn clear_spent_once_at(&mut self) {
-        let global = once_over_now(&self.applied.schedule);
-        let queues: Vec<String> = self
-            .applied
-            .queue_schedules
-            .iter()
-            .filter(|(_, s)| once_over_now(s))
-            .map(|(name, _)| name.clone())
-            .collect();
-        if !global && queues.is_empty() {
+        use chrono::{Datelike, Timelike};
+        let now = chrono::Local::now();
+        let Some(wanted) = dm_shell::app::schedule::spent_once_put_away(
+            &self.applied,
+            (now.year(), now.month() as u8, now.day() as u8),
+            now.hour() * 60 + now.minute(),
+        ) else {
             return;
-        }
-        let mut wanted = self.applied.clone();
-        if global {
-            wanted.schedule.once_at = None;
-        }
-        for name in queues {
-            if let Some(s) = wanted.queue_schedules.get_mut(&name) {
-                s.once_at = None;
-            }
-        }
+        };
         if let Err(why) = self.apply_settings(wanted) {
             self.problems.push(why);
         }

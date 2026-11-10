@@ -224,6 +224,44 @@ pub fn name_it_will_get_after(
     })
 }
 
+/// Renames asked for before a row's file is whole ("use the address's
+/// name"): a finished row is renamed at once, one still under way when it
+/// finishes, and one that failed or was cancelled (or removed) never.
+#[derive(Debug, Default)]
+pub struct PendingRenames(HashMap<Id, String>);
+
+impl PendingRenames {
+    /// `id`, in `state` (`None`: no such row), is to be called `name`: the
+    /// name to rename it to now, or `None` (kept for later, or dropped).
+    pub fn ask(&mut self, id: Id, state: Option<&State>, name: &str) -> Option<String> {
+        match state {
+            Some(State::Completed) => Some(name.to_string()),
+            Some(State::Failed(_) | State::Cancelled) | None => None,
+            Some(_) => {
+                self.0.insert(id, name.to_string());
+                None
+            }
+        }
+    }
+
+    /// The renames due now, by each row's state (`state_of`): those
+    /// finished, taken out; those that failed, were cancelled or are gone,
+    /// dropped.
+    pub fn due(&mut self, state_of: impl Fn(Id) -> Option<State>) -> Vec<(Id, String)> {
+        let mut now = Vec::new();
+        self.0.retain(|id, name| match state_of(*id) {
+            Some(State::Completed) => {
+                now.push((*id, std::mem::take(name)));
+                false
+            }
+            Some(State::Failed(_) | State::Cancelled) | None => false,
+            Some(_) => true,
+        });
+        now.sort_by_key(|(id, _)| *id);
+        now
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,5 +353,31 @@ mod tests {
             planned_folder(&odd, dir.path(), &mut categories),
             Some(dir.path().join("Odd").display().to_string())
         );
+    }
+
+    #[test]
+    fn a_rename_waits_for_the_file_to_be_whole_and_is_dropped_if_it_never_is() {
+        let mut renames = PendingRenames::default();
+        assert_eq!(
+            renames.ask(1, Some(&State::Completed), "a.bin").as_deref(),
+            Some("a.bin"),
+            "finished: at once"
+        );
+        assert_eq!(renames.ask(2, Some(&State::Running), "b.bin"), None);
+        assert_eq!(renames.ask(3, Some(&State::Queued), "c.bin"), None);
+        assert_eq!(renames.ask(4, Some(&State::Running), "d.bin"), None);
+        assert_eq!(renames.ask(5, Some(&State::Cancelled), "e.bin"), None);
+        assert_eq!(renames.ask(6, None, "f.bin"), None);
+        let states = |id: Id| match id {
+            2 => Some(State::Completed),
+            3 => Some(State::Running),
+            4 => Some(State::Failed("gone".into())),
+            _ => None,
+        };
+        assert_eq!(renames.due(states), vec![(2, "b.bin".to_string())]);
+        // 3 still waits; 4 failed and is dropped.
+        let finished = |id: Id| (id == 3 || id == 4).then_some(State::Completed);
+        assert_eq!(renames.due(finished), vec![(3, "c.bin".to_string())]);
+        assert!(renames.due(finished).is_empty(), "each once");
     }
 }
