@@ -20,6 +20,12 @@ dm-shell = { path = "../dm-shell" }
 serde_json = "1"
 # The control protocol's token (control.rs).
 getrandom = "0.4"
+# The system's language, for the window's first one: from the OS itself,
+# since an app opened from the Dock or a login item has no LANG (i18n.rs).
+sys-locale = "0.3"
+# Dates and addresses as a row's details say them (format.rs, details.rs).
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+url = "2"
 
 [target.'cfg(windows)'.dependencies]
 # A finished download's toast (toast.rs): WinRT, which windows-sys has no

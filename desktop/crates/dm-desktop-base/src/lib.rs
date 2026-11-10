@@ -11,7 +11,12 @@
 //! (no sleep while a download runs), `wake` (the schedule's wake timer),
 //! `power` (When done, and the sounds), `autostart` (the Linux login item)
 //! and `toast` (Windows' notifications); and `control`, the control port's
-//! server, which hands each request to the window through a callback.
+//! server, which hands each request to the window through a callback;
+//! `mcp` (the MCP server an AI assistant talks to, over the control port),
+//! `cli` (the command line, over the control port too) and `region` (how
+//! the computer writes numbers and dates); `i18n` (the words in the
+//! language picked, and the catalogs), `format` (how a row's numbers are
+//! said) and `details` (the text Copy details puts on the clipboard).
 
 // Never crash on what comes from outside: no unwrap, expect or panic in
 // shipped code (tests may), checked by clippy in CI.
@@ -26,9 +31,15 @@
 #![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod autostart;
 pub mod awake;
+pub mod cli;
 pub mod control;
+pub mod details;
+pub mod format;
+pub mod i18n;
+pub mod mcp;
 pub mod power;
 pub mod quiet;
+pub mod region;
 #[cfg(windows)]
 pub mod toast;
 pub mod wake;

@@ -1777,7 +1777,6 @@ dependencies = [
  "ron",
  "serde_json",
  "sha2 0.11.0",
- "sys-locale",
  "tempfile",
  "tokio",
  "trash",
@@ -1797,11 +1796,14 @@ dependencies = [
 name = "dm-desktop-base"
 version = "0.9.0"
 dependencies = [
+ "chrono",
  "dm-core",
  "dm-shell",
  "getrandom 0.4.3",
  "serde_json",
+ "sys-locale",
  "tempfile",
+ "url",
  "windows 0.62.2",
  "windows-sys 0.61.2",
 ]

@@ -61,9 +61,6 @@ arboard = "3"
 # Import and Export's file choosers.
 rfd = "0.17"
 image = { version = "0.25", default-features = false, features = ["png"] }
-# The system's language, for the window's first one: from the OS itself,
-# since an app opened from the Dock or a login item has no LANG.
-sys-locale = "0.3"
 trash = "5.2.9"
 # The digest of a rules document the update manifest lists (update.rs).
 sha2 = "0.11.0"

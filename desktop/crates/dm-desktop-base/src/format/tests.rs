@@ -69,42 +69,6 @@ fn a_count_ahead_of_the_parts_is_shared_by_the_pieces_under_way() {
     );
 }
 
-/// A key with a symbol is shown by it.
-#[test]
-fn a_shortcut_shows_its_keys_symbol() {
-    crate::region::pin(None);
-    let ctx = egui::Context::default();
-    let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
-    out.textures_delta.clear();
-    let ctrl = |key| egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, key);
-    let shown = shortcut(&ctx, &ctrl(egui::Key::Period));
-    assert!(shown.ends_with('.'), "{shown}");
-    assert!(!shown.contains("Period"), "{shown}");
-    assert!(shortcut(&ctx, &ctrl(egui::Key::Comma)).ends_with(','));
-    assert!(shortcut(&ctx, &ctrl(egui::Key::R)).ends_with('R'));
-    let plain = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Delete);
-    assert_eq!(shortcut(&ctx, &plain), "Delete");
-    assert_eq!(key_name(egui::Key::ArrowUp), "Up");
-}
-
-/// A German menu says Strg, Umschalt and Entf.
-#[test]
-fn a_shortcut_names_its_keys_in_the_language_in_force() {
-    crate::region::pin(None);
-    let ctx = egui::Context::default();
-    ctx.set_os(egui::os::OperatingSystem::Nix);
-    let both = egui::KeyboardShortcut::new(
-        egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
-        egui::Key::N,
-    );
-    let delete = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Delete);
-    assert_eq!(shortcut(&ctx, &both), "Ctrl+Shift+N");
-    crate::i18n::set("de");
-    let german = (shortcut(&ctx, &both), shortcut(&ctx, &delete));
-    crate::i18n::set("en");
-    assert_eq!(german, ("Strg+Umschalt+N".to_string(), "Entf".to_string()));
-}
-
 /// The network library's words for a cut connection are said
 /// plainly; what dm does not know is left as it was.
 #[test]

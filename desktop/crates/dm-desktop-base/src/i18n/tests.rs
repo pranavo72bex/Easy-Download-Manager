@@ -158,17 +158,6 @@ fn the_system_language_is_read_once_and_is_offered() {
     assert!(std::ptr::eq(found, system()), "the same each time");
 }
 
-#[test]
-fn the_picker_offers_every_language_and_picks_none_unclicked() {
-    let ctx = egui::Context::default();
-    let mut picked = Some("unset");
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-        picked = pick(ui, "de");
-    });
-    output.textures_delta.clear();
-    assert_eq!(picked, None);
-}
-
 /* ------------------------------------------------------- names */
 
 #[test]

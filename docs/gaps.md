@@ -35,7 +35,7 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
-| 5   | 89 strings (the 71 reworded in 0.7.0, the 14 of 2026-10-30 for the quality list, the part fields and the Playlist dialog, and Take out's 4) were put into the other twelve languages by a machine pass and have not been read by a native speaker | BLOCKED: native readers | One reader per language corrects them (`git log -p -- desktop/crates/dm-desktop/i18n`) |
+| 5   | 89 strings (the 71 reworded in 0.7.0, the 14 of 2026-10-30 for the quality list, the part fields and the Playlist dialog, and Take out's 4) were put into the other twelve languages by a machine pass and have not been read by a native speaker | BLOCKED: native readers | One reader per language corrects them (`git log -p --follow -- desktop/crates/dm-desktop-base/i18n`; before 2026-11-10 they were under `dm-desktop/i18n`) |
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
@@ -100,8 +100,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   comments fixed. Decided, not changed: `DmApp::logic` keeps running from both `Window::logic`
   and `DmApp::ui` (the window tests drive `DmApp::ui` alone).
 - **G2, a toolkit-free crate: in progress.** Done (2026-11-10): the crate, and batch 1 below
-  (`quiet`, `awake`, `wake`, `autostart`, `power`, `toast`, `control`), each re-exported at its
-  old path; gated per batch (`docs/decisions.md`, 2026-11-10). Next: batch 2. As planned: a new crate
+  (`quiet`, `awake`, `wake`, `autostart`, `power`, `toast`, `control`), batch 2 (`region`, `mcp`,
+  `cli`) and batch 3's `i18n` (with the catalogs, now `dm-desktop-base/i18n`), `format` and
+  `details`, each re-exported at its old path (`i18n::pick` and `format::shortcut`/`key_name`
+  draw with egui and stay in dm-desktop, which re-exports the rest with a glob);
+  `tests/i18n.rs` scans both crates' sources. Gated per batch (`docs/decisions.md`, 2026-11-10);
+  `human-qa.py` 64/64 after batch 1. Next: `platform.rs`'s `Desktop` (below). As planned: a new crate
   `desktop/crates/dm-desktop-base` that `dm-desktop` depends on and that `cargo xtask layers`
   forbids every name in `GUI` (add it to the `crates` list and to the `match` with
   `may = dm-core, dm-protocol, dm-shell`, `no_gui = true`, sockets allowed). Move one module per
