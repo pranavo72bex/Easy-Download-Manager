@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Inside, no change to what a person sees: what the desktop program does that is not drawing (the system's services, the login item, the control port, MCP, the command line, the words and numbers, and the application's `Platform`) is a crate of its own, `dm-desktop-base`, with no window toolkit, so a second window can use it (GPUI migration step A2); the translations moved with it to `desktop/crates/dm-desktop-base/i18n`.
 - Inside, no change to what a person sees: the architecture documents and the code agree again (GPUI migration step A1): the window takes the queue's change flag through `dm_shell::app::changes`, the documents give the tick in the order it runs and say which rules are still the window's, and stale comments are corrected.
 - QA: `scripts/linux-human-qa.sh` runs the whole of `human-qa.py` on Linux, in a Debian 12 container on an X display with Chromium in Edge's place, against a release's own `.deb` and extension (`DM_RELEASE`, each file checked against its `latest.json`), a `.deb` at hand, or a build of the checkout. `human-qa.py` pictures dialogs on X11 (ImageMagick's `import`) and compares the window with Linux baseline pictures of its own (`docs/behaviour-baseline/linux`, drawn from the 0.9.0 release's `.deb`), so B25 is checked on Linux too.
 

@@ -34,13 +34,18 @@ extension that hands it the browser's downloads.
   queue's verbs, the commands, what happened between reads and the typed
   events, schedules, hand-offs, the control port's rules, and every request
   to a server that is not a download), so another window toolkit can drive
-  the same app (`docs/architecture/`). `crates/dm-desktop` is the window, drawn in Rust
-  with egui, no web view, plus the
-  tray, login item and notifications. `cargo packager` there builds the
-  installers. The Tauri web-view window it replaced is in git history.
-  Inside `dm-desktop`, `src/app/` is the window's state and behaviour,
-  `src/dialogs/` is one file per dialog, and `main.rs` is split into
-  `platform`, `tray`, `window`, `hidden`, `signals` and `login`.
+  the same app (`docs/architecture/`). `crates/dm-desktop-base` is what the
+  desktop program does that is not drawing, with no window toolkit: `Desktop`
+  (the application's `Platform`), the login item, the control port, MCP, the
+  command line, the words (`i18n`, its catalogs in `dm-desktop-base/i18n`) and
+  numbers (`format`), and the system's services. `crates/dm-desktop` is the
+  window, drawn in Rust with egui, no web view, plus the tray; it re-exports
+  each of the base crate's modules at its old path. `cargo packager` there
+  builds the installers. The Tauri web-view window it replaced is in git
+  history. Inside `dm-desktop`, `src/app/` is the window's state and
+  behaviour, `src/dialogs/` is one file per dialog, and `main.rs` is split
+  into `platform` (what its crates do for `Desktop`, and dragging out),
+  `tray`, `window`, `hidden`, `opened` and `dock`.
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
   by both sides.

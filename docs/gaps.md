@@ -14,7 +14,7 @@ and how it closes; when it closes, its row is deleted (what was done is in
 ## State (2026-11-09)
 
 The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
-can be done here; G2 to G5 come first and need no decision (G1 closed 2026-11-10). The other rows need a Windows
+can be done here; G3 to G5 come first and need no decision (G1 and G2 closed 2026-11-10). The other rows need a Windows
 computer, a device or a person.
 Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
@@ -39,7 +39,6 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
-| G2  | GPUI migration, A2: about 7,100 lines of `dm_desktop` never touch egui (`control` but `ui.*`, `mcp`, `cli`, the `Desktop` Platform, `power`, `autostart`, `awake`, `wake`, `quiet`, `region`, `details`, `i18n` but `pick`, `format`), and a GPUI crate may not depend on `dm_desktop` | OPEN | They live in a toolkit-free crate that `cargo xtask layers` forbids egui; dm-desktop is drawing and `ui.*` only; the binary's modes byte for byte; tests and both QA runs 64/64 |
 | G3  | GPUI migration, A3: about 2,500 lines of application rules still in `DmApp` (`CURRENT_UI_ARCHITECTURE.md` 4.2): question detection (B39 to B41), pending renames, once-only schedule dates, saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the script guard, the inbox order files | OPEN | Each in `dm_shell::app` with its test, `DmApp` holding view state only; tests and both QA runs 64/64 |
 | G4  | GPUI migration, A4: the control port's `ui.*` answers (what `human-qa.py` and MCP read) are written against egui's painted shapes, not as a contract another window can implement | OPEN | A toolkit-free trait and JSON shapes fixed by tests in the shared crate, implemented by the egui window; `human-qa.py` unchanged and 64/64 |
 | G5  | GPUI migration, A5: no baseline of the egui window's own costs at 100 / 1,000 / 10,000 rows (start to first frame, idle CPU, memory, frame time with 20 downloads, scroll and search) | OPEN | A script that measures through the control port only, its egui numbers recorded in `docs/migration/GPUI_TEST_PLAN.md` |
@@ -47,6 +46,7 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | BLOCKED: D1 | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
 | G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | BLOCKED: D1 | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
 | G9  | GPUI migration, Phase E: parity report, the default switched, egui removed | BLOCKED: D1 | `docs/migration/EGUI_PARITY_REPORT.md` row by row; the maintainer's D5; egui, its three vendored patches and kittest removed in a change of their own |
+| 166 | `handover-check.py libreoffice` fails: "nothing started". On 2026-11-10 the page's Mac link (`a.os_macos`, the first match) is visible and topmost when measured, yet after the check's click the tab is at `libreoffice.org/download/` and no download starts, in dm or in Edge; the same with the build before G2, so not that change. The link itself is a plain 302 to a mirror's `.dmg`. Tried and dropped: choosing the first link a click reaches, an instant scroll, waiting for the link to hold still | OPEN | Find what the page does with the click (its script, or where the click lands) and make the check click as a person does; the other 18 sites hold |
 | 121 | An expired signed stream address is renewed: from the open page (`decide::Handed`, `Start::renews`) and by the browser's next hand-over of the same file (`Entry::fresh_link`, row 57). Tested offline only | OPEN | A real video site's CDN address that runs out mid-download, tab left open in Microsoft Edge, goes on in the same row |
 | 163 | GitGuardian fails pull request #33 on two made-up test passwords (`s3cret`, `p4ss`) in commit 62baeca's history; nothing like them is in the tree, and gitleaks finds no leak | OPEN: the maintainer | In GitGuardian's dashboard, resolve incidents 39386940 and 39386941 as test credentials |
 | T5  | dm is listed in Windows' Settings › Default apps for magnet links and `.torrent` files (`register.rs` `list_in_default_apps`, tested with a stand-in `reg`) but has not been seen there | OPEN | A person on Windows with an installed build sees dm there and chooses it for a magnet link |
@@ -99,41 +99,14 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   reads `changes::pending()`; the architecture docs give the tick as the code runs it; stale
   comments fixed. Decided, not changed: `DmApp::logic` keeps running from both `Window::logic`
   and `DmApp::ui` (the window tests drive `DmApp::ui` alone).
-- **G2, a toolkit-free crate: in progress.** Done (2026-11-10): the crate, and batch 1 below
-  (`quiet`, `awake`, `wake`, `autostart`, `power`, `toast`, `control`), batch 2 (`region`, `mcp`,
-  `cli`) and batch 3's `i18n` (with the catalogs, now `dm-desktop-base/i18n`), `format` and
-  `details`, each re-exported at its old path (`i18n::pick` and `format::shortcut`/`key_name`
-  draw with egui and stay in dm-desktop, which re-exports the rest with a glob);
-  `tests/i18n.rs` scans both crates' sources. Gated per batch (`docs/decisions.md`, 2026-11-10);
-  `human-qa.py` 64/64 after batch 1. `platform.rs`'s `Desktop` and `login.rs` moved too, the
-  window supplying the clipboard, file choosers and non-Windows notifications through
-  `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). Batch 4, modules the survey
-  missed that draw nothing (`contrast`, `system_theme`, `jumplist`, `taskbar`, the binary's
-  `signals`), moved too. **Left:** `MODULE_BOUNDARIES.md` and `ARCHITECTURE.md`'s crate diagram, the
-  binary's modes checked as G2's test-plan row says, both QA runs 64/64, and the row closes.
-  As planned: a new crate
-  `desktop/crates/dm-desktop-base` that `dm-desktop` depends on and that `cargo xtask layers`
-  forbids every name in `GUI` (add it to the `crates` list and to the `match` with
-  `may = dm-core, dm-protocol, dm-shell`, `no_gui = true`, sockets allowed). Move one module per
-  commit, leaving `pub use dm_desktop_base::<module>` at the old path in `dm-desktop/src/lib.rs`
-  so no caller or test changes. Surveyed 2026-11-09 (`grep -cE "egui|eframe|winit"`, and
-  the `crate::` modules each uses), in this order:
-  1. no egui and no dm-desktop module used: `quiet` (210 lines), `awake` (90), `wake` (68),
-     `autostart` (687), `power` (391), `toast` (210), `control` (577; its `ui.*` dispatch
-     reaches the window through a callback today: keep that seam, G4 makes it a trait);
-  2. no egui, using only modules already moved: `region` (201, uses `autostart`), `mcp`
-     (609), then `cli` (416, uses `mcp`);
-  3. egui in a few places, split first (the egui-typed helpers stay in dm-desktop):
-     `format` (774, 6 mentions; uses `i18n`'s `i` and `region`), then `details` (356, uses
-     `format`), `i18n` (602, 3 mentions; `pick` draws and stays; it uses `dialogs` and `theme`,
-     which must be cut to a value passed in), and `platform.rs`'s `Desktop` (400, 5 mentions;
-     `drag_out` needs the window's handle and stays as a method the window supplies).
-  Each module brings its own crates (target-specific ones too, for example the `windows`
-  and `objc2` families): move those lines from dm-desktop's `Cargo.toml` with it, and run
-  `cargo xtask layers` after each move. Before moving a module: `grep -n "egui\|eframe\|winit" <file>`
-  must be empty, or the egui part is split off first. Update `MODULE_BOUNDARIES.md` and
-  `ARCHITECTURE.md`'s crate diagram in the last commit.
-- **G3, rules into `dm_shell::app`: after G2.** The list, with files, is
+- **G2, a toolkit-free crate: done** (2026-11-10). `desktop/crates/dm-desktop-base` holds
+  what the desktop program does that is not drawing (`MODULE_BOUNDARIES.md`), with no window
+  crate (`cargo xtask layers`); dm-desktop re-exports each module at its old path. `Desktop`
+  takes the clipboard, file choosers and non-Windows notifications from the window through
+  `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). `--help` and MCP's
+  `initialize`/`tools/list` byte for byte as before; `launch-latency.py` unchanged;
+  `handover-check.py` 67 of 68 (LibreOffice, row 166, failing before G2 too); both QA runs 64/64.
+- **G3, rules into `dm_shell::app`: next.** The list, with files, is
   `CURRENT_UI_ARCHITECTURE.md` 4.2 (settings coordination and the script guard `by_script`,
   question detection B39 to B41, pending renames, once-only schedule dates, dial-up hang-up,
   saved searches, the weekly update check, one-time hints, the hand-off cancel counter, the
@@ -142,7 +115,7 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   `dm_shell::app` (a module of its own where none fits, listed in `MODULE_BOUNDARIES.md`),
   `DmApp` calls it, and its tests move with it or are written (a test that fails without the
   move's code, as the project does). Wording, sounds and which dialog opens stay in the window.
-- **G4, `ui.*` as a contract: after G2.** The methods are `ui.texts`, `ui.click`, `ui.type`,
+- **G4, `ui.*` as a contract: can start (G2 is done).** The methods are `ui.texts`, `ui.click`, `ui.type`,
   `ui.key`, `ui.scroll`, `ui.inspect`, `ui.select`, `ui.place`, `ui.windows`, `ui.window`,
   `ui.move_window`, `ui.screenshot`, `ui.accessibility`, plus `commands.list` and
   `command.run` (implemented in `dm-desktop/src/app/human.rs`, `app/control.rs`,

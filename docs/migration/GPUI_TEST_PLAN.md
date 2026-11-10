@@ -101,3 +101,10 @@ D1 (go): check 1 passes on all four, or a patch to GPUI kept in `desktop/vendor/
 | dm-desktop unit tests | 216 | With their module (G2 moves the toolkit-free ones unchanged) |
 | dm-shell, dm-core, dm-protocol tests | the rest | Unchanged |
 | `human-qa.py` and the scripts | 64 rows and their checks | Unchanged: they speak to the control port, which every window answers (G4) |
+
+## 7. Results
+
+| Row | Date | Gate | Row's own checks |
+|---|---|---|---|
+| G1 | 2026-11-10 | fmt, clippy, 2135 tests; Windows clippy; `human-qa.py` 64/64 (macOS, with G2's first batch) | — |
+| G2 | 2026-11-10 | fmt, clippy, 2135 tests; Windows clippy and `windows-modules-check.sh`; clippy on Linux (`dm-linux-check`); `human-qa.py` 64/64 on macOS; `linux-human-qa.sh` 64/64 | `--help` and MCP `initialize` + `tools/list` byte for byte as at 06b3659; `launch-latency.py` (debug builds, medians of 7) cold 122.8 → 120.3 ms, warm 52.6 → 55.3 ms; `handover-check.py` 67 of 68, LibreOffice failing the same at 06b3659 (gaps row 166) |

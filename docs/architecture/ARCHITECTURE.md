@@ -14,8 +14,15 @@ in [EVENT_FLOW.md](EVENT_FLOW.md); where new code goes is in
 ```text
 ┌──────────────────────────────────────────────────────────────┐
 │ Presentation: dm-desktop (egui)                              │
-│   the window, dialogs, tray, toasts, drag and drop, and the  │
-│   desktop's Platform (clipboard, notifications, power)       │
+│   the window, dialogs, tray, drag and drop, and what its     │
+│   crates do for Desktop (clipboard, choosers, notify-rust)   │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ WindowServices, re-exports at the old paths
+┌───────────────────────────▼──────────────────────────────────┐
+│ The desktop program, not drawn: dm-desktop-base              │
+│   Desktop (the Platform), the control port, MCP, the command │
+│   line, words and numbers (i18n, format), the system's       │
+│   services; no window toolkit (`cargo xtask layers`)         │
 └───────────────────────────┬──────────────────────────────────┘
                             │ dm_shell::app: Snapshot, changes, rules, Platform
 ┌───────────────────────────▼──────────────────────────────────┐
@@ -36,8 +43,9 @@ No new crate was made for the layering: dm-shell was already the code around
 the window that is not the window, and the build tool already forbids it any
 window toolkit. The application layer is its module `dm_shell::app`.
 
-A second presentation (GPUI) depends on dm-shell and dm-core only. It
-implements `dm_shell::app::platform::Platform`, subscribes to
+A second presentation (GPUI) depends on dm-desktop-base, dm-shell and dm-core
+only, never dm-desktop. It gets its `Platform` from
+`dm_desktop_base::desktop::Desktop`, supplying `WindowServices`, subscribes to
 `dm_shell::app::changes`, reads `Snapshot`s, and asks the application to act.
 
 ## Where the code is today (2026-11-09, on main)
@@ -46,6 +54,7 @@ implements `dm_shell::app::platform::Platform`, subscribes to
 |---|---|---|
 | Domain and engine | All of dm-core: no GUI types (enforced) | — |
 | Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), `commands` (the registry: every command's name, label and keys, which apply to the rows chosen, and the commands that are the application's alone), `names` (what a row is called and where its file will go), `import`, `files` (extraction, a ZIP's files, a file's digest), `lookups` (what a server says of a file, a page's links, a video page's qualities, a playlist), `update` (the update check and the site rules), `events` (typed download events for any number of subscribers), and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); dm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, the egui-only control methods (`ui.*`, and `command.run`'s commands that open a dialog or change the view) |
+| The desktop program, not drawn | dm-desktop-base (2026-11-10, branch `gpui-migration`, `docs/gaps.md` G2) | — |
 | Presentation | dm-desktop | — |
 
 Steps 1 to 16 of [audit.md](audit.md) section 7 are done, each held to
