@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Inside, no change to what a person sees: the control port's window methods (`ui.*`, what `human-qa.py` and the MCP tools use) are a contract with fixed answers that any window can implement (GPUI migration step A4).
 - Inside, no change to what a person sees: the rules the window still kept (the questions a download raises, renames, once-only schedule dates, saved searches' timing, the weekly update check's stamp, one-time hints, the script guard, adding and Undo's bookkeeping, and more) are the application layer's, each with a test of its own (GPUI migration step A3).
 - Inside, no change to what a person sees: what the desktop program does that is not drawing (the system's services, the login item, the control port, MCP, the command line, the words and numbers, and the application's `Platform`) is a crate of its own, `dm-desktop-base`, with no window toolkit, so a second window can use it (GPUI migration step A2); the translations moved with it to `desktop/crates/dm-desktop-base/i18n`.
 - Inside, no change to what a person sees: the architecture documents and the code agree again (GPUI migration step A1): the window takes the queue's change flag through `dm_shell::app::changes`, the documents give the tick in the order it runs and say which rules are still the window's, and stale comments are corrected.

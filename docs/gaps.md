@@ -14,7 +14,7 @@ and how it closes; when it closes, its row is deleted (what was done is in
 ## State (2026-11-09)
 
 The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
-can be done here; G4 and G5 come first and need no decision (G1 to G3 closed 2026-11-10). The other rows need a Windows
+can be done here; G5 comes first and needs no decision (G1 to G4 closed 2026-11-10). The other rows need a Windows
 computer, a device or a person.
 Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
@@ -39,7 +39,6 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
-| G4  | GPUI migration, A4: the control port's `ui.*` answers (what `human-qa.py` and MCP read) are written against egui's painted shapes, not as a contract another window can implement | OPEN | A toolkit-free trait and JSON shapes fixed by tests in the shared crate, implemented by the egui window; `human-qa.py` unchanged and 64/64 |
 | G5  | GPUI migration, A5: no baseline of the egui window's own costs at 100 / 1,000 / 10,000 rows (start to first frame, idle CPU, memory, frame time with 20 downloads, scroll and search) | OPEN | A script that measures through the control port only, its egui numbers recorded in `docs/migration/GPUI_TEST_PLAN.md` |
 | G6  | GPUI migration, Phase B: no GPUI shell yet to decide go or no-go (screen readers in every dialog window first; software rendering under Xvfb and GPU-less Windows; B42 placement; tray; drag and drop; IME; size) | OPEN | `desktop/crates/dm-gpui` on the proposed pin, each check of `docs/migration/GPUI_MIGRATION_PLAN.md` Phase B pass or fail on macOS, Windows, X11 and Wayland; the maintainer's D1 (go) and D2 (pin) |
 | G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | BLOCKED: D1 | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
@@ -114,16 +113,14 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   (`links::looks_like_page` and the rest), `names::category_folder`, `rules::replacing`. Left in
   the window by decision (`docs/decisions.md`, 2026-11-10): `apply_settings`' words and view
   updates, the sounds and notifications' words, dialogs' drafts. Both QA runs 64/64 at 0b0a699.
-- **G4, `ui.*` as a contract: next.** The methods are `ui.texts`, `ui.click`, `ui.type`,
-  `ui.key`, `ui.scroll`, `ui.inspect`, `ui.select`, `ui.place`, `ui.windows`, `ui.window`,
-  `ui.move_window`, `ui.screenshot`, `ui.accessibility`, plus `commands.list` and
-  `command.run` (implemented in `dm-desktop/src/app/human.rs`, `app/control.rs`,
-  `dialogs/apart.rs`; shapes in `CURRENT_UI_ARCHITECTURE.md` 5.2). Recommended: a trait
-  `WindowProbe` in `dm-desktop-base` with one method per `ui.*`, request and answer as serde
-  types whose JSON is fixed by tests written from what `scripts/human-qa.py` and `mcp.rs` read
-  today; dm-desktop implements it; the control server dispatches to it. `human-qa.py` must
-  not change.
-- **G5, egui's own costs: after G4 (can run beside G3).** Recommended: `scripts/ui-bench.py`,
+- **G4, `ui.*` as a contract: done** (2026-11-10). `dm_desktop_base::probe`: typed requests and
+  answers for every `ui.*` method and `commands.list`/`command.run`, the `WindowProbe` trait, and
+  `probe::input`/`probe::view` (the two doors; a batch reaches `view` only); nine tests fix the
+  JSON. The egui window implements it (`app/human.rs`'s `Probe`); `ui.screenshot` stays in
+  `answer_control` (its answer comes when the frame's pixels do). `human-qa.py` unchanged, both QA
+  runs 64/64 at 7cf34db.
+- **G5, egui's own costs: in progress.** `scripts/ui-bench.py` written (2026-11-10); its egui
+  run on a release build is next. As planned: `scripts/ui-bench.py`,
   using only the control port (so it measures a GPUI window the same way): a home seeded
   with 100, 1,000 and 10,000 rows (as `stress-check.py window` seeds them), then start to
   first `ui.texts` answer, idle CPU over 60 s (`ps`), memory (`memory-check.py`'s sampling),

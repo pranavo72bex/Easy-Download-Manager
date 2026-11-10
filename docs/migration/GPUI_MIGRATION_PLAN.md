@@ -2,7 +2,8 @@
 
 Status: **Phase 0 (audit) done, 2026-11-09, on branch `gpui-migration`. Phase A
 under way: A1 (docs and code agree), A2 (a toolkit-free crate, `dm-desktop-base`) and A3
-(rules into `dm_shell::app`) done 2026-11-10; A4 (`ui.*` as a contract) next.**
+(rules into `dm_shell::app`) and A4 (`ui.*` as a contract) done 2026-11-10; A5 (egui's
+baseline) next.**
 
 This page turns the specification the maintainer gave on 2026-11-09 ("egui → GPUI
 Migration") into steps on this repository. It rests on four audit documents:
