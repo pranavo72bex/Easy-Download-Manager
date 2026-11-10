@@ -195,8 +195,10 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   buttons never move) and "Start outside the schedule?" (Resume or Start now on downloads the
   schedule or the download limit holds) are sheets, with dm's words for both windows
   (`asks::exit`, `asks::outside`, `dm_desktop_base::held`). Slice 4 still owes, in the GPUI
-  window: B02's video Quality and Part, the Playlist window, a ZIP's files, and a caught
-  download's "From …" and "Always save here without asking"; and for `human-qa.py`, a way for
+  window: B02's video Quality and Part, a ZIP's files, and a caught download's "From …" and
+  "Always save here without asking" (the Playlist window is done: a YouTube playlist read by dm,
+  each video ticked, Select all, one Video quality, what it adds dm's for both windows,
+  `file_info::playlist_adds`); and for `human-qa.py`, a way for
   the port to choose in a pop-up (the system's menu is modal, so a click on one waits for a
   person). Then
   (`changes::subscribe`

@@ -734,13 +734,7 @@ pub const THEMES: [(&str, &str); 4] = [
 ];
 
 /// Options › Downloads' video qualities: the setting's word, and its name.
-pub const QUALITIES: [(&str, &str); 5] = [
-    ("best", "Best available"),
-    ("1080", "Up to 1080p"),
-    ("720", "Up to 720p"),
-    ("480", "Up to 480p"),
-    ("audio", "Audio only"),
-];
+pub use dm_desktop_base::file_info::QUALITIES;
 
 /// The Options dialog: a draft of the settings, edited until OK.
 pub struct OptionsDialog {

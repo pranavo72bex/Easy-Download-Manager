@@ -43,13 +43,7 @@ pub(super) fn playlist(app: &mut DmApp, ctx: &egui::Context) {
             Some(Ok(list)) => {
                 ui.label(RichText::new(&list.title).strong());
                 let n = list.entries.len();
-                let mut words = crate::i18n::tn("{} video||{} videos", n as u64, &[&n]);
-                if list.cut_short {
-                    words = format!(
-                        "{words} · {}",
-                        tf("Only the first {} videos are listed.", &[&n])
-                    );
-                }
+                let words = dm_desktop_base::file_info::playlist_count_words(list);
                 kept_line(ui, RichText::new(words).weak());
                 ui.horizontal(|ui| {
                     let mut all = d.picked.iter().all(|p| *p);
@@ -87,13 +81,8 @@ pub(super) fn playlist(app: &mut DmApp, ctx: &egui::Context) {
                                 let Some(entry) = list.entries.get(i) else {
                                     continue;
                                 };
-                                let mut words = format!("{}. {}", i + 1, entry.title);
-                                if let Some(seconds) = entry.seconds {
-                                    words = format!(
-                                        "{words} · {}",
-                                        dm_core::Span::clock(seconds as f64)
-                                    );
-                                }
+                                let words =
+                                    dm_desktop_base::file_info::playlist_entry_words(i, entry);
                                 if let Some(picked) = d.picked.get_mut(i) {
                                     ui.checkbox(picked, words);
                                 }
@@ -130,27 +119,16 @@ pub(super) fn playlist(app: &mut DmApp, ctx: &egui::Context) {
     let Some(Ok(list)) = read else {
         return;
     };
-    let urls: Vec<String> = list
-        .entries
-        .iter()
-        .zip(&d.picked)
-        .filter(|(_, picked)| **picked)
-        .map(|(entry, _)| entry.url())
-        .collect();
-    if urls.is_empty() {
-        d.says = t("Pick at least one video.").to_string();
-        return;
-    }
-    let with = AddOptions {
-        later,
-        queue: if later {
-            MAIN_QUEUE.into()
-        } else {
-            String::new()
-        },
-        quality: Some(d.quality.clone()).filter(|q| !q.is_empty()),
-        referrer: d.url.clone(),
-        ..AddOptions::default()
+    // What it adds is dm's (`dm_desktop_base::file_info::playlist_adds`),
+    // as every window's.
+    let (urls, with) = match dm_desktop_base::file_info::playlist_adds(
+        &list, &d.picked, &d.quality, &d.url, later,
+    ) {
+        Ok(adds) => adds,
+        Err(words) => {
+            d.says = words.to_string();
+            return;
+        }
     };
     match app.add(&urls, with) {
         Ok(n) => {

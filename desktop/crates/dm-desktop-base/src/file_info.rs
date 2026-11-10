@@ -360,6 +360,75 @@ pub fn clock(seconds: u64) -> String {
     }
 }
 
+/// The video qualities a person picks from (Options, Playlist): the
+/// setting's word, and its words in English.
+pub const QUALITIES: [(&str, &str); 5] = [
+    ("best", "Best available"),
+    ("1080", "Up to 1080p"),
+    ("720", "Up to 720p"),
+    ("480", "Up to 480p"),
+    ("audio", "Audio only"),
+];
+
+/// What the Playlist dialog adds: the ticked videos' addresses, at
+/// `quality`, the playlist's page `page` their Referer, now or for `later`
+/// (to the Main queue); none ticked is said.
+pub fn playlist_adds(
+    list: &dm_core::youtube::Playlist,
+    picked: &[bool],
+    quality: &str,
+    page: &str,
+    later: bool,
+) -> Result<(Vec<String>, AddOptions), &'static str> {
+    let urls: Vec<String> = list
+        .entries
+        .iter()
+        .zip(picked)
+        .filter(|(_, picked)| **picked)
+        .map(|(entry, _)| entry.url())
+        .collect();
+    if urls.is_empty() {
+        return Err(t("Pick at least one video."));
+    }
+    let with = AddOptions {
+        later,
+        queue: if later {
+            dm_core::MAIN_QUEUE.into()
+        } else {
+            String::new()
+        },
+        quality: Some(quality.to_string()).filter(|q| !q.is_empty()),
+        referrer: page.to_string(),
+        ..AddOptions::default()
+    };
+    Ok((urls, with))
+}
+
+/// How many videos a playlist lists ("12 videos"), and that only the
+/// first are, where the list went on past what was read.
+pub fn playlist_count_words(list: &dm_core::youtube::Playlist) -> String {
+    let n = list.entries.len();
+    let words = crate::i18n::tn("{} video||{} videos", n as u64, &[&n]);
+    if list.cut_short {
+        format!(
+            "{words} · {}",
+            tf("Only the first {} videos are listed.", &[&n])
+        )
+    } else {
+        words
+    }
+}
+
+/// A video's line in the Playlist dialog: its number, its title and how
+/// long it plays ("3. Intro · 4:05").
+pub fn playlist_entry_words(index: usize, entry: &dm_core::youtube::PlaylistEntry) -> String {
+    let words = format!("{}. {}", index + 1, entry.title);
+    match entry.seconds {
+        Some(seconds) => format!("{words} · {}", dm_core::Span::clock(seconds as f64)),
+        None => words,
+    }
+}
+
 /// "Not available: …" for what the server said of the address, where it
 /// said something was wrong.
 pub fn problem_words(why: &str) -> String {
@@ -434,5 +503,57 @@ mod choice_tests {
             chip_words(&choice("hls", "Live stream", None)),
             "Live stream"
         );
+    }
+}
+
+#[cfg(test)]
+mod playlist_tests {
+    use super::*;
+    use dm_core::youtube::{Playlist, PlaylistEntry};
+
+    fn list() -> Playlist {
+        let entry = |id: &str, title: &str, seconds| PlaylistEntry {
+            id: id.into(),
+            title: title.into(),
+            seconds,
+            page: None,
+        };
+        Playlist {
+            id: "PL1".into(),
+            title: "Talks".into(),
+            entries: vec![entry("a1", "Intro", Some(245)), entry("b2", "Outro", None)],
+            cut_short: false,
+        }
+    }
+
+    #[test]
+    fn the_ticked_videos_are_added_at_the_quality_with_the_page_as_referer() {
+        let list = list();
+        let (urls, with) =
+            playlist_adds(&list, &[false, true], "720", "https://p/l", true).unwrap();
+        assert_eq!(urls, vec![list.entries[1].url()]);
+        assert!(with.later);
+        assert_eq!(with.queue, dm_core::MAIN_QUEUE);
+        assert_eq!(with.quality.as_deref(), Some("720"));
+        assert_eq!(with.referrer, "https://p/l");
+        let (_, now) = playlist_adds(&list, &[true, true], "", "p", false).unwrap();
+        assert_eq!((now.queue.as_str(), now.quality), ("", None));
+        assert_eq!(
+            playlist_adds(&list, &[false, false], "best", "p", false).unwrap_err(),
+            "Pick at least one video."
+        );
+    }
+
+    #[test]
+    fn a_playlist_says_how_many_and_each_video_its_number_and_length() {
+        let mut list = list();
+        assert_eq!(playlist_count_words(&list), "2 videos");
+        list.cut_short = true;
+        assert_eq!(
+            playlist_count_words(&list),
+            "2 videos · Only the first 2 videos are listed."
+        );
+        assert_eq!(playlist_entry_words(0, &list.entries[0]), "1. Intro · 4:05");
+        assert_eq!(playlist_entry_words(1, &list.entries[1]), "2. Outro");
     }
 }

@@ -146,7 +146,7 @@ pub fn label_width(labels: &[&str]) -> f32 {
 /// A check box and its words, as the system draws one: ticked, in the
 /// accent colour with a white check mark.
 pub fn checkbox(
-    id: &'static str,
+    id: impl Into<gpui::ElementId>,
     words: SharedString,
     ticked: bool,
     theme: Theme,

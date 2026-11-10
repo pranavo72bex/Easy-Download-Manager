@@ -445,13 +445,9 @@ impl Downloads {
             Next::Details(addresses) => crate::details::open(me, addresses, cx),
             Next::Duplicate { address, id } => self.ask_duplicate(address, id, cx),
             Next::Answered { address, id, how } => self.answer_duplicate(address, id, how, cx),
-            // The Playlist window is still the egui window's (docs/gaps.md,
-            // G7): said rather than nothing happening.
-            Next::Playlist(address) => self.say(format!(
-                "{} {}",
-                dm_desktop_base::i18n::t("Playlist"),
-                dm_desktop_base::format::shown_url(&address)
-            )),
+            // A playlist is its videos, each a download: listed to be
+            // ticked.
+            Next::Playlist(address) => crate::playlist::open(me, address, None, cx),
         }
         cx.notify();
     }
