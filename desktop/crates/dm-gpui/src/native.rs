@@ -75,7 +75,7 @@ pub fn button(
         .rounded(px(RADIUS))
         .text_size(px(TEXT))
         .whitespace_nowrap()
-        .when(default, |b| b.bg(theme.accent).text_color(gpui::white()))
+        .when(default, |b| b.bg(theme.accent).text_color(theme.on_accent))
         .when(!default, |b| {
             b.bg(theme.control)
                 .border_1()
@@ -226,7 +226,7 @@ pub fn tick_box(ticked: bool, theme: Theme) -> Div {
         .when(ticked, |b| {
             b.bg(theme.accent)
                 .border_color(theme.accent)
-                .text_color(gpui::white())
+                .text_color(theme.on_accent)
                 .child("✓")
         })
 }
@@ -294,7 +294,7 @@ pub fn radio(
                 .when(on, |b| {
                     b.bg(theme.accent)
                         .border_color(theme.accent)
-                        .child(div().size(px(6.0)).rounded_full().bg(gpui::white()))
+                        .child(div().size(px(6.0)).rounded_full().bg(theme.on_accent))
                 }),
         )
         .child(screen.label(words))

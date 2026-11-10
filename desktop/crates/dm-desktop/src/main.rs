@@ -296,11 +296,7 @@ fn main() {
         dm_desktop::i18n::set(dm_desktop::i18n::chosen(&language));
         let built = start_tray(ctx.clone(), send);
         if let Err(why) = &built {
-            backend.note(format!(
-                "the tray icon could not be shown ({}); until it can, closing this window \
-                 quits dm rather than keeping it downloading in the background.",
-                why.lines().next().unwrap_or("").trim()
-            ));
+            backend.note(dm_desktop_base::tray::unavailable(why));
         }
         // An installed dm tells the browsers where it is, so the
         // extension works without a terminal. Not a development build

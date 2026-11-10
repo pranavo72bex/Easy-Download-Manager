@@ -3,6 +3,41 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: Each system's own colours, and one way in for what is dropped
+
+At the maintainer's words of 2026-11-10 ("even Windows and Linux should look native on their
+platform"; "make the overall architecture scalable, maintainable and easy to follow"):
+
+- The GPUI window's palette is each system's own (`theme.rs`): macOS's AppKit colours as before,
+  Windows 11's Fluent ones (Mica's grey, the list on the layer above it, the default blue accent,
+  black text at 89%; in dark, the light-blue accent with black on it) and GNOME's libadwaita
+  ones on Linux. `on_accent` names what is drawn on the accent, which is not white everywhere.
+  A test holds every palette, light and dark, to readable contrast (text 7:1, the rest 3:1).
+- What is dropped on a window waits in one place for both windows, `dm_desktop_base::drops`, and
+  Windows' OLE drop target (a browser's link as well as files) moved there out of the egui crate,
+  with its tests: the GPUI window puts it on each of its windows on Windows, and its macOS drag
+  methods feed the same queue.
+- What is said when the system makes no tray icon is one sentence for both windows
+  (`dm_desktop_base::tray::unavailable`): the GPUI window said the toolkit's error alone.
+- `human-qa.py` brings dm's window in front before Add URL, as a person does: behind the browser,
+  the egui window drew no frames, and its clicks waited for one (B10 and B63 failed so).
+
+## 2026-11-10: On macOS dm ships the GPUI window (G9 for macOS)
+
+D5 recommended switching the default window once release packages held 64 of 64 on all three
+systems. The maintainer's later words of 2026-11-10 ("first migrate on macos, all steps, then we
+will move for linux"; "complete the migration") take every step on macOS first, so on macOS the
+GPUI window is now the one built and shipped: `make app`, `make build-macos` and `make run` build
+dm-gpui there (`WINDOW` in the Makefile), the release workflow's macOS job packages and
+smoke-tests it (`matrix.crate`), and `human-qa.py` and `app-check.py` drive it by default. It
+was proved first from its own release .dmg: `smoke.py`, and `human-qa.py` 64 of 64. Linux and
+Windows keep the egui window until theirs hold the contract in GPUI, and egui is removed only
+then, in a change of its own. Nothing reaches `main` before the full gate (Windows' and Linux's
+runs included). An installed dm's browser registrations and login item name the old binary,
+`dm.app/Contents/MacOS/dm-desktop`; the new one re-points both at its first start (the browsers'
+manifests as they go stale, `register::ensure_if_claimed`; a login item whose program is gone,
+`autostart::takes_over`). `make app-egui` still builds the egui bundle for comparing.
+
 ## 2026-11-10: The GPUI window on Windows and Linux: its title bar, the tray, the port
 
 At the maintainer's word of 2026-11-10 ("make coding part of migration of windows and linux

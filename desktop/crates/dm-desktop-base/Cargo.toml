@@ -66,6 +66,17 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Console",
   # The login item's Run key, read as UTF-16 (autostart.rs).
   "Win32_Foundation",
+  # dm's own drop target, for a link dragged from a browser (drops.rs):
+  # OLE and its data objects (STGMEDIUM is behind Gdi as well), the
+  # clipboard formats, global memory and dropped files' paths.
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_SystemServices",
+  "Win32_UI_Shell",
   "Win32_System_Registry",
   # Sleep and hibernate (power.rs), and keeping the computer awake
   # (awake.rs).

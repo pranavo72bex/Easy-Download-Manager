@@ -20,7 +20,7 @@ The run fails if any row of the contract was not checked, so the list is
 gone through whole every time; a row the script cannot reach on this
 computer (no Edge, no network) is a failure, not a skip.
 
-Needs a debug build (`cd desktop && cargo build -p dm-desktop`), the
+Needs a debug build (`cd desktop && cargo build -p dm-gpui` on macOS, `-p dm-desktop` elsewhere), the
 extension (`sh scripts/package.sh`) and Microsoft Edge. DM_BINARY and
 DM_QA_EDGE name others. The download folder and dm's home are made under
 /tmp/dm-human-qa and removed at the end. Standard library only.
@@ -38,7 +38,9 @@ BASELINE = ROOT / "docs" / "behaviour-baseline"
 # One set of pictures for each system whose fonts and window frames differ: the
 # set for this one where there is one, else the first.
 BASELINE_SET = {"win32": BASELINE / "windows", "linux": BASELINE / "linux"}.get(sys.platform, BASELINE)
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
+# The window dm ships here: GPUI on macOS (docs/gaps.md G9), egui elsewhere.
+SHIPPED = "dm-gpui" if sys.platform == "darwin" else "dm-desktop"
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug" / SHIPPED)
 # The GPUI window (docs/gaps.md G7) has pictures of its own, beside the egui
 # window's, until it is the window dm ships (D3, D5).
 if BINARY.name.startswith("dm-gpui"):
@@ -510,6 +512,10 @@ class Dm:
             return target
 
     def open_add_url(self):
+        # In front first, as a person brings it before adding a link: a
+        # window behind the browser draws no frames on macOS, and the egui
+        # window's clicks and keys wait for one (B10 and B63, 2026-11-10).
+        self.call("ui.window", to="shown")
         self.click("Add URL")
         for _ in range(40):
             if "Add URL" in self.dialogs():
@@ -1510,7 +1516,7 @@ def new_install(origin):
 
 def main():
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p dm-desktop")
+        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
     rows = re.findall(r"^\| (B\d\d) \|", CONTRACT.read_text(), re.M)
     shutil.rmtree(WORK, ignore_errors=True)
     home = WORK / "home"

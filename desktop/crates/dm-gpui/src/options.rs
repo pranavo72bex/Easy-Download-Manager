@@ -416,7 +416,7 @@ impl Render for Options {
                 .flex()
                 .items_center()
                 .rounded(px(native::RADIUS - 1.0))
-                .when(on, |d| d.bg(theme.accent).text_color(gpui::white()))
+                .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
                 .child(screen.label(t(words)))
                 .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
         });

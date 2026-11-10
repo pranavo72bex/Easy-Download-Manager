@@ -251,8 +251,7 @@ impl Downloads {
         match Tray::new(asked) {
             Ok(tray) => self.tray = Some(tray),
             Err(e) => {
-                self.problems
-                    .push(format!("the tray icon could not be made: {e}"));
+                self.problems.push(dm_desktop_base::tray::unavailable(&e));
                 return;
             }
         }

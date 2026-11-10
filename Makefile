@@ -39,6 +39,14 @@ SHELL := /bin/sh
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 UNAME := $(shell uname -s)
+# The window dm ships: GPUI on macOS (docs/gaps.md G9, macOS first at the
+# maintainer's word of 2026-11-10), egui elsewhere until Linux and Windows
+# hold the contract in GPUI too.
+ifeq ($(UNAME),Darwin)
+WINDOW := dm-gpui
+else
+WINDOW := dm-desktop
+endif
 VERSION := $(shell sed -n 's/.*"version": "\([^"]*\)".*/\1/p' extension/manifest.json | head -1)
 
 # Where the client goes. Override for a system-wide install:
@@ -97,7 +105,7 @@ DIM  := $(shell test -t 1 && tput dim 2>/dev/null)
 OFF  := $(shell test -t 1 && tput sgr0 2>/dev/null)
 
 .PHONY: help install client extension register unregister uninstall test doctor app clean \
-        run run-release build build-macos build-linux build-windows build-extension app-gpui \
+        run run-release build build-macos build-linux build-windows build-extension app-egui \
         devices analyze format qa qa-docker
 
 help:
@@ -211,7 +219,7 @@ endif
 app:
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
+	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
 	@echo
 	@echo "built desktop/target/release/bundle/"
 ifeq ($(UNAME),Darwin)
@@ -221,15 +229,15 @@ ifeq ($(UNAME),Darwin)
 	@echo "$(DIM)unsigned, so the first launch is right-click → Open$(OFF)"
 endif
 
-# The macOS bundle with the GPUI window (docs/gaps.md G8), built beside the
-# egui window's into desktop/target/release/bundle-gpui/, not installed:
-# GPUI is not yet the window dm ships (Phase E).
-app-gpui:
+# The macOS bundle with the egui window, which dm shipped on macOS until the
+# GPUI window held the contract (docs/gaps.md G9), for comparing the two;
+# built into the same place as `make app`'s, not installed.
+app-egui:
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/dm-gpui && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
+	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
 	@echo
-	@echo "built desktop/target/release/bundle-gpui/"
+	@echo "built desktop/target/release/bundle/"
 
 # -------------------------------------------------------------- extension
 
@@ -258,7 +266,7 @@ extension:
 # refuses such a path rather than write a manifest that cannot work).
 # EXT_ID adds a store build's id; the unpacked Chrome build and Firefox's
 # need none.
-REGISTRAR = $(firstword $(wildcard $(BINDIR)/dm $(APPDIR)/dm.app/Contents/MacOS/dm-desktop) $(BINARY))
+REGISTRAR = $(firstword $(wildcard $(BINDIR)/dm $(APPDIR)/dm.app/Contents/MacOS/dm-gpui $(APPDIR)/dm.app/Contents/MacOS/dm-desktop) $(BINARY))
 
 register:
 	@test -x "$(REGISTRAR)" || { \
@@ -312,10 +320,10 @@ endif
 # Like `flutter run`: build what changed and start the real program, its
 # window and all, from this checkout. Quit it as usual; ARGS go to dm.
 run:
-	@cd desktop && cargo run -p dm-desktop -- $(ARGS)
+	@cd desktop && cargo run -p $(WINDOW) -- $(ARGS)
 
 run-release:
-	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo run --release -p dm-desktop -- $(ARGS)
+	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo run --release -p $(WINDOW) -- $(ARGS)
 
 # Like `flutter build` with no platform named: everything this computer can
 # build, each into build/<platform>/, and a list of what was made. A platform
@@ -347,7 +355,7 @@ endif
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
-	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats app,dmg
+	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats app,dmg
 	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
 	@cp -R desktop/target/release/bundle/dm.app $(BUILD)/macos/
 	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/

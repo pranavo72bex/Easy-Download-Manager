@@ -163,11 +163,7 @@ impl Render for DropTarget {
                         gpui::svg()
                             .path("icons/drop.svg")
                             .size(px(20.0))
-                            .text_color(if over {
-                                gpui::white().into()
-                            } else {
-                                theme.accent
-                            }),
+                            .text_color(if over { theme.on_accent } else { theme.accent }),
                     )
                     .when_some(fraction, |d, f| {
                         let inner = SIDE - 6.0 - 12.0;

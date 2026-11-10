@@ -6,13 +6,16 @@
 //! What is dropped on dm's windows, taken as the egui window takes it: a
 //! link dragged from a browser (an address, not a file), and files (a
 //! `.torrent` is itself the download; a `.url`, `.webloc` or text file of
-//! links is read for them: `dm_shell::app::links::links_at`). GPUI's macOS
-//! window takes only dragged files, so its drag methods are given dm's own,
-//! which take a link off the drag's pasteboard and pass every file drag on
-//! to GPUI's unchanged, as the egui window does with winit's.
+//! links is read for them: `dm_shell::app::links::links_at`). GPUI's windows
+//! take only dragged files, so: on macOS their drag methods are given dm's
+//! own, which take a link off the drag's pasteboard and pass every file
+//! drag on to GPUI's unchanged, as the egui window does with winit's; on
+//! Windows dm's OLE drop target takes GPUI's place on the window and takes
+//! both (`dm_desktop_base::drops::win`, the egui window's too). Either way
+//! what arrives waits in `dm_desktop_base::drops` for the window's next
+//! look; on Linux GPUI's own drop takes the files.
 
-use std::sync::Mutex;
-
+use dm_desktop_base::drops::Dropped;
 use dm_desktop_base::i18n::t;
 use gpui::Context;
 
@@ -21,13 +24,10 @@ use crate::list::Downloads;
 /// What a drop with no link in it is answered with.
 const DROP_HINT: &str = "Drop a link, .torrent, .url, .webloc or text file of links here.";
 
-/// Links dragged in from a browser, waiting for the window to take them.
-static ARRIVED: Mutex<Vec<String>> = Mutex::new(Vec::new());
-
 /// A link's text taken off a drag, for the window's next look.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg(target_os = "macos")]
 fn arrived(text: String) {
-    dm_core::lock(&ARRIVED).push(text);
+    dm_desktop_base::drops::arrived(Dropped::Text(text));
 }
 
 impl Downloads {
@@ -41,16 +41,25 @@ impl Downloads {
         self.add_dropped(links, cx);
     }
 
-    /// Links dragged in from a browser since the last look, added.
+    /// What dm's own drop targets took since the last look (a browser's
+    /// links, and on Windows files too), added.
     pub(crate) fn take_dropped_links(&mut self, cx: &mut Context<Self>) {
-        let texts = std::mem::take(&mut *dm_core::lock(&ARRIVED));
-        if texts.is_empty() {
+        let dropped = dm_desktop_base::drops::take();
+        if dropped.is_empty() {
             return;
         }
-        let links: Vec<String> = texts
-            .iter()
-            .flat_map(|text| dm_shell::app::links::links_in(text))
-            .collect();
+        let (mut links, mut files) = (Vec::new(), Vec::new());
+        for what in dropped {
+            match what {
+                Dropped::Text(text) => links.extend(dm_shell::app::links::links_in(&text)),
+                Dropped::File(path) => files.push(path),
+            }
+        }
+        links.extend(
+            files
+                .iter()
+                .flat_map(|path| dm_shell::app::links::links_at(path, || std::fs::read(path).ok())),
+        );
         self.add_dropped(links, cx);
     }
 
@@ -74,9 +83,20 @@ pub fn take_links(window: &gpui::Window) {
     mac::install(window);
 }
 
-/// Elsewhere GPUI's own drop takes files; a browser's link waits for the
-/// Linux and Windows work, done on their own computers.
-#[cfg(not(target_os = "macos"))]
+/// On Windows dm's OLE drop target takes GPUI's place on `window`.
+#[cfg(windows)]
+pub fn take_links(window: &gpui::Window) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    if let Ok(handle) = HasWindowHandle::window_handle(window) {
+        if let RawWindowHandle::Win32(win32) = handle.as_raw() {
+            dm_desktop_base::drops::win::install(win32.hwnd.get());
+        }
+    }
+}
+
+/// On Linux GPUI's own drop takes files (X11's and Wayland's offer of a
+/// browser's link is not yet taken).
+#[cfg(all(not(target_os = "macos"), not(windows)))]
 pub fn take_links(_: &gpui::Window) {}
 
 #[cfg(target_os = "macos")]
@@ -381,8 +401,15 @@ mod tests {
         unsafe { super::mac::perform_for_test(std::ptr::null_mut(), sel, sender) }
     }
 
+    /// The texts dropped since the last call.
     fn take() -> Vec<String> {
-        std::mem::take(&mut *dm_core::lock(&super::ARRIVED))
+        dm_desktop_base::drops::take()
+            .into_iter()
+            .filter_map(|what| match what {
+                super::Dropped::Text(text) => Some(text),
+                super::Dropped::File(_) => None,
+            })
+            .collect()
     }
 
     #[test]

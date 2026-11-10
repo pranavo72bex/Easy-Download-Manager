@@ -416,7 +416,7 @@ then run:
   comes back before dm has finished and what it says lands after it;
   `echo %errorlevel%` then shows 0 for success. dm's uninstaller also runs
   this before it removes the files.
-- **Mac:** `/Applications/dm.app/Contents/MacOS/dm-desktop --unregister`
+- **Mac:** `/Applications/dm.app/Contents/MacOS/dm-gpui --unregister` (`dm-desktop` in an older dm)
 - **Ubuntu / Debian (.deb):** `dm-desktop --unregister`
 - **Fedora / openSUSE / Arch:** `dm --unregister`
 - **AppImage:** `/path/to/dm.AppImage --unregister`

@@ -181,18 +181,23 @@ jobs:
             os: ubuntu-22.04
             formats: deb,appimage
             artifact: linux-x86_64
+            crate: dm-desktop
           - name: Linux arm64 (deb, AppImage, rpm)
             os: ubuntu-22.04-arm
             formats: deb,appimage
             artifact: linux-arm64
+            crate: dm-desktop
           - name: Windows (NSIS installer)
             os: windows-latest
             formats: nsis
             artifact: windows
+            crate: dm-desktop
           - name: macOS (app, dmg)
             os: macos-latest
             formats: app,dmg
             artifact: macos
+            # The GPUI window on macOS (docs/gaps.md G9).
+            crate: dm-gpui
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -218,7 +223,7 @@ jobs:
       # CI is set on every runner, which is what tells the .dmg step to skip
       # the Finder AppleScript a headless machine cannot run.
       - name: Build the installers
-        working-directory: desktop/crates/dm-desktop
+        working-directory: desktop/crates/${{ matrix.crate }}
         # Apple: a Developer ID certificate and an app-specific password, from
         # the repository's Actions secrets. Absent, the macOS build is
         # unsigned and Gatekeeper refuses it until someone right-clicks and
@@ -254,7 +259,7 @@ jobs:
         working-directory: desktop
         shell: bash
         run: |
-          found=$(strings target/release/dm-desktop | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
+          found=$(strings target/release/${{ matrix.crate }} | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
           echo "paths of this runner in the binary: $found"
           test "$found" = 0
 
@@ -425,7 +430,7 @@ jobs:
           hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dm" "$dmg"
           cp -R "$RUNNER_TEMP/dm/dm.app" "$RUNNER_TEMP/"
           hdiutil detach "$RUNNER_TEMP/dm"
-          python3 scripts/smoke.py "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-desktop"
+          python3 scripts/smoke.py "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-gpui"
           rm -rf "$RUNNER_TEMP/dm.app"
 
   extension:

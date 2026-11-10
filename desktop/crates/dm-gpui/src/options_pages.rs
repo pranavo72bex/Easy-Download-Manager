@@ -1133,7 +1133,7 @@ fn downloads(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Contex
             .items_center()
             .rounded(px(native::RADIUS))
             .text_size(px(native::SMALL_TEXT))
-            .when(on, |d| d.bg(theme.accent).text_color(gpui::white()))
+            .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
             .when(!on, |d| d.bg(theme.control))
             .child(screen.label(t(words)))
             .on_click(cx.listener(move |o, _, _, cx| {

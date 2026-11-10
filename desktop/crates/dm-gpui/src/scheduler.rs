@@ -180,7 +180,7 @@ impl Render for Scheduler {
                     .flex()
                     .items_center()
                     .rounded(px(native::RADIUS))
-                    .when(chosen, |d| d.bg(theme.accent).text_color(gpui::white()))
+                    .when(chosen, |d| d.bg(theme.accent).text_color(theme.on_accent))
                     .when(!chosen, |d| d.hover(|s| s.bg(theme.stripe)))
                     .child(screen.label(dm_desktop_base::i18n::name(queue)))
                     .on_click(

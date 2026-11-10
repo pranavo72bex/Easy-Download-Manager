@@ -223,6 +223,12 @@ fn main() {
         }
     };
 
+    // What dm's own drop targets take wakes the window to read it.
+    {
+        let wake = Arc::clone(&wake);
+        dm_desktop_base::drops::on_arrival(move || wake(Wake::Now));
+    }
+
     // The control port, where asked for (`--control`, DM_CONTROL, or the
     // person's setting), as the egui window opens it.
     let requests = control.and_then(|port| match port::open(port, Arc::clone(&wake)) {

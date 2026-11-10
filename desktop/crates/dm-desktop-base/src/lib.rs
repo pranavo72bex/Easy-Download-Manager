@@ -50,6 +50,7 @@ pub mod contrast;
 pub mod control;
 pub mod desktop;
 pub mod details;
+pub mod drops;
 pub mod file_info;
 pub mod find;
 pub mod format;

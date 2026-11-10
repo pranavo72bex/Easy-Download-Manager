@@ -45,6 +45,17 @@ pub fn activity(rows: &[Arc<Entry>]) -> Option<String> {
     ))
 }
 
+/// What is said when the system will make no tray icon (a Linux desktop
+/// with no StatusNotifier host, say), for every window alike: why, in its
+/// first line, and what follows from it.
+pub fn unavailable(why: &str) -> String {
+    format!(
+        "the tray icon could not be shown ({}); until it can, closing this window \
+         quits dm rather than keeping it downloading in the background.",
+        why.lines().next().unwrap_or("").trim()
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,5 +74,6 @@ mod tests {
         let said = activity(&[Arc::new(row)]).unwrap();
         assert!(said.starts_with("1 downloading at"), "{said}");
         assert_eq!(words().len(), 5);
+        assert!(unavailable("no host\nmore").contains("(no host);"));
     }
 }

@@ -26,7 +26,7 @@ description = "Multi-connection downloads that resume"
 longDescription = "dm splits a file across several connections, resumes what was interrupted, and takes over the downloads you start in a browser."
 category = "Utility"
 beforePackagingCommand = "cargo build --release -p dm-gpui"
-outDir = "../../target/release/bundle-gpui"
+outDir = "../../target/release/bundle"
 binaries = [{ path = "dm-gpui", main = true }]
 icons = [
   "../dm-desktop/icons/32x32.png",

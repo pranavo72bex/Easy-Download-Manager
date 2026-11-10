@@ -494,7 +494,7 @@ fn segment(
         .flex()
         .items_center()
         .rounded(px(native::RADIUS))
-        .when(on, |d| d.bg(theme.accent).text_color(gpui::white()))
+        .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
         .when(!on, |d| d.bg(theme.control))
         .child(screen.label(words))
 }
@@ -608,7 +608,7 @@ impl Render for Details {
                                 .flex_col()
                                 .items_center()
                                 .rounded(px(native::RADIUS))
-                                .when(on, |d| d.bg(theme.accent).text_color(gpui::white()))
+                                .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
                                 .when(!on, |d| d.bg(theme.control))
                                 .child(screen.label(top))
                                 .when_some(bottom, |d, b| {
