@@ -12,8 +12,8 @@ shown (the file name always stays), Customize toolbar the style (Icons and text,
 Text only, now drawn as chosen; `dm_desktop_base::toolbar`, moved out of the egui crate) and each
 button shown, Language each language with the one in force ticked, and Sort by the sort in force.
 A column is moved as a macOS table's are, by dragging its heading onto another (after it from the
-left, before it from the right); a toolbar button is not moved yet, and View › Text size is not in
-the GPUI window: GPUI has no zoom, and every size there is in points (gaps row G7).
+left, before it from the right), and a toolbar button the same way. View › Text size is not in the
+GPUI window: GPUI has no zoom, and every size there is in points (gaps row G7).
 
 ## 2026-11-10: `--headless` is a loop of its own in dm-desktop-base, with no GPUI
 

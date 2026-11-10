@@ -110,6 +110,21 @@ pub fn toolbar(
                 .id(command.id())
                 .role(Role::Button)
                 .aria_label(words)
+                // Dragged onto another button, it takes that one's place, as
+                // a column's heading does (View › Customize toolbar shows or
+                // hides each).
+                .on_drag(
+                    DraggedButton {
+                        command,
+                        words,
+                        theme,
+                    },
+                    |dragged, _, _, cx| cx.new(|_| dragged.clone()),
+                )
+                .drag_over::<DraggedButton>(move |style, _, _, _| style.bg(theme.stripe))
+                .on_drop(cx.listener(move |view, dragged: &DraggedButton, _, cx| {
+                    view.move_toolbar_button(dragged.command, command, cx)
+                }))
                 .flex()
                 .flex_col()
                 .items_center()
@@ -144,4 +159,56 @@ pub fn toolbar(
                 });
             div().flex().items_center().child(button).children(arrow)
         }))
+}
+
+/// A toolbar button being dragged to a new place: its word, under the
+/// pointer meanwhile.
+#[derive(Clone)]
+pub struct DraggedButton {
+    command: Command,
+    words: &'static str,
+    theme: Theme,
+}
+
+impl Render for DraggedButton {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .px_2()
+            .py(px(2.0))
+            .rounded(px(4.0))
+            .border_1()
+            .border_color(self.theme.separator)
+            .bg(self.theme.window)
+            .text_size(px(crate::native::SMALL_TEXT))
+            .text_color(self.theme.text)
+            .child(self.words)
+    }
+}
+
+impl Downloads {
+    /// A toolbar button dropped on another: it takes that one's place in the
+    /// person's order (hidden buttons keep theirs), kept in the settings.
+    pub(crate) fn move_toolbar_button(
+        &mut self,
+        moved: Command,
+        onto: Command,
+        cx: &mut Context<Self>,
+    ) {
+        if moved == onto {
+            return;
+        }
+        let mut wanted = self.backend.settings();
+        let order: Vec<Command> = dm_shell::app::commands::toolbar_in(&wanted.toolbar_order)
+            .into_iter()
+            .map(|(c, _)| c)
+            .collect();
+        let Some(order) = crate::table::moved_onto(order, moved, onto) else {
+            return;
+        };
+        wanted.toolbar_order = order.iter().map(|c| c.id().to_string()).collect();
+        if let Err(e) = self.apply_settings(wanted, cx) {
+            self.say(e);
+        }
+        cx.notify();
+    }
 }

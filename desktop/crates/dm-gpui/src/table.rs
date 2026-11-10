@@ -161,8 +161,9 @@ pub fn header(
 }
 
 /// `order` with `moved` in `onto`'s place: after it when it came from its
-/// left, before it from its right. `None` where either is not there.
-fn moved_onto(mut order: Vec<Column>, moved: Column, onto: Column) -> Option<Vec<Column>> {
+/// left, before it from its right. `None` where either is not there. For
+/// the columns' headings and the toolbar's buttons alike.
+pub(crate) fn moved_onto<T: PartialEq>(mut order: Vec<T>, moved: T, onto: T) -> Option<Vec<T>> {
     let from = order.iter().position(|c| *c == moved)?;
     order.remove(from);
     let to = order.iter().position(|c| *c == onto)?;

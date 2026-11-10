@@ -18,8 +18,9 @@ use crate::screen::Screen;
 use crate::theme::Theme;
 
 /// The menu's items, in groups, each with the words it shows (the egui row
-/// menu's own, where it says them differently from the command's title).
-fn groups() -> Vec<Vec<(Command, &'static str)>> {
+/// menu's own, where it says them differently from the command's title):
+/// Resume as `resume` says it for the rows chosen (Retry, Start now).
+fn groups(resume: &'static str) -> Vec<Vec<(Command, &'static str)>> {
     use Command as C;
     let title = |c: Command| t(c.label());
     vec![
@@ -34,7 +35,7 @@ fn groups() -> Vec<Vec<(Command, &'static str)>> {
             (C::Redownload, title(C::Redownload)),
         ],
         vec![
-            (C::DownloadNow, title(C::DownloadNow)),
+            (C::DownloadNow, t(resume)),
             (C::StopDownload, t("Stop download")),
             (C::UpdateLink, t("Update download link")),
             (C::CopyLink, t("Copy link")),
@@ -61,7 +62,8 @@ pub fn menu(
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
     let mut items = Vec::new();
-    for (g, group) in groups().into_iter().enumerate() {
+    let resume = dm_desktop_base::rows::resume_word(&view.chosen());
+    for (g, group) in groups(resume).into_iter().enumerate() {
         if g > 0 {
             items.push(
                 div()

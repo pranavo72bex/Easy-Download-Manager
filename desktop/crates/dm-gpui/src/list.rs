@@ -1046,6 +1046,7 @@ impl Downloads {
             toolbar_hidden: settings.toolbar_hidden.clone(),
             language: settings.language.clone(),
             sorted_by: self.sort.and_then(|(column, _)| sort_command(column)),
+            resume: dm_desktop_base::rows::resume_word(&self.chosen()),
         };
         if self.menu_ticks.as_ref() != Some(&ticks) {
             crate::menus::set(cx, &ticks);
@@ -2195,6 +2196,16 @@ pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
 
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Resume's words in the menu bar follow the rows chosen (Retry,
+        // Start now), however they were chosen: built again after this
+        // frame where they changed.
+        let resume = dm_desktop_base::rows::resume_word(&self.chosen());
+        if self.menu_ticks.as_ref().is_some_and(|t| t.resume != resume) {
+            let me = cx.entity().downgrade();
+            cx.defer(move |cx| {
+                let _ = me.update(cx, |this, cx| this.refresh_menus(cx));
+            });
+        }
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();

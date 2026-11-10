@@ -48,6 +48,9 @@ pub struct Ticks {
     pub language: String,
     /// The sort in force, as the command that sorts so (View › Sort by).
     pub sorted_by: Option<Command>,
+    /// Resume's words for the rows chosen, in English (Retry, Start now:
+    /// `rows::resume_word`); none for Resume's own.
+    pub resume: &'static str,
 }
 
 /// A command of dm's, as a menu item or a key runs it.
@@ -383,7 +386,7 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
     let file = menu(
         "File",
         &[
-            &[C::DownloadNow, C::StopDownload, C::ShowProgress],
+            &[C::StopDownload, C::ShowProgress],
             &[
                 C::Remove,
                 C::DeleteFile,
@@ -412,6 +415,17 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
         ],
     );
     let mut file = file;
+    // Resume first, in the words it has for the rows chosen (Retry, Start
+    // now), as the egui window's File menu says it.
+    let resume = if ticks.resume.is_empty() {
+        Command::DownloadNow.label()
+    } else {
+        ticks.resume
+    };
+    file.items.insert(
+        0,
+        MenuItem::action(t(resume), Run(C::DownloadNow)).disabled(!carried_out(C::DownloadNow)),
+    );
     file.items.extend([
         MenuItem::separator(),
         MenuItem::action(t("Close"), CloseWindow),
@@ -681,6 +695,17 @@ mod tests {
         assert!(!state(&menus, "Deutsch").0);
         assert!(state(&menus, Command::SortBySize.label()).0);
         assert!(!state(&menus, Command::SortByName.label()).0);
+    }
+
+    #[test]
+    fn resume_says_what_it_will_do_for_the_rows_chosen() {
+        assert!(find(&build(&Ticks::default()), Command::DownloadNow.label()).is_some());
+        let retry = build(&Ticks {
+            resume: "Retry",
+            ..Default::default()
+        });
+        assert!(find(&retry, "Retry").is_some());
+        assert!(find(&retry, Command::DownloadNow.label()).is_none());
     }
 
     #[test]

@@ -402,3 +402,53 @@ pub fn set_superseded<R: std::borrow::Borrow<dm_core::Entry>>(rows: &[R]) {
     let superseded = dm_shell::app::rules::superseded(rows);
     SUPERSEDED.with(|s| *s.borrow_mut() = superseded);
 }
+
+/// Resume's words for the rows chosen, in English, as every window says
+/// them on its menus: Retry where each one failed, Start now where the
+/// schedule or the download limit holds each one, else Resume's own.
+#[must_use]
+pub fn resume_word(chosen: &[&Entry]) -> &'static str {
+    if chosen.is_empty() {
+        return dm_shell::app::commands::Command::DownloadNow.label();
+    }
+    if chosen.iter().all(|r| matches!(r.state, State::Failed(_))) {
+        return "Retry";
+    }
+    if chosen
+        .iter()
+        .all(|r| r.state == State::Paused && r.paused_by_schedule)
+    {
+        return "Start now";
+    }
+    dm_shell::app::commands::Command::DownloadNow.label()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(state: State, held: bool) -> Entry {
+        serde_json::from_value(serde_json::json!({
+            "id": 1,
+            "url": "http://e.com/f",
+            "state": serde_json::to_value(state).unwrap(),
+            "progress": {"downloaded": 10, "total": 100, "speed": 0.0, "eta": null},
+            "filename": "f",
+            "paused_by_schedule": held,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn resume_says_retry_for_failures_and_start_now_for_held_rows() {
+        let resume = dm_shell::app::commands::Command::DownloadNow.label();
+        let failed = row(State::Failed("gone".into()), false);
+        let held = row(State::Paused, true);
+        let paused = row(State::Paused, false);
+        assert_eq!(resume_word(&[]), resume);
+        assert_eq!(resume_word(&[&failed]), "Retry");
+        assert_eq!(resume_word(&[&held]), "Start now");
+        assert_eq!(resume_word(&[&paused]), resume);
+        assert_eq!(resume_word(&[&failed, &held]), resume, "a mix is resumed");
+    }
+}
