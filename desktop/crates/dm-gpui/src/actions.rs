@@ -15,9 +15,6 @@ use gpui::Context;
 
 use crate::list::Downloads;
 
-/// Where Help goes: dm's own page.
-const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#readme";
-
 impl Downloads {
     /// Open, Open with…, Preview, Show in Finder, Extract here or Extract
     /// to…, for the first row chosen.
@@ -31,6 +28,18 @@ impl Downloads {
         let Some(row) = chosen.first() else {
             return;
         };
+        // Open, Open with… and Preview run the file: a person's click does,
+        // a script's a moment ago does not (gaps row 159 f).
+        if matches!(
+            command,
+            Command::OpenFile | Command::OpenWith | Command::Preview
+        ) {
+            if let Some(why) = self.scripted.run_refused() {
+                self.say(why.to_string());
+                cx.notify();
+                return;
+            }
+        }
         match command {
             Command::OpenFile => self.open_path(&row.path),
             Command::OpenWith => self.open_path_with(&row.path),
@@ -90,7 +99,7 @@ impl Downloads {
 
     /// Help: dm's own page, in the browser.
     pub(crate) fn help(&mut self) {
-        if let Err(e) = self.backend.platform.open(HELP) {
+        if let Err(e) = self.backend.platform.open(dm_desktop_base::project::HELP) {
             self.say(e);
         }
     }

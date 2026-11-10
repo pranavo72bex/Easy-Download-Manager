@@ -122,9 +122,20 @@ impl Properties {
         window.remove_window();
     }
 
-    /// Open: the finished file, by the system's opener.
+    /// Open: the finished file, by the system's opener; not by a script's
+    /// click a moment ago, which is said here.
     fn open_file(&mut self, path: String, cx: &mut Context<Self>) {
-        let _ = self.view.update(cx, |view, _| view.open_path(&path));
+        let refused = self.view.update(cx, |view, _| {
+            let refused = view.scripted.run_refused();
+            if refused.is_none() {
+                view.open_path(&path);
+            }
+            refused
+        });
+        if let Ok(Some(why)) = refused {
+            self.says = Some(why.into());
+            cx.notify();
+        }
     }
 
     /// Copy details: what a person can paste to whoever helps, with nothing

@@ -318,12 +318,12 @@ impl Details {
             None => {
                 let urls = self.urls.clone();
                 self.view
-                    .update(cx, |view, cx| view.add(urls, with, cx))
+                    .update(cx, |view, cx| view.add(urls, with, cx).map(|_| ()))
                     .unwrap_or_else(|_| Err(String::new()))
             }
         };
         match added {
-            Ok(()) => {
+            Ok(_) => {
                 self.done = true;
                 let urls = self.urls.clone();
                 let handed = self.handed.handed;

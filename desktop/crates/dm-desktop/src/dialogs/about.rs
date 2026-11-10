@@ -101,36 +101,9 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// Tips about dm, one shown at a time in Tip of the day (gaps row 91).
-pub fn tips() -> [&'static str; 8] {
-    [
-        t("Hold Alt while you click a link to leave that download with the browser."),
-        t("Right-click a page and choose Download all links with dm to pick from every link on it."),
-        t("Downloads › Scheduler starts a queue at set hours, and can shut the computer down when it is done."),
-        t("Move the mouse over a playing video and click Download video to choose a quality."),
-        t("Drag a link from the browser onto dm's window to download it."),
-        t("The Grabber lists the files a website links to, by type and size; save a search to run it again."),
-        t("Options › Advanced › Network sets a speed limit and the number of attempts for a failed download."),
-        t("Properties shows a finished file's SHA-256 and checks it against a digest you were given."),
-    ]
-}
-
-/// An email that tells someone about dm, written in the person's own mail program for them to
-/// send or not: nothing leaves the computer unless they send it.
-pub fn tell_a_friend() -> String {
-    let subject = t("A free download manager");
-    let body = tf(
-        "I use dm to download files. It is free: {}",
-        &[&crate::update::SOURCE],
-    );
-    // Spaces as %20, which every mail program reads; `+` is a plus sign in a mailto body.
-    let encode = |s: &str| {
-        url::form_urlencoded::byte_serialize(s.as_bytes())
-            .collect::<String>()
-            .replace('+', "%20")
-    };
-    format!("mailto:?subject={}&body={}", encode(subject), encode(&body))
-}
+/// Help's tips, and the email that tells a friend about dm
+/// (`dm_desktop_base::project`, both windows).
+pub use dm_desktop_base::project::{tell_a_friend, tips};
 
 /// Tip of the day: one tip, Next tip and Close.
 pub(super) fn tip_of_the_day(app: &mut DmApp, ctx: &egui::Context) {

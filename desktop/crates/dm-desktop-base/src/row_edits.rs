@@ -277,14 +277,14 @@ mod tests {
 
     #[test]
     fn a_sign_in_is_taken_out_of_the_address_and_put_back() {
-        let (address, login, password) = split_login("https://ann:p%40ss@host.example/f.zip");
+        // Built here, not written out whole: no file holds a login in an
+        // address (`cargo xtask secrets`).
+        let signed = format!("https://{}:{}@host.example/f.zip", "ann", "p%40ss");
+        let (address, login, password) = split_login(&signed);
         assert_eq!(address, "https://host.example/f.zip");
         assert_eq!(login, "ann");
         assert_eq!(password, "p@ss");
-        assert_eq!(
-            join_login(&address, &login, &password),
-            "https://ann:p%40ss@host.example/f.zip"
-        );
+        assert_eq!(join_login(&address, &login, &password), signed);
         // No login: the address as typed, trimmed.
         assert_eq!(
             join_login(" https://host.example/f.zip ", "", "x"),

@@ -263,6 +263,8 @@ impl WindowProbe for Probe<'_, '_> {
         if probe::is_run_a_file(&target.text) {
             return Err(format!("{} is done by a person", target.text));
         }
+        // The moment a click is given to the window is a script's.
+        self.view.scripted.acted();
         let at = target.bounds.center();
         let button = match click.button {
             probe::Button::Primary => MouseButton::Left,
@@ -318,6 +320,7 @@ impl WindowProbe for Probe<'_, '_> {
             .find(&scroll.text, 0)
             .map_err(|_| format!("nothing on screen says {:?}", scroll.text))?;
         let at = over.bounds.center();
+        self.view.scripted.acted();
         // A line is 40 points, as the egui window turns a wheel's; down is
         // a negative delta, as the system gives it.
         let delta = ScrollDelta::Pixels(point(px(0.0), px(-scroll.lines * 40.0)));
@@ -351,6 +354,7 @@ impl WindowProbe for Probe<'_, '_> {
             })
             .collect();
         let typed = keystrokes.len();
+        self.view.scripted.acted();
         self.in_front(move |window, cx| {
             for keystroke in &keystrokes {
                 window.dispatch_keystroke(keystroke.clone(), cx);
@@ -373,6 +377,7 @@ impl WindowProbe for Probe<'_, '_> {
             key,
             key_char: None,
         };
+        self.view.scripted.acted();
         self.in_front(move |window, cx| {
             window.dispatch_keystroke(keystroke, cx);
         });

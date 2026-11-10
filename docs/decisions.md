@@ -3,6 +3,18 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window keeps the script guard; its own actions are registered once
+
+The GPUI window had no script guard: a control client could double-click a finished row (with
+Options' double-click set to Open) or click Install now, and the file ran. As the egui window
+does (security review of 2026-11-07, gaps row 159 f), each click, key, typing and scroll the
+control port gives the GPUI window marks the moment (`ScriptGuard::acted`), and File › Open,
+Open with… and Preview, Download complete's Open and Open with…, Properties' Open and Install
+now refuse for a moment after, saying why. The probe's refusal of a click on an Open word stays
+as well. Help's pages, Hide, Hide Others and Show All are application actions registered once
+at start: the menu bar is built again whenever the queues change, and each build had added
+another handler for Hide (so a Help page would have opened once a build).
+
 ## 2026-11-10: The row dialogs' rules are one module; GPUI's take the system's ways of a field
 
 What OK does in Update download link, Move to queue, Move/Rename and File properties (a fresh

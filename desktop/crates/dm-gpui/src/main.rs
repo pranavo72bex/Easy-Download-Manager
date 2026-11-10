@@ -21,9 +21,11 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 
+mod about;
 mod actions;
 mod addurl;
 mod assets;
+mod cliplinks;
 mod complete;
 mod details;
 mod fit;
@@ -46,6 +48,7 @@ mod rowdialogs;
 mod rowmenu;
 mod scheduler;
 mod screen;
+mod series;
 mod services;
 mod sidebar;
 mod statusbar;

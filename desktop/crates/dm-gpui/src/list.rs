@@ -187,6 +187,19 @@ pub struct Downloads {
     complete_window: Option<gpui::AnyWindowHandle>,
     /// Each download's File properties window, while open.
     properties_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
+    /// When a control client last acted: a file is not run, nor the update
+    /// installed, by a script's click a moment ago (gaps row 159 f).
+    pub(crate) scripted: dm_shell::app::control_api::ScriptGuard,
+    /// What the update check has found.
+    pub(crate) checked: crate::about::Checked,
+    /// dm's update being downloaded, offered to install once verified.
+    pub(crate) update_row: Option<dm_core::Id>,
+    /// The weekly check asked: About opens if it finds a newer dm.
+    pub(crate) weekly_pending: bool,
+    /// About dm, while open.
+    pub(crate) about_window: Option<gpui::AnyWindowHandle>,
+    /// Tip of the day, while open.
+    pub(crate) tip_window: Option<gpui::AnyWindowHandle>,
     /// What an opener said went wrong, from its thread.
     opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
     /// View › Categories: the side panel shown.
@@ -251,6 +264,14 @@ impl Downloads {
             complete: Default::default(),
             complete_window: None,
             properties_windows: Default::default(),
+            scripted: Default::default(),
+            checked: std::sync::Arc::new(std::sync::Mutex::new(
+                dm_shell::app::update::Update::NotAsked,
+            )),
+            update_row: None,
+            weekly_pending: false,
+            about_window: None,
+            tip_window: None,
             opener_said: Default::default(),
             show_sidebar: true,
             show_toolbar: true,
@@ -525,6 +546,18 @@ impl Downloads {
                 crate::addurl::open(cx.entity().downgrade(), cx);
                 return;
             }
+            Command::AddSeries => {
+                crate::series::open(cx.entity().downgrade(), cx);
+                return;
+            }
+            Command::AddFromClipboard => {
+                self.add_from_clipboard(cx);
+                return;
+            }
+            Command::About | Command::CheckForUpdates => {
+                self.open_about(command == Command::CheckForUpdates, cx);
+                return;
+            }
             Command::CopyDetails => {
                 let settings = self.backend.settings();
                 if let Some((text, count)) = dm_desktop_base::details::blocks_for(
@@ -562,7 +595,7 @@ impl Downloads {
         urls: Vec<String>,
         with: dm_core::AddOptions,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+    ) -> Result<usize, String> {
         let later = with.later;
         let items = urls.into_iter().map(|u| (u, with.clone())).collect();
         let added = self.session.add(&self.backend, items);
@@ -598,7 +631,7 @@ impl Downloads {
             self.ask_outside(ids, cx);
         }
         cx.notify();
-        added.outcome().map(|_| ())
+        added.outcome()
     }
 
     /// "Start outside the schedule?" for the rows `ids` the schedule or the
@@ -1974,6 +2007,7 @@ impl Render for Downloads {
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
+        let update_bar = self.update_bar(theme, &screen, cx);
         div()
             .id("downloads")
             .role(Role::Application)
@@ -1985,6 +2019,9 @@ impl Render for Downloads {
             .on_action(cx.listener(|this, run: &crate::menus::RunOnQueue, _, cx| {
                 this.run_on_queue(run.command, &run.queue, cx)
             }))
+            .on_action(
+                cx.listener(|this, _: &crate::menus::TipOfTheDay, _, cx| this.tip_of_the_day(cx)),
+            )
             .on_action(cx.listener(|this, run: &crate::menus::Run, window, cx| {
                 use dm_shell::app::commands::Command;
                 match run.0 {
@@ -2033,6 +2070,9 @@ impl Render for Downloads {
                             .flex_col()
                             .flex_1()
                             .min_w_0()
+                            // dm's update, downloaded and checked: Install
+                            // now, or Later.
+                            .children(update_bar)
                             // While a fresh link is awaited from the
                             // browser: what to do, and a way out.
                             .children(self.awaiting_bar(theme, &screen, cx))

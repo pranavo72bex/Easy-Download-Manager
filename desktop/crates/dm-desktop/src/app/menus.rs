@@ -384,16 +384,8 @@ impl DmApp {
                     // Reference A's Help: its tutorials and topics, a tip of
                     // the day, its home page, support and telling a friend
                     // (gaps row 91). The topics are dm's own guide.
-                    let guide = crate::update::GUIDE;
                     let mut page: Option<String> = None;
-                    for (words, address) in [
-                        (t("Tutorials"), guide.to_string()),
-                        (
-                            t("Queues and the Scheduler"),
-                            format!("{guide}#queues-and-the-scheduler"),
-                        ),
-                        (t("Grabber help"), format!("{guide}#grabber")),
-                    ] {
+                    for (words, address) in dm_desktop_base::project::guide_topics() {
                         if ui.button(words).clicked() {
                             page = Some(address);
                             ui.close();

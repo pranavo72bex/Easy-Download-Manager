@@ -39,8 +39,17 @@ impl Complete {
     }
 
     /// Open, Open with… or Open folder for one file; it leaves the list.
+    /// Open and Open with… run the file: a person's click does, a script's
+    /// a moment ago does not, and the file stays listed for the person.
     fn act(&mut self, id: Id, path: String, how: u8, cx: &mut Context<Self>) {
         let _ = self.view.update(cx, |view, cx| {
+            if how < 2 {
+                if let Some(why) = view.scripted.run_refused() {
+                    view.say(why.to_string());
+                    cx.notify();
+                    return;
+                }
+            }
             match how {
                 0 => view.open_path(&path),
                 1 => view.open_path_with(&path),

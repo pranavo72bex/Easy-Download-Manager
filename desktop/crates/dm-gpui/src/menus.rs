@@ -48,6 +48,20 @@ pub struct SelectPrevious;
 #[action(namespace = dm, no_json)]
 pub struct SelectNext;
 
+/// A page of the project's, or the email that tells a friend: Help's
+/// topics, home page, support and Tell a friend, opened by the system.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct OpenPage {
+    /// The page's address (or the email's `mailto:`).
+    pub address: String,
+}
+
+/// Help › Tip of the day.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct TipOfTheDay;
+
 /// Hides dm, as every macOS program's app menu does.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
@@ -91,6 +105,10 @@ pub fn carried_out(command: Command) -> bool {
             | C::Scheduler
             | C::SiteFiles
             | C::ShowProgress
+            | C::AddSeries
+            | C::AddFromClipboard
+            | C::About
+            | C::CheckForUpdates
             | C::UpdateLink
             | C::MoveToQueue
             | C::MoveRename
@@ -190,6 +208,12 @@ pub fn bind_keys(cx: &mut App) {
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
     bindings.push(KeyBinding::new("down", SelectNext, None));
     cx.bind_keys(bindings);
+    // The application's own actions, heard from any window: registered
+    // once, here, as the menus are built again whenever the queues change.
+    cx.on_action(|_: &Hide, cx| cx.hide());
+    cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
+    cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
+    cx.on_action(|page: &OpenPage, cx| cx.open_url(&page.address));
 }
 
 fn item(command: Command) -> MenuItem {
@@ -332,9 +356,31 @@ pub fn set(cx: &mut App, queues: &[String]) {
             ],
         ],
     );
-    let help = menu("Help", &[&[C::Help], &[C::CheckForUpdates]]);
+    // Help: dm's guide and its topics, Tip of the day, the project's home
+    // page, support and telling a friend (gaps row 91), as the egui
+    // window's Help menu has them.
+    let page =
+        |words: &str, address: String| MenuItem::action(words.to_string(), OpenPage { address });
+    let mut help = menu("Help", &[&[C::Help]]);
+    help.items.extend(
+        dm_desktop_base::project::guide_topics()
+            .into_iter()
+            .map(|(words, address)| page(words, address)),
+    );
+    help.items.extend([
+        MenuItem::action(t("Tip of the day"), TipOfTheDay),
+        MenuItem::separator(),
+        page(t("Home page"), dm_desktop_base::project::SOURCE.to_string()),
+        page(
+            t("Contact support"),
+            dm_desktop_base::project::SUPPORT.to_string(),
+        ),
+        page(
+            t("Tell a friend"),
+            dm_desktop_base::project::tell_a_friend(),
+        ),
+        MenuItem::separator(),
+        item(C::CheckForUpdates),
+    ]);
     cx.set_menus([app, tasks, file, downloads, view, help]);
-    cx.on_action(|_: &Hide, cx| cx.hide());
-    cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
-    cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
 }

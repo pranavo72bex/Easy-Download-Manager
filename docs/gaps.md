@@ -239,7 +239,14 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   size, category, where it is saved, the page it came from, address, sign-in and note, a
   torrent's files and their priorities, a finished file's SHA-256 and Check against, a
   finished ZIP's Contents: B44's Properties half), each a window of its own, their OK
-  `dm_desktop_base::row_edits` for both windows; a double-click on a row (B46). Then
+  `dm_desktop_base::row_edits` for both windows; a double-click on a row (B46). Add numbered
+  series (every address listed before anything is fetched), Links on the clipboard (one
+  already listed offered unticked), About dm with Check for updates, What's new and Download
+  the update, the update offered above the list once verified (Install now, Later), the
+  weekly check, and Help's topics, Tip of the day, home page, support and Tell a friend
+  (`dm_desktop_base::project`, both windows). A control client's click a moment ago runs no
+  file and installs no update (the script guard, gaps row 159 f). Left of the menus: Options
+  (slice 7) and the drop target (slice 8). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

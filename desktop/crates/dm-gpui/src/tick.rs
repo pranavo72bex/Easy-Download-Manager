@@ -56,6 +56,7 @@ impl Downloads {
         self.take_watched(cx);
         self.say_rechecked();
         self.take_searches(cx);
+        self.weekly_update(cx);
         self.refresh_menus(cx);
         let problems = self.backend.problems();
         self.problems.extend(

@@ -79,7 +79,7 @@ impl PlaylistWindow {
             .update(cx, |view, cx| view.add(urls, with, cx))
             .unwrap_or_else(|_| Err(String::new()));
         match added {
-            Ok(()) => {
+            Ok(_) => {
                 self.done = true;
                 let _ = self.view.update(cx, |view, cx| {
                     view.say(dm_desktop_base::i18n::tn(

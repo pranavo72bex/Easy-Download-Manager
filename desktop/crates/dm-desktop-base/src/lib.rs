@@ -66,6 +66,7 @@ pub mod opened;
 pub mod power;
 pub mod probe;
 pub mod progress;
+pub mod project;
 pub mod quiet;
 pub mod region;
 pub mod row_edits;
