@@ -61,6 +61,8 @@ pub fn carried_out(command: Command) -> bool {
             | C::ResumeAll
             | C::StopAll
             | C::DeleteCompleted
+            | C::CopyLink
+            | C::CopyDetails
             | C::StartQueue
             | C::StopQueue
             | C::WhenDoneNothing

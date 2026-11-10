@@ -17,6 +17,9 @@ use crate::list::Downloads;
 use crate::screen::Screen;
 use crate::theme::Theme;
 
+/// How long a sentence stands in the status bar.
+const SAID_FOR: std::time::Duration = std::time::Duration::from_secs(12);
+
 /// The status bar's height, in points.
 pub const HEIGHT: f32 = 24.0;
 
@@ -53,6 +56,12 @@ pub fn parts(view: &Downloads) -> Vec<String> {
             tally.later as u64,
             &[&tally.later],
         ));
+    }
+    // A sentence said a moment ago, as the egui window says its own.
+    if let Some((said, at)) = &view.said {
+        if at.elapsed() < SAID_FOR {
+            parts.push(format!("· {said}"));
+        }
     }
     let limit = view.backend.settings().speed_limit;
     parts.push(if limit > 0 {

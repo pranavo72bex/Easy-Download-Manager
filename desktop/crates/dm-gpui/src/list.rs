@@ -63,6 +63,9 @@ pub struct Downloads {
     anchor: Option<dm_core::Id>,
     /// The row menu, open where it was asked for.
     menu: Option<gpui::Point<gpui::Pixels>>,
+    /// A sentence for the status bar, and when it was said: it stands for
+    /// a while, as the egui window's does.
+    pub(crate) said: Option<(String, std::time::Instant)>,
 }
 
 impl Downloads {
@@ -91,6 +94,7 @@ impl Downloads {
             selected: Default::default(),
             anchor: None,
             menu: None,
+            said: None,
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -193,6 +197,42 @@ impl Downloads {
             return;
         }
         let chosen: Vec<Entry> = self.chosen().into_iter().cloned().collect();
+        match command {
+            // Each address on a line of its own, without a sign-in that may
+            // be in it: what is pasted elsewhere is the link.
+            Command::CopyLink => {
+                let links: Vec<String> = chosen
+                    .iter()
+                    .map(|r| dm_desktop_base::format::copyable_url(&r.url))
+                    .collect();
+                cx.write_to_clipboard(gpui::ClipboardItem::new_string(links.join("\n")));
+                self.say(dm_desktop_base::i18n::tn(
+                    "Copied {} link.||Copied {} links.",
+                    links.len() as u64,
+                    &[&links.len()],
+                ));
+                cx.notify();
+                return;
+            }
+            Command::CopyDetails => {
+                let settings = self.backend.settings();
+                if let Some((text, count)) = dm_desktop_base::details::blocks_for(
+                    &chosen,
+                    settings.connections,
+                    &settings.download_dir,
+                ) {
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                    self.say(dm_desktop_base::i18n::tn(
+                        "Copied the details of {} download.||Copied the details of {} downloads.",
+                        count as u64,
+                        &[&count],
+                    ));
+                }
+                cx.notify();
+                return;
+            }
+            _ => {}
+        }
         let queue = self.current_queue();
         let _ = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
         self.read();
@@ -290,6 +330,11 @@ impl Downloads {
             }
             self.menu = Some(at);
         }
+    }
+
+    /// Says `sentence` in the status bar.
+    pub fn say(&mut self, sentence: String) {
+        self.said = Some((sentence, std::time::Instant::now()));
     }
 
     /// Closes the row menu.
