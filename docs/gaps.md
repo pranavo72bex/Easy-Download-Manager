@@ -304,7 +304,9 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   (its three styles drawn), Language and Sort by as menu items, ticked as they stand; a column
   moved by dragging its heading, a toolbar button by dragging it onto another; Resume says
   Retry or Start now for the rows chosen, in the File menu and the row menu, as the egui
-  window's does (`rows::resume_word`). **Still owed in G7:** View › Text size (GPUI has no zoom:
+  window's does (`rows::resume_word`). The main window comes back where and as large as it was
+  left (`frame.rs`). Synced with `main` at a6faac1 (the engine's speed work, the extension's
+  background and popup in Rust). **Still owed in G7:** View › Text size (GPUI has no zoom:
   every size in points; it needs sizes in rems and `Window::set_rem_size`). Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the

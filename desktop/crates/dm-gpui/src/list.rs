@@ -172,6 +172,9 @@ pub struct Downloads {
     /// What the menu bar was last built with (its queues and ticks); none
     /// builds it again.
     pub(crate) menu_ticks: Option<crate::menus::Ticks>,
+    /// The main window's frame as it last stood, kept as dm quits for the
+    /// next start (`frame.rs`).
+    frame: gpui::WindowBounds,
     /// What saved searches found, as each run ends, by the search's name.
     #[allow(clippy::type_complexity)]
     search_results:
@@ -280,6 +283,7 @@ impl Downloads {
             last_limit: 0,
             rechecked: Default::default(),
             menu_ticks: None,
+            frame: window.window_bounds(),
             search_results: Default::default(),
             searches_checked: None,
             progress_windows: Default::default(),
@@ -357,6 +361,11 @@ impl Downloads {
             if window.is_window_active() {
                 this.show_sheets(cx);
             }
+        })
+        .detach();
+        // Its frame as it moves and is resized, kept as dm quits.
+        cx.observe_window_bounds(window, |this, window, _| {
+            this.frame = window.window_bounds();
         })
         .detach();
         cx.observe_window_appearance(window, |_, window, cx| {
@@ -1642,6 +1651,8 @@ impl Downloads {
         // nothing after GPUI's run is reached on macOS.
         dm_desktop_base::control::closing();
         dm_desktop_base::control::forget_port(&dm_shell::settings::home());
+        // Where and as large as the window was, for the next start.
+        crate::frame::keep(&dm_shell::settings::home(), self.frame);
         for (handle, _, dialog) in crate::screen::Screens::all(cx) {
             if dialog {
                 let _ = handle.update(cx, |_, window, _| window.remove_window());

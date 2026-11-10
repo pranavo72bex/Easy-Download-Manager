@@ -36,6 +36,7 @@ mod details;
 mod drops;
 mod droptarget;
 mod fit;
+mod frame;
 mod grabber;
 mod limiter;
 mod links;
@@ -263,11 +264,23 @@ fn main() {
         notify::claim();
         // Their colours the system's appearance, light or dark.
         gpui_component::Theme::sync_system_appearance(None, cx);
-        let bounds = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
+        // Where and as large as it was left, where that is still on a
+        // display; else in the middle (`frame.rs`).
+        let least = size(px(640.0), px(400.0));
+        let displays: Vec<Bounds<gpui::Pixels>> = cx
+            .displays()
+            .iter()
+            .map(|display| display.bounds())
+            .collect();
+        let window_bounds = frame::kept(&dm_shell::settings::home())
+            .and_then(|kept| frame::on_a_display(kept, &displays, least))
+            .unwrap_or_else(|| {
+                WindowBounds::Windowed(Bounds::centered(None, size(px(900.0), px(600.0)), cx))
+            });
         let opened = cx.open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                window_min_size: Some(size(px(640.0), px(400.0))),
+                window_bounds: Some(window_bounds),
+                window_min_size: Some(least),
                 // A login launch goes into the tray, with no window yet.
                 show: !hidden,
                 // A unified title bar, as macOS programs have: the toolbar is

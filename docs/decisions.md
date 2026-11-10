@@ -3,6 +3,16 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: The GPUI window comes back where and as large as it was left
+
+The egui window keeps its frame across launches (eframe's `persist_window`); the GPUI window
+opened in the middle at 900 by 600 every time, which a Mac program does not. It keeps its frame
+in `window.json` in dm's home as it quits (a `DM_HOME` run its own, so a test or a check starts as
+a fresh install does) and opens there next time, unless that frame's title bar is on no display
+now (one unplugged since) or it is smaller than the window's least size: then in the middle.
+Zoomed comes back zoomed; full screen comes back as the window it was in, not as a Space of its
+own at launch. Driven: zoomed, quit, started again on the same home, the same frame.
+
 ## 2026-11-10: The GPUI window's View menu is the egui window's, in the menu bar's own items
 
 The egui window's View menu holds controls a menu bar cannot: a checkbox with move-up and
