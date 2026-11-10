@@ -387,12 +387,7 @@ pub struct DmApp {
     pub filter: String,
     /// Questions the rows raised (the server's name, a page for a file, a 404),
     /// waiting for the dialogs to be free: one is asked at a time.
-    asks: std::collections::VecDeque<sync::Ask>,
-    /// Each row's name, and whether it had failed, at the last read: what is new
-    /// since is what is asked about.
-    ask_seen: std::collections::HashMap<Id, (String, bool)>,
-    /// Whether the first read of the list is over (what it held is not asked about).
-    asks_primed: bool,
+    asks: dm_shell::app::questions::Questions,
     /// Names to give a file once it has finished: the address's, where a person
     /// said no to the server's while it was still coming.
     pending_renames: dm_shell::app::names::PendingRenames,
@@ -579,8 +574,6 @@ impl DmApp {
             accent_in_force: None,
             fonts_ready: false,
             asks: Default::default(),
-            ask_seen: Default::default(),
-            asks_primed: false,
             pending_renames: Default::default(),
             search_results: Arc::default(),
             filter: String::new(),

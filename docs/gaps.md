@@ -112,8 +112,8 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   `commands::when_done_command`) and "only what this computer can do" (`WhenDone::possible`, which
   the menu, the Scheduler and the command line each wrote out). Batch 2: once-only schedule
   dates (`schedule::spent_once_put_away`), renames after "use the address's name"
-  (`names::PendingRenames`), finished files' sizes (`snapshot::SavedSizes`). Next: question
-  detection, saved searches, the weekly update check, dial-up hang-up, the script guard,
+  (`names::PendingRenames`), finished files' sizes (`snapshot::SavedSizes`). Batch 3: question
+  detection, B39 to B41 (`questions::Questions`). Next: saved searches, the weekly update check, dial-up hang-up, the script guard,
   adding, remove with Undo's bookkeeping, settings coordination. The list, with files, is
   `CURRENT_UI_ARCHITECTURE.md` 4.2 (settings coordination and the script guard `by_script`,
   question detection B39 to B41, pending renames, once-only schedule dates, dial-up hang-up,
