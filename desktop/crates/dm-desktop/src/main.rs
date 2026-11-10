@@ -24,14 +24,13 @@ mod dock;
 mod opened;
 
 mod hidden;
-mod login;
 mod platform;
 mod signals;
 mod tray;
 mod window;
 
+use dm_desktop_base::login::*;
 use hidden::*;
-use login::*;
 use platform::*;
 use signals::*;
 use tray::*;
@@ -388,7 +387,8 @@ fn main() {
     #[cfg(target_os = "macos")]
     let _ = notify_rust::set_application("com.dm.desktop");
 
-    let platform: Arc<dyn Platform> = Arc::new(Desktop);
+    let platform: Arc<dyn Platform> =
+        Arc::new(dm_desktop_base::desktop::Desktop { window: EguiWindow });
     // The login item follows the saved setting, so a reinstall lands in the
     // state the person last chose. Said in the window, not fatal. One the
     // person turned off in Task Manager stays off, and so does the setting.

@@ -1750,7 +1750,6 @@ name = "dm-desktop"
 version = "0.9.0"
 dependencies = [
  "arboard",
- "auto-launch",
  "axum",
  "chrono",
  "dm-core",
@@ -1779,7 +1778,6 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "tokio",
- "trash",
  "tray-icon",
  "unicode-bidi",
  "url",
@@ -1796,6 +1794,7 @@ dependencies = [
 name = "dm-desktop-base"
 version = "0.9.0"
 dependencies = [
+ "auto-launch",
  "chrono",
  "dm-core",
  "dm-shell",
@@ -1803,9 +1802,11 @@ dependencies = [
  "serde_json",
  "sys-locale",
  "tempfile",
+ "trash",
  "url",
  "windows 0.62.2",
  "windows-sys 0.61.2",
+ "zbus",
 ]
 
 [[package]]

@@ -26,6 +26,10 @@ sys-locale = "0.3"
 # Dates and addresses as a row's details say them (format.rs, details.rs).
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 url = "2"
+# The login item on macOS and Windows (login.rs): a launch agent, the Run key.
+auto-launch = "0.6"
+# A removed file to the Recycle Bin or the Trash (desktop.rs).
+trash = "5.2.9"
 
 [target.'cfg(windows)'.dependencies]
 # A finished download's toast (toast.rs): WinRT, which windows-sys has no
@@ -52,6 +56,11 @@ windows-sys = { version = "0.61", features = [
   # Whether the person is busy: fullscreen, a game, Focus Assist (quiet.rs).
   "Win32_UI_Shell",
 ] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The file manager's "show this file" and the portal's file chooser, on the
+# session bus (desktop.rs).
+zbus = { version = "5", default-features = false, features = ["blocking-api"] }
 
 [dev-dependencies]
 tempfile = "3"

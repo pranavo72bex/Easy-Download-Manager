@@ -56,12 +56,10 @@ url = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 # What Tauri's plugins did, each from the crate they wrapped.
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
-auto-launch = "0.6"
 arboard = "3"
 # Import and Export's file choosers.
 rfd = "0.17"
 image = { version = "0.25", default-features = false, features = ["png"] }
-trash = "5.2.9"
 # The digest of a rules document the update manifest lists (update.rs).
 sha2 = "0.11.0"
 

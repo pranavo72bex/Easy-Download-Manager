@@ -3,6 +3,21 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-10: `Desktop` is the base crate's, and the window supplies what its crates do
+
+At the maintainer's word of 2026-11-09 (take the recommended option). The survey counted egui
+in `platform.rs`'s `Desktop` but not the crates `cargo xtask layers` lists as GUI beside it:
+`arboard` (the clipboard), `rfd` (the file choosers) and `notify-rust` (notifications away from
+Windows). Rather than let the toolkit-free crate use them, `dm_desktop_base::desktop::Desktop<W>`
+is the application's `Platform` from everything else (the login item, with `login.rs` moved too;
+the Trash; notifications held while the person is busy; the sounds; opening and showing files;
+When done; Windows' own toasts; Linux's file-manager and portal look-ups), and takes those four
+from a `WindowServices` the window implements (dm-desktop's `EguiWindow`). A GPUI window
+supplies its own (its clipboard and path prompts; a notifier). `drag_out` stays in dm-desktop,
+needing the window's handle. Dropped: allowing those crates in `dm-desktop-base` (a crate
+"without a toolkit" pulling in a toolkit's file dialogs), and leaving `Desktop` in the binary
+(a second window would copy 300 lines of system calls).
+
 ## 2026-11-10: G2's code moves are gated per batch; `dm-desktop-base` is the toolkit-free crate
 
 At the maintainer's word of 2026-11-09 (take the recommended option). G2 moves the desktop

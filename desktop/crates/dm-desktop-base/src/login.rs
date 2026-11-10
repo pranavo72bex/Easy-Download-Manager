@@ -3,10 +3,14 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-use super::*;
+//! dm's login item on macOS and Windows (`auto-launch`'s launch agent and
+//! Run key; Linux's entry is `autostart`'s), and `--unregister`'s removal
+//! of it.
+
+use dm_shell::{settings, shell};
 
 /// The login item for `exe`, launched into the tray.
-pub(super) fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, String> {
+pub fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, String> {
     auto_launch::AutoLaunchBuilder::new()
         .set_app_name("dm")
         .set_app_path(&exe.to_string_lossy())
@@ -24,16 +28,16 @@ pub(super) fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoL
 /// launch agent's plist, on Windows the Run key's value. `None` when there
 /// is none or it cannot be read, which is not taken as a reason to rewrite
 /// it.
-pub(super) fn login_item_program() -> Option<std::path::PathBuf> {
+pub fn login_item_program() -> Option<std::path::PathBuf> {
     if cfg!(target_os = "macos") {
         let plist = std::path::PathBuf::from(std::env::var_os("HOME")?)
             .join("Library/LaunchAgents/dm.plist");
         let text = std::fs::read_to_string(plist).ok()?;
-        return dm_desktop::autostart::plist_program(&text);
+        return crate::autostart::plist_program(&text);
     }
     #[cfg(windows)]
     {
-        use dm_desktop::autostart::{registry, run_value_program, RUN_KEY};
+        use crate::autostart::{registry, run_value_program, RUN_KEY};
         registry::string(RUN_KEY, "dm").and_then(|value| run_value_program(&value))
     }
     #[cfg(not(windows))]
@@ -42,10 +46,10 @@ pub(super) fn login_item_program() -> Option<std::path::PathBuf> {
 
 /// Whether the person turned dm's login item off outside dm: on Windows,
 /// in Task Manager's Startup tab. Elsewhere there is no such switch.
-pub(super) fn login_item_turned_off_outside() -> bool {
+pub fn login_item_turned_off_outside() -> bool {
     #[cfg(windows)]
     {
-        use dm_desktop::autostart::{registry, turned_off_in_task_manager, STARTUP_APPROVED_KEY};
+        use crate::autostart::{registry, turned_off_in_task_manager, STARTUP_APPROVED_KEY};
         registry::binary(STARTUP_APPROVED_KEY, "dm")
             .is_some_and(|approved| turned_off_in_task_manager(&approved))
     }
@@ -57,8 +61,8 @@ pub(super) fn login_item_turned_off_outside() -> bool {
 /// done said. Only this copy's, or one whose program is gone: uninstalling
 /// a second copy must not take the login item from the installed one.
 /// The browsers' manifests are `register::from_args`'s.
-pub(super) fn remove_login_item() {
-    use dm_desktop::autostart::{self, Removal};
+pub fn remove_login_item() {
+    use crate::autostart::{self, Removal};
     let removed: Result<Removal, String> = if cfg!(target_os = "linux") {
         match (autostart::entry_path(), autostart::program()) {
             (Some(path), Ok(this)) => autostart::remove_at(&path, &this, |p| p.exists()),
@@ -112,7 +116,7 @@ pub(super) fn remove_login_item() {
 /// launch does not put the login item back, and a dm still running asked
 /// to end, which otherwise wrote the browser manifest and the login entry
 /// straight back.
-pub(super) fn unregister_the_rest() {
+pub fn unregister_the_rest() {
     let (mut saved, _) = settings::Settings::load();
     if saved.start_on_login {
         saved.start_on_login = false;

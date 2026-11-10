@@ -3,179 +3,19 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-use super::*;
+// The notification's Open and Open folder (Linux).
+use dm_desktop_base::desktop::WindowServices;
+#[cfg(all(unix, not(target_os = "macos")))]
+use dm_shell::shell;
 
-/// The desktop's own services.
-pub(super) struct Desktop;
+/// What the window's own crates do for the desktop's services
+/// (`dm_desktop_base::desktop::Desktop`): the clipboard (arboard), the file
+/// choosers (rfd) and, away from Windows, notifications (notify-rust).
+pub(super) struct EguiWindow;
 
-impl Platform for Desktop {
-    /// Only when the setting and the system disagree — or when the login
-    /// item starts another copy of dm that is gone (the app moved, or was
-    /// removed and installed elsewhere) and this one may claim it
-    /// (`autostart::takes_over`, `autostart::may_claim`: a release build,
-    /// not a test's dm). A copy still there keeps it, so two installed
-    /// copies do not take it from each other at every launch. Registering
-    /// writes the path of the running binary, so a copy that will not be
-    /// there at the next login, or that macOS keeps from starting there, is
-    /// refused (`autostart::refused_at_login`). Not being able to read the
-    /// state is fatal only for registering: a login item that cannot be
-    /// read must still be one a person can get rid of.
-    fn set_login_item(&self, wanted: bool) -> Result<(), String> {
-        // Linux's entry is dm's own: see `autostart`.
-        if cfg!(target_os = "linux") {
-            return dm_desktop::autostart::set(wanted);
-        }
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        if wanted {
-            let home = std::env::var_os("HOME")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_default();
-            if let Some(why) = dm_desktop::autostart::refused_at_login(
-                &exe,
-                &home,
-                cfg!(target_os = "macos"),
-                dm_shell::register::mounted_read_only,
-            ) {
-                return Err(why);
-            }
-        }
-        let launcher = login_launcher(&exe)?;
-        match launcher.is_enabled() {
-            Ok(now) if now == wanted => {
-                let gone = wanted
-                    && login_item_program().is_some_and(|found| {
-                        dm_desktop::autostart::takes_over(
-                            &found,
-                            &exe,
-                            dm_desktop::autostart::may_claim(),
-                            |p| p.exists(),
-                        )
-                    });
-                if !gone {
-                    return Ok(());
-                }
-                // Enabled for a copy that is gone: written again for this one.
-            }
-            Ok(_) => {}
-            Err(e) if wanted => return Err(e.to_string()),
-            Err(_) => {}
-        }
-        if wanted {
-            launcher.enable()
-        } else {
-            launcher.disable()
-        }
-        .map_err(|e| e.to_string())
-    }
-
-    /// To the Recycle Bin or the Trash, not erased: a file deleted by a
-    /// mistake can be put back.
-    fn trash(&self, path: &str) -> Result<(), String> {
-        trash::delete(path).map_err(|e| e.to_string())
-    }
-
-    /// Posted from a thread of its own: on macOS, `show` waits on the
-    /// system for about two seconds, and called from the window's thread
-    /// every finished download froze the window that long (several at once,
-    /// 25 seconds). Found by `scripts/ui-shot.py` and a `sample` of the
-    /// stuck process.
-    fn notify(&self, title: &str, body: &str) {
-        // Held while a fullscreen app, a presentation or Focus Assist has
-        // the person's attention, and said when it does not.
-        let note = dm_desktop::quiet::Note {
-            title: title.to_string(),
-            body: body.to_string(),
-            path: None,
-        };
-        if let Some(note) = dm_desktop::quiet::offer(note) {
-            say(note);
-        }
-    }
-
-    fn tick(&self) {
-        for note in dm_desktop::quiet::due_notes() {
-            say(note);
-        }
-    }
-
-    /// As `notify`, and a click on it opens the file, where the system
-    /// says which was clicked: Linux's notification servers and Windows'
-    /// toasts do. macOS says so only to a sender that waits on it in step,
-    /// which can hold a thread for as long as the notification is kept, so
-    /// there a click brings dm forward, as the system does by itself.
-    fn notify_file(&self, title: &str, body: &str, path: &str) {
-        let note = dm_desktop::quiet::Note {
-            title: title.to_string(),
-            body: body.to_string(),
-            path: Some(path.to_string()),
-        };
-        if let Some(note) = dm_desktop::quiet::offer(note) {
-            say(note);
-        }
-    }
-
-    fn chime(&self) {
-        // A sound that comes late is only noise: not while the person is busy.
-        if !dm_desktop::quiet::quiet_now() {
-            dm_desktop::power::chime();
-        }
-    }
-
-    fn alert(&self) {
-        if !dm_desktop::quiet::quiet_now() {
-            dm_desktop::power::alert();
-        }
-    }
-
-    fn play_file(&self, path: &str) {
-        if !dm_desktop::quiet::quiet_now() && !dm_desktop::power::play_file(path) {
-            dm_desktop::power::chime();
-        }
-    }
-
+impl WindowServices for EguiWindow {
     fn clipboard(&self) -> Option<String> {
         arboard::Clipboard::new().ok()?.get_text().ok()
-    }
-
-    fn reveal(&self, path: &str) -> Result<(), String> {
-        shell::reveal_in_folder(path)
-    }
-
-    fn open(&self, path: &str) -> Result<(), String> {
-        shell::open_file(path)
-    }
-
-    fn open_later(&self, path: &str, report: dm_desktop::power::Report) {
-        let path = path.to_string();
-        std::thread::spawn(move || {
-            if let Err(e) = shell::open_file(&path) {
-                report(e);
-            }
-        });
-    }
-
-    fn reveal_later(&self, path: &str, report: dm_desktop::power::Report) {
-        let path = path.to_string();
-        std::thread::spawn(move || {
-            // The file manager's own "show this file", selected in its
-            // folder, where one answers on the session bus; otherwise the
-            // folder alone.
-            #[cfg(target_os = "linux")]
-            if std::path::Path::new(&path).exists() && show_item(&path) {
-                return;
-            }
-            if let Err(e) = shell::reveal_in_folder(&path) {
-                report(e);
-            }
-        });
-    }
-
-    fn power(
-        &self,
-        action: dm_desktop::power::WhenDone,
-        report: dm_desktop::power::Report,
-    ) -> Result<(), String> {
-        dm_desktop::power::run(action, report)
     }
 
     fn choose_app(&self) -> Option<std::path::PathBuf> {
@@ -189,24 +29,8 @@ impl Platform for Desktop {
         dialog.pick_file()
     }
 
-    fn open_with(&self, path: &str, app: &std::path::Path) -> Result<(), String> {
-        shell::open_with(path, app)
-    }
-
     fn choose_folder(&self) -> Option<std::path::PathBuf> {
         rfd::FileDialog::new().pick_folder()
-    }
-
-    /// On Linux the chooser is the desktop portal's, else zenity's; with
-    /// neither, rfd answers as if cancelled. Elsewhere the system has one.
-    fn can_choose_folder(&self) -> bool {
-        #[cfg(target_os = "linux")]
-        return dm_desktop::backend::chooser_here(
-            file_chooser_portal(),
-            std::env::var_os("PATH").as_deref(),
-        );
-        #[cfg(not(target_os = "linux"))]
-        true
     }
 
     fn choose_file(&self, save: bool, suggested: &str) -> Option<std::path::PathBuf> {
@@ -222,6 +46,14 @@ impl Platform for Desktop {
         } else {
             dialog.pick_file()
         }
+    }
+
+    /// Not called on Windows, where dm posts its own toasts.
+    fn say(&self, note: dm_desktop::quiet::Note) {
+        #[cfg(not(windows))]
+        say(note);
+        #[cfg(windows)]
+        let _ = note;
     }
 }
 
@@ -277,74 +109,6 @@ pub(super) fn drag_out(
 /// What a dragged file looks like under the pointer: dm's icon, small.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(super) const DRAG_ICON: &[u8] = include_bytes!("../icons/32x32.png");
-
-/// Shows `path` selected in its folder through the freedesktop file
-/// manager interface, which the usual file managers answer (and are
-/// started for). False where none is there to ask.
-#[cfg(target_os = "linux")]
-pub(super) fn show_item(path: &str) -> bool {
-    const NAME: &str = "org.freedesktop.FileManager1";
-    let Ok(connection) = zbus::blocking::Connection::session() else {
-        return false;
-    };
-    let there = zbus::blocking::fdo::DBusProxy::new(&connection).is_ok_and(|bus| {
-        let Ok(name) = zbus::names::BusName::try_from(NAME) else {
-            return false;
-        };
-        bus.name_has_owner(name).unwrap_or(false)
-            || bus
-                .list_activatable_names()
-                .is_ok_and(|names| names.iter().any(|n| n.as_str() == NAME))
-    });
-    if !there {
-        return false;
-    }
-    let proxy = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&connection)
-        .destination(NAME)
-        .and_then(|b| b.path("/org/freedesktop/FileManager1"))
-        .and_then(|b| b.interface(NAME))
-        .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
-        .and_then(|b| b.build());
-    let Ok(proxy) = proxy else {
-        return false;
-    };
-    proxy
-        .call::<_, _, ()>("ShowItems", &(vec![dm_desktop::format::file_uri(path)], ""))
-        .is_ok()
-}
-
-/// Whether the desktop portal offers its file chooser on the session bus.
-#[cfg(target_os = "linux")]
-pub(super) fn file_chooser_portal() -> bool {
-    let Ok(connection) = zbus::blocking::Connection::session() else {
-        return false;
-    };
-    let proxy = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&connection)
-        .destination("org.freedesktop.portal.Desktop")
-        .and_then(|b| b.path("/org/freedesktop/portal/desktop"))
-        .and_then(|b| b.interface("org.freedesktop.portal.FileChooser"))
-        .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
-        .and_then(|b| b.build());
-    proxy.is_ok_and(|p| p.get_property::<u32>("version").is_ok())
-}
-
-/// Says a toast: one whose click opens a finished file, or a plain one.
-/// Posted by dm itself on Windows (`dm_desktop::toast`): notify-rust's kept
-/// three handles for every toast (gaps row 156).
-#[cfg(windows)]
-fn say(note: dm_desktop::quiet::Note) {
-    let dm_desktop::quiet::Note { title, body, path } = note;
-    // On a thread of its own, as before: the session's first toast starts
-    // Windows' runtime, which takes a moment the window should not wait.
-    std::thread::spawn(move || {
-        let open = path.filter(|p| !p.is_empty()).map(|path| {
-            move || {
-                let _ = shell::open_file(&path);
-            }
-        });
-        let _ = dm_desktop::toast::show(&title, &body, open);
-    });
-}
 
 /// Says a toast: one whose click opens a finished file, or a plain one.
 #[cfg(not(windows))]

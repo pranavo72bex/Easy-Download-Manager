@@ -105,7 +105,13 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   `details`, each re-exported at its old path (`i18n::pick` and `format::shortcut`/`key_name`
   draw with egui and stay in dm-desktop, which re-exports the rest with a glob);
   `tests/i18n.rs` scans both crates' sources. Gated per batch (`docs/decisions.md`, 2026-11-10);
-  `human-qa.py` 64/64 after batch 1. Next: `platform.rs`'s `Desktop` (below). As planned: a new crate
+  `human-qa.py` 64/64 after batch 1. `platform.rs`'s `Desktop` and `login.rs` moved too, the
+  window supplying the clipboard, file choosers and non-Windows notifications through
+  `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). **Left:** batch 4, modules the
+  survey missed that draw nothing (`contrast`, `system_theme`, `jumplist`, `taskbar`, the
+  binary's `signals`); then `MODULE_BOUNDARIES.md` and `ARCHITECTURE.md`'s crate diagram, the
+  binary's modes checked as G2's test-plan row says, both QA runs 64/64, and the row closes.
+  As planned: a new crate
   `desktop/crates/dm-desktop-base` that `dm-desktop` depends on and that `cargo xtask layers`
   forbids every name in `GUI` (add it to the `crates` list and to the `match` with
   `may = dm-core, dm-protocol, dm-shell`, `no_gui = true`, sockets allowed). Move one module per
