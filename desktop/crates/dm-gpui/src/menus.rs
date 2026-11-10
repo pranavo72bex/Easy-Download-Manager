@@ -19,6 +19,18 @@ use gpui::{Action, App, KeyBinding, Menu, MenuItem, SystemMenuType};
 #[action(namespace = dm, no_json)]
 pub struct Run(pub Command);
 
+/// Start Queue or Stop Queue for the queue named, whatever the list shows
+/// (B64): Downloads › Start Queue's and Stop Queue's submenus, and the
+/// toolbar's arrows beside them.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct RunOnQueue {
+    /// Start Queue or Stop Queue.
+    pub command: Command,
+    /// The queue, by its name in dm's list.
+    pub queue: String,
+}
+
 /// Ends dm (Exit, ⌘Q): the application's, so it is heard from any window
 /// in front, as Quit is in every macOS program; the list's commands
 /// (`Run`) are the main window's.
@@ -76,6 +88,13 @@ pub fn carried_out(command: Command) -> bool {
             | C::Find
             | C::FindNext
             | C::FindPrevious
+            | C::Scheduler
+            | C::SpeedLimiterToggle
+            | C::SpeedLimiterSettings
+            | C::SpeedLow
+            | C::SpeedMedium
+            | C::SpeedHigh
+            | C::SpeedUnlimited
             | C::StartQueue
             | C::StopQueue
             | C::WhenDoneNothing
@@ -171,8 +190,23 @@ fn menu(title: &'static str, groups: &[&[Command]]) -> Menu {
 }
 
 /// The menu bar.
-pub fn set(cx: &mut App) {
+pub fn set(cx: &mut App, queues: &[String]) {
     use Command as C;
+    // Start Queue and Stop Queue list the queues; the one clicked is started
+    // or stopped, whatever the list shows (B64).
+    let on_queues = |command: Command| {
+        MenuItem::submenu(
+            Menu::new(t(command.label())).items(queues.iter().map(|queue| {
+                MenuItem::action(
+                    dm_desktop_base::i18n::name(queue),
+                    RunOnQueue {
+                        command,
+                        queue: queue.clone(),
+                    },
+                )
+            })),
+        )
+    };
     let app = Menu::new("dm").items([
         item(C::About),
         MenuItem::separator(),
@@ -230,10 +264,13 @@ pub fn set(cx: &mut App) {
         &[
             &[C::ResumeAll, C::StopAll, C::DeleteCompleted],
             &[C::Find, C::FindNext, C::FindPrevious],
-            &[C::Scheduler, C::StartQueue, C::StopQueue],
+            &[C::Scheduler],
         ],
     );
     downloads.items.extend([
+        on_queues(C::StartQueue),
+        on_queues(C::StopQueue),
+        MenuItem::separator(),
         MenuItem::submenu(
             Menu::new(t("Speed limiter")).items(
                 [item(C::SpeedLimiterToggle), MenuItem::separator()]

@@ -62,7 +62,46 @@ pub fn toolbar(
         .children(buttons.into_iter().map(|(command, words)| {
             let enabled = view.enabled(command);
             let words = t(words);
-            div()
+            // Start Queue and Stop Queue have an arrow beside them that
+            // lists the queues; the one chosen is started or stopped,
+            // whatever the list shows (B64).
+            let queues = matches!(command, Command::StartQueue | Command::StopQueue)
+                .then(|| view.backend.queues());
+            let arrow = queues.map(|queues| {
+                div()
+                    .id((command.id(), 1usize))
+                    .role(Role::Button)
+                    .aria_label(dm_desktop_base::i18n::t("Queues"))
+                    .h(px(28.0))
+                    .w(px(14.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_md()
+                    .hover(|s| s.bg(theme.stripe))
+                    .child(
+                        svg()
+                            .path("icons/chevron-up-down.svg")
+                            .size(px(10.0))
+                            .text_color(theme.muted),
+                    )
+                    .on_click(move |event, window, cx| {
+                        let menu = queues.iter().fold(
+                            gpui_component::native_menu::NativeMenu::new(),
+                            |menu, queue| {
+                                menu.menu(
+                                    dm_desktop_base::i18n::name(queue),
+                                    Box::new(crate::menus::RunOnQueue {
+                                        command,
+                                        queue: queue.clone(),
+                                    }),
+                                )
+                            },
+                        );
+                        menu.show(event.position(), window, cx);
+                    })
+            });
+            let button = div()
                 .id(command.id())
                 .role(Role::Button)
                 .aria_label(words)
@@ -89,6 +128,7 @@ pub fn toolbar(
                         .size(px(18.0))
                         .text_color(theme.text),
                 )
-                .child(screen.label(words))
+                .child(screen.label(words));
+            div().flex().items_center().child(button).children(arrow)
         }))
 }

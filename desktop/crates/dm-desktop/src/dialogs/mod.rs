@@ -17,7 +17,7 @@ use crate::update::Said as _;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
-use dm_core::{AddOptions, Category, Id, Schedule, State, MAIN_QUEUE};
+use dm_core::{AddOptions, Category, Id, State, MAIN_QUEUE};
 use dm_shell::settings::SiteLogin;
 use dm_shell::Settings;
 use egui::{Color32, RichText};

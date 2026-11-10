@@ -165,6 +165,12 @@ pub struct Downloads {
     pub(crate) filter: gpui::Entity<gpui_component::input::InputState>,
     /// Its words, as last typed.
     filter_text: String,
+    /// The speed limit before the limiter was turned off, for turning it on.
+    last_limit: u64,
+    /// The Recheck queue's counts, once a check of it is done.
+    rechecked: std::sync::Arc<std::sync::Mutex<Option<(usize, usize)>>>,
+    /// The queues the menu bar lists, to build it again when they change.
+    menu_queues: Vec<String>,
 }
 
 impl Downloads {
@@ -213,6 +219,9 @@ impl Downloads {
                     .placeholder(dm_desktop_base::i18n::t("Name, address or note"))
             }),
             filter_text: String::new(),
+            last_limit: 0,
+            rechecked: Default::default(),
+            menu_queues: Vec::new(),
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
@@ -365,6 +374,28 @@ impl Downloads {
             Command::Remove | Command::DeleteFile => {
                 self.remove(&chosen, command == Command::DeleteFile, cx);
                 cx.notify();
+                return;
+            }
+            Command::Scheduler => {
+                crate::scheduler::open(cx.entity().downgrade(), self.current_queue(), cx);
+                return;
+            }
+            Command::SpeedLimiterSettings => {
+                crate::limiter::open(cx.entity().downgrade(), cx);
+                return;
+            }
+            Command::SpeedLimiterToggle
+            | Command::SpeedLow
+            | Command::SpeedMedium
+            | Command::SpeedHigh
+            | Command::SpeedUnlimited => {
+                self.speed(command);
+                cx.notify();
+                return;
+            }
+            Command::StartQueue | Command::StopQueue => {
+                let queue = self.current_queue();
+                self.run_on_queue(command, &queue, cx);
                 return;
             }
             Command::AddUrl => {
@@ -642,6 +673,112 @@ impl Downloads {
                 self.say(tf("Found {}.", &[&names[at]]));
             }
             None => self.say(tf("Nothing is called “{}”.", &[&self.filter_text])),
+        }
+    }
+
+    /// Start Queue or Stop Queue for `queue`, and what came of it said:
+    /// how many started (or that the schedule holds them, or that nothing
+    /// was waiting) or stopped. Checking the Recheck queue is said when it
+    /// is done.
+    pub fn run_on_queue(
+        &mut self,
+        command: dm_shell::app::commands::Command,
+        queue: &str,
+        cx: &mut Context<Self>,
+    ) {
+        use dm_desktop_base::i18n::{tf, tn};
+        use dm_shell::app::commands::{Command, Ran};
+        let ran = dm_shell::app::commands::verb(command, &self.backend, &[], queue);
+        self.read();
+        let name = dm_desktop_base::i18n::name(queue);
+        match (command, ran) {
+            (Command::StartQueue, ran) => {
+                let n = match ran {
+                    Some(Ran::QueueStarted(n)) => n,
+                    _ => 0,
+                };
+                let settings = self.backend.settings();
+                // Its own sound, only where the person chose a file.
+                if n > 0 {
+                    if let Some(path) = settings
+                        .sounds
+                        .get("queue_started")
+                        .map(|p| p.trim().to_string())
+                        .filter(|p| !p.is_empty())
+                    {
+                        self.backend.platform.play_file(&path);
+                    }
+                }
+                let schedule = settings.schedule_for(queue);
+                let lets = !schedule.enabled || schedule.open();
+                self.say(if n == 0 {
+                    tf("Nothing in {} was waiting to start.", &[&name])
+                } else if !lets {
+                    tf(
+                        "{} is waiting for the schedule; it starts by itself when the schedule opens.",
+                        &[&name],
+                    )
+                } else {
+                    tn(
+                        "Started {} download in {}.||Started {} downloads in {}.",
+                        n as u64,
+                        &[&n, &name],
+                    )
+                });
+                if queue == dm_core::RECHECK_QUEUE {
+                    dm_shell::app::commands::recheck(&self.backend, self.rechecked.clone());
+                }
+            }
+            (_, ran) => {
+                let n = match ran {
+                    Some(Ran::QueueStopped(n)) => n,
+                    _ => 0,
+                };
+                self.say(tn(
+                    "Stopped {} download in {}.||Stopped {} downloads in {}.",
+                    n as u64,
+                    &[&n, &name],
+                ));
+            }
+        }
+        cx.notify();
+    }
+
+    /// The Speed limiter on or off, or a preset (Low, Medium, High,
+    /// Unlimited), as `commands::limited` says, and said.
+    fn speed(&mut self, command: dm_shell::app::commands::Command) {
+        use dm_desktop_base::i18n::{t, tf};
+        let now = self.backend.settings();
+        let wanted =
+            dm_shell::app::commands::limited(command, &now, &mut self.last_limit).unwrap_or(now);
+        match self.backend.set_settings(wanted) {
+            Ok(after) if after.speed_limit > 0 => {
+                self.say(tf("Speed limiter on: {} KB/s.", &[&after.speed_limit]))
+            }
+            Ok(_) => self.say(t("Speed limiter off.").into()),
+            Err(e) => self.say(e),
+        }
+        self.session.forget_limit();
+    }
+
+    /// The menu bar's queue submenus, built again when the queues change.
+    pub(crate) fn refresh_menus(&mut self, cx: &mut Context<Self>) {
+        let queues = self.backend.queues();
+        if queues != self.menu_queues {
+            crate::menus::set(cx, &queues);
+            self.menu_queues = queues;
+        }
+    }
+
+    /// The Recheck queue's counts, once its check is done.
+    pub(crate) fn say_rechecked(&mut self) {
+        let done = dm_core::lock(&self.rechecked).take();
+        if let Some((checked, changed)) = done {
+            self.say(dm_desktop_base::i18n::tn(
+                "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.",
+                checked as u64,
+                &[&checked, &changed],
+            ));
         }
     }
 
@@ -1316,6 +1453,9 @@ impl Render for Downloads {
             .flex()
             .flex_col()
             .track_focus(&self.focus)
+            .on_action(cx.listener(|this, run: &crate::menus::RunOnQueue, _, cx| {
+                this.run_on_queue(run.command, &run.queue, cx)
+            }))
             .on_action(cx.listener(|this, run: &crate::menus::Run, window, cx| {
                 use dm_shell::app::commands::Command;
                 match run.0 {

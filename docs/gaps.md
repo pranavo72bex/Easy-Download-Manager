@@ -214,7 +214,12 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   GPUI window; B44's Properties half comes with slice 6. The window's top bar holds the search
   box, as a code editor's title bar does (the maintainer's word, "take reference from vscode"):
   the list narrowed as one types, ⌘F, Find next and previous, Escape; the toolbar a row under it.
-  Then
+  Slice 5 under way: the Scheduler (B49, B62, B65: the queues at its left with Start now and Stop,
+  each queue's hours or the Main queue's, weekly or once, When done, tries again, a program to
+  run; `dm_desktop_base::scheduler::SchedulerDraft`, both windows), the Speed limiter (its
+  presets, on and off, the download limit, slower hours), Start Queue and Stop Queue saying what
+  they did, and their queue lists in Downloads' menu and beside the toolbar's buttons (B64).
+  Next in slice 5: the Grabber (B60, B61) and its saved searches; B52 comes with the tray. Then
   (`changes::subscribe`
   waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
   checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):

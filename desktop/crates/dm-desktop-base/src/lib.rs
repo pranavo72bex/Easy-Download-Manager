@@ -67,6 +67,7 @@ pub mod probe;
 pub mod quiet;
 pub mod region;
 pub mod rows;
+pub mod scheduler;
 pub mod signals;
 pub mod system_theme;
 pub mod taskbar;

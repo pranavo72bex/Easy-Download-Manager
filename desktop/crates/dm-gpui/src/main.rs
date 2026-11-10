@@ -25,6 +25,7 @@ mod addurl;
 mod assets;
 mod details;
 mod fit;
+mod limiter;
 mod links;
 mod list;
 mod menus;
@@ -37,6 +38,7 @@ mod port;
 mod probe;
 mod question;
 mod rowmenu;
+mod scheduler;
 mod screen;
 mod services;
 mod sidebar;
@@ -245,7 +247,10 @@ fn main() {
             };
             // dm's menus in the system's menu bar, and every command's keys.
             menus::bind_keys(cx);
-            menus::set(cx);
+            let queues = main
+                .update(cx, |view, _, _| view.backend.queues())
+                .unwrap_or_default();
+            menus::set(cx, &queues);
             // Quit is heard from any window in front (a dialog's too), as in
             // every macOS program: the main window's view ends dm.
             if let Ok(view) = main.update(cx, |_, _, cx| cx.entity().downgrade()) {
