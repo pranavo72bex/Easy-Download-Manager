@@ -115,6 +115,7 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | Parts with no plan beside them | PASS | `parts_staged_under_no_known_plan_are_not_trusted` |
 | A power cut that lost more than the end checked at resume | PASS | `download.rs` `a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole` (256 KiB of zeros: byte-exact, not fetched from the start); a repair steps back at most 4 MiB at a time without spending a retry, so a file's own zeros before a torn end are not all fetched again: `a_torn_end_after_a_files_own_zeros_is_not_followed_back_through_them` |
 | Pause or cancel of a magnet whose metadata never comes | PASS | `torrent.rs` `a_magnet_with_no_peers_stops_when_paused` |
+| A reconnect within one run goes on from what its range has on disk, without asking for its last 64 KiB again; a resume (after a pause, a restart, a power cut) still checks them | PASS | `speed.rs` `a_reconnect_within_a_run_does_not_fetch_its_end_again` (a server cutting each connection at 512 KiB: 0.6% fetched twice, 14.2% with the old check; 56 requests, 72 with it); the power-cut tests in `download.rs` |
 
 ## D. Multiple connections
 
@@ -129,6 +130,7 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | One connection when ranges are not served | PASS | `a_server_without_ranges_still_produces_the_right_file` |
 | Small files not split | PASS | `MIN_SEGMENT`, `plan.rs` tests |
 | A small file from a server that holds each connection down is fetched on connections that join once the first is seen to be slow, and is done when its last range is: no helper watches on for work after the file is in | PASS | `download.rs` `a_small_file_from_a_slow_server_is_fetched_on_helping_connections`, `a_download_from_a_slow_server_ends_with_its_last_range` (fails without it: 65 ms against 17 ms, best of three); `chrome-check.py` "a small file from a server that holds each connection to 1 MB/s is fetched on helping connections" |
+| The number of connections is a ceiling: at most 8 open at once, and past them more only while they raise the total rate; given back when they do not | PASS | `grow.rs` `a_server_that_holds_each_connection_down_gets_more_than_eight` (16 allowed, each held to 256 KiB/s: 16 at once, 8.1 s against 12 s on eight), `a_server_that_shares_one_rate_keeps_eight` (2 MiB/s shared: 9 at once, the 9th tried and given back); `helping.rs` `a_connection_is_kept_only_where_it_raised_the_whole` |
 | Mirrors (Metalink) each carry ranges | PASS | Metalink tests in `download.rs` and `metalink.rs` |
 | Metalink: the document's size is the reference, a stale mirror is dropped; a piece's hash is not the file's | PASS | `tests/metalink.rs`; `metalink.rs` `a_digest_of_one_piece_is_not_taken_for_the_whole_file` |
 | A site's own connection limit (Options › Advanced › Network), by host or suffix, never above the setting | PASS | `limits.rs` `a_site_with_a_limit_of_its_own_is_fetched_on_that_many_connections` (a counting server sees at most the limit); `window.rs` `site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue` |
@@ -179,6 +181,8 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | The shown speed keeps to the speed limit from the first second, not the socket's burst | PASS | `the_shown_speed_keeps_to_the_limit_from_the_first_second` (500 KB/s, 8 connections, within 10 %) |
 | One ceiling across every download | PASS | torrent and video runs each hold a share while they run; the ceiling is split n+1 ways (`limit.rs` tests). A video run keeps the part it started with |
 | UI with hundreds of rows | PASS | `window.rs`: 500 rows, each frame within budget (layout, not paint) |
+| Beside reference A on a server that cuts every connection after 0.25 to 3 MiB (64 MiB at 8 MiB/s): within 5% of its time, under 2% fetched twice; allowed 16, level with it on a server holding each connection to 1 MiB/s | PASS | `D:\compare\release-0.9.0\bench.mjs flaky` and `per_conn`, Windows, 2026-11-10 (gaps rows 167, 168): at 8, dm 8.50 and 8.63 s, 1.1% fetched twice, reference A 8.34 and 8.27 s; at 16, dm 8.46 and 8.42 s (at most 10 open) against 8.26 and 8.27, and 6.58 and 6.87 s against 6.74 and 6.65 |
+| Beside reference A, a large file saved to another drive than dm's home | PARTIAL | `bench.mjs fast`, Windows, 2026-11-10: 512 MiB in 5.4 and 6.4 s, reference A 3.5 and 4.4 s (dm 10.0 and 12.7 s on 2026-11-09); the copy across drives is what is left (gaps row 166). On dm's own drive, Completed 0.09 s after the last byte |
 
 ## H. Filesystem and naming
 

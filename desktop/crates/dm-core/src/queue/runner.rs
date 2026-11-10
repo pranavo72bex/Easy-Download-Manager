@@ -605,6 +605,9 @@ impl Queue {
                     crate::motw::mark(&path, &from, &referrer);
                 })
                 .await;
+                // Put on the disk from here, not waited for, once the renames and the mark are
+                // done (`download::sync_after`).
+                crate::download::sync_after(finished.path.clone());
             }
             let mut slots = inner.slots.lock().await;
             let Some(slot) = slots.get_mut(&id) else {

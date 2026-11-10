@@ -182,8 +182,26 @@ pub(super) async fn run(
     // goes out on it (`second_path`). The ranges are taken as connections
     // free up, so the faster path fetches more of them.
     let second = crate::second_path::second_client();
+    /* The connections past `OPENED_AT_ONCE` wait to be let in by `grow`, which lets them in
+     * while they raise the rate and takes them back when they do not. One taken back finishes
+     * its piece and waits again; once `grow` is done, those still waiting are not needed. */
+    let grown_from = OPENED_AT_ONCE.max(workers.max(1));
+    let grown = (workers.max(1) + helpers).saturating_sub(grown_from);
+    let (gate, gate_seen) = tokio::sync::watch::channel(Gate::default());
+    let grower = (grown > 0).then(|| {
+        tokio::spawn(grow(
+            Arc::clone(job),
+            grown,
+            gate,
+            Arc::clone(&active),
+            wave_over_seen.clone(),
+        ))
+    });
     for ordinal in 0..workers.max(1) + helpers {
         let helper = ordinal >= workers.max(1);
+        // Which of the connections `grow` lets in this one is.
+        let grown_as = ordinal.checked_sub(grown_from);
+        let mut gate_seen = gate_seen.clone();
         let on_second = second.is_some() && ordinal % 2 == 1;
         let client = match &second {
             Some(second) if on_second => second.clone(),
@@ -204,90 +222,116 @@ pub(super) async fn run(
             let mut joined = false;
             // Whether this connection, left alone, has had its second go.
             let mut alone_again = false;
-            if helper {
+            if helper && grown_as.is_none() {
                 tokio::select! {
                     () = tokio::time::sleep(HELP_AFTER) => {}
                     _ = wave_over_seen.wait_for(|over| *over) => return Ok(()),
                 }
                 job.control.check()?;
             }
-            loop {
-                let index = next.fetch_add(1, Ordering::Relaxed);
-                let orphan = if index < planned {
-                    None
-                } else {
-                    crate::lock(&orphans).pop()
-                };
-                let index = if index < planned {
-                    index
-                } else if let Some(index) = orphan {
-                    index
-                } else {
-                    /* The watching ends early once the connections with
-                     * ranges of their own are done: they end only when no
-                     * range is left to halve (or a refusal, which ends a
-                     * helper here anyway), and ranges only shrink, so
-                     * there is nothing for a helper either. The last helper
-                     * to finish its range otherwise watched out its whole
-                     * window after the file was in, and the download waited
-                     * for it: 80 ms of every small slow file (gaps row 165). */
-                    if helper
-                        && (refused.load(Ordering::SeqCst)
-                            || !tokio::select! {
-                                worth = slow_enough_to_help(&job, started) => worth,
-                                _ = wave_over_seen.wait_for(|over| *over) => false,
-                            }
+            'connection: loop {
+                if let Some(me) = grown_as {
+                    let let_in = tokio::select! {
+                        gate = gate_seen.wait_for(|g| g.closed || me < g.allowed) => {
+                            gate.is_ok_and(|g| me < g.allowed)
+                        }
+                        _ = wave_over_seen.wait_for(|over| *over) => false,
+                    };
+                    if !let_in {
+                        break 'connection;
+                    }
+                    job.control.check()?;
+                }
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let orphan = if index < planned {
+                        None
+                    } else {
+                        crate::lock(&orphans).pop()
+                    };
+                    let index = if index < planned {
+                        index
+                    } else if let Some(index) = orphan {
+                        index
+                    } else {
+                        /* The watching ends early once the connections with
+                         * ranges of their own are done: they end only when no
+                         * range is left to halve (or a refusal, which ends a
+                         * helper here anyway), and ranges only shrink, so
+                         * there is nothing for a helper either. The last helper
+                         * to finish its range otherwise watched out its whole
+                         * window after the file was in, and the download waited
+                         * for it: 80 ms of every small slow file (gaps row 165). */
+                        // One `grow` let in has been judged worth it already.
+                        if helper
+                            && (refused.load(Ordering::SeqCst)
+                            || (grown_as.is_none()
+                                && !tokio::select! {
+                                    worth = slow_enough_to_help(&job, started) => worth,
+                                    _ = wave_over_seen.wait_for(|over| *over) => false,
+                                })
                             // Looked at again after the watching: a refusal
                             // while it went on is as good as one before.
                             || refused.load(Ordering::SeqCst))
-                    {
-                        break;
+                        {
+                            break 'connection;
+                        }
+                        match split_largest(&job).await {
+                            Some(index) => index,
+                            None => break 'connection,
+                        }
+                    };
+                    if helper && !joined {
+                        joined = true;
+                        active.fetch_add(1, Ordering::SeqCst);
                     }
-                    match split_largest(&job).await {
-                        Some(index) => index,
-                        None => break,
+                    crate::lock(&job.live[index]).taken = true;
+                    crate::second_path::fetched_by(&job.parts, index, on_second);
+                    let first = if index == 0 {
+                        crate::lock(&probe).take()
+                    } else {
+                        None
+                    };
+                    match fetch_segment(&client, &job, index, resumable, &active, first).await {
+                        Ok(()) => {}
+                        /* The server would not take this connection (a 429 or
+                         * 503 at once, a refused connect after its retries)
+                         * while others are working: this one steps aside and
+                         * leaves its range to them, as a server that limits
+                         * connections asks, rather than failing a download the
+                         * rest are fetching. */
+                        Err(e)
+                            if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 =>
+                        {
+                            refused.store(true, Ordering::SeqCst);
+                            crate::lock(&job.live[index]).taken = false;
+                            crate::lock(&orphans).push(index);
+                            break 'connection;
+                        }
+                        /* The others stepped aside between the judgement and
+                         * now, and this is the last connection: its range is
+                         * nobody else's to fetch, so it is tried once more
+                         * here, with the tries a connection alone gets. */
+                        Err(e) if crate::retry::transient(&e) && !alone_again => {
+                            alone_again = true;
+                            // Given back, so it is this range that is tried
+                            // again and not a fresh one taken in its place.
+                            crate::lock(&job.live[index]).taken = false;
+                            crate::lock(&orphans).push(index);
+                            continue;
+                        }
+                        Err(e) => return Err(e),
                     }
-                };
-                if helper && !joined {
-                    joined = true;
-                    active.fetch_add(1, Ordering::SeqCst);
+                    alone_again = false;
+                    // Taken back by `grow`, with its piece done: it waits to be let in again.
+                    if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
+                        if joined {
+                            joined = false;
+                            active.fetch_sub(1, Ordering::SeqCst);
+                        }
+                        continue 'connection;
+                    }
                 }
-                crate::lock(&job.live[index]).taken = true;
-                crate::second_path::fetched_by(&job.parts, index, on_second);
-                let first = if index == 0 {
-                    crate::lock(&probe).take()
-                } else {
-                    None
-                };
-                match fetch_segment(&client, &job, index, resumable, &active, first).await {
-                    Ok(()) => {}
-                    /* The server would not take this connection (a 429 or
-                     * 503 at once, a refused connect after its retries)
-                     * while others are working: this one steps aside and
-                     * leaves its range to them, as a server that limits
-                     * connections asks, rather than failing a download the
-                     * rest are fetching. */
-                    Err(e) if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 => {
-                        refused.store(true, Ordering::SeqCst);
-                        crate::lock(&job.live[index]).taken = false;
-                        crate::lock(&orphans).push(index);
-                        break;
-                    }
-                    /* The others stepped aside between the judgement and
-                     * now, and this is the last connection: its range is
-                     * nobody else's to fetch, so it is tried once more
-                     * here, with the tries a connection alone gets. */
-                    Err(e) if crate::retry::transient(&e) && !alone_again => {
-                        alone_again = true;
-                        // Given back, so it is this range that is tried
-                        // again and not a fresh one taken in its place.
-                        crate::lock(&job.live[index]).taken = false;
-                        crate::lock(&orphans).push(index);
-                        continue;
-                    }
-                    Err(e) => return Err(e),
-                }
-                alone_again = false;
             }
             if !helper || joined {
                 active.fetch_sub(1, Ordering::SeqCst);
@@ -344,6 +388,10 @@ pub(super) async fn run(
                 failed = Some(e);
             }
         }
+    }
+    // Nothing is left for it to let in.
+    if let Some(grower) = grower {
+        grower.abort();
     }
     if let Some(e) = failed {
         return Err(e);
@@ -423,11 +471,13 @@ pub(super) async fn split_largest(job: &Job) -> Option<usize> {
     });
     // A new range starts with nothing written down for it.
     let _ = fs::remove_file(ledger_path(&job.parts, index)).await;
+    // Every byte of it will be this run's.
     *crate::lock(&job.live[index]) = Live {
         start,
         end,
         reserved: 0,
         taken: true,
+        trusted: true,
     };
     Some(index)
 }
@@ -678,13 +728,14 @@ pub(super) async fn attempt_segment(
     // The ledger, read fresh: what it says is on disk is what has arrived.
     let already = job.ledger(index).min(span);
     let mut ledger = job.open_ledger(index).await?;
-    {
+    let trusted = {
         let mut l = crate::lock(&job.live[index]);
         l.reserved = l.reserved.max(already);
-    }
+        l.trusted
+    };
     // A whole part needs nothing more, unless its tail is to be checked
-    // against the server below.
-    if already >= span && !resumable {
+    // against the server below: one this run wrote or checked has nothing to check.
+    if already >= span && (!resumable || trusted) {
         job.segments.lock().await[index].done = span;
         return Ok(());
     }
@@ -709,8 +760,10 @@ pub(super) async fn attempt_segment(
      * be on disk while the last bytes are not — zeros, on NTFS, exFAT and
      * others — which a resume would have kept and built on, and called the
      * file finished. Where the two differ the part is cut back to the last
-     * byte they agree on and fetched from there: repaired, not restarted. */
-    let check = if resumable {
+     * byte they agree on and fetched from there: repaired, not restarted.
+     * Only for a ledger an earlier run wrote: a reconnect within this run
+     * goes on from bytes this run put there (`Live::trusted`). */
+    let check = if resumable && !trusted {
         already.min(RESUME_CHECK)
     } else {
         0
@@ -967,6 +1020,8 @@ pub(super) async fn attempt_segment(
     } else {
         already
     };
+    // What the ledger vouches for is checked, or this run's own, from here on.
+    crate::lock(&job.live[index]).trusted = true;
 
     /* Small: tokio's file keeps a copy of every write it hands to the
      * disk, so each connection holds this twice. 256 KiB cost 20–30 MB more
@@ -990,6 +1045,8 @@ pub(super) async fn attempt_segment(
     let mut lead_buf: Vec<u8> = Vec::with_capacity(lead_n);
     let mut reader = Reader::new();
     let mut window = Window::open(written, job);
+    // Counted among the requests bringing bytes in from its first byte (`grow`).
+    let mut flowing = None;
 
     loop {
         // A connection far slower than the rest is dropped and asked again,
@@ -1109,6 +1166,7 @@ pub(super) async fn attempt_segment(
         }
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
+        flowing.get_or_insert_with(|| Flowing::new(&job.flowing));
         // With no length to have planned the room for, the disk is looked at as
         // the bytes come, and the download stopped before it fills it.
         if job.size.is_none() && written - disk_looked >= DISK_LOOK_EVERY {

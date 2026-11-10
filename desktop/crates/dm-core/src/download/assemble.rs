@@ -36,6 +36,27 @@ pub(super) async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Er
         if fs::rename(only, into).await.is_ok() {
             return Ok(fs::metadata(into).await?.len());
         }
+        /* To another drive, by the system's own copy (CopyFileEx on Windows, copy_file_range
+         * on Linux, a clone or fcopyfile on macOS), which hands the bytes over in the system's
+         * own large blocks; the part goes once the copy is whole (gaps row 166). */
+        let (from, to) = (only.clone(), into.to_path_buf());
+        let copied = tokio::task::spawn_blocking(move || -> Result<u64, Error> {
+            if !from.exists() {
+                return Err(Error::Internal(
+                    "a staged part went missing while the file was being joined".into(),
+                ));
+            }
+            let bytes = std::fs::copy(&from, &to)?;
+            let _ = std::fs::remove_file(&from);
+            Ok(bytes)
+        })
+        .await
+        .map_err(|e| Error::Internal(e.to_string()))
+        .and_then(|copied| copied);
+        if copied.is_err() {
+            let _ = fs::remove_file(into).await;
+        }
+        return copied;
     }
 
     /* The file is dm's from here — `claim_path` took a name nothing had —
@@ -49,29 +70,40 @@ pub(super) async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Er
     copied
 }
 
-/// The finished file's bytes, and its name in its folder, on the disk before anything calls it
-/// done: the queue records a completed row durably, and nothing resumes a finished file, so a
-/// power cut soon after could leave a "completed" file whose last blocks never reached the disk
-/// (engine review, 2026-11-08). One sync per finished file; a download's own writes are not synced
-/// (`docs/decisions.md`, 2026-10-15). A file that cannot be synced is a disk error; its folder is
-/// synced where the system allows it.
-pub(super) async fn durable(path: &Path) -> Result<(), Error> {
-    let path = path.to_path_buf();
-    tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-        // Opened for writing: Windows flushes a file only through a handle that may write it.
-        std::fs::OpenOptions::new()
+/// The finished file's bytes, and its name in its folder, put on the disk without anything
+/// waiting for it, so the row says Completed as soon as the system holds the whole file, as
+/// reference A's does. Waited for, a file copied to a hard disk on another drive than dm's home
+/// spent most of its finish on the flush: 512 MiB took 10 to 12.7 s where reference A took 5.7 to
+/// 6.4 s (gaps row 166, 2026-11-09; the maintainer's choices of 2026-11-10, `docs/decisions.md`).
+/// What it gives up: a power cut in the seconds after Completed can leave the file's last blocks
+/// unwritten, which the 2026-11-08 sync before Completed had ruled out. Called once nothing more is
+/// done to the file (after the queue's renames and the mark of where it came from).
+///
+/// On Windows nothing is asked: the system's own write-behind puts the file on the disk within
+/// seconds, as it does reference A's. A flush asked for (`FlushFileBuffers`, or
+/// `NtFlushBuffersFileEx` as fdatasync) holds the file against every other open while it runs:
+/// 4 to 8 s for 512 MiB on a hard disk, in which a stream added to it (the mark) and a look at
+/// its size (the window's, on its own thread) both waited, the window frozen with them, and
+/// Explorer or a double-click would too (measured 2026-11-10). Elsewhere, an fsync on a thread of
+/// its own, which keeps nobody else from the file; its folder too. A file that cannot be synced
+/// (moved or deleted that soon) is left to the system. A folder (a torrent's) is not synced here.
+pub(crate) fn sync_after(path: PathBuf) {
+    if cfg!(windows) || !path.is_file() {
+        return;
+    }
+    tokio::task::spawn_blocking(move || {
+        let synced = std::fs::OpenOptions::new()
             .write(true)
-            .open(&path)?
-            .sync_all()?;
+            .open(&path)
+            .and_then(|file| file.sync_all());
+        if let Err(e) = synced {
+            eprintln!("dm: {} was not synced to the disk: {e}", path.display());
+        }
         #[cfg(unix)]
         if let Some(dir) = path.parent().and_then(|p| std::fs::File::open(p).ok()) {
             let _ = dir.sync_all();
         }
-        Ok(())
-    })
-    .await
-    .map_err(|e| Error::Internal(e.to_string()))?
-    .map_err(Error::Disk)
+    });
 }
 
 /* The first part becomes the file by a rename, and the rest are appended to
@@ -365,8 +397,6 @@ pub(crate) async fn finish(
         return Err(Error::Cancelled);
     }
 
-    durable(&path).await?;
-
     /* A file that fails its digest is removed rather than kept beside a
      * warning: one known to be wrong, sitting in the downloads folder looking
      * like every other one, is how it comes to be opened. */
@@ -382,6 +412,8 @@ pub(crate) async fn finish(
             return Err(e);
         }
     }
+    // Not synced here: whoever hands the file on starts it once nothing more is done to the
+    // file (`sync_after`).
 
     // The parts are consumed; what was written down about them goes too,
     // so a finished download leaves its staging directory as empty as it

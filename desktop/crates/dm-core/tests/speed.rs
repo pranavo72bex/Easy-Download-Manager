@@ -508,3 +508,88 @@ async fn the_probes_answer_is_range_0s_whoever_takes_range_0() {
         );
     }
 }
+
+/// A server that cuts every connection after half a mebibyte: each reconnect goes on from what
+/// its range has on disk. It asked again for the last 64 KiB it held and compared them, a check
+/// for what a power cut leaves, which cannot happen within one run; on a server cutting
+/// connections every megabyte or so that was most of what dm fetched twice (gaps row 167). Now
+/// only the end of each finished range and a few seams are asked for again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_reconnect_within_a_run_does_not_fetch_its_end_again() {
+    const CUT: usize = 512 * 1024;
+    let data = Arc::new(
+        (0..16 * 1024 * 1024)
+            .map(|i: usize| (i as u8).wrapping_mul(31).wrapping_add(11))
+            .collect::<Vec<u8>>(),
+    );
+    let size = data.len();
+    let served = Arc::new(AtomicUsize::new(0));
+    let asked = Arc::new(AtomicUsize::new(0));
+    let (file, sent, requests) = (data.clone(), served.clone(), asked.clone());
+    let app = axum::Router::new().route(
+        "/cut.bin",
+        get(move |headers: HeaderMap| {
+            let (data, sent) = (file.clone(), sent.clone());
+            requests.fetch_add(1, Ordering::SeqCst);
+            async move {
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        let a: usize = a.parse().unwrap();
+                        (a, b.parse::<usize>().unwrap_or(size - 1).min(size - 1))
+                    })
+                    .unwrap_or((0, size - 1));
+                let upto = b.min(a + CUT - 1);
+                let chunks: Vec<(usize, usize)> = (a..=upto)
+                    .step_by(64 * 1024)
+                    .map(|s| (s, (s + 64 * 1024 - 1).min(upto)))
+                    .collect();
+                // Cut cleanly: the shorter range is answered for what it is, so every byte
+                // counted here reaches dm. A body ended by an error loses what was still in
+                // the server's buffers, which is the test's loss, not dm's.
+                let body = futures_util::stream::iter(chunks).then(move |(s, e)| {
+                    let (data, sent) = (data.clone(), sent.clone());
+                    async move {
+                        tokio::time::sleep(Duration::from_millis(4)).await;
+                        sent.fetch_add(e - s + 1, Ordering::SeqCst);
+                        Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(&data[s..=e]))
+                    }
+                });
+                Response::builder()
+                    .status(206)
+                    .header("content-range", format!("bytes {a}-{upto}/{size}"))
+                    .header("content-length", upto - a + 1)
+                    .header("accept-ranges", "bytes")
+                    .header("etag", "\"cut\"")
+                    .body(Body::from_stream(body))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/cut.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+    let again = served.load(Ordering::SeqCst).saturating_sub(size);
+    println!(
+        "cut every 512 KiB: {} requests, {} KiB fetched twice ({:.2}%)",
+        asked.load(Ordering::SeqCst),
+        again / 1024,
+        100.0 * again as f64 / size as f64
+    );
+    // At 64 KiB a reconnect, thirty-odd reconnects were over 12%.
+    assert!(
+        (again as f64) < 0.02 * size as f64,
+        "{} KiB fetched twice",
+        again / 1024
+    );
+}

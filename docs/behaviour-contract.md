@@ -38,9 +38,9 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 
 | ID | Situation | What must happen | Reference A |
 |---|---|---|---|
-| B06 | Any file from a server that takes ranges | Several connections (8 by default); a connection with nothing left halves the largest piece still being fetched | same |
+| B06 | Any file from a server that takes ranges | Several connections (8 by default); a connection with nothing left halves the largest piece still being fetched. The number set is a ceiling: at most 8 open at once, and past them one more (then two, four…) only while the last ones added raised the total speed by at least half of what a connection brought; when they did not, they are given back after the piece they hold, and tried again later (since 2026-11-10, at the maintainer's word of that day, "fix the download speed problem", choosing the adaptive ceiling; gaps row 168) | same |
 | B07 | A fast server that keeps connections open | Finished connections take the next piece: more requests than connections | same |
-| B08 | A server that holds each connection to a low speed | Every connection is used; 32 MiB at 2 MiB/s a connection finishes in a few seconds, not sixteen | not documented |
+| B08 | A server that holds each connection to a low speed | Every connection is used; 32 MiB at 2 MiB/s a connection finishes in a few seconds, not sixteen. Past 8, each is added as it raises the speed (B06), so such a server gets all of them; one that shares a single speed among them all gets 8 | not documented |
 | B09 | A server that allows two connections at once and answers 503 to more | The refusals are absorbed and the file completes | same (fewer connections for such servers) |
 | B10 | A server that does not take ranges | Fetched on one connection, whole | same |
 | B11 | A server that says the file is longer than it sends | The file completes; it does not stay "running" | not documented |
