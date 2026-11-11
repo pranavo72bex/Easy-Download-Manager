@@ -109,11 +109,7 @@ impl Render for Limiter {
         self.screen.begin();
         let screen = self.screen.clone();
         let slow_on = self.slow.enabled;
-        let labels = [
-            t("Speed limit (KB/s, 0 for none)"),
-            t("Download at most this many MB (0 for no limit)"),
-            t("in each period of this many hours"),
-        ];
+        let labels = labels();
         let width = native::label_width(&labels);
         let number_field = |input: &Entity<InputState>, name: &'static str| {
             div().w(px(110.0)).child(native::field(input, name, theme))
@@ -225,6 +221,33 @@ impl Render for Limiter {
     }
 }
 
+/// The form's labels, in the language in force.
+fn labels() -> [&'static str; 3] {
+    [
+        t("Speed limit (KB/s, 0 for none)"),
+        t("Download at most this many MB (0 for no limit)"),
+        t("in each period of this many hours"),
+    ]
+}
+
+/// The window's width, in points of dm's design: the label column and the
+/// widest control beside it, the slower hours' two rows included, measured
+/// as `native::label_width` measures words. At a fixed 560 those rows ran
+/// past the right edge in English, Stop at's field and the speed in those
+/// hours out of sight (found by a screenshot, 2026-11-11).
+fn width() -> f32 {
+    let words = |w: &str| w.chars().count() as f32 * native::TEXT * 0.55;
+    let gap = native::LABEL_GAP;
+    let hours =
+        words(t("Start at")) + gap + 70.0 + gap + 8.0 + gap + words(t("Stop at")) + gap + 70.0;
+    let slow_speed = words(t("Speed limit in those hours (KB/s)")) + gap + 110.0;
+    let slower = 24.0 + words(t("Slower between set hours"));
+    let controls = hours.max(slow_speed).max(slower).max(110.0);
+    (2.0 * native::MARGIN + native::label_width(&labels()) + gap + controls)
+        .max(560.0)
+        .ceil()
+}
+
 /// Opens the Speed limiter.
 pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
     // After the update that asked: the main window's view is read.
@@ -236,7 +259,7 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
         return;
     };
     let settings = downloads.read(cx).backend.settings();
-    let bounds = Bounds::centered(None, size(px(560.0), px(300.0)), cx);
+    let bounds = Bounds::centered(None, size(px(width()), px(300.0)), cx);
     let opened = crate::screen::open_window(
         cx,
         WindowOptions {
