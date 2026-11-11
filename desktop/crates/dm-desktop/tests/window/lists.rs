@@ -199,6 +199,8 @@ fn the_category_tree_filters_the_one_list() {
 
 #[test]
 fn clicking_a_heading_sorts_and_clicking_again_reverses() {
+    // A sort is saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     for name in ["b.bin", "c.bin", "a.bin"] {

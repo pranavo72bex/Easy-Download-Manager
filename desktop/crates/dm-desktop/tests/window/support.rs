@@ -522,6 +522,12 @@ impl World {
             // were written; a new install has both on (`new_installs_sort_by_kind_and_start_at_login`).
             categorize: false,
             start_on_login: false,
+            // And the hint that Details shows a download's progress taken as
+            // given: it is saved the first time a download runs, and saved
+            // from every test that starts one it wrote the shared settings
+            // file under a test reading back its own (gaps row 174).
+            // `a_started_download_says_once_where_its_progress_is` asks.
+            hinted_details: true,
             ..Settings::default()
         }
     }
@@ -533,6 +539,16 @@ impl World {
             settings.options(self.dir.path().join("parts"), dm_core::Limiter::unlimited()),
             settings.concurrency,
         );
+        // The schedules and limits as a launch puts them on the queue
+        // (`shell::start`). Before, they reached it only when something saved
+        // the settings, and a test of a closed schedule passed because the
+        // Details hint, saved as its download started, applied them.
+        queue.set_schedule(settings.schedule.clone());
+        queue.set_queue_schedules(settings.queue_schedules.clone());
+        queue.set_allowance(settings.allowance());
+        queue.set_recheck_every(settings.recheck_every());
+        queue.set_queue_limits(settings.queue_limit_map());
+        queue.set_queue_starts(settings.queue_start_list());
         let backend = Backend::new(
             self.runtime.handle().clone(),
             queue,

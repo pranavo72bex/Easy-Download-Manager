@@ -604,6 +604,8 @@ fn a_resume_straight_after_a_pause_is_not_refused_by_a_stale_list() {
 /// drove the window keep the program the queue had.
 #[test]
 fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
+    // Its settings are applied, and so saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let key = serde_json::json!({ "key": "Escape" });

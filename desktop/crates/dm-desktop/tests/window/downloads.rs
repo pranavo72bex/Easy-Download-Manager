@@ -1287,6 +1287,8 @@ fn a_drop_with_no_link_says_how_to_add_one() {
 /// fresh one goes on from the parts already fetched.
 #[test]
 fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
+    // Its window gives the Details hint, which is saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1100.0, 720.0))
@@ -1339,6 +1341,8 @@ fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
 /// another folder, and there it finishes, its parts carried over.
 #[test]
 fn an_unreachable_folder_pauses_and_another_folder_finishes_it() {
+    // Its window gives the Details hint, which is saved.
+    let _file = settings_file();
     let world = world();
     let blocker = world.dir.path().join("not-a-drive");
     std::fs::write(&blocker, b"a file where the folder should be").unwrap();
@@ -1402,6 +1406,8 @@ fn a_cut_connection_is_said_plainly() {
                 show_progress: false,
                 show_complete: false,
                 language: "en".into(),
+                // The Details hint, saved when given, is not this test's.
+                hinted_details: true,
                 ..Settings::default()
             }),
         );
@@ -1437,6 +1443,8 @@ fn a_cut_connection_is_said_plainly() {
 /// attempt it is on.
 #[test]
 fn a_retry_says_its_attempt() {
+    // Its window gives the Details hint, which is saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1100.0, 720.0))
@@ -1615,6 +1623,8 @@ fn retry_uses_a_sign_in_saved_since_it_failed() {
 /// file address in Add URL; only a drop took it.
 #[test]
 fn add_url_takes_a_torrent_on_this_computer() {
+    // Add URL saves its addresses.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let file = world.dir.path().join("a set.torrent");
@@ -2242,7 +2252,11 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
 fn a_started_download_says_once_where_its_progress_is() {
     let _file = settings_file();
     let world = world();
-    let mut harness = world.harness();
+    // The one test the hint is for: the others' window has it given.
+    let mut harness = world.harness_with(Settings {
+        hinted_details: false,
+        ..world.settings()
+    });
     harness.state_mut().applied.show_progress = true;
     add_url(&mut harness, &world.url("stalled.bin"), "Start now");
     until(&mut harness, "it to run", |app| app.downloading() == 1);

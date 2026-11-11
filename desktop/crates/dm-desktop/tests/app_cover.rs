@@ -897,6 +897,8 @@ fn a_hint_whose_mark_cannot_be_saved_says_why() {
 
     app.applied.start_on_login = true;
     app.said = Default::default();
+    // The tests' window has the Details hint given (`World::settings`).
+    app.applied.hinted_details = false;
     app.details_hint();
     assert!(
         app.said

@@ -5715,3 +5715,35 @@ own once Windows holds the contract in GPUI (G9). The GPUI window uses the syste
 - Tried and dropped: setting the X11 app id from dm's build closure (GPUI already sets it from
   `WindowOptions::app_id` before it shows the window); a per-window scale for View › Text size
   (deferred: macOS's slice, not Linux's).
+
+## 2026-11-11: The window tests' unguarded settings writers, found by tracing every save
+
+Gaps row 174: `window::options::site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue`
+sometimes read back `read_timeout` 30 from the shared settings file just after saving 10. To find
+every writer rather than guess, `Settings::save_to` was instrumented for one run (not committed):
+each save logged its test thread's name, whether that thread held `support::settings_file()`, and
+its backtrace. One whole run of the window binary showed 38 tests saving without the guard:
+
+- **The Details hint (33 saves).** `DmApp::details_hint` marks the hint given and saves the whole
+  of `applied` the first time a download runs while the progress window is off, which the tests'
+  window is (`World::settings`). Every such test wrote the defaults (`read_timeout` 30 among them)
+  over whatever a guarded test had just saved. `World::settings` now has the hint given, as it
+  has the progress and complete windows off: most tests are about the list, not the hint.
+  `a_started_download_says_once_where_its_progress_is`, the hint's own test, turns it back on and
+  holds the guard; three tests building their own settings with downloads that run
+  (`a_fresh_link_is_taken_from_the_browser`, `a_cut_connection_is_said_plainly`,
+  `the_series_error_waits_for_both_ends_and_speaks_german`) have it given too.
+- **The rest take the guard:** Add URL's remembered addresses where a test drives the dialog itself
+  rather than through `add_url`, Download details' remembered folder, a sort clicked in a heading,
+  Options' OK, a script's settings applied, and three tests building their own settings whose
+  window gives the hint.
+
+- **The hint's save had been hiding a gap in the test window.** `World::app_with` built the queue
+  without the settings' schedules and limits, which a launch puts on it (`shell::start`), and
+  `control_cover::a_download_the_schedule_holds_is_not_resumed_over_the_port` passed only because
+  the hint's save applied its closed schedule. `app_with` now sets them as a launch does, and
+  `app_cover::a_hint_whose_mark_cannot_be_saved_says_why` turns the hint back on for its own check.
+
+After: three traced runs showed no save without the guard (1,193 saves, all held), and the window
+binary passed ten whole runs in a row. Taking the guard for the whole of every test was dropped:
+it would serialise the binary's 291 tests behind one lock.
