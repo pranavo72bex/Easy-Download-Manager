@@ -29,7 +29,8 @@ extension that hands it the browser's downloads.
 
 - `desktop/` is the product. `crates/dm-core` is the engine (probe, plan,
   ranged fetch, resume, assembly, queue, HLS, DASH, Metalink, BitTorrent,
-  video-page handling). `crates/dm-shell` is everything around the window that is not
+  video-page handling), and on macOS the allocator the GPUI window runs with
+  (`memory`: large blocks go back to the system when freed). `crates/dm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
   startup and the inbox, and the application layer (`dm_shell::app`: the
   queue's verbs, the commands, what happened between reads and the typed

@@ -5991,3 +5991,93 @@ Tried and dropped:
   0.83 to 0.88 G instructions to 0.56 to 0.66, so the share per piece is real; but every pause
   would add to the finish after the last byte (row 177) and to the time a cut connection waits to
   be asked again, and the kernel still wakes dm for each piece that arrives.
+
+## 2026-11-12: Memory on macOS: a download's large blocks go back to the system, and what any GPU window costs (gaps row 175)
+
+What the benchmark reads on macOS is the resident size `ps` gives (`rss`), every 400 ms;
+`peakWorkingSetMB` is its highest in a run. It counts the pages mapped into dm's own address
+space: its heap and stacks, its code, the system's data files it has read, the drawing surfaces it
+shares with WindowServer, the GPU buffers it can see, and the pages of the system libraries' data
+it has touched; not the libraries' code, which every program shares. It is not the physical
+footprint (`footprint`), which counts only what dm alone holds and was 49 MB at rest against
+107 MiB resident. dm-gpui (release, Apple M1, macOS 27, a home of its own, the window on screen) was
+taken apart with `vmmap`, `footprint` and `heap`, at rest and around downloads driven through the
+control port by a copy of the bench's server (not committed).
+
+**At rest**, 106 to 108 MiB, steady over two minutes:
+- the window's drawing surfaces, 16.8 MiB: two of its three 1800 by 1200 drawables, 8.4 MiB each,
+  shared with WindowServer (the third is made but not drawn into at rest);
+- the heap, 17.5 MiB: 11.5 MB in use (4.2 MB of it dm's and GPUI's own: GPUI's two arena chunks of
+  1 MiB, its scene, taffy's nodes, the keyboard layouts; the rest AppKit's menus and their SF
+  Symbols, CoreText, the Objective-C runtime) and 5.7 MB freed during the start and kept;
+- the system's data files dm has read, 14.3 MiB, clean pages: the SF Symbols catalogues (5 MiB,
+  pulled in by the menus' separators), LaunchServices' store (2.2), the system font (1.7), the
+  keyboard layouts (1.6), the appearance catalogues and ICU;
+- dm's own code, 8.2 MiB of its 17.3, clean;
+- GPUI's Metal buffers, 3.9 MiB: the frame's instance buffer (2 MiB) and the glyph atlas (1 MiB);
+- and the rest, about 40 MiB, the system frameworks' own data pages dm has touched: AppKit loads
+  the same 1,140 images whatever a program links.
+
+**What any GPU window costs.** A 60-line Objective-C program that opens an `NSWindow` of the same
+size with a `CAMetalLayer` and clears it six times, with no menus, text or Rust, is 82 MiB resident
+with its three drawables drawn and 73 MiB with two. Linked with every framework dm-gpui links it is
+the same (the same 1,140 images). So no GPU window on this computer comes near reference A's floor,
+measured on Windows (39.2 MiB at rest, 20.9 to 21.6 while downloading); dm's own share at rest is
+the 25 to 34 MiB above that program: its code, the part of the heap that is its own and the start's
+leftovers, GPUI's buffers, the data files the menus and the keyboard read.
+
+**While downloading it rose, and stayed.** 107.5 MiB at rest, 129.5 after one `fast` download
+(512 MiB), 134.7 after two `fast` and two `per_conn`, 134.4 ten seconds later; with no window
+(`--headless`) 21.7, 39.6 and 42.5. The heap then held 14.2 MB in use in 37.1 MiB resident,
+22.9 MiB freed and kept; headless 0.6 MB in use in 20.3 MiB, 17.4 MiB of it regions with nothing in
+them. macOS 27's allocator gives freed memory back only when the computer runs short: in a test
+program, 64 MiB freed in blocks of 64 KiB, 416 KiB, 1 MiB, 4 MiB or a mix stayed resident for as
+long as it was watched, and `malloc_zone_pressure_relief` released none of it (which is why the
+timer of 2026-10-27 "did not move" RSS). It came back once, when the computer was short of memory,
+as it was in one bench run where `per_conn` measured 98 MiB after three `fast` downloads, and in one
+`outage` run below. The blocks were a download's largest, each freed as its connection or range
+ends: halfway through a 3 GiB download from the local server, 7.7 MiB of them were alive, eight
+read buffers of 416 KiB (hyper grows each a step at a time from 8 KiB to 408), eight of tokio's
+copies of what is being written (up to 640 KiB) and eight write buffers of 64 KiB.
+
+**What changed.** `dm_core::memory::Allocator`, dm-gpui's global allocator on macOS, maps each block
+of 64 KiB or more on its own (`mmap`, tagged "App-Specific Tag 1" for `vmmap`) and unmaps it the
+moment it is freed. Smaller blocks stay with the system's allocator, so the many small ones cost
+no call to the system each. Windows and Linux keep the system's allocator: not measured there.
+
+**Measured**, the old build and the new alternated (`peakWorkingSetMB`, medians):
+- `node bench/bench.mjs idle fast per_conn`, three rounds of three: `idle` 107.0 and 107.1 (no
+  change); `fast` 131.7 MiB (123.9 to 134.9) to 119.2 (109.8 to 126.4); `per_conn`, after the
+  `fast` runs, 134.6 (132.2 to 136.0) to 120.8 (119.8 to 121.9).
+- `flaky` (three) and `outage` (one), three rounds, each from a fresh dm: `flaky` 120.8 (105.1 to
+  121.9) to 117.2 (110.3 to 119.7); `outage` 121.7 and 122.0 to 114.0 to 120.4 (the old build's
+  third, 62.6, came while the system was short of memory and took back pages of its own).
+- The driver: after two `fast` and two `per_conn` and ten seconds, 134.4 MiB to 116.3 (the heap
+  17.5 MiB resident, 0.9 of it empty regions, and 1.7 MiB of mapped blocks; footprint 79 MB to
+  59); headless, after the same four, 42.5 to 42.9 MiB to 25.4 to 28.0, and 38 to 40 at the peak of
+  a `fast` download to 34 to 35.
+- CPU: over three `flaky` downloads the whole process ran 7.12 G instructions with the old build
+  and 7.19 G with the new (medians of three, +1 %), with 8,970 page faults to 11,100 and 71,200
+  system calls to 73,000, the new buffers' fresh pages and their maps; `cpuMs` per run 620 to 600
+  (medians of nine). Headless, per download: `per_conn` 893 to 912 M instructions, `fast` 3.0 to
+  3.2 G (medians of six, in the runs' spread). Seconds as before.
+
+What is left at rest is the window itself, which this does not touch, and in a download the
+Download complete window (about 7 MiB while it is open: its own drawables, atlas and buffer) and
+dm's code and data files read for the first time.
+
+Tried and dropped:
+- `malloc_zone_pressure_relief`: releases nothing on macOS 27.
+- Linking fewer frameworks (`-dead_strip_dylibs`): AppKit loads them all anyway.
+- Two drawables in place of three: at rest the window holds two anyway, the third is touched only
+  while it draws quickly, and GPUI's display link hands a drawable out a frame ahead, so frames
+  would wait for one.
+- Not listing the installed fonts at the start (gpui-component does, once, to check the theme's
+  font names; 3 MiB resident in a test program): skipping it means naming the theme's fonts
+  another way, which could change the window's text.
+
+Not done, written down: GPUI's Metal buffers start at 2 MiB (the instance buffer, one per frame in
+flight) and 1 MiB (each window's glyph atlas) and grow when a frame needs more; a patched copy of
+`gpui-pre-apple` starting them at a quarter would hold about 2.5 MiB less at rest and 5 with
+Download complete open. tokio's file copies each write a second time (about 3.5 MiB at full speed
+on eight connections), which only writing without tokio's file would avoid.

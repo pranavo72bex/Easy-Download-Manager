@@ -78,6 +78,13 @@ mod welcome;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// On macOS a large block goes back to the system when it is freed: the
+/// system's allocator kept a download's buffers long after it ended
+/// (`dm_core::memory`, gaps row 175).
+#[cfg(target_os = "macos")]
+#[global_allocator]
+static ALLOCATOR: dm_core::memory::Allocator = dm_core::memory::Allocator;
+
 use dm_desktop_base::boot::{self, Wake};
 use gpui::{
     div, point, prelude::*, px, size, App, Bounds, Context, Role, TitlebarOptions, Window,

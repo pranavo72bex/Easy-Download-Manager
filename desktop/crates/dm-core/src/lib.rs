@@ -69,6 +69,9 @@ mod limit;
 
 pub mod live;
 
+#[cfg(target_os = "macos")]
+pub mod memory;
+
 mod metalink;
 
 #[cfg(windows)]
