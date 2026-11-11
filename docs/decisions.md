@@ -5780,3 +5780,31 @@ Decided while auditing:
   `scripts/ui-bench.py` and `stress-check.py window`, and the commands are in the audit's §9.
   ui-bench's Find step waits for a Find next button that only the egui window has, so it
   measures nothing on the GPUI window (row 187).
+
+## 2026-11-11: The GPUI window drags files out through GPUI's own platform drag, not the `drag` crate
+
+Gaps row G10 proposed the egui window's route for the GPUI window: the `drag` crate given the
+window's handle, started from a foreground task once GPUI's own drag of a row began, then GPUI's
+drag stopped. The pinned GPUI (gpui-pre 0.3.12) turned out to have the route itself: an element's
+drag can carry an `external_drag_payload`, which GPUI hands to the system as the pointer leaves
+the window (`PlatformWindow::start_external_drag`). On macOS that is AppKit's dragging session,
+which is not modal and offers a copy outside the program; on Wayland the data device. So:
+
+- **No `drag` crate in `dm-gpui`.** It would be a feature crate (the clean-room rule), and on
+  macOS a second drag beside GPUI's. GPUI's drag also draws the system's own icon for the file's
+  kind, and a drag that comes back into the window is GPUI's again.
+- **X11 is added to the vendored GPUI** (`desktop/vendor/gpui-pre-linux`, `x11/drag_out.rs`),
+  where upstream declines: the egui window's XDND source (`dm-desktop` `xdnd.rs`), moved behind
+  `start_external_drag`, on a connection and thread of its own, ending GPUI's drag with a client
+  message to the window when it is over. Winit's display is not involved, so the Xlib calls of
+  the egui version are gone.
+- **Wayland offers a copy only** (a `dm:` line in the vendored GPUI), as the egui window's winit
+  does and as macOS does outside the program: a file manager that takes a move would carry the
+  download away and its row would say the file is gone.
+- **The files are read as the drag leaves the window**, not as it begins, so a file deleted in
+  between is not offered; a row is draggable when it, or a chosen row it carries, is finished,
+  decided without asking the disk, since rows are drawn many times a second.
+- **Windows waits.** GPUI's Windows platform has no `start_external_drag`, so there a row's drag
+  stays inside the window. The choice (an OLE drag source of dm's own on `windows-sys`, as
+  `drops.rs` builds a drop target, or the `drag` crate the egui window already uses) is left to
+  the Windows laptop, where it can be run.

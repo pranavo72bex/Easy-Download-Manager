@@ -137,3 +137,18 @@ drags: `scripts/linux-drag-check.sh` (X11) and
 `scripts/linux-wayland-drag-check.sh`. On X11 the drop's data is read whole,
 in pieces (upstream read its first 4 KiB), and the drop's place is in the
 window's points (upstream left it in pixels, twice as far on a 2x screen).
+
+Files dragged out of a window (`src/linux/x11/drag_out.rs`, new, and `dm:`
+lines in `src/linux/x11/window.rs` and `client.rs`): upstream hands an
+element's drag to the system once it leaves the window
+(`PlatformWindow::start_external_drag`) on macOS and Wayland, and on X11
+declines it. Here X11 starts it too: the press's grab on the window's
+connection is let go of, and a connection of its own, on a thread, speaks
+XDND as the drag's source (the egui window's `dm-desktop` `xdnd.rs`, moved
+here), handing the files over as `text/uri-list`; when it is over it sends
+the window `_DM_DRAG_ENDED`, which ends GPUI's drag as the other systems'
+end does. On Wayland (`src/linux/wayland/client.rs`) the drag offers a copy
+only, where upstream offered a move as well: a file manager taking a move
+would carry the download away from where dm saved it. Owed to the Linux
+pass: `scripts/linux-drag-check.sh` and `scripts/linux-wayland-drag-check.sh`
+dragging out of the GPUI window (docs/gaps.md G10).

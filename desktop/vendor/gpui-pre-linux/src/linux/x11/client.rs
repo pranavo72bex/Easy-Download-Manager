@@ -916,6 +916,12 @@ impl X11Client {
                     return Some(());
                 }
 
+                // dm: a drag out of this window is over (`drag_out`).
+                if event.type_ == self.0.borrow().atoms._DM_DRAG_ENDED {
+                    window.handle_input(PlatformInput::FileDrop(FileDropEvent::Ended));
+                    return Some(());
+                }
+
                 let mut state = self.0.borrow_mut();
                 if atom == state.atoms._NET_WM_SYNC_REQUEST {
                     window.state.borrow_mut().last_sync_counter =

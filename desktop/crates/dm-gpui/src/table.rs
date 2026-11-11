@@ -9,7 +9,8 @@
 //! (their order, which are hidden) and every cell's words are the egui
 //! window's (`dm_desktop_base::columns` and `rows`); numbers stand against
 //! their column's right edge so their digits line up down the list. A
-//! heading dragged onto another takes its place, as a macOS table's do.
+//! heading dragged onto another takes its place, as a macOS table's do; a
+//! finished row dragged out of the window carries its file (`dragout`).
 
 use dm_core::{Entry, State};
 use dm_desktop_base::columns::Column;
@@ -323,6 +324,10 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
         cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
             let categories = this.backend.settings().categories();
             let columns = columns(this);
+            let list = cx.entity().downgrade();
+            // Whether a chosen row is finished, asked once, the first time a
+            // chosen row that is not needs to know: it carries the others.
+            let chosen_finished = std::cell::OnceCell::new();
             range
                 .filter_map(|i| {
                     this.shown
@@ -336,7 +341,21 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                     // A chosen row in the selection colour, its words on it,
                     // as a macOS list draws one.
                     let background = theme.selection;
+                    let original = theme;
                     let theme = if chosen { theme.chosen() } else { theme };
+                    let draggable = crate::dragout::may_carry(row)
+                        || (chosen
+                            && *chosen_finished.get_or_init(|| {
+                                this.rows.iter().any(|r| {
+                                    this.selected.contains(&r.id) && crate::dragout::may_carry(r)
+                                })
+                            }));
+                    let dragged = draggable.then(|| crate::dragout::DraggedRow {
+                        id: row.id,
+                        list: list.clone(),
+                        name: shown_name(row, &this.shown_names),
+                        theme: original,
+                    });
                     div()
                         .id(i)
                         .role(Role::Row)
@@ -381,6 +400,17 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             }
                             cx.notify();
                         }))
+                        // A finished row's file dragged out of the window
+                        // (`dragout`); a click without moving still chooses
+                        // the row, and a double-click opens it.
+                        .when_some(dragged, |r, dragged| {
+                            r.on_drag(dragged, |dragged, _, _, cx| dragged.picture(cx))
+                                .external_drag_payload(
+                                    |dragged: &crate::dragout::DraggedRow, _, cx| {
+                                        dragged.payload(cx)
+                                    },
+                                )
+                        })
                         .children(row_cells(
                             row,
                             &this.shown_names,

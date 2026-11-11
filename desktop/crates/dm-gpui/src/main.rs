@@ -36,6 +36,7 @@ mod cliplinks;
 mod clipwatch;
 mod complete;
 mod details;
+mod dragout;
 mod drops;
 mod droptarget;
 mod fit;

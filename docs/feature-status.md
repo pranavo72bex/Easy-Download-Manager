@@ -286,7 +286,11 @@ and is not carried over.
       winit's own connection with the press's serial —
       `scripts/linux-wayland-drag-check.sh` drags both ways under sway with a
       virtual pointer (4 of 4 first time). Unchecked: a physical drag by
-      hand on macOS and Windows, and a real browser under Wayland
+      hand on macOS and Windows, and a real browser under Wayland. The GPUI
+      window (2026-11-11, gaps G10): a finished row's drag is handed to the
+      system as it leaves the window, on macOS and Wayland by GPUI and on
+      X11 by an XDND source in the vendored GPUI; built and unit-tested, not
+      yet watched landing; not on Windows yet
 - [x] Start on login — on for a new install (Options › General turns it off; an older install keeps its choice), registers dm as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather
