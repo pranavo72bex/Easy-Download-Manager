@@ -704,8 +704,13 @@ async fn connections_that_lose_the_server_take_turns_and_come_back_together() {
         .map(|w| w[1] - w[0])
         .max()
         .unwrap_or_default();
+    // Ten turns a second leave 100 ms between asks. Allowed most of a
+    // second: on a computer busy with a whole test run, a turn's request has
+    // come 0.5 s late once (gaps row 195), and what is held to here is that
+    // no stretch of the outage goes unasked as the two seconds of the
+    // connections asking in step did.
     assert!(
-        widest <= Duration::from_millis(400),
+        widest <= Duration::from_millis(900),
         "the server was not asked for {widest:?} of the outage"
     );
     assert!(
