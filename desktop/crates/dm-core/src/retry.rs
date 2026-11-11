@@ -240,6 +240,12 @@ struct Pace {
     quick: u32,
     /// When the failing began.
     since: Option<tokio::time::Instant>,
+    /// Where in the two-second round this run of failing asks, so the
+    /// connections of a download that failed together do not all ask in the
+    /// same instant: eight that asked in step found a server back up to two
+    /// seconds after it came (`bench` outage, 1.97 s, against reference A's
+    /// request already waiting), eight a quarter-second apart within 0.25 s.
+    lane: Option<u32>,
 }
 
 impl Pace {
@@ -261,7 +267,8 @@ impl Pace {
         if every.is_none() && retry_after.is_none() && dropped(error) {
             self.quick = self.quick.saturating_add(1);
             self.attempt = self.attempt.max(schedule_reached(now - since, limit));
-            (self.attempt < limit).then(|| quick_nap(self.quick))
+            let lane = *self.lane.get_or_insert_with(next_lane);
+            (self.attempt < limit).then(|| quick_nap(self.quick, lane))
         } else {
             self.attempt = self.attempt.saturating_add(1);
             (self.attempt < limit).then(|| pause(self.attempt, retry_after, every))
@@ -295,12 +302,22 @@ fn schedule_reached(failing: Duration, limit: u32) -> u32 {
 
 /// The wait before quick attempt `n` (the first is 1): none, then a
 /// quarter, a half and a whole second, then two seconds apart, each a
-/// little longer by the attempt number.
-fn quick_nap(n: u32) -> Duration {
+/// little longer by the attempt number. The first two-second wait is cut
+/// short by `lane` quarter-seconds, so lanes keep apart from then on.
+fn quick_nap(n: u32, lane: u32) -> Duration {
     const STEPS_MS: [u64; 5] = [0, 250, 500, 1000, 2000];
-    let step = STEPS_MS[(n.saturating_sub(1) as usize).min(STEPS_MS.len() - 1)];
+    let mut step = STEPS_MS[(n.saturating_sub(1) as usize).min(STEPS_MS.len() - 1)];
+    if n as usize == STEPS_MS.len() {
+        step -= u64::from(lane % 8) * 250;
+    }
     let jitter = if n > 1 { u64::from(n) * 137 % 250 } else { 0 };
     Duration::from_millis(step + jitter)
+}
+
+/// A lane for a run of failing that has just begun: each the next of eight.
+fn next_lane() -> u32 {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// As [`run`], with the number of attempts a setting rather than a
@@ -446,6 +463,21 @@ mod tests {
             naps.iter().all(|n| *n <= Duration::from_millis(2250)),
             "{naps:?}"
         );
+    }
+
+    #[test]
+    fn connections_failing_together_ask_apart_once_the_waits_are_long() {
+        let cut = Error::Connection("refused".into());
+        let mut asks: Vec<Duration> = (0..8)
+            .map(|lane| (1..=6).map(|n| quick_nap(n, lane)).sum())
+            .collect();
+        asks.sort();
+        assert!(
+            asks.windows(2).all(|w| w[1] - w[0] >= Duration::from_millis(200)),
+            "{asks:?}"
+        );
+        let mut pace = Pace::default();
+        assert!(pace.failed(&cut, 15, None).is_some() && pace.lane.is_some());
     }
 
     #[test]
