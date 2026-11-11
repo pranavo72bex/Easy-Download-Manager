@@ -5849,3 +5849,33 @@ keep it medium by default", then, the same day, "option of slider ... for scale 
   rather than running past the right edge at 120%. Still open: the list has no sideways scroll,
   so at 120% in a narrow window the columns after Status are out of sight until it is widened.
 
+
+## 2026-11-11: Links on the clipboard saves where Download links does (issue #32)
+
+The person who asked for the Text size asked next: "when we choose Add links from clipboard, is
+there an option to choose or create a new folder?" Links on the clipboard sent every link to its
+category's folder, with no choice. The maintainer pasted the issue as the request.
+
+- **One Save to for both dialogs**, not a second copy: what the choice means moved out of
+  `links_import.rs` into `dm-desktop-base` `save_to.rs` (`SaveTo`, `SaveChoice`, which
+  `LinksImport` now holds as `save`), and how a GPUI dialog draws it and takes its clicks into
+  `dm-gpui` `savefolder.rs` (the heading, the three choices, the categories' pop-up, the field,
+  Browse…). Same words as Download links, so no new translation was needed; a folder that cannot
+  be made is said with the existing "{} could not be written: {}" and the system's reason in
+  dm's words (`format::file_error`).
+- **The folder is made when the links are added**, Add for later's too (the engine made it only
+  as a download started, so a folder typed for later did not appear until then). A file in the
+  way, as the folder or above it, is said as a name taken on every system (macOS says "not a
+  directory" for one above it). The dialog stays open with the reason; nothing is added.
+- **A name typed alone is a folder in the download folder** (`full_folder(typed, Some(root))`),
+  where the queue refused it as not a full path: a person typing "Holiday" there means that.
+- **Typing in the field chooses Every file to this folder**, and choosing it puts the keyboard in
+  the field, in both dialogs: a typed folder left under "each to its category" was ignored.
+- **The system's panel can already make a folder**, so the vendored GPUI is not patched:
+  gpui-pre-macos 0.3.12 sets `NSOpenPanel` `canCreateDirectories` (platform.rs:888); on Linux
+  the XDG portal's `OpenFile` with `directory` is GTK's or KDE's folder chooser, both with a
+  new-folder button (the portal has no option for it); on Windows `IFileOpenDialog` with
+  `FOS_PICKFOLDERS` has New folder in its command bar. Read from the sources; no panel was opened
+  here (a panel waits for a person, and this terminal cannot move the pointer).
+- The egui window (dm-desktop) is not shipped on any system since 6ab92583, so its clipboard
+  dialog is left as it was; its Download links follows the moved fields only.

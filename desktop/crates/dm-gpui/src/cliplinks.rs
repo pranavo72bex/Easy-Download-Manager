@@ -6,17 +6,24 @@
 //! Links on the clipboard, a window of its own, with the egui window's
 //! words: every link the clipboard holds (`dm_shell::app::links::links_in`),
 //! each ticked but one already in the list, which is offered unticked and
-//! said to be there; Check all, Uncheck all; Start now and Add for later.
+//! said to be there; Check all, Uncheck all; Save to, as "Download links"
+//! has it (`savefolder`: each to its category's folder, as before, one
+//! category, or one folder typed or chosen, made if it is not there yet);
+//! Start now and Add for later.
 
 use dm_core::{AddOptions, MAIN_QUEUE};
 use dm_desktop_base::i18n::{t, tf, tn, Said};
+use dm_desktop_base::save_to::SaveChoice;
 use gpui::{
-    div, prelude::*, size, App, Bounds, Context, KeyDownEvent, WeakEntity, Window, WindowBounds,
-    WindowOptions,
+    div, prelude::*, size, App, Bounds, Context, Entity, KeyDownEvent, SharedString, WeakEntity,
+    Window, WindowBounds, WindowOptions,
 };
+use gpui_component::input::InputState;
 
 use crate::list::Downloads;
 use crate::native;
+use crate::popup::Pick;
+use crate::savefolder::{self, Saves};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
 use crate::zoom::px;
@@ -26,6 +33,12 @@ pub struct ClipLinks {
     view: WeakEntity<Downloads>,
     /// Each link, whether it is ticked, and whether it is listed already.
     links: Vec<(String, bool, bool)>,
+    /// Where they are saved, and the folder's field.
+    choice: SaveChoice,
+    folder: Entity<InputState>,
+    /// Why they were not added yet: no folder typed, or one that could not
+    /// be made.
+    says: Option<SharedString>,
     /// The window's keyboard, so Return and Escape reach it.
     focus: gpui::FocusHandle,
     done: bool,
@@ -38,6 +51,23 @@ impl ClipLinks {
         if self.done {
             return;
         }
+        let Some(view) = self.view.upgrade() else {
+            return;
+        };
+        let settings = view.read(cx).backend.settings();
+        // The folder they all go to made first, if it is not there yet; one
+        // that cannot be is said here, the dialog left open.
+        let save_dir = match self
+            .chosen(cx)
+            .ready(&settings.download_dir, &settings.categories())
+        {
+            Ok(dir) => dir,
+            Err(words) => {
+                self.says = Some(words.into());
+                cx.notify();
+                return;
+            }
+        };
         self.done = true;
         window.remove_window();
         let chosen: Vec<String> = self
@@ -53,6 +83,7 @@ impl ClipLinks {
             } else {
                 String::new()
             },
+            save_dir,
             ..AddOptions::default()
         };
         let _ = self.view.update(cx, |view, cx| {
@@ -89,6 +120,16 @@ impl ClipLinks {
     }
 }
 
+impl Saves for ClipLinks {
+    fn choice(&mut self) -> &mut SaveChoice {
+        &mut self.choice
+    }
+
+    fn folder(&self) -> &Entity<InputState> {
+        &self.folder
+    }
+}
+
 impl Render for ClipLinks {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
@@ -96,6 +137,8 @@ impl Render for ClipLinks {
         let screen = self.screen.clone();
         let ticked = self.links.iter().filter(|l| l.1).count();
         let found = self.links.len();
+        let categories = savefolder::categories(cx, &self.view);
+        let save_to = savefolder::section(self, &categories, theme, &screen, cx);
         let rows = self
             .links
             .iter()
@@ -118,6 +161,12 @@ impl Render for ClipLinks {
             });
         crate::native::dialog("clip-links", t("Links on the clipboard"), theme, cx)
             .track_focus(&self.focus)
+            .on_action(cx.listener(|this, pick: &Pick, _, cx| {
+                let categories = savefolder::categories(cx, &this.view);
+                if savefolder::pick(this, pick, &categories) {
+                    cx.notify();
+                }
+            }))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" {
                     this.add(false, window, cx);
@@ -171,6 +220,10 @@ impl Render for ClipLinks {
                             .gap(px(4.0))
                             .children(rows),
                     )
+                    .child(save_to)
+                    .when_some(self.says.clone(), |d, says| {
+                        d.child(native::note(says, theme.warning, &screen))
+                    })
                     .child(native::buttons(
                         vec![native::button(
                             "later",
@@ -242,12 +295,21 @@ fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut 
                 Screens::register(window.window_handle(), screen.clone(), true, cx);
                 let focus = cx.focus_handle();
                 window.focus(&focus, cx);
-                let links = cx.new(|_| ClipLinks {
-                    view,
-                    links,
-                    focus,
-                    done: false,
-                    screen,
+                let links = cx.new(|cx| {
+                    let folder =
+                        savefolder::field(window, cx, |this: &mut ClipLinks, window, cx| {
+                            this.add(false, window, cx)
+                        });
+                    ClipLinks {
+                        view,
+                        links,
+                        choice: SaveChoice::default(),
+                        folder,
+                        says: None,
+                        focus,
+                        done: false,
+                        screen,
+                    }
                 });
                 crate::native::close_is_cancel(&links, window, cx);
                 cx.new(|cx| gpui_component::Root::new(links, window, cx))

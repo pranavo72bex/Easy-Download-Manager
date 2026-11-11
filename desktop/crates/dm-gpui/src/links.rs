@@ -11,17 +11,17 @@
 
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::{t, tf};
-use dm_desktop_base::links_import::{added_words, LinksImport, SaveTo};
+use dm_desktop_base::links_import::{added_words, LinksImport};
 use gpui::{
     div, prelude::*, size, uniform_list, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
-    PathPromptOptions, SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds,
-    WindowOptions,
+    SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::list::Downloads;
 use crate::native;
 use crate::popup::{self, Pick};
+use crate::savefolder::{self, Saves};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
 use crate::zoom::px;
@@ -54,11 +54,22 @@ impl Links {
             return;
         }
         self.d.types = self.types.read(cx).value().to_string();
-        self.d.folder = self.folder.read(cx).value().to_string();
+        self.chosen(cx);
         let Some(view) = self.view.upgrade() else {
             return;
         };
         let settings = view.read(cx).backend.settings();
+        // The folder they all go to made first, if it is not there yet; one
+        // that cannot be is said here, the dialog left open.
+        if let Err(words) = self
+            .d
+            .save
+            .ready(&settings.download_dir, &settings.categories())
+        {
+            self.says = Some(words.into());
+            cx.notify();
+            return;
+        }
         let (items, _sizes) =
             match self
                 .d
@@ -155,72 +166,26 @@ impl Links {
         cx.notify();
     }
 
-    /// Browse…: the system's own folder panel, for Every file to this
-    /// folder.
-    fn browse(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let chosen = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: None,
-        });
-        cx.spawn_in(window, async move |this, cx| {
-            if let Ok(Ok(Some(paths))) = chosen.await {
-                if let Some(path) = paths.first() {
-                    let path = path.display().to_string();
-                    let _ = this.update_in(cx, |this, window, cx| {
-                        this.folder
-                            .update(cx, |f, cx| f.set_value(path, window, cx));
-                        this.d.save_to = SaveTo::OneFolder;
-                        cx.notify();
-                    });
-                }
-            }
-        })
-        .detach();
-    }
-
     /// A choice from a pop-up.
     fn pick(&mut self, pick: &Pick, cx: &mut Context<Self>) {
-        match pick.field {
-            "links-category" => {
-                if let Some(word) = categories(cx, &self.view).get(pick.index) {
-                    self.d.category = word.clone();
-                    self.d.save_to = SaveTo::OneCategory;
-                }
+        let categories = savefolder::categories(cx, &self.view);
+        if !savefolder::pick(self, pick, &categories) && pick.field == "links-queue" {
+            if let Some(queue) = self.queues.get(pick.index) {
+                self.d.queue = queue.clone();
             }
-            "links-queue" => {
-                if let Some(queue) = self.queues.get(pick.index) {
-                    self.d.queue = queue.clone();
-                }
-            }
-            _ => {}
         }
         cx.notify();
     }
 }
 
-/// The categories "Every file to this category" offers, by their words:
-/// each kind's, then each a person made.
-fn categories(cx: &App, view: &WeakEntity<Downloads>) -> Vec<String> {
-    let customs: Vec<String> = view
-        .upgrade()
-        .map(|v| v.read(cx).backend.settings().custom_categories.clone())
-        .unwrap_or_default()
-        .iter()
-        .map(|c| c.name.trim().to_string())
-        .filter(|n| !n.is_empty())
-        .collect();
-    dm_core::Category::ALL
-        .iter()
-        .map(|k| dm_shell::app::names::category_word(*k))
-        .chain(customs)
-        .collect()
-}
+impl Saves for Links {
+    fn choice(&mut self) -> &mut dm_desktop_base::save_to::SaveChoice {
+        &mut self.d.save
+    }
 
-/// A category's word as the window says it.
-fn shown_category(word: &str) -> String {
-    dm_desktop_base::i18n::name(&format::titled(word))
+    fn folder(&self) -> &Entity<InputState> {
+        &self.folder
+    }
 }
 
 impl Render for Links {
@@ -229,6 +194,8 @@ impl Render for Links {
         self.screen.begin();
         let screen = self.screen.clone();
         self.d.types = self.types.read(cx).value().to_string();
+        // The Save to column says the folder as it is typed.
+        self.chosen(cx);
         self.d.untick_refused();
         let settings = self
             .view
@@ -283,20 +250,14 @@ impl Render for Links {
             })
             .collect();
         let count = rows.len();
-        let cat_words = categories(cx, &self.view);
-        let cat_at = cat_words.iter().position(|w| *w == self.d.category);
-        let cat_shown: Vec<SharedString> =
-            cat_words.iter().map(|w| shown_category(w).into()).collect();
+        let cat_words = savefolder::categories(cx, &self.view);
+        let save_to = savefolder::section(self, &cat_words, theme, &screen, cx);
         let queues: Vec<SharedString> = self
             .queues
             .iter()
             .map(|q| dm_desktop_base::i18n::name(q).into())
             .collect();
         let queue_at = self.queues.iter().position(|q| *q == self.d.queue);
-        let save_to = self.d.save_to;
-        let radio = |id: &'static str, words: &'static str, on: bool| {
-            native::radio(id, t(words).into(), on, theme, &screen)
-        };
         let check = |id: &'static str, words: &'static str, on: bool| {
             native::checkbox(id, t(words).into(), on, theme, &screen)
         };
@@ -529,73 +490,7 @@ impl Render for Links {
                             })),
                     )
                     // Where the ticked links go, as reference A offers it.
-                    .child(
-                        div()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(screen.label(t("Save to"))),
-                    )
-                    .child(
-                        radio(
-                            "by-category",
-                            "Each file to the folder of its category",
-                            save_to == SaveTo::ByCategory,
-                        )
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.d.save_to = SaveTo::ByCategory;
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(native::LABEL_GAP))
-                            .child(
-                                radio(
-                                    "one-category",
-                                    "Every file to this category",
-                                    save_to == SaveTo::OneCategory,
-                                )
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.d.save_to = SaveTo::OneCategory;
-                                    cx.notify();
-                                })),
-                            )
-                            .child(popup::button(
-                                "links-category",
-                                shown_category(&self.d.category).into(),
-                                cat_shown,
-                                cat_at,
-                                theme,
-                                &screen,
-                            )),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(native::LABEL_GAP))
-                            .child(
-                                radio(
-                                    "one-folder",
-                                    "Every file to this folder",
-                                    save_to == SaveTo::OneFolder,
-                                )
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.d.save_to = SaveTo::OneFolder;
-                                    cx.notify();
-                                })),
-                            )
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .child(native::field(&self.folder, "Every file to this folder", theme)),
-                            )
-                            .child(
-                                native::button("browse", t("Browse…").into(), false, theme, &screen)
-                                    .on_click(cx.listener(|this, _, window, cx| this.browse(window, cx))),
-                            ),
-                    )
+                    .child(save_to)
                     .when_some(self.says.clone(), |d, says| {
                         d.child(native::note(says, theme.warning, &screen))
                     })
@@ -674,12 +569,11 @@ fn open_now(view: WeakEntity<Downloads>, request: dm_shell::host::Request, cx: &
                 let _ = tell.try_send(());
             });
             let types = cx.new(|cx| InputState::new(window, cx).placeholder(t("zip pdf mp4")));
-            let folder = cx.new(|cx| InputState::new(window, cx));
-            let links = cx.new(|cx| {
-                // Typed types filter at once; Return in a field is Start
-                // now.
-                for input in [&types, &folder] {
-                    cx.subscribe_in(input, window, |this: &mut Links, _, event, window, cx| {
+            let links =
+                cx.new(|cx| {
+                    // Typed types filter at once; Return in a field is Start
+                    // now.
+                    cx.subscribe_in(&types, window, |this: &mut Links, _, event, window, cx| {
                         match event {
                             InputEvent::PressEnter { .. } => this.add(false, window, cx),
                             InputEvent::Change => cx.notify(),
@@ -687,21 +581,23 @@ fn open_now(view: WeakEntity<Downloads>, request: dm_shell::host::Request, cx: &
                         }
                     })
                     .detach();
-                }
-                Links {
-                    view,
-                    d,
-                    types,
-                    folder,
-                    editing: None,
-                    queues,
-                    says: None,
-                    done: false,
-                    focus: cx.focus_handle(),
-                    screen,
-                    scroll: UniformListScrollHandle::new(),
-                }
-            });
+                    let folder = savefolder::field(window, cx, |this: &mut Links, window, cx| {
+                        this.add(false, window, cx)
+                    });
+                    Links {
+                        view,
+                        d,
+                        types,
+                        folder,
+                        editing: None,
+                        queues,
+                        says: None,
+                        done: false,
+                        focus: cx.focus_handle(),
+                        screen,
+                        scroll: UniformListScrollHandle::new(),
+                    }
+                });
             links.update(cx, |l, cx| window.focus(&l.focus, cx));
             let weak = links.downgrade();
             window

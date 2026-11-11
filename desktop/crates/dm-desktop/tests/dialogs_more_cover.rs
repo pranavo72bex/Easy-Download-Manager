@@ -854,12 +854,12 @@ fn download_links_unticks_all_and_one_folder_must_be_named() {
     click(&mut harness, "Check all");
     click(&mut harness, "Every file to this category");
     assert_eq!(
-        harness.state().dialogs.links.as_ref().unwrap().save_to,
+        harness.state().dialogs.links.as_ref().unwrap().save.save_to,
         dm_desktop::dialogs::SaveTo::OneCategory
     );
     click(&mut harness, "Each file to the folder of its category");
     assert_eq!(
-        harness.state().dialogs.links.as_ref().unwrap().save_to,
+        harness.state().dialogs.links.as_ref().unwrap().save.save_to,
         dm_desktop::dialogs::SaveTo::ByCategory
     );
     harness
@@ -1293,6 +1293,7 @@ fn browse_says_when_there_is_no_folder_picker_and_takes_the_one_picked() {
         .links
         .as_ref()
         .unwrap()
+        .save
         .folder
         .is_empty());
     *world.fake.no_chooser.lock().unwrap() = false;
@@ -1301,7 +1302,7 @@ fn browse_says_when_there_is_no_folder_picker_and_takes_the_one_picked() {
     click(&mut harness, "Browse…");
     assert!(!shown(&harness, "No folder picker here: type the path."));
     assert_eq!(
-        harness.state().dialogs.links.as_ref().unwrap().folder,
+        harness.state().dialogs.links.as_ref().unwrap().save.folder,
         picked.display().to_string()
     );
 }

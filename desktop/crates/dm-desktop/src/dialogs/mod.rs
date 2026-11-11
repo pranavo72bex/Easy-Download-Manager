@@ -690,7 +690,7 @@ mod links_import_tests {
             ..dm_core::Categories::default()
         };
         let mut d = import(&["http://h/a.zip", "http://h/b.mp4"]);
-        assert_eq!(d.save_dir(root, &sorted), None, "each to its own");
+        assert_eq!(d.save.save_dir(root, &sorted), None, "each to its own");
         assert_eq!(
             d.folder_of("http://h/b.mp4", root, &sorted),
             sorted
@@ -698,16 +698,16 @@ mod links_import_tests {
                 .display()
                 .to_string()
         );
-        d.save_to = SaveTo::OneFolder;
-        d.folder = "   ".into();
-        assert_eq!(d.save_dir(root, &sorted), None, "no folder typed");
-        d.folder = " elsewhere ".into();
-        assert_eq!(d.save_dir(root, &sorted).as_deref(), Some("elsewhere"));
+        d.save.save_to = SaveTo::OneFolder;
+        d.save.folder = "   ".into();
+        assert_eq!(d.save.save_dir(root, &sorted), None, "no folder typed");
+        d.save.folder = " elsewhere ".into();
+        assert_eq!(d.save.save_dir(root, &sorted).as_deref(), Some("elsewhere"));
         assert_eq!(d.folder_of("http://h/a.zip", root, &sorted), "elsewhere");
-        d.save_to = SaveTo::OneCategory;
-        d.category = crate::app::category_word(dm_core::Category::Documents);
+        d.save.save_to = SaveTo::OneCategory;
+        d.save.category = crate::app::category_word(dm_core::Category::Documents);
         assert_eq!(
-            d.save_dir(root, &sorted),
+            d.save.save_dir(root, &sorted),
             Some(
                 sorted
                     .destination(root, dm_core::Category::Documents)
@@ -716,9 +716,9 @@ mod links_import_tests {
             )
         );
         // A person's own category is a folder of its name.
-        d.category = "Receipts".into();
+        d.save.category = "Receipts".into();
         assert_eq!(
-            category_folder(&d.category, root, &sorted),
+            category_folder(&d.save.category, root, &sorted),
             root.join("Receipts")
         );
     }

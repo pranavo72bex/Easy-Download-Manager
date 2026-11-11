@@ -2465,8 +2465,8 @@ fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
     {
         let d = harness.state_mut().dialogs.links.as_mut().unwrap();
         d.names.insert(world.url("other.pdf"), "renamed.pdf".into());
-        d.save_to = dm_desktop::dialogs::SaveTo::OneFolder;
-        d.folder.clone_from(&where_to);
+        d.save.save_to = dm_desktop::dialogs::SaveTo::OneFolder;
+        d.save.folder.clone_from(&where_to);
     }
     harness.run_steps(3);
     assert!(

@@ -30,19 +30,7 @@ pub struct Found {
     pub failed: Option<String>,
 }
 
-/// Where the links ticked in "Download links" are saved, as reference A
-/// offers: each to its category's folder, all to one category's, or all to
-/// one folder.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SaveTo {
-    /// Each file to the folder of its category.
-    #[default]
-    ByCategory,
-    /// Every file to one category's folder (`LinksImport::category`).
-    OneCategory,
-    /// Every file to one folder (`LinksImport::folder`).
-    OneFolder,
-}
+pub use crate::save_to::{SaveChoice, SaveTo};
 
 /// The import dialog for a page's links: each checked or not, with its
 /// name, kind and size as its server tells them.
@@ -74,13 +62,8 @@ pub struct LinksImport {
     pub hide_images: bool,
     /// Whether an address the page links to more than once is listed once.
     pub hide_repeats: bool,
-    /// Where the links ticked are saved.
-    pub save_to: SaveTo,
-    /// The category every file goes to, for `SaveTo::OneCategory`: a kind's
-    /// word or a person's own category's name.
-    pub category: String,
-    /// The folder every file goes to, for `SaveTo::OneFolder`, as typed.
-    pub folder: String,
+    /// Where the links ticked are saved (`crate::save_to`).
+    pub save: SaveChoice,
     /// The row whose name and address are being edited, by its place.
     pub editing: Option<usize>,
     /// Names given with Edit, by address.
@@ -161,9 +144,7 @@ impl LinksImport {
             found,
             hide_images: true,
             hide_repeats: true,
-            save_to: SaveTo::ByCategory,
-            category: dm_shell::app::names::category_word(dm_core::Category::Archives),
-            folder: String::new(),
+            save: SaveChoice::default(),
             editing: None,
             // The names the page's `download` attributes give, as Edit would.
             names: request.names.into_iter().collect(),
@@ -237,27 +218,6 @@ impl LinksImport {
             .collect()
     }
 
-    /// The folder the links go to where the choice names one: `None` is each
-    /// to the folder of its category, as dm sorts a download.
-    pub fn save_dir(
-        &self,
-        root: &std::path::Path,
-        categories: &dm_core::Categories,
-    ) -> Option<String> {
-        match self.save_to {
-            SaveTo::ByCategory => None,
-            SaveTo::OneFolder => {
-                let folder = self.folder.trim();
-                (!folder.is_empty()).then(|| folder.to_string())
-            }
-            SaveTo::OneCategory => Some(
-                dm_shell::app::names::category_folder(&self.category, root, categories)
-                    .display()
-                    .to_string(),
-            ),
-        }
-    }
-
     /// The folder `url` will be saved to, as the Save to column says it.
     pub fn folder_of(
         &self,
@@ -265,14 +225,7 @@ impl LinksImport {
         root: &std::path::Path,
         categories: &dm_core::Categories,
     ) -> String {
-        if let Some(dir) = self.save_dir(root, categories) {
-            return dir;
-        }
-        let name = self.name_of(url);
-        categories
-            .destination(root, dm_core::classify(&name, None))
-            .display()
-            .to_string()
+        self.save.folder_of(&self.name_of(url), root, categories)
     }
 
     /// The name `url` will be saved under: the one given with Edit, else its
@@ -315,7 +268,7 @@ impl LinksImport {
         root: &std::path::Path,
         categories: &dm_core::Categories,
     ) -> Result<(Vec<(String, AddOptions)>, HashMap<String, u64>), &'static str> {
-        if self.save_to == SaveTo::OneFolder && self.folder.trim().is_empty() {
+        if self.save.save_to == SaveTo::OneFolder && self.save.folder.trim().is_empty() {
             return Err(t("Choose the folder every file goes to."));
         }
         let queue = self.queue_or_main();
@@ -323,7 +276,7 @@ impl LinksImport {
             later,
             queue: if later { queue } else { String::new() },
             referrer: self.page.clone(),
-            save_dir: self.save_dir(root, categories),
+            save_dir: self.save.save_dir(root, categories),
             ..AddOptions::default()
         };
         let sizes: HashMap<String, u64> = dm_core::lock(&self.found)
@@ -433,7 +386,7 @@ mod tests {
         assert_eq!(items[0].1.referrer, "https://e.com/");
         assert_eq!(items[0].1.description, "The archive");
         assert_eq!(items[0].1.queue, dm_core::MAIN_QUEUE);
-        d.save_to = SaveTo::OneFolder;
+        d.save.save_to = SaveTo::OneFolder;
         assert_eq!(
             d.adds(false, root, &dm_core::Categories::default())
                 .unwrap_err(),

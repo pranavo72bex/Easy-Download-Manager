@@ -213,34 +213,34 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             ui.label(RichText::new(t("Save to")).strong());
             if radio_flag(
                 ui,
-                d.save_to == SaveTo::ByCategory,
+                d.save.save_to == SaveTo::ByCategory,
                 t("Each file to the folder of its category"),
             )
             .clicked()
             {
-                d.save_to = SaveTo::ByCategory;
+                d.save.save_to = SaveTo::ByCategory;
             }
             ui.horizontal(|ui| {
                 if radio_flag(
                     ui,
-                    d.save_to == SaveTo::OneCategory,
+                    d.save.save_to == SaveTo::OneCategory,
                     t("Every file to this category"),
                 )
                 .clicked()
                 {
-                    d.save_to = SaveTo::OneCategory;
+                    d.save.save_to = SaveTo::OneCategory;
                 }
-                ui.add_enabled_ui(d.save_to == SaveTo::OneCategory, |ui| {
+                ui.add_enabled_ui(d.save.save_to == SaveTo::OneCategory, |ui| {
                     let shown = |word: &str| crate::i18n::name(&format::titled(word));
                     combo("links-category")
-                        .selected_text(shown(&d.category))
+                        .selected_text(shown(&d.save.category))
                         .show_ui(ui, |ui| {
                             for kind in dm_core::Category::ALL {
                                 let word = crate::app::category_word(kind);
-                                pick(ui, &mut d.category, word.clone(), shown(&word));
+                                pick(ui, &mut d.save.category, word.clone(), shown(&word));
                             }
                             for own in &customs {
-                                pick(ui, &mut d.category, own.clone(), own.clone());
+                                pick(ui, &mut d.save.category, own.clone(), own.clone());
                             }
                         });
                 });
@@ -248,22 +248,22 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 if radio_flag(
                     ui,
-                    d.save_to == SaveTo::OneFolder,
+                    d.save.save_to == SaveTo::OneFolder,
                     t("Every file to this folder"),
                 )
                 .clicked()
                 {
-                    d.save_to = SaveTo::OneFolder;
+                    d.save.save_to = SaveTo::OneFolder;
                 }
-                ui.add_enabled_ui(d.save_to == SaveTo::OneFolder, |ui| {
+                ui.add_enabled_ui(d.save.save_to == SaveTo::OneFolder, |ui| {
                     let wide = (ui.available_width() - 120.0).clamp(120.0, 320.0);
                     let name = t("Every file to this folder");
                     let typed =
-                        ui.add(egui::TextEdit::singleline(&mut d.folder).desired_width(wide));
+                        ui.add(egui::TextEdit::singleline(&mut d.save.folder).desired_width(wide));
                     typed.widget_info(|| {
                         egui::WidgetInfo::labeled(egui::Role::TextInput, true, name)
                     });
-                    browse(ui, &**platform, &mut d.folder);
+                    browse(ui, &**platform, &mut d.save.folder);
                 });
             });
             footer(ui, |ui| {
