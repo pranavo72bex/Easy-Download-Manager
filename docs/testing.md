@@ -114,6 +114,33 @@ after each release build. `python3 scripts/stress-protocols.py detach` (macOS) p
 folder's drive (a disk image, detached by force) during a download: the row must end paused with
 why, and dm must keep answering.
 
+## Profiling
+
+A profile is read against a build that has symbols. The release profile strips them, so
+`cargo build --profile profiling -p dm-gpui` builds the same code (the release profile, with
+line tables and symbols kept) into `desktop/target/profiling/dm-gpui`. Run that, do what is slow,
+and sample it:
+
+- **macOS.** `sample dm-gpui 10 -file dm.sample.txt` (in the system, no install) writes 10 seconds
+  of call stacks of every thread, heaviest first, with Rust's names still mangled (`_RNv…`;
+  samply and Instruments show them plain). `footprint dm-gpui` and `heap dm-gpui` say where
+  the memory is, `leaks dm-gpui` what leaked. With Xcode, Instruments' Time Profiler
+  (`xcrun xctrace record --template 'Time Profiler' --attach dm-gpui`) gives a flame graph, and its
+  Animation Hitches template the frame times (GPUI reports none of its own). `samply record
+  desktop/target/profiling/dm-gpui` (`cargo install samply`) opens a flame graph in the browser.
+- **Linux.** `perf record -g --call-graph dwarf -p $(pidof dm-gpui) -- sleep 10`, then `perf report`;
+  or `samply record`, or `cargo flamegraph --profile profiling -p dm-gpui`. Memory: `heaptrack`.
+- **Windows.** `wpr -start CPU -filemode`, do the slow thing, `wpr -stop dm.etl`, and open it in
+  WPA with the symbol path set to `desktop\target\profiling` (the PDB is beside the exe); or
+  `samply record`. Memory: the same with `-start Heap`.
+- **The engine alone.** `dm-gpui --headless --control 0` takes no window, so a profile of a
+  download shows the engine's cost only; `ui-bench.py --only transfer` times one with and without
+  the window.
+
+What a release binary is made of: `cargo bloat --release -p dm-gpui --crates` with
+`CARGO_PROFILE_RELEASE_STRIP=false` (it reads the symbols); the last record is in
+`docs/decisions.md` (2026-11-11, the release profile measured for `dm-gpui`).
+
 ## Video sites: the compatibility test plan
 
 `python scripts/video-sites-check.py` runs the video website compatibility test plan (the

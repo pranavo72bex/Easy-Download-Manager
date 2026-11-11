@@ -3,6 +3,9 @@ name = "dm-core"
 version = "0.9.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
 
 [dependencies]
 # Already in the tree through reqwest; named for its chunk type.

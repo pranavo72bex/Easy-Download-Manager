@@ -1,0 +1,89 @@
+# `cargo deny check`, run in CI (.github/workflows/audit.yml) for desktop/ and
+# browser/: the licences of what dm is built from, where it comes from, and the
+# advisories against it (gaps row 190).
+
+[graph]
+# Every system dm ships for, so that a crate pulled in only on one of them is
+# held to the same rules.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+[advisories]
+version = 2
+# "Unmaintained" refused for the crates dm depends on itself. The ones that
+# come in under GPUI (instant, rustls-pemfile, rustybuzz and ttf-parser under
+# gpui-pre 0.3.12 and gpui-component 0.9.1, which dm pins together) are
+# upstream's to replace, and cargo audit lists them every week.
+unmaintained = "workspace"
+# The same advisories as desktop/.cargo/audit.toml, which says why each is
+# unreachable in dm; a line goes from both files together.
+ignore = [
+    "RUSTSEC-2026-0293",
+    "RUSTSEC-2024-0429",
+    "RUSTSEC-2024-0370",
+    "RUSTSEC-2026-0370",
+    "RUSTSEC-2026-0371",
+    "RUSTSEC-2026-0372",
+    "RUSTSEC-2024-0436",
+]
+
+[licenses]
+version = 2
+# dm is GPL-3.0-or-later, and everything linked into it must be compatible
+# with that: the permissive licences, Apache-2.0 (compatible with the GPL from
+# version 3), MPL-2.0 (section 3.3 allows it beside the GPL) and the public
+# domain dedications.
+allow = [
+    "GPL-3.0-or-later",
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "BSL-1.0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "CC0-1.0",
+    # The Mozilla CA list as data (webpki-roots), not code.
+    "CDLA-Permissive-2.0",
+    # LLVM's libFuzzer, in the fuzz targets only, never in what ships.
+    "NCSA",
+]
+confidence-threshold = 0.9
+# The egui window's default fonts, while it is still built (G9: it goes once
+# the Windows laptop holds the GPUI window). Fonts are data dm carries beside
+# its code, which the OFL and the Ubuntu font licence allow.
+exceptions = [
+    { allow = ["OFL-1.1", "Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
+]
+
+[licenses.private]
+# dm's own crates are not published; their licence is the repository's.
+ignore = true
+
+[bans]
+# Two versions of one crate cost size and build time, but come from upstream
+# crates moving at different speeds: said, not refused.
+multiple-versions = "warn"
+wildcards = "deny"
+# dm's crates (none published) and the copies in desktop/vendor are paths,
+# not wildcards.
+allow-wildcard-paths = true
+
+[sources]
+# crates.io and nothing else: no git dependency, no other registry. The
+# patched copies in desktop/vendor are paths in this repository.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

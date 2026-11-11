@@ -5999,3 +5999,22 @@ not start when the check pressed play.
   The judged benchmark (`bench/bench.mjs fast per_conn`) was not run here: it is the other track's,
   and it must be run again by that track after the merge. Nothing in the profile changed, so no
   judged number can move because of this entry.
+
+## 2026-11-11: `cargo deny`, and what it refuses (gaps row 190)
+
+- `desktop/deny.toml` serves both workspaces (`desktop/`, and `browser/` through `--config`). It
+  allows the licences dm's 1,100-odd crates carry that are compatible with GPL-3.0-or-later, and
+  allows OFL-1.1 and the Ubuntu font licence for `epaint_default_fonts` only, the egui window's
+  fonts, until that window goes (G9). crates.io is the only source. Duplicates are warned about,
+  not refused (about 100, from upstream crates moving at different speeds). The advisories ignored
+  are `audit.toml`'s, each with its reason there.
+- **"Unmaintained" is refused only for crates dm depends on itself** (`unmaintained =
+  "workspace"`). The four found (`instant`, `rustls-pemfile`, `rustybuzz`, `ttf-parser`) come in
+  under the pinned GPUI (`gpui-pre` 0.3.12, `gpui-component` 0.9.1), where dm cannot replace them.
+  Refusing them would keep the check red until upstream moves. cargo audit still lists them weekly.
+- dm's own crates were marked `publish = false`, which they always were in fact: cargo-deny
+  counts a path dependency of a publishable crate as a wildcard version.
+- Checked with cargo-deny 0.20.2 on this Mac: `advisories ok, bans ok, licenses ok, sources ok` for
+  both workspaces.
+- **Not done**: `criterion` benches (the spec asks for them, run by hand, never gating CI). They
+  are a dev-dependency with a large tree, and were left for a session of their own (row 190).
