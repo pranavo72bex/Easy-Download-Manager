@@ -5747,3 +5747,36 @@ its backtrace. One whole run of the window binary showed 38 tests saving without
 After: three traced runs showed no save without the guard (1,193 saves, all held), and the window
 binary passed ten whole runs in a row. Taking the guard for the whole of every test was dropped:
 it would serialise the binary's 291 tests behind one lock.
+
+## 2026-11-11: The optimization spec, audited: what dm takes from it and what not
+
+The maintainer's spec of 2026-11-11 ("GPUI + Rust Optimization for Cross-Platform Desktop
+Applications") is audited requirement by requirement in `docs/optimization-audit.md`. What is not
+met became gaps rows 180 to 192, and the agent rules that AGENTS.md lacked were added there.
+Decided while auditing:
+
+- **The crates stay as they are.** The spec's layout (`ui`, `app-core`, `download-engine`,
+  `network`, `storage`, and so on) is an illustration. Every rule it serves already holds: the
+  engine and the application layer use no window toolkit (`cargo xtask layers`), and no
+  dependency cycle exists. Splitting `dm-core` into several crates would be churn with no
+  boundary gained.
+- **The window keeps its cadence.** The spec suggests publishing progress 5 to 10 times a second
+  to start with. dm reads a queue change after 250 ms of coalescing, and redraws progress once a
+  second while anything runs, as the egui window did. A faster cadence would change what people
+  see, and would cost the CPU that row 176 is trying to win back. What the spec does buy is
+  drawing only what changed (row 181), not a higher rate.
+- **Not applicable to dm:**
+  - Intel Macs, which are not built (README).
+  - Notarization, which has no free route ("Released unsigned, with the free signing there is", 2026-10-16).
+  - A GPU fallback on macOS, since every Mac on macOS 11 or later has Metal.
+  - Reduced motion, since dm has no animation.
+  - A narrower `dm-core` root. It exports 56 modules and items, each documented (`missing_docs`
+    is on). Cutting the list down is a refactor that no rule asks for.
+- **`panic = "abort"` is open again for the GPUI window.** It was turned down on 2026-11-06 for
+  the egui tray's `catch_unwind`, and `dm-gpui` has none. What is left to weigh is tokio's
+  isolation of a task's panic, against the size it saves. That weighing is row 189's, measured.
+- **The measurements in the audit's §9** were taken on this Mac while the other track built and
+  benchmarked the engine on the same computer, so they hold only as upper bounds. They come from
+  `scripts/ui-bench.py` and `stress-check.py window`, and the commands are in the audit's §9.
+  ui-bench's Find step waits for a Find next button that only the egui window has, so it
+  measures nothing on the GPUI window (row 187).
