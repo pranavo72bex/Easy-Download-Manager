@@ -193,7 +193,7 @@ extern "C" fn moved(_timer: CFRef, _info: *mut c_void) {
                         let _: () = msg_send![
                             &*parent,
                             beginSheet: &*sheet,
-                            completionHandler: std::ptr::null::<c_void>()
+                            completionHandler: None::<&block2::DynBlock<dyn Fn(isize)>>
                         ];
                     });
                 }
