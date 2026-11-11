@@ -53,9 +53,12 @@ fn reads(backend: Backend, assistants_only: bool) -> Reads {
         // How many times the main window has been drawn: what a test of
         // "a wake that changed nothing draws nothing" counts, asked here so
         // the asking draws nothing either (gaps row 181).
+        // In a debug build, what those draws waited for, copied and asked
+        // of the disk (`costs`, gaps row 180); a release build counts none.
         if method == "ui.frames" {
             return Some(Ok(serde_json::json!({
-                "frames": FRAMES.load(std::sync::atomic::Ordering::Relaxed)
+                "frames": FRAMES.load(std::sync::atomic::Ordering::Relaxed),
+                "drawing": dm_shell::app::costs::so_far(),
             })));
         }
         if method != "queue.list" {

@@ -93,8 +93,9 @@ fn cell(column: Column) -> gpui::Div {
     }
 }
 
-/// What a cell says, where it says words.
-fn words(column: Column, row: &Entry) -> String {
+/// What a cell says, where it says words; when a row finished, from the
+/// words the read kept (`whens`).
+fn words(column: Column, row: &Entry, whens: &format::Whens) -> String {
     match column {
         Column::Name | Column::Queue => String::new(),
         Column::Size => dm_desktop_base::rows::size_of(row),
@@ -108,7 +109,7 @@ fn words(column: Column, row: &Entry) -> String {
         Column::Rate if row.state == State::Running && row.progress.speed > 1.0 => {
             format::rate(row.progress.speed)
         }
-        Column::LastTry => format::when(row.finished_at),
+        Column::LastTry => whens.of(row.finished_at),
         Column::Description => row.description.clone(),
         Column::Referrer if !row.referrer.is_empty() => format::shown_url(&row.referrer),
         Column::Folder => dm_desktop_base::rows::folder_of(row),
@@ -256,6 +257,7 @@ fn spoken(
 fn row_cells(
     row: &Entry,
     names: &std::collections::HashMap<dm_core::Id, String>,
+    whens: &format::Whens,
     columns: &[Column],
     kind: Option<dm_core::Category>,
     theme: Theme,
@@ -287,7 +289,7 @@ fn row_cells(
                 })
                 .into_any_element(),
             Column::Status => {
-                let said = words(column, row);
+                let said = words(column, row, whens);
                 let fraction = (row.state == State::Running)
                     .then(|| row.progress.fraction())
                     .flatten();
@@ -316,7 +318,7 @@ fn row_cells(
                     .into_any_element()
             }
             _ => {
-                let said = words(column, row);
+                let said = words(column, row, whens);
                 let numeric = numeric(column);
                 cell(column)
                     .when(!numeric, |c| c.text_color(theme.muted))
@@ -389,6 +391,9 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
         "rows",
         count,
         cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
+            // The rows are built as the list is laid out, after `render`:
+            // part of the frame all the same (`costs::drawing`).
+            let _drawing = dm_shell::app::costs::drawing();
             this.laid_out(range.clone(), cx);
             let categories = this.drawn.categories();
             let columns = columns(this);
@@ -486,6 +491,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .children(row_cells(
                             row,
                             &this.shown_names,
+                            &this.whens,
                             &columns,
                             kind,
                             theme,

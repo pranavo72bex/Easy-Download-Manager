@@ -45,6 +45,20 @@ impl Downloads {
                 .any(|r| r.state == State::Running || r.delete_after.is_some())
     }
 
+    /// Keeps the words for when each row finished (`format::Whens`), as the
+    /// queue is read: worked out in a frame, they asked the disk for the
+    /// time zone (gaps row 180). Every row's where `all` (the rows were
+    /// placed again) or the day, zone or `language` changed; otherwise those
+    /// of the rows that changed, `finished_at`.
+    pub(super) fn keep_whens(&mut self, language: &str, all: bool, finished_at: Vec<u64>) {
+        if self.whens.renew(language) || all {
+            self.whens
+                .keep(self.rows.iter().filter_map(|row| row.finished_at));
+        } else {
+            self.whens.keep(finished_at);
+        }
+    }
+
     /// Looks for the files of the finished rows on screen and of those
     /// chosen, off the window's thread, at most once a second, and draws
     /// again where one is found gone or back: a row's "File missing", and

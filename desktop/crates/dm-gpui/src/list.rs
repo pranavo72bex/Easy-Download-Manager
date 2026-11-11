@@ -304,6 +304,8 @@ pub struct Downloads {
     named_at: Option<Instant>,
     /// The next read works everything out again (the settings changed).
     pub(crate) read_all: bool,
+    /// When each row finished, in words, kept by the read (`keep_whens`).
+    pub(crate) whens: dm_desktop_base::format::Whens,
     /// Set when a second launch, the browser or the Dock asks for the window.
     show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// What an opener said went wrong, from its thread.
@@ -408,6 +410,7 @@ impl Downloads {
             positions: Default::default(),
             named_at: None,
             read_all: false,
+            whens: Default::default(),
             show_asked,
             opener_said: Default::default(),
             show_sidebar: true,
@@ -1803,12 +1806,14 @@ impl Downloads {
                 .zip(&self.rows)
                 .all(|(new, old)| new.id == old.id);
         let mut moved = !same_rows || std::mem::take(&mut self.read_all);
+        let mut finished_at = Vec::new();
         if same_rows {
             for (new, old) in rows.iter().zip(&self.rows) {
                 if std::sync::Arc::ptr_eq(new, old) {
                     continue;
                 }
                 changed = true;
+                finished_at.extend(new.finished_at);
                 if !placed_alike(old, new) {
                     moved = true;
                     break;
@@ -1820,6 +1825,7 @@ impl Downloads {
         if changed && self.named_at.is_none_or(|at| at.elapsed() >= NAMES_EVERY) {
             moved = true;
         }
+        self.keep_whens(&settings.language, moved, finished_at);
         if moved {
             self.named_at = Some(Instant::now());
             // Each row by the name its file will get, as the egui window
@@ -2249,6 +2255,8 @@ pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::port::FRAMES.fetch_add(1, Ordering::Relaxed);
+        // Its waits, copies and disk calls, counted in a debug build (row 180).
+        let _drawing = dm_shell::app::costs::drawing();
         if !std::mem::take(&mut self.drawn_fresh) {
             self.drawn = std::rc::Rc::new(self.backend.settings());
         }

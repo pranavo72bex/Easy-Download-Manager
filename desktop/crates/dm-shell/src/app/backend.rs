@@ -106,6 +106,7 @@ impl Backend {
     }
 
     fn block_on<T>(&self, work: impl std::future::Future<Output = T>) -> T {
+        crate::app::costs::waited();
         self.runtime.block_on(work)
     }
 
@@ -316,6 +317,7 @@ impl Backend {
     /// The settings in force.
     #[must_use]
     pub fn settings(&self) -> Settings {
+        crate::app::costs::copied_settings();
         dm_core::lock(&self.settings).clone()
     }
 

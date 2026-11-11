@@ -458,8 +458,9 @@ def start_server_with(handler):
 # ------------------------------------------------------------------ dm
 
 class DM:
-    def __init__(self, root, settings=None, name="dm", window=False):
+    def __init__(self, root, settings=None, name="dm", window=False, env=None):
         self.window = window
+        self.env = env or {}
         self.home = root / f"{name}-home"
         self.out = root / f"{name}-out"
         self.home.mkdir(parents=True, exist_ok=True)
@@ -483,7 +484,7 @@ class DM:
         # again, or the check would connect to a port nobody listens on.
         for stale in ("control.port", "control.token"):
             (self.home / stale).unlink(missing_ok=True)
-        env = {**os.environ, "DM_HOME": str(self.home)}
+        env = {**os.environ, "DM_HOME": str(self.home), **self.env}
         args = ["--control", "0"] if self.window else ["--headless", "--control", "0"]
         self.proc = subprocess.Popen([str(BINARY), *args], env=env,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -1619,6 +1620,85 @@ def p_window(ctx):
         measure("window", f"peak rss {rss:.0f} MB, cpu {cpu:.0f}%, fds {fds}, threads {th}")
         if cpu > 250:
             finding("low", "window", f"dm uses {cpu:.0f}% of a core with the window open under this load")
+    finally:
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+
+
+def fs_counter(root):
+    """The library that counts each thread's file-system calls (scripts/fs-count.c), built
+    here, and how dm is to load it; or None and why not."""
+    cc = shutil.which("cc")
+    if not cc or sys.platform == "win32":
+        return None, "no C compiler (cc) to build scripts/fs-count.c"
+    darwin = sys.platform == "darwin"
+    lib = root / ("fs-count.dylib" if darwin else "fs-count.so")
+    built = subprocess.run([cc, "-shared", *([] if darwin else ["-fPIC"]), "-o", str(lib),
+                            str(ROOT / "scripts" / "fs-count.c"), *([] if darwin else ["-ldl"])],
+                           capture_output=True, text=True)
+    if built.returncode:
+        return None, f"scripts/fs-count.c did not build: {built.stderr.strip()[:300]}"
+    return {"DYLD_INSERT_LIBRARIES" if darwin else "LD_PRELOAD": str(lib)}, ""
+
+
+@phase
+def p_frame(ctx):
+    """The main window's frames at 1,000 rows (half finished) with downloads running: none waits on the engine or asks the disk, and each copies the settings once at most (a debug build counts them)."""
+    base, root = ctx["base"], ctx["root"]
+    env, why = fs_counter(root)
+    if env is None:
+        finding("info", "frame", f"the disk is not counted: {why}")
+    dm = DM(root, {"connections": 1, "concurrency": 10}, name="frame", window=True, env=env).start()
+    try:
+        drawing = (dm.call("ui.frames").get("result") or {}).get("drawing")
+        if drawing is None:
+            finding("info", "frame", "skipped: a frame's costs are counted by a debug build only "
+                                     "(DM_BINARY=desktop/target/debug/dm-gpui)")
+            return
+        dm.add([f"{base}/f/fd{i}/1024/fd{i}.bin" for i in range(500)])
+        finished = wait_for(lambda: states(dm.rows()).get("completed", 0) == 500, 120, every=1)
+        check("frame", "500 small files finish", bool(finished), f"{states(dm.rows())}")
+        dm.call("downloads.add", urls=[f"{base}/f/fw{i}/1024/fw{i}.bin" for i in range(490)], later=True)
+        dm.add([f"{base}/f/fr{i}/{40 * MB}/fr{i}.bin?rate={64 * 1024}" for i in range(10)])
+        running = wait_for(lambda: states(dm.rows()).get("running", 0) == 10, 30, every=0.5)
+        check("frame", "10 downloads run beside 990 other rows", bool(running), f"{states(dm.rows())}")
+        time.sleep(2)
+
+        def costs():
+            r = dm.call("ui.frames").get("result") or {}
+            return r.get("frames", 0), r.get("drawing") or {}
+
+        f0, c0 = costs()
+        # Frames of every kind: the running rows' figures four times a second, a scroll
+        # (rows never drawn before), a choice, another place and back.
+        t0 = time.time()
+        while time.time() - t0 < 6:
+            shown = [t["text"] for t in (dm.call("ui.texts").get("result") or {}).get("texts", [])
+                     if t["text"].startswith(("fd", "fw", "fr"))]
+            if shown:
+                dm.call("ui.scroll", text=shown[len(shown) // 2], lines=12)
+            ids = [r["id"] for r in dm.rows()]
+            dm.call("ui.select", ids=ids[int(time.time() * 7) % len(ids):][:3])
+            dm.call("ui.place", place="finished" if int(time.time()) % 2 else "all")
+            time.sleep(0.3)
+        dm.call("ui.place", place="all")
+        time.sleep(0.5)
+        f1, c1 = costs()
+        frames = f1 - f0
+        block_on = c1.get("block_on", 0) - c0.get("block_on", 0)
+        settings = c1.get("settings", 0) - c0.get("settings", 0)
+        fs = None if c1.get("fs") is None else c1["fs"] - (c0.get("fs") or 0)
+        measure("frame", f"{frames} frames at {len(dm.rows())} rows with 10 running: block_on {block_on}, "
+                         f"settings copied {settings}, file-system calls "
+                         f"{'not counted' if fs is None else fs}")
+        check("frame", "the window drew frames to count", frames >= 10, f"{frames} frames")
+        check("frame", "no frame waits on the engine (block_on)", block_on == 0, f"{block_on} over {frames} frames")
+        # One copy a frame at most: a frame that follows no read copies the settings it
+        # draws by (`Downloads::drawn`); one that follows a read uses the read's.
+        check("frame", "no frame copies the settings more than once", settings <= frames,
+              f"{settings} over {frames} frames")
+        if fs is not None:
+            check("frame", "no frame asks the disk", fs == 0, f"{fs} file-system calls over {frames} frames")
     finally:
         dm.stop()
         shutil.rmtree(dm.out, ignore_errors=True)

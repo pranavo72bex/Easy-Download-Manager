@@ -6338,3 +6338,32 @@ Tried and dropped:
   resumability (on the runtime, beside the downloads, not behind the errands, every half second),
   Download details' clash (a background task, again where the folder or name typed changed or a
   second passed; Start now still asks it at the press), the add-to-browser bar's two files.
+
+## 2026-11-12: A frame's costs counted, in a debug build (gaps row 180)
+
+- **Counted where they are made, while a thread draws** (`dm-shell` `app/costs.rs`): the main
+  window's `render` and the rows' builder (`table::rows`, run as the list is laid out, after
+  `render`) mark the window's thread as drawing; `Backend::block_on` and `Backend::settings`
+  count themselves when the thread they run on is. Only in a debug build: in a release build the
+  marks and counts are empty functions, and `ui.frames` says `"drawing": null`.
+- **The disk is counted by a library preloaded into dm, not by dm** (`scripts/fs-count.c`, built by
+  `stress-check.py frame` with the system's `cc` and loaded with `DYLD_INSERT_LIBRARIES`, or
+  `LD_PRELOAD` on Linux). dm reaches the disk through hundreds of calls in its own code, the
+  standard library's and the system's (AppKit, fonts); wrapping its own would have missed the
+  rest. The library counts each thread's `stat`, `open`, `access`, `opendir`, `realpath`,
+  `getattrlist` and the like, and says the calling thread's count as `dm_fs_calls`, which the
+  debug build reads (`dlsym`) as a draw begins and ends. Without the library the disk is reported
+  as not counted, not as zero.
+- **What it found:** one call. When a finished row finished ("Last try") was written in the frame
+  through chrono's `Local`, which looks at `/etc/localtime` to see whether the zone changed, at
+  most once a second. The words are now kept as the queue is read (`format::Whens`), worked out
+  where a time is new or the day, the zone's offset or the language changed, and the frame looks
+  them up. Not a fixed offset worked out once: a time on the other side of a change to summer
+  time would have been an hour out.
+- **The bound:** no `block_on`, no file-system call, and the settings copied once a frame at most
+  (a frame drawn after no read copies them once, `Downloads::drawn`; one after a read uses the
+  read's). Measured on macOS (debug build, the other track running): 58 and 59 frames at 1,000
+  rows (500 finished, 10 running), and 23 at 10,000 (5,000 finished), each with 0 `block_on`, 0
+  settings copied and 0 file-system calls; before the change, 1 and 2 file-system calls over 50
+  and 61 frames.
+
