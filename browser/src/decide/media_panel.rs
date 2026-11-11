@@ -184,6 +184,29 @@ pub struct PanelClick {
 /// app, so this is longer than that and no more.
 pub const FORMATS_PATIENCE_MS: i32 = 50_000;
 
+/// How long the app's reading of a page is waited for, in milliseconds,
+/// when the streams the page's player loaded already make a list of their own.
+pub const STREAMS_PATIENCE_MS: f64 = 8_000.0;
+
+/// Whether the app's reading of a page may be cut short, after
+/// [`STREAMS_PATIENCE_MS`], for the `stream_lines` lines the page's own streams
+/// make: only when they offer a choice by themselves. One line is no choice:
+/// a click answered with it alone hands that one over at once, at whatever
+/// quality the player happened to fetch, while the qualities the app was
+/// still reading go unseen (YouTube on macOS, 2026-11-11, gaps row 178).
+pub fn cut_reading_short(stream_lines: usize) -> bool {
+    stream_lines >= 2
+}
+
+/// How long a click on a YouTube player waits for the player to list the
+/// video's qualities, in milliseconds, when it has no list yet (still
+/// loading, or playing an advertisement first) and the app has given fewer
+/// than two lines: past it, what the app gave is used as before.
+pub const PLAYER_LIST_PATIENCE_MS: f64 = 15_000.0;
+
+/// How often the player is asked again for its list while a click waits.
+pub const PLAYER_ASK_EVERY_MS: i32 = 500;
+
 /// The page script telling what a video player asked for.
 pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 

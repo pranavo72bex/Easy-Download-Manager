@@ -472,14 +472,15 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         let tab = get(&sender, "tab.id").as_f64().map_or(-1, |id| id as i64);
         let streams = streams_of(tab).await;
         // The video helper can take half a minute over a page. Where the page
-        // has already shown streams of its own, they are not held back for
-        // it past a few seconds.
+        // has already shown streams of its own that make a choice, they are
+        // not held back for it past a few seconds; a single stream is no
+        // choice, and the reading is waited for (gaps row 178).
         let store = tab_store(&sender, "tab");
         let ask = Box::pin(formats_of(&target, store.as_deref()));
-        let read = if streams.is_empty() {
+        let read = if !decide::cut_reading_short(streams.len()) {
             ask.await
         } else {
-            let patience = Box::pin(sleep(8_000.0));
+            let patience = Box::pin(sleep(decide::STREAMS_PATIENCE_MS));
             match futures_util::future::select(ask, patience).await {
                 futures_util::future::Either::Left((done, _)) => done,
                 futures_util::future::Either::Right(_) => {

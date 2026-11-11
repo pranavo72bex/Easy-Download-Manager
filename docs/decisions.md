@@ -5879,3 +5879,46 @@ category's folder, with no choice. The maintainer pasted the issue as the reques
   here (a panel waits for a person, and this terminal cannot move the pointer).
 - The egui window (dm-desktop) is not shipped on any system since 6ab92583, so its clipboard
   dialog is left as it was; its Download links follows the moved fields only.
+
+## 2026-11-11: YouTube's panel waits for a list rather than hand the page over unasked (gaps row 178)
+
+`human-qa.py` on macOS failed B33 to B35 and B59 in two of four runs: once the first click on
+"Download video" handed the page to dm instead of listing the qualities, and once the player did
+not start when the check pressed play.
+
+- **Why the click handed over.** Reproduced on macOS by making dm's reading of the page slow (its
+  proxy set to a port that accepts and never answers; a scratch diagnostic, not committed): the
+  player's own list was on the panel 0.1 s after the click, and 10 s later the panel said "Sent
+  to dm" and "The dm app is reading this page for its video", the list gone, nothing chosen. The
+  click took any answer from the background with fewer than two lines as final, even with the
+  player's list on screen: none handed the page over for dm to read (and fetch whole), one handed
+  that one over. Two things made such answers: the background cut the app's reading short after
+  8 s whenever the page had shown a stream, and YouTube's player has fetched one by then (a single
+  itag 18 stream was in the tab's kept streams that day), so a slow reading (a debug build, a busy
+  machine, a cold player script) came back as that one stream; and a reading that ends with
+  nothing. The player's list was asked only once, so a click while the player was still loading,
+  or playing an advertisement, had no list to fall back on either.
+- **The reading is cut short only for a choice** (`decide::cut_reading_short`: two stream lines
+  or more). One stream is no choice, so the app's reading (at most 40 s, the panel saying
+  "Reading qualities…" and that it can take half a minute) is waited for.
+- **The click asks YouTube's player again** every half second, for up to 15 s, until it lists two
+  heights or more of the video on the page (`player_list`), and an app answer with fewer than two
+  lines, or a refusal, waits for that before handing over or giving the click back. Past the 15 s
+  what the app gave is used as before. A list the player gave stays when the app's answer has
+  less to offer. An older ask of the player still waiting is answered with
+  nothing when a newer one replaces it, rather than left unanswered for good.
+- **The check presses play as a person does** (`youtube-check.py` `press_play`): it waits a
+  moment for the page's own autoplay, then clicks the picture with the pointer, then the play
+  button, looking again after each, three times at most. One script click could land as autoplay
+  began, pausing it again.
+- Considered and not built: re-asking the app after a cut-short answer. The cut ask's host may be
+  gone with its port, so the second ask would start a new reading and could be cut again.
+- **Measured on macOS, 2026-11-11** (debug dm-gpui, Chrome for Testing in a visible window, other
+  work running on the machine): `youtube-check.py` 10 of 10 runs passed, 68 of 68 checks each, no
+  page refused by YouTube; two runs listed dm's reading with sizes, eight the player's own list
+  first. The slow-reading diagnostic, old extension against new on the same build: the old
+  handed the page over 10.1 s after the click; the new kept the player's two lines until the
+  19 s video ended, 12 s after the click, nothing handed over. `press_play` saw a player paused
+  by script play again in three of three cases: twice its first pointer click on the picture
+  started it (2.3 and 2.4 s), once a play the page started itself came first (1.8 s); in the ten
+  runs YouTube started the player itself every time, so it was not needed.
