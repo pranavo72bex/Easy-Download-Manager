@@ -37,7 +37,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import readline from 'node:readline';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -383,13 +383,52 @@ async function runDm(urls, names, size, timeoutMs, gate) {
 }
 
 // ─── What every result file says about where it was measured.
+// What built the binary and what drew it (gaps row 188), read once: the commit and whether it had
+// changes not committed, rustc, the target and the profile (the folder cargo built it in), the GPU
+// and each display's scale. A part the system will not say is null; nothing here fails a run.
+let builtBy = null;
+function provenance() {
+  if (builtBy) return builtBy;
+  const run = (cmd, args) => { try { return execFileSync(cmd, args, { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } };
+  const rustc = run('rustc', ['-vV']) || run(path.join(os.homedir(), '.cargo', 'bin', 'rustc' + (WIN ? '.exe' : '')), ['-vV']);
+  const field = (name) => rustc?.split('\n').find((l) => l.startsWith(name + ':'))?.slice(name.length + 1).trim() || null;
+  const head = run('git', ['-C', REPO, 'rev-parse', 'HEAD']);
+  const parts = DM ? path.resolve(DM).split(path.sep) : [];
+  const at = parts.lastIndexOf('target');
+  const inTarget = at >= 0 ? parts.slice(at + 1, -1) : [];
+  let gpus = null, displays = null;
+  if (process.platform === 'darwin') {
+    try {
+      const cards = JSON.parse(run('system_profiler', ['SPDisplaysDataType', '-json']) || '{}').SPDisplaysDataType || [];
+      gpus = cards.map((c) => c.sppci_model || c._name);
+      displays = cards.flatMap((c) => (c.spdisplays_ndrvs || []).map((d) => {
+        const px = /(\d+) x (\d+)/.exec(d._spdisplays_pixels || ''), looks = /(\d+) x (\d+)/.exec(d._spdisplays_resolution || '');
+        return { pixels: d._spdisplays_pixels || null, looksLike: d._spdisplays_resolution || null, scale: px && looks ? +(px[1] / looks[1]).toFixed(2) : null };
+      }));
+    } catch { /* left null */ }
+  } else if (WIN) {
+    gpus = (run('powershell', ['-NoProfile', '-Command', '(Get-CimInstance Win32_VideoController).Name']) || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const dpi = Number(run('powershell', ['-NoProfile', '-Command', "(Get-ItemProperty 'HKCU:\\Control Panel\\Desktop\\WindowMetrics').AppliedDPI"]));
+    displays = dpi ? [{ scale: +(dpi / 96).toFixed(2) }] : null;
+  } else {
+    gpus = (run('lspci', []) || '').split('\n').filter((l) => /VGA|3D controller|Display controller/.test(l)).map((l) => l.split(': ').pop());
+  }
+  builtBy = {
+    commit: head ? { head, dirty: !!run('git', ['-C', REPO, 'status', '--porcelain', '--untracked-files=no']) } : null,
+    rustc: rustc ? rustc.split('\n')[0] : null,
+    target: inTarget.length === 2 ? inTarget[0] : field('host'),
+    profile: inTarget.length ? inTarget[inTarget.length - 1] : null,
+    gpus: gpus?.length ? gpus : null, displays: displays?.length ? displays : null,
+  };
+  return builtBy;
+}
 function meta() {
   let dmBinary = null;
   if (DM && fs.existsSync(DM)) { const s = fs.statSync(DM); dmBinary = { path: DM, bytes: s.size, modified: s.mtime.toISOString() }; }
   return {
     harness: 1, run: RUN, date: new Date().toISOString(), apps: APPS,
     system: { platform: process.platform, release: os.release(), arch: os.arch(), cpu: os.cpus()[0]?.model?.trim(), logicalCores: os.cpus().length, memoryGB: +(os.totalmem() / 2 ** 30).toFixed(1) },
-    node: process.version, dmBinary,
+    node: process.version, dmBinary, build: provenance(),
     dmConnections: process.env.BENCH_DM_CONNECTIONS ? Number(process.env.BENCH_DM_CONNECTIONS) : null,
     folders: { work: WORK, dmHome: dmHome(), dmDownloads: process.env.BENCH_DM_DOWNLOADS || path.join(dmHome(), 'downloads'), refa: WITH_REFA ? (process.env.BENCH_REFA_DIR || path.join(WORK, 'refa')) : null },
   };
