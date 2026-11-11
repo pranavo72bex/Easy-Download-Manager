@@ -68,14 +68,22 @@ impl Platform for Refusing {
 
 /// A window over `settings` whose system is `platform`.
 fn app_on(world: &World, settings: Settings, platform: Arc<dyn Platform>) -> DmApp {
-    let queue = Queue::new(
-        dm_core::client(),
-        settings.options(
-            world.dir.path().join("parts"),
-            dm_core::Limiter::unlimited(),
-        ),
-        settings.concurrency,
+    app_with(world, settings, platform, |_| {})
+}
+
+/// `app_on` with the engine's options changed first by `tweak`.
+fn app_with(
+    world: &World,
+    settings: Settings,
+    platform: Arc<dyn Platform>,
+    tweak: impl FnOnce(&mut dm_core::Options),
+) -> DmApp {
+    let mut options = settings.options(
+        world.dir.path().join("parts"),
+        dm_core::Limiter::unlimited(),
     );
+    tweak(&mut options);
+    let queue = Queue::new(dm_core::client(), options, settings.concurrency);
     let backend = Backend::new(
         world.runtime.handle().clone(),
         queue,
@@ -864,7 +872,17 @@ fn huge_server(world: &World) -> String {
 fn a_hint_whose_mark_cannot_be_saved_says_why() {
     let _one = one_at_a_time();
     let world = world();
-    let mut app = app_on(&world, world.settings(), Arc::new(Refusing::default()));
+    // The file is 6 GiB, so the disk under the test is said to have room
+    // for it: on a nearly full disk the download would wait for room and the
+    // hint would never be due.
+    let mut app = app_with(
+        &world,
+        world.settings(),
+        Arc::new(Refusing::default()),
+        |o| {
+            o.room = dm_core::Room::with_free_space(|_| Some(1 << 40));
+        },
+    );
     app.add(&[huge_server(&world)], dm_core::AddOptions::default())
         .unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
