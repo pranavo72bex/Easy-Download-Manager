@@ -1504,7 +1504,8 @@ def main():
     }))
 
     # The app, copied out of the checkout, with a home and settings of its own.
-    host = engine_home / ("dm-desktop.exe" if sys.platform == "win32" else "dm-desktop")
+    # Named as the program it copies (dm-gpui or dm-desktop).
+    host = engine_home / BINARY.name
     shutil.copy2(BINARY, host)
     host.chmod(0o755)
     if sys.platform == "win32":

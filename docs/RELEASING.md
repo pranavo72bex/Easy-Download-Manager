@@ -34,15 +34,15 @@ gh secret set APPLE_TEAM_ID
 ```
 
 The identity, `Developer ID Application: NAME (TEAMID)`, goes in
-`desktop/crates/dm-desktop/Cargo.toml` as `packager.macos.signingIdentity`.
+`desktop/crates/dm-gpui/Cargo.toml` (the window macOS ships) as `packager.macos.signingIdentity`.
 Without these the build still succeeds — it just produces something
 Gatekeeper distrusts.
 
 ### 2. Windows
 
 Authenticode signing is configured under `packager.windows` in
-`desktop/crates/dm-desktop/Cargo.toml` (a certificate thumbprint or a sign
-command). Without it, SmartScreen warns until enough people install it
+`desktop/crates/dm-gpui/Cargo.toml` (the window Windows ships; a certificate
+thumbprint or a sign command). Without it, SmartScreen warns until enough people install it
 anyway.
 
 ## Cutting a release

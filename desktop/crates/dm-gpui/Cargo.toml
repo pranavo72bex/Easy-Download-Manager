@@ -15,10 +15,11 @@ name = "dm-gpui"
 path = "src/main.rs"
 
 
-# The macOS app and its disk image with the GPUI window (Phase D of
-# docs/migration/GPUI_MIGRATION_PLAN.md): the egui window's bundle, its
-# name, id, icons and the types it opens, with this binary in it, built
-# beside it (`make app-gpui`) until GPUI is the window dm ships (Phase E).
+# The packages with the GPUI window (Phase D of
+# docs/migration/GPUI_MIGRATION_PLAN.md): the egui window's macOS app and
+# disk image and its Windows installer, their name, id, icons and the types
+# they open, with this binary in them (`make app`, `make app-egui` for the
+# egui window's).
 [package.metadata.packager]
 productName = "dm"
 identifier = "com.dm.desktop"
@@ -33,6 +34,7 @@ icons = [
   "../dm-desktop/icons/128x128.png",
   "../dm-desktop/icons/128x128@2x.png",
   "../dm-desktop/icons/icon.icns",
+  "../dm-desktop/icons/icon.ico",
 ]
 
 [package.metadata.packager.macos]
@@ -40,6 +42,31 @@ minimumSystemVersion = "11.0"
 # Ad-hoc, as the egui window's bundle is (its Cargo.toml says why).
 signingIdentity = "-"
 infoPlistPath = "../dm-desktop/macos/Info.plist"
+
+# As the egui window's installer: its uninstaller tells the browsers dm is
+# going and removes its login item before the files go (`--unregister`; the
+# egui crate's Cargo.toml says why it is here). Installed over a dm whose
+# window was egui's, the old program (`dm-desktop.exe`, beside this one in
+# the same folder) is taken away first, so the login item and the browsers'
+# registrations that start it find it gone and follow this one at its first
+# start (`autostart::takes_over`, `register::ensure_this_copy`). Still
+# running, it is ended first, as the installer ends a running dm-gpui.exe
+# (its queue is written as it goes: contract B21), or it would hold the
+# single-instance lock and the file.
+[package.metadata.packager.nsis]
+preinstallSection = """
+Section "dmReplaceEguiWindow"
+  IfFileExists "$INSTDIR\\dm-desktop.exe" 0 dmNoEguiWindow
+    nsExec::Exec 'taskkill /F /IM dm-desktop.exe'
+    Pop $0
+    Sleep 500
+    Delete "$INSTDIR\\dm-desktop.exe"
+  dmNoEguiWindow:
+SectionEnd
+Section "un.dmUnregister"
+  ExecWait '"$INSTDIR\\${MAINBINARYNAME}.exe" --unregister'
+SectionEnd
+"""
 
 [dependencies]
 dm-core = { path = "../dm-core" }
@@ -95,6 +122,7 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
 # tray and shown again, moved, pictured; the picture saved as a PNG.
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
+  "Win32_Graphics_Dwm",
   "Win32_Graphics_Gdi",
   "Win32_Storage_Xps",
   "Win32_UI_WindowsAndMessaging",
@@ -103,3 +131,7 @@ windows-sys = { version = "0.61", features = [
 [dev-dependencies]
 # A home of its own for each run of the real binary (tests/quit.rs).
 tempfile = "3"
+
+# The Windows program's icon and version (build.rs).
+[build-dependencies]
+embed-resource = "3"

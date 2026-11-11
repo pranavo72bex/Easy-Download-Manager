@@ -24,6 +24,14 @@ impl Downloads {
     /// One wake's work after the read (`Downloads::read`), on the main
     /// window's thread.
     pub(crate) fn tick(&mut self, cx: &mut Context<Self>) {
+        // Windows' High Contrast turned on, off or to another theme: every
+        // window drawn again in its colours (`theme.rs`), not only the one in
+        // front when it next draws.
+        let contrast = dm_desktop_base::contrast::system();
+        if contrast != self.contrast {
+            self.contrast = contrast;
+            cx.refresh_windows();
+        }
         let home = dm_shell::settings::home();
         // `--new-download` and `--when-done`, left in the inbox by this
         // launch or a later one.

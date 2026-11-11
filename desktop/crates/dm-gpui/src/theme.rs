@@ -7,8 +7,9 @@
 //! followed as the person switches it), as each system's own programs are
 //! drawn: macOS's window background and label colours (AppKit's), Windows
 //! 11's (WinUI's Fluent colours: Mica's grey, its blue accent, Segoe's
-//! black at 89%), and on Linux GNOME's (libadwaita's). The font is the
-//! system's (`.SystemUIFont`, GPUI's default).
+//! black at 89%), and on Linux GNOME's (libadwaita's); under Windows' High
+//! Contrast, the system's own colours. The font is the system's
+//! (`.SystemUIFont`, GPUI's default).
 
 use gpui::{rgb, rgba, Rgba, WindowAppearance};
 
@@ -66,7 +67,12 @@ impl Theme {
     }
 
     /// The colours for the system's appearance, as this system draws them.
+    /// Under Windows' High Contrast, its own colours, whatever the look
+    /// (contract B45: "on every look (light, dark, high contrast)").
     pub fn of(appearance: WindowAppearance) -> Theme {
+        if let Some(palette) = dm_desktop_base::contrast::system() {
+            return high_contrast(&palette);
+        }
         let dark = matches!(
             appearance,
             WindowAppearance::Dark | WindowAppearance::VibrantDark
@@ -181,6 +187,36 @@ fn windows(dark: bool) -> Theme {
     }
 }
 
+/// Windows' High Contrast, as its own programs draw under it and as the
+/// egui window does: every background the window colour, every word and
+/// line the text colour, what is chosen the highlight with its own text, a
+/// button the button face, nothing see-through and no stripes. Nothing is
+/// told by colour alone (a state has its words, a kind its picture's shape).
+fn high_contrast(p: &dm_desktop_base::contrast::Palette) -> Theme {
+    let c = |[r, g, b]: dm_desktop_base::contrast::Rgb| {
+        rgb(u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b))
+    };
+    Theme {
+        background: c(p.window),
+        text: c(p.window_text),
+        muted: c(p.window_text),
+        stripe: rgba(0x00000000),
+        separator: c(p.window_text),
+        sidebar: c(p.window),
+        selection: c(p.highlight),
+        on_selection: c(p.highlight_text),
+        menu: c(p.window),
+        warning: c(p.window_text),
+        control: c(p.button_face),
+        control_border: c(p.button_text),
+        field: c(p.window),
+        window: c(p.window),
+        accent: c(p.highlight),
+        on_accent: c(p.highlight_text),
+        success: c(p.window_text),
+    }
+}
+
 /// GNOME's: libadwaita's colours (its window, sidebar and view colours,
 /// its blue accent, its destructive red and success green).
 fn gnome(dark: bool) -> Theme {
@@ -262,6 +298,9 @@ mod tests {
             all.push(("GNOME", dark, gnome(dark)));
             all.push(("macOS", dark, macos(dark)));
         }
+        use dm_desktop_base::contrast::Palette;
+        all.push(("High Contrast Black", true, high_contrast(&Palette::BLACK)));
+        all.push(("High Contrast White", false, high_contrast(&Palette::WHITE)));
         for (system, dark, theme) in all {
             let at = format!("{system}, dark {dark}");
             assert!(contrast(theme.text, theme.background) >= 7.0, "{at}: text");

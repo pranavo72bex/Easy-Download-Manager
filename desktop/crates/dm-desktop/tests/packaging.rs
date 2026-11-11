@@ -55,7 +55,8 @@ fn the_icons_the_installers_name_are_all_there() {
 /* The binary keeps the name everything else already uses: the installer
  * (`make register`), the browser's native-host manifest, the Makefile,
  * the PKGBUILD and the CI jobs all look for `dm-desktop` where the egui
- * window ships (the Makefile's `WINDOW` off macOS, which ships dm-gpui). */
+ * window ships (the Makefile's `WINDOW` on Linux; macOS and Windows ship
+ * dm-gpui). */
 #[test]
 fn the_binary_is_named_what_the_installer_looks_for() {
     let manifest = include_str!("../Cargo.toml");

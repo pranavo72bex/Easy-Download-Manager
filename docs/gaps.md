@@ -42,6 +42,8 @@ must prove each one.
 The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
 can be done here: G6, the GPUI shell (G1 to G5, Phase A, closed 2026-11-10). The other rows need a Windows
 computer, a device or a person.
+On 2026-11-11, on the Windows computer: the GPUI window built, run, checked from its installer (63 of
+64, B36's click timing once) and made Windows' default (G6 to G9; the bullet "Windows" under the GPUI migration below).
 Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
 floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
 `human-qa.py` 64 of 64 rows. The 0.9.0 release's own files, downloaded from its draft (digests
@@ -79,10 +81,12 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
-| G6  | GPUI migration, Phase B: no GPUI shell yet to decide go or no-go (screen readers in every dialog window first; software rendering under Xvfb and GPU-less Windows; B42 placement; tray; drag and drop; IME; size) | OPEN | `desktop/crates/dm-gpui` on the proposed pin, each check of `docs/migration/GPUI_MIGRATION_PLAN.md` Phase B pass or fail on macOS, Windows, X11 and Wayland; the maintainer's D1 (go) and D2 (pin) |
-| G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | OPEN (macOS first; D1 go for macOS, 2026-11-10) | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
-| G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | OPEN (macOS under way: the tray, the Dock's reopen, the login launch, the window put away, moved and pictured through AppKit, links dropped from a browser, `--headless` with no GPUI; next, the release bundle and its smoke test) | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
-| G9  | GPUI migration, Phase E: parity report, the default switched, egui removed | PARTIAL: on macOS the GPUI window is the one built and shipped (2026-11-10, after its .dmg held 64/64); Linux and Windows keep egui until theirs hold the contract in GPUI; egui removed after | `docs/migration/EGUI_PARITY_REPORT.md` row by row; the maintainer's D5; egui, its three vendored patches and kittest removed in a change of their own |
+| G6  | GPUI migration, Phase B: no GPUI shell yet to decide go or no-go (screen readers in every dialog window first; software rendering under Xvfb and GPU-less Windows; B42 placement; tray; drag and drop; IME; size) | PARTIAL: macOS check 1 pass; Windows (2026-11-11) checks 1, 3 and 4 pass, 2 by reading, 5 drop-in coded with drag-out missing (G10), 6 by hand, 7 measured; X11 and Wayland to run | `desktop/crates/dm-gpui` on the proposed pin, each check of `docs/migration/GPUI_MIGRATION_PLAN.md` Phase B pass or fail on macOS, Windows, X11 and Wayland; the maintainer's D1 (go) and D2 (pin) |
+| G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | PARTIAL: every slice holds on macOS (64/64, 2026-11-10); on Windows 63 of 64 from its installer (2026-11-11; B36 missed only its click-to-first-request time, 1.76 s on its first pass straight after install, and held it at 0.71 s on its second); owed on Windows: a whole `human-qa.py` run, B36 included, on an installer built after the review fixes of 2026-11-11 (the language at startup, greyed controls, High Contrast redrawn); Linux to run, and View › Text size on every system | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
+| G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | PARTIAL: macOS's .dmg held 64/64 (2026-11-10); Windows' installer, made here by `cargo packager -p dm-gpui --formats nsis`, held 63 of 64 installed (2026-11-11, B36's click timing once; G7), with the tray, the login launch, the window put away, moved and pictured through Win32, the jump list, taskbar progress and High Contrast; owed: the release workflow's packages from a draft, and Linux | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
+| G9  | GPUI migration, Phase E: parity report, the default switched, egui removed | PARTIAL: on macOS (2026-11-10, after its .dmg held 64/64) and Windows (2026-11-11, after its installer held 63 of 64, B36's click timing once; G7) the GPUI window is the one built and shipped; Linux keeps egui until it holds the contract in GPUI; egui removed after | `docs/migration/EGUI_PARITY_REPORT.md` row by row; the maintainer's D5; egui, its three vendored patches and kittest removed in a change of their own |
+| G10 | A finished download cannot be dragged out of the GPUI window into a folder, a mail or a chat (it can from the egui window: `drag` on macOS and Windows, dm's own XDND on X11, winit's on Wayland; `docs/parity.md` "Dragging finished files out of the window"). Not a contract row | OPEN | macOS and Windows: the `drag` crate given GPUI's window handle, the OS drag started from a foreground task once GPUI's own drag of a finished row begins (outside any `App` update, so the system's modal drag loop does not re-enter GPUI), GPUI's drag then stopped; X11 `xdnd.rs`, Wayland GPUI's `start_external_drag`; `drag-out-check.py` and the Linux drag checks pass with dm-gpui |
+| G11 | Options › General's "Use the Mica backdrop" (Windows 11) is the egui window's only: the GPUI window draws Fluent's opaque colours and offers no switch. Off by default, not a contract row | OPEN | The switch on Windows 11 (`chrome::mica_possible`), GPUI's `WindowBackgroundAppearance::MicaBackdrop` with the window's and side panel's colours see-through where it is on, its words read as they read now |
 | 173 | `handover-check.py libreoffice` fails: "nothing started". On 2026-11-10 the page's Mac link (`a.os_macos`, the first match) is visible and topmost when measured, yet after the check's click the tab is at `libreoffice.org/download/` and no download starts, in dm or in Edge; the same with the build before G2, so not that change. The link itself is a plain 302 to a mirror's `.dmg`. Tried and dropped: choosing the first link a click reaches, an instant scroll, waiting for the link to hold still | OPEN | Find what the page does with the click (its script, or where the click lands) and make the check click as a person does; the other 18 sites hold |
 | 174 | `window::options::site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue` failed once in a whole `cargo test --workspace` (2026-11-10: the settings file read back said `read_timeout` 30, not the 10 just saved) and passed in the next two whole runs of the window tests and three alone; again later that day, the same way, then passing alone and in a whole run of its binary (291 of 291): another test in that binary writes the shared settings file without holding `support::settings_file()` | OPEN | Find the test that saves settings without the guard (a hint, Options' OK, a speed command) and have it take the guard; the window binary passes ten whole runs |
 | 121 | An expired signed stream address is renewed: from the open page (`decide::Handed`, `Start::renews`) and by the browser's next hand-over of the same file (`Entry::fresh_link`, row 57). Tested offline only | OPEN | A real video site's CDN address that runs out mid-download, tab left open in Microsoft Edge, goes on in the same row |
@@ -322,8 +326,8 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   The release bundle from its .dmg: `smoke.py` and `human-qa.py` 64 of 64. The menus' titles in the
   top bar beside the search box, on every system (the maintainer's words); only the system's fonts.
   Windows and Linux coded here (`syswindow.rs`, the title bar, the tray's icon, window names): Linux's
-  GPUI binary passes `smoke.py` and `app-check.py` under Xvfb; Windows builds and lints. Owed on
-  Windows: running it. Each system's own colours (Fluent on Windows, libadwaita on Linux); a
+  GPUI binary passes `smoke.py` and `app-check.py` under Xvfb; Windows builds and lints, and on
+  2026-11-11 was run and checked on a Windows computer (the bullet "Windows" below). Each system's own colours (Fluent on Windows, libadwaita on Linux); a
   browser's link dropped on the window on Windows through the OLE target both windows now share.
   **Still owed in G7:** View › Text size (GPUI has no zoom:
   every size in points; it needs sizes in rems and `Window::set_rem_size`). Then
@@ -348,7 +352,27 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
   macos and coding part here." So: Phases B to E are carried out and proved on macOS here (taken
   as D1 go for macOS, with D2 the recommended pin, `gpui-pre` 0.3.12); Linux follows once macOS is
   done; Windows (its builds, runs and checks) is done on a Windows computer, not here. The code
-  stays cross-platform. Owed before anything merges into `main`: the Linux runs, and Windows'.
+  stays cross-platform. Owed before anything merges into `main`: the Linux runs.
+- **Windows (maintainer, 2026-11-11: "complete the windows part"): done on a Windows computer.**
+  The GPUI window builds there (`dm-gpui/build.rs`: icon and version; GPUI's own manifest), runs,
+  and was checked against the contract: `human-qa.py` on the debug build (63 of 64 twice, B36's
+  click timing), then from the release installer (`cargo packager -p dm-gpui --formats nsis`,
+  63 of 64: B36's click timing, 1.76 s on its first pass, 0.71 s on its second), with B25's pictures drawn for Windows
+  (`docs/behaviour-baseline/gpui/windows/`, D3, looked at). Phase B on Windows: check 1 pass
+  (`windows-a11y-check.py` 5 of 5, after 50 windows opened and closed too), 3 and 4 pass, 2 by
+  reading (WARP; CI's GPU-less runner is the run), 5 drop-in coded and drag-out missing (G10),
+  6 by hand, 7 measured (`GPUI_TEST_PLAN.md` section 5). Put right on the way: the port's
+  window titles and frames (GPUI's Windows windows say neither), pictures without the invisible
+  resizing borders, the caption glyphs, High Contrast, the jump list and taskbar progress,
+  Options' magnet/.torrent owners and Dial Up / VPN (B43), a greyed control that stopped the
+  wheel and still took clicks, the chosen language put in force only once Options was saved (every
+  system), a hand-off that waited out the window's quarter-second coalescing (B36's click-to-first-
+  request), Download details asking the server only once its window was made, and
+  `cargo packager` making both windows' installers. Windows' default is the GPUI window
+  (Makefile, CI, the scripts), as macOS's (`docs/decisions.md`, 2026-11-11). Left on Windows:
+  a whole `human-qa.py` run, B36's click timing included, on an installer built after the review
+  fixes (G7); G10, Options' Mica switch (G11), IME by hand (check 6), CI's draft run of the release
+  workflow (G8).
 - **Native feel and speed (maintainer, 2026-11-10).** Every GPUI slice (G6 to G8) is built as
   each system's own programs behave and measured against G5's egui numbers: the plan's section
   "Native feel and speed". A contract row a native change alters is updated with its baseline in

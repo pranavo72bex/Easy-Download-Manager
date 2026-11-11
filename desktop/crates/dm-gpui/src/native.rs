@@ -320,11 +320,23 @@ pub fn radio(
 }
 
 /// A control that takes no clicks while `on` is false, drawn faded, as the
-/// system greys a control it has disabled.
+/// system greys a control it has disabled: a layer over it, made after it
+/// (GPUI's hit test lets an element block only what was made before it, so
+/// blocking on the wrapper itself left its own controls clickable: a greyed
+/// check box still turned). The wheel still scrolls the page it is on:
+/// occluded whole, a greyed control stopped Options' Advanced page short of
+/// its end for a pointer resting on it.
 pub fn enabled<E: IntoElement>(on: bool, element: E) -> Div {
-    div()
-        .when(!on, |d| d.opacity(0.45).occlude())
-        .child(element)
+    div().relative().child(element).when(!on, |d| {
+        d.opacity(0.45).child(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .size_full()
+                .block_mouse_except_scroll(),
+        )
+    })
 }
 
 /// A dialog's own way out, which its window's close button takes too, as

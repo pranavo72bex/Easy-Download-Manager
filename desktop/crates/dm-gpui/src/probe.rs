@@ -314,13 +314,26 @@ impl Probe<'_, '_> {
             .filter_map(|(handle, _, _)| {
                 crate::screen::Screens::name_of(handle, self.cx)
                     .map(|name| name.to_string())
-                    .or_else(|| {
-                        handle
-                            .update(self.cx, |_, window, _| window.window_title())
-                            .ok()
-                    })
+                    .or_else(|| self.title_of(handle))
             })
             .collect()
+    }
+
+    /// A window's title as it stands now (a progress window's starts with
+    /// how far it is): what the system says, else what dm last set
+    /// (`screen::set_title`; GPUI's Linux and Windows windows do not say
+    /// theirs).
+    fn title_of(&mut self, handle: gpui::AnyWindowHandle) -> Option<String> {
+        handle
+            .update(self.cx, |_, window, _| window.window_title())
+            .ok()
+            .filter(|title| !title.is_empty())
+            .or_else(|| {
+                crate::screen::Screens::title_of(handle, self.cx).map(|title| title.to_string())
+            })
+            .or_else(|| {
+                crate::screen::Screens::name_of(handle, self.cx).map(|name| name.to_string())
+            })
     }
 }
 
@@ -553,6 +566,10 @@ impl WindowProbe for Probe<'_, '_> {
         // Each window's frame on the screen (points, from the top left), and
         // its inside: the frame less its title bar.
         let frames = |window: &Window| {
+            // Windows says its frame itself (`syswindow::frames`).
+            if let Some((outer, inner)) = crate::syswindow::frames(window) {
+                return (rect_of(outer), rect_of(inner));
+            }
             let outer = window.bounds();
             let inside = window.viewport_size();
             let top = outer.size.height - inside.height;
@@ -567,10 +584,11 @@ impl WindowProbe for Probe<'_, '_> {
             if !dialog {
                 continue;
             }
+            let title = self.title_of(handle).unwrap_or_default();
             let _ = handle.update(self.cx, |_, window, _| {
                 let (outer, inner) = frames(window);
                 dialogs.push(probe::DialogWindow {
-                    title: window.window_title(),
+                    title,
                     outer: Some(outer),
                     inner: Some(inner),
                 });
@@ -615,9 +633,7 @@ impl WindowProbe for Probe<'_, '_> {
             .into_iter()
             .filter(|(_, _, dialog)| *dialog)
             .find_map(|(handle, _, _)| {
-                handle
-                    .update(self.cx, |_, window, _| window.window_title())
-                    .ok()
+                self.title_of(handle)
                     .filter(|title| title.to_lowercase().contains(&wanted))
                     .map(|title| (handle, title))
             });

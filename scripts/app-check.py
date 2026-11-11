@@ -27,8 +27,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Where cargo put the client: its own target directory unless one was named.
 TARGET = pathlib.Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else ROOT / "desktop" / "target"
-# The window dm ships here: GPUI on macOS (docs/gaps.md G9), egui elsewhere.
-CLIENT = "dm-gpui" if sys.platform == "darwin" else "dm-desktop"
+# The window dm ships here: GPUI on macOS and Windows (docs/gaps.md G9), egui on Linux.
+CLIENT = "dm-gpui" if sys.platform in ("darwin", "win32") else "dm-desktop"
 EXE = CLIENT + (".exe" if WINDOWS else "")
 # Or the binary a package installed, so what is shipped is what is driven.
 BINARY = pathlib.Path(os.environ["DM_BINARY"]) if os.environ.get("DM_BINARY") else TARGET / "debug" / EXE

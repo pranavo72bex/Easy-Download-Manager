@@ -13,6 +13,10 @@
 //! `--accessibility` prints what VoiceOver is given of each window and
 //! quits; `--churn` first opens and closes a dialog window 50 times.
 
+// A release opens no console window beside dm's own on Windows, as the egui
+// binary's does; the command-line modes attach to the terminal they were
+// started from (`dm_desktop_base::modes`).
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 // As every dm crate: no unwrap, expect or panic in shipped code, an `unsafe`
 // block says why it is sound, a string is built with `format!`.
 #![cfg_attr(
@@ -223,6 +227,13 @@ fn main() {
         }
     };
 
+    // Every word in the language the person chose (or the system's), from
+    // the first frame, as the egui window starts: the window, its menus, the
+    // tray and the jump list are made on this thread, where the language in
+    // force is kept. Without it the window spoke English after every start
+    // until Options was next applied.
+    dm_desktop_base::i18n::set(dm_desktop_base::i18n::chosen(&backend.settings().language));
+
     // What dm's own drop targets take wakes the window to read it.
     {
         let wake = Arc::clone(&wake);
@@ -419,6 +430,22 @@ mod tests {
             .and_then(|rest| rest.strip_suffix('"'))
             .unwrap_or_default();
         assert_eq!(env!("CARGO_PKG_VERSION"), released);
+    }
+
+    /// The language chosen is in force before the window and the tray are
+    /// made: set only by Options' OK, every word was English after each start
+    /// (review of 2026-11-11), where the egui window starts in it.
+    #[test]
+    fn the_language_chosen_is_in_force_before_the_window_opens() {
+        let source = include_str!("main.rs");
+        let main = source.split("#[cfg(test)]").next().unwrap_or_default();
+        let set = main
+            .find("i18n::set(dm_desktop_base::i18n::chosen(")
+            .expect("main puts the chosen language in force");
+        let run = main
+            .find("application.run(")
+            .expect("main runs the application");
+        assert!(set < run, "the language is set after the window is made");
     }
 
     /// The windows that save a program dm runs (the command after each

@@ -101,11 +101,11 @@ you the first time. That is expected; here is how to get past it.
 
 Prefer not to install anything, or want dm on a USB stick? Download
 `dm_…_x64-portable.zip` instead, unzip it anywhere and double-click
-`dm-desktop.exe`. The empty file named `portable` beside it makes dm keep its
+`dm-gpui.exe`. The empty file named `portable` beside it makes dm keep its
 settings and its list in a `dm-data` folder next to it and write nothing else
 to the computer; delete the folder and dm is gone. A portable dm does not start
 when you sign in. To let the browser extension hand downloads to this copy, run
-`dm-desktop.exe --register` once in its folder (and again if you move it).
+`dm-gpui.exe --register` once in its folder (and again if you move it).
 
 #### Mac
 
@@ -298,7 +298,8 @@ dm-desktop --later https://example.com/a.iso     # add a link (starts dm if need
 It exits 0 when done, 1 when dm refused or a number was not acted on, 2 for
 a wrong command and 3 when no dm is running. It talks only to your own dm
 over the loopback address with a token only your account can read, and
-prints no cookies or sign-ins. (`dm` rather than `dm-desktop` on the
+prints no cookies or sign-ins. (The program is `dm-gpui` on macOS and Windows
+(`dm-desktop` in an older dm), and `dm` rather than `dm-desktop` on the
 Fedora, openSUSE, Arch and AppImage installs.)
 
 </details>
@@ -409,9 +410,10 @@ login), so nothing is left pointing at a program that is not there. Quit dm,
 then run:
 
 - **Windows:** in Command Prompt,
-  `start "" /wait "%LOCALAPPDATA%\dm\dm-desktop.exe" --unregister`, or in
+  `start "" /wait "%LOCALAPPDATA%\dm\dm-gpui.exe" --unregister`, or in
   PowerShell,
-  `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\dm\dm-desktop.exe" --unregister`.
+  `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\dm\dm-gpui.exe" --unregister`
+  (`dm-desktop.exe` in an older dm).
   dm is a windowed program, so without `start /wait` (or `-Wait`) the prompt
   comes back before dm has finished and what it says lands after it;
   `echo %errorlevel%` then shows 0 for success. dm's uninstaller also runs

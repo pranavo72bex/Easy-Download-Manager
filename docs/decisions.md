@@ -5539,6 +5539,70 @@ settings in force and change no program. A test in `dm-gpui` (`main.rs`) fails w
 file both names a program field (`.run_when_done`, `.on_complete`, `.proxy.script`,
 `.queue_schedules`) and calls `.set_settings(`.
 
+## 2026-11-11: The GPUI window on Windows
+
+At the maintainer's word of 2026-11-11 ("complete the windows part"; macOS was done and Linux is
+carried on the Mac), the GPUI window was built, run and checked on a Windows computer. Taken on
+the way, each the recommended option of `docs/migration/GPUI_MIGRATION_PLAN.md`:
+
+- **The program's own description.** `dm-gpui/build.rs` gives `dm-gpui.exe` dm's icon and its
+  version, as the egui crate's does, and no manifest: GPUI links its own into every program built
+  on it (per-monitor DPI v2, as `dm.manifest` asks, plus asInvoker, the system's common controls
+  and the segment heap), and a second `RT_MANIFEST` is a duplicate resource the linker refuses. A
+  release opens no console (`windows_subsystem`), as the egui binary's does.
+- **What GPUI's Windows windows do not say.** Their title (`get_title` is the platform default,
+  empty): `screen::open_window` keeps each window's opening title and `screen::set_title` its
+  later ones, which the control port reads (`ui.windows`, `ui.move_window`; a progress window's
+  title starts with how far it is, B46). Their frame: GPUI's bounds are the client area, so the
+  port reports and places the frame as it is seen (`DWMWA_EXTENDED_FRAME_BOUNDS`: the window
+  without the borders Windows keeps invisible around it for resizing, 7 pixels a side at 100 %),
+  where a person sees the window. `GetWindowRect`, which `human-qa.py` reads of Windows itself
+  (B42) and the egui window reported, is those 7 pixels wider, within the checks' 16. A dialog
+  pictured from the screen at the reported frame then holds nothing of what lies behind it, and
+  a picture (`ui.screenshot`) is cut to the same frame.
+- **Windows' own look.** The window's buttons in the system's caption glyphs (Segoe Fluent
+  Icons, Segoe MDL2 Assets on Windows 10), restore while maximized; Windows' High Contrast
+  palette over any look, as the egui window draws it (B45). Options gains what the egui window
+  showed only on Windows: who opens magnet links and `.torrent` files (Browser) and Dial Up /
+  VPN (Advanced, B43). The jump list and the taskbar button's progress, as the egui window's.
+- **A greyed control lets the page scroll** (`native::enabled`: `block_mouse_except_scroll`, not
+  `occlude`). Occluded whole, a greyed field under the pointer swallowed the wheel and stopped
+  Options' Advanced page short of its end, on every system.
+- **Screen readers (Phase B check 1) on Windows: pass.** UI Automation reaches every dialog's
+  buttons in its own window (`windows-a11y-check.py`, 5 of 5), and still does after 50 dialog
+  windows opened and closed. Options' pages are tabs to a screen reader in the GPUI window, so
+  the check takes a page's tab as it takes a button.
+- **No GPU.** GPUI draws through Direct3D 11 on the first adapter that makes a device, and DXGI
+  lists Windows' own software adapter (WARP, "Microsoft Basic Render Driver") last, so a
+  computer or a virtual machine with no GPU still draws; read from `gpui-pre-windows`'s
+  `directx_devices.rs`, not run here (this computer has a GPU). CI's Windows runner has none,
+  so its installer check is the run.
+- **The installer replaces the egui window's program.** Installed over a dm whose window was
+  egui's, `dm-desktop.exe` in the same folder is ended and deleted first, so the login item and
+  the browsers' registrations, which start a program that is then gone, follow `dm-gpui.exe` at
+  its first start (`autostart::takes_over`, `register::ensure_this_copy`).
+- **A hand-off is acted on at once.** The GPUI window coalesces the queue's changes over a
+  quarter of a second; a wake to act on now (a browser's hand-off) that came in that quarter
+  waited it out, so behind a running download the click's first request came 160 to 650 ms
+  later than in the egui window, whose `Now` cuts the wait short. It does here too. Download
+  details also begins its early row and asks the server about the file before its window is
+  made, not from inside the window's building (a new Direct3D or Metal surface first).
+- **Found by a review of these changes (five reviewers, each finding put to a skeptic):** the GPUI
+  window put the chosen language in force only when Options was saved, so it started in English
+  on every system (now at startup, before the window, menus, tray and jump list are made, held by
+  a test); a greyed control took clicks, because GPUI lets an element block only what was made
+  before it, and the block was on the control's own wrapper (now a layer over the control, which
+  lets the wheel through); a High Contrast theme changed while dm runs was drawn only when a window
+  next drew for another reason (now every window is drawn again when the palette changes, at the
+  next wake); and the docs and scripts that still named `dm-desktop.exe` for Windows.
+- **`cargo packager -p`.** Run without it in a crate's folder, cargo-packager makes every
+  workspace package that has its metadata, so the egui window's installer was made too and,
+  renamed to `dm_…`, the two took one name. CI and the Makefile name the package now.
+- **Not taken:** a release `dm-gpui.exe` from Docker (`scripts/windows-build.sh`, `cargo xwin`):
+  GPUI compiles its Direct3D shaders for a release with the Windows SDK's `fxc.exe`, and only
+  when the build runs on Windows, so the cross-build stays the egui window's portable zip; CI
+  and a Windows computer build the GPUI window's packages.
+
 ## 2026-11-11: Reference A's benchmark is frozen in the repository as the floor of every parameter
 
 The maintainer asked on 2026-11-11 for reference A's benchmark to be added to the repository. They

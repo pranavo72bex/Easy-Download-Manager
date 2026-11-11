@@ -40,9 +40,11 @@ export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 UNAME := $(shell uname -s)
 # The window dm ships: GPUI on macOS (docs/gaps.md G9, macOS first at the
-# maintainer's word of 2026-11-10), egui elsewhere until Linux and Windows
-# hold the contract in GPUI too.
+# maintainer's word of 2026-11-10) and on Windows (Git Bash or MSYS2's
+# make, 2026-11-11), egui on Linux until it holds the contract in GPUI too.
 ifeq ($(UNAME),Darwin)
+WINDOW := dm-gpui
+else ifneq ($(findstring MINGW,$(UNAME))$(findstring MSYS,$(UNAME)),)
 WINDOW := dm-gpui
 else
 WINDOW := dm-desktop
@@ -219,7 +221,7 @@ endif
 app:
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
+	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW)
 	@echo
 	@echo "built desktop/target/release/bundle/"
 ifeq ($(UNAME),Darwin)
@@ -235,7 +237,7 @@ endif
 app-egui:
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
+	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p dm-desktop
 	@echo
 	@echo "built desktop/target/release/bundle/"
 
@@ -355,7 +357,7 @@ endif
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
-	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats app,dmg
+	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW) --formats app,dmg
 	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
 	@cp -R desktop/target/release/bundle/dm.app $(BUILD)/macos/
 	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/
@@ -367,7 +369,7 @@ ifeq ($(UNAME),Linux)
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF): .deb, AppImage and .rpm"
-	@cd desktop/crates/dm-desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats deb,appimage
+	@cd desktop/crates/dm-desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p dm-desktop --formats deb,appimage
 	@sh scripts/linux/nfpm.sh $(BINARY) $(APP_VERSION) desktop/target/release/bundle
 	@for f in desktop/target/release/bundle/*.deb desktop/target/release/bundle/*.AppImage \
 	          desktop/target/release/bundle/*.rpm; do \

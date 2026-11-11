@@ -157,11 +157,15 @@ impl Render for Progress {
             None if joining => self.resumable_seen,
             None => None,
         };
-        window.set_window_title(&title_with_percent(
-            tf("Download progress — {}", &[&named]),
-            row.progress.downloaded,
-            row.progress.total,
-        ));
+        crate::screen::set_title(
+            window,
+            &title_with_percent(
+                tf("Download progress — {}", &[&named]),
+                row.progress.downloaded,
+                row.progress.total,
+            ),
+            cx,
+        );
         let p = &row.progress;
         let running = row.state == State::Running;
         let width = native::label_width(&[

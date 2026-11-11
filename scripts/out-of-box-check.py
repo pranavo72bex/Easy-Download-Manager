@@ -39,7 +39,7 @@ import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get(
-    "DM_BINARY", ROOT / "desktop/target/release" / ("dm-desktop.exe" if sys.platform == "win32" else "dm-desktop")))
+    "DM_BINARY", ROOT / "desktop/target/release" / ("dm-gpui.exe" if sys.platform == "win32" else "dm-desktop")))
 
 # (what is asked, the quality word the panel sends, what must arrive)
 CASES = [
@@ -75,7 +75,7 @@ def main():
     sys.stdout.reconfigure(errors="replace")
     if not BINARY.exists():
         print("building dm…")
-        subprocess.run(["cargo", "build", "--release", "-p", "dm-desktop"], cwd=ROOT / "desktop", check=True)
+        subprocess.run(["cargo", "build", "--release", "-p", BINARY.stem], cwd=ROOT / "desktop", check=True)
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-fresh-"))
     out = home / "out"
     (home / "settings.json").write_text(json.dumps({

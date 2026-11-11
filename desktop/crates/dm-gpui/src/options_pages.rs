@@ -7,9 +7,9 @@
 //! the explanation under it, in the order the egui window has them: check
 //! boxes, the system's pop-ups and fields, sections under bold headings. A
 //! field's text goes into the draft as it is typed (`Options::put`); a
-//! check box, a pop-up or a button changes the draft at once. Options'
-//! Windows-only settings (Mica, who opens magnet links, Dial Up / VPN) are
-//! drawn on Windows by the egui window; this window shows the rest.
+//! check box, a pop-up or a button changes the draft at once. On Windows,
+//! as the egui window's: who opens magnet links and `.torrent` files
+//! (Browser) and Dial Up / VPN (Advanced).
 
 use dm_desktop_base::i18n::{t, tf};
 use dm_desktop_base::options::{self, Tab};
@@ -238,6 +238,13 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
                 s.second_path.clear();
             } else if let Some(found) = o.networks.get(i - 1) {
                 s.second_path = found.name.clone();
+            }
+        }
+        "dialup-connection" => {
+            if i == 0 {
+                s.dialup.connection.clear();
+            } else if let Some(found) = known_connections().get(i - 1) {
+                s.dialup.connection = found.clone();
             }
         }
         "proxy-kind" => {
@@ -686,6 +693,10 @@ fn browser(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                 .child(state),
         );
     }
+    // Who opens magnet links and .torrent files: Windows keeps that, not
+    // the browser.
+    #[cfg(windows)]
+    handlers(o, p, cx);
     let c = o.draft.catch.clone();
     // The items dm adds to the browser's right-click menu, each chosen.
     p.words(t("Items dm adds to the browser's right-click menu"));
@@ -1750,6 +1761,12 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
     if std::mem::take(&mut o.to_proxy) {
         o.scroll.scroll_to_item(proxy_at);
     }
+    // A dial-up or VPN connection every download waits for, as the egui
+    // window's, in reference A's words and order (contract B43). Windows
+    // only: the connections are the ones Windows knows.
+    if cfg!(windows) {
+        dialup(o, p, window, cx);
+    }
     p.section(t("BitTorrent"));
     let blocklist = input(
         o,
@@ -1982,6 +1999,239 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
             &screen,
         ),
     ));
+}
+
+/// The connections Windows knows (none elsewhere), read again at most every
+/// two seconds: the page is drawn every frame it is open.
+fn known_connections() -> Vec<String> {
+    static READ: std::sync::Mutex<Option<(std::time::Instant, Vec<String>)>> =
+        std::sync::Mutex::new(None);
+    let mut read = dm_core::lock(&READ);
+    match &*read {
+        Some((at, names)) if at.elapsed() < std::time::Duration::from_secs(2) => names.clone(),
+        _ => {
+            let names = dm_shell::dialup::connections();
+            *read = Some((std::time::Instant::now(), names.clone()));
+            names
+        }
+    }
+}
+
+/// Advanced's Dial Up / VPN section (Windows), as the egui window's:
+/// reference A's switch, then the connection with its sign-in, then the
+/// redials, which wait for a connection chosen.
+fn dialup(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
+    let (theme, screen) = (p.theme, p.screen.clone());
+    let dial = o.draft.dialup.clone();
+    p.section(t("Dial Up / VPN"));
+    check(
+        p,
+        cx,
+        "dialup-enabled",
+        t("Use Windows Dial Up / VPN Networking"),
+        dial.enabled,
+        true,
+        |s| s.dialup.enabled = !s.dialup.enabled,
+    );
+    let on = dial.enabled;
+    let known = known_connections();
+    let choices: Vec<SharedString> = std::iter::once(t("None").into())
+        .chain(known.iter().map(|name| SharedString::from(name.clone())))
+        .collect();
+    let (now, chosen) = if dial.connection.is_empty() {
+        (t("None").to_string(), Some(0))
+    } else {
+        (
+            dial.connection.clone(),
+            known
+                .iter()
+                .position(|name| *name == dial.connection)
+                .map(|i| i + 1),
+        )
+    };
+    p.labelled(
+        t("Connection"),
+        on,
+        popup::button(
+            "dialup-connection",
+            now.into(),
+            choices,
+            chosen,
+            theme,
+            &screen,
+        ),
+    );
+    let chosen_one = on && !dial.connection.is_empty();
+    for (key, words, masked) in [
+        ("dialup.username", "User name", false),
+        ("dialup.password", "Password", true),
+    ] {
+        let field = input(
+            o,
+            window,
+            cx,
+            key,
+            words,
+            200.0,
+            chosen_one,
+            masked,
+            move |o| match key {
+                "dialup.username" => o.draft.dialup.username.clone(),
+                _ => o.draft.dialup.password.clone(),
+            },
+        );
+        p.labelled(t(words), chosen_one, field);
+    }
+    check(
+        p,
+        cx,
+        "dialup-save-password",
+        t("Save password"),
+        dial.save_password,
+        chosen_one,
+        |s| s.dialup.save_password = !s.dialup.save_password,
+    );
+    for (key, words) in [
+        ("dialup.attempts", "Redial attempts (zero if endlessly)"),
+        (
+            "dialup.wait_seconds",
+            "Time between redial attempts (seconds)",
+        ),
+    ] {
+        let field = input(
+            o,
+            window,
+            cx,
+            key,
+            words,
+            NUMBER,
+            chosen_one,
+            false,
+            move |o| match key {
+                "dialup.attempts" => o.draft.dialup.attempts.to_string(),
+                _ => o.draft.dialup.wait_seconds.to_string(),
+            },
+        );
+        p.labelled(t(words), chosen_one, field);
+    }
+    p.note(t("A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes."));
+}
+
+/// Who opens magnet links and `.torrent` files on this computer (Windows),
+/// as the egui window's Browser page says it: each with a button that makes
+/// it dm where it is not, and one that gives it back to the program that
+/// had it. Read beside the window as the page opens, and again after a
+/// change.
+#[cfg(windows)]
+fn handlers(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
+    use dm_shell::register::{self, Owner};
+    let screen = p.screen.clone();
+    if o.handlers.is_none() && !o.handlers_asked {
+        o.handlers_asked = true;
+        cx.spawn(async move |this, cx| {
+            let found = cx
+                .background_executor()
+                .spawn(async {
+                    (
+                        register::magnet_owner(register::run_reg),
+                        register::torrent_owner(register::run_reg),
+                    )
+                })
+                .await;
+            let _ = this.update(cx, |o, cx| {
+                o.handlers = Some(found);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+    let home = dm_shell::settings::home();
+    for magnet in [true, false] {
+        let owner = o.handlers.map(|(m, t)| if magnet { m } else { t });
+        let backup = if magnet {
+            register::magnet_backup(&home)
+        } else {
+            register::torrent_backup(&home)
+        };
+        let said = match owner {
+            None => t("Looking…"),
+            Some(Owner::Dm) => "dm",
+            Some(Owner::Other) => t("another program"),
+            Some(Owner::Nobody) => t("nothing yet"),
+            Some(Owner::WindowsChoice) => t("the app chosen in Windows' Default apps"),
+        };
+        let mut row = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(px(native::LABEL_GAP))
+            .child(screen.label(if magnet {
+                t("Magnet links open with:")
+            } else {
+                t(".torrent files open with:")
+            }))
+            .child(
+                div()
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .child(screen.label(said)),
+            );
+        if matches!(owner, Some(Owner::Other | Owner::Nobody)) {
+            let take = if magnet {
+                t("Use dm for magnet links")
+            } else {
+                t("Use dm for .torrent files")
+            };
+            let backup = backup.clone();
+            row = row.child(
+                button(p, ("take-handler", usize::from(magnet)), take).on_click(cx.listener(
+                    move |o, _, _, cx| {
+                        let done =
+                            std::env::current_exe()
+                                .map_err(|e| e.to_string())
+                                .and_then(|exe| {
+                                    if magnet {
+                                        register::take_magnet_windows(
+                                            &exe,
+                                            &backup,
+                                            register::run_reg,
+                                        )
+                                    } else {
+                                        register::take_torrent_windows(
+                                            &exe,
+                                            &backup,
+                                            register::run_reg,
+                                        )
+                                    }
+                                });
+                        o.handlers_changed(done, cx);
+                    },
+                )),
+            );
+        }
+        if owner == Some(Owner::Dm) && backup.is_file() {
+            let give = if magnet {
+                t("Give magnet links back")
+            } else {
+                t("Give .torrent files back")
+            };
+            row = row.child(
+                button(p, ("give-handler", usize::from(magnet)), give).on_click(cx.listener(
+                    move |o, _, _, cx| {
+                        let done = if magnet {
+                            register::give_back_magnet_windows(&backup, register::run_reg)
+                        } else {
+                            register::give_back_torrent_windows(&backup, register::run_reg)
+                        };
+                        o.handlers_changed(done, cx);
+                    },
+                )),
+            );
+        }
+        p.add(row);
+    }
+    p.note(t("dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps."));
+    // Windows' own chooser at a first magnet click is its question, not dm's.
+    p.note(t("The first magnet link you click may make Windows ask which app opens it: choose dm there. dm cannot answer for you."));
 }
 
 /* --------------------------------------------------------------- Sign-ins */

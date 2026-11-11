@@ -133,7 +133,7 @@ pub fn titlebar(
         })
         .child(search_box(view, width, searching, shown, theme, screen, cx))
         .child(drag_space().flex_1())
-        .children(window_buttons(theme))
+        .children(window_buttons(theme, window.is_maximized()))
 }
 
 /// Empty space in the bar: where it is the window's title bar, it moves the
@@ -280,17 +280,40 @@ const WINDOW_BUTTONS_WIDTH: f32 = native::pick(0.0, 3.0 * WINDOW_BUTTON, 0.0);
 /// Each of the window's own buttons' width, on Windows.
 const WINDOW_BUTTON: f32 = 46.0;
 
-/// Minimize, maximize and close at the bar's right on Windows, as its own
-/// programs' title bars have them: the system takes their clicks
-/// (`WindowControlArea`), so Snap layouts open over maximize.
-fn window_buttons(theme: Theme) -> Vec<gpui::AnyElement> {
+/// The font Windows draws its own title bars' buttons in: Segoe Fluent
+/// Icons on Windows 11, Segoe MDL2 Assets on Windows 10 (the same glyphs at
+/// the same places).
+fn caption_font() -> &'static str {
+    static FONT: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+    FONT.get_or_init(|| {
+        let fonts = std::env::var_os("WINDIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"))
+            .join("Fonts");
+        if fonts.join("SegoeIcons.ttf").is_file() {
+            "Segoe Fluent Icons"
+        } else {
+            "Segoe MDL2 Assets"
+        }
+    })
+}
+
+/// Minimize, maximize (restore, while maximized) and close at the bar's
+/// right on Windows, as its own programs' title bars have them, in the
+/// system's own glyphs: the system takes their clicks (`WindowControlArea`),
+/// so Snap layouts open over maximize.
+fn window_buttons(theme: Theme, maximized: bool) -> Vec<gpui::AnyElement> {
     if !cfg!(target_os = "windows") {
         return Vec::new();
     }
     [
-        ("window-min", "—", WindowControlArea::Min),
-        ("window-max", "☐", WindowControlArea::Max),
-        ("window-close", "✕", WindowControlArea::Close),
+        ("window-min", "\u{E921}", WindowControlArea::Min),
+        (
+            "window-max",
+            if maximized { "\u{E923}" } else { "\u{E922}" },
+            WindowControlArea::Max,
+        ),
+        ("window-close", "\u{E8BB}", WindowControlArea::Close),
     ]
     .into_iter()
     .map(|(id, glyph, area)| {
@@ -302,7 +325,8 @@ fn window_buttons(theme: Theme) -> Vec<gpui::AnyElement> {
             .flex()
             .items_center()
             .justify_center()
-            .text_size(px(native::SMALL_TEXT))
+            .font_family(caption_font())
+            .text_size(px(10.0))
             // Close turns Windows' red under the pointer, the others grey.
             .hover(move |b| {
                 if close {

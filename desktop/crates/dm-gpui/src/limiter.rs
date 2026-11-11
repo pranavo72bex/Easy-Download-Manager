@@ -174,41 +174,44 @@ impl Render for Limiter {
                         None,
                         width,
                         &screen,
-                        div()
-                            .when(!slow_on, |d| d.opacity(0.45).occlude())
-                            .flex()
-                            .flex_col()
-                            .gap(px(native::ROW_GAP))
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(native::LABEL_GAP))
-                                    .child(screen.label(t("Start at")))
-                                    .child(div().w(px(70.0)).child(native::field(
-                                        &self.slow_from,
-                                        "Start at",
-                                        theme,
-                                    )))
-                                    .child(div().w(px(8.0)))
-                                    .child(screen.label(t("Stop at")))
-                                    .child(div().w(px(70.0)).child(native::field(
-                                        &self.slow_to,
-                                        "Stop at",
-                                        theme,
-                                    ))),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(native::LABEL_GAP))
-                                    .child(screen.label(t("Speed limit in those hours (KB/s)")))
-                                    .child(number_field(
-                                        &self.slow_limit,
-                                        "Speed limit in those hours (KB/s)",
-                                    )),
-                            ),
+                        // Greyed and taking no clicks while slower hours are off.
+                        native::enabled(
+                            slow_on,
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(native::ROW_GAP))
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(native::LABEL_GAP))
+                                        .child(screen.label(t("Start at")))
+                                        .child(div().w(px(70.0)).child(native::field(
+                                            &self.slow_from,
+                                            "Start at",
+                                            theme,
+                                        )))
+                                        .child(div().w(px(8.0)))
+                                        .child(screen.label(t("Stop at")))
+                                        .child(div().w(px(70.0)).child(native::field(
+                                            &self.slow_to,
+                                            "Stop at",
+                                            theme,
+                                        ))),
+                                )
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(native::LABEL_GAP))
+                                        .child(screen.label(t("Speed limit in those hours (KB/s)")))
+                                        .child(number_field(
+                                            &self.slow_limit,
+                                            "Speed limit in those hours (KB/s)",
+                                        )),
+                                ),
+                        ),
                     ))
                     .when_some(self.says.clone(), |d, says| {
                         d.child(native::note(says, theme.warning, &screen))

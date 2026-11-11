@@ -70,10 +70,12 @@ impl Screen {
 /// Every window's words: the main window's and each dialog's, so the
 /// control port reads and clicks words in any of them, as it does the
 /// egui window's dialogs. A dialog whose title changes as it goes (a
-/// download's progress) is also known by its name.
+/// download's progress) is also known by its name. And each window's title
+/// as it was last set, which GPUI's Windows and Linux windows do not say.
 #[derive(Default)]
 pub struct Screens(
     Vec<(AnyWindowHandle, Screen, bool)>,
+    Vec<(AnyWindowHandle, SharedString)>,
     Vec<(AnyWindowHandle, SharedString)>,
 );
 
@@ -102,6 +104,24 @@ impl Screens {
             .iter()
             .find(|(w, _)| *w == window)
             .map(|(_, name)| name.clone())
+    }
+
+    /// `window`'s title as it was last set (`set_title`, `open_window`).
+    pub fn title_of(window: AnyWindowHandle, cx: &App) -> Option<SharedString> {
+        cx.try_global::<Screens>()?
+            .2
+            .iter()
+            .find(|(w, _)| *w == window)
+            .map(|(_, title)| title.clone())
+    }
+
+    /// `window`'s title is now `title`.
+    fn titled(window: AnyWindowHandle, title: SharedString, cx: &mut App) {
+        let screens = cx.default_global::<Screens>();
+        match screens.2.iter_mut().find(|(w, _)| *w == window) {
+            Some((_, was)) => *was = title,
+            None => screens.2.push((window, title)),
+        }
     }
 
     /// `text` drawn at `bounds` in `window`, recorded where the window's own
@@ -143,10 +163,11 @@ impl Screens {
 }
 
 /// Opens a window as `App::open_window` does, and keeps the title it was
-/// opened with as its name, where it was not named as it was built: the
-/// port names dialogs by it, and Linux's windows do not say their title
-/// back (GPUI's X11 and Wayland windows have no `get_title`). Every dm
-/// window opens through here.
+/// opened with as its name, where it was not named as it was built, and as
+/// its title, where its first frame did not set another: the port names
+/// dialogs by it, and Linux's and Windows' windows do not say their title
+/// back (GPUI's X11, Wayland and Windows windows have no `get_title`).
+/// Every dm window opens through here.
 pub fn open_window<V: 'static + gpui::Render>(
     cx: &mut App,
     options: gpui::WindowOptions,
@@ -157,8 +178,23 @@ pub fn open_window<V: 'static + gpui::Render>(
     let handle: AnyWindowHandle = opened.into();
     if let Some(title) = title.filter(|t| !t.is_empty()) {
         if Screens::name_of(handle, cx).is_none() {
-            Screens::named(handle, title, cx);
+            Screens::named(handle, title.clone(), cx);
+        }
+        if Screens::title_of(handle, cx).is_none() {
+            Screens::titled(handle, title, cx);
         }
     }
     Ok(opened)
+}
+
+/// Sets `window`'s title, where it changed, and keeps it for the port
+/// (`Screens::title_of`), which cannot ask GPUI's Windows and Linux windows
+/// for it: a progress window's, which starts with how far it is.
+pub fn set_title(window: &mut gpui::Window, title: &str, cx: &mut App) {
+    let handle = window.window_handle();
+    if Screens::title_of(handle, cx).is_some_and(|was| was.as_ref() == title) {
+        return;
+    }
+    window.set_window_title(title);
+    Screens::titled(handle, SharedString::from(title.to_string()), cx);
 }

@@ -230,6 +230,11 @@ pub struct Downloads {
     pub(crate) show_sidebar: bool,
     /// View › Toolbar: the toolbar shown.
     pub(crate) show_toolbar: bool,
+    /// The progress on the taskbar button (Windows; nothing elsewhere).
+    taskbar: dm_desktop_base::taskbar::Taskbar,
+    /// Windows' High Contrast palette as last drawn (`tick.rs`): GPUI tells
+    /// the window of light and dark only.
+    pub(crate) contrast: Option<dm_desktop_base::contrast::Palette>,
 }
 
 impl Downloads {
@@ -313,10 +318,18 @@ impl Downloads {
             opener_said: Default::default(),
             show_sidebar: true,
             show_toolbar: true,
+            taskbar: Default::default(),
+            contrast: dm_desktop_base::contrast::system(),
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
         this.sort = Column::from_key(&settings.sort_column).map(|c| (c, settings.sort_ascending));
+        // The taskbar button's jump list (Windows): Add URL and the folder.
+        dm_desktop_base::jumplist::publish(
+            dm_desktop_base::i18n::t("Add URL"),
+            dm_desktop_base::i18n::t("Open downloads folder"),
+            &settings.download_dir,
+        );
         // The clipboard watched, and the look asked for, as Options says.
         this.watch_clipboard(settings.watch_clipboard);
         crate::theme::follow(&settings.theme, cx);
@@ -399,10 +412,27 @@ impl Downloads {
             let Some(wake) = wake else {
                 return;
             };
+            // A change to the queue is read a quarter of a second later, the
+            // burst within it as one; but something to act on now (a
+            // browser's hand-off, another dm's order) ends that wait, as it
+            // does in the egui window: behind a running download's changes,
+            // a hand-off waited the quarter out before its download began.
             if wake == Wake::Soon {
-                cx.background_executor()
-                    .timer(Duration::from_millis(250))
-                    .await;
+                let now_asked = async {
+                    while let Ok(next) = woken.recv().await {
+                        if next == Wake::Now {
+                            return;
+                        }
+                    }
+                    // The channel is closed: the wait ends with the timer.
+                    std::future::pending::<()>().await;
+                };
+                futures_lite::future::or(now_asked, async {
+                    cx.background_executor()
+                        .timer(Duration::from_millis(250))
+                        .await;
+                })
+                .await;
             }
             while woken.try_recv().is_ok() {}
             // Asked to end (a logout, `kill`, an uninstall): as Exit does,
@@ -413,6 +443,7 @@ impl Downloads {
             }
             if in_own_window(&this, cx, |this, window, cx| {
                 this.read();
+                this.taskbar_follow(window);
                 this.tick(cx);
                 this.watch_asks(cx);
                 this.answer_requests(window, cx);
@@ -425,6 +456,25 @@ impl Downloads {
         })
         .detach();
         this
+    }
+
+    /// How far the downloads are, on the taskbar button, so a minimized
+    /// window still says it, as the egui window's does: green while they
+    /// run, yellow paused, red a minute after one failed. Only Windows has
+    /// such a button.
+    fn taskbar_follow(&mut self, window: &Window) {
+        #[cfg(windows)]
+        if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(window) {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            self.taskbar.show(
+                handle.as_raw(),
+                dm_desktop_base::taskbar::mode_of(&self.rows, now),
+            );
+        }
+        #[cfg(not(windows))]
+        let _ = (window, &mut self.taskbar);
     }
 
     /// How long the window sleeps when nothing wakes it.

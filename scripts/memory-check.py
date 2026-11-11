@@ -7,7 +7,7 @@
 """dm's memory and threads at rest, against a budget (gaps row 137).
 
     python scripts/memory-check.py            # the release build
-    DM_BINARY=path\\to\\dm-desktop.exe python scripts/memory-check.py
+    DM_BINARY=path\\to\\dm-gpui.exe python scripts/memory-check.py
 
 Starts dm with a home of its own (nothing of the person's is read or written),
 waits for its window to settle, then samples it for a while and prints the
@@ -28,7 +28,7 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or (
-    "D:/dm-target/release/dm-desktop.exe" if sys.platform == "win32"
+    "D:/dm-target/release/dm-gpui.exe" if sys.platform == "win32"
     else ROOT / "desktop/target/release/dm-desktop"))
 # A third more than measured at rest: on macOS on 2026-11-06 (112 MB resident, 75 MB
 # footprint, 37 MB of which the window's drawing surfaces), on Windows 11 on
@@ -78,7 +78,7 @@ def main():
     if sys.platform not in ("win32", "darwin"):
         sys.exit("memory-check.py reads the process on Windows and macOS only")
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build --release -p dm-desktop")
+        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build --release -p {BINARY.stem}")
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-memory-", dir=os.environ.get("DM_MEMORY_TMP")))
     env = dict(os.environ, DM_HOME=str(home), DM_NO_SECRET_STORE="1")
     dm = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

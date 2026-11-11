@@ -35,7 +35,8 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# Each dialog opened: its command, the title of its window, and buttons it has.
+# Each dialog opened: its command, the title of its window, and the buttons (or a
+# page's tabs) it has.
 DIALOGS = [
     ("program.add_url", "Add URL", ["OK", "Cancel"]),
     ("downloads.options", "Options", ["General", "Advanced", "OK", "Cancel"]),
@@ -58,14 +59,16 @@ $byProcess = New-Object System.Windows.Automation.PropertyCondition($A::ProcessI
 $windows = @($A::RootElement.FindAll($T::Children, $byProcess))
 $dialog = $windows | Where-Object { $_.Current.Name -eq $Title } | Select-Object -First 1
 $buttons = @()
+$tabs = @()
 $fields = @()
 if ($dialog) {
   $all = $dialog.FindAll($T::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
   $buttons = @($all | Where-Object { $_.Current.ControlType -eq $C::Button } | ForEach-Object { $_.Current.Name })
+  $tabs = @($all | Where-Object { $_.Current.ControlType -eq $C::TabItem } | ForEach-Object { $_.Current.Name })
   $fields = @($all | Where-Object { $_.Current.ControlType -eq $C::Edit } | ForEach-Object { $_.Current.Name })
 }
 @{ windows = @($windows | ForEach-Object { $_.Current.Name }); found = [bool]$dialog;
-   buttons = $buttons; fields = $fields } | ConvertTo-Json -Compress
+   buttons = $buttons; tabs = $tabs; fields = $fields } | ConvertTo-Json -Compress
 """
 
 
@@ -73,10 +76,11 @@ def binary():
     if os.environ.get("DM_BINARY"):
         return pathlib.Path(os.environ["DM_BINARY"])
     for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), str(ROOT / "desktop" / "target")]):
-        candidate = pathlib.Path(target) / "debug" / "dm-desktop.exe"
+        # The window dm ships on Windows (docs/gaps.md G9).
+        candidate = pathlib.Path(target) / "debug" / "dm-gpui.exe"
         if candidate.exists():
             return candidate
-    sys.exit("no dm-desktop.exe: build it (cargo build -p dm-desktop) or set DM_BINARY")
+    sys.exit("no dm-gpui.exe: build it (cargo build -p dm-gpui) or set DM_BINARY")
 
 
 def as_list(value):
@@ -160,9 +164,11 @@ def main():
             except ValueError:
                 seen = {}
             buttons, fields = as_list(seen.get("buttons")), as_list(seen.get("fields"))
-            missing = [w for w in wanted if w not in buttons]
+            # A page's tab is read as a tab (the GPUI window's Options), a button as a button.
+            tabs = as_list(seen.get("tabs"))
+            missing = [w for w in wanted if w not in buttons and w not in tabs]
             print(f"{title}: dm drew {', '.join(wanted)}; UI Automation reads buttons "
-                  f"[{' | '.join(buttons)}], text fields [{' | '.join(fields)}]")
+                  f"[{' | '.join(buttons)}], tabs [{' | '.join(tabs)}], text fields [{' | '.join(fields)}]")
             if not seen.get("found"):
                 windows = ", ".join(repr(w) for w in as_list(seen.get("windows")))
                 failures.append(f"{title}: no window of that name in UI Automation (the process's: {windows}) "

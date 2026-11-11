@@ -57,6 +57,13 @@ pub struct Options {
     pub(crate) networks: Vec<dm_core::Interface>,
     /// "How to use your phone" is open.
     pub(crate) phone: bool,
+    /// Who opens magnet links and `.torrent` files (Windows), once read
+    /// beside the window; read again after a change.
+    #[cfg(windows)]
+    pub(crate) handlers: Option<(dm_shell::register::Owner, dm_shell::register::Owner)>,
+    /// They are being read.
+    #[cfg(windows)]
+    pub(crate) handlers_asked: bool,
     /// Each field, by its key, made the first time it is drawn.
     fields: HashMap<String, Entity<InputState>>,
     pub(crate) scroll: ScrollHandle,
@@ -148,6 +155,19 @@ impl Options {
         if let Some(view) = self.view.upgrade() {
             view.read(cx).open_path(page);
         }
+    }
+
+    /// Who opens magnet links or `.torrent` files was changed (`done`): what
+    /// went wrong said, and who opens them read again, so the page says
+    /// what is so now.
+    #[cfg(windows)]
+    pub(crate) fn handlers_changed(&mut self, done: Result<(), String>, cx: &mut Context<Self>) {
+        if let Err(why) = done {
+            self.says = Some(why.into());
+        }
+        self.handlers = None;
+        self.handlers_asked = false;
+        cx.notify();
     }
 
     /// The fields of a list's rows forgotten, to be made again from the
@@ -294,6 +314,23 @@ impl Options {
                         entry.host = text.into();
                     } else if let Some(n) = n(1, 65535) {
                         entry.port = n as u16;
+                    }
+                }
+            }
+            ["dialup", field] => {
+                let d = &mut s.dialup;
+                match *field {
+                    "username" => d.username = text.into(),
+                    "password" => d.password = text.into(),
+                    "attempts" => {
+                        if let Some(n) = n(0, u64::from(dm_shell::dialup::MOST_ATTEMPTS)) {
+                            d.attempts = n as u32;
+                        }
+                    }
+                    _ => {
+                        if let Some(n) = n(0, dm_shell::dialup::MOST_WAIT_SECONDS) {
+                            d.wait_seconds = n;
+                        }
                     }
                 }
             }
@@ -570,6 +607,15 @@ impl Downloads {
             self.menu_ticks = None;
             cx.refresh_windows();
         }
+        if before.language != now.language || before.download_dir != now.download_dir {
+            // The taskbar button's jump list (Windows) in those words, its
+            // folder the one downloads now go to.
+            dm_desktop_base::jumplist::publish(
+                dm_desktop_base::i18n::t("Add URL"),
+                dm_desktop_base::i18n::t("Open downloads folder"),
+                &now.download_dir,
+            );
+        }
         self.read();
         // The menus' ticks too (the speed limit, the drop target).
         self.refresh_menus(cx);
@@ -613,6 +659,10 @@ fn open_window(
                 queues,
                 networks: Vec::new(),
                 phone: false,
+                #[cfg(windows)]
+                handlers: None,
+                #[cfg(windows)]
+                handlers_asked: false,
                 fields: HashMap::new(),
                 scroll: ScrollHandle::new(),
                 focus,

@@ -146,7 +146,91 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
     Ok(())
 }
 
+/// `hwnd`'s whole rectangle on the screen (`GetWindowRect`, with the borders
+/// Windows keeps invisible around it for resizing, 7 pixels at 100%) and
+/// the part of it seen (the compositor's extended frame bounds; the whole
+/// where the compositor does not say), in the screen's pixels.
+#[cfg(windows)]
+fn rects(
+    hwnd: windows_sys::Win32::Foundation::HWND,
+) -> Option<(
+    windows_sys::Win32::Foundation::RECT,
+    windows_sys::Win32::Foundation::RECT,
+)> {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
+    // SAFETY: `hwnd` is a live window of this thread's (each caller holds
+    // its `Window`); each call writes only the value handed to it.
+    unsafe {
+        let mut whole: RECT = std::mem::zeroed();
+        if GetWindowRect(hwnd, &mut whole) == 0 {
+            return None;
+        }
+        let mut seen: RECT = std::mem::zeroed();
+        let framed = DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_EXTENDED_FRAME_BOUNDS as u32,
+            (&mut seen as *mut RECT).cast(),
+            std::mem::size_of::<RECT>() as u32,
+        ) == 0
+            && seen.right > seen.left
+            && seen.bottom > seen.top;
+        Some((whole, if framed { seen } else { whole }))
+    }
+}
+
+/// Where Windows has `window` on the screen, in points: its frame as it is
+/// seen (the rectangle `move_to` places; the invisible resizing borders
+/// left out, so a dialog pictured from the screen holds nothing of what lies
+/// behind it) and its inside (the client area). GPUI's own bounds are the
+/// inside only, so a dialog moved to (x, y) was reported 8 and 31 points
+/// further on, past its border and title bar.
+#[cfg(windows)]
+pub fn frames(window: &Window) -> Option<(gpui::Bounds<gpui::Pixels>, gpui::Bounds<gpui::Pixels>)> {
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
+    let hwnd = hwnd(window)?;
+    let (_, seen) = rects(hwnd)?;
+    // SAFETY: as in `hide`; each call writes only the value handed to it.
+    let (client, origin) = unsafe {
+        let mut client: RECT = std::mem::zeroed();
+        let mut origin = POINT { x: 0, y: 0 };
+        if GetClientRect(hwnd, &mut client) == 0 || ClientToScreen(hwnd, &mut origin) == 0 {
+            return None;
+        }
+        (client, origin)
+    };
+    let scale = window.scale_factor();
+    let bounds = |left: i32, top: i32, right: i32, bottom: i32| {
+        gpui::Bounds::from_corners(
+            gpui::point(gpui::px(left as f32 / scale), gpui::px(top as f32 / scale)),
+            gpui::point(
+                gpui::px(right as f32 / scale),
+                gpui::px(bottom as f32 / scale),
+            ),
+        )
+    };
+    Some((
+        bounds(seen.left, seen.top, seen.right, seen.bottom),
+        bounds(
+            origin.x,
+            origin.y,
+            origin.x + client.right,
+            origin.y + client.bottom,
+        ),
+    ))
+}
+
+/// Elsewhere GPUI's own bounds say where the window is.
+#[cfg(not(windows))]
+pub fn frames(_: &Window) -> Option<(gpui::Bounds<gpui::Pixels>, gpui::Bounds<gpui::Pixels>)> {
+    None
+}
+
 /// Windows counts in the screen's pixels: points times the window's scale.
+/// The frame as it is seen goes to (x, y), as `frames` reports it.
 #[cfg(windows)]
 pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -154,13 +238,18 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
     };
     let hwnd = hwnd(window).ok_or("the window has no system window")?;
     let scale = window.scale_factor();
+    // The invisible border at the left and top, which the whole rectangle
+    // placed by `SetWindowPos` starts with.
+    let (left, top) = rects(hwnd).map_or((0, 0), |(whole, seen)| {
+        (seen.left - whole.left, seen.top - whole.top)
+    });
     // SAFETY: as in `hide`.
     let done = unsafe {
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),
-            (x * scale).round() as i32,
-            (y * scale).round() as i32,
+            (x * scale).round() as i32 - left,
+            (y * scale).round() as i32 - top,
             0,
             0,
             SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
@@ -207,7 +296,9 @@ pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
 }
 
 /// The window drawn into a bitmap of its own (`PrintWindow`, with what the
-/// compositor holds), saved as a PNG.
+/// compositor holds), cut to what is seen of it (the system's invisible
+/// borders for resizing left out, as a person sees the window), saved as a
+/// PNG.
 #[cfg(windows)]
 pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
     use windows_sys::Win32::Graphics::Gdi::{
@@ -215,19 +306,22 @@ pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
         ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
     };
     use windows_sys::Win32::Storage::Xps::{PrintWindow, PRINT_WINDOW_FLAGS};
-    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
     let hwnd = hwnd(window).ok_or("the window has no system window")?;
+    let (rect, frame) = rects(hwnd).ok_or("the window's size could not be read")?;
+    let (width, height) = (rect.right - rect.left, rect.bottom - rect.top);
+    if width <= 0 || height <= 0 {
+        return Err("the window has no size".into());
+    }
+    // What is seen of it, in the bitmap's pixels.
+    let seen = (
+        (frame.left - rect.left).clamp(0, width),
+        (frame.top - rect.top).clamp(0, height),
+        (frame.right - rect.left).clamp(0, width),
+        (frame.bottom - rect.top).clamp(0, height),
+    );
     // SAFETY: every handle is made here, used on this thread and released
     // before returning; `hwnd` is the live window this borrow keeps open.
-    let pixels = unsafe {
-        let mut rect = std::mem::zeroed();
-        if GetWindowRect(hwnd, &mut rect) == 0 {
-            return Err("the window's size could not be read".into());
-        }
-        let (width, height) = (rect.right - rect.left, rect.bottom - rect.top);
-        if width <= 0 || height <= 0 {
-            return Err("the window has no size".into());
-        }
+    let bgra = unsafe {
         let screen = GetDC(std::ptr::null_mut());
         let memory = CreateCompatibleDC(screen);
         let bitmap = CreateCompatibleBitmap(screen, width, height);
@@ -258,10 +352,22 @@ pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
         if printed == 0 || read == 0 {
             return Err("the window could not be pictured".into());
         }
-        (width as u32, height as u32, bgra)
+        bgra
     };
-    let (width, height, bgra) = pixels;
-    save_png(path, width, height, bgra)
+    let (left, top, right, bottom) = seen;
+    if right <= left || bottom <= top {
+        return save_png(path, width as u32, height as u32, bgra);
+    }
+    let row = width as usize * 4;
+    let cut: Vec<u8> = (top..bottom)
+        .flat_map(|y| {
+            let start = y as usize * row + left as usize * 4;
+            bgra[start..start + (right - left) as usize * 4]
+                .iter()
+                .copied()
+        })
+        .collect();
+    save_png(path, (right - left) as u32, (bottom - top) as u32, cut)
 }
 
 /// The window's pixels as the X server holds them (`GetImage`), saved as

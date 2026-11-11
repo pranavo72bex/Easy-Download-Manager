@@ -191,7 +191,8 @@ jobs:
             os: windows-latest
             formats: nsis
             artifact: windows
-            crate: dm-desktop
+            # The GPUI window on Windows (docs/gaps.md G9).
+            crate: dm-gpui
           - name: macOS (app, dmg)
             os: macos-latest
             formats: app,dmg
@@ -244,7 +245,10 @@ jobs:
           # (shellcheck SC2155, which failed the packaging lint).
           CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
           export CARGO_BUILD_RUSTFLAGS
-          cargo packager --release --formats ${{ matrix.formats }}
+          # This package only: run without -p, cargo-packager makes every
+          # workspace package that has its metadata (both windows' installers,
+          # under one name once renamed below).
+          cargo packager --release -p ${{ matrix.crate }} --formats ${{ matrix.formats }}
         # This step's own: the check below was put between its run and its env,
         # and took the signing secrets from it.
         env:
@@ -273,15 +277,16 @@ jobs:
           sh scripts/linux/nfpm.sh desktop/target/release/dm-desktop "$version" desktop/target/release/bundle
 
       # cargo-packager names the .deb, the AppImage and the Windows installer
-      # after the binary (dm-desktop_…) and only the .dmg after the product;
-      # one name for all of them, the one the README and the update check use.
+      # after the binary (dm-desktop_…, dm-gpui_…) and only the .dmg after the
+      # product; one name for all of them, the one the README and the update
+      # check use.
       - name: Name the installers dm
         shell: bash
         working-directory: desktop/target/release/bundle
         run: |
-          for f in dm-desktop_*; do
+          for f in dm-desktop_* dm-gpui_*; do
             [ -e "$f" ] || continue
-            mv -v "$f" "dm_${f#dm-desktop_}"
+            mv -v "$f" "dm_${f#*_}"
           done
           ls
 
@@ -298,7 +303,7 @@ jobs:
           $version = (Select-String -Path desktop/crates/dm-desktop/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
           $dir = Join-Path desktop/target/release/bundle "dm_${version}_x64-portable"
           New-Item -ItemType Directory -Path $dir | Out-Null
-          Copy-Item desktop/target/release/dm-desktop.exe $dir
+          Copy-Item desktop/target/release/${{ matrix.crate }}.exe $dir
           New-Item -ItemType File -Path (Join-Path $dir 'portable') | Out-Null
           Copy-Item desktop/packaging/portable-readme.txt (Join-Path $dir 'README.txt')
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
@@ -387,25 +392,20 @@ jobs:
         run: |
           $setup = Get-ChildItem installers -Filter '*-setup.exe' | Select-Object -First 1
           Start-Process $setup.FullName -ArgumentList '/S' -Wait
-          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter 'dm-desktop.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $exe) { throw 'the installer put no dm-desktop.exe anywhere' }
-          # The runner has no graphics driver, and the window needs OpenGL
-          # 2.0: Mesa's software one, beside the program for this check only,
-          # as a machine with a real driver would not need (CI, 0.2.0).
-          $mesa = "$env:RUNNER_TEMP\mesa"
-          Invoke-WebRequest 'https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z' -OutFile "$mesa.7z"
-          7z x "$mesa.7z" "-o$mesa" | Out-Null
-          $dlls = Get-ChildItem "$mesa\x64" -Filter '*.dll'
-          $dlls | Copy-Item -Destination $exe.DirectoryName
-          $env:GALLIUM_DRIVER = 'llvmpipe'
+          # The GPUI window, the one dm ships on Windows (docs/gaps.md G9).
+          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter 'dm-gpui.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'the installer put no dm-gpui.exe anywhere' }
+          # The runner has no graphics driver: GPUI draws through Direct3D 11
+          # on Windows' own software adapter (WARP), with nothing beside the
+          # program, as a computer with no GPU does (docs/decisions.md,
+          # 2026-11-11).
           python scripts/smoke.py $exe.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $dlls | ForEach-Object { Remove-Item (Join-Path $exe.DirectoryName $_.Name) }
           $uninstall = Get-ChildItem $exe.DirectoryName -Filter 'uninstall*.exe' | Select-Object -First 1
           Start-Process $uninstall.FullName -ArgumentList '/S' -Wait
           # The uninstaller hands itself to a copy and returns at once.
           for ($i = 0; $i -lt 30 -and (Test-Path $exe.FullName); $i++) { Start-Sleep 1 }
-          if (Test-Path $exe.FullName) { throw 'uninstalling left dm-desktop.exe behind' }
+          if (Test-Path $exe.FullName) { throw 'uninstalling left dm-gpui.exe behind' }
 
       # The zip a person unzips and runs from wherever they put it: its data
       # lands in `dm-data` beside it and nowhere else (scripts/portable-check.py).
@@ -416,8 +416,8 @@ jobs:
           $zip = Get-ChildItem installers -Filter '*-portable.zip' | Select-Object -First 1
           if (-not $zip) { throw 'no portable zip was built' }
           Expand-Archive $zip.FullName -DestinationPath portable-unzipped
-          $exe = Get-ChildItem portable-unzipped -Recurse -Filter 'dm-desktop.exe' | Select-Object -First 1
-          if (-not $exe) { throw 'the portable zip holds no dm-desktop.exe' }
+          $exe = Get-ChildItem portable-unzipped -Recurse -Filter 'dm-gpui.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'the portable zip holds no dm-gpui.exe' }
           if (-not (Test-Path (Join-Path $exe.DirectoryName 'portable'))) { throw 'the portable zip holds no `portable` file beside the program' }
           python scripts/portable-check.py $exe.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

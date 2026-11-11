@@ -110,13 +110,13 @@ PLATFORM_GAP_ANALYSIS.md section 11.
 
 | # | Check | How | macOS | Windows | X11 | Wayland |
 |---|---|---|---|---|---|---|
-| 1 | A screen reader reaches OK and Cancel in a dialog that is a window of its own, and the tree survives windows opening and closing 50 times | `ui.accessibility` (macOS), `windows-a11y-check.py`, Orca/AT-SPI as `linux-gui-check.sh` reads it | **pass** (2026-11-10: `dm-gpui --accessibility --churn`) | | | |
-| 2 | Draws with no GPU | Xvfb with Mesa (llvmpipe/lavapipe) in `linux-human-qa.sh`'s image; a Windows VM without a GPU | n/a | | | |
-| 3 | A dialog opens over the middle of the main window, is modal, and can be moved outside it (B42) | `ui.windows`, `ui.move_window` | | | | |
-| 4 | Tray (`tray-icon`) works beside GPUI's run loop; a login launch makes no window until shown | `linux-gui-check.sh`'s tray steps; by hand elsewhere | | | | |
-| 5 | Drop in: files, a link, text; drag out: a finished file | `linux-drag-check.sh`, `linux-wayland-drag-check.sh`, `drag-out-check.py` | | | | |
+| 1 | A screen reader reaches OK and Cancel in a dialog that is a window of its own, and the tree survives windows opening and closing 50 times | `ui.accessibility` (macOS), `windows-a11y-check.py`, Orca/AT-SPI as `linux-gui-check.sh` reads it | **pass** (2026-11-10: `dm-gpui --accessibility --churn`) | **pass** (2026-11-11: `windows-a11y-check.py` 5 of 5 dialogs through UI Automation; after 50 Add URL windows opened and closed, its OK and Cancel still read) | | |
+| 2 | Draws with no GPU | Xvfb with Mesa (llvmpipe/lavapipe) in `linux-human-qa.sh`'s image; a Windows VM without a GPU | n/a | by reading: Direct3D 11 on the first adapter that makes a device, Windows' own software adapter (WARP) listed last by DXGI; not run here (this computer has a GPU), CI's GPU-less runner runs the installer's `smoke.py` | | |
+| 3 | A dialog opens over the middle of the main window, is modal, and can be moved outside it (B42) | `ui.windows`, `ui.move_window` | | **pass** (2026-11-11: `human-qa.py` B42: over the middle of dm's window, a top-level window with no owner, moved and dragged by its title bar outside dm's window, Options holding dm's window) | | |
+| 4 | Tray (`tray-icon`) works beside GPUI's run loop; a login launch makes no window until shown | `linux-gui-check.sh`'s tray steps; by hand elsewhere | | **pass** (2026-11-11: `--hidden` makes no window and the tray is made, no problem said; Show brings the window; its close button asks "Keep running in the tray?"; the tray's menu itself by hand) | | |
+| 5 | Drop in: files, a link, text; drag out: a finished file | `linux-drag-check.sh`, `linux-wayland-drag-check.sh`, `drag-out-check.py` | | drop in: dm's own OLE target on GPUI's window (`dm_desktop_base::drops::win`, the egui window's), not driven here; drag out: not in the GPUI window on any system | | |
 | 6 | Text input: IME (Chinese, Japanese), Arabic and Hebrew in reading order | By hand with the system's input methods | | | | |
-| 7 | Size: the release package against today's (`.dmg` 9.7 MB, `.deb` 12.4 to 13.3 MB, setup `.exe` 9.9 MB, 0.9.0) | `cargo packager` on the release profile | | | | |
+| 7 | Size: the release package against today's (`.dmg` 9.7 MB, `.deb` 12.4 to 13.3 MB, setup `.exe` 9.9 MB, 0.9.0) | `cargo packager` on the release profile | | setup `.exe` 10.4 MB (2026-11-11; the program 32.7 MB) | | |
 
 D1 (go): check 1 passes on all four, or a patch to GPUI kept in `desktop/vendor/` makes it pass.
 
@@ -143,6 +143,20 @@ Findings so far (2026-11-10, `desktop/crates/dm-gpui` on `gpui-pre` and `gpui-pr
   dm-desktop-base, never dm-desktop) and forbids `gpui`, `gpui_platform` and `gpui-component`
   to every crate that is not a window; the privacy check finds no crate in GPUI's tree that
   reports anywhere.
+- **Windows (2026-11-11, Windows 11, 4 cores, Rust 1.99.1).** `cargo build -p dm-gpui` in
+  35 min from cold (debug, 95 MB); GPUI links its own manifest (per-monitor DPI v2, asInvoker,
+  common controls 6), so `dm-gpui/build.rs` adds only the icon and version. A release needs the
+  Windows SDK's `fxc.exe` (GPUI compiles its Direct3D shaders with it), found by itself in the
+  SDK. Launched: its window in Windows 11's colours and caption glyphs, 2 % of a core and
+  33 MB private memory at rest (debug). Found and put right on the way: GPUI's Windows windows
+  report no title (the port now keeps each window's), their bounds are the client area (the
+  port reports and places the frame as it is seen), and a wake to act on now waited out a
+  quarter-second coalescing behind a running download's changes (`list.rs`), where the egui
+  window acts at once. `human-qa.py` on the debug build: 51 of 64 on its first run (nine rows
+  only because it was not run under `python -X utf8`, so the browser checks' "—" was misread),
+  then 63 of 64 twice, B36 failing once in each on the browser check's click-to-first-request
+  limit (1000 ms on Windows; medians 1180 and 1009 ms, egui's debug build 805 ms on the same
+  computer); see section 7 for the release installer's run.
 
 
 ## 6. Tests that move
@@ -177,3 +191,4 @@ Findings so far (2026-11-10, `desktop/crates/dm-gpui` on `gpui-pre` and `gpui-pr
 | G8, the release bundle (macOS) | 2026-11-10 | `make app-gpui` (release flags, LTO): `dm.app` and `dm_0.9.0_aarch64.dmg` (10.4 MB), signed ad hoc, `com.dm.desktop`, the `magnet:` scheme, no build paths in the binary | From the .dmg, as the release workflow does: `smoke.py` passes (native host, the window, no window, 4 MiB byte-exact over ranges); `human-qa.py` on that app: **64 of 64 rows hold** (browser checks, every file type, YouTube) |
 | G7/G8, the top bar's menus on every system; Windows and Linux coded here | 2026-11-10 | fmt, clippy on macOS; `windows-check.sh clippy` (the workspace for `x86_64-pc-windows-msvc`); clippy for dm-gpui in Debian 12 (`linux-check.sh`'s image); the workspace's tests | macOS: `human-qa.py --save-baseline` **64 of 64** with the menus in the top bar (B25's GPUI pictures drawn again and looked at). Linux (Debian 12, Xvfb, no GPU): the GPUI binary passes `smoke.py` (native host, the window, no window, 4 MiB byte-exact) and `app-check.py` in full (its first run: a `--hidden` launch's window shown, dialogs unnamed, no screenshot; each put right). Windows: built and linted only; run on a Windows computer |
 | G8/G9, macOS's default switched; each system's colours; shared drops (macOS) | 2026-11-11 | d6a0365: fmt, clippy, `windows-check.sh clippy`, Linux clippy, 2245 workspace tests | `human-qa.py` on the egui window **64 of 64** (B10 and B63 had failed only because the window, behind the browser, drew no frames for the port's clicks; the script brings it in front first); on the GPUI window, now the default, **64 of 64** (its first run failed B01, B25, B42 and B44 because that bring-forward landed over Add URL; the script lets it settle first) |
+| G6 to G9, Windows (Windows 11, 4 cores) | 2026-11-11 | fmt; `cargo clippy --workspace --all-targets -- -D warnings` on Windows; `cargo test -p dm-gpui` (18), `-p dm-desktop-base --lib`, `-p dm-desktop --test i18n --test packaging`; the full suite left to the Mac (the maintainer's word) | Debug build, `python -X utf8 scripts/human-qa.py` with `DM_BINARY` naming dm-gpui: 51 of 64 (nine browser rows misread without `-X utf8`), then 63 of 64 twice (B36's click-to-first-request time, medians 1180 and 1009 ms against Windows' 1000); `--save-baseline` drew `docs/behaviour-baseline/gpui/windows/` (looked at). Release installer (`cargo packager -p dm-gpui --formats nsis`, 10.4 MB against 0.9.0's 9.9 MB; `dm-gpui.exe` 32.7 MB) installed over 0.9.0: `smoke.py`, `app-check.py`, `windows-a11y-check.py` 5 of 5, `out-of-box-check.py` 30 of 30, `portable-check.py` pass; `human-qa.py` 63 of 64 (B36's click timing 1.76 s on its first pass, straight after install with five review agents reading the tree, 0.71 s on its second; B25 0.00, 0.00 and 0.09 % against the Windows pictures). Then fixed from a review: the language at startup, greyed controls, High Contrast redrawn; a whole run on an installer with them is owed |

@@ -1155,6 +1155,37 @@ fn open_now(
     let backend = downloads.read(cx).backend.clone();
     let settings = backend.settings();
     let queues = backend.queues();
+    let first = urls.first().cloned().unwrap_or_default();
+    // Begun at once while it asks, where Options says so, before the window
+    // is made: its first request then does not wait for a new window (its
+    // Direct3D or Metal surface, its fields) to be drawn.
+    let form = Form {
+        quality: handed.quality.clone(),
+        post: handed.post.clone(),
+        ..Form::default()
+    };
+    let youtube = urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
+    let early = file_info::begins_early(&settings, &urls, &form, youtube)
+        .then(|| {
+            backend
+                .add_with(
+                    &first,
+                    dm_core::AddOptions {
+                        referrer: handed.referrer.clone(),
+                        cookies: handed.cookies.clone(),
+                        cookies_once: handed.cookies_once,
+                        headers: handed.headers.clone(),
+                        ..dm_core::AddOptions::default()
+                    },
+                )
+                .ok()
+        })
+        .flatten();
+    // What a window that will not open leaves to undo.
+    let (gone_with, gone_view, was_handed) = (backend.clone(), view.clone(), handed.handed);
+    // What the server calls the file and how big it is, asked now too,
+    // before the window is made; the dialog hears the answer once it is.
+    let told = ask_server(&backend, &first, urls.len(), settings.remux_ts, &handed);
     let height = if urls.len() == 1 { 360.0 } else { 300.0 };
     let bounds = Bounds::centered(None, size(px(600.0), px(height)), cx);
     let opened = crate::screen::open_window(
@@ -1169,7 +1200,6 @@ fn open_now(
         },
         move |window, cx| {
             let hint = file_info::default_folder_words(&settings);
-            let first = urls.first().cloned().unwrap_or_default();
             let remux = settings.remux_ts;
             let titled = handed.quality.is_some();
             let folder = cx.new(|cx| InputState::new(window, cx).placeholder(hint));
@@ -1190,29 +1220,6 @@ fn open_now(
             }
             let screen = Screen::default();
             Screens::register(window.window_handle(), screen.clone(), true, cx);
-            // Begun at once while it asks, where Options says so.
-            let form = Form {
-                quality: handed.quality.clone(),
-                post: handed.post.clone(),
-                ..Form::default()
-            };
-            let youtube = urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
-            let early = file_info::begins_early(&settings, &urls, &form, youtube)
-                .then(|| {
-                    backend
-                        .add_with(
-                            &first,
-                            dm_core::AddOptions {
-                                referrer: handed.referrer.clone(),
-                                cookies: handed.cookies.clone(),
-                                cookies_once: handed.cookies_once,
-                                headers: handed.headers.clone(),
-                                ..dm_core::AddOptions::default()
-                            },
-                        )
-                        .ok()
-                })
-                .flatten();
             // A ZIP's files, read once from the end of the archive.
             let web = first.starts_with("http://") || first.starts_with("https://");
             let (zip_tell, zip_told) = async_channel::bounded::<()>(1);
@@ -1281,16 +1288,7 @@ fn open_now(
             });
             // Start now has the keyboard, as in the egui window.
             details.update(cx, |d, cx| window.focus(&d.focus, cx));
-            ask_server(
-                &details,
-                &backend,
-                &first,
-                urls.len(),
-                remux,
-                &handed,
-                window,
-                cx,
-            );
+            hear_server(&details, told, window, cx);
             // A YouTube video's qualities are asked at once, from its own
             // data; a page's once the server says it is one.
             details.update(cx, |d, cx| d.ask_choices(window, cx));
@@ -1316,28 +1314,36 @@ fn open_now(
     );
     if let Err(e) = opened {
         eprintln!("dm-gpui: Download details could not be opened: {e}");
+        // As Cancel ends it: the row begun for it goes, and the next
+        // hand-off is not held back behind one that is never asked.
+        if let Some(id) = early {
+            gone_with.remove_later(id);
+        }
+        let _ = gone_view.update(cx, |view, cx| {
+            if was_handed {
+                view.handed_closed();
+            }
+            view.read();
+            cx.notify();
+        });
     }
 }
 
 /// The server asked what it calls the file and how big it is, once, as the
 /// dialog opens (not a torrent's: what the server says of a .torrent is the
-/// metainfo's few kilobytes and its file name).
-#[allow(clippy::too_many_arguments)]
+/// metainfo's few kilobytes and its file name). Asked before the dialog's
+/// window is made, so the request is not held up by it; `None` where there
+/// is nothing to ask, which is known at once.
 fn ask_server(
-    details: &Entity<Details>,
     backend: &Backend,
     url: &str,
     count: usize,
     remux: bool,
     handed: &Handed,
-    window: &mut Window,
-    cx: &mut App,
-) {
+) -> Option<async_channel::Receiver<Probed>> {
     let web = url.starts_with("http://") || url.starts_with("https://");
     if count != 1 || !web || dm_core::is_torrent(url) {
-        // Nothing to ask: known at once.
-        details.update(cx, |d, cx| d.probed(Probed::default(), window, cx));
-        return;
+        return None;
     }
     let (tell, told) = async_channel::bounded(1);
     dm_shell::app::lookups::probe_later(
@@ -1350,6 +1356,21 @@ fn ask_server(
             let _ = tell.try_send(found);
         },
     );
+    Some(told)
+}
+
+/// The dialog told what the server answered (`ask_server`), when it does;
+/// at once where nothing was asked.
+fn hear_server(
+    details: &Entity<Details>,
+    told: Option<async_channel::Receiver<Probed>>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let Some(told) = told else {
+        details.update(cx, |d, cx| d.probed(Probed::default(), window, cx));
+        return;
+    };
     let details = details.downgrade();
     window
         .spawn(cx, async move |cx| {

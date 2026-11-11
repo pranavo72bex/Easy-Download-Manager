@@ -2328,6 +2328,7 @@ dependencies = [
  "dm-desktop-base",
  "dm-protocol",
  "dm-shell",
+ "embed-resource",
  "futures-lite",
  "gpui-base",
  "gpui-component",
