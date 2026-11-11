@@ -395,7 +395,24 @@ fn a_handed_download_begun_while_asking_is_placed_not_added_again() {
         .early
         .expect("begun at once");
     settle_details(&mut harness);
-    click(&mut harness, "Start now");
+    // The file comes in while the dialog asks; the dialog must not take it
+    // for another file of that name (its warning grew the dialog under the
+    // click: gaps row 179). Clicked once the dialog stands still.
+    until_within(
+        &mut harness,
+        "the download begun at once to finish",
+        Duration::from_secs(30),
+        |app| {
+            app.rows()
+                .iter()
+                .any(|r| r.id == early && r.state == dm_core::State::Completed)
+        },
+    );
+    assert!(
+        !shown_containing(&harness, "in the folder already"),
+        "its own file was taken for another"
+    );
+    click_settled(&mut harness, "Start now");
     harness.state_mut().refresh();
     assert!(harness.state().dialogs.file_info.is_none());
     let rows = harness.state().rows();

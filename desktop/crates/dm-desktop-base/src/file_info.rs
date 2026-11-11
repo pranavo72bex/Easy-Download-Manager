@@ -152,8 +152,18 @@ pub fn clash(
                     .is_none_or(|s| s.trim().is_empty() || Path::new(s) == dir)
         })
         .count();
-    let free = dm_core::nth_free_name(&dir, name, waiting);
     let taken = dir.join(name);
+    // The row begun at once, finished while the dialog asked, wrote this very
+    // file: the name is its own, not taken. It was said to be "in the folder
+    // already", and the warning and its two choices grew the dialog under the
+    // person's pointer as the file came in (gaps row 179).
+    let own = early
+        .and_then(|id| rows.iter().find(|r| r.id == id))
+        .is_some_and(|r| !r.path.is_empty() && Path::new(&r.path) == taken);
+    if own {
+        return (waiting > 0).then_some(Clash::Listed);
+    }
+    let free = dm_core::nth_free_name(&dir, name, waiting);
     if free == name {
         None
     } else if dm_core::free_name(&dir, name) == name {
@@ -434,6 +444,50 @@ pub fn playlist_entry_words(index: usize, entry: &dm_core::youtube::PlaylistEntr
 pub fn problem_words(why: &str) -> String {
     let plain = format::reason(why).map(t).unwrap_or(why);
     tf("Not available: {}.", &[&plain])
+}
+
+#[cfg(test)]
+mod clash_tests {
+    use super::*;
+
+    fn row(id: Id, name: &str, state: &str, path: &str) -> Arc<Entry> {
+        Arc::new(
+            serde_json::from_value(serde_json::json!({
+                "id": id,
+                "url": format!("https://e.com/{name}"),
+                "state": {"kind": state},
+                "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
+                "filename": name,
+                "path": path,
+            }))
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn the_file_its_own_early_download_wrote_is_no_clash() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().display().to_string();
+        let file = dir.path().join("other.pdf");
+        std::fs::write(&file, b"whole").unwrap();
+        let path = file.display().to_string();
+        let settings = Settings::default();
+        let url = "https://e.com/other.pdf";
+        let mine = [row(7, "other.pdf", "completed", &path)];
+        let clash = |rows: &[Arc<Entry>], early| {
+            super::clash(&settings, rows, &folder, url, "other.pdf", early)
+        };
+        // Begun at once for this dialog and finished while it asked.
+        assert_eq!(clash(&mine, Some(7)), None);
+        // The same file with no early download of its own: somebody else's.
+        assert!(matches!(
+            clash(&mine, None),
+            Some(Clash::OnDisk { ref free, .. }) if free == "other (1).pdf"
+        ));
+        // Its own, with another row still waiting for the name: numbered.
+        let more = [mine[0].clone(), row(8, "other.pdf", "queued", "")];
+        assert_eq!(clash(&more, Some(7)), Some(Clash::Listed));
+    }
 }
 
 #[cfg(test)]
