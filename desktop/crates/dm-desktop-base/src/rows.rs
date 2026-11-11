@@ -423,6 +423,31 @@ pub fn resume_word(chosen: &[&Entry]) -> &'static str {
     dm_shell::app::commands::Command::DownloadNow.label()
 }
 
+/// What the list says where it shows no row, in the language in force: a
+/// heading, the line under it, and whether the next step is offered (the
+/// "Add a download" button and where links may be dropped), which it is
+/// only while nothing at all is listed. `listed_any` is whether the list
+/// holds any row; `filtered` whether words are typed in the search box.
+#[must_use]
+pub fn empty_words(listed_any: bool, filtered: bool) -> (&'static str, &'static str, bool) {
+    if !listed_any {
+        (
+            t("Nothing queued"),
+            t("Add URL, paste a link, or send one from your browser."),
+            true,
+        )
+    } else if filtered {
+        (
+            t("Nothing here"),
+            t("No download here matches the filter."),
+            false,
+        )
+    } else {
+        // Done and In progress are places, not categories.
+        (t("Nothing here"), t("Nothing here yet."), false)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,5 +475,28 @@ mod tests {
         assert_eq!(resume_word(&[&held]), "Start now");
         assert_eq!(resume_word(&[&paused]), resume);
         assert_eq!(resume_word(&[&failed, &held]), resume, "a mix is resumed");
+    }
+
+    #[test]
+    fn an_empty_list_offers_the_next_step_only_while_nothing_is_listed() {
+        let (heading, line, offered) = empty_words(false, true);
+        assert_eq!(heading, "Nothing queued");
+        assert_eq!(
+            line,
+            "Add URL, paste a link, or send one from your browser."
+        );
+        assert!(offered);
+        assert_eq!(
+            empty_words(true, true),
+            (
+                "Nothing here",
+                "No download here matches the filter.",
+                false
+            )
+        );
+        assert_eq!(
+            empty_words(true, false),
+            ("Nothing here", "Nothing here yet.", false)
+        );
     }
 }

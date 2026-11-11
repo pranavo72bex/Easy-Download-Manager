@@ -315,6 +315,7 @@ impl WindowProbe for Probe<'_> {
         let probe::Scroll {
             text: wanted,
             lines,
+            sideways,
         } = scroll;
         self.app
             .find_text(&wanted, 0)
@@ -334,7 +335,7 @@ impl WindowProbe for Probe<'_> {
             &mut self.app.synthetic,
             vec![egui::Event::MouseWheel {
                 unit: egui::MouseWheelUnit::Point,
-                delta: egui::vec2(0.0, -lines * 40.0),
+                delta: egui::vec2(-sideways * 40.0, -lines * 40.0),
                 phase: egui::TouchPhase::Move,
                 source: egui::MouseWheelSource::Wheel,
                 modifiers: egui::Modifiers::NONE,

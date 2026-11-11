@@ -493,7 +493,8 @@ impl WindowProbe for Probe<'_, '_> {
         // A line is 40 points, as the egui window turns a wheel's; down is
         // a negative delta, as the system gives it. In the window the words
         // are in: a dialog's page scrolls in its own.
-        let delta = ScrollDelta::Pixels(point(px(0.0), px(-scroll.lines * 40.0)));
+        let delta =
+            ScrollDelta::Pixels(point(px(-scroll.sideways * 40.0), px(-scroll.lines * 40.0)));
         self.cx.defer(move |cx| {
             let _ = in_window.update(cx, |_, window, cx| {
                 window.dispatch_event(

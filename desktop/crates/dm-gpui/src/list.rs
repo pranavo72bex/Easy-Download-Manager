@@ -1985,6 +1985,7 @@ impl Render for Downloads {
         let update_bar = self.update_bar(theme, &screen, cx);
         let holding = self.holder(cx).is_some();
         let browser_bar = self.browser_bar(theme, &screen, cx);
+        let empty = self.shown.is_empty();
         div()
             .id("downloads")
             .role(Role::Application)
@@ -2129,8 +2130,39 @@ impl Render for Downloads {
                                         ),
                                     )
                             }))
-                            .child(crate::table::header(self, theme, &screen, cx))
-                            .child(crate::table::rows(self, theme, cx)),
+                            // The headings and the rows scroll sideways
+                            // together where the window is narrower than
+                            // the columns, as a macOS list does: at 120% in
+                            // a narrow window the columns after Status were
+                            // out of reach. The sideways gesture alone moves
+                            // them; the wheel still moves the rows. With no
+                            // row, what the list says stands under them in
+                            // the middle of what is in sight, not of the
+                            // columns' whole width.
+                            .child(
+                                div()
+                                    .id("table")
+                                    .flex()
+                                    .when(empty, |table| table.flex_none())
+                                    .when(!empty, |table| table.flex_1().min_h_0())
+                                    .overflow_x_scroll()
+                                    .restrict_scroll_to_axis()
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .flex_col()
+                                            .when(!empty, |list| list.h_full())
+                                            .w_full()
+                                            .min_w(crate::zoom::px(crate::table::least_width(self)))
+                                            .child(crate::table::header(self, theme, &screen, cx))
+                                            .when(!empty, |list| {
+                                                list.child(crate::table::rows(self, theme, cx))
+                                            }),
+                                    ),
+                            )
+                            .when(empty, |list| {
+                                list.child(crate::table::empty(self, theme, cx))
+                            }),
                     ),
             )
             .child(crate::statusbar::statusbar(self, theme, &screen, cx))

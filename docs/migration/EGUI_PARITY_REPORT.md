@@ -50,7 +50,7 @@ input, as the egui window holds them.
 | B23 | Selects a finished download and clicks Delete | window | 3 | holds | holds on macOS, Windows and Linux |
 | B38 | Selects a stopped, unfinished download and clicks Delete | window | 3 | holds | holds on macOS, Windows and Linux |
 | B24 | Clicks Delete Completed | window | 3 | holds | holds on macOS, Windows and Linux |
-| B25 | The empty window, Add URL, and Download details | window | 8 | holds | holds on macOS, Windows and Linux |
+| B25 | The empty window, Add URL, and Download details | window | 8 | holds | holds on macOS, Windows and Linux; the empty window has its prompt since 2026-11-11 (macOS baseline drawn again; Linux and Windows to draw theirs again) |
 | B42 | Opens a dialog (Add URL, Download details, Options, a question) and drags it by its tit… | window | 8 | holds | holds on macOS, Windows and Linux |
 | B43 | Opens Options and looks at its tabs; opens Advanced | window | 7 | holds | holds on macOS, Windows and Linux |
 | B44 | Opens Download details for a link that ends in `.zip` (from Add URL or the browser), or… | window | 4 | holds | holds on macOS, Windows and Linux |

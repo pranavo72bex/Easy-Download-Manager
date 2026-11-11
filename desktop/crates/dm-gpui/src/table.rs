@@ -60,6 +60,17 @@ pub fn columns(view: &Downloads) -> Vec<Column> {
 /// scroll sideways first, as a macOS list does.
 const NAME_AT_LEAST: f32 = 180.0;
 
+/// How wide the shown columns are together, in points, the file name's at
+/// its least: narrower than this, the list scrolls sideways.
+pub fn least_width(view: &Downloads) -> f32 {
+    // The row's own margins (`px_1` each side) beside its cells.
+    columns(view)
+        .into_iter()
+        .map(|column| width(column).unwrap_or(NAME_AT_LEAST))
+        .sum::<f32>()
+        + 8.0
+}
+
 /// A cell of `column` sized as its column is: one line, cut short with an
 /// ellipsis where its words are longer.
 fn cell(column: Column) -> gpui::Div {
@@ -315,6 +326,60 @@ fn row_cells(
         .collect()
 }
 
+/// What stands under the headings where the place chosen shows no row: as
+/// the egui window says it (`rows::empty_words`), and while nothing at all
+/// is listed, the next step as a button and where links may be dropped.
+/// Without it a new window was an empty table that said nothing.
+pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
+    let screen = view.screen.clone();
+    let filtered = !view.filter.read(cx).value().trim().is_empty();
+    let (heading, line, next_step) =
+        dm_desktop_base::rows::empty_words(!view.rows.is_empty(), filtered);
+    div()
+        .id("empty-list")
+        .flex_1()
+        .flex()
+        .flex_col()
+        .items_center()
+        .pt(px(40.0))
+        .px(px(crate::native::MARGIN))
+        .gap(px(4.0))
+        .child(
+            div()
+                .text_size(px(16.0))
+                .child(screen.label(SharedString::from(heading))),
+        )
+        .child(
+            div()
+                .text_color(theme.muted)
+                .child(screen.label(SharedString::from(line))),
+        )
+        .when(next_step, |empty| {
+            empty
+                .child(
+                    div().pt(px(8.0)).child(
+                        crate::native::button(
+                            "add-a-download",
+                            t("Add a download").into(),
+                            true,
+                            theme,
+                            &screen,
+                        )
+                        .on_click(cx.listener(|view, _, _, cx| {
+                            view.run(dm_shell::app::commands::Command::AddUrl, cx);
+                        })),
+                    ),
+                )
+                .child(
+                    div()
+                        .pt(px(8.0))
+                        .text_size(px(crate::native::SMALL_TEXT))
+                        .text_color(theme.muted)
+                        .child(screen.label(SharedString::from(t(crate::drops::DROP_HINT)))),
+                )
+        })
+}
+
 /// The rows of the place chosen.
 pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
     let screen = view.screen.clone();
@@ -426,6 +491,12 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
     )
     .track_scroll(&view.scroll)
     .flex_1()
+    // A sideways gesture is the table's, to move the columns (`list.rs`);
+    // the rows took it as an up-and-down one.
+    .map(|mut list| {
+        list.style().restrict_scroll_to_axis = Some(true);
+        list
+    })
 }
 
 #[cfg(test)]
