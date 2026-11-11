@@ -130,23 +130,28 @@ impl Options {
         self.fields.clear();
     }
 
-    /// The system's folder panel, through the main window's services.
-    pub(crate) fn choose_folder(&self, cx: &App) -> Option<String> {
-        let view = self.view.upgrade()?;
-        let picked = view.read(cx).backend.platform.choose_folder()?;
-        Some(picked.display().to_string())
+    /// The system's folder panel; `then` with the folder chosen, once it
+    /// is closed (`services::ask`: the window is not held meanwhile).
+    pub(crate) fn choose_folder(
+        &self,
+        cx: &mut Context<Self>,
+        then: impl FnOnce(&mut Self, String, &mut Context<Self>) + 'static,
+    ) {
+        crate::services::ask_then(crate::services::Asked::folder(), cx, |o, picked, cx| {
+            then(o, picked.display().to_string(), cx)
+        });
     }
 
-    /// The system's open or save panel, `name` suggested.
+    /// The system's open or save panel, `name` suggested; `then` with the
+    /// file chosen, once it is closed.
     pub(crate) fn choose_file(
         &self,
         save: bool,
         name: &str,
-        cx: &App,
-    ) -> Option<std::path::PathBuf> {
-        let view = self.view.upgrade()?;
-        let picked = view.read(cx).backend.platform.choose_file(save, name);
-        picked
+        cx: &mut Context<Self>,
+        then: impl FnOnce(&mut Self, std::path::PathBuf, &mut Context<Self>) + 'static,
+    ) {
+        crate::services::ask_then(crate::services::Asked::file(save, name), cx, then);
     }
 
     /// A sound file played, as it would be heard.

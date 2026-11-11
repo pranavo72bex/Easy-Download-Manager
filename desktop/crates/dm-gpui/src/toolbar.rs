@@ -212,18 +212,19 @@ impl Downloads {
         if moved == onto {
             return;
         }
-        let mut wanted = self.backend.settings();
-        let order: Vec<Command> = dm_shell::app::commands::toolbar_in(&wanted.toolbar_order)
+        let now = self.backend.settings();
+        let order: Vec<Command> = dm_shell::app::commands::toolbar_in(&now.toolbar_order)
             .into_iter()
             .map(|(c, _)| c)
             .collect();
         let Some(order) = crate::table::moved_onto(order, moved, onto) else {
             return;
         };
-        wanted.toolbar_order = order.iter().map(|c| c.id().to_string()).collect();
-        if let Err(e) = self.apply_settings(wanted, cx) {
-            self.say(e);
-        }
+        // The window's look alone: the file is written off its thread.
+        self.backend.keep_look(|settings| {
+            settings.toolbar_order = order.iter().map(|c| c.id().to_string()).collect();
+        });
+        self.read();
         cx.notify();
     }
 }

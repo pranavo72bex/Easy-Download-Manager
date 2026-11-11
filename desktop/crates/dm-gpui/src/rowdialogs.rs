@@ -129,21 +129,32 @@ impl UpdateLink {
             window.remove_window();
             return;
         };
-        let taken = row_edits::update_link(&view.read(cx).backend, self.id, &typed);
-        match taken {
-            Ok(()) => {
-                self.done = true;
-                window.remove_window();
-                view.update(cx, |view, cx| {
+        // Off the window's thread: a running download is stopped first, and
+        // that is waited for (gaps row 183). A second OK meanwhile is not
+        // taken; the dialog closes, or says why not, once it is done.
+        self.done = true;
+        let (id, me, dialog) = (self.id, cx.entity().downgrade(), window.window_handle());
+        view.update(cx, |view, cx| {
+            view.later(
+                move |backend| row_edits::update_link(backend, id, &typed),
+                move |view, taken, cx| {
                     view.read();
-                    cx.notify();
-                });
-            }
-            Err(e) => {
-                self.says = Some(e.into());
-                cx.notify();
-            }
-        }
+                    match taken {
+                        Ok(()) => cx.defer(move |cx| {
+                            let _ = dialog.update(cx, |_, window, _| window.remove_window());
+                        }),
+                        Err(e) => {
+                            let _ = me.update(cx, |me, cx| {
+                                me.done = false;
+                                me.says = Some(e.into());
+                                cx.notify();
+                            });
+                        }
+                    }
+                },
+                cx,
+            );
+        });
     }
 
     /// Get it from the browser: the page opened again, and the next
@@ -423,12 +434,19 @@ impl MoveRenameDialog {
         };
         self.done = true;
         window.remove_window();
+        // Off the window's thread: a file moved to another disk is copied
+        // whole (gaps row 183). What came of it is said once it is done.
         let _ = self.view.update(cx, |view, cx| {
-            if let Some(said) = asked.carry(&view.backend) {
-                view.say(said.shown());
-            }
-            view.read();
-            cx.notify();
+            view.later(
+                move |backend| asked.carry(backend),
+                |view, said, _| {
+                    if let Some(said) = said {
+                        view.say(said.shown());
+                    }
+                    view.read();
+                },
+                cx,
+            );
         });
     }
 
@@ -439,15 +457,16 @@ impl MoveRenameDialog {
 
     /// Browse…: the system's folder panel.
     fn browse(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(view) = self.view.upgrade() else {
-            return;
-        };
-        let picked = view.read(cx).backend.platform.choose_folder();
-        if let Some(picked) = picked {
-            self.folder.update(cx, |f, cx| {
-                f.set_value(picked.display().to_string(), window, cx)
-            });
-        }
+        crate::services::ask_then_in(
+            crate::services::Asked::folder(),
+            window,
+            cx,
+            |this: &mut Self, picked, window, cx| {
+                this.folder.update(cx, |f, cx| {
+                    f.set_value(picked.display().to_string(), window, cx)
+                });
+            },
+        );
     }
 }
 

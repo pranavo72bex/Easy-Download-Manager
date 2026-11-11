@@ -526,15 +526,20 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
         );
         let chosen_key = key.clone();
         let choose = button(p, ("sound-choose", n), t("Choose…")).on_click(cx.listener(
-            move |o, _, _, cx| {
-                if let Some(file) = rfd::FileDialog::new()
-                    .add_filter("WAV", &["wav"])
-                    .pick_file()
-                {
-                    o.put(&chosen_key, &file.display().to_string());
-                    o.forget_field(&chosen_key);
-                    cx.notify();
-                }
+            move |_, _, _, cx| {
+                let chosen_key = chosen_key.clone();
+                crate::services::ask_then(
+                    crate::services::Asked {
+                        filter: Some(("WAV", &["wav"])),
+                        ..Default::default()
+                    },
+                    cx,
+                    move |o: &mut Options, file, cx| {
+                        o.put(&chosen_key, &file.display().to_string());
+                        o.forget_field(&chosen_key);
+                        cx.notify();
+                    },
+                );
             },
         ));
         let has = !path.trim().is_empty();
@@ -686,7 +691,7 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
     p.section(t("Settings file"));
     let save = button(p, "settings-save", t("Save settings to a file…")).on_click(cx.listener(
         |o, _, _, cx| {
-            if let Some(path) = o.choose_file(true, "dm-settings.json", cx) {
+            o.choose_file(true, "dm-settings.json", cx, |o, path, cx| {
                 o.says = Some(
                     match std::fs::write(&path, o.draft.exported()) {
                         Ok(()) => tf("Saved to {}, without any password.", &[&path.display()]),
@@ -695,12 +700,12 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                     .into(),
                 );
                 cx.notify();
-            }
+            });
         },
     ));
     let load = button(p, "settings-load", t("Load settings from a file…")).on_click(cx.listener(
         |o, _, _, cx| {
-            if let Some(path) = o.choose_file(false, "dm-settings.json", cx) {
+            o.choose_file(false, "dm-settings.json", cx, |o, path, cx| {
                 let read = std::fs::read_to_string(&path)
                     .map_err(|e| e.to_string())
                     .and_then(|text| o.draft.imported(&text));
@@ -716,7 +721,7 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                     .into(),
                 );
                 cx.notify();
-            }
+            });
         },
     ));
     p.add(
@@ -1000,11 +1005,11 @@ fn folder(
     let field = input(o, window, cx, key, label, 330.0, on, false, value);
     let browse = button(p, SharedString::from(format!("browse-{key}")), t("Browse…")).on_click(
         cx.listener(move |o, _, _, cx| {
-            if let Some(folder) = o.choose_folder(cx) {
+            o.choose_folder(cx, move |o, folder, cx| {
                 set(o, folder);
                 o.forget_field(key);
                 cx.notify();
-            }
+            });
         }),
     );
     p.add(native::enabled(
@@ -1703,13 +1708,13 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
         );
         let browse = button(p, ("site-rule-browse", i), t("Browse…")).on_click(cx.listener(
             move |o, _, _, cx| {
-                if let Some(folder) = o.choose_folder(cx) {
+                o.choose_folder(cx, move |o, folder, cx| {
                     if let Some(rule) = o.draft.site_rules.get_mut(i) {
                         rule.folder = folder;
                     }
                     o.forget_field(&format!("site_rules.{i}.folder"));
                     cx.notify();
-                }
+                });
             },
         ));
         let speed = input(
@@ -1770,15 +1775,19 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
         false,
         |o| o.draft.cookies_file.clone(),
     );
-    let choose = button(p, "cookies-choose", t("Choose…")).on_click(cx.listener(|o, _, _, cx| {
-        if let Some(file) = rfd::FileDialog::new()
-            .add_filter("cookies.txt", &["txt"])
-            .pick_file()
-        {
-            o.put("cookies_file", &file.display().to_string());
-            o.forget_field("cookies_file");
-            cx.notify();
-        }
+    let choose = button(p, "cookies-choose", t("Choose…")).on_click(cx.listener(|_, _, _, cx| {
+        crate::services::ask_then(
+            crate::services::Asked {
+                filter: Some(("cookies.txt", &["txt"])),
+                ..Default::default()
+            },
+            cx,
+            |o: &mut Options, file, cx| {
+                o.put("cookies_file", &file.display().to_string());
+                o.forget_field("cookies_file");
+                cx.notify();
+            },
+        );
     }));
     let has_cookies = !o.draft.cookies_file.is_empty();
     let clear = button(p, "cookies-clear", t("Clear")).on_click(cx.listener(|o, _, _, cx| {

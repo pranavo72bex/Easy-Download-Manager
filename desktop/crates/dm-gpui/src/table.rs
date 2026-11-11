@@ -215,14 +215,15 @@ impl Downloads {
         if moved == onto || moved == Column::Name || onto == Column::Name {
             return;
         }
-        let mut wanted = self.backend.settings();
-        let Some(order) = moved_onto(Column::ordered(&wanted.column_order), moved, onto) else {
+        let now = self.backend.settings();
+        let Some(order) = moved_onto(Column::ordered(&now.column_order), moved, onto) else {
             return;
         };
-        wanted.column_order = order.iter().map(|c| c.key().to_string()).collect();
-        if let Err(e) = self.apply_settings(wanted, cx) {
-            self.say(e);
-        }
+        // The window's look alone: the file is written off its thread.
+        self.backend.keep_look(|settings| {
+            settings.column_order = order.iter().map(|c| c.key().to_string()).collect();
+        });
+        self.read();
         cx.notify();
     }
 }

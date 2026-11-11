@@ -135,6 +135,7 @@ const RUNNING: Duration = Duration::from_millis(250);
 /// window opens instead.
 const HIDDEN_WAIT: Duration = Duration::from_secs(10);
 
+mod later;
 mod questions;
 mod refresh;
 use refresh::{clicked, holding_top};
@@ -289,6 +290,12 @@ pub struct Downloads {
     /// look is under way (`look_for_files`).
     files_looked: Option<Instant>,
     looking_for_files: bool,
+    /// Work handed off the window's thread and not answered yet, and the
+    /// control port's `command.run` answers held until it is
+    /// (`list/later.rs`).
+    errands: later::Pending,
+    /// The clipboard is being read off the window's thread (`clipwatch`).
+    pub(crate) clipboard_reading: bool,
     /// The rows on screen, as the list last laid them out.
     pub(crate) visible: std::ops::Range<usize>,
     /// Where each row shown is in the list, by id (`reshow`).
@@ -395,6 +402,8 @@ impl Downloads {
             queue_list: Vec::new(),
             files_looked: None,
             looking_for_files: false,
+            errands: Default::default(),
+            clipboard_reading: false,
             visible: 0..0,
             positions: Default::default(),
             named_at: None,
@@ -629,7 +638,7 @@ impl Downloads {
                 Some(why) => Err(why),
                 None => crate::probe::answer(self, &request.method, &request.params, window, cx),
             };
-            let _ = request.reply.send(answer);
+            self.reply(&request.method, (request.reply, answer));
         }
         true
     }
@@ -866,8 +875,32 @@ impl Downloads {
             }
             _ => {}
         }
-        let queue = self.current_queue();
-        let ran = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
+        if dm_shell::app::commands::is_verb(command) {
+            // Off the window's thread: Stop on ten thousand chosen rows is
+            // ten thousand changes to the queue (gaps row 183).
+            let queue = self.current_queue();
+            let ids: Vec<dm_core::Id> = chosen.iter().map(|r| r.id).collect();
+            self.later(
+                move |backend| dm_shell::app::commands::verb(command, backend, &chosen, &queue),
+                move |this, ran, cx| this.verb_done(command, &ids, ran, cx),
+                cx,
+            );
+            return;
+        }
+        self.read();
+        cx.notify();
+    }
+
+    /// What a command `commands::verb` carried out on the rows `chosen`
+    /// did, said and shown, once it is done.
+    fn verb_done(
+        &mut self,
+        command: dm_shell::app::commands::Command,
+        chosen: &[dm_core::Id],
+        ran: Option<dm_shell::app::commands::Ran>,
+        cx: &mut Context<Self>,
+    ) {
+        use dm_shell::app::commands::Command;
         self.read();
         if let Some(dm_shell::app::commands::Ran::Cleared(n)) = ran {
             self.say(dm_desktop_base::i18n::tn(
@@ -880,9 +913,9 @@ impl Downloads {
         // not one its person closed: fifteen Resumes opened it fifteen
         // times over the list. Show progress still opens it.
         if command == Command::DownloadNow && self.backend.settings().show_progress {
-            for row in &chosen {
-                if !self.progress_closed.contains(&row.id) {
-                    self.show_progress(row.id, cx);
+            for id in chosen {
+                if !self.progress_closed.contains(id) {
+                    self.show_progress(*id, cx);
                 }
             }
         }
@@ -1155,9 +1188,27 @@ impl Downloads {
         queue: &str,
         cx: &mut Context<Self>,
     ) {
+        // Off the window's thread, as the commands on rows are (gaps row
+        // 183), and said once done.
+        let asked = queue.to_string();
+        let queue = queue.to_string();
+        self.later(
+            move |backend| dm_shell::app::commands::verb(command, backend, &[], &asked),
+            move |this, ran, cx| this.ran_on_queue(command, &queue, ran, cx),
+            cx,
+        );
+    }
+
+    /// What Start Queue or Stop Queue on `queue` did, said.
+    fn ran_on_queue(
+        &mut self,
+        command: dm_shell::app::commands::Command,
+        queue: &str,
+        ran: Option<dm_shell::app::commands::Ran>,
+        cx: &mut Context<Self>,
+    ) {
         use dm_desktop_base::i18n::{tf, tn};
         use dm_shell::app::commands::{Command, Ran};
-        let ran = dm_shell::app::commands::verb(command, &self.backend, &[], queue);
         self.read();
         let name = dm_desktop_base::i18n::name(queue);
         match (command, ran) {
@@ -1525,14 +1576,29 @@ impl Downloads {
             .reveal_later(path, Box::new(move |why| *dm_core::lock(&said) = Some(why)));
     }
 
-    /// Open with…: the app chosen in the system's own panel.
-    pub fn open_path_with(&mut self, path: &str) {
-        let chosen = self.backend.platform.choose_app();
-        if let Some(app) = chosen {
-            if let Err(e) = self.backend.platform.open_with(path, &app) {
-                self.say(e);
-            }
-        }
+    /// Open with…: the app chosen in the system's own panel, the window
+    /// going on meanwhile; then `after`, chosen or not.
+    pub fn open_path_with(
+        &mut self,
+        path: &str,
+        after: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        let chosen = crate::services::ask(crate::services::Asked::app());
+        let path = path.to_string();
+        cx.spawn(async move |this, cx| {
+            let app = chosen.await;
+            let _ = this.update(cx, |this, cx| {
+                if let Some(app) = app {
+                    if let Err(e) = this.backend.platform.open_with(&path, &app) {
+                        this.say(e);
+                    }
+                }
+                after(this, cx);
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     /// What an opener said went wrong, from its thread.
@@ -1932,7 +1998,7 @@ impl Downloads {
         let answer: crate::question::Answer = Box::new(move |button, delete, cx| {
             if button == 1 {
                 let _ = view.update(cx, |view, cx| {
-                    view.removed(&ids, &files, delete);
+                    view.removed(&ids, &files, delete, cx);
                     cx.notify();
                 });
             }
@@ -1942,17 +2008,16 @@ impl Downloads {
 
     /// The rows `ids` taken off the list, their finished `files` with them
     /// to the Trash where `delete`; the choice goes to the row after them.
-    fn removed(&mut self, ids: &[dm_core::Id], files: &[String], delete: bool) {
-        let mut failed: Vec<String> = Vec::new();
-        if delete {
-            for path in files {
-                // A finished torrent still shared lets go of its files first.
-                dm_core::stop_sharing(std::path::Path::new(path));
-                if let Err(e) = self.backend.platform.trash(path) {
-                    failed.push(format!("{path}: {e}"));
-                }
-            }
-        }
+    /// The Trash and the queue's change are made off the window's thread
+    /// (each file is a round trip to the Finder on macOS: gaps row 183),
+    /// and the choice moved and a failure said once they are done.
+    fn removed(
+        &mut self,
+        ids: &[dm_core::Id],
+        files: &[String],
+        delete: bool,
+        cx: &mut Context<Self>,
+    ) {
         // The row after those removed, or the one before where they were
         // the last, is chosen next, so the keys have somewhere to go on from.
         let shown: Vec<dm_core::Id> = (0..self.shown.len())
@@ -1968,16 +2033,35 @@ impl Downloads {
                     .or_else(|| shown[..last].iter().rev().find(|id| !ids.contains(id)))
                     .copied()
             });
-        self.backend.remove_many(ids);
-        self.read();
-        self.selected = next.into_iter().collect();
-        self.anchor = next;
-        if !failed.is_empty() {
-            self.say(dm_desktop_base::i18n::tf(
-                "Could not delete {}",
-                &[&failed.join("; ")],
-            ));
-        }
+        let (ids, files) = (ids.to_vec(), files.to_vec());
+        self.later(
+            move |backend| {
+                let mut failed: Vec<String> = Vec::new();
+                if delete {
+                    for path in &files {
+                        // A finished torrent still shared lets go of its files first.
+                        dm_core::stop_sharing(std::path::Path::new(path));
+                        if let Err(e) = backend.platform.trash(path) {
+                            failed.push(format!("{path}: {e}"));
+                        }
+                    }
+                }
+                backend.remove_many(&ids);
+                failed
+            },
+            move |this, failed, _| {
+                this.read();
+                this.selected = next.into_iter().collect();
+                this.anchor = next;
+                if !failed.is_empty() {
+                    this.say(dm_desktop_base::i18n::tf(
+                        "Could not delete {}",
+                        &[&failed.join("; ")],
+                    ));
+                }
+            },
+            cx,
+        );
     }
 
     /// Puts back the rows the last Remove took off, while Undo is on offer.
@@ -1992,6 +2076,17 @@ impl Downloads {
                 &[&n],
             ));
         }
+    }
+
+    /// The row of download `id`, found by where the list shows it, else
+    /// by a look over every row (a row the place chosen does not show).
+    pub(crate) fn row_of(&self, id: dm_core::Id) -> Option<&Arc<Entry>> {
+        self.positions
+            .get(&id)
+            .and_then(|&at| self.shown.get(at))
+            .and_then(|&r| self.rows.get(r))
+            .filter(|r| r.id == id)
+            .or_else(|| self.rows.iter().find(|r| r.id == id))
     }
 
     /// Says `sentence` in the status bar.

@@ -84,38 +84,54 @@ impl Properties {
             &self.password.read(cx).value(),
         );
         let description = self.note.read(cx).value().to_string();
-        let kept = row_edits::keep_properties(
-            &view.read(cx).backend,
-            &row,
-            &Edited {
-                description: &description,
-                address: &address,
-                files: &self.files,
-                priorities: &self.priorities,
-            },
-        );
-        match kept {
-            Ok(retried) => {
-                self.done = true;
-                window.remove_window();
-                view.update(cx, |view, cx| {
-                    // A sign-in given to a download that failed for want of
-                    // one: it is tried again with it.
-                    if retried {
-                        view.say(tf(
-                            "Trying {} again with the sign-in.",
-                            &[&dm_shell::app::names::name_of(&row)],
-                        ));
+        let (files, priorities) = (self.files.clone(), self.priorities.clone());
+        // Off the window's thread: a new address for a running download
+        // stops it first, and that is waited for (gaps row 183). A second
+        // OK meanwhile is not taken; the window closes, or says why not,
+        // once it is done.
+        self.done = true;
+        let (me, dialog) = (cx.entity().downgrade(), window.window_handle());
+        view.update(cx, |view, cx| {
+            let kept_row = row.clone();
+            view.later(
+                move |backend| {
+                    row_edits::keep_properties(
+                        backend,
+                        &kept_row,
+                        &Edited {
+                            description: &description,
+                            address: &address,
+                            files: &files,
+                            priorities: &priorities,
+                        },
+                    )
+                },
+                move |view, kept, cx| match kept {
+                    Ok(retried) => {
+                        // A sign-in given to a download that failed for want
+                        // of one: it is tried again with it.
+                        if retried {
+                            view.say(tf(
+                                "Trying {} again with the sign-in.",
+                                &[&dm_shell::app::names::name_of(&row)],
+                            ));
+                        }
+                        view.read();
+                        cx.defer(move |cx| {
+                            let _ = dialog.update(cx, |_, window, _| window.remove_window());
+                        });
                     }
-                    view.read();
-                    cx.notify();
-                });
-            }
-            Err(e) => {
-                self.says = Some(e.into());
-                cx.notify();
-            }
-        }
+                    Err(e) => {
+                        let _ = me.update(cx, |me, cx| {
+                            me.done = false;
+                            me.says = Some(e.into());
+                            cx.notify();
+                        });
+                    }
+                },
+                cx,
+            );
+        });
     }
 
     fn cancel(&mut self, window: &mut Window) {

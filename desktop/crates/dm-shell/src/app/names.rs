@@ -33,7 +33,34 @@ pub fn host(url: &str) -> String {
 
 /// What to call a row the probe has not reached yet: the last path segment,
 /// which is the engine's own fallback, or a magnet's `dn`.
+///
+/// Kept by address once worked out, on the thread that asked: the window
+/// names every row from it at a read, twice, and parsing ten thousand
+/// addresses each time was most of what a read cost after Stop on ten
+/// thousand rows (gaps row 183).
 pub fn provisional(url: &str) -> String {
+    /// How many names are kept before they are all let go.
+    const KEPT: usize = 50_000;
+    thread_local! {
+        static NAMED: std::cell::RefCell<std::collections::HashMap<String, String>> =
+            std::cell::RefCell::default();
+    }
+    NAMED.with(|named| {
+        if let Some(name) = named.borrow().get(url) {
+            return name.clone();
+        }
+        let name = provisional_of(url);
+        let mut named = named.borrow_mut();
+        if named.len() >= KEPT {
+            named.clear();
+        }
+        named.insert(url.to_string(), name.clone());
+        name
+    })
+}
+
+/// [`provisional`], worked out.
+fn provisional_of(url: &str) -> String {
     let Ok(parsed) = url::Url::parse(url) else {
         return url.to_string();
     };

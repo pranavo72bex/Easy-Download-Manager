@@ -42,7 +42,7 @@ impl Downloads {
         }
         match command {
             Command::OpenFile => self.open_path(&row.path),
-            Command::OpenWith => self.open_path_with(&row.path),
+            Command::OpenWith => self.open_path_with(&row.path, |_, _| {}, cx),
             Command::OpenFolder => self.reveal_path(&row.path),
             Command::Preview => match self.backend.preview(row.id) {
                 Ok(path) => self.open_path(&path.to_string_lossy()),
@@ -54,9 +54,12 @@ impl Downloads {
             },
             Command::ExtractHere => self.extract(&row.path, &row.url, None),
             Command::ExtractTo => {
-                if let Some(folder) = self.backend.platform.choose_folder() {
-                    self.extract(&row.path, &row.url, Some(folder));
-                }
+                let (path, url) = (row.path.clone(), row.url.clone());
+                crate::services::ask_then(
+                    crate::services::Asked::folder(),
+                    cx,
+                    move |view: &mut Self, folder, _| view.extract(&path, &url, Some(folder)),
+                );
             }
             _ => {}
         }
@@ -108,9 +111,15 @@ impl Downloads {
     /// is a download, not a list); where some of its addresses are listed
     /// already, asked first whether to skip them or add them again.
     pub(crate) fn import(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self.backend.platform.choose_file(false, "") else {
-            return;
-        };
+        crate::services::ask_then(
+            crate::services::Asked::file(false, ""),
+            cx,
+            |view: &mut Self, path, cx| view.import_from(&path, cx),
+        );
+    }
+
+    /// Import of the list at `path`, chosen in the panel.
+    fn import_from(&mut self, path: &std::path::Path, cx: &mut Context<Self>) {
         if let Some(local) = dm_desktop_base::add_url::local_torrent(&path.to_string_lossy()) {
             let items = vec![(local, dm_core::AddOptions::default())];
             if let Err(e) = self.add_items(items, cx) {
@@ -118,7 +127,7 @@ impl Downloads {
             }
             return;
         }
-        let text = match std::fs::read_to_string(&path) {
+        let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(e) => {
                 self.say(tf(
@@ -188,18 +197,29 @@ impl Downloads {
         cx.notify();
     }
 
-    /// Export: the list written where the system's save panel says.
+    /// Export: the list written where the system's save panel says, off
+    /// the window's thread (a long list is a long file), and said once it
+    /// is.
     pub(crate) fn export(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self.backend.platform.choose_file(true, "downloads.dmlist") else {
-            return;
-        };
-        match std::fs::write(&path, self.backend.export()) {
-            Ok(()) => self.say(tf("Exported to {}.", &[&path.display()])),
-            Err(e) => self.say(tf(
-                "{} could not be written: {}",
-                &[&path.display(), &dm_desktop_base::format::file_error(&e)],
-            )),
-        }
-        cx.notify();
+        crate::services::ask_then(
+            crate::services::Asked::file(true, "downloads.dmlist"),
+            cx,
+            |view: &mut Self, path, cx| {
+                view.later(
+                    move |backend| {
+                        let written = std::fs::write(&path, backend.export());
+                        (path, written)
+                    },
+                    |view, (path, written), _| match written {
+                        Ok(()) => view.say(tf("Exported to {}.", &[&path.display()])),
+                        Err(e) => view.say(tf(
+                            "{} could not be written: {}",
+                            &[&path.display(), &dm_desktop_base::format::file_error(&e)],
+                        )),
+                    },
+                    cx,
+                );
+            },
+        );
     }
 }

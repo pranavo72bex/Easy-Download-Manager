@@ -80,15 +80,16 @@ impl Welcome {
     }
 
     fn browse(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(view) = self.view.upgrade() else {
-            return;
-        };
-        let picked = view.read(cx).backend.platform.choose_folder();
-        if let Some(picked) = picked {
-            self.folder.update(cx, |f, cx| {
-                f.set_value(picked.display().to_string(), window, cx)
-            });
-        }
+        crate::services::ask_then_in(
+            crate::services::Asked::folder(),
+            window,
+            cx,
+            |this: &mut Self, picked, window, cx| {
+                this.folder.update(cx, |f, cx| {
+                    f.set_value(picked.display().to_string(), window, cx)
+                });
+            },
+        );
     }
 }
 

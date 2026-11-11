@@ -85,7 +85,12 @@ impl Complete {
             }
             match how {
                 0 => view.open_path(&path),
-                1 => view.open_path_with(&path),
+                // It leaves the list once the panel is closed, as when the
+                // window waited for the panel.
+                1 => {
+                    view.open_path_with(&path, move |view, cx| view.complete_done(id, cx), cx);
+                    return;
+                }
                 _ => view.reveal_path(&path),
             }
             view.complete_done(id, cx);

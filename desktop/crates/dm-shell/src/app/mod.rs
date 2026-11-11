@@ -20,6 +20,7 @@ pub mod changes;
 pub mod commands;
 pub mod control_api;
 pub mod detect;
+pub mod errands;
 pub mod events;
 pub mod files;
 pub mod handoff;

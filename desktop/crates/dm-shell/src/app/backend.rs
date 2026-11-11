@@ -38,6 +38,9 @@ pub struct Backend {
     /// Videos the browser's panel handed over to be asked about: the window
     /// opens "Download details" for each before it starts.
     pub handed: Arc<Mutex<std::collections::VecDeque<crate::host::Request>>>,
+    /// Where slow work the window asks for is done, off its thread, in the
+    /// order asked (`Self::later`).
+    errands: Arc<crate::app::errands::Errands>,
 }
 
 impl Backend {
@@ -56,7 +59,34 @@ impl Backend {
             notices: Arc::new(Mutex::new(notices)),
             platform,
             handed: Arc::default(),
+            errands: Arc::default(),
         }
+    }
+
+    /// Does `work` off the caller's thread, after the work asked for before
+    /// it (`errands`): what a window's handler would otherwise wait for, a
+    /// file copied to another disk or a command on ten thousand rows (gaps
+    /// row 183). Its answer is awaited where it is to be shown.
+    pub fn later<R: Send + 'static>(
+        &self,
+        work: impl FnOnce(&Backend) -> R + Send + 'static,
+    ) -> crate::app::errands::Answer<R> {
+        let backend = self.clone();
+        self.errands.run(move || work(&backend))
+    }
+
+    /// Runs `work` on the engine's runtime, beside the downloads rather
+    /// than behind the window's errands: a read a window draws from (a
+    /// download's pieces), which must not wait for a file being moved.
+    pub fn on_runtime<R: Send + 'static>(
+        &self,
+        work: impl std::future::Future<Output = R> + Send + 'static,
+    ) -> crate::app::errands::Answer<R> {
+        let (tell, answer) = tokio::sync::oneshot::channel();
+        self.runtime.spawn(async move {
+            let _ = tell.send(work.await);
+        });
+        crate::app::errands::Answer(answer)
     }
 
     /// Places a download begun while Download details asked (`Queue::settle_early`).
@@ -385,6 +415,29 @@ impl Backend {
             .save()
             .map_err(|e| format!("settings could not be saved: {e}"))?;
         Ok(settings)
+    }
+
+    /// A change to how the window looks and nothing else (a column or a
+    /// toolbar button dragged to another place): in force at once, and the
+    /// settings file written off the caller's thread, after the errands
+    /// asked before it (gaps row 183). Nothing reaches the queue, so
+    /// nothing is applied to it. What is written is the settings in force
+    /// when the errand runs, so a change made meanwhile is not written over
+    /// by an older copy; a file that cannot be written is said in the
+    /// banner.
+    pub fn keep_look(&self, change: impl FnOnce(&mut Settings)) -> Settings {
+        let now = {
+            let mut settings = dm_core::lock(&self.settings);
+            change(&mut settings);
+            settings.clone()
+        };
+        // Not awaited: the errand runs whether or not its answer is.
+        drop(self.later(|backend| {
+            if let Err(e) = backend.settings().save() {
+                backend.note(format!("settings could not be saved: {e}"));
+            }
+        }));
+        now
     }
 
     /// Add URL's remembered addresses, kept and saved alone: nothing else
@@ -848,6 +901,29 @@ mod chooser_tests {
         assert!(super::chooser_here(true, None));
         std::fs::write(dir.path().join("zenity"), "").unwrap();
         assert!(super::chooser_here(false, Some(&path)));
+    }
+}
+
+#[cfg(test)]
+mod keep_look_tests {
+    use super::testing::backend;
+
+    /// A column dragged is in force at once and reaches the settings file
+    /// off the caller's thread; a change made meanwhile is not written over.
+    #[test]
+    fn a_look_kept_is_in_force_at_once_and_written_after() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        let order = vec!["size".to_string(), "status".to_string()];
+        let now = backend.keep_look(|s| s.column_order.clone_from(&order));
+        assert_eq!(now.column_order, order);
+        assert_eq!(backend.settings().column_order, order);
+        // An errand after it runs once it is written. (What the file holds
+        // is not compared: this crate's other tests write it at the same
+        // time, from their own backends.)
+        let written = runtime.block_on(backend.later(|_| crate::Settings::path().is_file()));
+        assert_eq!(written, Some(true));
     }
 }
 
