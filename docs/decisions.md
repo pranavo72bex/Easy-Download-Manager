@@ -6367,3 +6367,37 @@ Tried and dropped:
   settings copied and 0 file-system calls; before the change, 1 and 2 file-system calls over 50
   and 61 frames.
 
+## 2026-11-12: Import adds off the window's thread; its rows still the window's own (gaps row 183)
+
+- **The rows an import adds are held, not judged, while it adds them.** The decision of the morning
+  kept Import on the window's thread because its rows are marked the window's own
+  (`Session::own`) once their ids are known, and a read in between would have taken them for rows
+  started elsewhere (a browser's hand-off). The ids cannot be known before the queue gives them
+  (`dm-core` is not changed here), so instead the read does not judge new rows while an import
+  runs: `Session::adding` (on the window's thread) counts one, the errand imports and says the ids
+  it was given (`Adding::added`, under the same lock as the count going down), and each read takes
+  those ids and the count before it reads the queue (`Detector::read_holding`). An adding begins
+  only on the window's thread, where the read is made, so none begins between the two: a row of an
+  import in the read is either held or among the ids said. Held rows are judged at the first read
+  with no import running, so a browser's hand-off added meanwhile is still told, late by the
+  import's length (0.5 s for 10,000 links), rather than an imported row taken for one. An errand
+  that panics drops its `Adding` and its rows are then judged as any new row.
+- **Reserving ids or marking before adding was not done:** both need the queue to hand out ids
+  before it adds, an engine change on the other track's ground.
+- **The rows imported are the ids the queue gave**, not the rows new since the import began, which
+  took a hand-off added meanwhile for the list's (and read the whole queue twice).
+- **The list is read, and what of it is listed already counted, on the errand too**, and counted
+  against a set of the listed addresses made once: going through every row for each link was
+  10,000 times 10,000 comparisons, and imported a second time a list of 10,000 held the window
+  more than a minute before it asked.
+- **`ui.choose {path}`**: the control port answers the next of dm's panels with a path (within 30 s,
+  then forgotten, so a stray one does not answer a person's panel later; refused to an assistant
+  over MCP). A script cannot reach the system's panel; Import is measured through it.
+- **Measured** (macOS, Apple M1, release, the other track benchmarking; `stress-check.py import`,
+  `ui.texts` asked every 20 ms on its own connection; the base build with `ui.choose` added before,
+  this one after): 10,000 links imported, worst answer 323 ms to 90 ms (71 in a second run), the
+  rows listed in 0.6 to 0.5 s and said with them (the sentence came 60 s late before, the window
+  busy); the same list again, asked in more than 60 s (the probe's wait ran out; the window
+  answered nothing meanwhile, worst 60,039 ms) to 356 to 378 ms, skipped in 0.9 to 1.0 s. The worst
+  answer through the second case is 278 to 312 ms, the question's window opening and closing
+  (265 ms with a list of 10 links): row 194.

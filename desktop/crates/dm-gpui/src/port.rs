@@ -61,6 +61,23 @@ fn reads(backend: Backend, assistants_only: bool) -> Reads {
                 "drawing": dm_shell::app::costs::so_far(),
             })));
         }
+        // The next panel answered with a path (`services::choose_ahead`),
+        // here so that a panel already being opened is not waited for; not
+        // for an assistant, which is not given the disk to choose from.
+        if method == "ui.choose" {
+            if via_mcp {
+                return Some(Err("ui.choose is for scripts on this computer".into()));
+            }
+            return Some(
+                match params.get("path").and_then(serde_json::Value::as_str) {
+                    Some(path) if !path.is_empty() => {
+                        crate::services::choose_ahead(path.into());
+                        Ok(serde_json::json!({ "chosen": path }))
+                    }
+                    _ => Err("give `path`: what the next panel is answered with".into()),
+                },
+            );
+        }
         if method != "queue.list" {
             return None;
         }

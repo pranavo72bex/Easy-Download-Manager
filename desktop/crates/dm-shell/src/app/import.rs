@@ -11,7 +11,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use dm_core::{Entry, Id};
+use dm_core::{Entry, Id, State};
 
 use crate::app::backend::Backend;
 
@@ -28,38 +28,47 @@ pub struct Imported {
     pub unread: usize,
 }
 
+/// The addresses of `rows` as `rules::already_listed` compares them
+/// (`lists::bare`), a cancelled row's left out: made once for a list, not
+/// gone through for each of its links (10,000 links at 10,000 rows was a
+/// hundred million comparisons).
+fn listed_addresses(rows: &[Arc<Entry>]) -> HashSet<String> {
+    rows.iter()
+        .filter(|r| r.state != State::Cancelled)
+        .map(|r| crate::lists::bare(&r.url))
+        .collect()
+}
+
 /// How many of the addresses list `text` holds are already rows of `rows`
-/// (`rules::already_listed`), and how many it holds in all.
+/// (as `rules::already_listed` finds them), and how many it holds in all.
 pub fn already_listed(rows: &[Arc<Entry>], text: &str) -> (usize, usize) {
     let listed = Backend::listed(text);
+    let known = listed_addresses(rows);
     let already = listed
         .iter()
-        .filter(|url| crate::app::rules::already_listed(rows, url).is_some())
+        .filter(|url| known.contains(&crate::lists::bare(url)))
         .count();
     (already, listed.len())
 }
 
 /// Adds the downloads list `text` holds; with `skip_listed`, not those whose
 /// address is already a row of `rows`.
+///
+/// The rows it added are those the queue gave it ids for, not the rows new
+/// since it began: a browser's hand-off added meanwhile is not the list's.
 pub fn import(backend: &Backend, rows: &[Arc<Entry>], text: &str, skip_listed: bool) -> Imported {
-    let before: HashSet<Id> = backend.list().iter().map(|r| r.id).collect();
     let skipped: HashSet<String> = if skip_listed {
+        let known = listed_addresses(rows);
         Backend::listed(text)
             .into_iter()
-            .filter(|url| crate::app::rules::already_listed(rows, url).is_some())
+            .filter(|url| known.contains(&crate::lists::bare(url)))
             .collect()
     } else {
         HashSet::new()
     };
-    let added = backend.import_where(text, |url| !skipped.contains(url));
-    let new = backend
-        .list()
-        .iter()
-        .map(|r| r.id)
-        .filter(|id| !before.contains(id))
-        .collect();
+    let new = backend.import_where(text, |url| !skipped.contains(url));
     Imported {
-        added,
+        added: new.len(),
         new,
         unread: unread_lines(text),
     }

@@ -2339,6 +2339,91 @@ def p_handlers(ctx):
         shutil.rmtree(dm.out, ignore_errors=True)
 
 
+@phase
+def p_import(ctx):
+    """Import of a list of 10,000 links: the window answers throughout, the rows are added, and the same list again asks first and skips them."""
+    base, root = ctx["base"], ctx["root"]
+    limit = 0.1
+    count = 10000
+    listed = root / "import-10000.txt"
+    listed.write_text("".join(f"{base}/f/im{i}/{MB}/im{i}.bin?rate=1024\n" for i in range(count)))
+
+    def said(dm):
+        # What the status bar says after its counts, from what is drawn (ui.inspect describes every row: slow
+        # at 10,000, and asked on the window's thread it would be what the probe measures).
+        texts = (dm.call("ui.texts").get("result") or {}).get("texts", [])
+        said = next((t["text"] for t in texts if "Imported" in t["text"]), "")
+        return said[said.find("Imported"):] if said else ""
+
+    def dialogs(dm):
+        return [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])]
+
+    def held(what, answers):
+        measure("import", f"{what}: ui.texts meanwhile median {answers.median() * 1000:.0f} ms, "
+                          f"worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
+        ok = check("import", f"the window answers in under {limit * 1000:.0f} ms throughout {what}",
+                   answers.worst() < limit, f"worst {answers.worst() * 1000:.0f} ms")
+        if not ok:
+            finding("high", "import", f"the window waited {answers.worst() * 1000:.0f} ms on its thread during {what}")
+
+    # Progress windows on, as a person has them: an imported row is the window's own and
+    # opens none (a row started elsewhere, a browser's, would).
+    dm = DM(root, {"connections": 1, "concurrency": 3, "show_progress": True}, name="import", window=True).start()
+    try:
+        time.sleep(1)
+        with Answers(dm) as answers:
+            t0 = time.time()
+            chose = dm.call("ui.choose", path=str(listed))
+            if not chose.get("ok"):
+                finding("info", "import", f"skipped: this dm cannot be given a list to import ({chose.get('error')})")
+                return
+            ran = dm.call("command.run", id="program.import")
+            took = time.time() - t0
+            added = wait_for(lambda: len(dm.rows()) == count, 180, every=0.25)
+            took_rows = time.time() - t0
+            told = wait_for(lambda: f"Imported {count}" in said(dm), 60, every=0.25)
+            took_all = time.time() - t0
+            time.sleep(0.5)
+        measure("import", f"{count:,} links imported: the command answered in {took * 1000:.0f} ms, "
+                          f"the rows listed in {took_rows:.1f} s, said in {took_all:.1f} s")
+        check("import", f"Import adds the {count:,} links", bool(added) and ran.get("ok"),
+              f"{ran.get('error') or ''} {len(dm.rows())} rows")
+        check("import", "Import says how many it added", bool(told), said(dm))
+        held(f"an import of {count:,} links", answers)
+        opened = dialogs(dm)
+        check("import", "the imported rows are the window's own: no progress window opens for them",
+              not opened, f"{opened}")
+        # The same list again: every link is listed already, so dm asks first; Skip them.
+        with Answers(dm) as answers:
+            t0 = time.time()
+            dm.call("ui.choose", path=str(listed))
+            dm.call("command.run", id="program.import")
+            asked = wait_for(lambda: any("already" in d.lower() for d in dialogs(dm)), 60, every=0.1)
+            took_ask = time.time() - t0
+            if asked:
+                dm.call("ui.click", text="Skip them")
+            skipped = wait_for(lambda: "Imported 0" in said(dm), 60, every=0.25)
+            took_all = time.time() - t0
+            time.sleep(0.5)
+        measure("import", f"the same list again: asked in {took_ask * 1000:.0f} ms, skipped in {took_all:.1f} s; "
+                          f"ui.texts meanwhile median {answers.median() * 1000:.0f} ms, "
+                          f"worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
+        check("import", "the same list again asks first, and Skip them adds none",
+              bool(asked) and bool(skipped) and len(dm.rows()) == count, f"{said(dm)}; {len(dm.rows())} rows")
+        # Not held to 100 ms: the question is a sheet, and macOS holds the window's thread for its
+        # slide in and out, about 0.27 s each whatever the list (10 links: 265 ms). What the list
+        # costs is how soon it asks: counting 10,000 links against 10,000 rows held the window a
+        # minute when it was done there.
+        check("import", "the same list again is read and counted off the window's thread: asked within a second",
+              bool(asked) and took_ask < 1.0, f"asked in {took_ask:.1f} s")
+        rss, cpu, fds, th = dm.peak()
+        measure("import", f"peak rss {rss:.0f} MB, cpu {cpu:.0f}%")
+    finally:
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+        listed.unlink(missing_ok=True)
+
+
 # ----------------------------------------------------------------- main
 
 def main():

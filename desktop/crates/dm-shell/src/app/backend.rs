@@ -721,7 +721,7 @@ impl Backend {
 
     /// Adds what a `.dmlist` file or a plain list holds, saying how many.
     pub fn import(&self, text: &str) -> usize {
-        self.import_where(text, |_| true)
+        self.import_where(text, |_| true).len()
     }
 
     /// The addresses a list holds, in its order.
@@ -732,8 +732,9 @@ impl Backend {
             .collect()
     }
 
-    /// [`Self::import`], of only the rows whose address `keep` keeps.
-    pub fn import_where(&self, text: &str, keep: impl Fn(&str) -> bool) -> usize {
+    /// [`Self::import`], of only the rows whose address `keep` keeps; the
+    /// rows added.
+    pub fn import_where(&self, text: &str, keep: impl Fn(&str) -> bool) -> Vec<Id> {
         let mut rows = lists::from_list(text);
         rows.retain(|row| keep(&row.url));
         let items = rows
@@ -769,7 +770,7 @@ impl Backend {
         if held {
             self.block_on(async { shell::wake(&self.queue) });
         }
-        added.iter().filter(|r| r.is_ok()).count()
+        added.into_iter().filter_map(Result::ok).collect()
     }
 }
 

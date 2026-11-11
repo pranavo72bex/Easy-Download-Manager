@@ -118,7 +118,9 @@ impl Downloads {
         );
     }
 
-    /// Import of the list at `path`, chosen in the panel.
+    /// Import of the list at `path`, chosen in the panel. The list is read,
+    /// and what of it is listed already counted, off the window's thread
+    /// (gaps row 183).
     fn import_from(&mut self, path: &std::path::Path, cx: &mut Context<Self>) {
         if let Some(local) = dm_desktop_base::add_url::local_torrent(&path.to_string_lossy()) {
             let items = vec![(local, dm_core::AddOptions::default())];
@@ -127,19 +129,32 @@ impl Downloads {
             }
             return;
         }
-        let text = match std::fs::read_to_string(path) {
-            Ok(text) => text,
-            Err(e) => {
-                self.say(tf(
+        let rows = self.rows.clone();
+        let path = path.to_path_buf();
+        self.later(
+            move |_| {
+                let read = std::fs::read_to_string(&path).map(|text| {
+                    let (already, total) = dm_shell::app::import::already_listed(&rows, &text);
+                    (text, already, total)
+                });
+                (path, read)
+            },
+            |view, (path, read), cx| match read {
+                Ok((text, already, total)) => view.import_read(text, already, total, cx),
+                Err(e) => view.say(tf(
                     "{} could not be read: {}",
                     &[&path.display(), &dm_desktop_base::format::file_error(&e)],
-                ));
-                return;
-            }
-        };
-        let (already, total) = dm_shell::app::import::already_listed(&self.rows, &text);
+                )),
+            },
+            cx,
+        );
+    }
+
+    /// A list read for Import: added, or where `already` of its `total`
+    /// addresses are listed, asked first whether to skip them.
+    fn import_read(&mut self, text: String, already: usize, total: usize, cx: &mut Context<Self>) {
         if already == 0 {
-            self.import_text(&text, false, cx);
+            self.import_text(text, false, cx);
             return;
         }
         let asked = crate::question::Asked {
@@ -167,34 +182,46 @@ impl Downloads {
             if button == 2 {
                 return;
             }
-            let _ = view.update(cx, |view, cx| view.import_text(&text, button == 0, cx));
+            let _ = view.update(cx, |view, cx| view.import_text(text, button == 0, cx));
         });
         self.sheet(asked, None, None, answer, cx);
     }
 
     /// Adds the downloads a list holds; `skip_listed`, not those whose
     /// address is already a row; and says how many, and what was not read.
-    fn import_text(&mut self, text: &str, skip_listed: bool, cx: &mut Context<Self>) {
-        let done = dm_shell::app::import::import(&self.backend, &self.rows, text, skip_listed);
-        // A list is not a run of progress windows.
-        for id in done.new {
-            self.session.own(id);
-        }
-        let (added, unread) = (done.added, done.unread);
-        self.say(if unread > 0 {
-            tf(
-                "Imported {}. Skipped {} lines with no link in them (a link starts with http://, https://, ftp:// or magnet:).",
-                &[&added, &unread],
-            )
-        } else {
-            tn(
-                "Imported {} download.||Imported {} downloads.",
-                added as u64,
-                &[&added],
-            )
-        });
-        self.read();
-        cx.notify();
+    /// Added off the window's thread: ten thousand rows held it for
+    /// seconds (gaps row 183).
+    fn import_text(&mut self, text: String, skip_listed: bool, cx: &mut Context<Self>) {
+        let rows = self.rows.clone();
+        // A list is not a run of progress windows: its rows are the
+        // window's own, held unjudged by the reads made while it is added
+        // and marked so once their ids are known
+        // (`docs/decisions.md`, 2026-11-12).
+        let adding = self.session.adding();
+        self.later(
+            move |backend| {
+                let done = dm_shell::app::import::import(backend, &rows, &text, skip_listed);
+                adding.added(&done.new);
+                done
+            },
+            |view, done, _| {
+                let (added, unread) = (done.added, done.unread);
+                view.say(if unread > 0 {
+                    tf(
+                        "Imported {}. Skipped {} lines with no link in them (a link starts with http://, https://, ftp:// or magnet:).",
+                        &[&added, &unread],
+                    )
+                } else {
+                    tn(
+                        "Imported {} download.||Imported {} downloads.",
+                        added as u64,
+                        &[&added],
+                    )
+                });
+                view.read();
+            },
+            cx,
+        );
     }
 
     /// Export: the list written where the system's save panel says, off
