@@ -5,7 +5,7 @@
 
 //! What a wake reads and draws again, and what the list holds in place
 //! (gaps rows 180 to 182): whether a wake draws, what a read may keep,
-//! the files of the rows in sight looked for off the window's thread, a
+//! the rows in sight named and their files looked for off the window's thread, a
 //! click by the row's download, and the row at the top of the view held.
 
 use std::time::{Duration, Instant};
@@ -88,6 +88,44 @@ impl Downloads {
         .detach();
     }
 
+    /// Names the rows at `which` (places in `rows`) by the name each file
+    /// will get, with the earlier rows of the same name the last whole read
+    /// counted (`earlier`).
+    pub(super) fn name_rows(&mut self, which: &[usize], settings: &dm_shell::Settings) {
+        let mut categories = settings.categories();
+        for &at in which {
+            let Some(row) = self.rows.get(at) else {
+                continue;
+            };
+            let name = dm_shell::app::names::name_it_will_get_after(
+                &self.rows,
+                row,
+                &settings.download_dir,
+                &mut categories,
+                Some(self.earlier.get(&row.id).copied().unwrap_or(0)),
+            );
+            self.shown_names.insert(row.id, name);
+        }
+    }
+
+    /// Where in `rows` the rows on screen and those chosen are.
+    pub(super) fn rows_seen(&self) -> Vec<usize> {
+        let mut seen: Vec<usize> = self
+            .shown
+            .get(self.visible.clone())
+            .unwrap_or_default()
+            .to_vec();
+        seen.extend(
+            self.selected
+                .iter()
+                .filter_map(|id| self.positions.get(id))
+                .filter_map(|&at| self.shown.get(at).copied()),
+        );
+        seen.sort_unstable();
+        seen.dedup();
+        seen
+    }
+
     /// The list laid out `range` on screen: its files are looked for at
     /// once where it moved.
     pub(crate) fn laid_out(&mut self, range: std::ops::Range<usize>, cx: &mut Context<Self>) {
@@ -95,6 +133,8 @@ impl Downloads {
             self.visible = range;
             self.files_looked = None;
             self.look_for_files(cx);
+            // The rows come into sight named at the next read (`read`).
+            self.named_at = None;
         }
     }
 
@@ -183,8 +223,8 @@ pub(super) fn placed_alike(old: &Entry, new: &Entry) -> bool {
         && old.queue == new.queue
 }
 
-/// How often, at most, the names and places are worked out again while
-/// only figures change (`Downloads::read`).
+/// How often, at most, the rows on screen and those chosen are named again
+/// while only figures change (`Downloads::read`).
 pub(super) const NAMES_EVERY: Duration = Duration::from_secs(2);
 
 /// How often, at most, the files of the rows on screen are looked for

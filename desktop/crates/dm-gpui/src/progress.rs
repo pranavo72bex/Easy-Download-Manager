@@ -77,7 +77,11 @@ impl Progress {
     /// with them: each is a file read (its plan, a ledger a piece), and a
     /// frame that read them waited on the disk.
     fn inspect(&mut self, backend: &dm_shell::app::backend::Backend, cx: &mut Context<Self>) {
-        if self.inspecting || self.inspected.is_some_and(|at| at.elapsed() < INSPECT_EVERY) {
+        if self.inspecting
+            || self
+                .inspected
+                .is_some_and(|at| at.elapsed() < INSPECT_EVERY)
+        {
             return;
         }
         self.inspecting = true;

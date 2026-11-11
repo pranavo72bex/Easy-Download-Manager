@@ -6552,3 +6552,32 @@ Not done, written down:
   held across an await there too. About sixty sites in the engine's busiest code, for code that
   already lets them go before each await (the scan above); worth it only if a guard across an
   await is ever found there again.
+
+## 2026-11-12: A busy wake of the window at 10,000 rows names only the rows in sight (gaps row 181)
+
+- **Found by profiling, not by reading.** macOS's `sample` on a `profiling` build (symbols kept),
+  10,000 waiting rows and 20 downloads queued at 1 MB/s (3 run at once), 20 s: about half the
+  window thread's busy samples were its reads (580 of 1,170). Of those, 180 were the names (every
+  2 s while anything changed, every waiting row was named again, each name a `lstat` of its
+  folder: 5,000 a second at 10,000 rows) and 157 were the queue names, asked of the engine at each
+  read and again at each tick's menu refresh (each a pass over every row under the queue's lock).
+  The change detector's hashing (about 56) and the list's pointer copies (about 70) were the rest.
+- **The queues are worked out from the rows where the list changed** (`queue_list`, the same
+  `queue_names` the engine uses, over the same rows in the same order), for Start and Stop Queue's
+  arrows, the menu bar and the side panel; the menu bar's queues after a command now follow at the
+  next read (a quarter of a second at most while anything runs), where they were asked at once.
+- **While only figures change, only the rows on screen and those chosen are named again**, every
+  2 s, and at the next read after the view moves. Every row is still named where the list itself
+  changed (a row added, removed, or changed in more than its figures), as before. What a person
+  sees is the same: a name is shown only for a row in sight, the filter and the sort read the
+  rows themselves, not the names shown. A row scrolled into sight shows the name of the last whole
+  read until the next read names it (at most a quarter of a second while downloads run; a name
+  waits only on a file of that name appearing in its folder meanwhile).
+- **Measured**: CPU with 20 downloads at 10,000 rows 17.8% (16.5 to 19.7) to 13.9% (13.5 to 13.9),
+  three runs each (`ui-bench.py --only busy`), against 12.8% at 100 rows: what a wake costs no
+  longer grows much with the list. Nothing else in `ui-bench.py --only idle,list` moved beyond its
+  spread.
+- **Left, and why**: the detector, `SavedSizes::apply` and When done's dry watch each still hash
+  every row at each read; making them follow only the rows whose pointer changed means a change to
+  `Session`'s API that the egui window shares (`before()` hands out the whole map), worth it once
+  a measurement of a 10,000-row history while downloading says so.

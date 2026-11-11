@@ -48,10 +48,8 @@ fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> 
     }
     all.push((Some(""), Place::Unfinished, t("Unfinished").into()));
     all.push((None, Place::Finished, t("Finished").into()));
-    for (i, queue) in dm_core::queue_names(view.rows.iter().map(|r| &**r))
-        .into_iter()
-        .enumerate()
-    {
+    // As the last read found them, not from every row at each frame.
+    for (i, queue) in view.queue_list.iter().cloned().enumerate() {
         let heading = (i == 0).then_some("Queues");
         let label = name(&queue);
         all.push((heading, Place::Queue(queue), label.into()));

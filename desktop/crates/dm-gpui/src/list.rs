@@ -302,6 +302,10 @@ pub struct Downloads {
     positions: std::collections::HashMap<dm_core::Id, usize>,
     /// When the names and places were last worked out (`read`).
     named_at: Option<Instant>,
+    /// How many earlier rows of the same name bound for the same folder
+    /// take a free name before each row, as the last whole read counted
+    /// them (`names::earlier_of_the_same_name`).
+    earlier: std::collections::HashMap<dm_core::Id, usize>,
     /// The next read works everything out again (the settings changed).
     pub(crate) read_all: bool,
     /// Set when a second launch, the browser or the Dock asks for the window.
@@ -407,6 +411,7 @@ impl Downloads {
             visible: 0..0,
             positions: Default::default(),
             named_at: None,
+            earlier: Default::default(),
             read_all: false,
             show_asked,
             opener_said: Default::default(),
@@ -1285,7 +1290,7 @@ impl Downloads {
     pub(crate) fn refresh_menus(&mut self, cx: &mut Context<Self>) {
         let settings = self.backend.settings();
         let ticks = crate::menus::Ticks {
-            queues: self.backend.queues(),
+            queues: self.queue_list.clone(),
             when_done: self.session.when_done,
             speed_limit: settings.speed_limit,
             sidebar: self.show_sidebar,
@@ -1777,13 +1782,13 @@ impl Downloads {
     /// places and choice worked out from the rows stand: worked out again
     /// at every read, they were most of a read of 10,000 rows (gaps row
     /// 181). They are worked out again where a row was added, removed or
-    /// changed otherwise, and every two seconds while anything changes, as
-    /// a waiting row's name follows its folder (`name_it_will_get_after`).
+    /// changed otherwise; and the names of the rows on screen and of those
+    /// chosen every two seconds while anything changes, as a waiting row's
+    /// name follows its folder (`name_it_will_get_after`).
     pub(crate) fn read(&mut self) -> bool {
         let queue_changed = dm_shell::app::changes::take();
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
-        self.queue_list = self.backend.queues();
         // What it detected and the problems it met are the tick's.
         let mut changed = queue_changed || !read.problems.is_empty();
         self.detected.push(read.detected);
@@ -1817,35 +1822,36 @@ impl Downloads {
         }
         changed |= moved;
         self.rows = rows;
-        if changed && self.named_at.is_none_or(|at| at.elapsed() >= NAMES_EVERY) {
-            moved = true;
-        }
         if moved {
             self.named_at = Some(Instant::now());
+            // The queues the rows name, for Start Queue's and Stop Queue's
+            // arrows, the menu bar and the side panel: worked out from the
+            // rows where they changed, not asked of the engine at each read
+            // and each tick, a pass over every row under the queue's lock
+            // each time (gaps row 181).
+            self.queue_list = dm_core::queue_names(self.rows.iter().map(|r| &**r));
             // Each row by the name its file will get, as the egui window
             // shows it: a waiting second copy reads "name (1)".
-            let mut categories = settings.categories();
-            let before = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
-            self.shown_names = self
-                .rows
-                .iter()
-                .map(|row| {
-                    let name = dm_shell::app::names::name_it_will_get_after(
-                        &self.rows,
-                        row,
-                        &settings.download_dir,
-                        &mut categories,
-                        Some(before.get(&row.id).copied().unwrap_or(0)),
-                    );
-                    (row.id, name)
-                })
-                .collect();
+            self.earlier = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
+            let every: Vec<usize> = (0..self.rows.len()).collect();
+            self.shown_names.clear();
+            self.name_rows(&every, &settings);
             dm_desktop_base::rows::set_superseded(&self.rows);
             // A row taken off the list is no longer chosen.
             let ids: std::collections::HashSet<dm_core::Id> =
                 self.rows.iter().map(|r| r.id).collect();
             self.selected.retain(|id| ids.contains(id));
             self.places.place_rows(&self.rows, &settings.categories());
+        } else if changed && self.named_at.is_none_or(|at| at.elapsed() >= NAMES_EVERY) {
+            // A waiting row's name follows its folder (a file of its name
+            // arriving there makes it "name (1)"), so while anything changes
+            // the rows on screen and those chosen are named again every two
+            // seconds; the rest are named again when the list itself changes.
+            // Every row named again every two seconds was, at 10,000 waiting
+            // rows, 5,000 looks at the disk a second (gaps row 181).
+            self.named_at = Some(Instant::now());
+            let seen = self.rows_seen();
+            self.name_rows(&seen, &settings);
         }
         // The frame this read is for is drawn with these settings, not a
         // second copy of them.

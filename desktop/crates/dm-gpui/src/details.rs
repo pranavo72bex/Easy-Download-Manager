@@ -266,7 +266,9 @@ impl Details {
             .as_ref()
             .filter(|(f, n, _, _)| *f == folder && *n == name);
         let fresh = current.is_some_and(|(_, _, _, at)| at.elapsed() < CLASH_EVERY);
-        let shown = current.or(self.clash_seen.as_ref()).and_then(|(_, _, c, _)| c.clone());
+        let shown = current
+            .or(self.clash_seen.as_ref())
+            .and_then(|(_, _, c, _)| c.clone());
         if fresh || self.clash_looking {
             return shown;
         }
