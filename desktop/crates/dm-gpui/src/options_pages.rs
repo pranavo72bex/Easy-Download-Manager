@@ -14,18 +14,24 @@
 use dm_desktop_base::i18n::{t, tf};
 use dm_desktop_base::options::{self, Tab};
 use dm_shell::settings::Settings;
-use gpui::{div, prelude::*, px, AnyElement, Context, SharedString, Window};
+use gpui::{div, prelude::*, AnyElement, Context, SharedString, Window};
 
 use crate::native;
 use crate::options::Options;
 use crate::popup::{self, Pick};
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// A field for a number.
 const NUMBER: f32 = 90.0;
 /// A field for a name or an address.
 const WIDE: f32 = 300.0;
+/// The scale slider's width, its stops' percentages under it, each in a
+/// box this wide.
+const SCALE_WIDTH: f32 = 200.0;
+const STOP_WIDTH: f32 = 40.0;
+
 /// Under a check box, its explanation lines up with its words.
 const UNDER_CHECK: f32 = 20.0;
 
@@ -330,6 +336,69 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             &screen,
         ),
     );
+    // The window's scale, a slider of four stops (60, 80, 100 and 120
+    // percent; the maintainer's word of 2026-11-11), the one View › Larger
+    // and Smaller and Ctrl (⌘) with + and − also step: it shows the scale in
+    // force, a choice takes effect at once in every window, and it is kept
+    // whatever OK or Cancel, as the egui window's Text size is. Each stop's
+    // percentage under the track picks it too, for the keyboard's and a
+    // script's click.
+    let slider = o.scale_slider(window, cx);
+    let now = crate::zoom::factor();
+    let sizes = dm_shell::settings::TEXT_SIZE;
+    let stops = sizes.stops.iter().enumerate().map(|(i, stop)| {
+        let stop = *stop;
+        let on = sizes.index(now) == i;
+        div()
+            .id(("scale-stop", i))
+            .role(gpui::Role::Button)
+            // Centred under where the slider's thumb stands at this stop.
+            .absolute()
+            .top_0()
+            .left(px(
+                SCALE_WIDTH * i as f32 / (sizes.stops.len() - 1) as f32 - STOP_WIDTH / 2.0
+            ))
+            .w(px(STOP_WIDTH))
+            .flex()
+            .justify_center()
+            .text_size(px(native::SMALL_TEXT))
+            .text_color(if on { theme.text } else { theme.muted })
+            .child(screen.label(dm_desktop_base::i18n::tf("{}%", &[&sizes.percent(stop)])))
+            .on_click(cx.listener(move |o, _, _, cx| o.pick_scale(stop, cx)))
+    });
+    p.labelled(
+        t("Text size"),
+        true,
+        div()
+            .flex()
+            .items_center()
+            // Room for the end stops' percentages, which stand half outside
+            // the track.
+            .gap(px(STOP_WIDTH / 2.0))
+            .child(
+                div()
+                    .ml(px(STOP_WIDTH / 2.0 - native::LABEL_GAP))
+                    .w(px(SCALE_WIDTH))
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.0))
+                    .child(
+                        gpui_component::slider::Slider::new(&slider)
+                            .accessibility_label(t("Text size")),
+                    )
+                    .child(
+                        div()
+                            .relative()
+                            .h(px(native::SMALL_TEXT * 1.5))
+                            .children(stops),
+                    ),
+            )
+            .child(
+                div()
+                    .min_w(px(40.0))
+                    .child(screen.label(dm_desktop_base::i18n::tf("{}%", &[&sizes.percent(now)]))),
+            ),
+    );
     p.section(t("Starting and updating"));
     check(
         p,
@@ -457,15 +526,20 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
         );
         let chosen_key = key.clone();
         let choose = button(p, ("sound-choose", n), t("Choose…")).on_click(cx.listener(
-            move |o, _, _, cx| {
-                if let Some(file) = rfd::FileDialog::new()
-                    .add_filter("WAV", &["wav"])
-                    .pick_file()
-                {
-                    o.put(&chosen_key, &file.display().to_string());
-                    o.forget_field(&chosen_key);
-                    cx.notify();
-                }
+            move |_, _, _, cx| {
+                let chosen_key = chosen_key.clone();
+                crate::services::ask_then(
+                    crate::services::Asked {
+                        filter: Some(("WAV", &["wav"])),
+                        ..Default::default()
+                    },
+                    cx,
+                    move |o: &mut Options, file, cx| {
+                        o.put(&chosen_key, &file.display().to_string());
+                        o.forget_field(&chosen_key);
+                        cx.notify();
+                    },
+                );
             },
         ));
         let has = !path.trim().is_empty();
@@ -617,7 +691,7 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
     p.section(t("Settings file"));
     let save = button(p, "settings-save", t("Save settings to a file…")).on_click(cx.listener(
         |o, _, _, cx| {
-            if let Some(path) = o.choose_file(true, "dm-settings.json", cx) {
+            o.choose_file(true, "dm-settings.json", cx, |o, path, cx| {
                 o.says = Some(
                     match std::fs::write(&path, o.draft.exported()) {
                         Ok(()) => tf("Saved to {}, without any password.", &[&path.display()]),
@@ -626,12 +700,12 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                     .into(),
                 );
                 cx.notify();
-            }
+            });
         },
     ));
     let load = button(p, "settings-load", t("Load settings from a file…")).on_click(cx.listener(
         |o, _, _, cx| {
-            if let Some(path) = o.choose_file(false, "dm-settings.json", cx) {
+            o.choose_file(false, "dm-settings.json", cx, |o, path, cx| {
                 let read = std::fs::read_to_string(&path)
                     .map_err(|e| e.to_string())
                     .and_then(|text| o.draft.imported(&text));
@@ -647,7 +721,7 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                     .into(),
                 );
                 cx.notify();
-            }
+            });
         },
     ));
     p.add(
@@ -931,11 +1005,11 @@ fn folder(
     let field = input(o, window, cx, key, label, 330.0, on, false, value);
     let browse = button(p, SharedString::from(format!("browse-{key}")), t("Browse…")).on_click(
         cx.listener(move |o, _, _, cx| {
-            if let Some(folder) = o.choose_folder(cx) {
+            o.choose_folder(cx, move |o, folder, cx| {
                 set(o, folder);
                 o.forget_field(key);
                 cx.notify();
-            }
+            });
         }),
     );
     p.add(native::enabled(
@@ -1634,13 +1708,13 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
         );
         let browse = button(p, ("site-rule-browse", i), t("Browse…")).on_click(cx.listener(
             move |o, _, _, cx| {
-                if let Some(folder) = o.choose_folder(cx) {
+                o.choose_folder(cx, move |o, folder, cx| {
                     if let Some(rule) = o.draft.site_rules.get_mut(i) {
                         rule.folder = folder;
                     }
                     o.forget_field(&format!("site_rules.{i}.folder"));
                     cx.notify();
-                }
+                });
             },
         ));
         let speed = input(
@@ -1701,15 +1775,19 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
         false,
         |o| o.draft.cookies_file.clone(),
     );
-    let choose = button(p, "cookies-choose", t("Choose…")).on_click(cx.listener(|o, _, _, cx| {
-        if let Some(file) = rfd::FileDialog::new()
-            .add_filter("cookies.txt", &["txt"])
-            .pick_file()
-        {
-            o.put("cookies_file", &file.display().to_string());
-            o.forget_field("cookies_file");
-            cx.notify();
-        }
+    let choose = button(p, "cookies-choose", t("Choose…")).on_click(cx.listener(|_, _, _, cx| {
+        crate::services::ask_then(
+            crate::services::Asked {
+                filter: Some(("cookies.txt", &["txt"])),
+                ..Default::default()
+            },
+            cx,
+            |o: &mut Options, file, cx| {
+                o.put("cookies_file", &file.display().to_string());
+                o.forget_field("cookies_file");
+                cx.notify();
+            },
+        );
     }));
     let has_cookies = !o.draft.cookies_file.is_empty();
     let clear = button(p, "cookies-clear", t("Clear")).on_click(cx.listener(|o, _, _, cx| {

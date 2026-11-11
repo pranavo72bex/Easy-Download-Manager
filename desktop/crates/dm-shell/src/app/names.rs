@@ -33,7 +33,34 @@ pub fn host(url: &str) -> String {
 
 /// What to call a row the probe has not reached yet: the last path segment,
 /// which is the engine's own fallback, or a magnet's `dn`.
+///
+/// Kept by address once worked out, on the thread that asked: the window
+/// names every row from it at a read, twice, and parsing ten thousand
+/// addresses each time was most of what a read cost after Stop on ten
+/// thousand rows (gaps row 183).
 pub fn provisional(url: &str) -> String {
+    /// How many names are kept before they are all let go.
+    const KEPT: usize = 50_000;
+    thread_local! {
+        static NAMED: std::cell::RefCell<std::collections::HashMap<String, String>> =
+            std::cell::RefCell::default();
+    }
+    NAMED.with(|named| {
+        if let Some(name) = named.borrow().get(url) {
+            return name.clone();
+        }
+        let name = provisional_of(url);
+        let mut named = named.borrow_mut();
+        if named.len() >= KEPT {
+            named.clear();
+        }
+        named.insert(url.to_string(), name.clone());
+        name
+    })
+}
+
+/// [`provisional`], worked out.
+fn provisional_of(url: &str) -> String {
     let Ok(parsed) = url::Url::parse(url) else {
         return url.to_string();
     };
@@ -217,6 +244,7 @@ pub fn name_it_will_get_after(
     thread_local! {
         static FREE: std::cell::RefCell<HashMap<(Id, std::path::PathBuf), (Instant, String)>> =
             std::cell::RefCell::new(HashMap::new());
+        static LIMIT: std::cell::Cell<usize> = const { std::cell::Cell::new(2000) };
     }
     FREE.with(|free| {
         let mut free = free.borrow_mut();
@@ -225,8 +253,13 @@ pub fn name_it_will_get_after(
                 return said.clone();
             }
         }
-        if free.len() > 2000 {
-            free.clear();
+        // Kept small by dropping what has expired, not by emptying it:
+        // emptied past 2,000, a list of 10,000 rows waiting asked the disk
+        // for every one of them at every read (gaps row 181). Looked over
+        // again only once it has doubled, so the look costs nothing a row.
+        if free.len() > LIMIT.get() {
+            free.retain(|_, (at, _)| at.elapsed() < Duration::from_secs(2));
+            LIMIT.set((free.len() * 2).max(2000));
         }
         // Each earlier row of the same name bound for the same folder,
         // and not yet placed, takes a free name first: three added for

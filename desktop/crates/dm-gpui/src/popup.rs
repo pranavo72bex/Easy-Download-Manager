@@ -11,11 +11,12 @@
 //! a pop-up holds its choices instead ([`held`]), and the port's next click
 //! on one of their words picks it, as a person's would.
 
-use gpui::{div, prelude::*, px, Action, App, Role, SharedString, Window};
+use gpui::{div, prelude::*, Action, App, Role, SharedString, Window};
 use gpui_component::native_menu::NativeMenu;
 
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The choice `index` made in the pop-up `field` (of a list's `item`,
 /// where there is one a row, as a torrent's files each have one).

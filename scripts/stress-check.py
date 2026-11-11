@@ -875,6 +875,59 @@ def p_crash(ctx):
 
 
 @phase
+def p_quit(ctx):
+    """SIGTERM in the middle of 20 downloads, 10 running (dm's most at once), the rest waiting
+    (gaps row 186): dm stops them as a pause does and exits 0 within 2 s; a restart puts them
+    back in line and finishes them byte-exact."""
+    base, root = ctx["base"], ctx["root"]
+    n = 20
+    size = 24 * MB
+    settings = {"connections": 4, "concurrency": n}
+    dm = DM(root, settings, name="quit", window=True).start()
+    expect = {}
+    urls = []
+    for i in range(n):
+        name = f"q{i}.bin"
+        # A quarter of a megabyte a second a connection: a minute each, all still running when
+        # the signal comes.
+        urls.append(f"{base}/f/quit{i}/{size}/{name}?rate={MB // 4}")
+        expect[name] = (f"quit{i}", size)
+    dm.add(urls)
+    wait_for(lambda: sum(1 for r in dm.rows() if r["state"]["kind"] == "running" and r["progress"]["downloaded"] > 0) >= 10, 60, every=0.5)
+    time.sleep(2)
+    before = dm.rows()
+    running = sum(1 for r in before if r["state"]["kind"] == "running")
+    fetched = sum(r["progress"]["downloaded"] for r in before)
+    t = time.time()
+    dm.proc.terminate()
+    try:
+        code = dm.proc.wait(15)
+    except subprocess.TimeoutExpired:
+        code = None
+    took = time.time() - t
+    dm.stop()
+    measure("quit", f"SIGTERM with {running} of {n} downloads running ({fetched // MB} MB fetched): exit {code} after {took:.2f} s")
+    check("quit", "exits 0 within 2 s of SIGTERM with 10 downloads running", code == 0 and took < 2.0 and running >= 10,
+          f"exit {code} after {took:.2f} s")
+    dm2 = DM(root, settings, name="quit")
+    dm2.home, dm2.out = dm.home, dm.out
+    try:
+        dm2.start()
+        rows = dm2.rows()
+        st = states(rows)
+        measure("quit", f"after the restart: {st}, {sum(r['progress']['downloaded'] for r in rows) // MB} MB kept")
+        check("quit", "every row comes back to run again", len(rows) == n and all(r["state"]["kind"] in ("queued", "running", "completed") for r in rows), str(st))
+        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm2.rows()), 300, every=2)
+        ok, bad = verify(dm2.rows(), expect)
+        if bad:
+            finding("critical", "quit", f"files resumed after SIGTERM are corrupt: {bad[:3]}")
+        check("quit", "all resumed byte-exact", ok == n)
+    finally:
+        dm2.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+
+
+@phase
 def p_pause_storm(ctx):
     """Random pause/resume/cancel at speed on 80 downloads; survivors are exact."""
     base, root = ctx["base"], ctx["root"]
@@ -2042,6 +2095,168 @@ def p_clipboard(ctx):
     finally:
         dm.stop()
         shutil.rmtree(root / "clipboard-out", ignore_errors=True)
+
+
+class Answers:
+    """`ui.texts` asked over a connection of its own every 20 ms while a slow handler runs on
+    the window's thread: how long each answer took (gaps row 183). An answer waits behind
+    whatever the window's thread is doing, so the worst is what a person waits for a frame."""
+
+    def __init__(self, dm):
+        self.dm = dm
+        self.times = []
+        self._stop = threading.Event()
+        self._thread = None
+
+    def __enter__(self):
+        port = int((self.dm.home / "control.port").read_text())
+        conn = socket.create_connection(("127.0.0.1", port), timeout=120)
+        replies = conn.makefile("r", encoding="utf-8")
+
+        def call(method, **params):
+            conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
+            return json.loads(replies.readline())
+
+        assert call("auth", token=(self.dm.home / "control.token").read_text().strip())["ok"]
+
+        def run():
+            try:
+                while not self._stop.is_set():
+                    t0 = time.time()
+                    call("ui.texts")
+                    self.times.append(time.time() - t0)
+                    self._stop.wait(0.02)
+            finally:
+                conn.close()
+
+        self._thread = threading.Thread(target=run, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._thread.join(130)
+
+    def worst(self):
+        return max(self.times) if self.times else float("inf")
+
+    def median(self):
+        return sorted(self.times)[len(self.times) // 2] if self.times else float("inf")
+
+
+@phase
+def p_handlers(ctx):
+    """The window keeps drawing while a handler's work is slow: Stop on 10,000 chosen rows, and a 1 GB file moved to another volume."""
+    base, root = ctx["base"], ctx["root"]
+    limit = 0.1
+
+    def kinds(dm):
+        return states(dm.rows())
+
+    def answers_held(what, answers):
+        ok = check("handlers", f"the window answers in under {limit * 1000:.0f} ms throughout {what}",
+                   answers.worst() < limit, f"worst {answers.worst() * 1000:.0f} ms")
+        if not ok:
+            finding("high", "handlers", f"the window waited {answers.worst() * 1000:.0f} ms on its thread during {what}")
+
+    dm = DM(root, {"connections": 1, "concurrency": 3}, name="handlers", window=True).start()
+    try:
+        # Stop download on 10,000 chosen rows: three running, the rest waiting in line.
+        for k in range(0, 10000, 1000):
+            dm.add([f"{base}/f/h{i}/{MB}/h{i}.bin?rate=1024" for i in range(k, k + 1000)])
+        wait_for(lambda: len(dm.rows()) == 10000, 60)
+        ids = [r["id"] for r in dm.rows()]
+        dm.call("ui.select", ids=ids)
+        time.sleep(1)
+        with Answers(dm) as answers:
+            t0 = time.time()
+            ran = dm.call("command.run", id="file.stop_download")
+            took = time.time() - t0
+            stopped = wait_for(lambda: kinds(dm).get("paused", 0) == 10000, 120, every=0.25)
+            took_all = time.time() - t0
+            time.sleep(0.3)
+        measure("handlers", f"Stop on 10,000 chosen rows: the command answered in {took * 1000:.0f} ms, every row paused in {took_all:.1f} s; ui.texts meanwhile median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
+        check("handlers", "Stop on 10,000 chosen rows pauses every one", bool(stopped) and ran.get("ok"), f"{ran.get('error') or ''} {kinds(dm)}")
+        answers_held("Stop on 10,000 rows", answers)
+        # Resume on 1,000 of them.
+        dm.call("ui.select", ids=ids[:1000])
+        time.sleep(0.5)
+        with Answers(dm) as answers:
+            t0 = time.time()
+            dm.call("command.run", id="file.download_now")
+            took = time.time() - t0
+            went = wait_for(lambda: kinds(dm).get("paused", 0) == 9000, 120, every=0.25)
+            time.sleep(0.3)
+        measure("handlers", f"Resume on 1,000 of 10,000 rows: the command answered in {took * 1000:.0f} ms; ui.texts meanwhile median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms")
+        check("handlers", "Resume on 1,000 chosen rows sends each on", bool(went), f"{kinds(dm)}")
+        answers_held("Resume on 1,000 rows", answers)
+    finally:
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+
+    if sys.platform != "darwin" or not shutil.which("hdiutil"):
+        finding("info", "handlers", "the move to another volume runs on macOS only, where a disk image is that volume")
+        return
+    if free_gb(tempfile.gettempdir()) < MIN_FREE_GB + 3:
+        finding("info", "handlers", "the move to another volume skipped: too little disk for 1 GB twice")
+        return
+    image, mount = root / "other.dmg", root / "other"
+    made = subprocess.run(["hdiutil", "create", "-size", "1200m", "-fs", "HFS+", "-volname", "dm-move",
+                           str(image)], capture_output=True, text=True)
+    attached = made.returncode == 0 and subprocess.run(
+        ["hdiutil", "attach", str(image), "-mountpoint", str(mount), "-nobrowse"],
+        capture_output=True, text=True).returncode == 0
+    if not attached:
+        finding("info", "handlers", f"the move to another volume skipped: no disk image ({made.stderr.strip()})")
+        return
+    dm = DM(root, {"connections": 4}, name="handlers-move", window=True).start()
+    try:
+        size = 1024 * MB
+        dm.add([f"{base}/f/move/{size}/big.bin"])
+        done = wait_for(lambda: [r["state"]["kind"] for r in dm.rows()] == ["completed"], 180)
+        check("handlers", "a 1 GB file is fetched to move", bool(done), f"{kinds(dm)}")
+        if not done:
+            return
+        row = dm.rows()[0]
+        dm.call("ui.select", ids=[row["id"]])
+        dm.call("command.run", id="file.move_rename")
+        wait_for(lambda: "Move/Rename" in [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])], 5, every=0.1)
+        time.sleep(0.5)
+        # The name field has the focus; the folder's is the next.
+        dm.call("ui.key", key="Tab")
+        dm.call("ui.key", key="A", modifiers=["cmd"])
+        dm.call("ui.type", text=str(mount))
+        time.sleep(0.3)
+        moved = mount / "big.bin"
+        with Answers(dm) as answers:
+            t0 = time.time()
+            dm.call("ui.click", text="OK")
+            took = time.time() - t0
+            arrived = wait_for(lambda: (lambda r: r and r[0].get("path") == str(moved))(dm.rows()), 120, every=0.1)
+            took_all = time.time() - t0
+            time.sleep(0.3)
+        measure("handlers", f"a 1 GB file moved to another volume: OK answered in {took * 1000:.0f} ms, the row there in {took_all:.1f} s; ui.texts meanwhile median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
+        check("handlers", "Move/Rename to another volume moves the whole file and the row follows it",
+              bool(arrived) and moved.exists() and moved.stat().st_size == size and not (dm.out / "big.bin").exists(),
+              f"{dm.rows()[0].get('path')}")
+        answers_held("the move", answers)
+        # Browse…: the system's folder panel open, the window still drawing and answering. The
+        # panel is left open; the dm is ended with it.
+        dm.call("command.run", id="file.move_rename")
+        wait_for(lambda: "Move/Rename" in [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])], 5, every=0.1)
+        time.sleep(0.5)
+        dm.call("ui.click", text="Browse…")
+        time.sleep(1.5)
+        with Answers(dm) as answers:
+            time.sleep(1.5)
+        measure("handlers", f"with the folder panel open: ui.texts median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
+        check("handlers", "the window answers while the system's folder panel is open", len(answers.times) > 10)
+        answers_held("the folder panel", answers)
+    finally:
+        dm.stop()
+        subprocess.run(["hdiutil", "detach", str(mount), "-force"], capture_output=True)
+        image.unlink(missing_ok=True)
+        shutil.rmtree(dm.out, ignore_errors=True)
 
 
 # ----------------------------------------------------------------- main

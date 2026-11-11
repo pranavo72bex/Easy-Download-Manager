@@ -12,11 +12,12 @@
 use dm_core::Category;
 use dm_desktop_base::i18n::{name, t};
 use dm_shell::app::places::Place;
-use gpui::{div, prelude::*, px, Context, Role, SharedString, Window};
+use gpui::{div, prelude::*, Context, Role, SharedString, Window};
 
 use crate::list::Downloads;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The side panel's width, in points.
 pub const WIDTH: f32 = 200.0;
@@ -24,7 +25,7 @@ pub const WIDTH: f32 = 200.0;
 /// Every place the panel lists, in order, with its heading where a group
 /// starts.
 fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> {
-    let settings = view.backend.settings();
+    let settings = &view.drawn;
     let mut all = vec![(
         Some("All Downloads"),
         Place::All,
@@ -66,7 +67,7 @@ pub fn sidebar(
     _window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let categories = view.backend.settings().categories();
+    let categories = view.drawn.categories();
     div()
         .id("sidebar")
         .role(Role::List)

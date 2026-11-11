@@ -19,7 +19,7 @@ use dm_desktop_base::progress::{
 };
 use dm_shell::app::rules::GoOn;
 use gpui::{
-    div, point, prelude::*, px, size, App, Bounds, Context, Entity, Role, SharedString, WeakEntity,
+    div, point, prelude::*, size, App, Bounds, Context, Entity, Role, SharedString, WeakEntity,
     Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -28,6 +28,7 @@ use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The progress window's view.
 pub struct Progress {
@@ -36,6 +37,13 @@ pub struct Progress {
     rates: ConnRates,
     /// What the server said of resuming, kept while the parts are joined.
     resumable_seen: Option<bool>,
+    /// Its pieces and whether it can resume, as last read from its plan
+    /// and ledgers off the window's thread (`inspect`), and when: a frame
+    /// draws what was read, and reads nothing itself (gaps row 180).
+    pieces: Vec<dm_core::Connection>,
+    resumable: Option<bool>,
+    inspected: Option<std::time::Instant>,
+    inspecting: bool,
     /// Connections is open.
     connections: bool,
     own_limit: Entity<InputState>,
@@ -60,7 +68,46 @@ fn bar(fraction: f32, theme: Theme) -> gpui::Div {
         )
 }
 
+/// How often an open progress window reads its download's pieces again.
+const INSPECT_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
+
 impl Progress {
+    /// Reads the download's pieces and whether it can resume off the
+    /// window's thread, at most every [`INSPECT_EVERY`], and draws again
+    /// with them: each is a file read (its plan, a ledger a piece), and a
+    /// frame that read them waited on the disk.
+    fn inspect(&mut self, backend: &dm_shell::app::backend::Backend, cx: &mut Context<Self>) {
+        if self.inspecting || self.inspected.is_some_and(|at| at.elapsed() < INSPECT_EVERY) {
+            return;
+        }
+        self.inspecting = true;
+        let id = self.id;
+        let queue = backend.queue.clone();
+        let read = backend.on_runtime(async move {
+            let pieces = queue.connections(id).await;
+            let resumable = queue.resumable(id).await;
+            (pieces, resumable)
+        });
+        cx.spawn(async move |this, cx| {
+            let read = read.await;
+            let _ = this.update(cx, |this, cx| {
+                this.inspecting = false;
+                let now = std::time::Instant::now();
+                this.inspected = Some(now);
+                if let Some((pieces, resumable)) = read {
+                    this.rates.sample(
+                        now,
+                        &pieces.iter().map(|c| (c.start, c.done)).collect::<Vec<_>>(),
+                    );
+                    this.pieces = pieces;
+                    this.resumable = resumable;
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     /// Stop download, Retry, Resume (or Start now, outside the schedule).
     fn go(&mut self, stop: bool, cx: &mut Context<Self>) {
         let id = self.id;
@@ -117,31 +164,24 @@ impl Render for Progress {
         let Some(view) = self.view.upgrade() else {
             return div().into_any_element();
         };
+        // The row by its download, and named as the list names it: a
+        // search of every row and a name worked out over all of them, at
+        // each frame, was what this window cost with a long list.
         let (row, backend, named) = {
             let view = view.read(cx);
-            let Some(row) = view.rows.iter().find(|r| r.id == self.id).cloned() else {
+            let Some(row) = view.row_of(self.id).cloned() else {
                 return div().into_any_element();
             };
-            let settings = view.backend.settings();
-            let mut categories = settings.categories();
-            let named = dm_shell::app::names::name_it_will_get_after(
-                &view.rows,
-                &row,
-                &settings.download_dir,
-                &mut categories,
-                None,
-            );
+            let named = view
+                .shown_names
+                .get(&self.id)
+                .cloned()
+                .unwrap_or_else(|| dm_shell::app::names::name_of(&row));
             (row, view.backend.clone(), named)
         };
         let id = self.id;
-        let connections = backend.connections(id);
-        self.rates.sample(
-            std::time::Instant::now(),
-            &connections
-                .iter()
-                .map(|c| (c.start, c.done))
-                .collect::<Vec<_>>(),
-        );
+        self.inspect(&backend, cx);
+        let connections = self.pieces.clone();
         let speeds: Vec<f64> = connections
             .iter()
             .map(|c| self.rates.rate(c.start))
@@ -149,7 +189,7 @@ impl Render for Progress {
         // While its parts are joined the plan they are read from is gone:
         // the last answer stands.
         let joining = row.state == State::Running && dm_shell::app::rules::fetched_all(&row);
-        let resumable = match backend.resumable(id) {
+        let resumable = match self.resumable {
             Some(answer) => {
                 self.resumable_seen = Some(answer);
                 Some(answer)
@@ -544,6 +584,10 @@ pub fn open(
                     id,
                     rates: ConnRates::default(),
                     resumable_seen: None,
+                    pieces: Vec::new(),
+                    resumable: None,
+                    inspected: None,
+                    inspecting: false,
                     connections: false,
                     own_limit,
                     focus,

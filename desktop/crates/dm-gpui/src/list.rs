@@ -55,7 +55,7 @@ enum Woke {
 }
 
 /// The next wake, or the timer's end, whichever comes first.
-async fn woke(woken: &async_channel::Receiver<Wake>, timer: gpui::Task<()>) -> Woke {
+async fn woke(woken: &crate::wakes::Woken, timer: gpui::Task<()>) -> Woke {
     futures_lite::future::or(
         async { woken.recv().await.map_or(Woke::Gone, Woke::By) },
         async {
@@ -135,7 +135,11 @@ const RUNNING: Duration = Duration::from_millis(250);
 /// window opens instead.
 const HIDDEN_WAIT: Duration = Duration::from_secs(10);
 
+mod later;
 mod questions;
+mod refresh;
+use refresh::{clicked, holding_top};
+use refresh::{needs_drawing, placed_alike, NAMES_EVERY};
 
 /// The main window's view: the application, and the rows it last read.
 pub struct Downloads {
@@ -272,6 +276,34 @@ pub struct Downloads {
     /// The name each row is shown by: the one its file will get, a waiting
     /// second copy's "name (1)", worked out at each read.
     pub(crate) shown_names: std::collections::HashMap<dm_core::Id, String>,
+    /// The settings a frame is drawn with, read once as it begins (and at
+    /// each read): its parts read them a dozen times a frame, each a copy
+    /// of the whole under its lock (gaps row 180).
+    pub(crate) drawn: std::rc::Rc<dm_shell::Settings>,
+    /// `drawn` was just read, by a read for the frame about to be drawn.
+    drawn_fresh: bool,
+    /// The queues, as the last read found them: Start Queue's and Stop
+    /// Queue's arrows list them, and asking the engine as each frame was
+    /// drawn held the window up behind the queue's lock.
+    pub(crate) queue_list: Vec<String>,
+    /// When the finished rows' files were last looked for, and whether a
+    /// look is under way (`look_for_files`).
+    files_looked: Option<Instant>,
+    looking_for_files: bool,
+    /// Work handed off the window's thread and not answered yet, and the
+    /// control port's `command.run` answers held until it is
+    /// (`list/later.rs`).
+    errands: later::Pending,
+    /// The clipboard is being read off the window's thread (`clipwatch`).
+    pub(crate) clipboard_reading: bool,
+    /// The rows on screen, as the list last laid them out.
+    pub(crate) visible: std::ops::Range<usize>,
+    /// Where each row shown is in the list, by id (`reshow`).
+    positions: std::collections::HashMap<dm_core::Id, usize>,
+    /// When the names and places were last worked out (`read`).
+    named_at: Option<Instant>,
+    /// The next read works everything out again (the settings changed).
+    pub(crate) read_all: bool,
     /// Set when a second launch, the browser or the Dock asks for the window.
     show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// What an opener said went wrong, from its thread.
@@ -293,7 +325,7 @@ impl Downloads {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         backend: Backend,
-        woken: async_channel::Receiver<Wake>,
+        woken: crate::wakes::Woken,
         requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
         assistants_only: bool,
         show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -365,6 +397,17 @@ impl Downloads {
             drop_window: None,
             bars: Default::default(),
             shown_names: Default::default(),
+            drawn: Default::default(),
+            drawn_fresh: false,
+            queue_list: Vec::new(),
+            files_looked: None,
+            looking_for_files: false,
+            errands: Default::default(),
+            clipboard_reading: false,
+            visible: 0..0,
+            positions: Default::default(),
+            named_at: None,
+            read_all: false,
             show_asked,
             opener_said: Default::default(),
             show_sidebar: true,
@@ -397,6 +440,9 @@ impl Downloads {
                 .unwrap_or(true)
         });
         crate::screen::Screens::register(window.window_handle(), this.screen.clone(), false, cx);
+        // A finished row's file is looked for off this thread from now on
+        // (`look_for_files`), not asked of the disk as it is drawn.
+        dm_desktop_base::rows::set_looked(Vec::new());
         this.read();
         // One task on the window's thread: each wake is one read, a burst of
         // queue changes one read a quarter of a second later.
@@ -427,6 +473,9 @@ impl Downloads {
         cx.observe_window_activation(window, |this, window, cx| {
             if window.is_window_active() {
                 this.show_sheets(cx);
+                // Back from a file manager, a file deleted there is said.
+                this.files_looked = None;
+                this.look_for_files(cx);
             }
         })
         .detach();
@@ -507,12 +556,24 @@ impl Downloads {
                     return;
                 }
                 if in_own_window(&this, cx, |this, window, cx| {
-                    this.read();
+                    let beside = this.shown_beside();
+                    let changed = this.read();
                     this.taskbar_follow(window);
                     this.tick(cx);
                     this.watch_asks(cx);
-                    this.answer_requests(window, cx);
-                    cx.notify();
+                    let answered = this.answer_requests(window, cx);
+                    // Drawn again only where something shown may have
+                    // changed: a wake that changed nothing drew the whole
+                    // window for nothing (gaps row 181).
+                    if needs_drawing(
+                        changed,
+                        answered,
+                        this.moves_with_time(),
+                        beside != this.shown_beside(),
+                    ) {
+                        cx.notify();
+                    }
+                    this.look_for_files(cx);
                 })
                 .is_none()
                 {
@@ -559,11 +620,14 @@ impl Downloads {
     /// Answers what the control port asked, in order: who may ask as the
     /// application says, the window's methods through its `WindowProbe`,
     /// the rest through the application (`control_api`).
-    fn answer_requests(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn answer_requests(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let asked: Vec<_> = match &self.requests {
             Some(requests) => requests.try_iter().collect(),
-            None => return,
+            None => return false,
         };
+        if asked.is_empty() {
+            return false;
+        }
         let allow_mcp = self.backend.settings().allow_mcp;
         for request in asked {
             let answer = match dm_shell::app::control_api::refused(
@@ -574,8 +638,9 @@ impl Downloads {
                 Some(why) => Err(why),
                 None => crate::probe::answer(self, &request.method, &request.params, window, cx),
             };
-            let _ = request.reply.send(answer);
+            self.reply(&request.method, (request.reply, answer));
         }
+        true
     }
 
     /// Carries out a command from the menu bar or a key. What the shell
@@ -810,8 +875,32 @@ impl Downloads {
             }
             _ => {}
         }
-        let queue = self.current_queue();
-        let ran = dm_shell::app::commands::verb(command, &self.backend, &chosen, &queue);
+        if dm_shell::app::commands::is_verb(command) {
+            // Off the window's thread: Stop on ten thousand chosen rows is
+            // ten thousand changes to the queue (gaps row 183).
+            let queue = self.current_queue();
+            let ids: Vec<dm_core::Id> = chosen.iter().map(|r| r.id).collect();
+            self.later(
+                move |backend| dm_shell::app::commands::verb(command, backend, &chosen, &queue),
+                move |this, ran, cx| this.verb_done(command, &ids, ran, cx),
+                cx,
+            );
+            return;
+        }
+        self.read();
+        cx.notify();
+    }
+
+    /// What a command `commands::verb` carried out on the rows `chosen`
+    /// did, said and shown, once it is done.
+    fn verb_done(
+        &mut self,
+        command: dm_shell::app::commands::Command,
+        chosen: &[dm_core::Id],
+        ran: Option<dm_shell::app::commands::Ran>,
+        cx: &mut Context<Self>,
+    ) {
+        use dm_shell::app::commands::Command;
         self.read();
         if let Some(dm_shell::app::commands::Ran::Cleared(n)) = ran {
             self.say(dm_desktop_base::i18n::tn(
@@ -824,9 +913,9 @@ impl Downloads {
         // not one its person closed: fifteen Resumes opened it fifteen
         // times over the list. Show progress still opens it.
         if command == Command::DownloadNow && self.backend.settings().show_progress {
-            for row in &chosen {
-                if !self.progress_closed.contains(&row.id) {
-                    self.show_progress(row.id, cx);
+            for id in chosen {
+                if !self.progress_closed.contains(id) {
+                    self.show_progress(*id, cx);
                 }
             }
         }
@@ -1099,9 +1188,27 @@ impl Downloads {
         queue: &str,
         cx: &mut Context<Self>,
     ) {
+        // Off the window's thread, as the commands on rows are (gaps row
+        // 183), and said once done.
+        let asked = queue.to_string();
+        let queue = queue.to_string();
+        self.later(
+            move |backend| dm_shell::app::commands::verb(command, backend, &[], &asked),
+            move |this, ran, cx| this.ran_on_queue(command, &queue, ran, cx),
+            cx,
+        );
+    }
+
+    /// What Start Queue or Stop Queue on `queue` did, said.
+    fn ran_on_queue(
+        &mut self,
+        command: dm_shell::app::commands::Command,
+        queue: &str,
+        ran: Option<dm_shell::app::commands::Ran>,
+        cx: &mut Context<Self>,
+    ) {
         use dm_desktop_base::i18n::{tf, tn};
         use dm_shell::app::commands::{Command, Ran};
-        let ran = dm_shell::app::commands::verb(command, &self.backend, &[], queue);
         self.read();
         let name = dm_desktop_base::i18n::name(queue);
         match (command, ran) {
@@ -1189,6 +1296,7 @@ impl Downloads {
             toolbar_style: settings.toolbar_style.clone(),
             toolbar_order: settings.toolbar_order.clone(),
             toolbar_hidden: settings.toolbar_hidden.clone(),
+            text_size: settings.text_size,
             language: settings.language.clone(),
             sorted_by: self.sort.and_then(|(column, _)| sort_command(column)),
             resume: dm_desktop_base::rows::resume_word(&self.chosen()),
@@ -1468,14 +1576,29 @@ impl Downloads {
             .reveal_later(path, Box::new(move |why| *dm_core::lock(&said) = Some(why)));
     }
 
-    /// Open with…: the app chosen in the system's own panel.
-    pub fn open_path_with(&mut self, path: &str) {
-        let chosen = self.backend.platform.choose_app();
-        if let Some(app) = chosen {
-            if let Err(e) = self.backend.platform.open_with(path, &app) {
-                self.say(e);
-            }
-        }
+    /// Open with…: the app chosen in the system's own panel, the window
+    /// going on meanwhile; then `after`, chosen or not.
+    pub fn open_path_with(
+        &mut self,
+        path: &str,
+        after: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        let chosen = crate::services::ask(crate::services::Asked::app());
+        let path = path.to_string();
+        cx.spawn(async move |this, cx| {
+            let app = chosen.await;
+            let _ = this.update(cx, |this, cx| {
+                if let Some(app) = app {
+                    if let Err(e) = this.backend.platform.open_with(&path, &app) {
+                        this.say(e);
+                    }
+                }
+                after(this, cx);
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     /// What an opener said went wrong, from its thread.
@@ -1621,12 +1744,19 @@ impl Downloads {
 
     /// The rows chosen, in the list's order.
     pub fn chosen(&self) -> Vec<&Entry> {
-        self.shown
+        // From the choice, not from every row shown: the toolbar asks for
+        // each of its buttons, a dozen times a frame (gaps row 180).
+        let mut chosen: Vec<(usize, &Entry)> = self
+            .selected
             .iter()
-            .filter_map(|&r| self.rows.get(r))
-            .filter(|r| self.selected.contains(&r.id))
-            .map(|r| &**r)
-            .collect()
+            .filter_map(|id| {
+                let at = *self.positions.get(id)?;
+                let row = self.shown.get(at).and_then(|&r| self.rows.get(r))?;
+                (row.id == *id).then_some((at, &**row))
+            })
+            .collect();
+        chosen.sort_unstable_by_key(|(at, _)| *at);
+        chosen.into_iter().map(|(_, row)| row).collect()
     }
 
     /// The queue Start and Stop Queue act on: the one shown, else the Main
@@ -1639,11 +1769,23 @@ impl Downloads {
     }
 
     /// One read of the application: the rows and what follows from them.
-    pub(crate) fn read(&mut self) {
-        dm_shell::app::changes::take();
+    /// Says whether anything the window shows may have changed.
+    ///
+    /// A row the queue did not change is the queue's own `Arc` again, so
+    /// what changed is found by comparing pointers. Where only figures
+    /// moved (a running download's bytes, rate, time left), the names,
+    /// places and choice worked out from the rows stand: worked out again
+    /// at every read, they were most of a read of 10,000 rows (gaps row
+    /// 181). They are worked out again where a row was added, removed or
+    /// changed otherwise, and every two seconds while anything changes, as
+    /// a waiting row's name follows its folder (`name_it_will_get_after`).
+    pub(crate) fn read(&mut self) -> bool {
+        let queue_changed = dm_shell::app::changes::take();
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
+        self.queue_list = self.backend.queues();
         // What it detected and the problems it met are the tick's.
+        let mut changed = queue_changed || !read.problems.is_empty();
         self.detected.push(read.detected);
         self.problems.extend(read.problems);
         // What the read told beside the rows, which a row's words are said
@@ -1652,33 +1794,68 @@ impl Downloads {
         dm_desktop_base::rows::set_retrying(read.snapshot.retrying);
         dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
         dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
-        self.rows = read.snapshot.rows;
+        let mut rows = read.snapshot.rows;
         // A finished row's size is its file's, read once from the disk.
-        self.saved.apply(&mut self.rows);
-        // Each row by the name its file will get, as the egui window shows
-        // it: a waiting second copy reads "name (1)".
-        let mut categories = settings.categories();
-        let before = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
-        self.shown_names = self
-            .rows
-            .iter()
-            .map(|row| {
-                let name = dm_shell::app::names::name_it_will_get_after(
-                    &self.rows,
-                    row,
-                    &settings.download_dir,
-                    &mut categories,
-                    Some(before.get(&row.id).copied().unwrap_or(0)),
-                );
-                (row.id, name)
-            })
-            .collect();
-        dm_desktop_base::rows::set_superseded(&self.rows);
-        // A row taken off the list is no longer chosen.
-        let ids: std::collections::HashSet<dm_core::Id> = self.rows.iter().map(|r| r.id).collect();
-        self.selected.retain(|id| ids.contains(id));
-        self.places.place_rows(&self.rows, &settings.categories());
-        self.reshow();
+        self.saved.apply(&mut rows);
+        let same_rows = rows.len() == self.rows.len()
+            && rows
+                .iter()
+                .zip(&self.rows)
+                .all(|(new, old)| new.id == old.id);
+        let mut moved = !same_rows || std::mem::take(&mut self.read_all);
+        if same_rows {
+            for (new, old) in rows.iter().zip(&self.rows) {
+                if std::sync::Arc::ptr_eq(new, old) {
+                    continue;
+                }
+                changed = true;
+                if !placed_alike(old, new) {
+                    moved = true;
+                    break;
+                }
+            }
+        }
+        changed |= moved;
+        self.rows = rows;
+        if changed && self.named_at.is_none_or(|at| at.elapsed() >= NAMES_EVERY) {
+            moved = true;
+        }
+        if moved {
+            self.named_at = Some(Instant::now());
+            // Each row by the name its file will get, as the egui window
+            // shows it: a waiting second copy reads "name (1)".
+            let mut categories = settings.categories();
+            let before = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
+            self.shown_names = self
+                .rows
+                .iter()
+                .map(|row| {
+                    let name = dm_shell::app::names::name_it_will_get_after(
+                        &self.rows,
+                        row,
+                        &settings.download_dir,
+                        &mut categories,
+                        Some(before.get(&row.id).copied().unwrap_or(0)),
+                    );
+                    (row.id, name)
+                })
+                .collect();
+            dm_desktop_base::rows::set_superseded(&self.rows);
+            // A row taken off the list is no longer chosen.
+            let ids: std::collections::HashSet<dm_core::Id> =
+                self.rows.iter().map(|r| r.id).collect();
+            self.selected.retain(|id| ids.contains(id));
+            self.places.place_rows(&self.rows, &settings.categories());
+        }
+        // The frame this read is for is drawn with these settings, not a
+        // second copy of them.
+        self.drawn = std::rc::Rc::new(settings);
+        self.drawn_fresh = true;
+        // Sorted again where a figure it sorts by may have moved.
+        if moved || (changed && self.sort.is_some()) {
+            self.reshow();
+        }
+        changed
     }
 
     /// Shows the rows of `place`.
@@ -1689,25 +1866,35 @@ impl Downloads {
 
     /// A click on the row at `position` in the list, with ⌘ (`toggle`) or
     /// ⇧ (`range`) held, as a macOS list takes it.
-    pub fn click_row(&mut self, position: usize, toggle: bool, range: bool) {
-        let Some(id) = self.id_at(position) else {
+    ///
+    /// The row is the one clicked, `id`, wherever it is now: a sort or a
+    /// new row between the frame and the click moved it, and the click
+    /// acted on whatever row had taken its place (gaps row 182).
+    pub fn click_row(&mut self, id: dm_core::Id, toggle: bool, range: bool) {
+        let Some(position) = self.position_of(id) else {
             return;
         };
-        if range {
-            let from = self
-                .anchor
-                .and_then(|a| self.position_of(a))
-                .unwrap_or(position);
-            let (low, high) = (from.min(position), from.max(position));
-            self.selected = (low..=high).filter_map(|p| self.id_at(p)).collect();
-        } else if toggle {
-            if !self.selected.remove(&id) {
-                self.selected.insert(id);
-            }
-            self.anchor = Some(id);
+        let shown: Vec<dm_core::Id> = if range {
+            (0..self.shown.len())
+                .filter_map(|p| self.id_at(p))
+                .collect()
         } else {
-            self.selected = [id].into();
-            self.anchor = Some(id);
+            Vec::new()
+        };
+        let anchor = self.anchor.and_then(|a| self.position_of(a));
+        let (selected, anchor) = clicked(
+            std::mem::take(&mut self.selected),
+            anchor,
+            &shown,
+            id,
+            position,
+            toggle,
+            range,
+        );
+        self.selected = selected;
+        // A ⇧-click keeps the anchor it ran from.
+        if !range {
+            self.anchor = anchor;
         }
     }
 
@@ -1716,11 +1903,12 @@ impl Downloads {
     /// Open or its folder for a finished one. A download that is running,
     /// waiting or stopped shows its progress window instead, which is what
     /// a person looking at one still going wants to see.
-    pub fn double_click(&mut self, position: usize, cx: &mut Context<Self>) {
+    pub fn double_click(&mut self, id: dm_core::Id, cx: &mut Context<Self>) {
         use dm_shell::app::commands::Command;
         let Some(row) = self
-            .id_at(position)
-            .and_then(|id| self.rows.iter().find(|r| r.id == id))
+            .position_of(id)
+            .and_then(|at| self.shown.get(at))
+            .and_then(|&r| self.rows.get(r))
         else {
             return;
         };
@@ -1741,8 +1929,8 @@ impl Downloads {
     /// A right-click on the row at `position`, at `at`: the row is chosen
     /// if it was not (a right-click on a chosen row keeps the choice), and
     /// the row menu opens there.
-    pub fn open_menu(&mut self, position: usize, at: gpui::Point<gpui::Pixels>) {
-        if let Some(id) = self.id_at(position) {
+    pub fn open_menu(&mut self, id: dm_core::Id, at: gpui::Point<gpui::Pixels>) {
+        if self.position_of(id).is_some() {
             if !self.selected.contains(&id) {
                 self.selected = [id].into();
                 self.anchor = Some(id);
@@ -1810,7 +1998,7 @@ impl Downloads {
         let answer: crate::question::Answer = Box::new(move |button, delete, cx| {
             if button == 1 {
                 let _ = view.update(cx, |view, cx| {
-                    view.removed(&ids, &files, delete);
+                    view.removed(&ids, &files, delete, cx);
                     cx.notify();
                 });
             }
@@ -1820,17 +2008,16 @@ impl Downloads {
 
     /// The rows `ids` taken off the list, their finished `files` with them
     /// to the Trash where `delete`; the choice goes to the row after them.
-    fn removed(&mut self, ids: &[dm_core::Id], files: &[String], delete: bool) {
-        let mut failed: Vec<String> = Vec::new();
-        if delete {
-            for path in files {
-                // A finished torrent still shared lets go of its files first.
-                dm_core::stop_sharing(std::path::Path::new(path));
-                if let Err(e) = self.backend.platform.trash(path) {
-                    failed.push(format!("{path}: {e}"));
-                }
-            }
-        }
+    /// The Trash and the queue's change are made off the window's thread
+    /// (each file is a round trip to the Finder on macOS: gaps row 183),
+    /// and the choice moved and a failure said once they are done.
+    fn removed(
+        &mut self,
+        ids: &[dm_core::Id],
+        files: &[String],
+        delete: bool,
+        cx: &mut Context<Self>,
+    ) {
         // The row after those removed, or the one before where they were
         // the last, is chosen next, so the keys have somewhere to go on from.
         let shown: Vec<dm_core::Id> = (0..self.shown.len())
@@ -1846,16 +2033,35 @@ impl Downloads {
                     .or_else(|| shown[..last].iter().rev().find(|id| !ids.contains(id)))
                     .copied()
             });
-        self.backend.remove_many(ids);
-        self.read();
-        self.selected = next.into_iter().collect();
-        self.anchor = next;
-        if !failed.is_empty() {
-            self.say(dm_desktop_base::i18n::tf(
-                "Could not delete {}",
-                &[&failed.join("; ")],
-            ));
-        }
+        let (ids, files) = (ids.to_vec(), files.to_vec());
+        self.later(
+            move |backend| {
+                let mut failed: Vec<String> = Vec::new();
+                if delete {
+                    for path in &files {
+                        // A finished torrent still shared lets go of its files first.
+                        dm_core::stop_sharing(std::path::Path::new(path));
+                        if let Err(e) = backend.platform.trash(path) {
+                            failed.push(format!("{path}: {e}"));
+                        }
+                    }
+                }
+                backend.remove_many(&ids);
+                failed
+            },
+            move |this, failed, _| {
+                this.read();
+                this.selected = next.into_iter().collect();
+                this.anchor = next;
+                if !failed.is_empty() {
+                    this.say(dm_desktop_base::i18n::tf(
+                        "Could not delete {}",
+                        &[&failed.join("; ")],
+                    ));
+                }
+            },
+            cx,
+        );
     }
 
     /// Puts back the rows the last Remove took off, while Undo is on offer.
@@ -1870,6 +2076,17 @@ impl Downloads {
                 &[&n],
             ));
         }
+    }
+
+    /// The row of download `id`, found by where the list shows it, else
+    /// by a look over every row (a row the place chosen does not show).
+    pub(crate) fn row_of(&self, id: dm_core::Id) -> Option<&Arc<Entry>> {
+        self.positions
+            .get(&id)
+            .and_then(|&at| self.shown.get(at))
+            .and_then(|&r| self.rows.get(r))
+            .filter(|r| r.id == id)
+            .or_else(|| self.rows.iter().find(|r| r.id == id))
     }
 
     /// Says `sentence` in the status bar.
@@ -1916,9 +2133,10 @@ impl Downloads {
 
     /// Where the row `id` is in the list as shown.
     fn position_of(&self, id: dm_core::Id) -> Option<usize> {
-        self.shown
-            .iter()
-            .position(|&r| self.rows.get(r).is_some_and(|row| row.id == id))
+        self.positions
+            .get(&id)
+            .copied()
+            .filter(|&at| self.id_at(at) == Some(id))
     }
 
     /// Sorts by `column`: up, then the other way on a second click, as
@@ -1934,7 +2152,9 @@ impl Downloads {
     /// Which rows the list shows, in order: those in the place chosen,
     /// sorted as chosen.
     fn reshow(&mut self) {
-        let categories = self.backend.settings().categories();
+        // The row at the top of the view, held there below.
+        let top = self.top_row();
+        let categories = self.drawn.categories();
         let mut shown: Vec<usize> = (0..self.rows.len())
             .filter(|&i| {
                 self.places.within(&self.place, &self.rows[i], &categories)
@@ -1952,7 +2172,25 @@ impl Downloads {
                 }
             });
         }
+        self.positions = shown
+            .iter()
+            .enumerate()
+            .filter_map(|(at, &r)| self.rows.get(r).map(|row| (row.id, at)))
+            .collect();
         self.shown = shown;
+        // Rows added or taken away above the view, or a sort, no longer
+        // move what is in it: the row that was at its top stays there
+        // (gaps row 182).
+        if let Some((id, was, height, offset)) = top {
+            if let Some(&now) = self.positions.get(&id) {
+                let held = holding_top(offset, height, was, now);
+                if held != offset {
+                    let state = self.scroll.0.borrow();
+                    let x = state.base_handle.offset().x;
+                    state.base_handle.set_offset(gpui::point(x, gpui::px(held)));
+                }
+            }
+        }
     }
 }
 
@@ -2010,6 +2248,10 @@ pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
 
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::port::FRAMES.fetch_add(1, Ordering::Relaxed);
+        if !std::mem::take(&mut self.drawn_fresh) {
+            self.drawn = std::rc::Rc::new(self.backend.settings());
+        }
         // Resume's words in the menu bar follow the rows chosen (Retry,
         // Start now), however they were chosen: built again after this
         // frame where they changed.
@@ -2026,6 +2268,7 @@ impl Render for Downloads {
         let update_bar = self.update_bar(theme, &screen, cx);
         let holding = self.holder(cx).is_some();
         let browser_bar = self.browser_bar(theme, &screen, cx);
+        let empty = self.shown.is_empty();
         div()
             .id("downloads")
             .role(Role::Application)
@@ -2106,7 +2349,7 @@ impl Render for Downloads {
             .bg(theme.background)
             .text_color(theme.text)
             // The system's size for a list's rows and every control.
-            .text_size(gpui::px(crate::native::TEXT))
+            .text_size(crate::zoom::px(crate::native::TEXT))
             .child(crate::titlebar::titlebar(self, theme, &screen, window, cx))
             .when(self.show_toolbar, |root| {
                 root.child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
@@ -2144,9 +2387,9 @@ impl Render for Downloads {
                                 gpui::div()
                                     .flex()
                                     .items_center()
-                                    .gap(gpui::px(crate::native::LABEL_GAP))
-                                    .px(gpui::px(12.0))
-                                    .py(gpui::px(6.0))
+                                    .gap(crate::zoom::px(crate::native::LABEL_GAP))
+                                    .px(crate::zoom::px(12.0))
+                                    .py(crate::zoom::px(6.0))
                                     .border_b_1()
                                     .border_color(theme.separator)
                                     .child(gpui::div().flex_1().text_color(theme.warning).child(
@@ -2170,8 +2413,39 @@ impl Render for Downloads {
                                         ),
                                     )
                             }))
-                            .child(crate::table::header(self, theme, &screen, cx))
-                            .child(crate::table::rows(self, theme, cx)),
+                            // The headings and the rows scroll sideways
+                            // together where the window is narrower than
+                            // the columns, as a macOS list does: at 120% in
+                            // a narrow window the columns after Status were
+                            // out of reach. The sideways gesture alone moves
+                            // them; the wheel still moves the rows. With no
+                            // row, what the list says stands under them in
+                            // the middle of what is in sight, not of the
+                            // columns' whole width.
+                            .child(
+                                div()
+                                    .id("table")
+                                    .flex()
+                                    .when(empty, |table| table.flex_none())
+                                    .when(!empty, |table| table.flex_1().min_h_0())
+                                    .overflow_x_scroll()
+                                    .restrict_scroll_to_axis()
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .flex_col()
+                                            .when(!empty, |list| list.h_full())
+                                            .w_full()
+                                            .min_w(crate::zoom::px(crate::table::least_width(self)))
+                                            .child(crate::table::header(self, theme, &screen, cx))
+                                            .when(!empty, |list| {
+                                                list.child(crate::table::rows(self, theme, cx))
+                                            }),
+                                    ),
+                            )
+                            .when(empty, |list| {
+                                list.child(crate::table::empty(self, theme, cx))
+                            }),
                     ),
             )
             .child(crate::statusbar::statusbar(self, theme, &screen, cx))

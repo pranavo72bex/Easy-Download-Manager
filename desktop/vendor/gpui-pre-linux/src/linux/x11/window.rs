@@ -84,6 +84,8 @@ x11rb::atom_manager! {
         _GTK_FRAME_EXTENTS,
         _GTK_EDGE_CONSTRAINTS,
         _NET_CLIENT_LIST_STACKING,
+        // dm: a drag out of the window is over (`drag_out`).
+        _DM_DRAG_ENDED,
     }
 }
 
@@ -1877,6 +1879,17 @@ impl PlatformWindow for X11Window {
             ),
         )
         .log_err();
+    }
+
+    // dm: files dragged out of the window (`drag_out`); upstream offers it
+    // on macOS and Wayland only.
+    fn can_start_external_drag(&self) -> bool {
+        true
+    }
+
+    fn start_external_drag(&self, payload: &gpui::ExternalDragPayload) -> bool {
+        let gpui::ExternalDragPayload::Files(paths) = payload;
+        super::drag_out::start(&self.0.xcb, self.0.x_window, super::drag_out::uri_list(paths))
     }
 
     fn start_window_move(&self) {

@@ -44,6 +44,8 @@ pub struct Ticks {
     pub toolbar_order: Vec<String>,
     /// The toolbar's buttons hidden, by command id.
     pub toolbar_hidden: Vec<String>,
+    /// The text size in force (View › Text size's percentage).
+    pub text_size: f32,
     /// The language setting (View › Language).
     pub language: String,
     /// The sort in force, as the command that sorts so (View › Sort by).
@@ -274,6 +276,19 @@ pub fn bind_keys(cx: &mut App) {
         None,
     ));
     bindings.push(KeyBinding::new("cmd-w", CloseWindow, None));
+    // View › Text size, from any window, as a browser's zoom: ⌘ on macOS
+    // and Ctrl elsewhere with + (or =, the same key unshifted), − and 0.
+    let (larger, smaller, normal): (&[&'static str], &'static str, &'static str) =
+        if cfg!(target_os = "macos") {
+            (&["cmd-=", "cmd-+", "cmd-shift-="], "cmd--", "cmd-0")
+        } else {
+            (&["ctrl-=", "ctrl-+", "ctrl-shift-="], "ctrl--", "ctrl-0")
+        };
+    for keys in larger {
+        bindings.push(KeyBinding::new(keys, crate::viewmenu::TextLarger, None));
+    }
+    bindings.push(KeyBinding::new(smaller, crate::viewmenu::TextSmaller, None));
+    bindings.push(KeyBinding::new(normal, crate::viewmenu::TextNormal, None));
     bindings.push(KeyBinding::new("cmd-m", Minimize, None));
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
     bindings.push(KeyBinding::new("down", SelectNext, None));
@@ -536,8 +551,8 @@ fn bar(ticks: &Ticks) -> Bar {
         ),
     ]);
     // View, as the egui window's: Categories, Toolbar and Drop target
-    // ticked while shown; then Columns, Customize toolbar, Language and Sort
-    // by, each ticked as it stands.
+    // ticked while shown; then Columns, Customize toolbar, Text size,
+    // Language and Sort by, each ticked as it stands.
     let columns = Menu::new(t("Columns")).items(
         dm_desktop_base::columns::Column::ordered(&ticks.column_order)
             .into_iter()
@@ -581,6 +596,20 @@ fn bar(ticks: &Ticks) -> Bar {
                     }),
             ),
     );
+    // Text size: how large it is now, then Larger, Smaller and Normal size,
+    // with their keys (`bind_keys`).
+    let percent = (ticks.text_size * 100.0).round() as u32;
+    let text_size = Menu::new(t("Text size")).items([
+        MenuItem::action(
+            dm_desktop_base::i18n::tf("{}%", &[&percent]),
+            crate::viewmenu::TextNormal,
+        )
+        .disabled(true),
+        MenuItem::separator(),
+        MenuItem::action(t("Larger"), crate::viewmenu::TextLarger),
+        MenuItem::action(t("Smaller"), crate::viewmenu::TextSmaller),
+        MenuItem::action(t("Normal size"), crate::viewmenu::TextNormal),
+    ]);
     let speaks = dm_desktop_base::i18n::chosen(&ticks.language);
     let language = Menu::new(t("Language")).items(dm_desktop_base::i18n::LANGUAGES.iter().map(
         |(code, name)| {
@@ -613,6 +642,7 @@ fn bar(ticks: &Ticks) -> Bar {
         MenuItem::separator(),
         MenuItem::submenu(columns),
         MenuItem::submenu(customize),
+        MenuItem::submenu(text_size),
         MenuItem::submenu(language),
         MenuItem::submenu(sort),
     ]);
@@ -733,6 +763,36 @@ mod tests {
         // One that acts at once has none.
         assert!(find(&menus, Command::StopDownload.label()).is_some());
         assert!(find(&menus, "Add numbered series").is_none());
+    }
+
+    /// View › Text size, as the egui window's: how large it is, then
+    /// Larger, Smaller and Normal size, between Customize toolbar and
+    /// Language.
+    #[test]
+    fn the_view_menu_offers_the_text_size() {
+        let menus = build(&Ticks {
+            text_size: 1.2,
+            ..Default::default()
+        });
+        assert!(find(&menus, "120%").is_some());
+        for words in ["Larger", "Smaller", "Normal size"] {
+            assert!(find(&menus, words).is_some(), "{words}");
+        }
+        let view = menus
+            .iter()
+            .find(|m| m.name.as_ref() == "View")
+            .expect("a View menu");
+        let names: Vec<String> = view
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                MenuItem::Submenu(menu) => Some(menu.name.to_string()),
+                _ => None,
+            })
+            .collect();
+        let at = |name: &str| names.iter().position(|n| n == name);
+        assert_eq!(at("Text size"), at("Customize toolbar").map(|i| i + 1));
+        assert_eq!(at("Language"), at("Text size").map(|i| i + 1));
     }
 
     #[test]

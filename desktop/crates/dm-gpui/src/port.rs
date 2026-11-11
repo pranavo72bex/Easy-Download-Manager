@@ -14,6 +14,9 @@ use dm_desktop_base::boot::Wake;
 use dm_desktop_base::control::{Reads, Request};
 use dm_shell::app::backend::Backend;
 
+/// How many times the main window has been drawn (`Downloads::render`).
+pub static FRAMES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// Opens the port (`0`: one the system picks) and writes where it is for
 /// clients; the requests, or why it could not open. `wake` is called as
 /// each request arrives that the window is to answer.
@@ -47,6 +50,14 @@ pub fn open(
 fn reads(backend: Backend, assistants_only: bool) -> Reads {
     let saved = Mutex::new(dm_shell::app::snapshot::SavedSizes::default());
     Arc::new(move |method, params, via_mcp| {
+        // How many times the main window has been drawn: what a test of
+        // "a wake that changed nothing draws nothing" counts, asked here so
+        // the asking draws nothing either (gaps row 181).
+        if method == "ui.frames" {
+            return Some(Ok(serde_json::json!({
+                "frames": FRAMES.load(std::sync::atomic::Ordering::Relaxed)
+            })));
+        }
         if method != "queue.list" {
             return None;
         }

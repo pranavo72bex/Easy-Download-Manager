@@ -230,6 +230,28 @@ def windows_of(name):
     return None
 
 
+def clipboard(text=None):
+    """What the system's clipboard holds, or with `text`, puts that on it and
+    returns what it held before; None where no tool here can reach it
+    (macOS's pbcopy, xclip on Linux, PowerShell on Windows)."""
+    if sys.platform == "darwin":
+        get, put = ["pbpaste"], ["pbcopy"]
+    elif WINDOWS:
+        get = ["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"]
+        put = ["powershell", "-NoProfile", "-Command", "$input | Set-Clipboard"]
+    elif shutil.which("xclip") and os.environ.get("DISPLAY"):
+        get, put = ["xclip", "-selection", "clipboard", "-o"], ["xclip", "-selection", "clipboard"]
+    else:
+        return None
+    try:
+        held = subprocess.run(get, capture_output=True, timeout=10).stdout
+        if text is not None:
+            subprocess.run(put, input=text.encode(), timeout=10, check=True)
+        return held
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def launch(env, *args):
     global APP
     APP = subprocess.Popen([BINARY, *args], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -570,6 +592,81 @@ def main():
         soon(lambda: "Add URL" in open_dialogs())
         human("ui.key", key="Escape")
         check("Escape closes the top dialog", soon(lambda: "Add URL" not in open_dialogs()))
+        # View › Text size (issue #32): Ctrl (Cmd) with + draws the list's
+        # words and rows larger, at once and kept in the settings; with 0 they
+        # are back at 100%.
+        held = ["cmd" if sys.platform == "darwin" else "ctrl"]
+        def measures():
+            names = [t["rect"] for t in call("ui.texts")["result"]["texts"]
+                     if t.get("window") == "main" and t["text"].endswith(".zip")]
+            tops = sorted({r[1] for r in names})
+            pitch = min((b - a for a, b in zip(tops, tops[1:])), default=0)
+            return (names[0][3] - names[0][1] if names else 0, pitch)
+        medium = measures()
+        human("ui.key", key="=", modifiers=held)
+        human("ui.key", key="=", modifiers=held)
+        grown = lambda: [round(b / a, 2) if a else 0 for a, b in zip(medium, measures())]
+        check("Ctrl (Cmd) with + draws the words and the rows larger",
+              soon(lambda: all(r >= 1.1 for r in grown())), True)
+        check("and the text size is kept", json.loads((home / "settings.json").read_text()).get("text_size"), 1.2)
+        human("ui.key", key="0", modifiers=held)
+        check("and with 0 they are back at 100%", soon(lambda: measures() == medium), True)
+        # Links on the clipboard (issue #32): Save to, as Download links has
+        # it. A folder typed (the field Browse… fills, whose system panel
+        # waits for a person) takes every link; one not there yet, two
+        # levels deep, is made as they are added; a file in its way is said
+        # and the dialog stays.
+        def from_clipboard(*names):
+            if clipboard("\n".join(url(n) for n in names)) is None:
+                return False
+            call("command.run", id="program.add_from_clipboard")
+            return soon(lambda: "Links on the clipboard" in open_dialogs())
+        def landed(name):
+            return wait_for(f"{name} from the clipboard never finished",
+                            lambda: [pathlib.Path(r["path"]) for r in rows(home)
+                                     if r["url"].endswith("/" + name) and r["state"]["kind"] == "completed"], 30)[0]
+        was_held = clipboard()
+        if was_held is None:
+            unchecked("Links on the clipboard saves to a folder chosen or new", "no clipboard tool here")
+        else:
+            try:
+                check("Add links from clipboard opens Links on the clipboard", from_clipboard("clip-a.zip", "clip-b.zip"))
+                check("with Save to as Download links has it", soon(lambda: all(w in on_screen() for w in (
+                    "Save to", "Each file to the folder of its category", "Every file to this category",
+                    "Every file to this folder", "Browse…"))))
+                picked = home / "picked"
+                picked.mkdir()
+                human("ui.click", text="Every file to this folder")
+                human("ui.type", text=str(picked))
+                human("ui.click", text="Start now")
+                check("a folder chosen takes every link",
+                      (landed("clip-a.zip").parent, landed("clip-b.zip").parent), (picked, picked))
+                check("and the dialog closed", soon(lambda: "Links on the clipboard" not in open_dialogs()))
+                new = downloads / "From the clipboard" / "new"
+                from_clipboard("clip-c.zip")
+                human("ui.click", text="Every file to this folder")
+                human("ui.type", text=str(new))
+                human("ui.click", text="Add for later")
+                check("a new folder is made as the links are added, for later too",
+                      wait_for("the new folder was never made", lambda: new.is_dir(), 10), True)
+                waiting = wait_for("clip-c.zip never reached the queue",
+                                   lambda: [r for r in rows(home) if r["url"].endswith("/clip-c.zip")])
+                check("and the link waits in the main queue with that folder",
+                      (waiting[0]["state"]["kind"], waiting[0]["queue"], waiting[0].get("save_dir")),
+                      ("paused", "Main queue", str(new)))
+                taken = home / "taken"
+                taken.write_bytes(b"x")
+                from_clipboard("clip-d.zip")
+                human("ui.click", text="Every file to this folder")
+                human("ui.type", text=str(taken / "below"))
+                human("ui.click", text="Start now")
+                check("a file in the way is said, and the dialog stays",
+                      soon(lambda: any("could not be written" in w for w in on_screen())
+                           and "Links on the clipboard" in open_dialogs()))
+                human("ui.click", text="Cancel")
+                check("and nothing was added", [r for r in rows(home) if r["url"].endswith("/clip-d.zip")], [])
+            finally:
+                clipboard(was_held.decode(errors="replace"))
         human("ui.click", text="Tasks")
         check("a menu opens and lists its items", soon(lambda: "Add numbered series…" in on_screen()))
         human("ui.key", key="Escape")

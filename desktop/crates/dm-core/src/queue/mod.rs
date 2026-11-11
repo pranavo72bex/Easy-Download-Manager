@@ -500,6 +500,8 @@ struct Inner {
     queue_limits: std::sync::Mutex<HashMap<String, usize>>,
     /// Whether a scheduler is already serving this queue.
     scheduling: AtomicBool,
+    /// Set as dm ends (`Queue::shut_down`): nothing starts after it.
+    closing: AtomicBool,
     /// Wakes a scheduler between its ticks, so a download added while
     /// others run starts now rather than at the next tick.
     kick: tokio::sync::Notify,
@@ -603,6 +605,7 @@ impl Queue {
                 problems: std::sync::Mutex::new(Vec::new()),
                 leaving: std::sync::Mutex::new(Vec::new()),
                 scheduling: AtomicBool::new(false),
+                closing: AtomicBool::new(false),
                 kick: tokio::sync::Notify::new(),
                 rechecking: AtomicBool::new(false),
                 concurrency: AtomicUsize::new(concurrency.max(1)),

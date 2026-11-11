@@ -11,14 +11,14 @@ use dm_core::Id;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, WeakEntity, Window, WindowBounds,
-    WindowOptions,
+    div, prelude::*, size, App, Bounds, Context, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The window's view.
 pub struct Complete {
@@ -85,7 +85,12 @@ impl Complete {
             }
             match how {
                 0 => view.open_path(&path),
-                1 => view.open_path_with(&path),
+                // It leaves the list once the panel is closed, as when the
+                // window waited for the panel.
+                1 => {
+                    view.open_path_with(&path, move |view, cx| view.complete_done(id, cx), cx);
+                    return;
+                }
                 _ => view.reveal_path(&path),
             }
             view.complete_done(id, cx);

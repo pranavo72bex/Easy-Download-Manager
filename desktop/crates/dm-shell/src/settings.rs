@@ -28,6 +28,94 @@ const SPEED_LIMIT_KB: (u64, u64) = (0, 1024 * 1024);
 const LIMIT_MB: u64 = 1024 * 1024 * 1024;
 const LIMIT_HOURS: u64 = 24 * 31;
 
+/// The window's scale (Options › General › Appearance's slider, View ›
+/// Larger and Smaller): four stops, 60, 80, 100 and 120 percent, 100 the
+/// default (the maintainer's word of 2026-11-11, docs/decisions.md).
+pub struct TextSizes {
+    /// The window as it is designed.
+    pub default: f32,
+    /// The stops, smallest first.
+    pub stops: [f32; 4],
+}
+
+/// The scales the window offers.
+pub const TEXT_SIZE: TextSizes = TextSizes {
+    default: 1.0,
+    stops: [0.6, 0.8, 1.0, 1.2],
+};
+
+/// The egui window's named text sizes, as a settings file may still say
+/// them, and the stop each is read as.
+const TEXT_SIZE_NAMES: [(&str, f32); 3] = [("small", 0.8), ("medium", 1.0), ("large", 1.2)];
+
+impl TextSizes {
+    /// The stop nearest to `size`; one that is no number is the default.
+    pub fn held(&self, size: f32) -> f32 {
+        if !size.is_finite() {
+            return self.default;
+        }
+        self.stops
+            .iter()
+            .copied()
+            .min_by(|a, b| (a - size).abs().total_cmp(&(b - size).abs()))
+            .unwrap_or(self.default)
+    }
+
+    /// The stop above (`up`) or below the one nearest to `size`, held at
+    /// the ends.
+    pub fn stepped(&self, size: f32, up: bool) -> f32 {
+        let at = self.index(size);
+        let next = if up {
+            (at + 1).min(self.stops.len() - 1)
+        } else {
+            at.saturating_sub(1)
+        };
+        self.stops.get(next).copied().unwrap_or(self.default)
+    }
+
+    /// Which stop `size` is nearest to.
+    pub fn index(&self, size: f32) -> usize {
+        let held = self.held(size);
+        self.stops
+            .iter()
+            .position(|s| (s - held).abs() < 0.001)
+            .unwrap_or(2)
+    }
+
+    /// `size` as the percentage shown beside the slider.
+    pub fn percent(&self, size: f32) -> u32 {
+        (self.held(size) * 100.0).round() as u32
+    }
+
+    /// A scale as a settings file says it: a number (a factor, 0.85 as the
+    /// egui window's Small was, or a percentage, 80), the egui window's
+    /// name for it (Small, Medium, Large), or a percentage in words ("80%").
+    /// Anything else is `None`.
+    pub fn read(&self, said: &serde_json::Value) -> Option<f32> {
+        let number = |n: f64| {
+            let n = n as f32;
+            // 60 to 120 is a percentage; a factor is never that large.
+            Some(self.held(if n > 10.0 { n / 100.0 } else { n }))
+        };
+        match said {
+            serde_json::Value::Number(n) => n.as_f64().and_then(number),
+            serde_json::Value::String(words) => {
+                let words = words.trim().to_ascii_lowercase();
+                if let Some((_, size)) = TEXT_SIZE_NAMES.iter().find(|(n, _)| *n == words) {
+                    return Some(*size);
+                }
+                words
+                    .trim_end_matches('%')
+                    .trim()
+                    .parse::<f64>()
+                    .ok()
+                    .and_then(number)
+            }
+            _ => None,
+        }
+    }
+}
+
 /// Everything a person sets in dm, as `settings.json` keeps it: the window's
 /// Options, the list's columns and sort, the side panel, and what the
 /// browser's extension is told. A field missing from the file takes its
@@ -214,6 +302,13 @@ pub struct Settings {
     /// The window's look: "system" (the modern look, light or dark as the
     /// computer is), "light", "dark", or "classic" (a classic Windows look).
     pub theme: String,
+    /// How large the GPUI window draws everything, as a multiple of its
+    /// design (Options › General › Appearance's slider, View › Text size):
+    /// one of `TEXT_SIZE.stops`, 0.6 to 1.2, 1.0 the default; Ctrl (Cmd)
+    /// with + and − steps a stop. Kept here so it holds across launches and
+    /// either window can read it.
+    #[serde(default = "default_text_size", deserialize_with = "lenient::text_size")]
+    pub text_size: f32,
     /// What a double-click on a row does: "properties", "open" (a finished
     /// file; Properties for one not finished) or "folder" (its folder).
     pub double_click: String,
@@ -397,6 +492,10 @@ pub const RECENT_URLS: usize = 20;
 
 /// Ten: the last five half a minute apart, so a download rides out a
 /// couple of minutes without a network (`retry::backoff`).
+fn default_text_size() -> f32 {
+    TEXT_SIZE.default
+}
+
 fn default_true() -> bool {
     true
 }
@@ -675,6 +774,7 @@ impl Default for Settings {
             ask_panel_downloads: true,
             ask_caught_downloads: true,
             theme: "system".into(),
+            text_size: TEXT_SIZE.default,
             double_click: "open".into(),
             on_close: "ask".into(),
             hinted_big: false,
@@ -707,6 +807,7 @@ impl Settings {
         self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
         self.recent_urls.truncate(RECENT_URLS);
         self.retry_wait = self.retry_wait.min(3600);
+        self.text_size = TEXT_SIZE.held(self.text_size);
         // A day at most: a stream meant to run longer is stopped by hand.
         self.record_minutes = self.record_minutes.min(24 * 60);
         if !["ask", "tray", "exit"].contains(&self.on_close.as_str()) {
@@ -1436,6 +1537,15 @@ mod lenient {
         serde_json::from_value(Value::Object(fields))
             .ok()
             .map(|read| (read, dropped))
+    }
+
+    /// The window's scale as a number, a percentage or the egui window's
+    /// name for it (`TextSizes::read`); anything else is the default.
+    pub(super) fn text_size<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+        let said = serde_json::Value::deserialize(d)?;
+        Ok(super::TEXT_SIZE
+            .read(&said)
+            .unwrap_or(super::TEXT_SIZE.default))
     }
 
     pub(super) fn schedule<'de, D: Deserializer<'de>>(d: D) -> Result<dm_core::Schedule, D::Error> {

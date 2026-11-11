@@ -10,12 +10,13 @@
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
-use gpui::{anchored, deferred, div, prelude::*, px, Context, Pixels, Point, Role};
+use gpui::{anchored, deferred, div, prelude::*, Context, Pixels, Point, Role};
 
 use crate::list::Downloads;
 use crate::menus::Run;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The menu's items, in groups, each with the words it shows (the egui row
 /// menu's own, where it says them differently from the command's title):

@@ -217,6 +217,24 @@ and is not carried over.
       on 2026-10-11. It calls the queue directly, and `tests/window.rs` drives
       every control through its accessibility tree against a real queue on
       loopback
+- [x] The window's scale (issue #32, 2026-11-11): Options › General ›
+      Appearance's Text size slider with four stops, 60, 80, 100 (the
+      default) and 120 percent, the percentage beside it; View › Text size ›
+      Larger, Smaller, Normal size and Ctrl (⌘) with +, − and 0 step the same
+      stops. Everything the GPUI window draws goes through one scale
+      (`dm-gpui` `zoom.rs`), so words, rows, controls, pictures and every
+      dialog's window grow together, at once; kept in `settings.json`
+      (`text_size`), the egui window's Small, Medium and Large read as 80, 100
+      and 120. Contract row B66. Checked on macOS over the control port;
+      Linux and Windows owed
+- [x] Save to for links added together (issue #32, 2026-11-11): Links on
+      the clipboard and Download links share one Save to (`dm-desktop-base`
+      `save_to.rs`, drawn by `dm-gpui` `savefolder.rs`): each to its
+      category's folder, one category, or one folder typed or chosen with
+      Browse… (the system's folder panel, where a folder can be made); a
+      folder not there yet is made when the links are added, one that cannot
+      be is said and the dialog stays. Contract row B67. Checked on macOS over
+      the control port; Linux and Windows owed
 - [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `desktop/vendor/README.md`). Contract row B42.
 - [x] The window — menu bar (Program, File, Downloads, View, Help),
       toolbar, category tree with Everything, In progress, Done and Queues,
@@ -286,7 +304,11 @@ and is not carried over.
       winit's own connection with the press's serial —
       `scripts/linux-wayland-drag-check.sh` drags both ways under sway with a
       virtual pointer (4 of 4 first time). Unchecked: a physical drag by
-      hand on macOS and Windows, and a real browser under Wayland
+      hand on macOS and Windows, and a real browser under Wayland. The GPUI
+      window (2026-11-11, gaps G10): a finished row's drag is handed to the
+      system as it leaves the window, on macOS and Wayland by GPUI and on
+      X11 by an XDND source in the vendored GPUI; built and unit-tested, not
+      yet watched landing; not on Windows yet
 - [x] Start on login — on for a new install (Options › General turns it off; an older install keeps its choice), registers dm as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather

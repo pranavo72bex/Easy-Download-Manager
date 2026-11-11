@@ -191,3 +191,68 @@ the frozen standard that reference A was measured against.
    shipped code.
 9. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.
+
+## Rules for performance and platform work
+
+These come from the maintainer's optimization spec of 2026-11-11. Where dm
+stands against each rule is in `docs/optimization-audit.md`, and what is
+still missing is in `docs/gaps.md`, rows 180 to 192.
+
+1. The engine never imports GPUI or any other window toolkit. `dm-core`,
+   `dm-shell`, `dm-desktop-base` and `dm-protocol` stay free of them, and
+   `cargo xtask layers` refuses a change that breaks this.
+2. Render functions and event handlers never block. This rules out the file
+   system, the network, `Backend` calls that `block_on` the engine, a
+   synchronous file dialog, and a lock held across slow work. What takes
+   time runs on the runtime or a worker, and its answer comes back to the
+   window.
+3. One download's progress never rebuilds the whole window's state. Read
+   what changed and redraw only what shows it. A wake that changed nothing
+   on screen draws nothing.
+4. Queues of progress or telemetry are bounded or coalesced (latest value
+   per download). Lifecycle events are the exception: they are kept and
+   never dropped.
+5. Shared crates hold no platform behaviour without a reason. Platform code
+   sits behind `dm_shell::app::platform::Platform`, or in a module of its
+   own whose small API is the same on every system.
+6. Before adding an abstraction, find the one that already does the job
+   (`docs/architecture/MODULE_BOUNDARIES.md`) and weigh using it. Two of
+   anything is a cost each later change pays.
+7. No `unsafe` without a `// SAFETY:` comment that states its invariants
+   (clippy enforces the comment), and no new unsafe block without a
+   reviewer's reading. Prefer a safe crate that already does it.
+8. No new dependency without saying, in the commit, why the ones already in
+   `Cargo.lock` cannot do it, and what it adds to the build time and the
+   binary.
+9. Every task spawned has an owner that can cancel it, and a plan for when
+   dm quits. A task that is simply dropped with the runtime does not count
+   as stopped.
+10. Every optimization comes with its measurement before and after: the
+    benchmark (`bench/`), `scripts/ui-bench.py`, `scripts/memory-check.py`
+    or a profile. A change justified by reasoning alone is not an
+    optimization.
+11. What a person sees and does is kept unless the maintainer has approved
+    the change (rule 0 above).
+12. Engine or infrastructure work changes nothing in the window's design,
+    layout or wording.
+13. Public APIs are narrow and say their invariants. `missing_docs` is on in
+    every crate.
+14. A bug found gets a regression test first (rule 1 above).
+15. Compiling for a system is not supporting it. A platform claim needs a
+    run on that system: a check, `human-qa.py`, or a person's run recorded
+    in `docs/gaps.md`.
+
+An optimization goes in this order. Read the architecture and the
+dependencies it touches. Find the hot path by measuring, and take a baseline
+with the same command you will run afterwards. State a hypothesis, then make
+the smallest change that tests it. Run the unit and integration tests, then
+the same benchmark (medians of three or more runs), and look for side effects
+on memory, CPU and binary size. Build and test on every system the change
+touches. Its row in `docs/gaps.md` and an entry in `docs/decisions.md` then
+say:
+
+- the problem, and the evidence for it
+- the files and modules changed, and any effect on the architecture
+- the numbers before and after, and the commands that produced them
+- the systems it was tested on
+- what it costs, what it does not fix, and whether it needs more profiling

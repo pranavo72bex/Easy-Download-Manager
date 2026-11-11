@@ -108,7 +108,7 @@ pub fn run(
         }
         while woken.try_recv().is_ok() {}
     }
-    dm.backend.flush();
+    dm.backend.shut_down();
     crate::control::closing();
     crate::control::forget_port(&dm_shell::settings::home());
 }

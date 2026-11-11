@@ -54,10 +54,11 @@ impl Window {
 }
 
 impl eframe::App for Window {
-    /// The last thing a window that is closing does: the queue file gets
-    /// whatever change was still waiting for its turn.
+    /// The last thing a window that is closing does: the downloads stopped
+    /// and awaited, and the queue file gets whatever change was still
+    /// waiting for its turn (`Backend::shut_down`).
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        self.app.backend().flush();
+        self.app.backend().shut_down();
     }
 
     /// Clear under Mica, so the backdrop shows through the frame.

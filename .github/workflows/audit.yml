@@ -4,12 +4,14 @@ name: Audit
 # Weekly as well as on a change, because an advisory can be published
 # against a lockfile nobody has touched. Advisories looked at and found
 # unreachable are listed, each with its reason, in desktop/.cargo/audit.toml.
+# `cargo deny` holds the same advisories, and the licences and sources of
+# every crate, to desktop/deny.toml (gaps row 190).
 on:
   push:
     branches: [main]
-    paths: ['**/Cargo.lock', '**/Cargo.toml', '**/audit.toml', '.github/workflows/audit.yml']
+    paths: ['**/Cargo.lock', '**/Cargo.toml', '**/audit.toml', '**/deny.toml', '.github/workflows/audit.yml']
   pull_request:
-    paths: ['**/Cargo.lock', '**/Cargo.toml', '**/audit.toml', '.github/workflows/audit.yml']
+    paths: ['**/Cargo.lock', '**/Cargo.toml', '**/audit.toml', '**/deny.toml', '.github/workflows/audit.yml']
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch:
@@ -33,3 +35,20 @@ jobs:
       - name: cargo audit
         working-directory: ${{ matrix.dir }}
         run: cargo audit --deny warnings
+
+  deny:
+    name: cargo deny (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [desktop, browser]
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-deny
+      # One set of rules for both workspaces: desktop/deny.toml.
+      - name: cargo deny
+        working-directory: ${{ matrix.dir }}
+        run: cargo deny --locked --config ${{ github.workspace }}/desktop/deny.toml check

@@ -50,6 +50,9 @@ impl WindowProbe for Stand {
         })
     }
     fn scroll(&mut self, scroll: Scroll) -> Result<Scrolled, String> {
+        if scroll.sideways != 0.0 {
+            self.asked.push(format!("sideways {}", scroll.sideways));
+        }
         Ok(Scrolled {
             scrolled: scroll.text,
             lines: scroll.lines,
@@ -226,6 +229,18 @@ fn scroll_type_and_key_answer_as_they_always_have() {
         ),
         json!({ "scrolled": "a.zip", "lines": -2.0 })
     );
+    assert!(stand.asked.is_empty(), "{:?}", stand.asked);
+    // Sideways alone: no lines down unless asked for too.
+    assert_eq!(
+        input_ok(
+            &mut stand,
+            "ui.scroll",
+            json!({ "text": "a.zip", "sideways": 4 })
+        ),
+        json!({ "scrolled": "a.zip", "lines": 0.0 })
+    );
+    assert_eq!(stand.asked, ["sideways 4"]);
+    stand.asked.clear();
     assert_eq!(
         input_ok(&mut stand, "ui.type", json!({ "text": "héllo" })),
         json!({ "typed": 5 })

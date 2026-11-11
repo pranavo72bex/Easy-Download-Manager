@@ -113,7 +113,12 @@ pub(super) fn player_answer() -> Promise {
     let token = format!("q{}", js_sys::Date::now());
     let origin = window.location().origin().unwrap_or_else(|_| "*".into());
     Promise::new(&mut |resolve, _reject| {
-        PLAYER_ASKED.with(|a| *a.borrow_mut() = Some((token.clone(), resolve.clone())));
+        // An ask still waiting is answered with nothing rather than left
+        // unanswered for good, whoever awaits it.
+        let older = PLAYER_ASKED.with(|a| a.borrow_mut().replace((token.clone(), resolve.clone())));
+        if let Some((_, older)) = older {
+            let _ = older.call1(&JsValue::NULL, &JsValue::NULL);
+        }
         let ask = js_sys::Object::new();
         let _ = Reflect::set(&ask, &"source".into(), &"dm-ask-qualities".into());
         let _ = Reflect::set(&ask, &"token".into(), &token.clone().into());
@@ -229,6 +234,55 @@ fn heights_answered(data: &JsValue, id: &str) -> Vec<u32> {
     decide::player_heights(&levels)
 }
 
+/// A promise of the heights YouTube's player lists for the video `id`, as
+/// numbers, tallest first: asked again every [`decide::PLAYER_ASK_EVERY_MS`]
+/// until it lists two or more, `stop` is set, or
+/// [`decide::PLAYER_LIST_PATIENCE_MS`] has passed. A player still loading,
+/// or playing an advertisement first, has no list of the video's own yet,
+/// and a click asked it only once (gaps row 178).
+fn player_list(id: String, stop: std::rc::Rc<std::cell::Cell<bool>>) -> Promise {
+    wasm_bindgen_futures::future_to_promise(async move {
+        let until = js_sys::Date::now() + decide::PLAYER_LIST_PATIENCE_MS;
+        loop {
+            let data = JsFuture::from(player_answer())
+                .await
+                .unwrap_or(JsValue::NULL);
+            let heights = heights_answered(&data, &id);
+            if heights.len() >= 2 || stop.get() || js_sys::Date::now() >= until {
+                return Ok(heights
+                    .iter()
+                    .map(|h| JsValue::from(*h))
+                    .collect::<Array>()
+                    .into());
+            }
+            let pause = Promise::new(&mut |resolve, _reject| {
+                set_timeout(
+                    move || {
+                        let _ = resolve.call0(&JsValue::NULL);
+                    },
+                    decide::PLAYER_ASK_EVERY_MS,
+                );
+            });
+            let _ = JsFuture::from(pause).await;
+        }
+    })
+}
+
+/// The heights a [`player_list`] promise came to; none where it failed.
+async fn heights_listed(list: Promise) -> Vec<u32> {
+    JsFuture::from(list)
+        .await
+        .ok()
+        .and_then(|v| v.dyn_into::<Array>().ok())
+        .map(|a| {
+            a.iter()
+                .filter_map(|h| h.as_f64())
+                .map(|h| h as u32)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// The panel's lines for heights the player named, before sizes are
 /// known: "1080p" each, fetched at that height.
 fn lines_of_heights(heights: &[u32]) -> Array {
@@ -312,17 +366,20 @@ pub(super) fn clicked() {
     // and gives the click back. A list the player gave stays.
     let answered = std::rc::Rc::new(std::cell::Cell::new(false));
     let fast = std::rc::Rc::new(std::cell::Cell::new(false));
-    if let Some(id) = decide::youtube_video_id(&frame) {
+    // Set once the player's list is no longer wanted: the app's own list is
+    // shown, or the click has given up.
+    let stop = std::rc::Rc::new(std::cell::Cell::new(false));
+    let player =
+        decide::youtube_video_id(&frame).map(|id| player_list(id, std::rc::Rc::clone(&stop)));
+    if let Some(player) = player.clone() {
         let (src, frame, fast) = (src.clone(), frame.clone(), std::rc::Rc::clone(&fast));
-        let answered = std::rc::Rc::clone(&answered);
+        let stop = std::rc::Rc::clone(&stop);
         wasm_bindgen_futures::spawn_local(async move {
-            let Ok(data) = JsFuture::from(player_answer()).await else {
-                return;
-            };
-            let heights = heights_answered(&data, &id);
-            // Still waiting on the app (its answer not come, nothing handed
-            // over), and a choice worth making.
-            let waiting = !answered.get() && with_panel(|p| p.settled).unwrap_or(false);
+            let heights = heights_listed(player).await;
+            // Still reading (nothing listed or handed over yet), and a
+            // choice worth making. The app's answer may have come and be
+            // waiting on this list: it had less to offer.
+            let waiting = !stop.get() && !fast.get() && with_panel(|p| p.settled).unwrap_or(false);
             if heights.len() < 2 || !waiting {
                 return;
             }
@@ -336,10 +393,11 @@ pub(super) fn clicked() {
     }
     {
         let answered = std::rc::Rc::clone(&answered);
-        let fast = std::rc::Rc::clone(&fast);
+        let (fast, stop) = (std::rc::Rc::clone(&fast), std::rc::Rc::clone(&stop));
         set_timeout(
             move || {
                 if !answered.replace(true) && !fast.get() {
+                    stop.set(true);
                     failed("dm did not answer in time. Try again, or right-click the video and choose Download media with dm.");
                 }
             },
@@ -354,11 +412,13 @@ pub(super) fn clicked() {
         }
         // The player's list was clicked already: the app has its hand-off.
         if fast.get() && with_panel(|p| p.settled).unwrap_or(false) {
+            stop.set(true);
             return;
         }
         let reply = match reply {
             Ok(reply) => reply,
             Err(e) => {
+                stop.set(true);
                 web_sys::console::debug_2(&"dm: the panel's message was not delivered:".into(), &e);
                 failed(decide::SAY_UPDATED);
                 return;
@@ -368,15 +428,35 @@ pub(super) fn clicked() {
             .ok()
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        if !ok {
-            failed(&text_of(&reply, "said"));
-            return;
-        }
         let choices: Array = Reflect::get(&reply, &"choices".into())
             .ok()
             .and_then(|v| v.dyn_into().ok())
             .unwrap_or_default();
-        let choices = with_page_lines(choices, &player_id().await);
+        let choices = if ok {
+            with_page_lines(choices, &player_id().await)
+        } else {
+            choices
+        };
+        if ok && choices.length() >= 2 {
+            stop.set(true);
+        } else if let Some(player) = player {
+            // Less than a choice, or a refusal, while YouTube's own player
+            // may still be getting its list: that is waited for (bounded,
+            // the panel still saying it reads the qualities) rather than
+            // the page handed over unasked or the click given back. The
+            // first click came before the player had a list, once, and
+            // handed the page over (macOS, 2026-11-11, gaps row 178).
+            // Listed by the player meanwhile, or the panel no longer
+            // reading (a new player under it): nothing more to do here.
+            let _ = heights_listed(player).await;
+            if fast.get() || !with_panel(|p| p.settled).unwrap_or(false) {
+                return;
+            }
+        }
+        if !ok {
+            failed(&text_of(&reply, "said"));
+            return;
+        }
         with_panel(|p| {
             p.settled = false;
             say(p, "");

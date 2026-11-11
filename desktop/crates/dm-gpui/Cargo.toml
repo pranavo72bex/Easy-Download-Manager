@@ -141,8 +141,11 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
 # What GPUI cannot ask of a window (appkit.rs): put away into the tray without
 # closing it, moved, pictured.
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString"] }
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation", "block2", "NSOpenPanel", "NSSavePanel", "NSPanel"] }
+# The open and save panels' completion handler (services.rs), as rfd and
+# GPUI give theirs.
+block2 = "0.6"
 [target.'cfg(target_os = "linux")'.dependencies]
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["wayland", "x11"] }
 # The X server itself, for what GPUI cannot ask of an X11 window (syswindow.rs):

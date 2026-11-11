@@ -311,7 +311,9 @@ impl Downloads {
     /// logout or `kill` waited on an unanswered question), then the
     /// application.
     pub fn quit(&mut self, cx: &mut Context<Self>) {
-        self.backend.flush();
+        // The downloads stopped and awaited, as a pause stops them, the
+        // queue written last (gaps row 186).
+        self.backend.shut_down();
         // As the egui window ends: a request still waiting is told dm is
         // quitting, and `control.port` no longer sends a client to a port
         // nobody answers. Here, before the system ends the process:

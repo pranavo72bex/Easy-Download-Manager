@@ -13,7 +13,7 @@ use dm_core::youtube::Playlist;
 use dm_desktop_base::file_info;
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, px, size, uniform_list, App, Bounds, Context, FocusHandle, KeyDownEvent,
+    div, prelude::*, size, uniform_list, App, Bounds, Context, FocusHandle, KeyDownEvent,
     SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 
@@ -22,6 +22,7 @@ use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// A video's row in the list, in points.
 const ROW: f32 = 22.0;

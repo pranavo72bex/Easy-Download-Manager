@@ -9,19 +9,21 @@
 //! (their order, which are hidden) and every cell's words are the egui
 //! window's (`dm_desktop_base::columns` and `rows`); numbers stand against
 //! their column's right edge so their digits line up down the list. A
-//! heading dragged onto another takes its place, as a macOS table's do.
+//! heading dragged onto another takes its place, as a macOS table's do; a
+//! finished row dragged out of the window carries its file (`dragout`).
 
 use dm_core::{Entry, State};
 use dm_desktop_base::columns::Column;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
 use gpui::{
-    div, prelude::*, px, relative, uniform_list, AnyElement, Context, Role, SharedString, Window,
+    div, prelude::*, relative, uniform_list, AnyElement, Context, Role, SharedString, Window,
 };
 
 use crate::list::{kind_picture, Downloads, ROW_HEIGHT};
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The header's height, in points.
 pub const HEADER_HEIGHT: f32 = 24.0;
@@ -47,7 +49,7 @@ fn numeric(column: Column) -> bool {
 
 /// The columns shown, in the person's order.
 pub fn columns(view: &Downloads) -> Vec<Column> {
-    let settings = view.backend.settings();
+    let settings = &view.drawn;
     Column::ordered(&settings.column_order)
         .into_iter()
         .filter(|c| !settings.columns_hidden.iter().any(|h| h == c.key()))
@@ -57,6 +59,17 @@ pub fn columns(view: &Downloads) -> Vec<Column> {
 /// The file name's column never narrower than this: the other columns
 /// scroll sideways first, as a macOS list does.
 const NAME_AT_LEAST: f32 = 180.0;
+
+/// How wide the shown columns are together, in points, the file name's at
+/// its least: narrower than this, the list scrolls sideways.
+pub fn least_width(view: &Downloads) -> f32 {
+    // The row's own margins (`px_1` each side) beside its cells.
+    columns(view)
+        .into_iter()
+        .map(|column| width(column).unwrap_or(NAME_AT_LEAST))
+        .sum::<f32>()
+        + 8.0
+}
 
 /// A cell of `column` sized as its column is: one line, cut short with an
 /// ellipsis where its words are longer.
@@ -202,14 +215,15 @@ impl Downloads {
         if moved == onto || moved == Column::Name || onto == Column::Name {
             return;
         }
-        let mut wanted = self.backend.settings();
-        let Some(order) = moved_onto(Column::ordered(&wanted.column_order), moved, onto) else {
+        let now = self.backend.settings();
+        let Some(order) = moved_onto(Column::ordered(&now.column_order), moved, onto) else {
             return;
         };
-        wanted.column_order = order.iter().map(|c| c.key().to_string()).collect();
-        if let Err(e) = self.apply_settings(wanted, cx) {
-            self.say(e);
-        }
+        // The window's look alone: the file is written off its thread.
+        self.backend.keep_look(|settings| {
+            settings.column_order = order.iter().map(|c| c.key().to_string()).collect();
+        });
+        self.read();
         cx.notify();
     }
 }
@@ -313,6 +327,60 @@ fn row_cells(
         .collect()
 }
 
+/// What stands under the headings where the place chosen shows no row: as
+/// the egui window says it (`rows::empty_words`), and while nothing at all
+/// is listed, the next step as a button and where links may be dropped.
+/// Without it a new window was an empty table that said nothing.
+pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
+    let screen = view.screen.clone();
+    let filtered = !view.filter.read(cx).value().trim().is_empty();
+    let (heading, line, next_step) =
+        dm_desktop_base::rows::empty_words(!view.rows.is_empty(), filtered);
+    div()
+        .id("empty-list")
+        .flex_1()
+        .flex()
+        .flex_col()
+        .items_center()
+        .pt(px(40.0))
+        .px(px(crate::native::MARGIN))
+        .gap(px(4.0))
+        .child(
+            div()
+                .text_size(px(16.0))
+                .child(screen.label(SharedString::from(heading))),
+        )
+        .child(
+            div()
+                .text_color(theme.muted)
+                .child(screen.label(SharedString::from(line))),
+        )
+        .when(next_step, |empty| {
+            empty
+                .child(
+                    div().pt(px(8.0)).child(
+                        crate::native::button(
+                            "add-a-download",
+                            t("Add a download").into(),
+                            true,
+                            theme,
+                            &screen,
+                        )
+                        .on_click(cx.listener(|view, _, _, cx| {
+                            view.run(dm_shell::app::commands::Command::AddUrl, cx);
+                        })),
+                    ),
+                )
+                .child(
+                    div()
+                        .pt(px(8.0))
+                        .text_size(px(crate::native::SMALL_TEXT))
+                        .text_color(theme.muted)
+                        .child(screen.label(SharedString::from(t(crate::drops::DROP_HINT)))),
+                )
+        })
+}
+
 /// The rows of the place chosen.
 pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
     let screen = view.screen.clone();
@@ -321,8 +389,13 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
         "rows",
         count,
         cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
-            let categories = this.backend.settings().categories();
+            this.laid_out(range.clone(), cx);
+            let categories = this.drawn.categories();
             let columns = columns(this);
+            let list = cx.entity().downgrade();
+            // Whether a chosen row is finished, asked once, the first time a
+            // chosen row that is not needs to know: it carries the others.
+            let chosen_finished = std::cell::OnceCell::new();
             range
                 .filter_map(|i| {
                     this.shown
@@ -336,9 +409,27 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                     // A chosen row in the selection colour, its words on it,
                     // as a macOS list draws one.
                     let background = theme.selection;
+                    let original = theme;
                     let theme = if chosen { theme.chosen() } else { theme };
+                    let draggable = crate::dragout::may_carry(row)
+                        || (chosen
+                            && *chosen_finished.get_or_init(|| {
+                                this.rows.iter().any(|r| {
+                                    this.selected.contains(&r.id) && crate::dragout::may_carry(r)
+                                })
+                            }));
+                    let dragged = draggable.then(|| crate::dragout::DraggedRow {
+                        id: row.id,
+                        list: list.clone(),
+                        name: shown_name(row, &this.shown_names),
+                        theme: original,
+                    });
+                    // Known by its download, not by where it is: the
+                    // handlers below act on this row wherever a sort or a
+                    // new row has put it by the time they run.
+                    let id = row.id;
                     div()
-                        .id(i)
+                        .id(("row", id as usize))
                         .role(Role::Row)
                         // What a screen reader says of it: its file and how
                         // it stands, as the row shows them (it said nothing).
@@ -353,7 +444,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .on_mouse_down(
                             gpui::MouseButton::Right,
                             cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
-                                view.open_menu(i, event.position);
+                                view.open_menu(id, event.position);
                                 cx.notify();
                             }),
                         )
@@ -369,18 +460,29 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             // A Control-click is a right-click on macOS.
                             if event.modifiers().control && cfg!(target_os = "macos") {
                                 if let Some(at) = event.mouse_position() {
-                                    view.open_menu(i, at);
+                                    view.open_menu(id, at);
                                     cx.notify();
                                     return;
                                 }
                             }
                             let held = event.modifiers();
-                            view.click_row(i, held.platform || held.control, held.shift);
+                            view.click_row(id, held.platform || held.control, held.shift);
                             if event.click_count() == 2 {
-                                view.double_click(i, cx);
+                                view.double_click(id, cx);
                             }
                             cx.notify();
                         }))
+                        // A finished row's file dragged out of the window
+                        // (`dragout`); a click without moving still chooses
+                        // the row, and a double-click opens it.
+                        .when_some(dragged, |r, dragged| {
+                            r.on_drag(dragged, |dragged, _, _, cx| dragged.picture(cx))
+                                .external_drag_payload(
+                                    |dragged: &crate::dragout::DraggedRow, _, cx| {
+                                        dragged.payload(cx)
+                                    },
+                                )
+                        })
                         .children(row_cells(
                             row,
                             &this.shown_names,
@@ -395,6 +497,12 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
     )
     .track_scroll(&view.scroll)
     .flex_1()
+    // A sideways gesture is the table's, to move the columns (`list.rs`);
+    // the rows took it as an up-and-down one.
+    .map(|mut list| {
+        list.style().restrict_scroll_to_axis = Some(true);
+        list
+    })
 }
 
 #[cfg(test)]

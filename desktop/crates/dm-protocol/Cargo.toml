@@ -3,6 +3,9 @@ name = "dm-protocol"
 version = "0.9.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
 description = "What the browser extension and the desktop app say to each other, written once for both"
 
 # Used by the native host in dm-shell and by the extension, which is built

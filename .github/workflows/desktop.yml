@@ -270,6 +270,19 @@ jobs:
           echo "paths of this runner in the binary: $found"
           test "$found" = 0
 
+      # The binary's size on each system, against the one recorded in
+      # scripts/binary-size.json: a jump of more than 10% fails the build
+      # (a profile changed, a crate added by mistake), anything less is only
+      # said, in the log and in the run's summary.
+      - name: The binary's size
+        working-directory: .
+        shell: bash
+        run: |
+          binary=desktop/target/release/${{ matrix.crate }}
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          py=python3; command -v python3 >/dev/null || py=python
+          "$py" scripts/binary-size.py "$binary" | tee -a "$GITHUB_STEP_SUMMARY"
+
       # Fedora, openSUSE and their kin: the same binary, laid out as the
       # Arch package is (desktop/packaging/nfpm.yaml).
       - name: The rpm

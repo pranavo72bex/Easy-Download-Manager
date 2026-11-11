@@ -10,12 +10,13 @@
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
-use gpui::{div, prelude::*, px, svg, Context, Role, Window};
+use gpui::{div, prelude::*, svg, Context, Role, Window};
 
 use crate::list::Downloads;
 use crate::menus::Run;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The toolbar's height.
 pub const HEIGHT: f32 = 50.0;
@@ -45,8 +46,8 @@ pub fn toolbar(
     _window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let settings = view.backend.settings();
-    let buttons = dm_shell::app::commands::toolbar_shown(&settings);
+    let settings = &view.drawn;
+    let buttons = dm_shell::app::commands::toolbar_shown(settings);
     // View › Customize toolbar: a picture with its word, the picture alone
     // (its word on hover), or the word alone.
     let style = dm_desktop_base::toolbar::ToolStyle::named(&settings.toolbar_style);
@@ -59,9 +60,14 @@ pub fn toolbar(
         .id("toolbar")
         .role(Role::Toolbar)
         .aria_label("Toolbar")
-        .h(px(HEIGHT))
+        // A row as tall as a button; where the buttons do not fit across
+        // the window (a narrow one, a larger text size), the rest go on to
+        // a second row, as the egui window's toolbar does, rather than past
+        // the right edge.
+        .min_h(px(HEIGHT))
         .flex_none()
         .flex()
+        .flex_wrap()
         .items_center()
         .gap_1()
         .px_2()
@@ -80,7 +86,7 @@ pub fn toolbar(
             // lists the queues; the one chosen is started or stopped,
             // whatever the list shows (B64).
             let queues = matches!(command, Command::StartQueue | Command::StopQueue)
-                .then(|| view.backend.queues());
+                .then(|| view.queue_list.clone());
             let arrow = queues.map(|queues| {
                 div()
                     .id((command.id(), 1usize))
@@ -206,18 +212,19 @@ impl Downloads {
         if moved == onto {
             return;
         }
-        let mut wanted = self.backend.settings();
-        let order: Vec<Command> = dm_shell::app::commands::toolbar_in(&wanted.toolbar_order)
+        let now = self.backend.settings();
+        let order: Vec<Command> = dm_shell::app::commands::toolbar_in(&now.toolbar_order)
             .into_iter()
             .map(|(c, _)| c)
             .collect();
         let Some(order) = crate::table::moved_onto(order, moved, onto) else {
             return;
         };
-        wanted.toolbar_order = order.iter().map(|c| c.id().to_string()).collect();
-        if let Err(e) = self.apply_settings(wanted, cx) {
-            self.say(e);
-        }
+        // The window's look alone: the file is written off its thread.
+        self.backend.keep_look(|settings| {
+            settings.toolbar_order = order.iter().map(|c| c.id().to_string()).collect();
+        });
+        self.read();
         cx.notify();
     }
 }

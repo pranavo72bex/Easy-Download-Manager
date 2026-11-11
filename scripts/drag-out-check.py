@@ -8,8 +8,9 @@
 
     python3 scripts/drag-out-check.py
 
-Runs the built dm on a throwaway home, downloads a file from a loopback
-server, opens an empty folder in Finder, then drags the row with the real
+Runs the built dm (the GPUI window, `dm-gpui`; DM_BINARY names another,
+such as the egui window's `dm-desktop`) on a throwaway home, downloads a
+file from a loopback server, opens an empty folder in Finder, then drags the row with the real
 mouse (CGEvent, through a small Swift helper) from dm's window into that
 Finder window, and checks the file was copied there byte for byte. Needs
 the terminal to be allowed to control the computer (System Settings ›
@@ -29,7 +30,11 @@ import threading
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
+# The GPUI window draws its own title bar on macOS, inside its content, so a
+# row's place counts from the window's top; the egui window's from below the
+# system's title bar.
+TITLE_BAR = 0 if "gpui" in BINARY.name else 28
 PAYLOAD = os.urandom(300_000)
 
 # Window bounds by owner and title, and a real left-button drag along a path.
@@ -39,19 +44,32 @@ import Foundation
 let args = CommandLine.arguments
 if args[1] == "bounds" {
     let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
+    // Titles need Screen Recording; without them, the frontmost normal
+    // window of that application where a title is asked for, else its
+    // largest (dm's own, not the Download complete window beside it).
+    var best: [String: Any]? = nil
+    var bestArea = -1.0
     for w in list {
         let owner = w[kCGWindowOwnerName as String] as? String ?? ""
         let name = w[kCGWindowName as String] as? String ?? ""
         let layer = w[kCGWindowLayer as String] as? Int ?? 1
-        // Titles need Screen Recording; without them, the frontmost normal
-        // window of that application.
         if owner.contains(args[2]) && layer == 0 && (args.count < 4 || name.isEmpty || name.contains(args[3])) {
             let b = w[kCGWindowBounds as String] as! [String: Any]
-            print("\(b["X"]!) \(b["Y"]!) \(b["Width"]!) \(b["Height"]!)")
-            exit(0)
+            let named = args.count >= 4 && name.contains(args[3])
+            let area = named ? Double.infinity : (b["Width"] as! Double) * (b["Height"] as! Double)
+            if args.count >= 4 && !named && best == nil {
+                best = b
+                continue
+            }
+            if args.count < 4 && area > bestArea || named {
+                best = b
+                bestArea = area
+            }
         }
     }
-    exit(1)
+    guard let b = best else { exit(1) }
+    print("\(b["X"]!) \(b["Y"]!) \(b["Width"]!) \(b["Height"]!)")
+    exit(0)
 }
 func at(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x, y: y) }
 let (x0, y0, x1, y1) = (Double(args[2])!, Double(args[3])!, Double(args[4])!, Double(args[5])!)
@@ -128,7 +146,7 @@ def main():
         time.sleep(1.5)
         # Beside dm's window, on the same display.
         bounds = lambda *who: subprocess.run([str(helper), "bounds", *who], capture_output=True, text=True).stdout.split()
-        dm = bounds("dm-desktop") or bounds("dm")
+        dm = bounds(BINARY.name) or bounds("dm")
         finder = bounds("Finder", target.name)
         print("  dm window:", dm, " Finder window:", finder)
         if not dm or not finder:
@@ -143,9 +161,8 @@ def main():
             print("  could not move the Finder window:", moved.stderr.strip()[:120])
         time.sleep(0.8)
         finder = bounds("Finder", target.name) or finder
-        # The content starts below macOS's title bar.
         left, top, right, bottom = row["rect"]
-        x0, y0 = dx + left + 40, dy + 28 + (top + bottom) / 2
+        x0, y0 = dx + left + 40, dy + TITLE_BAR + (top + bottom) / 2
         fx, fy, fw, fh = map(float, finder)
         x1, y1 = fx + fw / 2, fy + fh / 2 + 20
         subprocess.run([str(helper), "drag", str(x0), str(y0), str(x1), str(y1)], check=True)

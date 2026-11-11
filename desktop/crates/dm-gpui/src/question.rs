@@ -10,12 +10,13 @@
 //! (the first rightmost), and the default is Return's.
 
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, FocusHandle, KeyDownEvent, Role, SharedString,
+    div, prelude::*, size, App, Bounds, Context, FocusHandle, KeyDownEvent, Role, SharedString,
     Window, WindowBounds, WindowKind, WindowOptions,
 };
 
 use crate::native;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// What a question says and offers.
 pub struct Asked {

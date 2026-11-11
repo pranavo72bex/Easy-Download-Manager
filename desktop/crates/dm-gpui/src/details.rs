@@ -22,7 +22,7 @@ use dm_shell::app::backend::Backend;
 use dm_shell::app::lookups::Probed;
 use dm_shell::Settings;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
+    div, prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
     PathPromptOptions, Role, SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -32,6 +32,7 @@ use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// What a browser's hand-off brought with the address; nothing for one
 /// typed in Add URL.
@@ -114,12 +115,19 @@ pub struct Details {
     taking: String,
     /// The row begun at once while the dialog asks.
     early: Option<Id>,
+    /// Where the name is taken, as last worked out off the window's thread
+    /// for the folder and name typed then, and when (`clash_shown`).
+    clash_seen: Option<(String, String, Option<Clash>, std::time::Instant)>,
+    clash_looking: bool,
     says: Option<SharedString>,
     /// Answered: a second Return in the same moment adds nothing.
     done: bool,
     focus: FocusHandle,
     screen: Screen,
 }
+
+/// How long Download details trusts what it found of the name's clash.
+const CLASH_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
 
 impl Details {
     /// The address the dialog is about (the first of several).
@@ -242,6 +250,48 @@ impl Details {
             &self.name.read(cx).value(),
             self.early,
         )
+    }
+
+    /// Where the name is taken, as a frame draws it: what was last worked
+    /// out, worked out again off the window's thread where the folder or
+    /// the name typed changed or a second has gone by. Each look went over
+    /// every row and asked the disk for the file and its free names, at
+    /// every frame (gaps row 180). Start now and Add for later still ask
+    /// `clash` itself, at the moment they are pressed.
+    fn clash_shown(&mut self, cx: &mut Context<Self>) -> Option<Clash> {
+        let folder = self.folder.read(cx).value().to_string();
+        let name = self.name.read(cx).value().to_string();
+        let current = self
+            .clash_seen
+            .as_ref()
+            .filter(|(f, n, _, _)| *f == folder && *n == name);
+        let fresh = current.is_some_and(|(_, _, _, at)| at.elapsed() < CLASH_EVERY);
+        let shown = current.or(self.clash_seen.as_ref()).and_then(|(_, _, c, _)| c.clone());
+        if fresh || self.clash_looking {
+            return shown;
+        }
+        let ([url], Some(view)) = (self.urls.as_slice(), self.view.upgrade()) else {
+            return None;
+        };
+        self.clash_looking = true;
+        let rows = view.read(cx).rows.clone();
+        let (settings, url, early) = (self.settings.clone(), url.clone(), self.early);
+        let looked = cx.background_spawn(async move {
+            let clash = file_info::clash(&settings, &rows, &folder, &url, &name, early);
+            (folder, name, clash)
+        });
+        cx.spawn(async move |this, cx| {
+            let (folder, name, clash) = looked.await;
+            let _ = this.update(cx, |this, cx| {
+                this.clash_looking = false;
+                this.clash_seen = Some((folder, name, clash, std::time::Instant::now()));
+                // Drawn again: with what was found, or to look again where
+                // the folder or the name was typed into meanwhile.
+                cx.notify();
+            });
+        })
+        .detach();
+        shown
     }
 
     /// Start now (`later` false) or Add for later.
@@ -507,7 +557,7 @@ impl Render for Details {
         let first = self.first();
         let single = self.urls.len() == 1;
         let folder = self.folder.read(cx).value().trim().to_string();
-        let clash = self.clash(cx);
+        let clash = self.clash_shown(cx);
         let page = self.probed.as_ref().is_some_and(|p| p.page);
         let problem = self.probed.as_ref().and_then(|p| p.problem.clone());
         let video = self.video();
@@ -1273,6 +1323,8 @@ fn open_now(
                     taken: None,
                     taking: String::new(),
                     early,
+                    clash_seen: None,
+                    clash_looking: false,
                     says: None,
                     done: false,
                     focus,

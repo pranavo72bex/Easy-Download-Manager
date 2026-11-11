@@ -14,12 +14,13 @@ use std::time::Duration;
 
 use dm_desktop_base::i18n::{t, tf};
 use dm_shell::app::links::Looked;
-use gpui::{div, prelude::*, px, Context};
+use gpui::{div, prelude::*, Context};
 
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// How often the clipboard is looked at while it is watched.
 pub(crate) const EVERY: Duration = Duration::from_secs(1);
@@ -35,10 +36,32 @@ impl Downloads {
     /// Looks at the clipboard, where it is watched and a look is due: one
     /// link taken at once opens Download details, several their list.
     pub(crate) fn check_clipboard(&mut self, cx: &mut Context<Self>) {
-        if !self.clipboard.on || self.clipboard.polled.is_some_and(|at| at.elapsed() < EVERY) {
+        if !self.clipboard.on
+            || self.clipboard_reading
+            || self.clipboard.polled.is_some_and(|at| at.elapsed() < EVERY)
+        {
             return;
         }
-        let text = self.backend.platform.clipboard();
+        // Read off the window's thread, as a copied page can be megabytes
+        // of text (gaps row 183), and looked at here once it is.
+        self.clipboard_reading = true;
+        let platform = self.backend.platform.clone();
+        let read = cx.background_spawn(async move { platform.clipboard() });
+        cx.spawn(async move |this, cx| {
+            let text = read.await;
+            let _ = this.update(cx, |this, cx| {
+                this.clipboard_reading = false;
+                if this.clipboard.on {
+                    this.clipboard_read(text, cx);
+                }
+            });
+        })
+        .detach();
+    }
+
+    /// What the clipboard held, looked at: one link taken at once opens
+    /// Download details, several their list; else offered or passed over.
+    fn clipboard_read(&mut self, text: Option<String>, cx: &mut Context<Self>) {
         let start_copied = self.backend.settings().start_copied;
         match self.clipboard.look(text, &self.rows, start_copied) {
             Looked::Take(links) if links.len() == 1 => {

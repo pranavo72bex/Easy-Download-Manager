@@ -7,10 +7,12 @@
 //! control port's `ui.texts` gives and `ui.click` aims at, as the egui window
 //! reads its painted text. Each piece of text the window draws through
 //! [`Screen::label`] records its bounds as it is laid out, so the record is
-//! of the frame on screen, not of what the window meant to draw.
+//! of the frame on screen, not of what the window meant to draw; only while
+//! a control port is open ([`record`]), as nothing else reads it.
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use gpui::{div, prelude::*, AnyWindowHandle, App, Bounds, Global, Pixels, SharedString};
 
@@ -52,6 +54,12 @@ impl Screen {
         text: impl Into<SharedString>,
         element: impl IntoElement,
     ) -> impl IntoElement {
+        // With no control port open nothing reads the record: the words are
+        // drawn as they are, without a box around each to say where (about
+        // half the elements of a screenful of rows, gaps row 180).
+        if !RECORDING.load(Ordering::Relaxed) {
+            return element.into_any_element();
+        }
         let words: SharedString = text.into();
         let record = Rc::clone(&self.0);
         // Where the element was laid out, told by the box around it as its
@@ -76,7 +84,17 @@ impl Screen {
                     });
                 }
             })
+            .into_any_element()
     }
+}
+
+/// Whether the words drawn are recorded: from when a control port opens
+/// (`record`), the only reader of the record.
+static RECORDING: AtomicBool = AtomicBool::new(false);
+
+/// Records the words drawn from now on, for the control port just opened.
+pub fn record() {
+    RECORDING.store(true, Ordering::Relaxed);
 }
 
 /// Every window's words: the main window's and each dialog's, so the

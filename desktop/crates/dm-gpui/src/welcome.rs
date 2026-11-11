@@ -13,7 +13,7 @@
 use dm_desktop_base::i18n::{t, tf};
 use dm_shell::register::{Installed, Store};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, SharedString, WeakEntity, Window,
+    div, prelude::*, size, App, Bounds, Context, Entity, SharedString, WeakEntity, Window,
     WindowBounds, WindowOptions,
 };
 use gpui_component::input::InputState;
@@ -22,6 +22,7 @@ use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// Written once the welcome has been shown.
 const WELCOMED: &str = "welcomed";
@@ -79,15 +80,16 @@ impl Welcome {
     }
 
     fn browse(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(view) = self.view.upgrade() else {
-            return;
-        };
-        let picked = view.read(cx).backend.platform.choose_folder();
-        if let Some(picked) = picked {
-            self.folder.update(cx, |f, cx| {
-                f.set_value(picked.display().to_string(), window, cx)
-            });
-        }
+        crate::services::ask_then_in(
+            crate::services::Asked::folder(),
+            window,
+            cx,
+            |this: &mut Self, picked, window, cx| {
+                this.folder.update(cx, |f, cx| {
+                    f.set_value(picked.display().to_string(), window, cx)
+                });
+            },
+        );
     }
 }
 

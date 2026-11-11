@@ -264,6 +264,8 @@ FILES = {
     "ui-beta.bin": (1 * MiB, 0, "plain"),
     "ui-alphabet.bin": (1 * MiB, 0, "plain"),
     "fresh.bin": (8 * MiB, 512 * 1024, "plain"),      # a new install's pop-ups (B63)
+    "clip-a.bin": (1 * MiB, 0, "plain"),              # Links on the clipboard, to a new folder (B67)
+    "clip-b.bin": (1 * MiB, 0, "plain"),
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -1382,6 +1384,89 @@ def walk(dm, origin):
     tray_src = (ROOT / "desktop" / "crates" / crate / "src" / "tray.rs").read_text(encoding="utf-8")
     check("B52", "the tray's Speed menu is built with the limiter's Settings… command",
           "Command::SpeedLimiterSettings" in tray_src, "tray.rs does not name the command")
+
+    # B66 (issue #32): Ctrl (Cmd) with + draws everything larger at once and
+    # keeps it; with 0 back to 100%. In the GPUI window, Options › General ›
+    # Appearance has the scale's slider with its four stops, a stop picked
+    # there in force at once in every window.
+    held = ["cmd" if sys.platform == "darwin" else "ctrl"]
+    def sizes():
+        names = [t["rect"] for t in dm.call("ui.texts").get("result", {}).get("texts", [])
+                 if t.get("window") == "main" and t["text"] in ("File Name", "Name")]
+        return names[0][3] - names[0][1] if names else 0
+    medium = sizes()
+    dm.call("ui.key", key="=", modifiers=held)
+    pause(0.8)
+    larger = sizes()
+    kept = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
+    dm.call("ui.key", key="0", modifiers=held)
+    pause(0.8)
+    back = sizes()
+    gpui = BINARY.name.startswith("dm-gpui")
+    check("B66", "Ctrl (Cmd) with + draws the list larger at once, kept; with 0 back to 100%",
+          medium > 0 and larger >= medium * 1.1 and back == medium and (kept == 1.2 or not gpui),
+          f"{medium} -> {larger} -> {back}, kept {kept}")
+    if gpui:
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        words = dm.dialog_texts()
+        dm.click("80%")
+        pause(1.0)
+        picked = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
+        smaller = sizes()
+        dm.click("100%")
+        pause(1.0)
+        dm.click("Cancel")
+        pause(0.6)
+        check("B66", "Options › General › Appearance has the scale's four stops; 80% is in force at once and kept",
+              all(w in words for w in ("Text size", "60%", "80%", "100%", "120%")) and picked == 0.8
+              and 0 < smaller < medium, f"{words[:12]} / {picked} / {smaller}")
+    else:
+        check("B66", "the egui window keeps its own Text size (Small, Medium, Large)", True)
+
+    # B67 (issue #32): Links on the clipboard has Save to, as Download links
+    # has it: each file to its category's folder unless one category or one
+    # folder (typed, or chosen with Browse…) is chosen; a folder not there yet
+    # is made as the links are added. The system's folder panel waits for a
+    # person, so the folder is typed in the field Browse… fills.
+    put = {"darwin": ["pbcopy"],
+           "win32": ["powershell", "-NoProfile", "-Command", "$input | Set-Clipboard"]}.get(
+        sys.platform, ["xclip", "-selection", "clipboard"])
+    links = "\n".join(f"{files}/{n}" for n in ("clip-a.bin", "clip-b.bin"))
+    try:
+        copied = subprocess.run(put, input=links.encode(), timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        copied = False
+    dm.call("command.run", id="program.add_from_clipboard")
+    for _ in range(40):
+        if "Links on the clipboard" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    words = dm.dialog_texts()
+    check("B67", "Links on the clipboard offers Save to: by category (chosen), one category, one folder, Browse…",
+          copied and all(w in words for w in ("Save to", "Each file to the folder of its category",
+                                              "Every file to this category", "Every file to this folder",
+                                              "Browse…")), f"copied {copied}: {words[:16]}")
+    new = dm.home / "downloads" / "From the clipboard" / "new"
+    dm.click("Every file to this folder")
+    dm.call("ui.type", text=str(new))
+    pause(0.6)
+    dm.click("Start now")
+    got = [dm.wait(n, ("completed",), 30) for n in ("clip-a.bin", "clip-b.bin")]
+    exact = [whole(r, n) for r, n in zip(got, ("clip-a.bin", "clip-b.bin"))]
+    landed = [pathlib.Path(r["path"]).parent if r and r.get("path") else None for r in got]
+    check("B67", "a new folder typed there is made, and every link lands in it whole",
+          new.is_dir() and landed == [new, new] and all(ok for ok, _ in exact),
+          f"{landed} / {[d for _, d in exact]}")
+    try:
+        subprocess.run(put, input=b"", timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):

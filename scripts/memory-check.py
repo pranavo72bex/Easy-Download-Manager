@@ -17,7 +17,13 @@ average working set or the private bytes go over the budget
 process through PowerShell's Get-Process; on macOS the working set is the
 resident size (`ps`), the private bytes the physical footprint (`footprint`),
 and the handles the open files (`lsof`).
+
+What produced the numbers (the commit, rustc, the target, the profile, the GPU and the
+display scale: `provenance.py`) is printed with them, and with `DM_MEMORY_JSON=FILE` the
+samples and it are written there as JSON (gaps row 188).
 """
+import importlib.util
+import json
 import os
 import pathlib
 import statistics
@@ -39,6 +45,9 @@ WORKING_BUDGET_MB = float(os.environ.get("DM_MEMORY_BUDGET_MB", "150" if sys.pla
 PRIVATE_BUDGET_MB = float(os.environ.get("DM_PRIVATE_BUDGET_MB", "100" if sys.platform == "darwin" else "40"))
 SETTLE_S = float(os.environ.get("DM_MEMORY_SETTLE_S", "15"))
 SAMPLES = int(os.environ.get("DM_MEMORY_SAMPLES", "20"))
+_spec = importlib.util.spec_from_file_location("provenance", ROOT / "scripts" / "provenance.py")
+prov = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(prov)
 
 
 def sample(pid):
@@ -106,6 +115,14 @@ def main():
     print(f"  private      {statistics.mean(private):6.1f} MB average, {max(private):6.1f} MB peak")
     print(f"  threads      {min(threads)} to {max(threads)}")
     print(f"  handles      {min(handles)} to {max(handles)}")
+    made_by = prov.provenance(BINARY, {"rows": 0, "settle_s": SETTLE_S, "samples": len(rows)})
+    print(f"  made by      {prov.line(made_by)}")
+    if os.environ.get("DM_MEMORY_JSON"):
+        pathlib.Path(os.environ["DM_MEMORY_JSON"]).write_text(json.dumps({
+            "provenance": made_by,
+            "budget_mb": {"working": WORKING_BUDGET_MB, "private": PRIVATE_BUDGET_MB},
+            "samples": [dict(zip(("working_mb", "private_mb", "threads", "handles"), r)) for r in rows],
+        }, indent=1))
     over = []
     if statistics.mean(working) > WORKING_BUDGET_MB:
         over.append(f"working set {statistics.mean(working):.1f} MB over {WORKING_BUDGET_MB:.0f} MB")

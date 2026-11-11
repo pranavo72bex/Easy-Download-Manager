@@ -92,14 +92,18 @@ pub struct Clicked {
     pub at: [f32; 2],
 }
 
-/// `ui.scroll {text, lines?}`: lines turned down (negative: up) over the
-/// words, as a wheel is.
+/// `ui.scroll {text, lines?, sideways?}`: lines turned down (negative: up)
+/// over the words, as a wheel is, and `sideways` lines to the right
+/// (negative: left), as a trackpad's sideways swipe is.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scroll {
     /// Words on screen to hold the pointer over.
     pub text: String,
     /// Lines, 3 unless given.
     pub lines: f32,
+    /// Lines to the right, none unless given; with them and no `lines`, the
+    /// gesture is sideways alone.
+    pub sideways: f32,
 }
 
 /// What `ui.scroll` answers.
@@ -414,10 +418,16 @@ pub fn input(
                 params,
                 "give `text`: words on screen to hold the pointer over, in what scrolls",
             )?;
-            let lines = params.get("lines").and_then(Value::as_f64).unwrap_or(3.0) as f32;
+            let sideways = params
+                .get("sideways")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0) as f32;
+            let down = if sideways == 0.0 { 3.0 } else { 0.0 };
+            let lines = params.get("lines").and_then(Value::as_f64).unwrap_or(down) as f32;
             json(probe.scroll(Scroll {
                 text: text.to_string(),
                 lines,
+                sideways,
             }))
         })(),
         "ui.type" => (|| {

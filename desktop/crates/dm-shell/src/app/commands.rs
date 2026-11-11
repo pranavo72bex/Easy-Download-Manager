@@ -581,6 +581,26 @@ pub enum Ran {
     QueueStopped(usize),
 }
 
+/// Whether [`verb`] carries `command` out (and answers `Some`): what the
+/// window hands off its thread, since on ten thousand chosen rows it is
+/// ten thousand changes to the queue (gaps row 183).
+pub fn is_verb(command: Command) -> bool {
+    matches!(
+        command,
+        Command::DownloadNow
+            | Command::StopDownload
+            | Command::Redownload
+            | Command::RemoveFromQueue
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::ResumeAll
+            | Command::StopAll
+            | Command::DeleteCompleted
+            | Command::StartQueue
+            | Command::StopQueue
+    )
+}
+
 /// Carries out `command` where it is the application's alone, on the rows
 /// chosen (`chosen`) or the queue chosen (`queue`, for Start and Stop
 /// Queue): what it did, or `None` for a command that is the presentation's
@@ -832,6 +852,23 @@ pub enum Key {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What the window hands off its thread is what `verb` carries out:
+    /// a command left out would still be waited for, one put in by
+    /// mistake would answer nothing.
+    #[test]
+    fn is_verb_names_exactly_what_verb_carries_out() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, dir.path());
+        for command in Command::ALL {
+            assert_eq!(
+                verb(*command, &backend, &[], dm_core::MAIN_QUEUE).is_some(),
+                is_verb(*command),
+                "{command:?}"
+            );
+        }
+    }
 
     #[test]
     fn every_command_has_its_own_name_and_label() {

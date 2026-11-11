@@ -275,7 +275,9 @@ impl Downloads {
                 Some(how) => self.answer_duplicate(url, id, how, cx),
                 None => self.ask_duplicate(url, id, cx),
             },
-            Route::Added(Ok(_)) => self.read(),
+            Route::Added(Ok(_)) => {
+                self.read();
+            }
             Route::Added(Err(e)) => self.say(e),
             Route::Ask(request) => {
                 self.handed_open = true;

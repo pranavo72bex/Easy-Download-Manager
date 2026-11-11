@@ -43,6 +43,16 @@ opt-level = 3
 [profile.release.package.egui]
 opt-level = 3
 
+# The release build with its symbols and line tables kept, for a profiler
+# (docs/testing.md, Profiling): `cargo build --profile profiling -p dm-gpui`.
+# The same code as the release (line tables do not change it: stripped, it was
+# within 1.2 KB of the release binary on macOS), built about a fifth slower.
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
+split-debuginfo = "packed"
+strip = false
+
 # Crates built with a change of dm's own (desktop/vendor/README.md).
 [patch.crates-io]
 winit = { path = "vendor/winit" }

@@ -18,7 +18,7 @@ use dm_desktop_base::i18n::{t, tf};
 use dm_desktop_base::project;
 use dm_shell::app::update::Update;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, KeyDownEvent, Role, SharedString, WeakEntity,
+    div, prelude::*, size, App, Bounds, Context, KeyDownEvent, Role, SharedString, WeakEntity,
     Window, WindowBounds, WindowOptions,
 };
 
@@ -26,6 +26,7 @@ use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// What the update check has found, shared by the main window and About.
 pub type Checked = Arc<Mutex<Update>>;

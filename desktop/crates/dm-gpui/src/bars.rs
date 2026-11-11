@@ -15,12 +15,13 @@ use std::time::{Duration, Instant};
 
 use dm_core::{Id, State};
 use dm_desktop_base::i18n::{t, tf, tn};
-use gpui::{div, prelude::*, px, Context};
+use gpui::{div, prelude::*, Context};
 
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// Written once "Not now" is chosen on the add-to-browser bar.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
@@ -46,6 +47,9 @@ pub struct Bars {
     failed_hidden: BTreeSet<Id>,
     /// When the add-to-browser bar was last looked into, and whether it shows.
     browser: Option<(Instant, bool)>,
+    /// When a look into it, off the window's thread, began; none while no
+    /// look is under way.
+    browser_looking: Option<Instant>,
 }
 
 impl Downloads {
@@ -94,14 +98,17 @@ impl Downloads {
                         theme,
                         screen,
                     )
-                    .on_click(cx.listener(move |view, _, _, cx| {
-                        if let Some(dir) = view.backend.platform.choose_folder() {
-                            match view.backend.relocate(id, dir) {
-                                Ok(()) => view.read(),
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        crate::services::ask_then(
+                            crate::services::Asked::folder(),
+                            cx,
+                            move |view: &mut Self, dir, _| match view.backend.relocate(id, dir) {
+                                Ok(()) => {
+                                    view.read();
+                                }
                                 Err(e) => view.say(e),
-                            }
-                        }
-                        cx.notify();
+                            },
+                        );
                     })),
                 ),
         )
@@ -169,15 +176,36 @@ impl Downloads {
         screen: &Screen,
         cx: &mut Context<Self>,
     ) -> Option<gpui::Div> {
-        let home = dm_shell::settings::home();
         let stale = self
             .bars
             .browser
             .is_none_or(|(at, _)| at.elapsed() > Duration::from_secs(3));
-        if stale {
-            let shows =
-                !dm_shell::host::browser_seen(&home) && !home.join(BROWSER_HINT_HIDDEN).exists();
-            self.bars.browser = Some((Instant::now(), shows));
+        if stale && self.bars.browser_looking.is_none() {
+            // Two files looked for off the window's thread, and drawn again
+            // where the answer changed: a frame waited on the disk for them
+            // (gaps row 180).
+            let began = Instant::now();
+            self.bars.browser_looking = Some(began);
+            let home = dm_shell::settings::home();
+            let looked = cx.background_spawn(async move {
+                !dm_shell::host::browser_seen(&home) && !home.join(BROWSER_HINT_HIDDEN).exists()
+            });
+            cx.spawn(async move |this, cx| {
+                let shows = looked.await;
+                let _ = this.update(cx, |this, cx| {
+                    this.bars.browser_looking = None;
+                    // Not now, pressed while it looked, has the last word.
+                    if this.bars.browser.is_some_and(|(at, _)| at > began) {
+                        return;
+                    }
+                    let before = this.bars.browser.map(|(_, shows)| shows);
+                    this.bars.browser = Some((Instant::now(), shows));
+                    if before != Some(shows) {
+                        cx.notify();
+                    }
+                });
+            })
+            .detach();
         }
         if !self.bars.browser.is_some_and(|(_, shows)| shows) {
             return None;

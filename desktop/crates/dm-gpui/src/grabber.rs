@@ -17,9 +17,8 @@ use dm_desktop_base::format;
 use dm_desktop_base::grabber::{templates, Grab, SiteFiles};
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, px, size, uniform_list, App, Bounds, Context, Entity, FocusHandle,
-    KeyDownEvent, Role, SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds,
-    WindowOptions,
+    div, prelude::*, size, uniform_list, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
+    Role, SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -28,6 +27,7 @@ use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// A found file's row, in points.
 const ROW: f32 = 22.0;

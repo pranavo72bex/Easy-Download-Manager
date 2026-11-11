@@ -22,7 +22,8 @@ use gpui::Context;
 use crate::list::Downloads;
 
 /// What a drop with no link in it is answered with.
-const DROP_HINT: &str = "Drop a link, .torrent, .url, .webloc or text file of links here.";
+pub(crate) const DROP_HINT: &str =
+    "Drop a link, .torrent, .url, .webloc or text file of links here.";
 
 /// A link's text taken off a drag, for the window's next look.
 #[cfg(target_os = "macos")]

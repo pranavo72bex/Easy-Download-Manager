@@ -60,6 +60,13 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
 - **An application layer under the window** (`dm_shell::app`,
   `docs/architecture/`): what the window shows comes from it, and what a
   person asks for is done by it; the window draws and asks.
+- **The window's thread does not wait on slow work.** What a handler asks
+  for that can take long (a command on thousands of rows, a file moved to
+  another disk, the Trash, Export) runs on one errand thread in the order
+  asked (`dm_shell::app::errands`, `Backend::later`), and its answer is
+  shown on the window's thread; the open and save panels are begun without
+  a modal loop. `scripts/stress-check.py handlers` holds the window to an
+  answer in under 100 ms throughout.
 - **Window tests that click every control by its name**
   (`desktop/crates/dm-desktop/tests/window.rs` and `tests/window/`): every menu item, toolbar
   button and row-menu item is clicked through the accessibility tree and
