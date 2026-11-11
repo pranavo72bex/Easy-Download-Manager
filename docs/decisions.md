@@ -5922,3 +5922,29 @@ not start when the check pressed play.
   by script play again in three of three cases: twice its first pointer click on the picture
   started it (2.3 and 2.4 s), once a play the page started itself came first (1.8 s); in the ten
   runs YouTube started the player itself every time, so it was not needed.
+
+## 2026-11-11: The download pages' check clicks a link where it rests, not where a scroll left it (gaps row 173)
+
+- **What was wrong.** `handover-check.py libreoffice` said "nothing started" because the click
+  never reached the link. With DevTools in the check's own browser: the click went to
+  `p.version_heading` (the heading above the buttons), not to `a.os_macos`. LibreOffice's menu bar
+  (`#nav-search-wrapper`, `position: sticky`) is 128 pixels tall once the page is scrolled and
+  191 near the top. The check scrolled the link to the middle of the window, which took the page
+  from 81 pixels down to 11, the bar grew back within a frame, and the link moved 63 pixels down
+  (its middle from 433 to 496) after it was measured. The check measured again half a second
+  later, but with another scroll, which moved it the same way again. So dm and the extension
+  were never asked: no download began in the browser at all.
+- **What the page does with a real click.** Its `download.js` cancels the link's own navigation,
+  opens the link in a new tab (`window.open(url, '_blank')`), where the browser downloads it, and
+  sends the page to `/donate/`. The extension caught the new tab's download and dm fetched it
+  from the mirror the 302 named.
+- **The fix is the check's.** `link()` scrolls once; then the click waits (up to 10 s) for the
+  link to be in the same place two measurements running, measured without a scroll, and to be
+  the topmost thing at its middle (`elementFromPoint`), and clicks there. Nothing changed in dm
+  or the extension: a person clicks what is on the screen, which is where the link rests.
+- The earlier tries in the row (the first link a click reaches, an instant scroll, waiting for
+  the link to hold still) are not in the history; if each still measured through the scroll
+  in `link()`, as the check did, the link would read the same wrong place every time.
+- **Measured on macOS, 2026-11-11** (debug dm-gpui, Chrome for Testing, other work running on the
+  machine): `handover-check.py libreoffice` passed twice (the 299 MB `.dmg` whole in dm, nothing
+  kept by the browser); the whole `handover-check.py` 68 of 68, all twelve pages OK.
