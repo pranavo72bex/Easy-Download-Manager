@@ -365,9 +365,11 @@ struct Job {
     /// the job — which is what lets streams, which have no job, use the same
     /// sampler instead of a second copy of it.
     downloaded: Arc<AtomicU64>,
-    /// How many requests are bringing bytes in now: counted from a request's first byte to its
-    /// end, so the connections added past [`OPENED_AT_ONCE`] are judged once they are flowing.
-    flowing: AtomicUsize,
+    /// What the connections share: how many requests are bringing bytes in now, counted from a
+    /// request's first byte to its end, so the connections added past [`OPENED_AT_ONCE`] are
+    /// judged once they are flowing; and, while none is, their turns at asking a server they
+    /// have all lost, ended for all of them by the first byte one gets (`retry::Together`).
+    together: retry::Together,
     /// Told whenever a range's attempt ends or a range is given up for others to take, so a
     /// connection waiting for something worth halving looks again at once (`SPLIT_LOOK`).
     moved: tokio::sync::Notify,
@@ -1206,7 +1208,9 @@ async fn fetch_reporting(
         chunk: HINTS.try_with(|hints| hints.chunk).ok().flatten(),
         headers: stream_headers(),
         downloaded: Arc::new(AtomicU64::new(0)),
-        flowing: AtomicUsize::new(0),
+        // Spread over the connections asked for: those of a small file, fewer, still ask no
+        // more than once a round each.
+        together: retry::Together::new(options.connections.clamp(1, plan::MAX_CONNECTIONS)),
         moved: tokio::sync::Notify::new(),
         first_byte_us: AtomicU64::new(0),
         last_ended: std::sync::Mutex::new(None),

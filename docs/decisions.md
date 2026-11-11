@@ -6092,3 +6092,72 @@ Tried and dropped:
 Not done, written down: tokio's file copies each write a second time (about 3.5 MiB at full speed
 on eight connections), which only writing without tokio's file would avoid; and the 5.7 MB the
 start frees and the heap keeps are small blocks, below what is mapped on its own.
+
+## 2026-11-12: After an outage, a download's connections take turns asking, and all come back with the first byte (gaps row 177)
+
+**What was measured.** `bench` outage (64 MiB at 8 MiB/s shared; at 30% every connection is cut
+and every request dropped unanswered for 15 s), the release build of a3a28292 on macOS (Apple M1):
+the first byte after the server returned came 195 to 216 ms late in seven runs. The eight
+connections are cut in the same instant, ask again at once, then 279, 665 and 1,052 ms later all
+together (each lane's `quick_nap` is the same for the same attempt), and from then on each on its
+lane, a quarter-second apart, about every two seconds. The attempts' own few milliseconds move
+that pattern a little, and in the bench they put the first request after the fifteen seconds
+about 0.2 s late every time. The other seven connections then came back on their lanes, the last
+1.75 s after the first: a copy of the bench's outage server that writes down every request, run
+beside it, saw them back at 210 to 1,961 ms, 200 to 1,954 and 34 to 1,790. 80 requests dropped.
+For an outage of any length the lanes leave seven gaps of 250 ms between asks and one of 250 to
+500, a wait of about 135 ms on average after a server returns.
+
+**What a request can and cannot do.** During the outage the bench's server reads each request
+and drops it; only one that reaches it after the outage is answered. So the wait after the server
+returns is the time to dm's next request: nothing can be held open at the server, and nothing
+tells dm when to send. With a request every 100 ms the wait is between 0 and 100 ms, 50 on
+average, and 0 (the floor) about one time in a hundred. Reference A's 0 is about six hundred
+requests a second (8,054 to 10,200 dropped in 15 s), and even so its four runs read 0, 1, 6 and
+16 ms.
+
+**What changed.** `retry::Together`, one for each download (`Job::together`, which also holds the
+count of requests bringing bytes in that `grow` reads):
+- A connection that failed for want of a connection, was asked again at once (as before) and
+  failed again, while no request of the download is bringing bytes in, waits for its turn rather
+  than its lane's time. Each connection's turns are a round apart, 0.8 s, and the download's are
+  the round shared among its connections, at least 100 ms apart: eight connections ask in turn
+  every 100 ms, ten requests a second for the download, evenly.
+- The first turn of an outage falls at a random point of its share (`getrandom`), so computers
+  or downloads that lost a server in the same instant do not ask it in the same instants, and the
+  wait after an outage does not hang on how long the outage lasted. Turns counted from the
+  outage's first instant would read a few milliseconds in the bench, fifteen seconds being a whole
+  number of tenths, while an outage a few milliseconds longer waits a tenth more: a reading of the
+  bench, not of dm, so not built.
+- From twenty seconds in, the round is a twenty-fifth of how long the failing has lasted, up to
+  2 s from fifty seconds on: a long outage is asked about four times a second, as the lanes asked.
+- The first byte any request of the download gets (`Together::bringing`, where `grow`'s count was
+  kept) sends every connection waiting its turn at once, and one whose attempt failed after that
+  byte came asks again at once.
+- Unchanged: a connection failing while others bring bytes in (a server turning one connection
+  away is not asked ten times a second), a wait the server or the person named, and FTP, HLS,
+  DASH and the probe, which have no `Together`.
+
+**Measured.** Alternated with a3a28292, four runs each: the first byte after the server returned
+216, 205, 199 and 204 ms against 58, 82, 37 and 15; the whole download medians 23.260 and 23.099 s,
+from the first request 23.240 and 23.083 (floor 23.312); requests dropped 80 against 157 and 158,
+112 to 122 in all against 183 to 189; `cpuMs` medians 1,315 and 1,290; peak working set 115.7 to
+116.6 MiB against 113.0 to 116.8. Three runs of each before that, not alternated: 196, 196 and 195
+against 28, 73 and 48 (`cpuMs` 690 to 740 against 1,360 to 1,400, the first three in a quieter
+minute; alternated, the same). Medians of the seven runs of each: 199 ms against 48. The
+committed build, three runs into `bench/results`: 92, 65 and 43 ms, 23.073 to 23.093 s, and
+`compare.mjs` better than the floor in every outage parameter but `peakWorkingSetMB` (row 175) and
+`recoveryAfterOutageMs` (65 against 0). In the copy of the server that writes down every request,
+the other seven connections came back within 2 or 3 ms of the first in three runs (35 to 37 ms,
+34 to 37, 90 to 92), where they had taken 1.75 s. `tests/errors.rs`
+`connections_that_lose_the_server_take_turns_and_come_back_together` fails with the turns switched
+off: the server went unasked for 1.05 s of its 2.5 s outage.
+
+Not done, written down:
+- One connection asking for all while the others wait: the same number of requests finds the
+  server no sooner, and one held in a twenty-second connect would hold every connection; with
+  turns each connection asks for itself.
+- Turns 50 ms apart: about 300 requests in the bench's fifteen seconds, for an average wait of
+  25 ms instead of 50.
+- Turns shared among the downloads from one server: each download takes its own, so two at once
+  from one server ask it twenty times a second.

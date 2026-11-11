@@ -155,13 +155,11 @@ async fn growing(
         }
         let at_work = active.load(Ordering::SeqCst).max(1);
         let added = batch.min(grown - allowed);
-        let flowing = job.flowing.load(Ordering::SeqCst);
+        let flowing = job.together.flowing();
         allowed += added;
         gate.send_modify(|g| g.allowed = allowed);
         let asked = tokio::time::Instant::now();
-        while job.flowing.load(Ordering::SeqCst) < flowing + added
-            && asked.elapsed() < GROW_FIRST_BYTES
-        {
+        while job.together.flowing() < flowing + added && asked.elapsed() < GROW_FIRST_BYTES {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
         tokio::time::sleep(GROW_SETTLE).await;
@@ -196,22 +194,6 @@ async fn rate_over(job: &Job) -> f64 {
     tokio::time::sleep(GROW_WINDOW).await;
     let got = job.downloaded.load(Ordering::Relaxed).saturating_sub(had);
     got as f64 / from.elapsed().as_secs_f64().max(f64::EPSILON)
-}
-
-/// A request counted among those bringing bytes in (`Job::flowing`) while it lives.
-pub(in crate::download) struct Flowing<'a>(&'a AtomicUsize);
-
-impl<'a> Flowing<'a> {
-    pub(in crate::download) fn new(count: &'a AtomicUsize) -> Self {
-        count.fetch_add(1, Ordering::SeqCst);
-        Flowing(count)
-    }
-}
-
-impl Drop for Flowing<'_> {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::SeqCst);
-    }
 }
 
 /// How long a connection is watched before it is judged against the rest.

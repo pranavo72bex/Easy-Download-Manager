@@ -430,7 +430,8 @@ desktop/
     plan.rs               how a file is cut into ranges
     probe.rs              size, name, and whether it can be resumed
     progress.rs           smoothed rate and time remaining
-    retry.rs              what is worth another attempt, and when
+    retry.rs              what is worth another attempt, and when; a download's connections
+                          taking turns through an outage (Together)
     limit.rs              one speed ceiling, shared
     category.rs           sorting finished files by what they are
     schedule.rs           when the queue is allowed to run

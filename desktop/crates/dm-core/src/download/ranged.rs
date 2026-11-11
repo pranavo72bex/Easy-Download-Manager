@@ -695,6 +695,7 @@ pub(super) async fn fetch_segment(
         let before = if sliced { on_disk() } else { 0 };
         let outcome = retry::run_making_progress_unless(
             &job.control,
+            Some(&job.together),
             job.tries,
             on_disk,
             retrying,
@@ -1101,7 +1102,8 @@ pub(super) async fn attempt_segment(
     let mut lead_buf: Vec<u8> = Vec::with_capacity(lead_n);
     let mut reader = Reader::new();
     let mut window = Window::open(written, job);
-    // Counted among the requests bringing bytes in from its first byte (`grow`).
+    // Counted among the requests bringing bytes in from its first byte (`grow`); that byte also
+    // sends at once every connection waiting its turn through an outage (`retry::Together`).
     let mut flowing = None;
 
     loop {
@@ -1245,7 +1247,7 @@ pub(super) async fn attempt_segment(
         }
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
-        flowing.get_or_insert_with(|| Flowing::new(&job.flowing));
+        flowing.get_or_insert_with(|| job.together.bringing());
         // With no length to have planned the room for, the disk is looked at as
         // the bytes come, and the download stopped before it fills it.
         if job.size.is_none() && written - disk_looked >= DISK_LOOK_EVERY {
