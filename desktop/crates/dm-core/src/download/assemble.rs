@@ -161,15 +161,23 @@ pub(super) fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64,
 pub(super) const SEAM_WINDOW: u64 = 512;
 
 /// Once range `index` is whole: each seam between it and a neighbour that is whole too, and the
-/// file's last bytes where it is the last range, asked for again over this connection and compared
-/// with the bytes on disk, as reference A looks at its seams a second time. A seam is asked for
-/// once, by whichever of its two ranges is whole second, so the end of every range is looked at
-/// in the same request as the start of the next, while the download goes on. The seams used to be
-/// asked one after another after the last byte, with every range's end asked apart as well: the
-/// finish waited out eight round trips, and each range's end was fetched twice over (gaps rows 171
-/// and 177). A request that fails or is not answered as a range proves nothing and is let pass;
-/// bytes that differ, or the whole file answered under the validator (another version of it), are
-/// a finding, and the file is fetched again on one connection (`Job::disagreed`).
+/// file's last bytes where it is the last range, asked for again and compared with the bytes on
+/// disk, as reference A looks at its seams a second time. A seam is asked for once, by whichever
+/// of its two ranges is whole second, so the end of every range is looked at in the same request
+/// as the start of the next, while the download goes on. The seams used to be asked one after
+/// another after the last byte, with every range's end asked apart as well: the finish waited out
+/// eight round trips, and each range's end was fetched twice over (gaps rows 171 and 177).
+///
+/// A range's own checks, two at most (a seam either side, or a seam and the file's end), are
+/// asked at once rather than one after the other, on whichever connections are free (the finished
+/// ranges leave theirs open): the range whole last is the one the download waits for, and it
+/// nearly always has two to ask, so its finish waited a round trip of the link more than it
+/// needed. In `bench` per_conn, whose server answers a new request 4 ms after it comes, the last
+/// byte of the file to Completed went from 14 to 18 ms to 9 to 12 (traced, 2026-11-11).
+///
+/// A request that fails or is not answered as a range proves nothing and is let pass; bytes that
+/// differ, or the whole file answered under the validator (another version of it), are a finding,
+/// and the file is fetched again on one connection (`Job::disagreed`).
 pub(super) async fn check_seams(client: &reqwest::Client, job: &Job, index: usize) {
     use std::sync::atomic::Ordering::SeqCst;
     let (spans, segments) = {
@@ -215,11 +223,15 @@ pub(super) async fn check_seams(client: &reqwest::Client, job: &Job, index: usiz
         }
         (spans, segments.clone())
     };
-    for (low, high) in spans {
-        if !span_agrees(client, job, index, &segments, low, high).await {
-            job.disagreed.store(true, SeqCst);
-            return;
-        }
+    let asked = spans
+        .iter()
+        .map(|&(low, high)| span_agrees(client, job, index, &segments, low, high));
+    if !futures_util::future::join_all(asked)
+        .await
+        .into_iter()
+        .all(|agrees| agrees)
+    {
+        job.disagreed.store(true, SeqCst);
     }
 }
 
@@ -311,6 +323,46 @@ async fn bytes_at(job: &Job, segments: &[Segment], at: u64, length: u64) -> Opti
     (bytes.len() as u64 == length).then_some(bytes)
 }
 
+/// The bytes on disk under each overlap slice, given as where it begins and the slice: `None` for
+/// one not all there. Out of the staged file in one blocking task through one open, rather than an
+/// open, a seek and a read for each slice, each of those a hop to the blocking pool while the
+/// finished download waited: assembly before the file is placed went from 0.8 to 2.6 ms to 0.4 to
+/// 1.0 on eight ranges (traced, 2026-11-11).
+async fn leads_on_disk(
+    job: &Job,
+    segments: &[Segment],
+    leads: &[(u64, Vec<u8>)],
+) -> Vec<Option<Vec<u8>>> {
+    if job.by_range {
+        let mut found = Vec::with_capacity(leads.len());
+        for (at, lead) in leads {
+            found.push(bytes_at(job, segments, *at, lead.len() as u64).await);
+        }
+        return found;
+    }
+    if leads.is_empty() {
+        return Vec::new();
+    }
+    let spans: Vec<(u64, usize)> = leads.iter().map(|(at, lead)| (*at, lead.len())).collect();
+    let staged = job.staged();
+    tokio::task::spawn_blocking(move || {
+        use std::io::{Read, Seek};
+        let mut file = std::fs::File::open(staged).ok();
+        spans
+            .into_iter()
+            .map(|(at, length)| {
+                let file = file.as_mut()?;
+                file.seek(std::io::SeekFrom::Start(at)).ok()?;
+                let mut bytes = vec![0u8; length];
+                file.read_exact(&mut bytes).ok()?;
+                Some(bytes)
+            })
+            .collect()
+    })
+    .await
+    .unwrap_or_else(|_| vec![None; leads.len()])
+}
+
 /// `length` bytes of the file at `path` from `at`.
 async fn span_on_disk(path: &Path, at: u64, length: u64) -> Option<Vec<u8>> {
     let mut file = fs::File::open(path).await.ok()?;
@@ -349,28 +401,21 @@ pub(super) async fn assemble(
     // In file order, which a split leaves different from part order.
     let mut order: Vec<usize> = (0..segments.len()).collect();
     order.sort_by_key(|&i| segments[i].start);
-    let mut dishonest = false;
-    for pair in order.windows(2) {
-        let (_previous, index) = (pair[0], pair[1]);
-        let lead = {
-            let guard = crate::lock(&job.overlaps[index]);
-            guard.clone()
-        };
-        let Some(lead) = lead else { continue };
-        if lead.is_empty() {
-            continue;
-        }
-        let seam = segments[index].start;
-        let n = lead.len() as u64;
-        let disk_start = seam.saturating_sub(n);
-        let Some(on_disk) = bytes_at(job, &segments, disk_start, n).await else {
-            continue;
-        };
-        if on_disk != lead {
-            dishonest = true;
-            break;
-        }
-    }
+    // Each slice, and where the bytes it overlaps begin.
+    let leads: Vec<(u64, Vec<u8>)> = order
+        .windows(2)
+        .filter_map(|pair| {
+            let lead = crate::lock(&job.overlaps[pair[1]]).clone()?;
+            let seam = segments[pair[1]].start;
+            (!lead.is_empty()).then(|| (seam.saturating_sub(lead.len() as u64), lead))
+        })
+        .collect();
+    let on_disk = leads_on_disk(job, &segments, &leads).await;
+    // A slice whose bytes are not on disk proves nothing.
+    let dishonest = leads
+        .iter()
+        .zip(&on_disk)
+        .any(|((_, lead), there)| there.as_ref().is_some_and(|there| there != lead));
     if dishonest {
         drop(segments);
         release_staged(job, true).await;

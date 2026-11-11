@@ -237,6 +237,77 @@ async fn each_seam_is_asked_for_once_across_it_and_the_files_end_once() {
     }
 }
 
+/// A server of `pattern(size)` that answers each check of a seam (a closed range of under 2 KiB)
+/// `wait` after it is asked, and every other range at once; with when each check came.
+async fn serve_slow_checks(
+    size: usize,
+    wait: std::time::Duration,
+) -> (String, Arc<std::sync::Mutex<Vec<std::time::Instant>>>) {
+    let came = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (body, seen) = (Arc::new(pattern(size)), came.clone());
+    let app = axum::Router::new().fallback(move |headers: HeaderMap| {
+        let (body, seen) = (body.clone(), seen.clone());
+        async move {
+            let total = body.len();
+            let (a, b) = headers
+                .get("range")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("bytes="))
+                .and_then(|v| v.split_once('-'))
+                .map(|(a, b)| {
+                    (
+                        a.parse::<usize>().unwrap_or(0),
+                        b.parse::<usize>().unwrap_or(total - 1).min(total - 1),
+                    )
+                })
+                .unwrap_or((0, total - 1));
+            if b - a < 2048 {
+                seen.lock().unwrap().push(std::time::Instant::now());
+                tokio::time::sleep(wait).await;
+            }
+            Response::builder()
+                .status(StatusCode::PARTIAL_CONTENT)
+                .header("accept-ranges", "bytes")
+                .header("content-range", format!("bytes {a}-{b}/{total}"))
+                .header("content-length", b - a + 1)
+                .header("etag", "\"s\"")
+                .body(Body::from(body[a..=b].to_vec()))
+                .unwrap()
+        }
+    });
+    let addr = common::serve(app).await;
+    (format!("http://{addr}/f.bin"), came)
+}
+
+/// A range's own checks are asked at once, not each once the one before it is answered: the
+/// range whole last nearly always has two to ask (a seam either side, or a seam and the file's
+/// end), and the download waits for them, so asked one after the other its finish took a round
+/// trip more than it needed (gaps rows 171 and 177). Here every check is answered a second after
+/// it is asked, and the ranges of a local file are whole within milliseconds of each other: asked
+/// at once, every check comes within those milliseconds; one after the other, a range's second
+/// check came a second after its first.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_ranges_own_checks_are_asked_at_once() {
+    let (size, wait) = (8 * MB, std::time::Duration::from_secs(1));
+    let (url, came) = serve_slow_checks(size, wait).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &opts).await.expect("download");
+    assert_eq!(std::fs::read(&done.path).unwrap(), pattern(size));
+    let came = came.lock().unwrap().clone();
+    // Four ranges: three seams and the file's end.
+    assert!(came.len() >= 2, "{} checks", came.len());
+    let (first, last) = (came.iter().min().unwrap(), came.iter().max().unwrap());
+    let spread = last.duration_since(*first);
+    assert!(
+        spread < wait / 2,
+        "a check was asked only once the one before it was answered: the checks came over {spread:?}"
+    );
+}
+
 /// A server that leaves the seam boundary byte correct but corrupts bytes
 /// 10–60 of the lead window. A 1-byte overlap would miss this; 64 bytes catch
 /// it. This test verifies G96: dm fetches and compares LEAD_BYTES = 64 bytes.

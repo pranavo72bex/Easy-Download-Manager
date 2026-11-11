@@ -5820,3 +5820,82 @@ Tried and dropped:
   range's end. What the server had in flight then, 2 to 8 MiB over macOS's loopback, is now nearly
   all that `fast` fetches twice. A bounded first request would cost every download a round trip on
   its first range to save it.
+
+## 2026-11-11 (evening): What is still fetched twice, the finish measured to the millisecond, a range's checks asked at once (gaps rows 171 and 177)
+
+The work of the afternoon (926b703c, the entry above) was cut off before its numbers were taken a
+second time. Measured again in the evening on the same Apple M1, now much busier (`auditd` at 63%
+of a core and the antivirus's two daemons at 15% each, beside another session's builds), six runs
+each of 926b703c and of the change below, the two builds alternated (`bench.mjs ceiling fast
+per_conn flaky`, three runs a build at a time, four times): nothing of the afternoon's change hurt,
+and it was kept whole. Medians, 926b703c then the change: `fast` 0.329 and 0.329 s from the
+address, 1.8 and 1.6% fetched twice; `per_conn` 8.084 and 8.088 s, 0.0% in all twelve; `flaky`
+8.075 and 8.066 s, 0.05 and 0.1%.
+
+**What is fetched twice now**, request by request (each run's `perRequest`: the bytes of every
+request against those of every other): in `fast`, the probe's answer, cut at the end of the first
+range with what the server had already sent past it, 4 MiB when dm reads quickly and 9 MiB when the
+computer is busy and the socket buffers fill; then 7 seams of 1 KiB, the file's last 512 bytes and
+64 bytes before each range, 8 KB in all. In `per_conn`, 10 to 16 KB of the probe's answer past the
+first range and the 8 KB of checks: 0.03%. In `flaky`, 25 to 41 KB each time a range is halved
+under its connection, about twice a run (26 times in twelve runs), and 10 KB of checks. No reconnect
+asked from a stale place (in those twelve runs each of the 426 requests after a cut asked from
+exactly where the cut left its range), no range was asked for twice at the end, and no halving
+overlapped its range beyond the 64 bytes asked on purpose. What remains is what was in flight when a connection was let go, which no
+request made after it can take back.
+
+**The finish, measured.** dm was traced (each range whole, each check asked and answered, assembly,
+the runner, Completed; with the server's own times; not committed) under a copy of the harness that
+looks every 5 ms rather than 100. From the last byte of the file to Completed: `fast` 5.7 to 7.3 ms,
+`per_conn` 14.2 to 17.6, `flaky` 6.6 to 9.5. Of `per_conn`'s, 11 to 14 ms were the checks of the range
+whole last, asked one after the other: it nearly always has two (a seam either side, or a seam and
+the file's end), and that server answers a new request 4 ms after it comes, so the second check
+waited out a round trip the first had already spent. They are now asked at once (`check_seams`,
+`join_all`), on whichever connections are free; the finished ranges leave theirs open, so no new
+one is made in the usual case. Assembly read the 64 bytes before each seam through an open, a seek
+and a read apiece, each a hop to the blocking pool; one blocking task now reads them all through
+one open, and the part of assembly before the file is placed went from 0.8 to 2.6 ms to 0.4 to 1.0.
+After: `fast` 4.4 to 5.9 ms, `per_conn` 8.9 to 12.1, `flaky` 6.2 to 7.8. On a real link the checks
+asked at once are a round trip less at the end of nearly every download.
+
+**Why the harness still sees 9 to 107 ms.** `bench.mjs` asks `queue.list` every 100 ms (each answer
+takes 1.2 ms, median of 40) from the moment it hands the address over, so what it reports is dm's
+finish plus the wait for its next look. Against `flaky`'s floor of 71 ms a median of three runs comes
+out over it about one time in three whatever dm does in those few milliseconds: two of the five
+medians taken this day did (73 and 76.5 ms). `fast`'s floor scales with the ceiling measured in the
+same run, 68.8 ms with a 0.225 s ceiling and 80.7 with 0.264, and its verdict follows where the look
+falls.
+
+**What holds `fast` here.** The same builds took 0.15 to 0.27 s in the computer's quieter minutes and
+0.86 to 1.7 s in its busier ones, with the reference client's own ceiling between 0.225 and 0.38 s;
+judged against a floor scaled by that ceiling, `fast`'s time was worse with one run's ceiling and
+better with another's though the medians were the same, 0.329 s. The bench's server is one thread:
+eight native readers that write nothing take 512 MiB from it in 128 to 172 ms, but dm's seven range
+requests besides the probe, sent within half a millisecond of each other, were taken up 2 to 37 ms
+after the probe while the server streamed its answer, and the range taken up last ended last.
+
+Tried and dropped:
+- Leaving the staged file to grow on macOS rather than making it full length first. Eight threads
+  writing a region of 64 MiB each front to back, as the ranges do, took 293 to 416 ms into a file set
+  to 512 MiB first and 155 to 200 ms into one left to grow; but dm's `fast` over eight pairs of runs,
+  the two builds alternated run by run, was 0.285 s with the file made full length and 0.272 s
+  without (medians), five pairs of eight faster with it. Not a gain anyone could measure, against a
+  branch for one system and a resume that would have had to make the file full length before its
+  check reads a range's end. Not kept.
+- Leaving the probe's answer unread until the other ranges' requests are answered, so a server of
+  one thread takes them up first: it tunes dm to the bench's server. A server with a thread or a
+  task per connection has no such queue, and on a real link the first range's connection would stop
+  for a round trip.
+- Asking the probe for a closed range (`bytes=0-N`) so nothing is cut: it would save `fast`'s 4 to 9
+  MiB, but every download's first range would then need a second request and a round trip of its
+  connection, and the probe is where the fallbacks for servers that refuse an agent or a referrer
+  live. Not done; `fast` is at 1.4 to 1.8% against the floor's 2.6.
+- Halving a range only where the download's rate fell when the last range ended (a limit shared by
+  every connection is not helped by one more): `flaky` would save its 25 to 41 KB a halving, but on a
+  shared link a connection slow for its own reasons would be left to end alone. Not done.
+- Writing each range through a duplicate of the handle the job holds on the staged file, to save an
+  open per attempt (0.2 to 1.6 ms between a range's answer and its first byte written): a duplicate
+  shares the file position, so two ranges seeking and writing at once would put bytes in each
+  other's places. Positional writes would not, but change the whole write path for that.
+- Removing the ledgers and the plan after Completed rather than before (0.8 to 2.8 ms of the
+  finish): a download of the same row started at once would have its new ledgers removed under it.
