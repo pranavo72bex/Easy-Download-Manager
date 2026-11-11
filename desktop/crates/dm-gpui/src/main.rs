@@ -75,6 +75,7 @@ mod titlebar;
 mod toolbar;
 mod tray;
 mod viewmenu;
+mod wakes;
 mod welcome;
 mod zoom;
 
@@ -199,16 +200,14 @@ fn main() {
     let headless = args.iter().any(|a| a == "--headless");
     // Woken from any thread; read on the window's own, in `list::Downloads`,
     // or by the headless loop.
-    let (wakes, woken) = async_channel::unbounded::<Wake>();
+    let (wakes, woken) = wakes::pair();
     let (headless_wakes, headless_woken) = std::sync::mpsc::channel::<Wake>();
     let wake: Arc<dyn Fn(Wake) + Send + Sync> = if headless {
         Arc::new(move |wake: Wake| {
             let _ = headless_wakes.send(wake);
         })
     } else {
-        Arc::new(move |wake: Wake| {
-            let _ = wakes.try_send(wake);
-        })
+        Arc::new(move |wake: Wake| wakes.send(wake))
     };
     let platform: Arc<dyn dm_shell::app::backend::Platform> =
         Arc::new(dm_desktop_base::desktop::Desktop {
@@ -248,7 +247,11 @@ fn main() {
     // port's own thread.
     let requests = control.and_then(|port| {
         match port::open(port, Arc::clone(&wake), backend.clone(), assistants_only) {
-            Ok(requests) => Some(requests),
+            Ok(requests) => {
+                // What it reads and clicks: the words as drawn.
+                screen::record();
+                Some(requests)
+            }
             Err(e) => {
                 backend.note(format!("the control protocol could not start: {e}"));
                 None

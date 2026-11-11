@@ -663,6 +663,9 @@ impl Downloads {
                 &now.download_dir,
             );
         }
+        // The names and places follow the settings (the download folder,
+        // the categories): worked out again, not only where a row changed.
+        self.read_all = true;
         self.read();
         // The menus' ticks too (the speed limit, the drop target).
         self.refresh_menus(cx);

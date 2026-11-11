@@ -98,7 +98,9 @@ impl Downloads {
                     .on_click(cx.listener(move |view, _, _, cx| {
                         if let Some(dir) = view.backend.platform.choose_folder() {
                             match view.backend.relocate(id, dir) {
-                                Ok(()) => view.read(),
+                                Ok(()) => {
+                                    view.read();
+                                }
                                 Err(e) => view.say(e),
                             }
                         }

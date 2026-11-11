@@ -19,7 +19,7 @@ use crate::theme::Theme;
 use crate::zoom::px;
 
 /// How long a sentence stands in the status bar.
-const SAID_FOR: std::time::Duration = std::time::Duration::from_secs(12);
+pub(crate) const SAID_FOR: std::time::Duration = std::time::Duration::from_secs(12);
 
 /// The status bar's height, in points.
 pub const HEIGHT: f32 = 24.0;
@@ -64,7 +64,7 @@ pub fn parts(view: &Downloads) -> Vec<String> {
             parts.push(format!("· {said}"));
         }
     }
-    let limit = view.backend.settings().speed_limit;
+    let limit = view.drawn.speed_limit;
     parts.push(if limit > 0 {
         tf("· limited to {} KB/s", &[&limit])
     } else {

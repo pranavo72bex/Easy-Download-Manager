@@ -217,6 +217,7 @@ pub fn name_it_will_get_after(
     thread_local! {
         static FREE: std::cell::RefCell<HashMap<(Id, std::path::PathBuf), (Instant, String)>> =
             std::cell::RefCell::new(HashMap::new());
+        static LIMIT: std::cell::Cell<usize> = const { std::cell::Cell::new(2000) };
     }
     FREE.with(|free| {
         let mut free = free.borrow_mut();
@@ -225,8 +226,13 @@ pub fn name_it_will_get_after(
                 return said.clone();
             }
         }
-        if free.len() > 2000 {
-            free.clear();
+        // Kept small by dropping what has expired, not by emptying it:
+        // emptied past 2,000, a list of 10,000 rows waiting asked the disk
+        // for every one of them at every read (gaps row 181). Looked over
+        // again only once it has doubled, so the look costs nothing a row.
+        if free.len() > LIMIT.get() {
+            free.retain(|_, (at, _)| at.elapsed() < Duration::from_secs(2));
+            LIMIT.set((free.len() * 2).max(2000));
         }
         // Each earlier row of the same name bound for the same folder,
         // and not yet placed, takes a free name first: three added for

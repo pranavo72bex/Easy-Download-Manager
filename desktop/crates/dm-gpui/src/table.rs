@@ -49,7 +49,7 @@ fn numeric(column: Column) -> bool {
 
 /// The columns shown, in the person's order.
 pub fn columns(view: &Downloads) -> Vec<Column> {
-    let settings = view.backend.settings();
+    let settings = &view.drawn;
     Column::ordered(&settings.column_order)
         .into_iter()
         .filter(|c| !settings.columns_hidden.iter().any(|h| h == c.key()))
@@ -388,7 +388,8 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
         "rows",
         count,
         cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
-            let categories = this.backend.settings().categories();
+            this.laid_out(range.clone(), cx);
+            let categories = this.drawn.categories();
             let columns = columns(this);
             let list = cx.entity().downgrade();
             // Whether a chosen row is finished, asked once, the first time a
@@ -422,8 +423,12 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         name: shown_name(row, &this.shown_names),
                         theme: original,
                     });
+                    // Known by its download, not by where it is: the
+                    // handlers below act on this row wherever a sort or a
+                    // new row has put it by the time they run.
+                    let id = row.id;
                     div()
-                        .id(i)
+                        .id(("row", id as usize))
                         .role(Role::Row)
                         // What a screen reader says of it: its file and how
                         // it stands, as the row shows them (it said nothing).
@@ -438,7 +443,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .on_mouse_down(
                             gpui::MouseButton::Right,
                             cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
-                                view.open_menu(i, event.position);
+                                view.open_menu(id, event.position);
                                 cx.notify();
                             }),
                         )
@@ -454,15 +459,15 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             // A Control-click is a right-click on macOS.
                             if event.modifiers().control && cfg!(target_os = "macos") {
                                 if let Some(at) = event.mouse_position() {
-                                    view.open_menu(i, at);
+                                    view.open_menu(id, at);
                                     cx.notify();
                                     return;
                                 }
                             }
                             let held = event.modifiers();
-                            view.click_row(i, held.platform || held.control, held.shift);
+                            view.click_row(id, held.platform || held.control, held.shift);
                             if event.click_count() == 2 {
-                                view.double_click(i, cx);
+                                view.double_click(id, cx);
                             }
                             cx.notify();
                         }))

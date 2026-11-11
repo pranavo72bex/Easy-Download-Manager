@@ -78,6 +78,12 @@ pub fn set_retrying(now: HashMap<Id, (u32, u32, String, std::time::Instant)>) {
     });
 }
 
+/// Whether any row is waiting to try again, as the last refresh found them.
+#[must_use]
+pub fn retrying_any() -> bool {
+    RETRYING.with(|r| !r.borrow().is_empty())
+}
+
 /// How long until a retrying row tries again: nothing once it is due.
 pub fn next_try(id: Id) -> Option<std::time::Duration> {
     let at = NEXT_TRY.with(|n| n.borrow().get(&id).copied())?;
@@ -362,7 +368,61 @@ pub fn shown_size(entry: &Entry) -> Option<u64> {
 
 /// A finished row whose file is no longer where dm saved it.
 pub fn gone(entry: &Entry) -> bool {
-    SUPERSEDED.with(|s| dm_shell::app::rules::file_gone(entry, &s.borrow()))
+    SUPERSEDED.with(|s| {
+        let superseded = s.borrow();
+        LOOKED.with(|looked| match &*looked.borrow() {
+            // As last looked for, off the window's thread.
+            Some(missing) => {
+                !entry.path.is_empty()
+                    && (superseded.contains(&entry.id)
+                        || missing.get(&entry.id).is_some_and(|p| *p == entry.path))
+            }
+            None => dm_shell::app::rules::file_gone(entry, &superseded),
+        })
+    })
+}
+
+thread_local! {
+    /// The finished files found missing where a window looks for them off
+    /// its own thread (`look_for`, `set_looked`), by row, with the path
+    /// looked at; `None` where nothing looks so (the egui window), and
+    /// `gone` then asks the disk as each row is drawn. Two `stat` calls for
+    /// each finished row on screen, at every frame, were the GPUI window's
+    /// (gaps row 180).
+    static LOOKED: std::cell::RefCell<Option<HashMap<Id, String>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Each of `files` (a row and its file's path) whose file is no longer
+/// there: the disk asked, so call it off the window's thread.
+#[must_use]
+pub fn look_for(files: Vec<(Id, String)>) -> Vec<(Id, String, bool)> {
+    files
+        .into_iter()
+        .map(|(id, path)| {
+            let there = std::path::Path::new(&path).exists();
+            (id, path, there)
+        })
+        .collect()
+}
+
+/// What a look (`look_for`) found, kept for `gone`; true where a row's
+/// word changes by it.
+pub fn set_looked(found: Vec<(Id, String, bool)>) -> bool {
+    LOOKED.with(|looked| {
+        let mut looked = looked.borrow_mut();
+        let missing = looked.get_or_insert_with(HashMap::new);
+        let mut changed = false;
+        for (id, path, there) in found {
+            if there {
+                changed |= missing.remove(&id).is_some();
+            } else if missing.get(&id) != Some(&path) {
+                missing.insert(id, path);
+                changed = true;
+            }
+        }
+        changed
+    })
 }
 
 /// How a row stands for the commands' rules (`commands::applies`), as
@@ -462,6 +522,36 @@ mod tests {
             "paused_by_schedule": held,
         }))
         .unwrap()
+    }
+
+    /// Where a window looks for files off its thread, a finished row says
+    /// "File missing" from what the look found, not from the disk as it is
+    /// drawn; until it is looked for again, and for its own path only.
+    #[test]
+    fn a_missing_file_is_said_from_the_last_look_not_the_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("f.bin");
+        std::fs::write(&path, b"x").unwrap();
+        let mut finished = row(State::Completed, false);
+        finished.path = path.display().to_string();
+        set_looked(Vec::new());
+        assert!(!gone(&finished));
+        // Deleted: not said until it is looked for.
+        std::fs::remove_file(&path).unwrap();
+        assert!(!gone(&finished), "the disk was asked as the row was drawn");
+        let found = look_for(vec![(1, finished.path.clone())]);
+        assert!(set_looked(found.clone()), "a change of word is told");
+        assert!(gone(&finished));
+        assert!(!set_looked(found), "the same look again changes nothing");
+        // Moved since: its new place is not the one found missing.
+        let mut moved = finished.clone();
+        moved.path = dir.path().join("g.bin").display().to_string();
+        assert!(!gone(&moved));
+        // Back: said so at the next look.
+        std::fs::write(&path, b"x").unwrap();
+        assert!(set_looked(look_for(vec![(1, finished.path.clone())])));
+        assert!(!gone(&finished));
+        LOOKED.with(|l| *l.borrow_mut() = None);
     }
 
     #[test]

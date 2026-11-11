@@ -35,7 +35,10 @@ group by group (`--only` picks groups; all of them by default):
                   Find dialog is driven as before, and gives find only
   busy     busy   the CPU over 30 s with 20 downloads queued at 1 MB/s each (dm runs as many at
                   once as its setting allows, 3 by default)
-           busy_page, busy_page_worst: the list paged through again while they run
+           busy_page, busy_page_worst: with `list` too, the list paged through in a dm started
+                  again with 60 downloads at 1 MB/s running at once
+  idle     idle_frames: how many times the window was drawn in the idle spell (GPUI's
+                  `ui.frames`), none where nothing changed
   many     300 downloads added at once at 256 KB/s each, 1 MB apiece, 10 at a time (dm's
            most): many_answer and many_worst, the window's answer to `ui.texts` over 20 asks
            while the queue turns over; many_cpu over 15 s; how many finished meanwhile
@@ -96,6 +99,7 @@ METRICS = {
     "cold": ("Start, file cache emptied", "s"),
     "start": ("Start, warm", "s"),
     "idle": ("Idle CPU", "%"),
+    "idle_frames": ("Frames drawn while idle", ""),
     "rss": ("Resident", "MB"),
     "footprint": ("Footprint", "MB"),
     "scroll": ("One scroll", "s"),
@@ -107,8 +111,8 @@ METRICS = {
     "find": ("Find next", "s"),
     "unfilter": ("Search box emptied", "s"),
     "busy": ("CPU, 20 downloads", "%"),
-    "busy_page": ("Paging while downloading, median", "s"),
-    "busy_page_worst": ("Paging while downloading, worst", "s"),
+    "busy_page": ("Paging, 60 downloading, median", "s"),
+    "busy_page_worst": ("Paging, 60 downloading, worst", "s"),
     "many_answer": ("Answer, 300 downloads, median", "s"),
     "many_worst": ("Answer, 300 downloads, worst", "s"),
     "many_cpu": ("CPU, 300 downloads", "%"),
@@ -275,6 +279,13 @@ def first_frame(dm):
     return time.time() - started
 
 
+def frames(dm):
+    """How many times the window has been drawn, where it says (`ui.frames`, answered without
+    drawing); None where it does not."""
+    r = dm.call("ui.frames")
+    return r["result"]["frames"] if r.get("ok") else None
+
+
 def to_top(dm, rows):
     """The list scrolled back to its first row, by the wheel: a key would go to whatever has
     the keyboard, the search box included."""
@@ -424,8 +435,14 @@ def run_once(root, base, home, rows, idle, run, groups):
         time.sleep(3)
         if "idle" in groups:
             before = cpu_seconds(dm.proc.pid)
+            drawn_before = frames(dm)
             time.sleep(idle)
             took["idle"] = 100 * (cpu_seconds(dm.proc.pid) - before) / idle
+            # Nothing changed, so nothing is drawn (the GPUI window counts its frames, gaps
+            # row 181; the egui window does not say).
+            drawn_after = frames(dm)
+            if drawn_before is not None and drawn_after is not None:
+                took["idle_frames"] = drawn_after - drawn_before
             took["rss"], took["footprint"] = resident_mb(dm.proc.pid)
 
         if "list" in groups:
@@ -451,12 +468,21 @@ def run_once(root, base, home, rows, idle, run, groups):
             before = cpu_seconds(dm.proc.pid)
             time.sleep(30)
             took["busy"] = 100 * (cpu_seconds(dm.proc.pid) - before) / 30
-            if "list" in groups:
-                steps, _ = page_through(dm, rows)
-                if steps:
-                    took["busy_page"], took["busy_page_worst"] = statistics.median(steps), max(steps)
     finally:
         finish(dm)
+
+    if "busy" in groups and "list" in groups:
+        # Paged through while 60 downloads update at once (gaps row 182).
+        dm = fresh(root, home, f"busy60-{rows}-{run}", {"concurrency": 60})
+        try:
+            first_frame(dm)
+            dm.add([f"{base}/f/busy60-{rows}-{run}-{i}/{200 * MB}/busy{i}.bin?rate={MB}" for i in range(60)])
+            time.sleep(5)
+            steps, _ = page_through(dm, rows)
+            if steps:
+                took["busy_page"], took["busy_page_worst"] = statistics.median(steps), max(steps)
+        finally:
+            finish(dm)
 
     if "many" in groups:
         dm = fresh(root, home, f"many{rows}-{run}", {"concurrency": 10, "connections": 1})

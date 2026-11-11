@@ -6262,3 +6262,40 @@ Tried and dropped:
   0.83 to 0.88 G instructions to 0.56 to 0.66, so the share per piece is real; but every pause
   would add to the finish after the last byte (row 177) and to the time a cut connection waits to
   be asked again, and the kernel still wakes dm for each piece that arrives.
+
+## 2026-11-12: The main window reads and draws what changed; quitting stops the downloads (gaps rows 180, 181, 182, 186)
+
+- **A read keeps what only figures changed.** The queue hands out a row's own `Arc` until it
+  changes it, so `Downloads::read` finds what changed by comparing pointers. Where only figures
+  moved (bytes, rate, time left; `placed_alike` compares the rest that names and places follow),
+  the names, places and choice are kept; they are worked out again where a row was added,
+  removed or changed otherwise, after Options, and every 2 s while anything changes, so a
+  waiting row's "name (1)" still follows its folder. Working everything out at every read was
+  most of the cost of a scroll at 10,000 rows (0.17 s, now 0.03 s). `SavedSizes` gives a
+  finished row the same copy while the queue's is the same, or a joined MP4's row (its size on
+  disk not the engine's count) looked changed at every read.
+- **The names' folder cache drops what expired, swept when it has doubled.** Emptied past 2,000
+  entries, it asked the disk for every one of 10,000 waiting rows at every read; swept at every
+  miss it would have been quadratic.
+- **A wake draws only where something shown may have changed** (`needs_drawing`): a change found
+  by the read, a request answered, something that moves with the clock (a running row, a retry,
+  When done, a sentence about to go, a file's days before the Trash), or a change beside the
+  rows (problems, the status bar's sentence, sheets, the menu, the choice). The tick's helpers
+  that change the window otherwise notify it themselves. Splitting the window into views of
+  their own, so a running row does not build the toolbar and sidebar again, is not done: it is
+  row 181's remaining part.
+- **Frames are counted on the port's own thread** (`ui.frames`): asked through the window, the
+  question would have drawn a frame itself.
+- **A file's "missing" is looked for off the window's thread**, for the rows on screen and those
+  chosen only, at most once a second and at once where the view moved or the window comes to the
+  front. Looking at every finished row was dropped: 10,000 `stat` calls a second while downloads
+  run, for rows nobody sees. Until a row has been looked at it reads as present, as a file just
+  finished is.
+- **The row at the top of the view is held** where rows come and go above it (`holding_top`), not
+  at the very top, where new rows are meant to be seen. Rows are keyed and handled by download id.
+- **Quitting stops and awaits the downloads** (`Queue::shut_down`, 2 s at most, then the rest
+  aborted). The rows go back to Queued, as a restart made of Running ones before. A restart still
+  fetches each part's last 64 KiB again (`RESUME_CHECK`), as after any pause: skipping it needs a
+  stop that syncs the part and marks its ledger, an engine change left to the engine's track.
+- **`ui-bench.py`'s paging under load is a dm of its own with 60 downloads** (10 at once, dm's
+  most), so the CPU figure with 20 stays comparable with the stored baseline.

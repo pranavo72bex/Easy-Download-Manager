@@ -25,7 +25,7 @@ pub const WIDTH: f32 = 200.0;
 /// Every place the panel lists, in order, with its heading where a group
 /// starts.
 fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> {
-    let settings = view.backend.settings();
+    let settings = &view.drawn;
     let mut all = vec![(
         Some("All Downloads"),
         Place::All,
@@ -67,7 +67,7 @@ pub fn sidebar(
     _window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let categories = view.backend.settings().categories();
+    let categories = view.drawn.categories();
     div()
         .id("sidebar")
         .role(Role::List)
