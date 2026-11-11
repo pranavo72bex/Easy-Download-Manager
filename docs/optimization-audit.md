@@ -247,6 +247,22 @@ control-port call in a median of 43 ms, worst 127 ms. `ui.inspect` took 0.1 s. P
 ui-bench's Find timed out (50 s) on every run: it waits for a button the GPUI window does not have
 (row 187).
 
+**Later on 2026-11-11 (rows 187 to 190).** `ui-bench.py` was given the scenarios it lacked and run
+again on the same build of the code (`78ce2636`, 19,952,080 bytes; `python3 scripts/ui-bench.py
+--rows 100,10000 --runs 3 --idle 30 --save-baseline`, again with the other track working on the
+computer). The medians are the stored macOS baseline, `scripts/ui-bench-baselines/darwin-arm64.json`:
+
+| Rows | Start, binary evicted / warm | Paging, a scroll (worst) | Sort, median (slowest) | Filter / Find next / emptied | Answer, 300 queued (worst) | Answer at full speed (worst) | 512 MB, window / headless |
+|---|---|---|---|---|---|---|---|
+| 100 | 0.46 / 0.43 s | 0.016 (0.022) s | 0.017 (0.026) s | 0.064 / 0.004 / 0.012 s | 6 (13) ms | 2 (57) ms | 1.16 / 1.30 s |
+| 10,000 | 0.77 / 0.73 s | 0.172 (0.190) s | 0.263 (0.400) s | 0.330 / 0.166 / 0.254 s | 107 (120) ms | 86 (142) ms | 1.33 / 1.26 s |
+
+A drive pulled mid-download (`stress-protocols.py detach`, a disk image detached by force): the row
+ended paused with its reason, dm answered in 1 ms, and resumed it whole once the drive was back.
+Still not measured: a start after `purge` (needs root), the frame time (no Instruments on this Mac,
+no timing in GPUI), and `bench fast` with the window against `--headless` (the benchmark's track).
+The release profile's alternatives are in `docs/decisions.md` (row 189).
+
 | Target | Measured | Verdict |
 |---|---|---|
 | Cold startup under 1.5 s | Not measured cold: the file cache was never emptied (`purge` needs root). The first launch after the build took 0.75 s at 100 rows | NOT MEASURED (row 187) |

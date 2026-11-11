@@ -93,6 +93,27 @@ runs dm's release build on Windows, macOS or Linux (and reference A as well, on 
 has it), and `node bench/compare.mjs` judges each parameter. It exits 0 only when dm is better in
 all of them. A parameter where dm is worse is a row in `gaps.md`.
 
+## The window's cost, against its own baseline
+
+`python3 scripts/ui-bench.py --rows 100,10000 --runs 3` drives the release window through its
+control port and times what a person waits for: a start with the file cache emptied and a warm
+one, idle CPU and memory, a scroll, paging through the list, a sort by each heading, the search
+box's filter and Find next, the CPU with downloads running, the window's answer with 300 downloads
+queued and during one at full speed, and that download's time with the window against
+`--headless`. Each figure is the median of the runs with its spread. It writes JSON with what
+produced it (commit, rustc, target, profile, binary size, GPU, display scale, rows:
+`scripts/provenance.py`) and compares it with the stored baseline for the system,
+`scripts/ui-bench-baselines/<system>-<machine>.json` (`--save-baseline` replaces it, when a change
+is meant to move the numbers). Its header lists each figure. `bench/bench.mjs` records the same
+provenance in each results file, and `memory-check.py` prints it (and writes it as JSON with
+`DM_MEMORY_JSON`).
+
+`python3 scripts/binary-size.py <binary>` compares the release binary's size with the one
+recorded for the system in `scripts/binary-size.json` and fails on a growth over 10%. CI runs it
+after each release build. `python3 scripts/stress-protocols.py detach` (macOS) pulls the download
+folder's drive (a disk image, detached by force) during a download: the row must end paused with
+why, and dm must keep answering.
+
 ## Video sites: the compatibility test plan
 
 `python scripts/video-sites-check.py` runs the video website compatibility test plan (the
