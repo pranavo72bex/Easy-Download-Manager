@@ -412,7 +412,8 @@ impl Downloads {
             positions: Default::default(),
             named_at: None,
             earlier: Default::default(),
-            read_all: false,
+            // The first read works it all out: an empty list's queues too.
+            read_all: true,
             show_asked,
             opener_said: Default::default(),
             show_sidebar: true,
