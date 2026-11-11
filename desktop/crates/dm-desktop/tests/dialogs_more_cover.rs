@@ -568,7 +568,11 @@ fn a_pieces_line_says_what_came_where_no_size_is_known_or_that_it_waits() {
     let mut settings = world.settings();
     settings.connections = 4;
     let mut harness = world.harness_with(settings);
-    add_url(&mut harness, &world.url("ranges-stall.bin"), "Start now");
+    // A server that sends nothing: every piece waits for good. One that sends
+    // its first bytes and then goes quiet has them written down within a
+    // quarter second (`tests/quiet.rs` in dm-core), and its pieces stop
+    // waiting; they read as waiting only while the write buffer held them.
+    add_url(&mut harness, &world.url("ranges-silent.bin"), "Start now");
     until_within(
         &mut harness,
         "several pieces under way",

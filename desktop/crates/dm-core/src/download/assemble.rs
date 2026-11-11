@@ -150,60 +150,102 @@ pub(super) fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64,
     Ok(out.get_ref().metadata()?.len())
 }
 
-/// How much of each side of a seam is fetched a second time to be compared.
-const SEAM_WINDOW: u64 = 2048;
+/// How much of each side of a seam, and of the file's end, is fetched a second time and compared
+/// with what the connections wrote. Another version of a file, or another place in it, differs
+/// within any few hundred bytes of it, and the 64 bytes before each range (`LEAD_BYTES`) already
+/// catch a server that labels a range with the wrong place. Each range's last 4 KiB asked apart
+/// from 2 KiB either side of up to eight seams was 66 KB of a 64 MiB file fetched twice: all of
+/// the 0.1% that tied reference A's floor in `bench` per_conn (gaps row 177). At a kibibyte a side
+/// the checks were 15 KB, which with what the server had sent past the first range's end (up to
+/// 18 KB) still came to 0.05% in one run of four.
+pub(super) const SEAM_WINDOW: u64 = 512;
 
-/// How many seams are looked at, spread along the file: a request each, so
-/// a file cut in two hundred pieces is not asked two hundred more questions.
-const SEAMS_CHECKED: usize = 8;
-
-/// Whether the bytes either side of some seams, fetched again, are the ones
-/// on disk. A request that fails or is not answered as a range proves
-/// nothing and is let pass: only bytes that differ are a finding.
-async fn seams_agree(
-    client: &reqwest::Client,
-    job: &Job,
-    segments: &[Segment],
-    order: &[usize],
-) -> bool {
-    let pairs = order.len().saturating_sub(1);
-    if pairs == 0 {
-        return true;
-    }
-    let checks = pairs.min(SEAMS_CHECKED);
-    for k in 0..checks {
-        let at = k * pairs / checks;
-        let (previous, index) = (order[at], order[at + 1]);
-        let (before, after) = (&segments[previous], &segments[index]);
-        if before.done == 0 || after.done == 0 {
-            continue;
-        }
-        let seam = after.start;
-        let low = seam - before.done.min(SEAM_WINDOW);
-        let high = seam + after.done.min(SEAM_WINDOW) - 1;
-        let Some(there) = span_again(client, job, index, low, high).await else {
-            continue;
+/// Once range `index` is whole: each seam between it and a neighbour that is whole too, and the
+/// file's last bytes where it is the last range, asked for again and compared with the bytes on
+/// disk, as reference A looks at its seams a second time. A seam is asked for once, by whichever
+/// of its two ranges is whole second, so the end of every range is looked at in the same request
+/// as the start of the next, while the download goes on. The seams used to be asked one after
+/// another after the last byte, with every range's end asked apart as well: the finish waited out
+/// eight round trips, and each range's end was fetched twice over (gaps rows 171 and 177).
+///
+/// A range's own checks, two at most (a seam either side, or a seam and the file's end), are
+/// asked at once rather than one after the other, on whichever connections are free (the finished
+/// ranges leave theirs open): the range whole last is the one the download waits for, and it
+/// nearly always has two to ask, so its finish waited a round trip of the link more than it
+/// needed. In `bench` per_conn, whose server answers a new request 4 ms after it comes, the last
+/// byte of the file to Completed went from 14 to 18 ms to 9 to 12 (traced, 2026-11-11).
+///
+/// A request that fails or is not answered as a range proves nothing and is let pass; bytes that
+/// differ, or the whole file answered under the validator (another version of it), are a finding,
+/// and the file is fetched again on one connection (`Job::disagreed`).
+pub(super) async fn check_seams(client: &reqwest::Client, job: &Job, index: usize) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let (spans, segments) = {
+        let segments = job.segments.lock().await;
+        let Some(me) = segments.get(index).filter(|s| s.finished()) else {
+            return;
         };
-        let Some(here) = bytes_at(job, segments, low, high - low + 1).await else {
-            continue;
-        };
-        if there != here {
-            return false;
+        let mut spans = Vec::new();
+        // The range just before this one in the file, and the one just after it.
+        let before = segments
+            .iter()
+            .position(|s| s.end.checked_add(1) == Some(me.start));
+        let after = segments
+            .iter()
+            .position(|s| me.end.checked_add(1) == Some(s.start));
+        for (lower, higher) in [(before, Some(index)), (Some(index), after)] {
+            let (Some(lower), Some(higher)) = (lower, higher) else {
+                continue;
+            };
+            let (low_side, high_side) = (&segments[lower], &segments[higher]);
+            // A seam is known by the range that starts at it, whose start never moves.
+            let claimed = || {
+                job.seams_checked
+                    .get(higher)
+                    .is_some_and(|checked| !checked.swap(true, SeqCst))
+            };
+            if low_side.finished() && high_side.finished() && claimed() {
+                let seam = high_side.start;
+                spans.push((
+                    seam - low_side.span().min(SEAM_WINDOW),
+                    seam + high_side.span().min(SEAM_WINDOW) - 1,
+                ));
+            }
         }
+        let last = job
+            .size
+            .is_some_and(|size| me.end.checked_add(1) == Some(size));
+        if last && !job.end_checked.swap(true, SeqCst) {
+            spans.push((me.end + 1 - me.span().min(SEAM_WINDOW), me.end));
+        }
+        if spans.is_empty() {
+            return;
+        }
+        (spans, segments.clone())
+    };
+    let asked = spans
+        .iter()
+        .map(|&(low, high)| span_agrees(client, job, index, &segments, low, high));
+    if !futures_util::future::join_all(asked)
+        .await
+        .into_iter()
+        .all(|agrees| agrees)
+    {
+        job.disagreed.store(true, SeqCst);
     }
-    true
 }
 
-/// `low..=high` of the file fetched afresh from the source of range `index`,
-/// exactly as a range is asked for: `None` unless it comes back as that
-/// range, whole.
-async fn span_again(
+/// Whether `low..=high` of the file, fetched afresh from the source of range `index` exactly as
+/// a range is asked for (with the headers a stream's reader says its server wants, and under the
+/// validator), is the bytes on disk. True where the answer proves nothing.
+async fn span_agrees(
     client: &reqwest::Client,
     job: &Job,
     index: usize,
+    segments: &[Segment],
     low: u64,
     high: u64,
-) -> Option<Vec<u8>> {
+) -> bool {
     let source = job.source(index);
     let mut request = get(
         client,
@@ -217,27 +259,42 @@ async fn span_again(
         job.referrer.is_some(),
     );
     request = request.header(reqwest::header::RANGE, format!("bytes={low}-{high}"));
-    if let Some(validator) = source.validator.as_ref().filter(|v| !v.starts_with("W/")) {
+    let conditional = source.validator.as_ref().filter(|v| !v.starts_with("W/"));
+    if let Some(validator) = conditional {
         request = request.header(reqwest::header::IF_RANGE, validator);
     }
-    let res = or_stop(
+    let Ok(res) = or_stop(
         &job.control,
         crate::auth::send(client, request, &source.url),
     )
     .await
-    .ok()?;
+    else {
+        return true;
+    };
+    /* Asked under the validator, the whole file instead of the range is the server saying the
+     * file is no longer that version: the bytes on disk are not all of one file (a file
+     * republished during the download, `zoo.rs` changes-midway). */
+    if conditional.is_some() && res.status() == reqwest::StatusCode::OK {
+        return false;
+    }
     if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
-        return None;
+        return true;
     }
     let wanted = high - low + 1;
     if res.content_length().is_some_and(|n| n != wanted) {
-        return None;
+        return true;
     }
-    let bytes = tokio::time::timeout(std::time::Duration::from_secs(15), res.bytes())
-        .await
-        .ok()?
-        .ok()?;
-    (bytes.len() as u64 == wanted).then(|| bytes.to_vec())
+    let Ok(Ok(there)) = tokio::time::timeout(std::time::Duration::from_secs(15), res.bytes()).await
+    else {
+        return true;
+    };
+    if there.len() as u64 != wanted {
+        return true;
+    }
+    let Some(here) = bytes_at(job, segments, low, wanted).await else {
+        return true;
+    };
+    there[..] == here[..]
 }
 
 /// `length` bytes of the file from `at`, read from where its ranges are: the staged file, or each
@@ -266,6 +323,46 @@ async fn bytes_at(job: &Job, segments: &[Segment], at: u64, length: u64) -> Opti
     (bytes.len() as u64 == length).then_some(bytes)
 }
 
+/// The bytes on disk under each overlap slice, given as where it begins and the slice: `None` for
+/// one not all there. Out of the staged file in one blocking task through one open, rather than an
+/// open, a seek and a read for each slice, each of those a hop to the blocking pool while the
+/// finished download waited: assembly before the file is placed went from 0.8 to 2.6 ms to 0.4 to
+/// 1.0 on eight ranges (traced, 2026-11-11).
+async fn leads_on_disk(
+    job: &Job,
+    segments: &[Segment],
+    leads: &[(u64, Vec<u8>)],
+) -> Vec<Option<Vec<u8>>> {
+    if job.by_range {
+        let mut found = Vec::with_capacity(leads.len());
+        for (at, lead) in leads {
+            found.push(bytes_at(job, segments, *at, lead.len() as u64).await);
+        }
+        return found;
+    }
+    if leads.is_empty() {
+        return Vec::new();
+    }
+    let spans: Vec<(u64, usize)> = leads.iter().map(|(at, lead)| (*at, lead.len())).collect();
+    let staged = job.staged();
+    tokio::task::spawn_blocking(move || {
+        use std::io::{Read, Seek};
+        let mut file = std::fs::File::open(staged).ok();
+        spans
+            .into_iter()
+            .map(|(at, length)| {
+                let file = file.as_mut()?;
+                file.seek(std::io::SeekFrom::Start(at)).ok()?;
+                let mut bytes = vec![0u8; length];
+                file.read_exact(&mut bytes).ok()?;
+                Some(bytes)
+            })
+            .collect()
+    })
+    .await
+    .unwrap_or_else(|_| vec![None; leads.len()])
+}
+
 /// `length` bytes of the file at `path` from `at`.
 async fn span_on_disk(path: &Path, at: u64, length: u64) -> Option<Vec<u8>> {
     let mut file = fs::File::open(path).await.ok()?;
@@ -280,7 +377,6 @@ async fn span_on_disk(path: &Path, at: u64, length: u64) -> Option<Vec<u8>> {
 /// Checks the ranges against each other and places the staged file as the
 /// finished one.
 pub(super) async fn assemble(
-    client: &reqwest::Client,
     job: &Job,
     info: &Probe,
     options: &Options,
@@ -305,36 +401,24 @@ pub(super) async fn assemble(
     // In file order, which a split leaves different from part order.
     let mut order: Vec<usize> = (0..segments.len()).collect();
     order.sort_by_key(|&i| segments[i].start);
-    let mut dishonest = false;
-    for pair in order.windows(2) {
-        let (_previous, index) = (pair[0], pair[1]);
-        let lead = {
-            let guard = crate::lock(&job.overlaps[index]);
-            guard.clone()
-        };
-        let Some(lead) = lead else { continue };
-        if lead.is_empty() {
-            continue;
-        }
-        let seam = segments[index].start;
-        let n = lead.len() as u64;
-        let disk_start = seam.saturating_sub(n);
-        let Some(on_disk) = bytes_at(job, &segments, disk_start, n).await else {
-            continue;
-        };
-        if on_disk != lead {
-            dishonest = true;
-            break;
-        }
-    }
-    // The same seams looked at a second time, as reference A does: a few of
-    // them fetched again over a fresh request and compared with what the
-    // connections wrote.
-    if !dishonest && !seams_agree(client, job, &segments, &order).await {
-        dishonest = true;
-    }
+    // Each slice, and where the bytes it overlaps begin.
+    let leads: Vec<(u64, Vec<u8>)> = order
+        .windows(2)
+        .filter_map(|pair| {
+            let lead = crate::lock(&job.overlaps[pair[1]]).clone()?;
+            let seam = segments[pair[1]].start;
+            (!lead.is_empty()).then(|| (seam.saturating_sub(lead.len() as u64), lead))
+        })
+        .collect();
+    let on_disk = leads_on_disk(job, &segments, &leads).await;
+    // A slice whose bytes are not on disk proves nothing.
+    let dishonest = leads
+        .iter()
+        .zip(&on_disk)
+        .any(|((_, lead), there)| there.as_ref().is_some_and(|there| there != lead));
     if dishonest {
         drop(segments);
+        release_staged(job, true).await;
         let mut listing = fs::read_dir(&options.parts_dir).await?;
         while let Some(entry) = listing.next_entry().await? {
             let _ = fs::remove_file(entry.path()).await;

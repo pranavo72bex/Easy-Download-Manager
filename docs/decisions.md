@@ -6018,3 +6018,247 @@ not start when the check pressed play.
   both workspaces.
 - **Not done**: `criterion` benches (the spec asks for them, run by hand, never gating CI). They
   are a dev-dependency with a large tree, and were left for a session of their own (row 190).
+
+## 2026-11-11: The end of a download: a range halved only where it is worth a request, each seam asked for once, the staged file held open (gaps rows 171 and 177)
+
+The macOS benchmark (Apple M1, GPUI release build) had `fast` worse than reference A's floor in
+time from the first request (0.327 s against 0.268 scaled), and in bytes fetched twice (4 to 7%
+against 2.6), and `per_conn` tied it at 0.1%. The engine was traced for these runs (each request,
+first byte, cut, split, check and the finish, with the time the server saw them; not committed),
+which showed three causes, each changed:
+
+- **A 150 ms stall in every fast download.** macOS writes out what a file still holds in memory
+  when its last open handle is closed, before the close returns (a Python check: 512 MiB written by
+  eight threads, every close a few microseconds, the last 143 ms). Each range attempt opened the
+  staged file and closed it at its end, on a runtime thread, and whichever closed last in the end
+  game held its connection, and every range opening the file meanwhile, 140 to 160 ms. The job
+  now holds the staged file open from `preallocate` until the file is placed (`Job::holding`) and
+  lets it go on a blocking thread: waited for where the parts are removed or made again next
+  (Windows keeps a file being deleted while a handle is open, and a new one of its name cannot be
+  made), not waited for once the file is placed. The mark of where it came from and Completed come
+  within 5 ms of the last byte; the write-out happens after.
+- **Halving however soon a range would end.** A connection with nothing left halved the range with
+  the most bytes left, so the end of a fast file was a cascade (nine halvings of its last range in
+  5 ms; 38 to 60 requests for 8 ranges), and each halving stopped the range's own connection short
+  of the end it had asked for: what the server had sent past the new end, 2 to 8 MiB a time over
+  loopback's buffers, came again. A range is now halved only where its own connection would take
+  longer than `SPLIT_WORTH` (0.1 s), or twice what this download's requests waited for their first
+  byte, to fetch what it has left at its pace over its last 20 ms window (`Going`, kept under the
+  per-range lock the chunk loop already takes); and only once 40 ms have passed since a range last
+  came whole, so the ranges still going have taken up its share (`SPLIT_SETTLE`). A range whose
+  answer is still on its way is left be, until it has waited a second (`STUCK_AFTER`), when it
+  counts as stuck however little it has left, as does one that has gone a second without bytes. A
+  connection that finds nothing worth halving waits rather than ending (woken when a range ends or
+  is given up, otherwise every 25 ms), since a range can stall or slow later; it ends once no range
+  under way is long enough to halve.
+- **Checks that overlapped.** Each range's last 4 KiB was asked for again when it ended, and 2 KiB
+  either side of up to eight seams again one after another after the last byte: 66 KB of a 64 MiB
+  file, all of `per_conn`'s 0.1%, and eight round trips in every finish. Now a seam is asked for
+  once, 512 bytes a side, by whichever of its two ranges is whole second, as the download goes on
+  (`assemble::check_seams`), and the file's last 512 bytes once; nothing is asked after assembly
+  begins. A 200 under the validator is still another version of the file, and a difference restarts
+  the file on one connection with the row saying why, as before. The 64 bytes before each range
+  (`LEAD_BYTES`), compared at assembly, stay.
+
+And one tuned figure moved with them: `HELP_WORTH_SECS`, the share of a file left at which the
+helpers of a small file look for a range to halve, from 0.3 s to 0.2 s. With the range's own test
+deciding whether a connection is opened, it no longer guards against a useless one; at 0.3 s,
+`batch`'s 2 MiB files at 2 MiB/s a connection were seen with 0.29 to 0.34 s left and were helped
+or not as their bytes fell into the 80 ms watched, 0.32 s with help and 0.52 s without.
+
+Measured on the same machine, one build after the other (`bench.mjs`, three runs where the
+harness allows): `fast` 0.211 to 0.230 s from the address against 0.329 to 0.448 before, 0.6 to
+1.0% fetched twice against 3.3 to 6.0, 16 requests against 36 to 60; `per_conn` 0.0% against
+0.1; `flaky` 0.0 to 0.1% against 0.3 to 0.5; `batch` 2.9 to 3.2 s against 3.3 s, 2.2% against
+4.4; `big40` 0.05% against 0.15; `outage` 0.3% against 0.6, its time unchanged. `fast`'s
+`lastByteToDoneMs` (77 ms against a scaled floor of 68) is the harness's: dm says Completed 5 ms
+after the last byte, and the harness asks `queue.list` every 100 ms plus a round trip from the
+moment it hands the address over, so a download that ends about 150 ms in is seen at the third
+look, 80 to 95 ms later, every time.
+
+Tried and dropped:
+- A fixed half-second (the audit of 2026-11-11 suggested about that): `batch`'s helpers met ranges with
+  0.3 s left and would have halved none, and its files took the 0.52 s of two connections.
+- The pace since the attempt's first byte, and judging at once: a range that had shared the line
+  with seven others looked three to four times slower than it was once they were done, and was
+  halved for nothing; counting the first chunk in its window put a capped range above its cap.
+- Settling only after the connection's own range: the ranges beside it were still ending, and one
+  fast run in two still halved one, at 4 to 8 MiB fetched twice.
+- A kibibyte a side for the seams: the probe's answer runs past the first range's end by what the
+  server had in flight (4 to 18 KB at 1 MiB/s), and with 15 KB of checks one `per_conn` run in
+  four came to 0.05%, printed 0.1.
+- Not changed: the probe's `bytes=0-`, whose answer is the first range's and is dropped at that
+  range's end. What the server had in flight then, 2 to 8 MiB over macOS's loopback, is now nearly
+  all that `fast` fetches twice. A bounded first request would cost every download a round trip on
+  its first range to save it.
+
+## 2026-11-11 (evening): What is still fetched twice, the finish measured to the millisecond, a range's checks asked at once (gaps rows 171 and 177)
+
+The work of the afternoon (926b703c, the entry above) was cut off before its numbers were taken a
+second time. Measured again in the evening on the same Apple M1, now much busier (`auditd` at 63%
+of a core and the antivirus's two daemons at 15% each, beside another session's builds), six runs
+each of 926b703c and of the change below, the two builds alternated (`bench.mjs ceiling fast
+per_conn flaky`, three runs a build at a time, four times): nothing of the afternoon's change hurt,
+and it was kept whole. Medians, 926b703c then the change: `fast` 0.329 and 0.329 s from the
+address, 1.8 and 1.6% fetched twice; `per_conn` 8.084 and 8.088 s, 0.0% in all twelve; `flaky`
+8.075 and 8.066 s, 0.05 and 0.1%.
+
+**What is fetched twice now**, request by request (each run's `perRequest`: the bytes of every
+request against those of every other): in `fast`, the probe's answer, cut at the end of the first
+range with what the server had already sent past it, 4 MiB when dm reads quickly and 9 MiB when the
+computer is busy and the socket buffers fill; then 7 seams of 1 KiB, the file's last 512 bytes and
+64 bytes before each range, 8 KB in all. In `per_conn`, 10 to 16 KB of the probe's answer past the
+first range and the 8 KB of checks: 0.03%. In `flaky`, 25 to 41 KB each time a range is halved
+under its connection, about twice a run (26 times in twelve runs), and 10 KB of checks. No reconnect
+asked from a stale place (in those twelve runs each of the 426 requests after a cut asked from
+exactly where the cut left its range), no range was asked for twice at the end, and no halving
+overlapped its range beyond the 64 bytes asked on purpose. What remains is what was in flight when a connection was let go, which no
+request made after it can take back.
+
+**The finish, measured.** dm was traced (each range whole, each check asked and answered, assembly,
+the runner, Completed; with the server's own times; not committed) under a copy of the harness that
+looks every 5 ms rather than 100. From the last byte of the file to Completed: `fast` 5.7 to 7.3 ms,
+`per_conn` 14.2 to 17.6, `flaky` 6.6 to 9.5. Of `per_conn`'s, 11 to 14 ms were the checks of the range
+whole last, asked one after the other: it nearly always has two (a seam either side, or a seam and
+the file's end), and that server answers a new request 4 ms after it comes, so the second check
+waited out a round trip the first had already spent. They are now asked at once (`check_seams`,
+`join_all`), on whichever connections are free; the finished ranges leave theirs open, so no new
+one is made in the usual case. Assembly read the 64 bytes before each seam through an open, a seek
+and a read apiece, each a hop to the blocking pool; one blocking task now reads them all through
+one open, and the part of assembly before the file is placed went from 0.8 to 2.6 ms to 0.4 to 1.0.
+After: `fast` 4.4 to 5.9 ms, `per_conn` 8.9 to 12.1, `flaky` 6.2 to 7.8. On a real link the checks
+asked at once are a round trip less at the end of nearly every download.
+
+**Why the harness still sees 9 to 107 ms.** `bench.mjs` asks `queue.list` every 100 ms (each answer
+takes 1.2 ms, median of 40) from the moment it hands the address over, so what it reports is dm's
+finish plus the wait for its next look. Against `flaky`'s floor of 71 ms a median of three runs comes
+out over it about one time in three whatever dm does in those few milliseconds: two of the five
+medians taken this day did (73 and 76.5 ms). `fast`'s floor scales with the ceiling measured in the
+same run, 68.8 ms with a 0.225 s ceiling and 80.7 with 0.264, and its verdict follows where the look
+falls.
+
+**What holds `fast` here.** The same builds took 0.15 to 0.27 s in the computer's quieter minutes and
+0.86 to 1.7 s in its busier ones, with the reference client's own ceiling between 0.225 and 0.38 s;
+judged against a floor scaled by that ceiling, `fast`'s time was worse with one run's ceiling and
+better with another's though the medians were the same, 0.329 s. The bench's server is one thread:
+eight native readers that write nothing take 512 MiB from it in 128 to 172 ms, but dm's seven range
+requests besides the probe, sent within half a millisecond of each other, were taken up 2 to 37 ms
+after the probe while the server streamed its answer, and the range taken up last ended last.
+
+Tried and dropped:
+- Leaving the staged file to grow on macOS rather than making it full length first. Eight threads
+  writing a region of 64 MiB each front to back, as the ranges do, took 293 to 416 ms into a file set
+  to 512 MiB first and 155 to 200 ms into one left to grow; but dm's `fast` over eight pairs of runs,
+  the two builds alternated run by run, was 0.285 s with the file made full length and 0.272 s
+  without (medians), five pairs of eight faster with it. Not a gain anyone could measure, against a
+  branch for one system and a resume that would have had to make the file full length before its
+  check reads a range's end. Not kept.
+- Leaving the probe's answer unread until the other ranges' requests are answered, so a server of
+  one thread takes them up first: it tunes dm to the bench's server. A server with a thread or a
+  task per connection has no such queue, and on a real link the first range's connection would stop
+  for a round trip.
+- Asking the probe for a closed range (`bytes=0-N`) so nothing is cut: it would save `fast`'s 4 to 9
+  MiB, but every download's first range would then need a second request and a round trip of its
+  connection, and the probe is where the fallbacks for servers that refuse an agent or a referrer
+  live. Not done; `fast` is at 1.4 to 1.8% against the floor's 2.6.
+- Halving a range only where the download's rate fell when the last range ended (a limit shared by
+  every connection is not helped by one more): `flaky` would save its 25 to 41 KB a halving, but on a
+  shared link a connection slow for its own reasons would be left to end alone. Not done.
+- Writing each range through a duplicate of the handle the job holds on the staged file, to save an
+  open per attempt (0.2 to 1.6 ms between a range's answer and its first byte written): a duplicate
+  shares the file position, so two ranges seeking and writing at once would put bytes in each
+  other's places. Positional writes would not, but change the whole write path for that.
+- Removing the ledgers and the plan after Completed rather than before (0.8 to 2.8 ms of the
+  finish): a download of the same row started at once would have its new ledgers removed under it.
+
+## 2026-11-11 (night): CPU while a held-down download runs (gaps row 176)
+
+On macOS (Apple M1, GPUI release build) `per_conn` had used 1,860 ms against the floor's 1,281 and
+`flaky` 1,885 against 1,406, and a `sample` of the process showed no hot spot. Measured again by
+thread (`ps -M`), with the instructions and cycles the kernel counts for the process
+(`proc_pid_rusage`) beside its CPU time, and a symbolized release build under `sample`, with a
+copy of the bench's server driving one download at a time (not committed):
+
+- **The window drew for the harness.** `bench.mjs` asks `queue.list` every 100 ms, and each request
+  woke the window for a whole look: a read, the tick and a frame, ten frames a second while the
+  window was on screen, and after the first download "Download complete" was drawn with each of
+  them too (it was drawn again whenever the list was). GPUI draws nothing in a window it cannot
+  see, which is why the same build's main thread took 30 to 80 ms of a run in some runs and 260 to
+  990 in others: whether the window was covered.
+- **A running download was read once a second.** Progress raises no signal (`EVENT_FLOW.md`: it is
+  polled), and the GPUI window's clock was a second while a download ran, where the egui window and
+  that document say a quarter: a person saw the figures move in jumps.
+- **The engine wrote each piece a held-down server sends as a write of its own.** At 1 MiB/s a
+  connection the bench's server sends 16 to 20 KiB at a time, over the 16 KiB buffer, so about 450
+  pieces a second each went to a blocking thread and a `write`. With the window covered, the
+  engine took 1.85 to 2.03 G instructions for `per_conn`'s 64 MiB.
+
+What changed:
+
+1. `queue.list` is answered on the control port's own thread (`control::listen_reading`, the
+   reader in `dm-gpui/src/port.rs`), from a snapshot of its own with each finished row by its
+   file's size as the window's read gives it, and who may ask as the window says
+   (`control_api::refused`): the window is neither woken nor drawn for it, and the answer does not
+   wait behind a frame. Anything else a script asks is the window's, as before. First tried as an
+   answer on the window's thread that skipped the look and the frame (`Wake::Asked`); the port's
+   thread is simpler and cheaper again (3 % fewer instructions with the window on screen), and an
+   answer no longer waits while the window draws.
+2. The window reads and draws every quarter of a second while a download runs (`RUNNING`), a second
+   for When done's countdown and the clipboard, 30 seconds otherwise; its clock runs from its last
+   look, and a queue change's quarter-second wait ends no later than that.
+3. "Download complete" is drawn again only when what it lists changes.
+4. A range gathers 64 KiB before it writes (`WRITE_BUFFER`): the most a held-down server sends at a
+   time, which tokio's own copy of each write already grows to, so a download of eight connections
+   holds 384 KiB more. A fast server's pieces are larger than the buffer and pass as before. And
+   what came is written down within the ledger's quarter second even while the server says nothing
+   more (`attempt_segment`, `tests/quiet.rs`): held in the buffer, less than a buffer's worth sent
+   and then nothing stayed off the disk a preview reads, and past the ledger a crash goes back to,
+   for as long as the server was quiet (as up to 16 KiB had before). The window test of a preview
+   from what is on disk (`tests/window/downloads.rs`) now has its server send 128 KiB, two buffers,
+   where 64 KiB was four of the old.
+5. A piece of words the window draws records where it was laid out from the box around it
+   (`Screen::mark`, `on_children_prepainted`), not from a canvas of its own beside it: one element
+   fewer to lay out and paint for each, about a quarter of the main window's; 2.5 % fewer
+   instructions with the window on screen.
+
+Measured, `per_conn` with the window brought to the front (`ui.window shown`), the server polled
+every 100 ms, the two builds alternated: the old 2.46 to 2.88 G instructions and 600 to 1,060 ms,
+the new 1.18 to 1.39 G and 390 to 610 ms. The engine alone (`--headless`, interleaved): `per_conn`
+1.86 G instructions to 0.87, `flaky` 1.13 G to 0.99. The bench, the old and the new build
+alternated: in a quiet hour `per_conn` 1,550 ms to 1,000 and `flaky` 1,630 to 1,130 (medians of
+three, before changes 1's port thread and 5; the old build over its floors, the new under), and in a
+busier one 760 to 540 and 725 to 560 (of six). The whole bench on the new build
+(`bench/results/darwin-2026-11-11`): `cpuMs` better than the floor in every scenario (`per_conn`
+730, `flaky` 840, `fast` 440, `outage` 1,810, `big40` 2,695, `idle` 30), the time and what was
+fetched twice as before. The peak working set was 111 MiB against the old build's 118 to 120 in the
+alternated runs, and 133 to 142 in the whole run, as far from its floor as it was (row 175).
+
+**Why one run's CPU is not the next one's.** Counted per run, cycles over CPU time came to 1.1 to
+3.0 GHz and dm's time on the fast cores to 10 to 39 % of it, while the instructions moved by a few
+percent: the same work took up to two and a half times as long, by where the system ran dm's
+threads and how fast, and in the computer's quiet hours most. That is how the old build measured
+1,860 ms earlier in the day, 1,550 in the quiet hour and 760 in the busier one, and why builds were
+compared by instructions, alternated, never by one run's `cpuMs`.
+
+**The finish in that run.** `flaky`'s `lastByteToDoneMs` came out at 84 ms there (29, 84 and 85),
+over its floor of 71, and 83 to 87 in the run of `per_conn` and `flaky` before it. It is where the
+harness's look every 100 ms falls: with a copy of its server and its looks, both builds came out
+either 5 to 20 ms or 90 to 110 (the old: 98, 5, 99, 96, 109, 19; the new: 92, 94, 100, 10, 8, 106),
+the run finishing just before a look or just after it, and a `flaky` run is nearly the same length
+each time. Looked at every 5 ms, dm said Completed 6 to 12 ms after the server's last byte with the
+new build and 4 to 18 with the old.
+
+Tried and dropped:
+- Fewer of tokio's workers (`TOKIO_WORKER_THREADS` 2 and 4 against the 8 the M1 gets), alternated
+  over three rounds: 531, 568 and 572 M instructions, 535, 600 and 530 ms. Not a setting worth having.
+- GPUI and taffy built at opt-level 3, as egui and epaint are: the binary 0.99 MB larger
+  (19,901,696 bytes to 20,888,432) for 5 to 8 % fewer instructions with the window on screen. A
+  frame is GPUI's layout and prepaint of the whole tree (`sample`: 77 of 90 samples on the main
+  thread were `Window::draw`, half of it taffy's layout, dm's own `render` 3), which the level
+  barely moves. What would: drawing again only the parts that change (GPUI's cached views), which
+  the window's one view and its record of the words on screen do not allow as they are.
+- Not tried, written down: reading a slow connection's bytes in fewer, larger reads by pausing
+  between them. The bench's server sending 64 KiB pieces in place of 16 KiB took dm's engine from
+  0.83 to 0.88 G instructions to 0.56 to 0.66, so the share per piece is real; but every pause
+  would add to the finish after the last byte (row 177) and to the time a cut connection waits to
+  be asked again, and the kernel still wakes dm for each piece that arrives.

@@ -200,7 +200,7 @@ fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
     until(&mut harness, "the first bytes to arrive", |app| {
         app.rows()
             .iter()
-            .any(|r| r.progress.downloaded >= 64 * 1024)
+            .any(|r| r.progress.downloaded >= 128 * 1024)
     });
     select(&mut harness, "half.mp4");
     assert!(!harness.state().enabled(Command::OpenFile), "not finished");
@@ -222,7 +222,8 @@ fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
     let preview = opened().unwrap();
     let bytes = std::fs::read(&preview).unwrap();
     // From the start, all of it but what is still in the engine's write
-    // buffer (the staged file is as long as the whole, zeros past that).
+    // buffer, 64 KiB at most (the staged file is as long as the whole, zeros
+    // past that).
     assert!(bytes.len() >= 32 * 1024, "{} bytes", bytes.len());
     assert!(bytes[..32 * 1024].iter().all(|b| *b == 9));
 

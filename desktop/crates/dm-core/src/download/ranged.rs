@@ -153,6 +153,7 @@ async fn adopt_into_staged(job: &Job, segments: &[Segment]) -> Result<(), Error>
 /// taken as bytes land. Never cut: a longer staged file holds nothing a
 /// ledger vouches for past its ranges. None where each range has a file of
 /// its own, made by its first write and grown as it is written front to back.
+/// Kept open by the job until the file is placed (`Job::holding`).
 pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
     if job.by_range {
         return Ok(());
@@ -170,7 +171,23 @@ pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
             file.set_len(size).await?;
         }
     }
+    *crate::lock(&job.holding) = Some(file.into_std().await);
     Ok(())
+}
+
+/// Lets go of the staged file the job held open (`Job::holding`), on a blocking thread, since
+/// on macOS that close writes out what is still in memory. Waited for where the parts are removed
+/// or made again next: Windows keeps a file being deleted for as long as a handle is open, and
+/// a new one of the same name cannot be made meanwhile. Not waited for once the file is placed:
+/// the row is Completed while the system puts the bytes down, as it does after any write.
+pub(super) async fn release_staged(job: &Job, wait: bool) {
+    let Some(file) = crate::lock(&job.holding).take() else {
+        return;
+    };
+    let closing = tokio::task::spawn_blocking(move || drop(file));
+    if wait {
+        let _ = closing.await;
+    }
 }
 
 /// Runs every range, and keeps running until none are left unfinished.
@@ -314,7 +331,47 @@ pub(super) async fn run(
                         {
                             break 'connection;
                         }
-                        match split_largest(&job).await {
+                        /* A range worth halving, or a wait for one: a range can stop or slow
+                         * down, and one just asked for is judged once its bytes come. Looked at
+                         * again as soon as a range ends or is given up, or after `SPLIT_LOOK`,
+                         * and given up only once no range under way is long enough to halve. */
+                        let found = loop {
+                            // Asked for before looking, so a range that ends meanwhile still
+                            // wakes it.
+                            let moved = job.moved.notified();
+                            tokio::pin!(moved);
+                            moved.as_mut().enable();
+                            let now = tokio::time::Instant::now();
+                            let judge_from = crate::lock(&job.last_ended)
+                                .map_or(now, |ended| ended + SPLIT_SETTLE);
+                            match split_largest(&job, now >= judge_from).await {
+                                Halving::Range(index) => break Some(index),
+                                Halving::Nothing => break None,
+                                Halving::Later => {}
+                            }
+                            let wake = if now < judge_from {
+                                judge_from
+                            } else {
+                                now + SPLIT_LOOK
+                            };
+                            tokio::select! {
+                                () = &mut moved => {}
+                                () = tokio::time::sleep_until(wake) => {}
+                            }
+                            job.control.check()?;
+                            if let Some(index) = crate::lock(&orphans).pop() {
+                                break Some(index);
+                            }
+                            // Taken back by `grow` while it waited: it waits to be let in again.
+                            if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
+                                if joined {
+                                    joined = false;
+                                    active.fetch_sub(1, Ordering::SeqCst);
+                                }
+                                continue 'connection;
+                            }
+                        };
+                        match found {
                             Some(index) => index,
                             None => break 'connection,
                         }
@@ -330,7 +387,11 @@ pub(super) async fn run(
                     } else {
                         None
                     };
-                    match fetch_segment(&client, &job, index, resumable, &active, first).await {
+                    let fetched =
+                        fetch_segment(&client, &job, index, resumable, &active, first).await;
+                    // A connection waiting for a range worth halving looks again.
+                    job.moved.notify_waiters();
+                    match fetched {
                         Ok(()) => {}
                         /* The server would not take this connection (a 429 or
                          * 503 at once, a refused connect after its retries)
@@ -344,6 +405,7 @@ pub(super) async fn run(
                             refused.store(true, Ordering::SeqCst);
                             crate::lock(&job.live[index]).taken = false;
                             crate::lock(&orphans).push(index);
+                            job.moved.notify_waiters();
                             break 'connection;
                         }
                         /* The others stepped aside between the judgement and
@@ -356,11 +418,14 @@ pub(super) async fn run(
                             // again and not a fresh one taken in its place.
                             crate::lock(&job.live[index]).taken = false;
                             crate::lock(&orphans).push(index);
+                            job.moved.notify_waiters();
                             continue;
                         }
                         Err(e) => return Err(e),
                     }
                     alone_again = false;
+                    // The others take up its share for a moment before any is judged.
+                    *crate::lock(&job.last_ended) = Some(tokio::time::Instant::now());
                     // Taken back by `grow`, with its piece done: it waits to be let in again.
                     if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
                         if joined {
@@ -444,34 +509,58 @@ pub(super) async fn run(
     Ok(())
 }
 
-/// Halves the range with the most left to fetch, under the connection
-/// fetching it, and returns the new range made of its back half; `None` when
-/// nothing is worth halving.
+/// What a connection with no range of its own found to do.
+pub(super) enum Halving {
+    /// The new range made of a range's back half, to fetch.
+    Range(usize),
+    /// Ranges are still being fetched, none of them yet worth halving: looked at again soon.
+    Later,
+    /// Nothing will be worth halving again: the ranges under way are all too short.
+    Nothing,
+}
+
+/// Halves the range its own connection would take longest to finish, under that connection,
+/// where that is longer than a new request is worth (`Job::split_worth`), and returns the new
+/// range made of its back half. Only says whether anything is left to halve when not `judging`.
 ///
 /// The plan beside the parts is written again before the new range fetches
 /// a byte, so a resume puts every part at the offset it was fetched for.
-pub(super) async fn split_largest(job: &Job) -> Option<usize> {
+pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
     let mut segments = job.segments.lock().await;
     let index = segments.len();
     if index >= job.live.len() || !job.resumable {
-        return None;
+        return Halving::Nothing;
     }
-    let left = |l: &Live| {
-        (l.end - l.start)
-            .saturating_add(1)
-            .saturating_sub(l.reserved)
+    let (now, worth) = (tokio::time::Instant::now(), job.split_worth().as_secs_f64());
+    let mut halvable = false;
+    let mut slowest: Option<(usize, f64)> = None;
+    for i in 0..index {
+        let l = crate::lock(&job.live[i]);
+        if !l.taken || l.left() < 2 * MIN_SPLIT {
+            continue;
+        }
+        halvable = true;
+        if !judging {
+            break;
+        }
+        if let Some(time) = l.time_left(now).filter(|&time| time > worth) {
+            if slowest.is_none_or(|(_, most)| time > most) {
+                slowest = Some((i, time));
+            }
+        }
+    }
+    let Some((victim, _)) = slowest else {
+        return if halvable {
+            Halving::Later
+        } else {
+            Halving::Nothing
+        };
     };
-    let victim = (0..index)
-        .filter(|&i| {
-            let l = crate::lock(&job.live[i]);
-            l.taken && left(&l) >= 2 * MIN_SPLIT
-        })
-        .max_by_key(|&i| left(&crate::lock(&job.live[i])))?;
     let (start, end, old_end) = {
         let mut l = crate::lock(&job.live[victim]);
-        let rest = left(&l);
+        let rest = l.left();
         if rest < 2 * MIN_SPLIT {
-            return None;
+            return Halving::Later;
         }
         let old_end = l.end;
         l.end = l.start + l.reserved + rest / 2 - 1;
@@ -499,7 +588,7 @@ pub(super) async fn split_largest(job: &Job) -> Option<usize> {
         // Unrecorded, the split is undone: the range keeps its whole length,
         // which nothing past the new end can have been claimed against.
         crate::lock(&job.live[victim]).end = old_end;
-        return None;
+        return Halving::Nothing;
     }
     segments[victim].end = start - 1;
     segments.push(Segment {
@@ -516,8 +605,12 @@ pub(super) async fn split_largest(job: &Job) -> Option<usize> {
         reserved: 0,
         taken: true,
         trusted: true,
+        going: Going {
+            since: Some(tokio::time::Instant::now()),
+            ..Going::default()
+        },
     };
-    Some(index)
+    Halving::Range(index)
 }
 
 /// Fetches one range into its place in the staged file, retrying what is
@@ -646,109 +739,18 @@ pub(super) async fn fetch_segment(
          * so one place decides whether a file is complete rather than two
          * disagreeing about it. */
         Err(Error::Incomplete { .. }) => Ok(()),
-        Ok(()) if resumable => spot_check_segment(client, job, index).await,
+        // Its seams with the ranges either side that are whole, asked for again (`check_seams`).
+        Ok(()) if resumable => {
+            check_seams(client, job, index).await;
+            Ok(())
+        }
         other => other,
     }
 }
 
-/// How many bytes are re-fetched from the server after a segment finishes, to
-/// confirm the bytes on disk are the ones the server sent.
-const DATA_CHECK_SIZE: u64 = 4 * 1024;
-
 /// How many bytes before each range boundary are fetched as an overlap and
 /// compared at assembly: reference A overlaps 64 bytes at each seam.
 pub(super) const LEAD_BYTES: usize = 64;
-
-/// After a segment completes, re-fetches its last [`DATA_CHECK_SIZE`] bytes
-/// and compares them against what is on disk. If they differ the job is
-/// marked as disagreeing, and the download goes again on one connection.
-/// Network errors during the check are ignored: only a clear byte mismatch
-/// counts.
-async fn spot_check_segment(
-    client: &reqwest::Client,
-    job: &Job,
-    index: usize,
-) -> Result<(), Error> {
-    let (start, end) = {
-        let l = crate::lock(&job.live[index]);
-        (l.start, l.end)
-    };
-    let span = end - start + 1;
-    if span < DATA_CHECK_SIZE {
-        return Ok(());
-    }
-    let check_start = start + span - DATA_CHECK_SIZE;
-    let check_end = end;
-
-    // What is on disk.
-    let mut on_disk = vec![0u8; DATA_CHECK_SIZE as usize];
-    let (held, origin) = job.held(index, start);
-    let open = tokio::fs::File::open(held).await;
-    let Ok(mut file) = open else {
-        return Ok(());
-    };
-    use tokio::io::{AsyncReadExt, AsyncSeekExt};
-    if file
-        .seek(std::io::SeekFrom::Start(origin + (check_start - start)))
-        .await
-        .is_err()
-    {
-        return Ok(());
-    }
-    if file.read_exact(&mut on_disk).await.is_err() {
-        return Ok(());
-    }
-    drop(file);
-
-    // Ask the server for the same bytes, as the range itself was asked: with the headers a
-    // stream's reader says its server wants (a video CDN's Referer and Origin), without which the
-    // check was refused there and checked nothing, and under the validator (engine review,
-    // 2026-11-08).
-    let source = job.source(index);
-    let mut request = get(
-        client,
-        &source.url,
-        job.referrer.as_deref(),
-        job.sign_in.as_ref(),
-    );
-    request = job.headers.onto(
-        request,
-        crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
-        job.referrer.is_some(),
-    );
-    request = request.header(
-        reqwest::header::RANGE,
-        format!("bytes={check_start}-{check_end}"),
-    );
-    let conditional = source.validator.as_ref().filter(|v| !v.starts_with("W/"));
-    if let Some(validator) = conditional {
-        request = request.header(reqwest::header::IF_RANGE, validator);
-    }
-    let Ok(res) = crate::auth::send(client, request, &source.url).await else {
-        return Ok(());
-    };
-    // Asked under the validator, the whole file instead of the range is the server saying the
-    // file is no longer that version: the bytes on disk are not all of one file, as a mismatch
-    // says (a file republished during the download, `zoo.rs` changes-midway).
-    if conditional.is_some() && res.status() == reqwest::StatusCode::OK {
-        job.disagreed
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-        return Ok(());
-    }
-    if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
-        return Ok(());
-    }
-    let from_server = match res.bytes().await {
-        Ok(b) if b.len() as u64 == DATA_CHECK_SIZE => b,
-        _ => return Ok(()),
-    };
-
-    if from_server[..] != on_disk[..] {
-        job.disagreed
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-    }
-    Ok(())
-}
 
 /// One attempt at one range.
 pub(super) async fn attempt_segment(
@@ -769,9 +771,15 @@ pub(super) async fn attempt_segment(
     // The ledger, read fresh: what it says is on disk is what has arrived.
     let already = job.ledger(index).min(span);
     let mut ledger = job.open_ledger(index).await?;
+    let asked_at = tokio::time::Instant::now();
     let trusted = {
         let mut l = crate::lock(&job.live[index]);
         l.reserved = l.reserved.max(already);
+        // A new attempt: its pace is its own, from its first byte.
+        l.going = Going {
+            since: Some(asked_at),
+            ..Going::default()
+        };
         l.trusted
     };
     // A whole part needs nothing more, unless its tail is to be checked
@@ -1068,8 +1076,13 @@ pub(super) async fn attempt_segment(
     /* Small: tokio's file keeps a copy of every write it hands to the
      * disk, so each connection holds this twice. 256 KiB cost 20–30 MB more
      * over ten downloads of eight connections than 16 KiB, and fetched 2 GB
-     * over loopback no faster nor with less CPU (qa/after.md). */
-    let mut file = tokio::io::BufWriter::with_capacity(16 * 1024, file);
+     * over loopback no faster nor with less CPU (qa/after.md). But not under
+     * the 16 to 64 KiB a held-down server sends at a time: at 16 KiB nearly
+     * every piece went past the buffer as a write of its own, each a trip to
+     * a blocking thread and a system call, which were most of the engine's
+     * time over eight connections held to 1 MiB/s (gaps row 176). Tokio's
+     * copy already grows to the 64 KiB such a server sends at most. */
+    let mut file = tokio::io::BufWriter::with_capacity(WRITE_BUFFER, file);
     // At this range's own place in the staged file, or in its own file.
     file.seek(std::io::SeekFrom::Start(origin + already))
         .await?;
@@ -1110,9 +1123,26 @@ pub(super) async fn attempt_segment(
         let chunk = match carry.take() {
             Some(rest) => Ok(rest),
             None => {
-                match tokio::time::timeout_at(window.ends(), reader.next(&mut stream, &job.control))
-                    .await
-                {
+                // While what came is not yet written down, no longer than the
+                // ledger's quarter second: a server that goes quiet does not
+                // keep what it sent in the write buffer, off the disk a preview
+                // reads and past the ledger a crash goes back to.
+                let until = if written > recorded {
+                    window.ends().min(tokio::time::Instant::from_std(
+                        recorded_at + LEDGER_EVERY_TIME,
+                    ))
+                } else {
+                    window.ends()
+                };
+                match tokio::time::timeout_at(until, reader.next(&mut stream, &job.control)).await {
+                    // Quiet past the quarter: what came is written down.
+                    Err(_) if written > recorded && recorded_at.elapsed() >= LEDGER_EVERY_TIME => {
+                        file.flush().await?;
+                        put(&mut ledger, written).await?;
+                        recorded = written;
+                        recorded_at = std::time::Instant::now();
+                        continue;
+                    }
                     // The window ran out with nothing arriving: judged at the top.
                     Err(_) => continue,
                     Ok(Ok(Some(chunk))) => chunk,
@@ -1196,13 +1226,19 @@ pub(super) async fn attempt_segment(
 
         // Claimed before it is written, against where the range ends now:
         // a split under this connection stops it at the new end.
-        let fits = {
+        let arrived = tokio::time::Instant::now();
+        let (fits, first) = {
             let mut l = crate::lock(&job.live[index]);
             span_now = (l.end - l.start).saturating_add(1);
             let fits = (chunk.len() as u64).min(span_now.saturating_sub(written));
             l.reserved = written + fits;
-            fits
+            let held = l.reserved;
+            let first = l.going.came(arrived, held);
+            (fits, first)
         };
+        if first {
+            job.note_first_byte(arrived.saturating_duration_since(asked_at));
+        }
         let cut = fits < chunk.len() as u64;
         if cut {
             chunk = chunk.slice(..fits as usize);
