@@ -618,6 +618,7 @@ pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
     });
     // A new range starts with nothing written down for it.
     let _ = fs::remove_file(ledger_path(&job.parts, index)).await;
+    forget_synced(&job.parts, index).await;
     // Every byte of it will be this run's.
     *crate::lock(&job.live[index]) = Live {
         start,
@@ -631,6 +632,21 @@ pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
         },
     };
     Halving::Range(index)
+}
+
+/// A range stopped by a pause (a person's, or dm ending): what it wrote is put on the disk itself
+/// and written down as such (`mark_synced`), so the next run goes on from it without asking the
+/// server for its last 64 KiB again and comparing them (`RESUME_CHECK`), a check that exists for a
+/// ledger a power cut may have outlived its bytes by (gaps row 186). Where the sync fails nothing
+/// is written down, and the next run checks as before. Paid once per range at a stop, within the
+/// grace a stop gives the connections.
+async fn stopped_synced(job: &Job, index: usize, file: &fs::File, written: u64) {
+    if written == 0 {
+        return;
+    }
+    if file.sync_data().await.is_ok() {
+        mark_synced(&job.parts, index, written).await;
+    }
 }
 
 /// Fetches one range into its place in the staged file, retrying what is
@@ -793,8 +809,11 @@ pub(super) async fn attempt_segment(
     let already = job.ledger(index).min(span);
     let mut ledger = job.open_ledger(index).await?;
     let asked_at = tokio::time::Instant::now();
+    // What a stop of an earlier run synced before writing it down needs no check (`read_synced`).
+    let synced = already > 0 && read_synced(&job.parts, index).is_some_and(|s| s >= already);
     let trusted = {
         let mut l = crate::lock(&job.live[index]);
+        l.trusted |= synced;
         l.reserved = l.reserved.max(already);
         // A new attempt: its pace is its own, from its first byte.
         l.going = Going {
@@ -816,6 +835,7 @@ pub(super) async fn attempt_segment(
      * and every retry after the first drop was corrupt. Start again. */
     let already = if !resumable && already > 0 {
         put(&mut ledger, 0).await?;
+        forget_synced(&job.parts, index).await;
         job.downloaded.fetch_sub(already, Ordering::Relaxed);
         0
     } else {
@@ -1065,6 +1085,7 @@ pub(super) async fn attempt_segment(
                 let cut = zeros_from - zeros_from % DISK_BLOCK;
                 if cut < base {
                     put(&mut ledger, cut).await?;
+                    forget_synced(&job.parts, index).await;
                     drop(file);
                     // Its connection goes before the next is opened: a site
                     // held to one connection would refuse the repair's.
@@ -1084,6 +1105,7 @@ pub(super) async fn attempt_segment(
         let keep = already - check + agree;
         if keep < already {
             put(&mut ledger, keep).await?;
+            forget_synced(&job.parts, index).await;
             job.downloaded.fetch_sub(already - keep, Ordering::Relaxed);
             crate::lock(&job.live[index]).reserved = keep;
         }
@@ -1125,8 +1147,40 @@ pub(super) async fn attempt_segment(
     // Counted among the requests bringing bytes in from its first byte (`grow`); that byte also
     // sends at once every connection waiting its turn through an outage (`retry::Together`).
     let mut flowing = None;
+    // A pause seen, and how much has been taken since of what had already come (`DRAIN_MOST`).
+    let mut draining: Option<Error> = None;
+    let mut drained = 0u64;
 
     loop {
+        /* Paused: what has already come, in the connection's buffers and the
+         * system's, is taken and written before the range lets go, without
+         * waiting for more. Dropped, it was fetched again at the resume: on a
+         * fast link most of what a stop cost twice (gaps row 186). */
+        if carry.is_none() {
+            if let Some(stopped) = draining.take() {
+                let ready = (drained < DRAIN_MOST)
+                    .then(|| futures_util::FutureExt::now_or_never(stream.next()))
+                    .flatten()
+                    .flatten();
+                match ready {
+                    Some(Ok(more)) => {
+                        draining = Some(stopped);
+                        carry = Some(more);
+                    }
+                    _ => {
+                        file.flush().await?;
+                        put(&mut ledger, written).await?;
+                        // Cancelled meanwhile, it is a cancel.
+                        let stopped = job.control.check().err().unwrap_or(stopped);
+                        if matches!(stopped, Error::Paused) {
+                            stopped_synced(job, index, file.get_ref(), written).await;
+                            job.segments.lock().await[index].done = written.min(span_now);
+                        }
+                        return Err(stopped);
+                    }
+                }
+            }
+        }
         // A connection far slower than the rest is dropped and asked again,
         // rather than held to the read timeout while the others finish.
         if window.over() {
@@ -1169,12 +1223,18 @@ pub(super) async fn attempt_segment(
                     Err(_) => continue,
                     Ok(Ok(Some(chunk))) => chunk,
                     Ok(Ok(None)) => break,
+                    // Paused while waiting: what has come is taken first (above).
+                    Ok(Err(Error::Paused)) => {
+                        draining = Some(Error::Paused);
+                        continue;
+                    }
                     // Stopped while waiting: what is in the write buffer is on
                     // disk before the range lets go, or a resume fetches it again.
                     Ok(Err(stopped)) => {
                         file.flush().await?;
                         put(&mut ledger, written).await?;
                         if matches!(stopped, Error::Paused) {
+                            stopped_synced(job, index, file.get_ref(), written).await;
                             job.segments.lock().await[index].done = written.min(span_now);
                         }
                         return Err(stopped);
@@ -1215,13 +1275,20 @@ pub(super) async fn attempt_segment(
         }
 
         /* Checked between chunks rather than mid-write, so what is flushed
-         * and what the ledger records stay obviously in step. */
-        if let Err(stopped) = job.control.check() {
+         * and what the ledger records stay obviously in step. A pause takes
+         * this chunk, and what else has come, first (`draining`). */
+        if let (None, Err(Error::Paused)) = (&draining, job.control.check()) {
+            draining = Some(Error::Paused);
+            carry = Some(chunk);
+            continue;
+        }
+        if let (None, Err(stopped)) = (&draining, job.control.check()) {
             // Flushed first either way: the bytes already written are what a
             // resume picks up from, and a pause also records where it got to.
             file.flush().await?;
             put(&mut ledger, written).await?;
             if matches!(stopped, Error::Paused) {
+                stopped_synced(job, index, file.get_ref(), written).await;
                 job.segments.lock().await[index].done = written.min(span_now);
             }
             return Err(stopped);
@@ -1268,6 +1335,9 @@ pub(super) async fn attempt_segment(
         as_slow_as_the_disk(chunk.len() as u64).await;
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
+        if draining.is_some() {
+            drained += chunk.len() as u64;
+        }
         flowing.get_or_insert_with(|| job.together.bringing());
         // With no length to have planned the room for, the disk is looked at as
         // the bytes come, and the download stopped before it fills it.
@@ -1311,13 +1381,20 @@ pub(super) async fn attempt_segment(
          * whole wait early, and the shown speed and ETA ran at twice the
          * limit for the first seconds. */
         let mut through = 0;
-        let stopping = or_stop(&job.control, async {
-            job.limiter
-                .take_counting(chunk.len() as u64, &job.downloaded, &mut through)
-                .await;
+        let stopping = if draining.is_some() {
+            // Taken while stopping: no ceiling to wait for, only counted.
+            through = chunk.len() as u64;
+            job.downloaded.fetch_add(through, Ordering::Relaxed);
             Ok(())
-        })
-        .await;
+        } else {
+            or_stop(&job.control, async {
+                job.limiter
+                    .take_counting(chunk.len() as u64, &job.downloaded, &mut through)
+                    .await;
+                Ok(())
+            })
+            .await
+        };
         if let Err(stopped) = stopping {
             // It is on disk: the count is a ledger of what is, and a retry
             // of this range starts from what its ledger records.
@@ -1326,6 +1403,7 @@ pub(super) async fn attempt_segment(
             file.flush().await?;
             put(&mut ledger, written).await?;
             if matches!(stopped, Error::Paused) {
+                stopped_synced(job, index, file.get_ref(), written).await;
                 job.segments.lock().await[index].done = written.min(span_now);
             }
             return Err(stopped);

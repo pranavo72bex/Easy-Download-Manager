@@ -262,7 +262,14 @@ async fn a_range_file_a_power_cut_tore_is_fetched_again_where_it_was_torn() {
     paused_at(&slow, dir.path(), 2 * 1024 * 1024).await;
     let parts = dir.path().join("parts");
     // Torn as a power cut tears: one range's file shorter than its ledger says, and another's
-    // last whole block under its ledger never written (zeros).
+    // last whole block under its ledger never written (zeros). A run a power cut ended wrote no
+    // note that its bytes were synced, as the pause that stopped this one did (gaps row 186):
+    // taken away, so the ledgers are all there is to go by.
+    for entry in std::fs::read_dir(&parts).unwrap().flatten() {
+        if entry.file_name().to_string_lossy().ends_with(".synced") {
+            std::fs::remove_file(entry.path()).unwrap();
+        }
+    }
     let (short, zeroed) = (1, 2);
     let said = ledger(dir.path(), short);
     assert!(

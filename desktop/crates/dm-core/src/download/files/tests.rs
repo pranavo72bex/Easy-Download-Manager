@@ -110,6 +110,7 @@ fn a_file_a_range_only_where_the_folder_is_on_another_disk() {
 fn a_range_files_name_gives_its_index() {
     assert_eq!(super::staged_index("range-0012"), Some(12));
     assert_eq!(super::staged_index("done-0012"), Some(12));
+    assert_eq!(super::staged_index("done-0012.synced"), Some(12));
     assert_eq!(super::staged_index("part-0012"), Some(12));
     assert_eq!(super::staged_index("staged"), None);
     assert_eq!(

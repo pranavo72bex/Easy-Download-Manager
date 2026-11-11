@@ -6719,3 +6719,27 @@ was the cost.
   cost, and a reused window slides as long.
 - Options, File properties, a progress window, Add URL and the Scheduler are windows of their own,
   not sheets: measured, they held `ui.texts` 13 to 28 ms opening and closing, before and after.
+
+## 2026-11-12: A pause writes what has come, syncs, and marks it, so a resume does not check it again (gaps row 186)
+
+- **What a stop cost twice** (`dm-core/tests/shutdown.rs`, 20 downloads on 2 connections, stopped
+  part-way): 2,981,120 bytes, about 73 KiB a connection, of which 64 KiB was each part's end asked
+  for again at the resume and compared (`RESUME_CHECK`), a check that exists because a ledger can
+  outlive its bytes across a power cut; the rest what had come and was dropped as the range let go.
+- **A pause syncs and marks** (`stopped_synced`): flushed, then `sync_data` on the part's file,
+  then `done-NNNN.synced` holding how many bytes the sync covered. The next run trusts the range up
+  to it (`Live::trusted`, the same flag a range written by this run has). Only after the sync is it
+  written, so a crash or a power cut at any point leaves either no mark or a mark the disk honours;
+  a mark cut short reads as less or nothing. It is forgotten wherever a ledger is cut back (a
+  repair, a server that stopped serving ranges, a new range at that index) and goes with the parts
+  (it is a `done-` file to every sweep of them). A Cancel does not sync: its parts go.
+- **A pause first takes what has already come** (`draining`): what hyper and the system's buffers
+  hold is read without waiting (`now_or_never`), written and counted, up to 512 KiB a connection,
+  then the range stops. The limiter is not waited for on those bytes: they are here.
+- **Cost**: one `sync_data` per range at each pause, inside the grace a stop gives a connection
+  (1 s, then it is stopped and resumes as after a crash, with the check). The shutdown test still
+  ends in under 2 s with 40 ranges.
+- **Measured**: 0.78 to 1.47 MB fetched twice in five runs (19 to 36 KiB a connection), the
+  restart's own share 30 to 460 KB. What is left is counted by the test's server as it yields
+  pieces to the connection, including what never reached dm (its send buffer, and pieces yielded
+  before it sees the connection closed); the row's 16 KiB is not met as the test measures it.

@@ -32,6 +32,10 @@ pub(in crate::download) const WRITE_BUFFER: usize = 64 * 1024;
 /// nothing beside the rest.
 pub(in crate::download) const RESUME_CHECK: u64 = 64 * 1024;
 
+/// The most a connection takes, at a pause, of what has already come and is waiting to be read
+/// (`attempt_segment`'s `draining`): about what the system's buffers of one connection hold.
+pub(in crate::download) const DRAIN_MOST: u64 = 512 * 1024;
+
 /// The least a capped request (`Job::chunk`) may ask for. Above the resume
 /// check and the overlap byte together, so every slice brings bytes that are
 /// new, and not so small that a bad figure turns a file into thousands of

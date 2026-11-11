@@ -5,8 +5,8 @@
 
 //! dm ending while twenty downloads run (gaps row 186): each is stopped as
 //! a pause stops it and awaited, within two seconds, and put back in line;
-//! the next start finishes every file byte for byte, and fetches again no
-//! more than a pause and resume does.
+//! the next start finishes every file byte for byte, and fetches again
+//! little more than what was on its way when each connection let go.
 
 mod common;
 
@@ -179,17 +179,24 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
         let got = std::fs::read(&row.path).unwrap();
         assert!(got == *data, "{} is not the file served", row.path);
     }
-    // What was fetched twice: everything served, less the files. As after
-    // a person's pause and resume, and no more: what was on its way when
-    // each run was stopped (a piece of the server's, under a buffer of 16
-    // KiB), and the end of each part asked for again and compared at the
-    // resume (`RESUME_CHECK`, 64 KiB, against a tail a power cut lost).
-    // Measured on macOS: 2,981,120 bytes, the same as a pause and resume
-    // of the same twenty; 195,840 for the same files fetched straight
-    // through (the seams checked).
+    // What was fetched twice: everything served, less the files. Each
+    // part's end is no longer asked for again and compared at the resume
+    // (`RESUME_CHECK`, 64 KiB), since the stop put it on the disk before
+    // writing that down, and what had already come when the stop was seen
+    // is written rather than dropped (gaps row 186). What is left is what
+    // the server had sent and dm had not yet been given when it let go,
+    // counted here as the server hands it to the connection, and the seams
+    // the restart checks (195,840 bytes for these files fetched straight
+    // through). Measured on macOS: 2,981,120 bytes before (about 73 KiB a
+    // connection, the same as a person's pause and resume), 0.78 to 1.47 MB
+    // after in five runs (19 to 36 KiB).
     let served = sent.load(Ordering::SeqCst);
     let twice = served.saturating_sub(SIZE * DOWNLOADS);
-    let allowed = DOWNLOADS * CONNECTIONS * (64 * 1024 + 16 * 1024);
+    let allowed = DOWNLOADS * CONNECTIONS * 48 * 1024;
+    println!(
+        "{twice} bytes fetched twice, {} of them before the restart; at most {allowed} allowed",
+        sent_by_then as u64 - staged
+    );
     assert!(
         twice <= allowed,
         "{twice} bytes fetched twice ({sent_by_then} sent before the restart, {staged} staged), \

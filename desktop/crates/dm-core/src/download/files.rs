@@ -149,11 +149,42 @@ pub(crate) fn read_ledger(parts_dir: &Path, index: usize) -> Option<u64> {
         .ok()
 }
 
-/// The index a staged file's name gives it: `part-0003`, `range-0003` or `done-0003`.
+/// Where a range's last stop wrote down how much of it is on the disk itself, not only handed to
+/// the system: `done-0003.synced`, beside its ledger, and gone with it.
+pub(crate) fn synced_path(parts_dir: &Path, index: usize) -> PathBuf {
+    parts_dir.join(format!("done-{index:04}.synced"))
+}
+
+/// How much of range `index` a stop put on the disk (synced) before writing it down, if one did.
+/// Those bytes need no check against the server at the next run, as a ledger alone does
+/// (`RESUME_CHECK`): the stop synced them before it wrote this, so a power cut since cannot have
+/// lost them. A note cut short by a crash reads as less, or as nothing: never as more.
+pub(crate) fn read_synced(parts_dir: &Path, index: usize) -> Option<u64> {
+    std::fs::read_to_string(synced_path(parts_dir, index))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Writes down that `done` bytes of range `index` are on the disk itself. Called only once they
+/// are synced.
+pub(super) async fn mark_synced(parts_dir: &Path, index: usize, done: u64) {
+    let _ = fs::write(synced_path(parts_dir, index), format!("{done:020}")).await;
+}
+
+/// Forgets what a stop synced of range `index`: its ledger was cut back, or the range is new.
+pub(super) async fn forget_synced(parts_dir: &Path, index: usize) {
+    let _ = fs::remove_file(synced_path(parts_dir, index)).await;
+}
+
+/// The index a staged file's name gives it: `part-0003`, `range-0003`, `done-0003` or
+/// `done-0003.synced`.
 pub(super) fn staged_index(name: &str) -> Option<usize> {
     name.strip_prefix("part-")
         .or_else(|| name.strip_prefix(RANGE))
         .or_else(|| name.strip_prefix("done-"))
+        .map(|n| n.strip_suffix(".synced").unwrap_or(n))
         .and_then(|n| n.parse().ok())
 }
 
