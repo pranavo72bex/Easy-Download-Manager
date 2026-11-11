@@ -1147,6 +1147,7 @@ impl Downloads {
             toolbar_style: settings.toolbar_style.clone(),
             toolbar_order: settings.toolbar_order.clone(),
             toolbar_hidden: settings.toolbar_hidden.clone(),
+            text_size: settings.text_size,
             language: settings.language.clone(),
             sorted_by: self.sort.and_then(|(column, _)| sort_command(column)),
             resume: dm_desktop_base::rows::resume_word(&self.chosen()),
@@ -2064,7 +2065,7 @@ impl Render for Downloads {
             .bg(theme.background)
             .text_color(theme.text)
             // The system's size for a list's rows and every control.
-            .text_size(gpui::px(crate::native::TEXT))
+            .text_size(crate::zoom::px(crate::native::TEXT))
             .child(crate::titlebar::titlebar(self, theme, &screen, window, cx))
             .when(self.show_toolbar, |root| {
                 root.child(crate::toolbar::toolbar(self, theme, &screen, window, cx))
@@ -2102,9 +2103,9 @@ impl Render for Downloads {
                                 gpui::div()
                                     .flex()
                                     .items_center()
-                                    .gap(gpui::px(crate::native::LABEL_GAP))
-                                    .px(gpui::px(12.0))
-                                    .py(gpui::px(6.0))
+                                    .gap(crate::zoom::px(crate::native::LABEL_GAP))
+                                    .px(crate::zoom::px(12.0))
+                                    .py(crate::zoom::px(6.0))
                                     .border_b_1()
                                     .border_color(theme.separator)
                                     .child(gpui::div().flex_1().text_color(theme.warning).child(

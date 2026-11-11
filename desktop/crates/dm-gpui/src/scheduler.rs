@@ -19,7 +19,7 @@ use dm_desktop_base::power::WhenDone;
 use dm_desktop_base::scheduler::SchedulerDraft;
 use dm_shell::app::commands::Command;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent, Role,
+    div, prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent, Role,
     SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -28,6 +28,7 @@ use crate::list::Downloads;
 use crate::native::{self, enabled};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The Scheduler window's view.
 pub struct Scheduler {

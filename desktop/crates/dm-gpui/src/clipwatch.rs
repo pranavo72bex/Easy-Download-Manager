@@ -14,12 +14,13 @@ use std::time::Duration;
 
 use dm_desktop_base::i18n::{t, tf};
 use dm_shell::app::links::Looked;
-use gpui::{div, prelude::*, px, Context};
+use gpui::{div, prelude::*, Context};
 
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// How often the clipboard is looked at while it is watched.
 pub(crate) const EVERY: Duration = Duration::from_secs(1);

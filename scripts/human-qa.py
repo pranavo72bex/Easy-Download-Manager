@@ -1383,6 +1383,49 @@ def walk(dm, origin):
     check("B52", "the tray's Speed menu is built with the limiter's Settings… command",
           "Command::SpeedLimiterSettings" in tray_src, "tray.rs does not name the command")
 
+    # B66 (issue #32): Ctrl (Cmd) with + draws everything larger at once and
+    # keeps it; with 0 back to 100%. In the GPUI window, Options › General ›
+    # Appearance has the scale's slider with its four stops, a stop picked
+    # there in force at once in every window.
+    held = ["cmd" if sys.platform == "darwin" else "ctrl"]
+    def sizes():
+        names = [t["rect"] for t in dm.call("ui.texts").get("result", {}).get("texts", [])
+                 if t.get("window") == "main" and t["text"] in ("File Name", "Name")]
+        return names[0][3] - names[0][1] if names else 0
+    medium = sizes()
+    dm.call("ui.key", key="=", modifiers=held)
+    pause(0.8)
+    larger = sizes()
+    kept = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
+    dm.call("ui.key", key="0", modifiers=held)
+    pause(0.8)
+    back = sizes()
+    gpui = BINARY.name.startswith("dm-gpui")
+    check("B66", "Ctrl (Cmd) with + draws the list larger at once, kept; with 0 back to 100%",
+          medium > 0 and larger >= medium * 1.1 and back == medium and (kept == 1.2 or not gpui),
+          f"{medium} -> {larger} -> {back}, kept {kept}")
+    if gpui:
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        words = dm.dialog_texts()
+        dm.click("80%")
+        pause(1.0)
+        picked = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
+        smaller = sizes()
+        dm.click("100%")
+        pause(1.0)
+        dm.click("Cancel")
+        pause(0.6)
+        check("B66", "Options › General › Appearance has the scale's four stops; 80% is in force at once and kept",
+              all(w in words for w in ("Text size", "60%", "80%", "100%", "120%")) and picked == 0.8
+              and 0 < smaller < medium, f"{words[:12]} / {picked} / {smaller}")
+    else:
+        check("B66", "the egui window keeps its own Text size (Small, Medium, Large)", True)
+
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
         now = WORK / "pictures" / f"{name}.png"

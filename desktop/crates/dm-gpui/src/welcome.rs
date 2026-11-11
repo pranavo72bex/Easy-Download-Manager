@@ -13,7 +13,7 @@
 use dm_desktop_base::i18n::{t, tf};
 use dm_shell::register::{Installed, Store};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, SharedString, WeakEntity, Window,
+    div, prelude::*, size, App, Bounds, Context, Entity, SharedString, WeakEntity, Window,
     WindowBounds, WindowOptions,
 };
 use gpui_component::input::InputState;
@@ -22,6 +22,7 @@ use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// Written once the welcome has been shown.
 const WELCOMED: &str = "welcomed";

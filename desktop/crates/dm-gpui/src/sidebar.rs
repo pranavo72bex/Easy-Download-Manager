@@ -12,11 +12,12 @@
 use dm_core::Category;
 use dm_desktop_base::i18n::{name, t};
 use dm_shell::app::places::Place;
-use gpui::{div, prelude::*, px, Context, Role, SharedString, Window};
+use gpui::{div, prelude::*, Context, Role, SharedString, Window};
 
 use crate::list::Downloads;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The side panel's width, in points.
 pub const WIDTH: f32 = 200.0;

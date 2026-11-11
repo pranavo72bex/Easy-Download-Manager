@@ -17,12 +17,13 @@ use dm_desktop_base::columns::Column;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
 use gpui::{
-    div, prelude::*, px, relative, uniform_list, AnyElement, Context, Role, SharedString, Window,
+    div, prelude::*, relative, uniform_list, AnyElement, Context, Role, SharedString, Window,
 };
 
 use crate::list::{kind_picture, Downloads, ROW_HEIGHT};
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The header's height, in points.
 pub const HEADER_HEIGHT: f32 = 24.0;

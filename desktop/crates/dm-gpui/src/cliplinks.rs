@@ -11,14 +11,15 @@
 use dm_core::{AddOptions, MAIN_QUEUE};
 use dm_desktop_base::i18n::{t, tf, tn, Said};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, KeyDownEvent, WeakEntity, Window,
-    WindowBounds, WindowOptions,
+    div, prelude::*, size, App, Bounds, Context, KeyDownEvent, WeakEntity, Window, WindowBounds,
+    WindowOptions,
 };
 
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The window's view.
 pub struct ClipLinks {

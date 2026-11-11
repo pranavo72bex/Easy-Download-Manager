@@ -22,7 +22,7 @@ use dm_shell::app::backend::Backend;
 use dm_shell::app::lookups::Probed;
 use dm_shell::Settings;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
+    div, prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
     PathPromptOptions, Role, SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -32,6 +32,7 @@ use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// What a browser's hand-off brought with the address; nothing for one
 /// typed in Add URL.

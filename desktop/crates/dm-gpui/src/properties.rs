@@ -20,7 +20,7 @@ use dm_desktop_base::row_edits::{self, Edited};
 use dm_desktop_base::zip_list::{self, Listing, ZipSlot};
 use dm_shell::app::files::Sums;
 use gpui::{
-    div, prelude::*, px, size, AnyElement, App, Bounds, Context, Entity, SharedString, WeakEntity,
+    div, prelude::*, size, AnyElement, App, Bounds, Context, Entity, SharedString, WeakEntity,
     Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -30,6 +30,7 @@ use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// How often a digest or a ZIP's reading still under way is looked at.
 const POLL: Duration = Duration::from_millis(200);

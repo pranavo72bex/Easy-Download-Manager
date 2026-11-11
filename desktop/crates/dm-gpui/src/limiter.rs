@@ -10,8 +10,8 @@
 
 use dm_desktop_base::i18n::t;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
-    SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent, SharedString,
+    WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -19,6 +19,7 @@ use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The Speed limiter window's view.
 pub struct Limiter {

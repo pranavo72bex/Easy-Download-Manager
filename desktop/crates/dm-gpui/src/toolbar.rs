@@ -10,12 +10,13 @@
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
-use gpui::{div, prelude::*, px, svg, Context, Role, Window};
+use gpui::{div, prelude::*, svg, Context, Role, Window};
 
 use crate::list::Downloads;
 use crate::menus::Run;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The toolbar's height.
 pub const HEIGHT: f32 = 50.0;
@@ -59,9 +60,14 @@ pub fn toolbar(
         .id("toolbar")
         .role(Role::Toolbar)
         .aria_label("Toolbar")
-        .h(px(HEIGHT))
+        // A row as tall as a button; where the buttons do not fit across
+        // the window (a narrow one, a larger text size), the rest go on to
+        // a second row, as the egui window's toolbar does, rather than past
+        // the right edge.
+        .min_h(px(HEIGHT))
         .flex_none()
         .flex()
+        .flex_wrap()
         .items_center()
         .gap_1()
         .px_2()

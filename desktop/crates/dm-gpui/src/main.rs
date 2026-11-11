@@ -75,6 +75,7 @@ mod toolbar;
 mod tray;
 mod viewmenu;
 mod welcome;
+mod zoom;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -283,6 +284,9 @@ fn main() {
         notify::claim();
         // Their colours the system's appearance, light or dark.
         gpui_component::Theme::sync_system_appearance(None, cx);
+        // Everything at the text size chosen (View › Text size), from the
+        // first frame: the theme's rem with it.
+        zoom::start(backend.settings().text_size, cx);
         // Where and as large as it was left, where that is still on a
         // display; else in the middle (`frame.rs`).
         let least = size(px(640.0), px(400.0));
@@ -332,8 +336,8 @@ fn main() {
                     title: Some("dm".into()),
                     appears_transparent: titlebar::DRAWN_BY_DM,
                     traffic_light_position: Some(point(
-                        px(titlebar::TRAFFIC_LIGHTS_AT.0),
-                        px(titlebar::TRAFFIC_LIGHTS_AT.1),
+                        px(titlebar::traffic_lights_at().0),
+                        px(titlebar::traffic_lights_at().1),
                     )),
                 }),
                 window_decorations: (!titlebar::DRAWN_BY_DM)
@@ -381,10 +385,28 @@ fn main() {
         // Quit is heard from any window in front (a dialog's too), as in
         // every macOS program: the main window's view ends dm.
         let view = view.downgrade();
+        let text_view = view.clone();
         cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
             Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
             None => cx.quit(),
         });
+        // View › Text size and its keys, heard from any window in front, a
+        // dialog's too, as the egui window's zoom was: kept by the list,
+        // which keeps the settings.
+        let text_size = move |up: Option<bool>| {
+            let view = text_view.clone();
+            move |cx: &mut App| {
+                if let Some(view) = view.upgrade() {
+                    view.update(cx, |view, cx| view.step_text_size(up, cx));
+                }
+            }
+        };
+        let larger = text_size(Some(true));
+        cx.on_action(move |_: &viewmenu::TextLarger, cx| larger(cx));
+        let smaller = text_size(Some(false));
+        cx.on_action(move |_: &viewmenu::TextSmaller, cx| smaller(cx));
+        let normal = text_size(None);
+        cx.on_action(move |_: &viewmenu::TextNormal, cx| normal(cx));
         // The commands themselves are the list's (`Downloads`' root element
         // handles `menus::Run`), reached through the window's own dispatch,
         // as a key or the menu bar sends them: the list keeps the keyboard.

@@ -5808,3 +5808,44 @@ which is not modal and offers a copy outside the program; on Wayland the data de
   stays inside the window. The choice (an OLE drag source of dm's own on `windows-sys`, as
   `drops.rs` builds a drop target, or the `drag` crate the egui window already uses) is left to
   the Windows laptop, where it can be run.
+
+## 2026-11-11: The window's scale is a slider of four stops (issue #32)
+
+A person on a 4K monitor said the window got smaller in 0.9.0 and asked for a way to enlarge
+it (GitHub issue #32). Why it is smaller: 0.9.0 still shipped the egui window on every system,
+and its commit 066657ed ("reference A's labels, pop-ups and compactness", the maintainer's word of
+2026-11-04) took its body text from 14 to 12 points, its controls and rows to 22 and its first
+window to 820 by 500. Display scaling is not the cause: the egui window followed the system's
+scale, and the GPUI window does too (GPUI links a PerMonitorV2 manifest into the Windows program,
+reads `GetDpiForWindow` and handles `WM_DPICHANGED`; its text is 13 points on macOS and 14 on
+Windows and Linux, rows 24, so its 100% is already larger than 0.9.0's egui window). The egui
+window kept a Text size (Small 0.85, Medium 1.0, Large 1.2 in Options; View › Text size and
+Ctrl/Cmd with + and − in steps of a tenth, kept in egui's memory); the GPUI window had none.
+
+The maintainer's words: "previously we had an option to make the UI large, small and medium; we
+keep it medium by default", then, the same day, "option of slider ... for scale ui to 60 80 100 or
+120 percent. i think slider will be better option". So:
+
+- **Four stops, 60, 80, 100 and 120 percent, 100 the default,** kept in `settings.json` as
+  `text_size` (a factor), so either window can read it. Any other number is read as the nearest
+  stop; the egui window's Small, Medium and Large as 80, 100 and 120; a percentage (80, "80%") as
+  itself. View › Text size › Larger and Smaller (and Ctrl/⌘ with + and −) step a stop, held at
+  60 and 120; Normal size (Ctrl/⌘ 0) is 100. The egui window keeps its own control.
+- **One scale for everything dm draws** (`dm-gpui` `zoom.rs`): every measure dm gives GPUI goes
+  through `zoom::px`, and gpui-component's rem follows through its theme's font size, so words,
+  rows, controls, paddings and pictures grow together, as egui's zoom scaled them. What the
+  system reports (a window's frame, the screen, the pointer) stays as it is. Tried and dropped:
+  sizes in rems with `Window::set_rem_size` (every one of ~375 measures rewritten, and
+  gpui-component's `Root` sets the rem itself each frame).
+- **Live, without a restart:** each dialog's window is resized by as much as the scale changed;
+  the main window keeps its size and its least size, the same on screen at every scale, as the
+  egui window's. The top bar is never shorter than the system's traffic lights need; they are
+  centred in it for the scale in force when the window opens (the system places them once).
+- **Options' slider is not a draft,** as the egui window's Text size was not: a stop is in force
+  when the slider is let go (resized under a drag, the window would move the slider from under
+  the pointer) and kept whatever OK or Cancel. Each stop's percentage under the track picks it
+  too, for the keyboard's and a script's click.
+- **The toolbar wraps** to a second row where its buttons do not fit, as the egui window's does,
+  rather than running past the right edge at 120%. Still open: the list has no sideways scroll,
+  so at 120% in a narrow window the columns after Status are out of sight until it is widened.
+

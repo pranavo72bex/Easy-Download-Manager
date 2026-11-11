@@ -11,13 +11,14 @@
 
 use dm_desktop_base::probe::{self, WindowProbe};
 use gpui::{
-    point, px, Bounds, Context, Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent,
+    point, Bounds, Context, Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, Pixels, PlatformInput, ScrollDelta, ScrollEvent, Window,
 };
 use serde_json::{json, Value};
 
 use crate::list::{line, Downloads, ROW_HEIGHT};
 use crate::screen::Drawn;
+use crate::zoom::px;
 
 /// Answers one request on the window's thread.
 pub fn answer(
@@ -217,11 +218,13 @@ impl Probe<'_, '_> {
         let (top, left) = (f32::from(bounds.origin.y), f32::from(bounds.origin.x));
         let (height, width) = (f32::from(bounds.size.height), f32::from(bounds.size.width));
         let scrolled = -f32::from(offset.y);
-        let first = (scrolled / ROW_HEIGHT).floor().max(0.0) as usize;
-        let count = (height / ROW_HEIGHT).ceil() as usize + 1;
+        // A row's height on screen, at the text size in force.
+        let row = crate::zoom::of(ROW_HEIGHT);
+        let first = (scrolled / row).floor().max(0.0) as usize;
+        let count = (height / row).ceil() as usize + 1;
         (first..(first + count).min(self.view.shown.len()))
-            .map(|i| (i, top + i as f32 * ROW_HEIGHT - scrolled, left, width))
-            .filter(|(_, y, _, _)| *y + ROW_HEIGHT > top && *y < top + height)
+            .map(|i| (i, top + i as f32 * row - scrolled, left, width))
+            .filter(|(_, y, _, _)| *y + row > top && *y < top + height)
             .collect()
     }
 }
@@ -697,9 +700,9 @@ impl WindowProbe for Probe<'_, '_> {
                     queue: row.queue.clone(),
                     description: row.description.clone(),
                     url: dm_desktop_base::format::shown_url(&row.url),
-                    rect: shown
-                        .get(&i)
-                        .map(|(y, left, width)| [*left, *y, left + width, y + ROW_HEIGHT]),
+                    rect: shown.get(&i).map(|(y, left, width)| {
+                        [*left, *y, left + width, y + crate::zoom::of(ROW_HEIGHT)]
+                    }),
                 }
             })
             .collect();

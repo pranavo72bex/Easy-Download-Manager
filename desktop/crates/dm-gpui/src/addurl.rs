@@ -12,8 +12,8 @@
 use dm_desktop_base::add_url::{decide, Next};
 use dm_desktop_base::i18n::t;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, KeyDownEvent, SharedString,
-    WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, size, App, Bounds, Context, Entity, KeyDownEvent, SharedString, WeakEntity,
+    Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -22,6 +22,7 @@ use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The Add URL window's view.
 pub struct AddUrl {

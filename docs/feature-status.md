@@ -217,6 +217,16 @@ and is not carried over.
       on 2026-10-11. It calls the queue directly, and `tests/window.rs` drives
       every control through its accessibility tree against a real queue on
       loopback
+- [x] The window's scale (issue #32, 2026-11-11): Options › General ›
+      Appearance's Text size slider with four stops, 60, 80, 100 (the
+      default) and 120 percent, the percentage beside it; View › Text size ›
+      Larger, Smaller, Normal size and Ctrl (⌘) with +, − and 0 step the same
+      stops. Everything the GPUI window draws goes through one scale
+      (`dm-gpui` `zoom.rs`), so words, rows, controls, pictures and every
+      dialog's window grow together, at once; kept in `settings.json`
+      (`text_size`), the egui window's Small, Medium and Large read as 80, 100
+      and 120. Contract row B66. Checked on macOS over the control port;
+      Linux and Windows owed
 - [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `desktop/vendor/README.md`). Contract row B42.
 - [x] The window — menu bar (Program, File, Downloads, View, Help),
       toolbar, category tree with Everything, In progress, Done and Queues,

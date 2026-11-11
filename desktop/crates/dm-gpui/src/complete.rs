@@ -11,14 +11,14 @@ use dm_core::Id;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, WeakEntity, Window, WindowBounds,
-    WindowOptions,
+    div, prelude::*, size, App, Bounds, Context, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The window's view.
 pub struct Complete {

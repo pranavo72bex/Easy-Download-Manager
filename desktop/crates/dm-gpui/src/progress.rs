@@ -19,7 +19,7 @@ use dm_desktop_base::progress::{
 };
 use dm_shell::app::rules::GoOn;
 use gpui::{
-    div, point, prelude::*, px, size, App, Bounds, Context, Entity, Role, SharedString, WeakEntity,
+    div, point, prelude::*, size, App, Bounds, Context, Entity, Role, SharedString, WeakEntity,
     Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -28,6 +28,7 @@ use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The progress window's view.
 pub struct Progress {

@@ -1287,3 +1287,70 @@ fn a_test_of_this_crate_keeps_its_settings_out_of_the_real_home() {
         );
     }
 }
+
+/// The window's scale (issue #32, the maintainer's slider of 2026-11-11):
+/// four stops, 100% for a new install and for an older file, kept through a
+/// save and a load, any other value read as the nearest stop, the egui
+/// window's names read as 80, 100 and 120, and View's steps held at 60 and
+/// 120.
+#[test]
+fn the_text_size_is_one_of_four_stops_kept_and_stepped() {
+    assert_eq!(TEXT_SIZE.stops, [0.6, 0.8, 1.0, 1.2]);
+    assert_eq!(Settings::default().text_size, 1.0);
+    let old: Settings = serde_json::from_str("{}").unwrap();
+    assert_eq!(old.text_size, 1.0, "a file from before it is 100%");
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    let large = Settings {
+        text_size: 1.2,
+        ..Settings::default()
+    };
+    large.save_to(&path).unwrap();
+    let (read, _) = Settings::load_from(&path);
+    assert_eq!(read.text_size, 1.2, "kept across launches");
+
+    for (written, held) in [
+        ("0.6", 0.6),
+        ("0.85", 0.8),
+        ("1.1", 1.0),
+        ("9", 1.2),
+        ("0.01", 0.6),
+        ("-2", 0.6),
+        ("80", 0.8),
+        ("\"Small\"", 0.8),
+        ("\"medium\"", 1.0),
+        ("\"Large\"", 1.2),
+        ("\"60%\"", 0.6),
+        ("\"big\"", 1.0),
+        ("null", 1.0),
+        ("[1]", 1.0),
+    ] {
+        std::fs::write(
+            &path,
+            format!(r#"{{"text_size": {written}, "connections": 3}}"#),
+        )
+        .unwrap();
+        let (read, _) = Settings::load_from(&path);
+        assert_eq!(read.text_size, held, "{written}");
+        assert_eq!(
+            read.connections, 3,
+            "{written}: the rest of the file stands"
+        );
+    }
+    let odd = Settings {
+        text_size: f32::NAN,
+        ..Settings::default()
+    };
+    assert_eq!(odd.clamped().text_size, 1.0);
+
+    assert_eq!(TEXT_SIZE.stepped(1.0, true), 1.2);
+    assert_eq!(TEXT_SIZE.stepped(1.2, true), 1.2, "held at 120");
+    assert_eq!(TEXT_SIZE.stepped(1.0, false), 0.8);
+    assert_eq!(TEXT_SIZE.stepped(0.8, false), 0.6);
+    assert_eq!(TEXT_SIZE.stepped(0.6, false), 0.6, "held at 60");
+    assert_eq!(TEXT_SIZE.stepped(0.85, true), 1.0, "from the nearest stop");
+    assert_eq!(TEXT_SIZE.percent(0.6), 60);
+    assert_eq!(TEXT_SIZE.percent(1.2), 120);
+    assert_eq!(TEXT_SIZE.index(1.0), 2);
+}

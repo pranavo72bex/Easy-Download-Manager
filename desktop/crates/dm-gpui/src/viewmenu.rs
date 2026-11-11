@@ -6,10 +6,11 @@
 //! The View menu's choices kept in the settings, as the egui window's View
 //! menu has them: Columns (each shown or hidden; a heading dragged in the
 //! table moves it), Customize toolbar (the buttons' style, each button
-//! shown or hidden) and Language. Each is an item of the system's menu bar,
-//! ticked as it stands (`menus::Ticks`).
+//! shown or hidden), Text size and Language. Each is an item of the system's
+//! menu bar, ticked as it stands (`menus::Ticks`).
 
 use dm_desktop_base::columns::Column;
+use dm_shell::settings::TEXT_SIZE;
 use gpui::{Action, Context};
 
 use crate::list::Downloads;
@@ -47,7 +48,41 @@ pub struct SetLanguage {
     pub code: String,
 }
 
+/// View › Text size › Larger (Ctrl or ⌘ with +): everything a stop
+/// larger (60, 80, 100, 120%), in every window.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct TextLarger;
+
+/// View › Text size › Smaller (Ctrl or ⌘ with −).
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct TextSmaller;
+
+/// View › Text size › Normal size (Ctrl or ⌘ with 0): 100%.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct TextNormal;
+
 impl Downloads {
+    /// The window's scale, held to its nearest stop: every window drawn at
+    /// it at once, and kept for the next start.
+    pub(crate) fn set_text_size(&mut self, size: f32, cx: &mut Context<Self>) {
+        let mut wanted = self.backend.settings();
+        wanted.text_size = TEXT_SIZE.held(size);
+        if (wanted.text_size - crate::zoom::factor()).abs() < 0.001 {
+            return;
+        }
+        self.keep_view(wanted, cx);
+    }
+
+    /// A stop larger (`Some(true)`), smaller, or back to 100% (`None`).
+    pub(crate) fn step_text_size(&mut self, up: Option<bool>, cx: &mut Context<Self>) {
+        let now = crate::zoom::factor();
+        let size = up.map_or(TEXT_SIZE.default, |up| TEXT_SIZE.stepped(now, up));
+        self.set_text_size(size, cx);
+    }
+
     /// A column shown or hidden; the file name always stays.
     pub(crate) fn toggle_column(&mut self, key: &str, cx: &mut Context<Self>) {
         let Some(column) = Column::from_key(key).filter(|c| *c != Column::Name) else {

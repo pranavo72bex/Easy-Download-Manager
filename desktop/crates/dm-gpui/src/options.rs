@@ -16,17 +16,20 @@ use std::collections::HashMap;
 use dm_desktop_base::i18n::t;
 use dm_desktop_base::options::{self, Tab, Typed};
 use dm_shell::settings::Settings;
+use dm_shell::settings::TEXT_SIZE;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, Role, ScrollHandle, SharedString,
+    div, prelude::*, size, App, Bounds, Context, Entity, Role, ScrollHandle, SharedString,
     WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
+use gpui_component::slider::{SliderEvent, SliderState};
 
 use crate::list::Downloads;
 use crate::native;
 use crate::popup::Pick;
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The window's size: one for every page, so the tabs and the buttons stay
 /// where they are when another page is picked; a page longer than that
@@ -67,6 +70,8 @@ pub struct Options {
     pub(crate) handlers_asked: bool,
     /// Each field, by its key, made the first time it is drawn.
     fields: HashMap<String, Entity<InputState>>,
+    /// Appearance's scale slider, once drawn.
+    scale: Option<Entity<SliderState>>,
     pub(crate) scroll: ScrollHandle,
     focus: gpui::FocusHandle,
     done: bool,
@@ -371,6 +376,52 @@ impl Options {
         }
     }
 
+    /// The window's scale chosen (Appearance's slider or one of its stops):
+    /// not a draft, in force at once in every window and kept whatever OK
+    /// or Cancel, as View › Larger and Smaller are.
+    pub(crate) fn pick_scale(&mut self, size: f32, cx: &mut Context<Self>) {
+        if let Some(view) = self.view.upgrade() {
+            // After this update: the list redraws and resizes every window,
+            // this one included.
+            cx.defer(move |cx| view.update(cx, |view, cx| view.set_text_size(size, cx)));
+        }
+        cx.notify();
+    }
+
+    /// Appearance's slider, made the first time it is drawn, at the scale
+    /// in force then and after (a key in another window moves it too). A
+    /// choice is put in force when the slider is let go: resized under a
+    /// drag, the window would move the slider from under the pointer.
+    pub(crate) fn scale_slider(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<SliderState> {
+        let percent = TEXT_SIZE.percent(crate::zoom::factor()) as f32;
+        if let Some(slider) = self.scale.clone() {
+            if (slider.read(cx).value().start() - percent).abs() > 0.5 {
+                slider.update(cx, |s, cx| s.set_value(percent, window, cx));
+            }
+            return slider;
+        }
+        let stops = TEXT_SIZE.stops;
+        let slider = cx.new(|_| {
+            SliderState::new()
+                .min(stops[0] * 100.0)
+                .max(stops[stops.len() - 1] * 100.0)
+                .step(20.0)
+                .default_value(percent)
+        });
+        cx.subscribe(&slider, |this: &mut Options, _, event: &SliderEvent, cx| {
+            if let SliderEvent::Release(value) = event {
+                this.pick_scale(TEXT_SIZE.held(value.start() / 100.0), cx);
+            }
+        })
+        .detach();
+        self.scale = Some(slider.clone());
+        slider
+    }
+
     /// A choice made in one of the pages' pop-ups.
     fn pick(&mut self, pick: &Pick, cx: &mut Context<Self>) {
         crate::options_pages::pick(self, pick);
@@ -593,6 +644,11 @@ impl Downloads {
         if before.theme != now.theme {
             crate::theme::follow(&now.theme, cx);
         }
+        // Every window at the text size chosen, at once; the View menu's
+        // percentage with it.
+        if crate::zoom::set(now.text_size, cx) {
+            self.menu_ticks = None;
+        }
         if before.language != now.language {
             // The menus and every window in the language picked.
             self.menu_ticks = None;
@@ -655,6 +711,7 @@ fn open_window(
                 #[cfg(windows)]
                 handlers_asked: false,
                 fields: HashMap::new(),
+                scale: None,
                 scroll: ScrollHandle::new(),
                 focus,
                 done: false,

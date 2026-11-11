@@ -20,12 +20,13 @@ use std::path::PathBuf;
 
 use dm_core::{Entry, Id, State};
 use gpui::{
-    div, prelude::*, px, App, Context, Entity, ExternalDragPayload, FileDragPaths, SharedString,
+    div, prelude::*, App, Context, Entity, ExternalDragPayload, FileDragPaths, SharedString,
     WeakEntity, Window,
 };
 
 use crate::list::Downloads;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// A row being dragged: which one, and the list it was dragged from.
 pub(crate) struct DraggedRow {

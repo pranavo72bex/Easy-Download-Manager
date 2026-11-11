@@ -11,11 +11,12 @@
 
 use dm_desktop_base::format::rate;
 use dm_desktop_base::i18n::{t, tf, tn};
-use gpui::{div, prelude::*, px, Role};
+use gpui::{div, prelude::*, Role};
 
 use crate::list::Downloads;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// How long a sentence stands in the status bar.
 const SAID_FOR: std::time::Duration = std::time::Duration::from_secs(12);

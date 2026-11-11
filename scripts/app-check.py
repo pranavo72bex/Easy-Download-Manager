@@ -570,6 +570,25 @@ def main():
         soon(lambda: "Add URL" in open_dialogs())
         human("ui.key", key="Escape")
         check("Escape closes the top dialog", soon(lambda: "Add URL" not in open_dialogs()))
+        # View › Text size (issue #32): Ctrl (Cmd) with + draws the list's
+        # words and rows larger, at once and kept in the settings; with 0 they
+        # are back at 100%.
+        held = ["cmd" if sys.platform == "darwin" else "ctrl"]
+        def measures():
+            names = [t["rect"] for t in call("ui.texts")["result"]["texts"]
+                     if t.get("window") == "main" and t["text"].endswith(".zip")]
+            tops = sorted({r[1] for r in names})
+            pitch = min((b - a for a, b in zip(tops, tops[1:])), default=0)
+            return (names[0][3] - names[0][1] if names else 0, pitch)
+        medium = measures()
+        human("ui.key", key="=", modifiers=held)
+        human("ui.key", key="=", modifiers=held)
+        grown = lambda: [round(b / a, 2) if a else 0 for a, b in zip(medium, measures())]
+        check("Ctrl (Cmd) with + draws the words and the rows larger",
+              soon(lambda: all(r >= 1.1 for r in grown())), True)
+        check("and the text size is kept", json.loads((home / "settings.json").read_text()).get("text_size"), 1.2)
+        human("ui.key", key="0", modifiers=held)
+        check("and with 0 they are back at 100%", soon(lambda: measures() == medium), True)
         human("ui.click", text="Tasks")
         check("a menu opens and lists its items", soon(lambda: "Add numbered series…" in on_screen()))
         human("ui.key", key="Escape")

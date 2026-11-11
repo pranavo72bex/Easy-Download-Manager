@@ -14,18 +14,24 @@
 use dm_desktop_base::i18n::{t, tf};
 use dm_desktop_base::options::{self, Tab};
 use dm_shell::settings::Settings;
-use gpui::{div, prelude::*, px, AnyElement, Context, SharedString, Window};
+use gpui::{div, prelude::*, AnyElement, Context, SharedString, Window};
 
 use crate::native;
 use crate::options::Options;
 use crate::popup::{self, Pick};
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// A field for a number.
 const NUMBER: f32 = 90.0;
 /// A field for a name or an address.
 const WIDE: f32 = 300.0;
+/// The scale slider's width, its stops' percentages under it, each in a
+/// box this wide.
+const SCALE_WIDTH: f32 = 200.0;
+const STOP_WIDTH: f32 = 40.0;
+
 /// Under a check box, its explanation lines up with its words.
 const UNDER_CHECK: f32 = 20.0;
 
@@ -329,6 +335,69 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             theme,
             &screen,
         ),
+    );
+    // The window's scale, a slider of four stops (60, 80, 100 and 120
+    // percent; the maintainer's word of 2026-11-11), the one View › Larger
+    // and Smaller and Ctrl (⌘) with + and − also step: it shows the scale in
+    // force, a choice takes effect at once in every window, and it is kept
+    // whatever OK or Cancel, as the egui window's Text size is. Each stop's
+    // percentage under the track picks it too, for the keyboard's and a
+    // script's click.
+    let slider = o.scale_slider(window, cx);
+    let now = crate::zoom::factor();
+    let sizes = dm_shell::settings::TEXT_SIZE;
+    let stops = sizes.stops.iter().enumerate().map(|(i, stop)| {
+        let stop = *stop;
+        let on = sizes.index(now) == i;
+        div()
+            .id(("scale-stop", i))
+            .role(gpui::Role::Button)
+            // Centred under where the slider's thumb stands at this stop.
+            .absolute()
+            .top_0()
+            .left(px(
+                SCALE_WIDTH * i as f32 / (sizes.stops.len() - 1) as f32 - STOP_WIDTH / 2.0
+            ))
+            .w(px(STOP_WIDTH))
+            .flex()
+            .justify_center()
+            .text_size(px(native::SMALL_TEXT))
+            .text_color(if on { theme.text } else { theme.muted })
+            .child(screen.label(dm_desktop_base::i18n::tf("{}%", &[&sizes.percent(stop)])))
+            .on_click(cx.listener(move |o, _, _, cx| o.pick_scale(stop, cx)))
+    });
+    p.labelled(
+        t("Text size"),
+        true,
+        div()
+            .flex()
+            .items_center()
+            // Room for the end stops' percentages, which stand half outside
+            // the track.
+            .gap(px(STOP_WIDTH / 2.0))
+            .child(
+                div()
+                    .ml(px(STOP_WIDTH / 2.0 - native::LABEL_GAP))
+                    .w(px(SCALE_WIDTH))
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.0))
+                    .child(
+                        gpui_component::slider::Slider::new(&slider)
+                            .accessibility_label(t("Text size")),
+                    )
+                    .child(
+                        div()
+                            .relative()
+                            .h(px(native::SMALL_TEXT * 1.5))
+                            .children(stops),
+                    ),
+            )
+            .child(
+                div()
+                    .min_w(px(40.0))
+                    .child(screen.label(dm_desktop_base::i18n::tf("{}%", &[&sizes.percent(now)]))),
+            ),
     );
     p.section(t("Starting and updating"));
     check(

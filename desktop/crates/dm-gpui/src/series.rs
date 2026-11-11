@@ -13,8 +13,8 @@
 use dm_core::{AddOptions, MAIN_QUEUE};
 use dm_desktop_base::i18n::{t, tn};
 use gpui::{
-    div, prelude::*, px, size, uniform_list, App, Bounds, Context, Entity, SharedString,
-    WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, size, uniform_list, App, Bounds, Context, Entity, SharedString, WeakEntity,
+    Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -23,6 +23,7 @@ use crate::native;
 use crate::popup::{self, Pick};
 use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// How many of the series' addresses show at once; the rest scroll.
 const SHOWN: usize = 6;

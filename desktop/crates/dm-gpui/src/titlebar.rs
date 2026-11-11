@@ -19,7 +19,7 @@
 
 use dm_desktop_base::i18n::{t, tn};
 use gpui::{
-    div, point, prelude::*, px, svg, Context, MouseButton, Role, SharedString, Window,
+    div, point, prelude::*, svg, Context, MouseButton, Role, SharedString, Window,
     WindowControlArea,
 };
 use gpui_component::input::Input;
@@ -29,20 +29,39 @@ use crate::list::Downloads;
 use crate::native;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// Whether the top bar is the window's title bar (macOS, Windows), or a
 /// row under the desktop's own (Linux, where a program drawing its title
 /// bar would draw its own frame and edges too).
 pub const DRAWN_BY_DM: bool = cfg!(any(target_os = "macos", windows));
 
-/// The top bar's height: the traffic lights centred in it.
+/// The top bar's height at Medium: the traffic lights centred in it.
 pub const HEIGHT: f32 = 38.0;
 
-/// Where the system draws the traffic lights, in the bar.
-pub const TRAFFIC_LIGHTS_AT: (f32, f32) = (14.0, 12.0);
+/// Where the system draws the traffic lights, in a bar of `HEIGHT`.
+const TRAFFIC_LIGHTS_AT: (f32, f32) = (14.0, 12.0);
+
+/// The bar's height at the text size in force: taller with a larger size,
+/// as what it holds grows, but never shorter than the system's own traffic
+/// lights and window buttons need, which keep their size.
+pub fn height() -> f32 {
+    HEIGHT.max(crate::zoom::of(HEIGHT))
+}
+
+/// Where the traffic lights go, centred in the bar as tall as it is when
+/// the window opens: the system places them once, so a size chosen later
+/// centres them at the next start.
+pub fn traffic_lights_at() -> (f32, f32) {
+    (
+        TRAFFIC_LIGHTS_AT.0,
+        TRAFFIC_LIGHTS_AT.1 + (height() - HEIGHT) / 2.0,
+    )
+}
 
 /// Where the bar's own controls begin: past the traffic lights on macOS,
-/// at the window's edge elsewhere.
+/// at the window's edge elsewhere. In points on screen, as the lights'
+/// place is, whatever the text size.
 const CONTROLS_AT: f32 = native::pick(78.0, 8.0, 8.0);
 
 thread_local! {
@@ -72,26 +91,29 @@ pub fn titlebar(
     // at its sides.
     let viewport = f32::from(window.viewport_size().width);
     let menus_end = MENUS_END.with(std::cell::Cell::get);
-    let room = viewport - menus_end - WINDOW_BUTTONS_WIDTH - 16.0;
+    // All in points on screen: the box's measures at the text size in
+    // force, the window's and the menus' as they stand.
+    let of = crate::zoom::of;
+    let room = viewport - menus_end - WINDOW_BUTTONS_WIDTH - of(16.0);
     let width = (viewport * 0.4)
-        .clamp(220.0, BOX_WIDEST)
-        .min(room.max(140.0));
+        .clamp(of(220.0), of(BOX_WIDEST))
+        .min(room.max(of(140.0)));
     // Centred on the window where the menus leave room, as the editor's
     // command centre is; else in the middle of the room after them.
     let centred = (viewport - width) / 2.0;
-    let before = (centred >= menus_end + 8.0).then_some(centred - menus_end);
+    let before = (centred >= menus_end + of(8.0)).then_some(centred - menus_end);
     div()
         .id("titlebar")
         .role(Role::Group)
         .aria_label(t("Filter"))
-        .h(px(HEIGHT))
+        .h(gpui::px(height()))
         .flex_none()
         .flex()
         .items_center()
         .bg(theme.sidebar)
         .border_b_1()
         .border_color(theme.separator)
-        .child(drag_space().w(px(CONTROLS_AT)).flex_none())
+        .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())
         .child(sidebar_button(view.show_sidebar, theme, cx))
         .child(
             div()
@@ -128,7 +150,7 @@ pub fn titlebar(
         // The empty space each side of the search box moves the window; the
         // controls take their own clicks.
         .child(match before {
-            Some(gap) => drag_space().w(px(gap)).flex_none(),
+            Some(gap) => drag_space().w(gpui::px(gap)).flex_none(),
             None => drag_space().flex_1(),
         })
         .child(search_box(view, width, searching, shown, theme, screen, cx))
@@ -151,7 +173,7 @@ fn drag_space() -> gpui::Div {
     })
 }
 
-/// The search box.
+/// The search box, `width` points on screen wide.
 fn search_box(
     view: &Downloads,
     width: f32,
@@ -172,7 +194,7 @@ fn search_box(
                 cx.stop_propagation();
             }
         }))
-        .w(px(width))
+        .w(gpui::px(width))
         .h(px(BOX_HEIGHT))
         .flex()
         .items_center()
@@ -263,7 +285,7 @@ fn menu_title(
                 if let Some(menu) = crate::menus::window_menus(&ticks).into_iter().nth(index) {
                     let x = event.position().x - px(10.0);
                     NativeMenu::from(menu).show(
-                        point(x.max(px(0.0)), px(HEIGHT - 4.0)),
+                        point(x.max(px(0.0)), gpui::px(height()) - px(4.0)),
                         window,
                         cx,
                     );
@@ -277,7 +299,8 @@ fn menu_title(
 /// window's title bar; elsewhere the system draws them.
 const WINDOW_BUTTONS_WIDTH: f32 = native::pick(0.0, 3.0 * WINDOW_BUTTON, 0.0);
 
-/// Each of the window's own buttons' width, on Windows.
+/// Each of the window's own buttons' width, on Windows: the system's, in
+/// points on screen whatever the text size.
 const WINDOW_BUTTON: f32 = 46.0;
 
 /// The font Windows draws its own title bars' buttons in: Segoe Fluent
@@ -320,13 +343,13 @@ fn window_buttons(theme: Theme, maximized: bool) -> Vec<gpui::AnyElement> {
         let close = area == WindowControlArea::Close;
         div()
             .id(id)
-            .w(px(WINDOW_BUTTON))
-            .h(px(HEIGHT))
+            .w(gpui::px(WINDOW_BUTTON))
+            .h(gpui::px(height()))
             .flex()
             .items_center()
             .justify_center()
             .font_family(caption_font())
-            .text_size(px(10.0))
+            .text_size(gpui::px(10.0))
             // Close turns Windows' red under the pointer, the others grey.
             .hover(move |b| {
                 if close {

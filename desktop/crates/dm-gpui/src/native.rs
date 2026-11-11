@@ -12,11 +12,12 @@
 //! side). Every dialog is built from these, so they agree with one another
 //! and with the system's.
 
-use gpui::{div, prelude::*, px, Div, Entity, FontWeight, Role, SharedString, Stateful};
+use gpui::{div, prelude::*, Div, Entity, FontWeight, Role, SharedString, Stateful};
 use gpui_component::input::{Input, InputState};
 
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The measure each system's own dialogs use: macOS's (AppKit's, measured
 /// on the system's own dialog), Windows 11's (WinUI's) or GNOME's

@@ -426,6 +426,7 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | A row added for later says it waits for Start queue, is counted, and shows its size and folder | PASS | `a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder` |
 | Shortcut keys in the language's names; `.bin` sorted as Other | PASS | `a_shortcut_names_its_keys_in_the_language_in_force`, `a_bin_file_is_other_unless_its_name_says_it_installs` |
 | The window comes back from the tray where it was | NOT VERIFIED | position kept on hide and sent on show (`main.rs`); not watched with a real window manager |
+| The window's scale, as the egui window's Text size and zoom had it, in the GPUI window too: Options › General › Appearance's slider (60, 80, 100, 120%; 100 by default), View › Text size › Larger, Smaller and Normal size, Ctrl (⌘) with +, − and 0; every window at once, kept across launches (B66, issue #32) | PASS | `settings/tests.rs` `the_text_size_is_one_of_four_stops_kept_and_stepped`; `dm-gpui` `menus.rs` `the_view_menu_offers_the_text_size`, `zoom.rs` `a_measure_follows_the_text_size`; `app-check.py` (Cmd with + grows the list's words and rows, 0 brings them back); `human-qa.py` B66; macOS 2026-11-11 over the control port, screenshots at 60, 100, 120 and 150%. A real drag of the slider's thumb not checked (no pointer here); Linux and Windows owed |
 
 ## N. Measured
 

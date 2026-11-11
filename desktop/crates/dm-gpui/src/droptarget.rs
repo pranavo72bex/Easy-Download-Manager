@@ -13,13 +13,14 @@
 use dm_core::State;
 use dm_desktop_base::i18n::{t, tn};
 use gpui::{
-    div, prelude::*, px, size, Action, App, Bounds, Context, ExternalPaths, MouseButton, Role,
+    div, prelude::*, size, Action, App, Bounds, Context, ExternalPaths, MouseButton, Role,
     SharedString, WeakEntity, Window, WindowBounds, WindowKind, WindowOptions,
 };
 use gpui_component::native_menu::NativeMenu;
 
 use crate::list::Downloads;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// The card's side, in points.
 const SIDE: f32 = 44.0;

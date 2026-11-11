@@ -15,12 +15,13 @@ use std::time::{Duration, Instant};
 
 use dm_core::{Id, State};
 use dm_desktop_base::i18n::{t, tf, tn};
-use gpui::{div, prelude::*, px, Context};
+use gpui::{div, prelude::*, Context};
 
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::Screen;
 use crate::theme::Theme;
+use crate::zoom::px;
 
 /// Written once "Not now" is chosen on the add-to-browser bar.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
