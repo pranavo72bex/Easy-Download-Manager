@@ -15,10 +15,15 @@ pub(in crate::download) const HELP_AFTER: Duration = Duration::from_millis(100);
 
 pub(in crate::download) const HELP_WATCH: Duration = Duration::from_millis(80);
 
-/// How much work, at the rate seen, a helper is worth opening a connection
-/// for: a connection costs a round trip before its first byte, so one opened
-/// for what the others finish sooner only slows the end.
-pub(in crate::download) const HELP_WORTH_SECS: f64 = 0.3;
+/// How much of the file, at the rate seen, is worth a helper's looking for a
+/// range to halve. Whether it then opens a connection is the range's to say
+/// (`Job::split_worth`: a connection costs a round trip before its first byte,
+/// so one opened for what the others finish sooner only slows the end), so
+/// this is no longer that guard. At 0.3 s, a 2 MiB file fetched at 2 MiB/s a
+/// connection was seen with 0.29 to 0.34 s left when its helpers looked, and was
+/// helped or not by how its bytes fell into the 80 ms watched: 0.32 s with help,
+/// 0.52 s without (`bench` batch, macOS, 2026-11-11).
+pub(in crate::download) const HELP_WORTH_SECS: f64 = 0.2;
 
 /// How long a helper waits for the first bytes to show a rate. A link that
 /// has sent nothing for so long is slow enough to be helped.

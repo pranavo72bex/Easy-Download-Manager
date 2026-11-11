@@ -5747,3 +5747,76 @@ its backtrace. One whole run of the window binary showed 38 tests saving without
 After: three traced runs showed no save without the guard (1,193 saves, all held), and the window
 binary passed ten whole runs in a row. Taking the guard for the whole of every test was dropped:
 it would serialise the binary's 291 tests behind one lock.
+
+## 2026-11-11: The end of a download: a range halved only where it is worth a request, each seam asked for once, the staged file held open (gaps rows 171 and 177)
+
+The macOS benchmark (Apple M1, GPUI release build) had `fast` worse than reference A's floor in
+time from the first request (0.327 s against 0.268 scaled), and in bytes fetched twice (4 to 7%
+against 2.6), and `per_conn` tied it at 0.1%. The engine was traced for these runs (each request,
+first byte, cut, split, check and the finish, with the time the server saw them; not committed),
+which showed three causes, each changed:
+
+- **A 150 ms stall in every fast download.** macOS writes out what a file still holds in memory
+  when its last open handle is closed, before the close returns (a Python check: 512 MiB written by
+  eight threads, every close a few microseconds, the last 143 ms). Each range attempt opened the
+  staged file and closed it at its end, on a runtime thread, and whichever closed last in the end
+  game held its connection, and every range opening the file meanwhile, 140 to 160 ms. The job
+  now holds the staged file open from `preallocate` until the file is placed (`Job::holding`) and
+  lets it go on a blocking thread: waited for where the parts are removed or made again next
+  (Windows keeps a file being deleted while a handle is open, and a new one of its name cannot be
+  made), not waited for once the file is placed. The mark of where it came from and Completed come
+  within 5 ms of the last byte; the write-out happens after.
+- **Halving however soon a range would end.** A connection with nothing left halved the range with
+  the most bytes left, so the end of a fast file was a cascade (nine halvings of its last range in
+  5 ms; 38 to 60 requests for 8 ranges), and each halving stopped the range's own connection short
+  of the end it had asked for: what the server had sent past the new end, 2 to 8 MiB a time over
+  loopback's buffers, came again. A range is now halved only where its own connection would take
+  longer than `SPLIT_WORTH` (0.1 s), or twice what this download's requests waited for their first
+  byte, to fetch what it has left at its pace over its last 20 ms window (`Going`, kept under the
+  per-range lock the chunk loop already takes); and only once 40 ms have passed since a range last
+  came whole, so the ranges still going have taken up its share (`SPLIT_SETTLE`). A range whose
+  answer is still on its way is left be, until it has waited a second (`STUCK_AFTER`), when it
+  counts as stuck however little it has left, as does one that has gone a second without bytes. A
+  connection that finds nothing worth halving waits rather than ending (woken when a range ends or
+  is given up, otherwise every 25 ms), since a range can stall or slow later; it ends once no range
+  under way is long enough to halve.
+- **Checks that overlapped.** Each range's last 4 KiB was asked for again when it ended, and 2 KiB
+  either side of up to eight seams again one after another after the last byte: 66 KB of a 64 MiB
+  file, all of `per_conn`'s 0.1%, and eight round trips in every finish. Now a seam is asked for
+  once, 512 bytes a side, by whichever of its two ranges is whole second, as the download goes on
+  (`assemble::check_seams`), and the file's last 512 bytes once; nothing is asked after assembly
+  begins. A 200 under the validator is still another version of the file, and a difference restarts
+  the file on one connection with the row saying why, as before. The 64 bytes before each range
+  (`LEAD_BYTES`), compared at assembly, stay.
+
+And one tuned figure moved with them: `HELP_WORTH_SECS`, the share of a file left at which the
+helpers of a small file look for a range to halve, from 0.3 s to 0.2 s. With the range's own test
+deciding whether a connection is opened, it no longer guards against a useless one; at 0.3 s,
+`batch`'s 2 MiB files at 2 MiB/s a connection were seen with 0.29 to 0.34 s left and were helped
+or not as their bytes fell into the 80 ms watched, 0.32 s with help and 0.52 s without.
+
+Measured on the same machine, one build after the other (`bench.mjs`, three runs where the
+harness allows): `fast` 0.211 to 0.230 s from the address against 0.329 to 0.448 before, 0.6 to
+1.0% fetched twice against 3.3 to 6.0, 16 requests against 36 to 60; `per_conn` 0.0% against
+0.1; `flaky` 0.0 to 0.1% against 0.3 to 0.5; `batch` 2.9 to 3.2 s against 3.3 s, 2.2% against
+4.4; `big40` 0.05% against 0.15; `outage` 0.3% against 0.6, its time unchanged. `fast`'s
+`lastByteToDoneMs` (77 ms against a scaled floor of 68) is the harness's: dm says Completed 5 ms
+after the last byte, and the harness asks `queue.list` every 100 ms plus a round trip from the
+moment it hands the address over, so a download that ends about 150 ms in is seen at the third
+look, 80 to 95 ms later, every time.
+
+Tried and dropped:
+- A fixed half-second (the audit of 2026-11-11 suggested about that): `batch`'s helpers met ranges with
+  0.3 s left and would have halved none, and its files took the 0.52 s of two connections.
+- The pace since the attempt's first byte, and judging at once: a range that had shared the line
+  with seven others looked three to four times slower than it was once they were done, and was
+  halved for nothing; counting the first chunk in its window put a capped range above its cap.
+- Settling only after the connection's own range: the ranges beside it were still ending, and one
+  fast run in two still halved one, at 4 to 8 MiB fetched twice.
+- A kibibyte a side for the seams: the probe's answer runs past the first range's end by what the
+  server had in flight (4 to 18 KB at 1 MiB/s), and with 15 KB of checks one `per_conn` run in
+  four came to 0.05%, printed 0.1.
+- Not changed: the probe's `bytes=0-`, whose answer is the first range's and is dropped at that
+  range's end. What the server had in flight then, 2 to 8 MiB over macOS's loopback, is now nearly
+  all that `fast` fetches twice. A bounded first request would cost every download a round trip on
+  its first range to save it.

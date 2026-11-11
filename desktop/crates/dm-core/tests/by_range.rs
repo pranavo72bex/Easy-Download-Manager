@@ -336,8 +336,10 @@ async fn a_range_halved_under_its_connection_comes_out_whole() {
         .iter()
         .filter_map(|n| n.strip_prefix("range-")?.parse::<usize>().ok())
         .max();
+    // A range halved is one past those planned: four of a megabyte for these 4 MiB.
+    let planned = dm_core::plan(Some(data.len() as u64), 8, true).len();
     assert!(
-        most.is_some_and(|i| i >= 8),
+        most.is_some_and(|i| i >= planned),
         "no range was halved into a file of its own: {seen:?}"
     );
 }

@@ -1380,8 +1380,8 @@ async fn a_small_file_from_a_slow_server_is_fetched_on_helping_connections() {
 /// The last helper to finish its range watched another 80 ms after the file was
 /// in, and the download waited for it, on every such file (gaps row 165, found
 /// beside a browser's click on Windows). Timed on the server, from the last
-/// byte of a range it sent to the seams dm asks for again once its connections
-/// are done: no pause the length of that window between the requests. The best
+/// byte of a range it sent to the seams the last range asks for again once it
+/// is whole: no pause the length of that window between the requests. The best
 /// of three, so a moment's load on a shared machine does not decide it.
 #[tokio::test]
 async fn a_download_from_a_slow_server_ends_with_its_last_range() {
@@ -1465,10 +1465,11 @@ async fn a_download_from_a_slow_server_ends_with_its_last_range() {
             .map(|(at, _)| *at)
             .collect();
         after.sort();
+        // At least its seam with a range beside it, each other seam having been
+        // asked for by whichever of its ranges was whole second.
         assert!(
-            after.len() >= 2,
-            "the checks after the last range were not asked: {}",
-            after.len()
+            !after.is_empty(),
+            "the checks after the last range were not asked"
         );
         let longest = std::iter::once(last_byte)
             .chain(after.iter().copied())
