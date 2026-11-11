@@ -1666,9 +1666,45 @@ mod tests {
         std::fs::write(&parts[2], b"5678").unwrap();
 
         let into = options.dest_dir.join("f.bin");
-        let outcome = join_parts(&parts, &into).await;
+        let outcome = join_parts(&parts, &into, &options.control).await;
         assert!(outcome.is_err(), "a missing part was skipped");
         assert!(!into.exists(), "a short file was left under the name");
+    }
+
+    /// A Cancel stops the join of a file's parts part-way, within a second, and leaves no file
+    /// under the name (gaps row 185). The parts are sparse: only what the join wrote before it
+    /// stopped is on the disk.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_cancel_stops_a_join_part_way() {
+        use std::time::Duration;
+        let dir = tempfile::tempdir().unwrap();
+        let options = options_in(dir.path());
+        std::fs::create_dir_all(&options.parts_dir).unwrap();
+        std::fs::create_dir_all(&options.dest_dir).unwrap();
+        let parts: Vec<PathBuf> = (0..8).map(|i| part_path(&options.parts_dir, i)).collect();
+        for part in &parts {
+            std::fs::File::create(part)
+                .unwrap()
+                .set_len(256 << 20)
+                .unwrap();
+        }
+        let into = options.dest_dir.join("f.bin");
+        let joining = {
+            let (parts, into, control) = (parts.clone(), into.clone(), options.control.clone());
+            tokio::spawn(async move { join_parts(&parts, &into, &control).await })
+        };
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(
+            !joining.is_finished(),
+            "the join was over before it could be cancelled"
+        );
+        options.control.cancel();
+        let outcome = tokio::time::timeout(Duration::from_secs(1), joining)
+            .await
+            .expect("the join went on for a second after the cancel")
+            .unwrap();
+        assert!(matches!(outcome, Err(Error::Cancelled)), "{outcome:?}");
+        assert!(!into.exists(), "a part-joined file was left under the name");
     }
 
     #[test]

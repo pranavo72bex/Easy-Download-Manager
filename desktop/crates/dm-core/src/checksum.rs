@@ -17,8 +17,8 @@ use std::path::Path;
 
 use md5::Md5;
 use sha2::{Digest, Sha256, Sha512};
-use tokio::io::AsyncReadExt;
 
+use crate::control::Control;
 use crate::Error;
 
 /// A hash a download can be checked against.
@@ -107,7 +107,25 @@ impl Checksum {
 
 /// Hashes a file. Streamed, because these are the large files by definition.
 pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> {
-    let mut file = tokio::fs::File::open(path).await?;
+    digest_until(path, algorithm, &Control::new()).await
+}
+
+/// [`digest`], stopped at the next piece once the download `control` belongs to is cancelled
+/// (gaps row 185): on the blocking pool with the computer's other heavy work, a few at a time
+/// (`heavy`), not on the runtime's threads between reads, where a 4 GB file kept a worker busy
+/// for every second it took and a Cancel waited for the whole file.
+pub(crate) async fn digest_until(
+    path: &Path,
+    algorithm: Algorithm,
+    control: &Control,
+) -> Result<String, Error> {
+    let (path, control) = (path.to_path_buf(), control.clone());
+    crate::heavy::run(move || digest_blocking(&path, algorithm, &control)).await?
+}
+
+fn digest_blocking(path: &Path, algorithm: Algorithm, control: &Control) -> Result<String, Error> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
     let mut buffer = vec![0u8; 256 * 1024];
 
     // One expansion per algorithm: the three hashers are different types,
@@ -116,7 +134,8 @@ pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> 
         ($hasher:expr) => {{
             let mut hasher = $hasher;
             loop {
-                let read = file.read(&mut buffer).await?;
+                crate::heavy::stopped(control)?;
+                let read = file.read(&mut buffer)?;
                 if read == 0 {
                     break;
                 }
@@ -133,9 +152,14 @@ pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> 
     })
 }
 
-/// Checks a finished file against what was published.
-pub async fn verify(path: &Path, checksum: &Checksum) -> Result<(), Error> {
-    let got = digest(path, checksum.algorithm).await?;
+/// Checks a finished file against what was published, stopped once the download `control`
+/// belongs to is cancelled ([`digest_until`]).
+pub(crate) async fn verify(
+    path: &Path,
+    checksum: &Checksum,
+    control: &Control,
+) -> Result<(), Error> {
+    let got = digest_until(path, checksum.algorithm, control).await?;
     if got.eq_ignore_ascii_case(&checksum.expected) {
         return Ok(());
     }
@@ -196,6 +220,43 @@ mod tests {
         }
     }
 
+    /// A Cancel stops the digest of a 2 GiB file within a second, where the digest ran to the
+    /// file's end (gaps row 185); a pause does not stop it. The file is sparse: nothing of it is
+    /// on the disk.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_cancel_stops_the_digest_of_a_large_file_within_a_second() {
+        use std::time::{Duration, Instant};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.bin");
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(2 << 30)
+            .unwrap();
+        let control = Control::new();
+        let digesting = {
+            let (path, control) = (path.clone(), control.clone());
+            tokio::spawn(async move { digest_until(&path, Algorithm::Sha256, &control).await })
+        };
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        control.pause();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !digesting.is_finished(),
+            "the digest ended under a pause, or before it could be cancelled"
+        );
+        control.cancel();
+        let asked = Instant::now();
+        let outcome = tokio::time::timeout(Duration::from_secs(1), digesting)
+            .await
+            .expect("the digest went on for a second after the cancel")
+            .unwrap();
+        assert!(
+            matches!(outcome, Err(Error::Cancelled)),
+            "{outcome:?} after {:?}",
+            asked.elapsed()
+        );
+    }
+
     #[tokio::test]
     async fn a_file_hashes_to_the_published_value() {
         let dir = tempfile::tempdir().unwrap();
@@ -210,7 +271,7 @@ mod tests {
             "900150983cd24fb0d6963f7d28e17f72"
         );
 
-        verify(&path, &Checksum::parse(expected).unwrap())
+        verify(&path, &Checksum::parse(expected).unwrap(), &Control::new())
             .await
             .expect("a correct digest was rejected");
     }
@@ -222,7 +283,7 @@ mod tests {
         tokio::fs::write(&path, b"abc").await.unwrap();
 
         let wrong = Checksum::parse(&"0".repeat(64)).unwrap();
-        let err = verify(&path, &wrong).await.unwrap_err();
+        let err = verify(&path, &wrong, &Control::new()).await.unwrap_err();
         let text = err.to_string();
         assert!(
             text.contains("ba7816bf"),

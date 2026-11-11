@@ -135,12 +135,13 @@ pub fn encode_all(samples: &[i16], channels: usize, rate: u32) -> Result<Vec<u8>
     Ok(out)
 }
 
-/// [`convert`], off the async runtime.
+/// [`convert`], off the async runtime, with a turn at the computer's heavy work (`heavy`, gaps
+/// row 185).
 pub async fn convert_async(
     source: std::path::PathBuf,
     target: std::path::PathBuf,
 ) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || convert(&source, &target))
+    crate::heavy::run(move || convert(&source, &target))
         .await
         .map_err(|e| format!("making the MP3 stopped: {e}"))?
 }

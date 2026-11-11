@@ -422,6 +422,12 @@ and is not carried over.
       queue file made to take 2 s holds back no read of the list, no
       download's progress, and no change made meanwhile
       (`dm-core/tests/locks.rs`, gaps row 184, 2026-11-12, macOS)
+- [x] Heavy work bounded and cancellable — digests, joins, MP3 and GIF making
+      and ZIP extraction take turns, half the cores at once (`dm_core::heavy`);
+      a Cancel stops a digest or a join of a 2 GB file within a second, and a
+      disk held to 1 MB/s slows the download without growing its memory
+      (`checksum.rs`, `download/mod.rs`, `tests/slow_disk.rs`; gaps row 185,
+      2026-11-12, macOS)
 
 ## Packaging
 - [ ] Linux — packages: .deb and AppImage (cargo-packager), .rpm (nfpm,

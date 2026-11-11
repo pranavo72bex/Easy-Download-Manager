@@ -98,6 +98,13 @@ pub fn start(
     platform: Arc<dyn Platform>,
     wake: Arc<dyn Fn(Wake) + Send + Sync>,
 ) -> Result<Booted, String> {
+    // tokio's defaults, kept on purpose (gaps row 185): a worker a core for the network, and up
+    // to 512 threads for blocking work, reaped after 10 s unused. Every connection's writes go to
+    // those threads, each awaited before its connection reads on, so there are never more of them
+    // than connections; the work whose cost is the computer's (digests, joins, extraction) takes
+    // a turn of its own first, half the cores at most (`dm_core::heavy`), and waits for it on the
+    // runtime, so it never holds the threads the writes need. A smaller pool would queue writes
+    // behind one another under the most connections dm runs.
     let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("dm could not start: {e}"))?;
     crate::signals::on_signal(&runtime, {
         let wake = Arc::clone(&wake);

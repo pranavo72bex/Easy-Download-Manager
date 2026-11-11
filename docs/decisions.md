@@ -6581,3 +6581,37 @@ Not done, written down:
   every row at each read; making them follow only the rows whose pointer changed means a change to
   `Session`'s API that the egui window shares (`before()` hands out the whole map), worth it once
   a measurement of a 10,000-row history while downloading says so.
+
+## 2026-11-12: The computer's heavy work takes turns, and a Cancel stops a digest or a join (gaps row 185)
+
+- **Turns, not a pool of threads of their own** (`dm_core::heavy`): a digest of a finished file,
+  the join of its parts, an MP3 or a GIF made from a video, and a ZIP's extraction each take a
+  turn first: as many at once as half the cores, at least one, set apart from how many downloads
+  and connections run. The work still runs on tokio's blocking pool (an extraction on its thread
+  of its own, waiting there for its turn); work on the runtime waits for its turn on the runtime
+  (`Notify`), holding no thread, so queued digests never hold the threads every file write
+  needs. A pool of dm's own would have been a second set of threads doing what the blocking pool
+  does; a tokio `Semaphore` alone could not be waited on by the extraction's own thread.
+- **A digest is no longer worked on the runtime's threads between reads**: it reads and hashes
+  on the blocking pool, and looks at the download's control between pieces of 256 KiB. A join
+  copies a part 32 MiB at a time (`io::copy` of a `take`, so Linux keeps the kernel's own copy),
+  looking between. **Only a Cancel stops them**: by then every byte is here, and a join or digest
+  cut short by a pause would lose the joined file a resume needs; a pause lets them finish, as it
+  always did. Tests: a 2 GiB (sparse) file's digest ends within a second of a Cancel, a pause
+  before it did not end it (`checksum.rs`); a join of 8 parts of 256 MiB ends within a second of a
+  Cancel and leaves no file under the name (`download/mod.rs`).
+- **Not stopped part-way, on purpose**: one part copied to another drive by the system's own copy
+  (`std::fs::copy`: `fcopyfile`, `copy_file_range`, `CopyFileEx`) is one call; its speed across
+  drives was measured worth having (row 166), and a loop of dm's own in its place is unmeasured on
+  Windows. JavaScript's evaluation (Windows' engine, a thread of its own) takes no turn: it is
+  short, held to 2 to 3 s, and a video's start waits on it, so it must not queue behind a digest.
+- **The blocking pool keeps tokio's size** (512 threads, reaped after 10 s unused), said where the
+  runtime is made (`dm-desktop-base` `boot.rs`): every connection's writes go to it, each awaited
+  before its connection reads on, so it never holds more than there are connections, and the heavy
+  work no longer waits in it. A smaller pool would queue writes behind one another at the most
+  connections dm runs; nothing measured asks for one.
+- **A slow disk slows the download and does not grow memory**, as designed and now tested
+  (`dm-core/tests/slow_disk.rs`, with `slow_part_writes_to`, a test hook on every write of a part):
+  writes held to 1 MB/s, eight connections to a server that would send 50 MB/s; over 6 s the
+  download wrote 6.3 MB (1.03 MB/s) and the process grew 4.7 MB (most of it the test server's own
+  buffers), within the 10 MB allowed. The hook is one atomic load a write when no test sets it.

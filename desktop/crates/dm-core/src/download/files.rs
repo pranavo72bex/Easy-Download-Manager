@@ -99,6 +99,24 @@ pub(crate) fn sparse(file: &impl std::os::windows::io::AsRawHandle) {
 #[cfg(test)]
 mod tests;
 
+/// The disk a test stands in for: every write of a part, all connections together, held to its
+/// pace. Unlimited (one atomic load a write) outside a test that sets it.
+static SLOW_DISK: std::sync::LazyLock<crate::limit::Limiter> =
+    std::sync::LazyLock::new(crate::limit::Limiter::unlimited);
+
+/// Holds every write of a part to `bytes_per_second`, all connections together, as a slow disk
+/// takes them; zero lets them go. For tests (gaps row 185: a slow disk slows the download and
+/// does not grow its memory).
+#[doc(hidden)]
+pub async fn slow_part_writes_to(bytes_per_second: u64) {
+    SLOW_DISK.set_rate(bytes_per_second).await;
+}
+
+/// Waits as long as the slow disk a test set would take to write `bytes`; at once otherwise.
+pub(super) async fn as_slow_as_the_disk(bytes: u64) {
+    SLOW_DISK.take(bytes).await;
+}
+
 /// The ledger of range `index`: how many of its bytes are on disk, in
 /// decimal. A part file's length used to be this number; in one shared
 /// file, where every range's region exists from the start, it is written

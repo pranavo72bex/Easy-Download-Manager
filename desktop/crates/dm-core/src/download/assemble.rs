@@ -23,7 +23,15 @@ use super::*;
 /// copied, so the download starts again rather than resuming. That failure is
 /// nearly always running out of room — which is the thing this stops
 /// happening.
-pub(super) async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Error> {
+///
+/// A Cancel stops the join within a piece of [`JOIN_PIECE`] (gaps row 185), and the file it had
+/// begun goes with the error; a pause does not: every byte is here, and a join cut short would
+/// lose the parts it had used.
+pub(super) async fn join_parts(
+    parts: &[PathBuf],
+    into: &Path,
+    control: &crate::control::Control,
+) -> Result<u64, Error> {
     /* One part is not concatenated — it is moved.
      *
      * A ranged download's staged file, a stream gathered into one part: there
@@ -39,8 +47,11 @@ pub(super) async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Er
         /* To another drive, by the system's own copy (CopyFileEx on Windows, copy_file_range
          * on Linux, a clone or fcopyfile on macOS), which hands the bytes over in the system's
          * own large blocks; the part goes once the copy is whole (gaps row 166). */
+        /* Not stopped part-way by a Cancel: the system's copy is one call, and its speed across
+         * drives was measured worth having (row 166). A turn of the computer's heavy work all the
+         * same (`heavy`). */
         let (from, to) = (only.clone(), into.to_path_buf());
-        let copied = tokio::task::spawn_blocking(move || -> Result<u64, Error> {
+        let copied = crate::heavy::run(move || -> Result<u64, Error> {
             if !from.exists() {
                 return Err(Error::Internal(
                     "a staged part went missing while the file was being joined".into(),
@@ -51,7 +62,6 @@ pub(super) async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Er
             Ok(bytes)
         })
         .await
-        .map_err(|e| Error::Internal(e.to_string()))
         .and_then(|copied| copied);
         if copied.is_err() {
             let _ = fs::remove_file(into).await;
@@ -63,7 +73,7 @@ pub(super) async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Er
      * so a copy that fails part-way (the disk filled, nearly always) removes
      * what it had written rather than leaving a truncated file that looks
      * finished and, worse, holds the name the retry would otherwise take. */
-    let copied = copy_parts(parts, into).await;
+    let copied = copy_parts(parts, into, control).await;
     if copied.is_err() {
         let _ = fs::remove_file(into).await;
     }
@@ -113,14 +123,24 @@ pub(crate) fn sync_after(path: PathBuf) {
  * a large `BufWriter` reads in large blocks, and on Linux becomes
  * `copy_file_range`, which the kernel does without copying through dm (and
  * Btrfs or XFS without copying at all). */
-pub(super) async fn copy_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Error> {
-    let (parts, into) = (parts.to_vec(), into.to_path_buf());
-    tokio::task::spawn_blocking(move || copy_parts_blocking(&parts, &into))
-        .await
-        .map_err(|e| Error::Internal(e.to_string()))?
+pub(super) async fn copy_parts(
+    parts: &[PathBuf],
+    into: &Path,
+    control: &crate::control::Control,
+) -> Result<u64, Error> {
+    let (parts, into, control) = (parts.to_vec(), into.to_path_buf(), control.clone());
+    crate::heavy::run(move || copy_parts_blocking(&parts, &into, &control)).await?
 }
 
-pub(super) fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64, Error> {
+/// How much of a part is copied between two looks at whether the download was cancelled: about
+/// a third of a second on a hard disk, a few hundredths on an SSD.
+const JOIN_PIECE: u64 = 32 << 20;
+
+pub(super) fn copy_parts_blocking(
+    parts: &[PathBuf],
+    into: &Path,
+    control: &crate::control::Control,
+) -> Result<u64, Error> {
     use std::io::Write;
     /* Every part exists by the time this runs — a stream's segment is named
      * only once whole, a ranged download's staged file is made before its
@@ -142,7 +162,16 @@ pub(super) fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64,
     let mut out = std::io::BufWriter::with_capacity(4 << 20, out);
     for part in rest {
         let mut source = std::fs::File::open(part).map_err(|_| missing())?;
-        std::io::copy(&mut source, &mut out)?;
+        // A piece at a time, each by `io::copy` (on Linux the kernel's own copy), with a look at
+        // the download's control between.
+        loop {
+            crate::heavy::stopped(control)?;
+            let copied =
+                std::io::copy(&mut std::io::Read::take(&mut source, JOIN_PIECE), &mut out)?;
+            if copied < JOIN_PIECE {
+                break;
+            }
+        }
         drop(source);
         let _ = std::fs::remove_file(part);
     }
@@ -523,7 +552,7 @@ pub(crate) async fn finish(
     )
     .await?;
 
-    let bytes = join_parts(parts, &path).await?;
+    let bytes = join_parts(parts, &path, &options.control).await?;
 
     // Cancelled during the join: what it produced is not wanted either.
     if options.control.wanted() == crate::control::Wanted::Cancel {
@@ -535,7 +564,7 @@ pub(crate) async fn finish(
      * warning: one known to be wrong, sitting in the downloads folder looking
      * like every other one, is how it comes to be opened. */
     if let Some(expected) = &options.checksum {
-        if let Err(e) = checksum::verify(&path, expected).await {
+        if let Err(e) = checksum::verify(&path, expected, &options.control).await {
             // The row must not say the file is gone while it is still there.
             if let Err(io) = fs::remove_file(&path).await {
                 return Err(Error::Internal(format!(

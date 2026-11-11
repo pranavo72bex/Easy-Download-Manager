@@ -1265,6 +1265,7 @@ pub(super) async fn attempt_segment(
         if cut {
             chunk = chunk.slice(..fits as usize);
         }
+        as_slow_as_the_disk(chunk.len() as u64).await;
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
         flowing.get_or_insert_with(|| job.together.bringing());

@@ -142,7 +142,8 @@ pub fn sum_of(sums: &Sums, algorithm: dm_core::Algorithm) -> Option<Result<Strin
 
 /// Extracts the finished ZIP at `path` (fetched from `url`, which it is
 /// checked against) into a new folder beside it, or inside `into`, on a
-/// thread of its own; nothing in it is opened or run. `done` is given what
+/// thread of its own, once a turn at the computer's heavy work is free
+/// (`dm_core::heavy`); nothing in it is opened or run. `done` is given what
 /// was extracted, or why not, when it is over. Err if the thread could not
 /// be started (then `done` is never called).
 pub fn extract_later(
@@ -154,6 +155,9 @@ pub fn extract_later(
     std::thread::Builder::new()
         .name("dm-extract".into())
         .spawn(move || {
+            // A turn at the computer's heavy work, as digests and joins take one, so ten ZIPs
+            // extracted at once do not take every core (gaps row 185).
+            let _turn = dm_core::heavy::turn();
             let cancel = std::sync::atomic::AtomicBool::new(false);
             let origin = (!url.is_empty()).then_some(url.as_str());
             let limits = dm_core::extract::Limits::default();

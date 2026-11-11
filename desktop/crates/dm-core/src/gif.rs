@@ -55,12 +55,13 @@ pub fn from_video(mp4: &std::path::Path, target: &std::path::Path) -> Result<u64
     Ok(bytes.len() as u64)
 }
 
-/// [`from_video`], off the async runtime.
+/// [`from_video`], off the async runtime, with a turn at the computer's heavy work
+/// (`heavy`, gaps row 185).
 pub async fn from_video_async(
     mp4: std::path::PathBuf,
     target: std::path::PathBuf,
 ) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || from_video(&mp4, &target))
+    crate::heavy::run(move || from_video(&mp4, &target))
         .await
         .map_err(|e| format!("making the GIF stopped: {e}"))?
 }
