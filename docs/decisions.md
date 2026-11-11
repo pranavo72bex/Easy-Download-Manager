@@ -5948,3 +5948,54 @@ not start when the check pressed play.
 - **Measured on macOS, 2026-11-11** (debug dm-gpui, Chrome for Testing, other work running on the
   machine): `handover-check.py libreoffice` passed twice (the 299 MB `.dmg` whole in dm, nothing
   kept by the browser); the whole `handover-check.py` 68 of 68, all twelve pages OK.
+
+## 2026-11-11: The release profile measured for `dm-gpui`, and kept (gaps row 189)
+
+- **Measured** on this Mac (Apple M1, macOS 27.0.1, rustc 1.98.1, `aarch64-apple-darwin`, commit
+  `78ce2636`), each variant a full `cargo build --release -p dm-gpui` with 4 jobs, **with the other
+  track building and benchmarking on the same computer**, so times are upper bounds. Peak memory
+  is the largest process of the build (the LTO link). Runtime figures are `ui-bench.py --rows 100
+  --only start,idle,transfer`, three runs taken in turn across the variants (medians):
+
+  | Variant | Binary | Build | Peak memory | Warm start | Idle CPU | Resident | 512 MB, CPU s (window / `--headless`) |
+  |---|---|---|---|---|---|---|---|
+  | Current: `"z"`, fat LTO, 1 unit, strip | 19,952,080 | 353 s | 4.35 GB | 0.44 s | 0.15% | 112 MB | 0.63 / 0.56 |
+  | Thin LTO | 28,012,032 (+40%) | 287 s | 2.84 GB | 0.42 s | 0.10% | 113 MB | 0.66 / 0.53 |
+  | `panic = "abort"` | 15,827,120 (−21%) | 327 s | 4.17 GB | 0.56 s | 0.15% | 112 MB | 0.68 / 0.58 |
+  | GPUI's crates at 3 (`gpui-pre`, `-macos`, `-sum-tree`, `gpui-component`) | 22,141,776 (+11%) | 435 s | 5.88 GB | 0.42 s | 0.15% | 113 MB | 0.67 / 0.63 |
+  | Symbols kept apart (line tables, `split-debuginfo = "packed"`) | 19,953,296 once stripped | 423 s | 5.69 GB | — | — | — | — |
+
+  The 512 MB file came from the Python server at about 400 MB/s, the same for every variant
+  (1.2 to 1.3 s). The start with dm's binary evicted from the file cache varied from 0.4 to 1.8 s
+  within each variant, so it ranks none of them. At 10,000 rows (`--only idle,list`, two runs
+  each), GPUI's crates at 3 changed nothing measurable: one scroll 0.17 s against 0.16 to 0.17 s,
+  a sort by a heading 0.27 s against 0.26 to 0.28 s, the search box's filter 0.36 s against 0.30
+  to 0.34 s. Those times are dm's own work on each wake (rows 180 and 181), not GPUI's drawing.
+- **Kept as it is.** Thin LTO links faster and in less memory, but its binary is 40% larger, with
+  no gain at run time. GPUI at 3 costs 11% and a slower build, for nothing measurable. The
+  overrides for `egui` and `epaint` stay while the egui window is still built (G9).
+- **`panic = "abort"` not taken**, though it is the largest saving there is (4.1 MB, 21%) and
+  changes nothing measured at run time. dm's own code has no `unwrap`, `expect` or `panic`
+  (clippy denies them), but what it depends on decodes what servers send: images, audio, torrents,
+  HTTP. With unwinding, a panic there ends one task, and the other downloads and the window go on.
+  With abort, a server that sends something malformed would close dm and every download with it.
+  dm has no crash reporting (AGENTS.md rule 6), so nobody would learn why. Taking it needs a way
+  to say what happened first, and is left to the maintainer.
+- **Symbols kept apart cost nothing in the binary** (1.2 KB more once stripped: line tables do not
+  change the code), but 70 s more build and 1.3 GB more peak memory in the link. Fat LTO's link
+  already ran out of Docker's 7.6 GB on Linux (G8). So the release profile does not keep them yet:
+  a release with its dSYM, PDB and `.debug` needs the Linux link measured with them first (row
+  189, owed to the final Linux pass), and the release job must attach them apart from the
+  installers, which the update manifest lists.
+- **`[profile.profiling]`** is the release with line tables, symbols and a packed dSYM, for
+  `sample`, Instruments, samply, perf and WPA (docs/testing.md, Profiling).
+- **What the binary is made of** (`cargo bloat --release -p dm-gpui --crates`, symbols kept; `.text`
+  11.6 MiB of a 34.5 MiB unstripped file): `dm_core` 1.4 MiB (11.7%), `std` 1.3 MiB, `gpui` 1.3
+  MiB, unknown 887 KiB, `gpui_base` 646 KiB, `dm_shell` 520 KiB, `dm_gpui` 491 KiB, `librqbit` 390
+  KiB, `gpui_component` 364 KiB, `aws_lc_sys` 298 KiB, `image` 290 KiB, `tokio` 290 KiB, `rustls`
+  228 KiB, `dm_desktop_base` 162 KiB, `usvg` 152 KiB, `librqbit_dht` 147 KiB, `rustybuzz` 136 KiB,
+  `retina` 131 KiB, `reqwest` 129 KiB, `ring` 128 KiB; 283 more crates 1.3 MiB.
+- **Owed.** The same table on Linux (the final Linux pass) and on Windows (the Windows laptop).
+  The judged benchmark (`bench/bench.mjs fast per_conn`) was not run here: it is the other track's,
+  and it must be run again by that track after the merge. Nothing in the profile changed, so no
+  judged number can move because of this entry.
