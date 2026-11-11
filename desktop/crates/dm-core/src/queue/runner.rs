@@ -253,7 +253,7 @@ impl Queue {
         let queue = self.clone();
 
         tokio::spawn(async move {
-            let mut options = inner.options.lock().await.clone();
+            let mut options = crate::lock(&inner.options).clone();
             let ran_with = control.clone();
             options.control = control;
             /* Handed to the engine rather than checked here, so one place
@@ -434,7 +434,7 @@ impl Queue {
                 })
             };
 
-            let client = inner.client.lock().await.clone();
+            let client = crate::lock(&inner.client).clone();
             // A dial-up or VPN connection the person chose is up before the first request, and
             // the download waits for it: never sent around it (`connect_first.rs`).
             let connected = if form_lost {
@@ -499,6 +499,14 @@ impl Queue {
              * before — must not turn the row back into Failed or Completed,
              * and a file it did produce is not one anybody asked to keep. */
             if slot.entry.state == State::Cancelled {
+                // The cancel removed the parts while this run still held
+                // some open — a helper's — and on Windows an
+                // open file cannot be deleted. Now the run has let go,
+                // whatever is left goes.
+                let leftover = PathBuf::from(&slot.entry.parts_dir);
+                // Let go of before the disk is asked anything: every read of
+                // the list waits for this lock (gaps row 184).
+                drop(slots);
                 if let Ok(finished) = outcome {
                     if let Err(e) = tokio::fs::remove_file(&finished.path).await {
                         queue.note(format!(
@@ -508,12 +516,6 @@ impl Queue {
                         ));
                     }
                 }
-                // The cancel removed the parts while this run still held
-                // some open — a helper's — and on Windows an
-                // open file cannot be deleted. Now the run has let go,
-                // whatever is left goes.
-                let leftover = PathBuf::from(&slot.entry.parts_dir);
-                drop(slots);
                 if !leftover.as_os_str().is_empty() {
                     let _ = tokio::fs::remove_dir_all(&leftover).await;
                 }
@@ -613,6 +615,27 @@ impl Queue {
                 // done (`download::sync_after`).
                 crate::download::sync_after(finished.path.clone());
             }
+            // Out of room, or the folder's drive gone: paused, its parts
+            // kept, rather than failed, to go on once there is room or
+            // from another folder. Worked out before the queue's lock is
+            // taken, off the runtime's threads: the folder is looked for on
+            // the disk, and on a drive just taken out that can take seconds,
+            // which every read of the list waited out (gaps row 184).
+            let (outcome, stalled) = match outcome {
+                Err(error) if replaces.is_none() => {
+                    let dirs = [options.parts_dir.clone(), options.dest_dir.clone()];
+                    let looked = tokio::task::spawn_blocking(move || {
+                        let why = out_of_room(&error, [&dirs[0], &dirs[1]]);
+                        (error, why)
+                    })
+                    .await;
+                    match looked {
+                        Ok((error, why)) => (Err(error), why),
+                        Err(e) => (Err(Error::Internal(e.to_string())), None),
+                    }
+                }
+                other => (other, None),
+            };
             let mut slots = inner.slots.lock().await;
             let Some(slot) = slots.get_mut(&id) else {
                 return;
@@ -620,20 +643,12 @@ impl Queue {
 
             slot.retrying = None;
             slot.entry_mut().stalled.clear();
-            // Out of room, or the folder's drive gone: paused, its parts
-            // kept, rather than failed, to go on once there is room or
-            // from another folder.
-            let outcome = match outcome {
-                Err(error) if replaces.is_none() => {
-                    match out_of_room(&error, [&options.parts_dir, &options.dest_dir]) {
-                        Some(why) => {
-                            slot.entry_mut().stalled = why;
-                            Err(Error::Paused)
-                        }
-                        None => Err(error),
-                    }
+            let outcome = match (outcome, stalled) {
+                (Err(_), Some(why)) => {
+                    slot.entry_mut().stalled = why;
+                    Err(Error::Paused)
                 }
-                other => other,
+                (outcome, _) => outcome,
             };
             slot.entry_mut().state = match outcome {
                 Ok(finished) => {

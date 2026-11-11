@@ -41,7 +41,7 @@ impl Queue {
             .filter(|e| e.queue == queue && e.state == State::Completed)
             .filter(|e| web(&e.url))
             .collect();
-        let client = self.inner.client.lock().await.clone();
+        let client = crate::lock(&self.inner.client).clone();
         let (mut checked, mut changed) = (0, Vec::new());
         for row in &rows {
             let referrer = (!row.referrer.is_empty()).then_some(row.referrer.as_str());
@@ -120,7 +120,7 @@ impl Queue {
             control: Control::new(),
             referrer: referrer.map(str::to_string),
             sign_in: sign_in.cloned(),
-            ..self.inner.options.lock().await.clone()
+            ..crate::lock(&self.inner.options).clone()
         };
         if options.attempts == 0 {
             options.attempts = crate::retry::MAX_ATTEMPTS;

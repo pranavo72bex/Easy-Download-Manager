@@ -415,6 +415,13 @@ and is not carried over.
       chunk to discover there was no limit, which is every connection queueing
       behind every other on the hottest path in the engine. Reading the rate
       outside the lock: 1.6M calls across 8 tasks went from 0.08s to 0.01s
+- [x] No lock held across slow work — no lock of the queue's is held while
+      the disk or the network is waited for, except the one that keeps two
+      writes of the queue file in order, and the order they are taken in is
+      written above `Inner` (`dm-core/src/queue/mod.rs`). A write of the
+      queue file made to take 2 s holds back no read of the list, no
+      download's progress, and no change made meanwhile
+      (`dm-core/tests/locks.rs`, gaps row 184, 2026-11-12, macOS)
 
 ## Packaging
 - [ ] Linux — packages: .deb and AppImage (cargo-packager), .rpm (nfpm,

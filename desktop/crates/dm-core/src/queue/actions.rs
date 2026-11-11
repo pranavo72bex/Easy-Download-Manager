@@ -501,7 +501,7 @@ impl Queue {
         // The folder the row recorded, read from the row just taken: looked
         // up afresh it is no longer there, and the setting's folder is not
         // where a row begun before a change staged its parts.
-        let default_parts = self.inner.options.lock().await.parts_dir.clone();
+        let default_parts = crate::lock(&self.inner.options).parts_dir.clone();
         for (id, slot) in taken {
             // A finished torrent still shared stops with its row (gaps row 147).
             if !slot.entry.path.is_empty() {

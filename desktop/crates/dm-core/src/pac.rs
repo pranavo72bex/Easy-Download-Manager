@@ -283,9 +283,15 @@ struct Kept {
 static KEPT: std::sync::LazyLock<std::sync::Mutex<Kept>> =
     std::sync::LazyLock::new(Default::default);
 
-/// Held while a script is fetched or run, so a site is asked about once however many requests
-/// to it start together.
-static ASKING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+/// One lock for each script and site, held while the script is fetched or run for that site, so
+/// a site is asked about once however many requests to it start together. One lock for them all
+/// held every other site's first request behind a slow script or a slow server of one (gaps row
+/// 184); each is kept for the session, as the answer it guards is.
+static ASKING: std::sync::LazyLock<std::sync::Mutex<SiteLocks>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// A lock for each script's address and site (`ASKING`).
+type SiteLocks = std::collections::HashMap<(String, String), std::sync::Arc<std::sync::Mutex<()>>>;
 
 /// The engine a test names in place of QuickJS.
 static ENGINE: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
@@ -338,7 +344,8 @@ pub fn way_to(address: &str, target: &url::Url) -> Result<Option<url::Url>, Stri
         return way.clone();
     }
     let ask = || {
-        let _one = crate::lock(&ASKING);
+        let site_lock = std::sync::Arc::clone(crate::lock(&ASKING).entry(key.clone()).or_default());
+        let _one = crate::lock(&site_lock);
         if let Some(way) = crate::lock(&KEPT).ways.get(&key) {
             return way.clone();
         }

@@ -70,19 +70,31 @@ pub(crate) fn watch(
 
 /// Picks up where a previous run stopped.
 pub(super) async fn adopt_staged(job: &Job) -> Result<(), Error> {
-    let mut segments = job.segments.lock().await;
+    // The disk is read from a copy of the plan, and the lock taken only to
+    // write down what was found: no lock is held across the disk's work
+    // (gaps row 184), and no connection runs yet to change the plan.
+    let plan = job.segments.lock().await.clone();
     if job.by_range {
-        adopt_ranges(job, &segments).await?;
+        adopt_ranges(job, &plan).await?;
     } else {
-        adopt_into_staged(job, &segments).await?;
+        adopt_into_staged(job, &plan).await?;
     }
+    let (dir, ranges) = (job.parts.clone(), plan.len());
+    let ledgers: Vec<u64> = tokio::task::spawn_blocking(move || {
+        (0..ranges)
+            .map(|index| read_ledger(&dir, index).unwrap_or(0))
+            .collect()
+    })
+    .await
+    .map_err(|e| Error::Internal(e.to_string()))?;
+    let mut segments = job.segments.lock().await;
     for index in 0..segments.len() {
         let segment = &mut segments[index];
         /* A ledger cannot say more than its range under the plan that was
          * recorded beside it; one that does was written by something that
          * did not keep to the plan. Held to the range, so what is adopted
          * is exactly what assembly will use. */
-        segment.done = job.ledger(index).min(segment.span());
+        segment.done = ledgers.get(index).copied().unwrap_or(0).min(segment.span());
         if segment.done > 0 {
             job.downloaded.fetch_add(segment.done, Ordering::Relaxed);
             // Claimed, so a split never takes bytes already on disk.
@@ -526,6 +538,14 @@ pub(super) enum Halving {
 /// The plan beside the parts is written again before the new range fetches
 /// a byte, so a resume puts every part at the offset it was fetched for.
 pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
+    /* Held across the plan's write below, on purpose (gaps row 184): from the
+     * moment the range is shortened until the plan is on disk. A range that
+     * reaches the end it had been given reads that end under this lock, and
+     * a split whose plan could not be written gives the range its end back
+     * before letting go: read in between, the range would stop at an end the
+     * plan never recorded, and its last bytes would be fetched by no one.
+     * This download's connections alone wait, for one small write, at most
+     * once per halving. */
     let mut segments = job.segments.lock().await;
     let index = segments.len();
     if index >= job.live.len() || !job.resumable {

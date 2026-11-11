@@ -6508,3 +6508,47 @@ Not done, written down:
   resumability (on the runtime, beside the downloads, not behind the errands, every half second),
   Download details' clash (a background task, again where the folder or name typed changed or a
   second passed; Start now still asks it at the press), the add-to-browser bar's two files.
+
+## 2026-11-12: No lock of the queue's held across slow work, and the order they are taken in (gaps row 184)
+
+- **`store`, `options` and `client` are plain mutexes, read by copying out.** `store` was a
+  tokio mutex read as `if let Some(path) = store.lock().await.clone() { … }`: in edition 2021
+  the guard made in an `if let` lives to the end of its block, so `flush` held `store` across
+  the queue file's whole write, and every save meanwhile (a pause, a resume, a finished
+  download's) waited for it, as did the download limit's own write from the progress. A plain
+  mutex's guard cannot be held across an `.await` at all (clippy's `await_holding_lock`, which CI
+  refuses), so this cannot come back unseen. `options.limiter.rate().await` no longer waits
+  under the options' lock either.
+- **A save due while a write is under way goes into the next write** (`saving.try_lock()` in
+  `save`), made `SAVE_EVERY` after it as a save within `SAVE_EVERY` of a write always was. Before,
+  each such change waited out the write, then wrote the whole list itself, one after another on
+  a slow disk. `flush` still waits for the write under way, as a caller that asks for the list
+  on disk (quitting) needs. Measured by `dm-core/tests/locks.rs`, every write of the queue file
+  made to take 2 s (`Queue::slow_writes_by`, for tests): a change made during the write answered
+  in 4.05 s before this (the old code, given only that hook), and in under 100 ms after; a read of
+  the list under 10 ms, and two paced downloads further on in every half second of the write,
+  before and after (those two held already: the write reads the rows, then lets them go).
+- **The disk is not asked anything under `slots`.** A download that failed on a disk error has
+  its folders looked for (`out_of_room`, whose `create_dir_all` can take seconds on a drive just
+  taken out) before the lock is taken, off the runtime's threads; a cancelled run's finished file
+  is removed after the lock is let go; the queue restored at start looks for each old row's parts
+  folder before it locks the rows. The quota file and `recheck-at` beside the queue file are
+  read and written off the runtime's threads (the quota with each write of the queue file, in the
+  same blocking task).
+- **`note` is never called under a lock of the queue's**: `write_held` returns what went wrong,
+  said once `saving` is let go, and the cancelled run's note comes after `slots`.
+- **Kept, each with a comment saying why**: `saving` across the write (one write at a time, so an
+  older list is never written after a newer one); a download's `segments` across a halving's plan
+  write (`split_largest`: a range reads its end under that lock, and a split whose plan could not
+  be written gives the end back before letting go); QuickJS's fetch lock across the fetch (what
+  waits needs the same program and would fetch it again). **Reworked**: the proxy script's lock is
+  one per script and site (`pac.rs` `ASKING`), where one for all held every other site's first
+  request behind one slow script or server; assembly and the adoption of staged parts read the
+  disk from a copy of the plan, not under its lock.
+- **The order**, written above `Inner`: `saving`, then `slots`, then `order`; every other lock is a
+  leaf, taken last and let go before anything else is locked or awaited. A scan of every tokio
+  guard in `dm-core` finds none held across an `.await` but these.
+- **Not done: `slots` and `order` as plain mutexes**, which would make the compiler refuse a guard
+  held across an await there too. About sixty sites in the engine's busiest code, for code that
+  already lets them go before each await (the scan above); worth it only if a guard across an
+  await is ever found there again.

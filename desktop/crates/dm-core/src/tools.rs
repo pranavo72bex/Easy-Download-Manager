@@ -53,7 +53,11 @@ pub fn folder() -> Option<&'static Path> {
 }
 
 /// One fetch of QuickJS at a time: two videos needing it at once wait for
-/// the one fetch.
+/// the one fetch. Held across that fetch from the network on purpose (gaps
+/// row 184): what waits for it is only what needs the same program, which
+/// would otherwise fetch it a second time; no download that does not need
+/// it, and no lock of the queue's, waits here. The client's read timeout
+/// ends a fetch that stalls.
 static FETCHING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// How many tool fetches are under way, for the window to say why a video

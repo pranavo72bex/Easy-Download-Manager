@@ -196,4 +196,3 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
          more than {allowed}"
     );
 }
-

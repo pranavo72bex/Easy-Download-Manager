@@ -79,7 +79,7 @@ impl Queue {
         if waiting.is_empty() {
             return None;
         }
-        let client = self.inner.client.lock().await.clone();
+        let client = crate::lock(&self.inner.client).clone();
         let sign_in = crate::cookies::SignIn::with_headers(url, &with.cookies, &with.headers);
         let referrer = Some(with.referrer.trim()).filter(|r| !r.is_empty());
         let probed = crate::probe::probe(&client, url, referrer, sign_in.as_ref())

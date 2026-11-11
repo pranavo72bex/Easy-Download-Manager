@@ -381,7 +381,10 @@ pub(super) async fn assemble(
     info: &Probe,
     options: &Options,
 ) -> Result<(PathBuf, u64, category::Category), Error> {
-    let segments = job.segments.lock().await;
+    // A copy, the lock let go at once: the overlaps are read back from the
+    // disk below, and every connection is over by now, so nothing changes it
+    // meanwhile (gaps row 184).
+    let segments = job.segments.lock().await.clone();
 
     // A length the server stated has to be the length that arrived. Segments
     // are written at the offsets they were handed out, so a server that
