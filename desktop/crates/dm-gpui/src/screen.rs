@@ -41,9 +41,20 @@ impl Screen {
     /// `text`, drawn, and recorded where it is laid out.
     pub fn label(&self, text: impl Into<SharedString>) -> impl IntoElement {
         let text: SharedString = text.into();
+        self.mark(text.clone(), text)
+    }
+
+    /// `element`, drawn, and recorded as saying `text` where it is laid
+    /// out: words drawn by an element of their own (text to select and
+    /// copy, a digest's) are read and clicked as a label's are.
+    pub fn mark(
+        &self,
+        text: impl Into<SharedString>,
+        element: impl IntoElement,
+    ) -> impl IntoElement {
+        let words: SharedString = text.into();
         let record = Rc::clone(&self.0);
-        let words = text.clone();
-        div().relative().child(text).child(
+        div().relative().child(element).child(
             canvas(
                 move |bounds, window, _| {
                     // Only what can be seen: words scrolled out of a page's
@@ -162,31 +173,71 @@ impl Screens {
     }
 }
 
-/// Opens a window as `App::open_window` does, and keeps the title it was
-/// opened with as its name, where it was not named as it was built, and as
-/// its title, where its first frame did not set another: the port names
-/// dialogs by it, and Linux's and Windows' windows do not say their title
-/// back (GPUI's X11, Wayland and Windows windows have no `get_title`).
-/// Every dm window opens through here.
+/// The name every dm window gives the desktop on Linux, as the egui
+/// window's does: the `.desktop` entry's `StartupWMClass`.
+pub const APP_ID: &str = "dm";
+
+/// Opens a dialog's window as `App::open_window` does, and keeps the title
+/// it was opened with as its name, where it was not named as it was built,
+/// and as its title, where its first frame did not set another: the port
+/// names dialogs by it, and Linux's and Windows' windows do not say their
+/// title back (GPUI's X11, Wayland and Windows windows have no
+/// `get_title`). Every dm window but the main one opens through here.
+///
+/// On Linux each window also says it is dm's (`APP_ID`): the class X11's
+/// window managers and the app id Wayland's compositors match to the
+/// launcher (`StartupWMClass=dm` in `packaging/deb.desktop`), as the egui
+/// window does. Without it a dock showed a second, generic icon beside dm's.
+/// And on X11 a dialog stands where it asked to (over dm's window, B42), as
+/// on macOS and Windows, not where the window manager finds room.
 pub fn open_window<V: 'static + gpui::Render>(
+    cx: &mut App,
+    options: gpui::WindowOptions,
+    build: impl FnOnce(&mut gpui::Window, &mut App) -> gpui::Entity<V>,
+) -> gpui::Result<gpui::WindowHandle<V>> {
+    open(cx, options, build, true)
+}
+
+/// Opens dm's main window as `open_window` opens a dialog's, but where the
+/// desktop places it on Linux (`frame::DESKTOP_PLACES_IT`).
+pub fn open_main_window<V: 'static + gpui::Render>(
+    cx: &mut App,
+    options: gpui::WindowOptions,
+    build: impl FnOnce(&mut gpui::Window, &mut App) -> gpui::Entity<V>,
+) -> gpui::Result<gpui::WindowHandle<V>> {
+    open(cx, options, build, false)
+}
+
+fn open<V: 'static + gpui::Render>(
     cx: &mut App,
     mut options: gpui::WindowOptions,
     build: impl FnOnce(&mut gpui::Window, &mut App) -> gpui::Entity<V>,
+    dialog: bool,
 ) -> gpui::Result<gpui::WindowHandle<V>> {
     // On Windows a dialog has no minimize button, as Windows' own dialogs
     // (and reference A's) have none: only the main window, whose title bar
     // dm draws, goes down to the taskbar. Not the floating drop target (a
     // pop-up), and nothing changes elsewhere.
-    let dialog = options.kind != gpui::WindowKind::PopUp
-        && !options
-            .titlebar
-            .as_ref()
-            .is_some_and(|titlebar| titlebar.appears_transparent);
-    if cfg!(windows) && dialog {
+    if cfg!(windows) && dialog && options.kind != gpui::WindowKind::PopUp {
         options.is_minimizable = false;
     }
     let title = options.titlebar.as_ref().and_then(|t| t.title.clone());
-    let opened = cx.open_window(options, build)?;
+    // GPUI hands it to the system as it makes the window.
+    options.app_id.get_or_insert_with(|| APP_ID.to_string());
+    // Where a dialog asked to stand, for X11 to be told (`syswindow::place`).
+    let asked_at = (dialog && crate::frame::DESKTOP_PLACES_IT)
+        .then(|| options.window_bounds.map(|b| b.get_bounds().origin))
+        .flatten();
+    let opened = cx.open_window(options, |window, cx| {
+        #[cfg(not(any(target_os = "macos", windows)))]
+        if let Some(at) = asked_at {
+            // Refused on Wayland, which places windows itself.
+            let _ = crate::syswindow::place(window, f32::from(at.x), f32::from(at.y));
+        }
+        #[cfg(any(target_os = "macos", windows))]
+        let _ = asked_at;
+        build(window, cx)
+    })?;
     let handle: AnyWindowHandle = opened.into();
     if let Some(title) = title.filter(|t| !t.is_empty()) {
         if Screens::name_of(handle, cx).is_none() {

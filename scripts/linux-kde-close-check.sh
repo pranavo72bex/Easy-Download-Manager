@@ -13,11 +13,14 @@
 # Not Plasma's panel: the tray's watcher and host are the check's own.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 docker image inspect dm-kde >/dev/null 2>&1 || docker build -f scripts/linux/Dockerfile.kde -t dm-kde scripts/linux
 docker volume create dm-wayland-shots >/dev/null
 git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
   | docker run --rm -i \
+      -e DM_BINARY="/target/debug/$binary" \
       -v dm-linux-target:/target:ro \
       -v dm-wayland-shots:/shots \
       dm-kde sh -c '
@@ -27,5 +30,5 @@ git ls-files -z --cached --others --exclude-standard \
         # and the kernel then refuses to run the file at all.
         setcap -r /usr/sbin/kwin_wayland || true
         useradd -m tester && chmod 777 /shots && chmod -R a+rX /work
-        su tester -c "dbus-run-session -- sh /work/scripts/linux/kde_session.sh"
+        su tester -w DM_BINARY -c "dbus-run-session -- sh /work/scripts/linux/kde_session.sh"
       '

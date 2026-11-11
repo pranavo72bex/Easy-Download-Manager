@@ -53,7 +53,8 @@ const REFA = {
   process: process.env.BENCH_REFA_PROCESS || local.refa?.process || null,
   title: process.env.BENCH_REFA_TITLE || local.refa?.title || null,
 };
-const SHIPPED = process.platform === 'linux' ? 'dm-desktop' : 'dm-gpui';
+// The window dm ships, on every system (docs/gaps.md G9).
+const SHIPPED = 'dm-gpui';
 function defaultDm() {
   for (const t of [process.env.CARGO_TARGET_DIR, path.join(REPO, 'desktop', 'target')].filter(Boolean)) {
     const p = path.join(t, 'release', SHIPPED + (WIN ? '.exe' : ''));

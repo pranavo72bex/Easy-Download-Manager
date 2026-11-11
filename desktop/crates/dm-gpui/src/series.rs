@@ -13,8 +13,8 @@
 use dm_core::{AddOptions, MAIN_QUEUE};
 use dm_desktop_base::i18n::{t, tn};
 use gpui::{
-    div, prelude::*, px, size, uniform_list, App, Bounds, Context, Entity, KeyDownEvent, Role,
-    SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, px, size, uniform_list, App, Bounds, Context, Entity, SharedString,
+    WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -151,18 +151,8 @@ impl Render for Series {
         let width = native::label_width(&labels);
         let digits: Vec<SharedString> = (0..=9).map(|d| d.to_string().into()).collect();
         let count = listed.len();
-        div()
-            .id("series")
-            .role(Role::Dialog)
-            .aria_label(t("Add numbered series"))
+        crate::native::dialog("series", t("Add numbered series"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, _| {
-                if event.keystroke.key == "escape" {
-                    this.cancel(window);
-                }
-            }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(screen.label(t(

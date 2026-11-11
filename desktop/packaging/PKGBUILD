@@ -10,18 +10,18 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/pranavo72bex/Easy-Download-Manager"
 license=('GPL-3.0-or-later')
 
-# The window is drawn in Rust (egui) with no web view. Its tray is a
-# StatusNotifier item over the session D-Bus; winit and glow need xkbcommon
-# and a GL driver.
-# What winit and glow open at run time: X11 (with Xcursor, Xi), Wayland,
-# xkbcommon and GL.
-depends=('hicolor-icon-theme' 'libx11' 'libxcursor' 'libxi' 'libxkbcommon-x11' 'wayland' 'libglvnd' 'xdg-utils' 'libsecret')
-makedepends=('rust' 'cargo' 'pkgconf' 'git')
+# The window is drawn in Rust (GPUI, docs/gaps.md G9) with no web view. Its
+# tray is a StatusNotifier item over the session D-Bus. It links X11 through
+# xcb, xkbcommon and FreeType, and opens Vulkan, or GL through EGL, and
+# Wayland at run time.
+depends=('hicolor-icon-theme' 'libxcb' 'libxkbcommon-x11' 'freetype2' 'fontconfig' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'xdg-utils' 'libsecret')
+# fontconfig's headers, which GPUI's text builds against.
+makedepends=('rust' 'cargo' 'pkgconf' 'git' 'fontconfig')
 optdepends=('noto-fonts-cjk: names in Chinese, Japanese and Korean'
             'webkit2gtk-4.1: YouTube and proxy scripts with nothing fetched from GitHub')
 
 # No debug package: the release profile strips the binary, so makepkg's
-# debuginfo flags only made the fat-LTO link of dm-desktop hold the whole
+# debuginfo flags only made the fat-LTO link of dm's window hold the whole
 # program's debug information at once, which ran x86_64 builders out of
 # memory (killed by signal 9 in build()).
 # No makepkg LTO: its -flto=auto turns the C inside aws-lc-sys and ring into
@@ -50,7 +50,7 @@ build() {
   # Arch builds with its own optimisation flags; the release profile in
   # Cargo.toml already asks for LTO and a stripped binary.
   export CARGO_TARGET_DIR=target
-  cargo build --release --frozen -p dm-desktop
+  cargo build --release --frozen -p dm-gpui
 }
 
 check() {
@@ -66,7 +66,7 @@ check() {
 package() {
   cd "$srcdir/$_srcdir"
 
-  install -Dm755 "target/release/dm-desktop" "$pkgdir/usr/bin/dm"
+  install -Dm755 "target/release/dm-gpui" "$pkgdir/usr/bin/dm"
   install -Dm644 "packaging/dm.desktop" "$pkgdir/usr/share/applications/dm.desktop"
   install -Dm644 "crates/dm-desktop/icons/icon.png" \
     "$pkgdir/usr/share/icons/hicolor/512x512/apps/dm.png"

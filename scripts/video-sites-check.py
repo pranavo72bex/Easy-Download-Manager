@@ -93,8 +93,8 @@ sys.path.insert(0, str(HERE))
 import media_check  # noqa: E402
 
 EXE = ".exe" if sys.platform == "win32" else ""
-# The window dm ships here: GPUI on macOS and Windows (docs/gaps.md G9), egui on Linux.
-SHIPPED = "dm-gpui" if sys.platform in ("darwin", "win32") else "dm-desktop"
+# The window dm ships, on every system: GPUI (docs/gaps.md G9).
+SHIPPED = "dm-gpui"
 # The script's own name to the sites it asks (APIs and reference copies), not a person's.
 AGENT = "dm-video-sites-check/1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
 MB = 1024 * 1024

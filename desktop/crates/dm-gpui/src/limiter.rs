@@ -10,7 +10,7 @@
 
 use dm_desktop_base::i18n::t;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent, Role,
+    div, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
     SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -117,20 +117,13 @@ impl Render for Limiter {
         let number_field = |input: &Entity<InputState>, name: &'static str| {
             div().w(px(110.0)).child(native::field(input, name, theme))
         };
-        div()
-            .id("limiter")
-            .role(Role::Dialog)
-            .aria_label(t("Speed limiter"))
+        crate::native::dialog("limiter", t("Speed limiter"), theme, cx)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                match event.keystroke.key.as_str() {
-                    "escape" => this.cancel(window),
-                    "enter" => this.ok(window, cx),
-                    _ => {}
+                if event.keystroke.key == "enter" {
+                    this.ok(window, cx);
                 }
             }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(native::row(

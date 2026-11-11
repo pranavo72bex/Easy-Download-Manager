@@ -116,6 +116,10 @@ pub fn menu(
                 .bg(theme.menu)
                 .shadow_lg()
                 .text_color(theme.text)
+                // The menu takes its own clicks: a row under it took them too,
+                // and Extract here, over another row, chose that row first and
+                // extracted it instead (Linux, real input, 2026-11-11).
+                .occlude()
                 .on_mouse_down_out(cx.listener(|view, _, _, cx| {
                     view.close_menu();
                     cx.notify();

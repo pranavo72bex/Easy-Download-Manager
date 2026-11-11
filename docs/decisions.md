@@ -5673,3 +5673,45 @@ was left (`frame.rs`). On Windows a dialog has no minimize button (`screen::open
 the main window, whose title bar dm draws, nor the drop target), as Windows' own dialogs have
 none. B25's Windows picture of the empty window (`docs/behaviour-baseline/gpui/windows/`) was
 drawn again at the new size with `human-qa.py --save-baseline` and looked at, at those words.
+
+## 2026-11-11: Linux ships the GPUI window, under the commands it had
+
+At the maintainer's word of 2026-11-11 ("only focus on linux part"; Windows is done on a Windows
+computer) and the recommended option at the font question ("remove after Windows"): Linux's
+packages carry the GPUI window, as macOS's have since 2026-11-10, and the egui window, its fonts
+(Inter, Selawik, the Fluent icon font) and its vendored patches are removed in a change of their
+own once Windows holds the contract in GPUI (G9). The GPUI window uses the system's fonts only.
+
+- **The installed command stays.** The .deb installs `dm-gpui` and a two-line `/usr/bin/dm-desktop`
+  that runs it (`desktop/packaging/dm-desktop`, through the deb's `files`): the README's commands,
+  an autostart entry and a browser's native-host manifest written by an earlier dm name
+  `/usr/bin/dm-desktop`, and an upgrade that removed it would have stopped a login launch until
+  dm was opened by hand. cargo-packager can neither rename a binary nor make a link; a copy of the
+  binary would have doubled the package. The .rpm and Arch package install it as `/usr/bin/dm`,
+  as before. dm writes its registrations again for the binary it runs as at each start.
+- **Dependencies follow the binary:** it links xcb, xkbcommon(-x11) and FreeType, and opens
+  Vulkan, else GL through EGL (Mesa's llvmpipe draws with no GPU), and Wayland's client
+  libraries; X11's Xcursor, Xi and libGL, winit's and glow's, are no longer needed.
+- **A question is a floating window on Linux, not GPUI's `Dialog`.** GPUI's X11 and Wayland
+  windows make a `Dialog` the child of whichever window has the keyboard and close it with that
+  window; a question asked as Add URL closed went with it, unanswered. `Floating` keeps it over
+  that window without closing with it; macOS and Windows keep `Dialog`. A question whose window
+  goes unanswered is answered as Escape answers it, so the questions after it are still asked.
+  And a waiting question opens at once on Linux, as the egui window asks there, not once the
+  main window is in front: a window manager hands the keys to whichever window it likes as a
+  dialog closes, and "Already in the list" waited unseen. macOS and Windows keep their rule
+  (the system gives the main window the keys back, and there a question is a `Dialog` owned by
+  the window in front). On Linux an open question holds the main window's clicks and keys as
+  Options does (`holder`), not what the tray, `--when-done` or the control port asks.
+- **The main window is in gpui-component's `Root`,** as every dialog's is: on Linux its drawn
+  menus (the top bar's) live in the overlay `Root` holds; without it a click on a menu's title
+  opened nothing. The list keeps the keyboard inside it, so commands reach it as before.
+- **A patched `gpui-pre-linux` 0.3.12** (`desktop/vendor/README.md`): GPUI tells AccessKit where
+  an X11 window stands as it starts and as it moves. Upstream defines the call and makes it
+  nowhere, so a screen reader placed every control as if the window stood at (0, 0).
+- **Dialogs on X11 are placed where they asked to be** (`syswindow::place`: the position and
+  static gravity in `WM_NORMAL_HINTS`, then a move), since GPUI shows a window before dm can
+  place it and gives no position; the main window stays where the desktop places it.
+- Tried and dropped: setting the X11 app id from dm's build closure (GPUI already sets it from
+  `WindowOptions::app_id` before it shows the window); a per-window scale for View › Text size
+  (deferred: macOS's slice, not Linux's).

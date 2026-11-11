@@ -102,3 +102,38 @@ alone for Add URL's OK and Cancel, inside the dialog's window; on Windows
 Add URL, Options, the Scheduler, the Speed limiter and About, each inside its own window
 (5 of 5 on 2026-11-08; with the copy as published, none of Add URL's). MIT OR Apache-2.0,
 as published.
+
+## gpui-pre-linux 0.3.12
+
+Licence Apache-2.0 (its `LICENSE-APACHE`); the version the GPUI window
+(`crates/dm-gpui`, pinned `gpui-pre` 0.3.12) is built with on Linux. The
+published package's `Cargo.lock` and `.cargo_vcs_info.json` are left out.
+
+`src/linux/x11/window.rs` (searched for `dm:`): AccessKit is told where an X11
+window stands on the screen when its adapter starts and each time the window
+moves or is resized (`X11WindowStatePtr::dm_a11y_bounds`, called from
+`set_bounds` and `a11y_init`; `a11y_update_window_bounds` now calls it too).
+Upstream defines that update but nothing calls it, so AT-SPI gave every
+control its place inside the window as if the window stood at the screen's
+top-left corner: a screen reader's pointer and a click at a control's place
+missed it (`scripts/linux-gui-check.sh` with `DM_WINDOW=gpui` clicked Add URL
+at (8, 39) and opened nothing, 2026-11-11). Wayland does not tell a program
+where its window is, so the Wayland window is unchanged.
+
+The same file's `set_bounds`: where a configure event resizes the window, its place is asked of
+the X server (`TranslateCoordinates`) rather than kept as it was. Upstream keeps the old place,
+since such an event's own often counts from the window manager's frame; openbox, keeping a
+resized window on the screen, moved it 13 points up, and the menu titles' places (for a screen
+reader, and a click aimed from them) and the window's own `bounds()` stayed 13 points low.
+
+Links dropped on a window (`src/linux/x11/client.rs`, `SelectionNotify`, and
+`src/linux/wayland/client.rs`, the data device's drop): a file's address
+becomes its path, as upstream; any other line of the drop (a link dragged
+from a browser, as `text/uri-list` or, on X11, as text) is handed on as the
+dropped "path" it says, which dm reads as a link
+(`dm_shell::app::links::links_at`). Upstream kept file addresses alone, so a
+link dragged from Firefox onto the window did nothing. Checked with real
+drags: `scripts/linux-drag-check.sh` (X11) and
+`scripts/linux-wayland-drag-check.sh`. On X11 the drop's data is read whole,
+in pieces (upstream read its first 4 KiB), and the drop's place is in the
+window's points (upstream left it in pixels, twice as far on a 2x screen).

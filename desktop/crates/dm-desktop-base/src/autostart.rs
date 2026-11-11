@@ -53,9 +53,10 @@ pub fn entry(program: &Path) -> String {
 }
 
 /// The name dm's icon is installed under: `dm` by the .rpm and Arch
-/// packages, `dm-desktop` (the binary's name) by the .deb. The entry named
-/// `dm` on every system, and a startup-applications list showed the .deb's
-/// without an icon. `dm` where neither is found (an AppImage).
+/// packages, the binary's name by the .deb (`dm-gpui` since the GPUI window,
+/// `dm-desktop` before). The entry named `dm` on every system, and a
+/// startup-applications list showed the .deb's without an icon. `dm` where
+/// none is found (an AppImage).
 pub fn icon_in(data_dirs: &[PathBuf]) -> &'static str {
     let has = |name: &str| {
         data_dirs.iter().any(|dir| {
@@ -70,7 +71,11 @@ pub fn icon_in(data_dirs: &[PathBuf]) -> &'static str {
             }) || dir.join("pixmaps").join(format!("{name}.png")).is_file()
         })
     };
-    if !has("dm") && has("dm-desktop") {
+    if has("dm") {
+        "dm"
+    } else if has("dm-gpui") {
+        "dm-gpui"
+    } else if has("dm-desktop") {
         "dm-desktop"
     } else {
         "dm"
@@ -482,6 +487,13 @@ mod tests {
         std::fs::create_dir_all(&apps).unwrap();
         std::fs::write(apps.join("dm-desktop.png"), b"png").unwrap();
         assert_eq!(icon_in(&[deb.path().to_path_buf()]), "dm-desktop");
+        // The GPUI window's .deb names it after its binary too.
+        let gpui = tempfile::tempdir().unwrap();
+        let apps = gpui.path().join("icons/hicolor/128x128/apps");
+        std::fs::create_dir_all(&apps).unwrap();
+        std::fs::write(apps.join("dm-gpui.png"), b"png").unwrap();
+        assert_eq!(icon_in(&[gpui.path().to_path_buf()]), "dm-gpui");
+        assert_eq!(icon_in(&[gpui.path().into(), deb.path().into()]), "dm-gpui");
         let rpm = tempfile::tempdir().unwrap();
         let apps = rpm.path().join("icons/hicolor/512x512/apps");
         std::fs::create_dir_all(&apps).unwrap();

@@ -11,8 +11,10 @@
 set -e
 browser=$1
 rm -rf /shots/* && mkdir -p /opt/dm
-cp /target/debug/dm-desktop /opt/dm/dm-desktop
-export DM_BINARY=/opt/dm/dm-desktop DM_SHOTS=/shots
+# The window scripts/linux/window.sh chose (dm-gpui unless DM_WINDOW=egui).
+binary="${DM_LINUX_BINARY:-dm-gpui}"
+cp "/target/debug/$binary" "/opt/dm/$binary"
+export DM_BINARY="/opt/dm/$binary" DM_SHOTS=/shots
 # The distribution's own Chromium is not always at /usr/bin/chromium
 # (Fedora's is chromium-browser).
 # Edge's image (DM_DISTRO=edge) has Microsoft Edge and no Chromium.

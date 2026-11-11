@@ -18,6 +18,8 @@
 # extension is ignored by git, so it is added to the stream.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 # DM_DISTRO runs the same check in Ubuntu 22.04's or Fedora 41's own image,
 # dm built here in Debian and copied in (scripts/linux/human-distro.sh), with
 # the screen shot every few seconds into ./human-shots/firefox-<distro>.
@@ -37,7 +39,7 @@ docker volume rm dm-firefox-shots >/dev/null 2>&1 || true
 status=0
 { git ls-files -z --cached --others --exclude-standard; find dist/firefox -type f -print0; } \
   | tar --null -T - -cf - \
-  | docker run --rm -i -e DM_LIVE_PAGE="${DM_LIVE_PAGE:-}" \
+  | docker run --rm -i -e DM_BINARY="/target/debug/$binary" -e DM_LIVE_PAGE="${DM_LIVE_PAGE:-}" \
       -v dm-linux-target:/target \
       -v dm-firefox-cache:/root/.cache/dm-firefox \
       -v dm-firefox-shots:/shots \
@@ -48,8 +50,8 @@ status=0
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends openbox xdotool dbus-x11 xz-utils bzip2 \
           libasound2 libdbus-glib-1-2 libx11-xcb1 libpci3 libgtk-3-0 imagemagick >/dev/null
-        cd desktop && cargo build -q -p dm-desktop && cd ..
-        export DISPLAY=:78 DM_BINARY=/target/debug/dm-desktop DM_REAL_INPUT=1 DM_SHOTS=/shots
+        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        export DISPLAY=:78 DM_REAL_INPUT=1 DM_SHOTS=/shots
         Xvfb :78 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1
         openbox >/dev/null 2>&1 &

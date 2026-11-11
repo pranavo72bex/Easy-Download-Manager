@@ -20,7 +20,7 @@ The run fails if any row of the contract was not checked, so the list is
 gone through whole every time; a row the script cannot reach on this
 computer (no Edge, no network) is a failure, not a skip.
 
-Needs a debug build (`cd desktop && cargo build -p dm-gpui` on macOS and Windows, `-p dm-desktop` on Linux), the
+Needs a debug build (`cd desktop && cargo build -p dm-gpui`), the
 extension (`sh scripts/package.sh`) and Microsoft Edge. DM_BINARY and
 DM_QA_EDGE name others. The download folder and dm's home are made under
 /tmp/dm-human-qa and removed at the end. Standard library only.
@@ -38,8 +38,8 @@ BASELINE = ROOT / "docs" / "behaviour-baseline"
 # One set of pictures for each system whose fonts and window frames differ: the
 # set for this one where there is one, else the first.
 BASELINE_SET = {"win32": BASELINE / "windows", "linux": BASELINE / "linux"}.get(sys.platform, BASELINE)
-# The window dm ships here: GPUI on macOS and Windows (docs/gaps.md G9), egui on Linux.
-SHIPPED = "dm-gpui" if sys.platform in ("darwin", "win32") else "dm-desktop"
+# The window dm ships, on every system: GPUI (docs/gaps.md G9).
+SHIPPED = "dm-gpui"
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug"
                       / (SHIPPED + (".exe" if sys.platform == "win32" else "")))
 # The GPUI window (docs/gaps.md G7) has pictures of its own, beside the egui

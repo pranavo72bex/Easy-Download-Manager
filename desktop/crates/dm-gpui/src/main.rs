@@ -81,7 +81,7 @@ use std::time::Duration;
 use dm_desktop_base::boot::{self, Wake};
 use gpui::{
     div, point, prelude::*, px, size, App, Bounds, Context, Role, TitlebarOptions, Window,
-    WindowBounds, WindowHandle, WindowKind, WindowOptions,
+    WindowBounds, WindowHandle, WindowOptions,
 };
 
 /// A dialog in a window of its own, as dm's are (B42): a question, OK and
@@ -130,11 +130,11 @@ fn open_question(cx: &mut App) -> Option<WindowHandle<Question>> {
         cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(dialog)),
-            kind: WindowKind::Dialog,
+            kind: crate::question::KIND,
             ..Default::default()
         },
         |window, cx| {
-            window.set_window_title("Delete");
+            crate::screen::set_title(window, "Delete", cx);
             cx.new(|_| Question)
         },
     )
@@ -311,7 +311,10 @@ fn main() {
             let middle = Bounds::centered(None, first, cx);
             (WindowBounds::Windowed(middle), None)
         });
-        let opened = crate::screen::open_window(
+        // The list, as the window's build makes it.
+        let made: std::rc::Rc<std::cell::RefCell<Option<gpui::Entity<list::Downloads>>>> =
+            Default::default();
+        let opened = crate::screen::open_main_window(
             cx,
             WindowOptions {
                 window_bounds: Some(window_bounds),
@@ -337,8 +340,8 @@ fn main() {
                 ..Default::default()
             },
             |window, cx| {
-                window.set_window_title("dm");
-                cx.new(|cx| {
+                crate::screen::set_title(window, "dm", cx);
+                let view = cx.new(|cx| {
                     list::Downloads::new(
                         backend,
                         woken,
@@ -349,32 +352,41 @@ fn main() {
                         window,
                         cx,
                     )
-                })
+                });
+                *made.borrow_mut() = Some(view.clone());
+                // In gpui-component's root, as each dialog's window is: on
+                // Linux the top bar's menus are drawn in the overlay it holds,
+                // and without it a click on Tasks or Downloads opened nothing
+                // (real input, 2026-11-11).
+                cx.new(|cx| gpui_component::Root::new(view, window, cx))
             },
         );
-        let main = match opened {
-            Ok(main) => main,
-            Err(e) => {
+        let view = match (opened, made.borrow_mut().take()) {
+            (Ok(_), Some(view)) => view,
+            (Err(e), _) => {
                 eprintln!("dm-gpui: the window could not be opened: {e}");
+                cx.quit();
+                return;
+            }
+            (Ok(_), None) => {
+                eprintln!("dm-gpui: the window opened without its list");
                 cx.quit();
                 return;
             }
         };
         // dm's menus in the system's menu bar, and every command's keys.
         menus::bind_keys(cx);
-        let _ = main.update(cx, |view, _, cx| view.refresh_menus(cx));
+        view.update(cx, |view, cx| view.refresh_menus(cx));
         // Quit is heard from any window in front (a dialog's too), as in
         // every macOS program: the main window's view ends dm.
-        if let Ok(view) = main.update(cx, |_, _, cx| cx.entity().downgrade()) {
-            cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
-                Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
-                None => cx.quit(),
-            });
-        }
-        // The commands themselves are the window's view's (`Downloads`'
-        // root element handles `menus::Run`), reached through the window's
-        // own dispatch, as a key or the menu bar sends them.
-        let _ = main;
+        let view = view.downgrade();
+        cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
+            Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
+            None => cx.quit(),
+        });
+        // The commands themselves are the list's (`Downloads`' root element
+        // handles `menus::Run`), reached through the window's own dispatch,
+        // as a key or the menu bar sends them: the list keeps the keyboard.
         if dump_accessibility && open_question(cx).is_none() {
             eprintln!("dm-gpui: the dialog's window could not be opened");
         }

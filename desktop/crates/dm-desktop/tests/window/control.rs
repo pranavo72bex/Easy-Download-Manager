@@ -351,10 +351,12 @@ fn a_batch_runs_its_steps_in_order() {
         .is_err());
 }
 
-/// The pictures in the README, rendered offscreen from a queue the engine
-/// really served — the sizes, rates and times are its, not a mock-up's.
+/// The egui window's pictures, rendered offscreen from a queue the engine
+/// really served — the sizes, rates and times are its, not a mock-up's. The
+/// README's are the GPUI window's (`scripts/readme-shots.py`), so these go to
+/// a folder of their own:
 ///
-///     DM_SHOTS=docs cargo test -p dm-desktop --test window shots
+///     DM_SHOTS=/tmp/egui-shots cargo test -p dm-desktop --test window shots
 ///
 /// Writes screenshot.png, progress.png and settings.png there, each with its
 /// -dark twin, with the download folder shown as ~/Downloads: nothing of the

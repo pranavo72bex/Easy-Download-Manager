@@ -11,7 +11,7 @@
 use dm_core::{AddOptions, MAIN_QUEUE};
 use dm_desktop_base::i18n::{t, tf, tn, Said};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, KeyDownEvent, Role, WeakEntity, Window,
+    div, prelude::*, px, size, App, Bounds, Context, KeyDownEvent, WeakEntity, Window,
     WindowBounds, WindowOptions,
 };
 
@@ -115,20 +115,13 @@ impl Render for ClipLinks {
                     }),
                 )
             });
-        div()
-            .id("clip-links")
-            .role(Role::Dialog)
-            .aria_label(t("Links on the clipboard"))
+        crate::native::dialog("clip-links", t("Links on the clipboard"), theme, cx)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                match event.keystroke.key.as_str() {
-                    "escape" => this.cancel(window),
-                    "enter" => this.add(false, window, cx),
-                    _ => {}
+                if event.keystroke.key == "enter" {
+                    this.add(false, window, cx);
                 }
             }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     // How many were found, and how many are ticked.

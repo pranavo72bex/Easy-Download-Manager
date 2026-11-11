@@ -14,11 +14,14 @@
 # it stays running, is not parked as hidden, and keeps drawing.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 docker build -q -t dm-linux-check scripts/linux >/dev/null
 docker volume create dm-wayland-shots >/dev/null
 git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
   | docker run --rm -i \
+      -e DM_BINARY="/target/debug/$binary" \
       -v dm-linux-target:/target \
       -v dm-wayland-shots:/shots \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
@@ -28,7 +31,7 @@ git ls-files -z --cached --others --exclude-standard \
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends sway python3-gi gir1.2-gtk-3.0 dbus-x11 dbus-daemon \
           libglib2.0-bin >/dev/null
-        cd desktop && cargo build -q -p dm-desktop && cd ..
+        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
         useradd -m tester && chmod 777 /shots && chmod -R a+rX /work
         su tester -w DM_BINARY -c "dbus-run-session -- sh /work/scripts/linux/wayland_close_session.sh"
       '

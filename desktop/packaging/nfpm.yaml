@@ -18,21 +18,24 @@ description: |
 homepage: https://github.com/pranavo72bex/Easy-Download-Manager
 license: GPL-3.0-or-later
 
-# What the binary opens at run time (winit and glow load them, so rpm's own
-# scan of the binary does not see them): winit's X11 and Wayland libraries,
-# xkbcommon and GL. Named by library rather than by package, since Fedora
-# and openSUSE package them under different names.
+# What the GPUI window links and opens at run time (much of it loaded as it
+# starts, so rpm's own scan of the binary does not see it): X11 through
+# xcb, xkbcommon, FreeType and fontconfig, Vulkan or else GL through EGL,
+# and Wayland. Named by library rather than by package, since Fedora and
+# openSUSE package them under different names.
 depends:
-  - libX11.so.6()(64bit)
-  - libXcursor.so.1()(64bit)
-  - libX11-xcb.so.1()(64bit)
-  - libXi.so.6()(64bit)
+  # The GPUI window (docs/gaps.md G9) links X11 through xcb, the keyboard's
+  # layout and the font rasteriser, and opens Vulkan or else GL through EGL
+  # (Mesa draws without a GPU), and Wayland where the desktop is.
+  - libxcb.so.1()(64bit)
   - libxkbcommon.so.0()(64bit)
   - libxkbcommon-x11.so.0()(64bit)
+  - libfreetype.so.6()(64bit)
+  - libfontconfig.so.1()(64bit)
+  - libvulkan.so.1()(64bit)
+  - libEGL.so.1()(64bit)
   - libwayland-client.so.0()(64bit)
   - libwayland-egl.so.1()(64bit)
-  - libEGL.so.1()(64bit)
-  - libGL.so.1()(64bit)
   - hicolor-icon-theme
   # Open and Open folder go through xdg-open.
   - xdg-utils
@@ -55,7 +58,7 @@ recommends:
   - libjavascriptcoregtk-4.1.so.0()(64bit)
 
 contents:
-  - src: desktop/target/release/dm-desktop
+  - src: desktop/target/release/nfpm/dm
     dst: /usr/bin/dm
     file_info:
       mode: 0755

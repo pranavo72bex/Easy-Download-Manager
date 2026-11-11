@@ -12,8 +12,8 @@ use dm_core::{Entry, Id};
 use dm_desktop_base::i18n::{t, tn};
 use dm_desktop_base::row_edits::{self, MoveRename};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, KeyDownEvent, Role, SharedString,
-    WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, px, size, App, Bounds, Context, Entity, Role, SharedString, WeakEntity,
+    Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -170,18 +170,8 @@ impl Render for UpdateLink {
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
-        div()
-            .id("update-link")
-            .role(Role::Dialog)
-            .aria_label(t("Update download link"))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, _| {
-                if event.keystroke.key == "escape" {
-                    this.cancel(window);
-                }
-            }))
-            .size_full()
-            .bg(theme.window)
-            .child(crate::fit::fitted(
+        crate::native::dialog("update-link", t("Update download link"), theme, cx).child(
+            crate::fit::fitted(
                 native::body(theme)
                     .child(
                         div()
@@ -232,7 +222,8 @@ impl Render for UpdateLink {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ),
+        )
     }
 }
 
@@ -339,18 +330,8 @@ impl Render for MoveToQueue {
                 cx.listener(move |this, _, window, cx| this.pick(shown.clone(), window, cx)),
             )
         });
-        div()
-            .id("move-to-queue")
-            .role(Role::Dialog)
-            .aria_label(t("Move to queue"))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, _| {
-                if event.keystroke.key == "escape" {
-                    this.cancel(window);
-                }
-            }))
-            .size_full()
-            .bg(theme.window)
-            .child(crate::fit::fitted(
+        crate::native::dialog("move-to-queue", t("Move to queue"), theme, cx).child(
+            crate::fit::fitted(
                 native::body(theme)
                     .child(
                         div()
@@ -378,7 +359,8 @@ impl Render for MoveToQueue {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ),
+        )
     }
 }
 
@@ -476,81 +458,64 @@ impl Render for MoveRenameDialog {
         let one = self.ids.len() == 1;
         let labels = [t("New name"), t("Name pattern"), t("Folder")];
         let width = native::label_width(&labels);
-        div()
-            .id("move-rename")
-            .role(Role::Dialog)
-            .aria_label(t("Move/Rename"))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, _| {
-                if event.keystroke.key == "escape" {
-                    this.cancel(window);
-                }
-            }))
-            .size_full()
-            .bg(theme.window)
-            .child(crate::fit::fitted(
-                native::body(theme)
-                    // A new name for one; for several, only where they go.
-                    .when(one, |d| {
-                        d.child(native::row(
-                            Some(labels[0]),
-                            width,
-                            &screen,
-                            native::field(&self.name, "New name", theme),
-                        ))
-                    })
-                    .when(!one, |d| {
-                        let n = self.ids.len();
-                        d.child(screen.label(tn(
-                            "Moves {} finished file.||Moves {} finished files.",
-                            n as u64,
-                            &[&n],
-                        )))
-                        .child(native::row(
-                            Some(labels[1]),
-                            width,
-                            &screen,
-                            native::field(&self.pattern, "Name pattern", theme),
-                        ))
-                    })
-                    .child(native::row(
-                        Some(labels[2]),
+        crate::native::dialog("move-rename", t("Move/Rename"), theme, cx).child(crate::fit::fitted(
+            native::body(theme)
+                // A new name for one; for several, only where they go.
+                .when(one, |d| {
+                    d.child(native::row(
+                        Some(labels[0]),
                         width,
                         &screen,
-                        div()
-                            .flex_1()
-                            .flex()
-                            .items_center()
-                            .gap(px(native::LABEL_GAP))
-                            .child(div().flex_1().child(native::field(
-                                &self.folder,
-                                "Folder",
-                                theme,
-                            )))
-                            .child(
-                                native::button(
-                                    "browse",
-                                    t("Browse…").into(),
-                                    false,
-                                    theme,
-                                    &screen,
-                                )
+                        native::field(&self.name, "New name", theme),
+                    ))
+                })
+                .when(!one, |d| {
+                    let n = self.ids.len();
+                    d.child(screen.label(tn(
+                        "Moves {} finished file.||Moves {} finished files.",
+                        n as u64,
+                        &[&n],
+                    )))
+                    .child(native::row(
+                        Some(labels[1]),
+                        width,
+                        &screen,
+                        native::field(&self.pattern, "Name pattern", theme),
+                    ))
+                })
+                .child(native::row(
+                    Some(labels[2]),
+                    width,
+                    &screen,
+                    div()
+                        .flex_1()
+                        .flex()
+                        .items_center()
+                        .gap(px(native::LABEL_GAP))
+                        .child(
+                            div()
+                                .flex_1()
+                                .child(native::field(&self.folder, "Folder", theme)),
+                        )
+                        .child(
+                            native::button("browse", t("Browse…").into(), false, theme, &screen)
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.browse(window, cx)),
                                 ),
-                            ),
-                    ))
-                    .child(native::buttons(
-                        Vec::new(),
-                        vec![
-                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
-                                .into_any_element(),
-                            native::button("ok", t("OK").into(), true, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
-                                .into_any_element(),
-                        ],
-                    )),
-            ))
+                        ),
+                ))
+                .child(native::buttons(
+                    Vec::new(),
+                    vec![
+                        native::button("cancel", t("Cancel").into(), false, theme, &screen)
+                            .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
+                            .into_any_element(),
+                        native::button("ok", t("OK").into(), true, theme, &screen)
+                            .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
+                            .into_any_element(),
+                    ],
+                )),
+        ))
     }
 }
 

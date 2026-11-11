@@ -27,6 +27,8 @@
 # mount a folder under ~/Downloads.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 # DM_DISTRO runs the same check in Fedora 41's or Arch's own image with the
 # distribution's own Chromium, dm built here in Debian and copied in
 # (scripts/linux/human-distro.sh). Not Ubuntu: its Chromium is a snap, and
@@ -46,7 +48,7 @@ docker build -q -t dm-linux-check scripts/linux >/dev/null
 status=0
 { git ls-files -z --cached --others --exclude-standard; find dist/chrome -type f -print0; } \
   | tar --null -T - -cf - \
-  | docker run --rm -i \
+  | docker run --rm -i -e DM_BINARY="/target/debug/$binary" \
       -v dm-linux-target:/target \
       -v dm-human-shots:/shots \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
@@ -57,8 +59,8 @@ status=0
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends chromium openbox xdotool dbus-x11 \
           at-spi2-core python3-pyatspi libglib2.0-bin imagemagick >/dev/null 2>&1
-        cd desktop && cargo build -q -p dm-desktop && cd ..
-        export DISPLAY=:79 DM_BINARY=/target/debug/dm-desktop DM_SHOTS=/shots
+        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        export DISPLAY=:79 DM_SHOTS=/shots
         Xvfb :79 -screen 0 2400x1200x24 >/dev/null 2>&1 &
         sleep 1
         # openbox takes Alt+click for moving windows; a person Alt-clicking a

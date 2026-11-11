@@ -28,7 +28,7 @@ Use a release build. The baseline was measured against one, and a debug build is
 slower.
 
 ```sh
-cd desktop && cargo build --release -p dm-gpui      # dm-desktop on Linux
+cd desktop && cargo build --release -p dm-gpui      # the window dm ships, on every system
 cd ..
 node bench/bench.mjs                                 # idle fast per_conn flaky outage batch big40 ceiling
 node bench/compare.mjs                               # judges the newest folder in bench/results

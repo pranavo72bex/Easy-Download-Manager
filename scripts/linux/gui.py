@@ -35,7 +35,13 @@ import time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import drawn  # noqa: E402  (scripts/drawn.py: where dm says it drew words)
 
-BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-desktop"))
+BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-gpui"))
+# The name dm's window gives itself on the accessibility bus: the binary's
+# (dm-desktop, or dm-gpui for the GPUI window), or as DM_ATSPI_APPS lists them.
+# Read again by the AT-SPI scripts below, which run as processes of their own.
+os.environ.setdefault("DM_ATSPI_APPS", f"{BINARY.name},dm")
+# The GPUI window (dm-gpui), where its design differs from the egui window's.
+GPUI = BINARY.name.startswith("dm-gpui")
 RESULTS = []
 
 
@@ -133,12 +139,12 @@ def screen_reader_on():
 # done: a client that stays on the bus without answering it holds up GTK's
 # accessibility bridge, and with it the tray's menu.
 SPOKEN = r"""
-import json, pyatspi
+import json, os, pyatspi
 desktop = pyatspi.Registry.getDesktop(0)
 found = None
 for i in range(desktop.childCount):
     app = desktop[i]
-    if not app or app.name != "dm-desktop":
+    if not app or app.name not in os.environ["DM_ATSPI_APPS"].split(","):
         continue
     frames, buttons = [], []
     def walk(node, depth=0):
@@ -159,13 +165,13 @@ print(json.dumps(found))
 
 
 WHERE = r"""
-import json, sys, pyatspi
+import json, os, sys, pyatspi
 role, name, contains = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
 desktop = pyatspi.Registry.getDesktop(0)
 found, seen = [], set()
 for i in range(desktop.childCount):
     app = desktop[i]
-    if not app or app.name != "dm-desktop":
+    if not app or app.name not in os.environ["DM_ATSPI_APPS"].split(","):
         continue
     def walk(node, depth=0):
         if node is None or depth > 60:
@@ -506,9 +512,17 @@ def field_at(name):
 
 def click_field(name):
     """Clicks into the field labelled `name` and selects what it holds."""
-    # In a dialog's own window (see `where`): aimed at from its label, as dm drew it.
+    # In a dialog's own window (see `where`): aimed at from its label, as dm drew it. The
+    # GPUI window names each field for a screen reader, where it stands, so there the field
+    # is reached by its name as Orca reaches it: an empty field draws only its hint, which
+    # dm does not say it drew, and an aim beside the label missed it.
     def found():
         texts, inner = drawn.dialog(ORACLE)
+        if inner and GPUI:
+            for role in FIELD_ROLES:
+                at = atspi_where(role, name)
+                if at and drawn.within(at, inner):
+                    return at
         return drawn.field_point(texts, inner, name) if inner else field_at(name)
     at = wait_for(found, 10) or scrolled_to(name, field=True)
     if not at:
@@ -1004,16 +1018,27 @@ def human_session(home, env, app):
 
         print("\nfinding, the places on the rail, clearing")
         key("ctrl+f")
-        check("Ctrl+F opens Find", click_field("Find what"))
-        type_text("by-hand")
-        click("push button", "Find next")
-        time.sleep(0.5)
+        if GPUI:
+            # The GPUI window finds in its top bar's search box, as the system's
+            # programs do: Ctrl+F puts the keyboard there and the list narrows
+            # as one types; Escape empties it (B48).
+            type_text("by-hand")
+            # A row is said by its file's name, then its status.
+            check("Ctrl+F opens Find", wait_for(lambda: where("*", "by-hand.bin", GPUI) and not where("*", "one.zip", GPUI), 5))
+        else:
+            check("Ctrl+F opens Find", click_field("Find what"))
+            type_text("by-hand")
+            click("push button", "Find next")
+            time.sleep(0.5)
         key("Escape")
         # The rail's places carry their counts beside them: "Finished 3".
+        # The GPUI window says a row by its file's name, then its status, and its places
+        # without their counts ("All"); the egui window's places carry them ("All (7)").
         check("Finished, clicked on the rail, shows the finished rows only",
-              click("*", "Finished", contains=True) and wait_for(lambda: where("*", "by-hand.bin"), 5)
-              and not where("*", "one.zip"))
-        check("All shows them all again", click("*", "All (", contains=True) and wait_for(lambda: where("*", "by-hand.bin"), 5))
+              click("*", "Finished", contains=True) and wait_for(lambda: where("*", "by-hand.bin", GPUI), 5)
+              and not where("*", "one.zip", GPUI))
+        check("All shows them all again", click("*", "All" if GPUI else "All (", contains=not GPUI)
+              and wait_for(lambda: where("*", "by-hand.bin", GPUI), 5))
         finished_before = len([r for r in queue_rows(home) if (r.get("state") or {}).get("kind") == "completed"])
         check("Delete Completed, clicked, removes the finished rows",
               finished_before > 0 and click("push button", "Delete Completed")

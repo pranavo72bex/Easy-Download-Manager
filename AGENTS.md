@@ -105,7 +105,7 @@ cd desktop && cargo clippy --workspace --all-targets -- -D warnings
 cd desktop && cargo fmt --check
 python3 scripts/app-check.py               # drives the built binary (DM_BINARY= for a packaged one)
 cd desktop && cargo test -p dm-desktop --test window   # the window, through its accessibility tree
-DM_SHOTS=docs cargo test -p dm-desktop --test window shots   # the README's pictures, rendered
+python3 scripts/readme-shots.py           # the README's pictures, of the GPUI window (macOS)
 ./target/debug/dm-desktop --control 0      # drive the running window: see control.rs
 ./target/debug/dm-desktop --headless --control 0   # no window, for scripts and agents
 ./target/debug/dm-gpui --control 0         # the GPUI window, the one shipped on macOS and Windows (gaps.md G9); --headless too

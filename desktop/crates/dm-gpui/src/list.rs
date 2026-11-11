@@ -91,6 +91,10 @@ pub(crate) const ROW_HEIGHT: f32 = 24.0;
 /// How often a window with nothing moving wakes of its own accord.
 const IDLE: Duration = Duration::from_secs(30);
 
+/// How long a login launch waits for something to show its tray before its
+/// window opens instead.
+const HIDDEN_WAIT: Duration = Duration::from_secs(10);
+
 /// The main window's view: the application, and the rows it last read.
 pub struct Downloads {
     pub(crate) backend: Backend,
@@ -145,6 +149,10 @@ pub struct Downloads {
     )>,
     /// A sheet is open on the main window.
     sheet_open: bool,
+    /// The open question's window: on Linux it holds the main window as
+    /// Options does (`holder`), since GPUI's X11 and Wayland windows hold
+    /// their parent only for a `Dialog`, which a question is not there.
+    question_window: Option<gpui::AnyWindowHandle>,
     /// "Exit dm?" is being asked: Exit again does not ask twice.
     exit_asked: bool,
     /// What the reads since the last tick detected (`tick.rs`).
@@ -275,6 +283,7 @@ impl Downloads {
             main: window.window_handle(),
             sheets: Default::default(),
             sheet_open: false,
+            question_window: None,
             exit_asked: false,
             detected: Vec::new(),
             problems: Vec::new(),
@@ -384,6 +393,20 @@ impl Downloads {
         // frame is drawn (GPUI has mapped it on its own connection by then).
         if hidden && cfg!(all(unix, not(target_os = "macos"))) {
             window.on_next_frame(|window, _| crate::syswindow::hide(window));
+        }
+        // A login launch waits in the tray; where nothing is showing a tray
+        // a while later (a panel that never came), its window opens rather
+        // than dm running unseen, as the egui window's does.
+        if hidden {
+            cx.spawn_in(window, async move |this, cx| {
+                cx.background_executor().timer(HIDDEN_WAIT).await;
+                let _ = this.update(cx, |this, cx| {
+                    if this.tray.is_none() || !dm_desktop_base::tray::host_showing() {
+                        this.show_main(cx);
+                    }
+                });
+            })
+            .detach();
         }
         // Its frame as it moves and is resized, kept as dm quits.
         cx.observe_window_bounds(window, |this, window, cx| {
@@ -526,8 +549,17 @@ impl Downloads {
         if !self.enabled(command) {
             return;
         }
-        // Held by Options (B42): Quit and the dialogs' own still go.
-        if command != Command::Quit && command != Command::Options && self.bring_holder(cx) {
+        // Held by Options (B42): Quit and the dialogs' own still go. An open
+        // question (Linux, `holder`) holds the window's own clicks and keys
+        // only, not what the tray, `--when-done` or the control port asks.
+        let options_open = self
+            .options_window
+            .is_some_and(|w| cx.windows().contains(&w));
+        if command != Command::Quit
+            && command != Command::Options
+            && options_open
+            && self.bring_holder(cx)
+        {
             return;
         }
         if command == Command::Quit {
@@ -1360,7 +1392,12 @@ impl Downloads {
         self.complete.remove(&id);
         if self.complete.is_empty() {
             if let Some(handle) = self.complete_window.take() {
-                let _ = handle.update(cx, |_, window, _| window.remove_window());
+                // After the update that asked: its own button's click (Open,
+                // Open folder) is still being handled inside that window,
+                // which GPUI will not update again, and it stayed, empty.
+                cx.defer(move |cx| {
+                    let _ = handle.update(cx, |_, window, _| window.remove_window());
+                });
             }
         }
         cx.notify();
@@ -1713,6 +1750,9 @@ impl Downloads {
         dm_desktop_base::control::forget_port(&dm_shell::settings::home());
         // Where and as large as the window was, for the next start.
         crate::frame::keep(&dm_shell::settings::home(), self.frame, self.display);
+        // The questions it closes are not answered, and none waiting is asked.
+        crate::question::quitting();
+        self.sheets.clear();
         for (handle, _, dialog) in crate::screen::Screens::all(cx) {
             if dialog {
                 let _ = handle.update(cx, |_, window, _| window.remove_window());
@@ -1743,22 +1783,37 @@ impl Downloads {
             answer(button, ticked, cx);
             let _ = view.update(cx, |view, cx| {
                 view.sheet_open = false;
+                view.question_window = None;
                 view.show_sheets(cx);
+                // The hold over the window goes with the question.
+                cx.notify();
             });
         });
         self.sheets.push_back((asked, reword, live, answer));
         self.show_sheets(cx);
     }
 
-    /// Opens the next waiting question, when none is open and the main
-    /// window is in front.
+    /// Opens the next waiting question, when none is open: on macOS and
+    /// Windows once the main window is in front (the system gives it the keys
+    /// again as a dialog closes, and a question there is a `Dialog`, owned by
+    /// the window in front, which must be the main one); on Linux at once,
+    /// as the egui window asks there. Waiting for the main window there left
+    /// "Already in the list" unseen until it was clicked (B17): the window
+    /// manager hands the keys to whichever window it likes as a dialog
+    /// closes (openbox: a Download complete window left open), or to none.
     fn show_sheets(&mut self, cx: &mut Context<Self>) {
-        while !self.sheet_open && cx.active_window() == Some(self.main) {
+        let main = self.main;
+        let in_front = |cx: &Context<Self>| {
+            !cfg!(any(target_os = "macos", windows)) || cx.active_window() == Some(main)
+        };
+        while !self.sheet_open && in_front(cx) {
             let Some((asked, reword, live, answer)) = self.sheets.pop_front() else {
                 return;
             };
             let live = live.map(|live| (live, cx.entity()));
-            self.sheet_open = crate::question::ask(asked, reword, live, answer, cx);
+            let opened = crate::question::ask(asked, reword, live, answer, cx);
+            self.sheet_open = opened.is_some();
+            self.question_window = opened;
         }
     }
 
@@ -1835,11 +1890,19 @@ impl Downloads {
     }
 
     /// The dialog that keeps the clicks to itself and so holds this window
-    /// (B42): Options, while open. Questions are sheets, which the system
-    /// holds the window for.
+    /// (B42): Options, while open; on Linux an open question too, which GPUI
+    /// holds a parent for only as a `Dialog`, which a question is not there
+    /// (`question::KIND`). Elsewhere a question is a sheet or a `Dialog`, and
+    /// the system holds the window for it.
     pub(crate) fn holder(&self, cx: &gpui::App) -> Option<gpui::AnyWindowHandle> {
         let open = cx.windows();
-        self.options_window.filter(|w| open.contains(w))
+        let question = self
+            .question_window
+            .filter(|_| cfg!(not(any(target_os = "macos", windows))));
+        [self.options_window, question]
+            .into_iter()
+            .flatten()
+            .find(|w| open.contains(w))
     }
 
     /// Where a dialog holds the window, it comes forward; true if one does.

@@ -17,8 +17,8 @@ use dm_desktop_base::i18n::t;
 use dm_desktop_base::options::{self, Tab, Typed};
 use dm_shell::settings::Settings;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, KeyDownEvent, Role, ScrollHandle,
-    SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, px, size, App, Bounds, Context, Entity, Role, ScrollHandle, SharedString,
+    WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -459,19 +459,9 @@ impl Render for Options {
                 .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
         });
         let restore = !options::tab_settings(self.tab).is_empty();
-        div()
-            .id("options")
-            .role(Role::Dialog)
-            .aria_label(t("Options"))
+        crate::native::dialog("options", t("Options"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, _| {
-                if event.keystroke.key == "escape" {
-                    this.cancel(window);
-                }
-            }))
-            .size_full()
-            .bg(theme.window)
             .text_size(px(native::TEXT))
             .text_color(theme.text)
             .flex()

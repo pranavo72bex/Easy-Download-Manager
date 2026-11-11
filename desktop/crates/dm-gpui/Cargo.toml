@@ -37,6 +37,38 @@ icons = [
   "../dm-desktop/icons/icon.ico",
 ]
 
+# The .deb, as the egui window's (`../dm-desktop/Cargo.toml` says why its
+# own launcher entry): the package is still `dm`, so it upgrades the egui
+# window's in place.
+[package.metadata.packager.deb]
+desktopTemplate = "../../packaging/deb.desktop"
+# `/usr/bin/dm-desktop` as before, running this window: the command the README
+# gives, and what a login item or a browser's host written by an earlier dm
+# names, until dm writes them again for this binary as it starts.
+# Its icon and a hidden launcher under the old name too: a login entry
+# and a magnet or .torrent default saved by an earlier dm name them, and
+# lost them with the upgrade (the new launcher is dm-gpui.desktop).
+files = { "../../packaging/dm-desktop" = "usr/bin/dm-desktop", "../dm-desktop/icons/128x128.png" = "usr/share/icons/hicolor/128x128/apps/dm-desktop.png", "../../packaging/dm-desktop.desktop" = "usr/share/applications/dm-desktop.desktop" }
+depends = [
+  # Linked: X11 through xcb, the keyboard's layout, the font rasteriser.
+  "libxcb1",
+  "libxkbcommon0",
+  "libxkbcommon-x11-0",
+  "libfreetype6",
+  "libfontconfig1",
+  # Opened as it starts: Vulkan where the computer has a driver for it, else
+  # GL through EGL (Mesa draws without a GPU); Wayland where the desktop is.
+  "libvulkan1",
+  "libegl1",
+  "libwayland-client0",
+  "libwayland-egl1",
+  # Open and Open folder go through xdg-open (dm-shell/src/shell.rs).
+  "xdg-utils",
+  # secret-tool: the saved logins, cookies and passwords go to the desktop's
+  # Secret Service through it (dm-core/src/secretstore.rs).
+  "libsecret-tools",
+]
+
 [package.metadata.packager.macos]
 minimumSystemVersion = "11.0"
 # Ad-hoc, as the egui window's bundle is (its Cargo.toml says why).

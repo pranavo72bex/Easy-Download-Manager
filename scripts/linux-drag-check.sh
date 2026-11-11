@@ -15,11 +15,14 @@
 # linux-check.sh gives.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 docker volume rm dm-drag-shots >/dev/null 2>&1 || true
 docker build -t dm-linux-check scripts/linux
 git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
   | docker run --rm -i \
+      -e DM_BINARY="/target/debug/$binary" \
       -v dm-linux-target:/target \
       -v dm-firefox-cache:/root/.cache/dm-firefox \
       -v dm-drag-shots:/shots \
@@ -30,8 +33,8 @@ git ls-files -z --cached --others --exclude-standard \
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends openbox xdotool wmctrl dbus-x11 xz-utils bzip2 \
           libasound2 libdbus-glib-1-2 libx11-xcb1 libpci3 libgtk-3-0 imagemagick >/dev/null
-        cd desktop && cargo build -q -p dm-desktop && cd ..
-        export DISPLAY=:79 DM_BINARY=/target/debug/dm-desktop
+        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        export DISPLAY=:79
         Xvfb :79 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1
         openbox >/dev/null 2>&1 &

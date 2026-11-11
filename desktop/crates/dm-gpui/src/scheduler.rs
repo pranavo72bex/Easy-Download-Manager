@@ -436,20 +436,13 @@ impl Render for Scheduler {
                     )),
             ));
 
-        div()
-            .id("scheduler")
-            .role(Role::Dialog)
-            .aria_label(t("Scheduler"))
+        crate::native::dialog("scheduler", t("Scheduler"), theme, cx)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                match event.keystroke.key.as_str() {
-                    "escape" => this.cancel(window),
-                    "enter" => this.ok(window, cx),
-                    _ => {}
+                if event.keystroke.key == "enter" {
+                    this.ok(window, cx);
                 }
             }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(

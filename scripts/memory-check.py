@@ -29,7 +29,7 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or (
     "D:/dm-target/release/dm-gpui.exe" if sys.platform == "win32"
-    else ROOT / "desktop/target/release/dm-desktop"))
+    else ROOT / "desktop/target/release/dm-gpui"))
 # A third more than measured at rest: on macOS on 2026-11-06 (112 MB resident, 75 MB
 # footprint, 37 MB of which the window's drawing surfaces), on Windows 11 on
 # 2026-11-07 (working set 64 to 76 MB, private bytes 30.5 to 30.7 MB, 25 or 26

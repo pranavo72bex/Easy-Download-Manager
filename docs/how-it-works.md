@@ -39,12 +39,12 @@ every download stays with the browser.
   <img alt="The dm window: a menu bar with a search box, a toolbar of Add URL, Resume, Stop and the rest, a category tree, and the downloads as a table with Name, Size, Status, Time left, Speed and Date" src="screenshot.png">
 </picture>
 
-<sub>The window, light or dark as the computer is (Options › General › Look
-also offers the classic look): one file finished and sorted under Archives,
-one in flight, one the server refused, one waiting in the Main queue. Rendered offscreen from the real window against a queue the
-engine really was serving — the sizes and states are its, not a mock-up's.
-`DM_SHOTS=docs cargo test -p dm-desktop --test window shots` (from
-`desktop/`) takes them again.</sub>
+<sub>The GPUI window on macOS, light or dark as Options › General ›
+Theme says: one file finished, one in flight, one waiting for the Main
+queue, one whose link no longer works. Pictured by the system from the real
+window, against a queue the engine really was serving from a server on
+127.0.0.1 — the sizes, speeds and states are its, not a mock-up's.
+`python3 scripts/readme-shots.py` takes them again.</sub>
 
 ### How the window is built and held
 
@@ -182,7 +182,7 @@ cd desktop
 cargo run -p dm-desktop       # the window
 cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
                               # swarm, and the window driven through its accessibility tree
-cd crates/dm-desktop && cargo packager --release   # a .dmg, .deb, AppImage or installer for this machine
+cd crates/dm-gpui && cargo packager --release -p dm-gpui   # a .dmg, .deb or AppImage (Windows: dm-desktop)
 ```
 
 The installers are not signed with a paid certificate, so the first launch

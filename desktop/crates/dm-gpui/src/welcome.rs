@@ -13,8 +13,8 @@
 use dm_desktop_base::i18n::{t, tf};
 use dm_shell::register::{Installed, Store};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, KeyDownEvent, Role, SharedString,
-    WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, px, size, App, Bounds, Context, Entity, SharedString, WeakEntity, Window,
+    WindowBounds, WindowOptions,
 };
 use gpui_component::input::InputState;
 
@@ -116,18 +116,8 @@ impl Render for Welcome {
             native::button(("browser", n), words, false, theme, &screen)
                 .on_click(cx.listener(move |this, _, _, cx| this.open_page(page, cx)))
         });
-        div()
-            .id("welcome")
-            .role(Role::Dialog)
-            .aria_label(t("Add dm to your browser"))
+        crate::native::dialog("welcome", t("Add dm to your browser"), theme, cx)
             .track_focus(&self.focus)
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                if event.keystroke.key == "escape" {
-                    this.finish(window, cx);
-                }
-            }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(screen.label(t(

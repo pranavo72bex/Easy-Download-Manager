@@ -11,7 +11,7 @@ use dm_core::Id;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Role, WeakEntity, Window, WindowBounds,
+    div, prelude::*, px, size, App, Bounds, Context, WeakEntity, Window, WindowBounds,
     WindowOptions,
 };
 
@@ -26,6 +26,9 @@ pub struct Complete {
     /// "Don't show this window again" is ticked.
     never: bool,
     screen: Screen,
+    /// The window's keyboard: nothing in it takes typing, and Escape and
+    /// Return reach it only through a focus of its own.
+    focus: gpui::FocusHandle,
 }
 
 impl Complete {
@@ -84,12 +87,17 @@ impl Render for Complete {
         rows.sort_by_key(|r| std::cmp::Reverse(r.finished_at));
         let several = rows.len() > 1;
         let never = self.never;
-        div()
-            .id("complete")
-            .role(Role::Dialog)
-            .aria_label(t("Download complete"))
-            .size_full()
-            .bg(theme.window)
+        crate::native::dialog("complete", t("Download complete"), theme, cx)
+            .track_focus(&self.focus)
+            // Return presses Close, the default, as Escape does: the window
+            // opens of its own accord, over whatever has the keys, and a
+            // Return meant for another dialog must not run the file that just
+            // finished. Running it takes a click on Open.
+            .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
+                if event.keystroke.key == "enter" {
+                    this.close(window, cx);
+                }
+            }))
             .child(crate::fit::fitted(
                 native::body(theme)
                     .when(several, |d| {
@@ -144,7 +152,7 @@ impl Render for Complete {
                                                 native::button(
                                                     ("open", i),
                                                     t("Open").into(),
-                                                    !several,
+                                                    false,
                                                     theme,
                                                     &screen,
                                                 )
@@ -193,7 +201,7 @@ impl Render for Complete {
                         }))
                         .into_any_element()],
                         vec![
-                            native::button("close", t("Close").into(), several, theme, &screen)
+                            native::button("close", t("Close").into(), true, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, cx| this.close(window, cx)))
                                 .into_any_element(),
                         ],
@@ -223,10 +231,13 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) -> Option<gpui::AnyWindow
             let complete = cx.new(|cx| {
                 // Drawn again as more finish.
                 cx.observe(&downloads, |_, _, cx| cx.notify()).detach();
+                let focus = cx.focus_handle();
+                window.focus(&focus, cx);
                 Complete {
                     view,
                     never: false,
                     screen,
+                    focus,
                 }
             });
             crate::native::close_is_cancel(&complete, window, cx);

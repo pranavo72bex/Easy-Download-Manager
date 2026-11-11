@@ -193,15 +193,40 @@ impl Render for Question {
     }
 }
 
+/// The kind of window a question is. On Linux not GPUI's `Dialog`: there it
+/// is made the child of whichever window has the keys and closed with it, so
+/// "Already in the list", asked as Add URL closed, closed at once, unanswered,
+/// and every question after it waited for its answer (B17, B39, B40).
+/// `Floating` keeps it over that window without closing with it.
+pub const KIND: WindowKind = if cfg!(any(target_os = "macos", windows)) {
+    WindowKind::Dialog
+} else {
+    WindowKind::Floating
+};
+
+thread_local! {
+    /// dm is quitting: the questions it closes as it goes are not answered.
+    static QUITTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// dm is quitting (`Downloads::quit`): a question it closes on the way out
+/// is left unanswered, as one closed by the system before. Answered as
+/// Escape would answer it, "Keep running in the tray?" saved Keep running
+/// for a person who had chosen Exit.
+pub fn quitting() {
+    QUITTING.with(|q| q.set(true));
+}
+
 /// Asks `asked` as a sheet on the dm window; `answer` is told how it was
-/// answered. No answer if the sheet could not open.
+/// answered. The question's window, or `None` (and no answer) if it could
+/// not open.
 pub fn ask(
     asked: Asked,
     reword: Option<Reword>,
     live: Option<(Live, gpui::Entity<crate::list::Downloads>)>,
     answer: Answer,
     cx: &mut App,
-) -> bool {
+) -> Option<gpui::AnyWindowHandle> {
     let height = 150.0
         + 20.0 * asked.lines.len() as f32
         + if asked.named.is_some() { 20.0 } else { 0.0 }
@@ -222,7 +247,7 @@ pub fn ask(
         cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
-            kind: WindowKind::Dialog,
+            kind: KIND,
             // Named by its title (`screen::open_window`).
             titlebar: Some(gpui::TitlebarOptions {
                 title: Some(title),
@@ -232,6 +257,20 @@ pub fn ask(
         },
         move |window, cx| {
             cx.new(|cx| {
+                // Gone unanswered, however its window went (closed with
+                // another, or by the system): answered as Escape answers
+                // it, so the questions after it are asked; not while dm
+                // quits, which closes it and asks nothing more.
+                cx.on_release(|this: &mut Question, cx| {
+                    if QUITTING.with(std::cell::Cell::get) {
+                        return;
+                    }
+                    if let Some(answer) = this.answer.take() {
+                        let (escape, ticked) = (this.asked.escape, this.ticked);
+                        cx.defer(move |cx| answer(escape, ticked, cx));
+                    }
+                })
+                .detach();
                 let focus = cx.focus_handle();
                 window.focus(&focus, cx);
                 let screen = crate::screen::Screen::default();
@@ -269,7 +308,8 @@ pub fn ask(
             })
         },
     )
-    .is_ok()
+    .ok()
+    .map(Into::into)
 }
 
 #[cfg(test)]

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=dm
+GenericName=Download Manager
+Comment=Download files over many connections, with resume and a queue
+Exec=dm-gpui %u
+Icon=dm-gpui
+Terminal=false
+NoDisplay=true
+StartupWMClass=dm
+MimeType=x-scheme-handler/magnet;application/x-bittorrent;

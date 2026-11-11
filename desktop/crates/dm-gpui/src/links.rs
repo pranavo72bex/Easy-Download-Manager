@@ -14,8 +14,8 @@ use dm_desktop_base::i18n::{t, tf};
 use dm_desktop_base::links_import::{added_words, LinksImport, SaveTo};
 use gpui::{
     div, prelude::*, px, size, uniform_list, App, Bounds, Context, Entity, FocusHandle,
-    KeyDownEvent, PathPromptOptions, Role, SharedString, UniformListScrollHandle, WeakEntity,
-    Window, WindowBounds, WindowOptions,
+    KeyDownEvent, PathPromptOptions, SharedString, UniformListScrollHandle, WeakEntity, Window,
+    WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -311,21 +311,14 @@ impl Render for Links {
             }
             .child(screen.label(t(words)))
         };
-        div()
-            .id("links")
-            .role(Role::Dialog)
-            .aria_label(t("Download links"))
+        crate::native::dialog("links", t("Download links"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                match event.keystroke.key.as_str() {
-                    "escape" => this.cancel(window, cx),
-                    "enter" => this.add(false, window, cx),
-                    _ => {}
+                if event.keystroke.key == "enter" {
+                    this.add(false, window, cx);
                 }
             }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(screen.label(tf(

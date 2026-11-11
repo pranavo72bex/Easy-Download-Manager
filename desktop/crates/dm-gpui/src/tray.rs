@@ -142,6 +142,10 @@ impl Tray {
         let icon = icon.with_icon_templated(template_icon()?);
         #[cfg(not(target_os = "macos"))]
         let icon = icon.with_icon(app_icon()?);
+        // A name for panels that list items by it: its D-Bus title was
+        // empty (Linux); on a Mac a title is words beside the icon.
+        #[cfg(target_os = "linux")]
+        let icon = icon.with_title("dm");
         let icon = icon
             .with_tooltip(tooltip)
             .with_menu(Box::new(menu))
@@ -249,7 +253,12 @@ impl Downloads {
     pub(crate) fn start_tray(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (asked, heard) = async_channel::unbounded::<Asked>();
         match Tray::new(asked) {
-            Ok(tray) => self.tray = Some(tray),
+            Ok(tray) => {
+                self.tray = Some(tray);
+                // Registered again with a panel that starts after dm, or
+                // restarts (Linux), as the egui window's tray is.
+                dm_desktop_base::tray::keep_registered();
+            }
             Err(e) => {
                 self.problems.push(dm_desktop_base::tray::unavailable(&e));
                 return;
@@ -301,9 +310,15 @@ impl Downloads {
     /// Options › General says ("When I close the window"). True where the
     /// window may close, as it does where there is no tray to keep dm in.
     pub(crate) fn close_asked(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        if self.tray.is_none() {
-            // Nowhere to keep dm: closing ends it, asked first while
-            // downloads run, as Exit is.
+        if self.tray.is_none()
+            || crate::syswindow::nowhere_to_hide(window)
+            || !dm_desktop_base::tray::host_showing()
+        {
+            // Nowhere to keep dm, nowhere to put its window (a tiling
+            // Wayland desktop, which ignores minimize), or nothing showing
+            // the tray it would be kept in (a Linux desktop with no panel for
+            // it): closing ends it, asked first while downloads run, as Exit
+            // is, and as the egui window does.
             self.ask_quit(cx);
             return false;
         }

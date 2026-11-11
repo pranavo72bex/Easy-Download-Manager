@@ -115,10 +115,21 @@ pub fn field_if(
         .aria_label(dm_desktop_base::i18n::t(name))
         .disabled(!on);
     let held = input.clone();
+    let pressed = input.clone();
     // `Styled`'s, not the multi-line height `Input::h` sets.
     div()
         .relative()
         .w_full()
+        // A press anywhere in the box takes the keyboard, as the system's
+        // fields do: the field itself answers only inside its padding, and
+        // a click near its left edge typed nowhere (an Options number, on
+        // Linux with real input, 2026-11-11).
+        .when(on, |d| {
+            d.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                let focus = gpui::Focusable::focus_handle(pressed.read(cx), cx);
+                window.focus(&focus, cx);
+            })
+        })
         .child(
             gpui::Styled::h(field, px(CONTROL))
                 .text_size(px(TEXT))
@@ -345,6 +356,32 @@ pub fn enabled<E: IntoElement>(on: bool, element: E) -> Div {
 pub trait CloseButton: 'static + Sized {
     /// What the close button does: the dialog's Cancel, which closes it.
     fn close_button(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>);
+}
+
+/// A dialog window's root, as every dm dialog's is: a dialog to a screen
+/// reader, under its name, in the window's colour, filling its window; and
+/// Escape doing what its close button does (its Cancel, B42). A dialog with
+/// a default button adds Return's own; one with nothing to type in gives
+/// its root a focus of its own (`track_focus`), focused as it opens, as
+/// GPUI hands a key to the window's root view alone while nothing in it is
+/// focused, and Escape missed a Download complete window on Linux.
+pub fn dialog<V: CloseButton>(
+    id: impl Into<gpui::ElementId>,
+    label: impl Into<SharedString>,
+    theme: Theme,
+    cx: &gpui::Context<V>,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .role(Role::Dialog)
+        .aria_label(label.into())
+        .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
+            if event.keystroke.key == "escape" {
+                this.close_button(window, cx);
+            }
+        }))
+        .size_full()
+        .bg(theme.window)
 }
 
 /// What closes a window as its close button does: true where the window

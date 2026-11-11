@@ -20,8 +20,8 @@ use dm_desktop_base::row_edits::{self, Edited};
 use dm_desktop_base::zip_list::{self, Listing, ZipSlot};
 use dm_shell::app::files::Sums;
 use gpui::{
-    div, prelude::*, px, size, AnyElement, App, Bounds, Context, Entity, KeyDownEvent, Role,
-    SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, px, size, AnyElement, App, Bounds, Context, Entity, SharedString, WeakEntity,
+    Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -433,7 +433,9 @@ impl Render for Properties {
                     .min_w_0()
                     .font_family(crate::native::mono(cx))
                     .text_size(px(native::SMALL_TEXT))
-                    .child(gpui_base::SelectableText::new("sha-256", hex))
+                    // Recorded as drawn, as a label is: read and found by
+                    // its words like the rest of the window's.
+                    .child(screen.mark(hex.clone(), gpui_base::SelectableText::new("sha-256", hex)))
                     .into_any_element(),
                 Some(Err(why)) => native::note(why, theme.warning, &screen).into_any_element(),
             };
@@ -545,18 +547,8 @@ impl Render for Properties {
             });
         let path = row.path.clone();
         let row_for_details = row.clone();
-        div()
-            .id("properties")
-            .role(Role::Dialog)
-            .aria_label(t("File properties"))
+        crate::native::dialog("properties", t("File properties"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, _| {
-                if event.keystroke.key == "escape" {
-                    this.cancel(window);
-                }
-            }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(line(

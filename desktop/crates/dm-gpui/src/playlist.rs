@@ -13,7 +13,7 @@ use dm_core::youtube::Playlist;
 use dm_desktop_base::file_info;
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, px, size, uniform_list, App, Bounds, Context, FocusHandle, KeyDownEvent, Role,
+    div, prelude::*, px, size, uniform_list, App, Bounds, Context, FocusHandle, KeyDownEvent,
     SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 
@@ -254,21 +254,14 @@ impl Render for PlaylistWindow {
             native::button(id, t(words).into(), default, theme, &screen)
                 .when(!ready && id != "cancel", |b| b.opacity(0.5))
         };
-        div()
-            .id("playlist")
-            .role(Role::Dialog)
-            .aria_label(t("Playlist"))
+        crate::native::dialog("playlist", t("Playlist"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                match event.keystroke.key.as_str() {
-                    "escape" => this.cancel(window),
-                    "enter" => this.add(false, window, cx),
-                    _ => {}
+                if event.keystroke.key == "enter" {
+                    this.add(false, window, cx);
                 }
             }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(

@@ -39,16 +39,9 @@ SHELL := /bin/sh
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 UNAME := $(shell uname -s)
-# The window dm ships: GPUI on macOS (docs/gaps.md G9, macOS first at the
-# maintainer's word of 2026-11-10) and on Windows (Git Bash or MSYS2's
-# make, 2026-11-11), egui on Linux until it holds the contract in GPUI too.
-ifeq ($(UNAME),Darwin)
+# The window dm ships, on every system: GPUI (docs/gaps.md G9). The egui
+# window is built only by the targets that compare the two (app-egui).
 WINDOW := dm-gpui
-else ifneq ($(findstring MINGW,$(UNAME))$(findstring MSYS,$(UNAME)),)
-WINDOW := dm-gpui
-else
-WINDOW := dm-desktop
-endif
 VERSION := $(shell sed -n 's/.*"version": "\([^"]*\)".*/\1/p' extension/manifest.json | head -1)
 
 # Where the client goes. Override for a system-wide install:
@@ -64,7 +57,7 @@ BINARY := desktop/target/release/$(WINDOW)
 # The building computer's paths taken out of release builds (scripts/release-flags.sh).
 RELEASE_FLAGS := $(shell sh scripts/release-flags.sh)
 # The version the client says it is, for the installers' names.
-APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
+APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/$(WINDOW)/Cargo.toml | head -1)
 # Where `make build` puts what it made, one folder a platform.
 BUILD := build
 # Arguments for the client: make run ARGS="--hidden"
@@ -155,12 +148,14 @@ doctor:
 	  fi; \
 	done; \
 	if [ "$(UNAME)" = "Linux" ]; then \
-	  if pkg-config --exists gtk+-3.0 2>/dev/null; then \
-	    printf '  %-8s %s\n' gtk3 "$$(pkg-config --modversion gtk+-3.0)"; \
-	  else \
-	    printf '  %-8s $(BOLD)missing$(OFF) — the tray will not link without it\n' gtk3; \
-	    missing=1; \
-	  fi; \
+	  for lib in xkbcommon-x11 fontconfig freetype2 xcb wayland-client vulkan; do \
+	    if pkg-config --exists $$lib 2>/dev/null; then \
+	      printf '  %-8s %s\n' $$lib "$$(pkg-config --modversion $$lib)"; \
+	    else \
+	      printf '  %-8s $(BOLD)missing$(OFF) — the window (GPUI) builds against it\n' $$lib; \
+	      missing=1; \
+	    fi; \
+	  done; \
 	fi; \
 	echo; \
 	echo "$(BOLD)what is installed$(OFF)"; \
@@ -183,8 +178,8 @@ doctor:
 	  echo; \
 	  echo "Install what is missing above, then run make install again."; \
 	  if [ "$(UNAME)" = "Linux" ]; then \
-	    echo "  Arch:   sudo pacman -S rustup gtk3"; \
-	    echo "  Debian: sudo apt install libgtk-3-dev"; \
+	    echo "  Arch:   sudo pacman -S rustup fontconfig freetype2 libxkbcommon-x11 libxcb wayland vulkan-icd-loader"; \
+	    echo "  Debian: sudo apt install libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev"; \
 	    echo "          and rustup from https://rustup.rs"; \
 	  else \
 	    echo "  rustup: https://rustup.rs"; \
@@ -369,12 +364,12 @@ ifeq ($(UNAME),Linux)
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF): .deb, AppImage and .rpm"
-	@cd desktop/crates/dm-desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p dm-desktop --formats deb,appimage
+	@cd desktop/crates/$(WINDOW) && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW) --formats deb,appimage
 	@sh scripts/linux/nfpm.sh $(BINARY) $(APP_VERSION) desktop/target/release/bundle
 	@for f in desktop/target/release/bundle/*.deb desktop/target/release/bundle/*.AppImage \
 	          desktop/target/release/bundle/*.rpm; do \
 	  [ -e "$$f" ] || continue; n=$$(basename "$$f"); \
-	  case "$$n" in dm-desktop_*) n="dm_$${n#dm-desktop_}" ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
+	  case "$$n" in $(WINDOW)_*) n="dm_$${n#$(WINDOW)_}" ;; dm-desktop_*) continue ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
 else
 	@test "$(HAVE_DOCKER)" = yes || { echo "Linux packages are built on Linux, or here with Docker running"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF) ($(if $(LINUX_ARCH),$(LINUX_ARCH),this machine's architecture)), in Docker: .deb, $(if $(LINUX_ARCH),,AppImage and ).rpm"

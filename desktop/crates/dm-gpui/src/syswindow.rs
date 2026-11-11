@@ -98,6 +98,26 @@ fn done<C: x11rb::connection::RequestConnection>(
         .map_err(|e| e.to_string())
 }
 
+/// Whether closing `window` has nowhere to put it: a Wayland window (no X11
+/// id) on a compositor that ignores minimize (sway, Hyprland and the other
+/// tiling ones, `dm_desktop_base::tray::minimize_is_ignored`), where a
+/// window put away into the tray would stay on the screen looking dead.
+/// Never elsewhere.
+pub fn nowhere_to_hide(window: &Window) -> bool {
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        x_window(window).is_none()
+            && dm_desktop_base::tray::minimize_is_ignored(
+                &std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default(),
+            )
+    }
+    #[cfg(any(target_os = "macos", windows))]
+    {
+        let _ = window;
+        false
+    }
+}
+
 /// On X11 the window is unmapped: off the screen and the taskbar, as the
 /// egui window hides into the tray. On Wayland it is minimized, which its
 /// desktop's taskbar brings back.
@@ -265,13 +285,36 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
 /// X11 counts in the screen's pixels: points times the window's scale.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
-    use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt};
+    place(window, x, y)
+}
+
+/// Puts `window`'s own top-left corner (inside the frame the window manager
+/// draws) at (`x`, `y`), as `ui.windows` reports where windows stand, and
+/// says so in its `WM_NORMAL_HINTS`: a position the program chose, with
+/// static gravity. GPUI shows a window before dm can place it and gives no
+/// position, so a window manager put a dialog where it found room (openbox:
+/// the screen's bottom-left corner) rather than over dm's window. Asked
+/// before the window manager has taken the window, the hint places it; after,
+/// the move does. The hints GPUI set (the smallest and largest sizes) stay.
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn place(window: &Window, x: f32, y: f32) -> Result<(), String> {
+    use x11rb::properties::{WmSizeHints, WmSizeHintsSpecification};
+    use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt, Gravity};
     let id = x_window(window).ok_or("Wayland does not let a program place its own window")?;
     let scale = window.scale_factor();
-    let to = ConfigureWindowAux::new()
-        .x((x * scale).round() as i32)
-        .y((y * scale).round() as i32);
-    on_x(|conn| done(conn.configure_window(id, &to)))
+    let (x, y) = ((x * scale).round() as i32, (y * scale).round() as i32);
+    on_x(|conn| {
+        let mut hints = WmSizeHints::get_normal_hints(conn, id)
+            .map_err(|e| e.to_string())?
+            .reply()
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        hints.position = Some((WmSizeHintsSpecification::ProgramSpecified, x, y));
+        hints.win_gravity = Some(Gravity::STATIC);
+        done(hints.set_normal_hints(conn, id))?;
+        done(conn.configure_window(id, &ConfigureWindowAux::new().x(x).y(y)))
+    })
 }
 
 /// Pictures `window` as it stands on screen, its frame without its shadow,

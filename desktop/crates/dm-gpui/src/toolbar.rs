@@ -52,6 +52,9 @@ pub fn toolbar(
     let style = dm_desktop_base::toolbar::ToolStyle::named(&settings.toolbar_style);
     let picture = style != dm_desktop_base::toolbar::ToolStyle::Text;
     let worded = style != dm_desktop_base::toolbar::ToolStyle::Icons;
+    // Resume says what it will do for the rows chosen (Retry, Start now), as
+    // the egui window's button and both windows' menus do.
+    let resume = dm_desktop_base::rows::resume_word(&view.chosen());
     div()
         .id("toolbar")
         .role(Role::Toolbar)
@@ -66,7 +69,13 @@ pub fn toolbar(
         .border_color(theme.separator)
         .children(buttons.into_iter().map(|(command, words)| {
             let enabled = view.enabled(command);
-            let words = t(words);
+            let words = if command == dm_shell::app::commands::Command::DownloadNow
+                && matches!(resume, "Retry" | "Start now")
+            {
+                t(resume)
+            } else {
+                t(words)
+            };
             // Start Queue and Stop Queue have an arrow beside them that
             // lists the queues; the one chosen is started or stopped,
             // whatever the list shows (B64).

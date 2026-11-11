@@ -14,9 +14,10 @@ echo "== cargo test --workspace"
 # On the container's own disk: /stress is the host's folder, which on a Mac ignores
 # case, and a case-only rename test then judged a disk no Linux has (2026-11-06).
 [ -n "${DM_ONLY:-}" ] || TMPDIR=/tmp cargo test --workspace --no-fail-fast 2>&1 | grep -E "^test result|FAILED|panicked|error(\[|:)|failures:" | sort | uniq -c | sort -rn | head -40
-echo "== build dm-desktop (release)"
-cargo build --release -p dm-desktop 2>&1 | tail -2
-export DM_BINARY=/target/release/dm-desktop
+# The window Linux ships (the GPUI window, docs/gaps.md G9).
+echo "== build dm-gpui (release)"
+cargo build --release -p dm-gpui 2>&1 | tail -2
+export DM_BINARY=/target/release/dm-gpui
 # Xvfb's clipboard here is no one's: the clipboard phase may write it (gaps row 20).
 export DM_SCRATCH_CLIPBOARD=1
 for phase in ${DM_ONLY:-throughput many_small concurrency flaky crash pause_storm names hostile control bigqueue \

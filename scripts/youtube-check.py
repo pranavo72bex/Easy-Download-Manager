@@ -45,7 +45,16 @@ RECT = """(() => { const v = [...document.querySelectorAll('video')]
 def youtube(base, origin, engine_dl, engine_home, worker):
     tab = cc.open_tab(base, URL)
     tab.call("Runtime.enable")
-    cc.loaded(tab, "/watch")
+    # A page YouTube would not serve (Google's "unusual traffic" page, a
+    # consent page, no network) fails the YouTube checks, said as such, and
+    # the browser checks after this step still run: it ended the whole script
+    # here, and the rows checked on loopback after it (B31, B32) went
+    # unchecked with it (Linux, 2026-11-11).
+    try:
+        cc.loaded(tab, "/watch", seconds=40)
+    except RuntimeError as e:
+        cc.check("YouTube: the watch page loads", False, str(e)[:300])
+        return
     cc.check("YouTube: the page script loads",
              cc.wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 20))
 

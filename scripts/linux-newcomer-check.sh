@@ -17,12 +17,14 @@
 # cannot mount a folder under ~/Downloads.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 docker volume rm dm-newcomer-shots >/dev/null 2>&1 || true
 docker build -q -t dm-linux-check scripts/linux >/dev/null
 status=0
 git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
-  | docker run --rm -i \
+  | docker run --rm -i -e DM_BINARY="/target/debug/$binary" \
       -v dm-linux-target:/target \
       -v dm-newcomer-shots:/shots \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
@@ -32,8 +34,8 @@ git ls-files -z --cached --others --exclude-standard \
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends openbox xdotool x11-utils wmctrl dbus-x11 \
           at-spi2-core python3-pyatspi libglib2.0-bin imagemagick >/dev/null
-        cd desktop && cargo build -q -p dm-desktop && cd ..
-        export DISPLAY=:81 DM_BINARY=/target/debug/dm-desktop
+        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        export DISPLAY=:81
         Xvfb :81 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1
         openbox >/dev/null 2>&1 &

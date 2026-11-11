@@ -153,7 +153,7 @@ pub(super) fn start_tray(
             .unwrap_or_else(|panic| Err(panic_text(&*panic)))
             .map(Some);
         if made.is_ok() {
-            sni::keep_registered();
+            dm_desktop_base::tray::keep_registered();
         }
         made
     }
@@ -165,122 +165,9 @@ pub(super) fn start_tray(
     }
 }
 
-/// Whether something is showing tray icons now: on Linux, a
-/// StatusNotifier host may come later than dm, or never (GNOME without its
-/// AppIndicator extension). Elsewhere the system always has one.
+/// Whether something is showing tray icons now (`dm_desktop_base::tray::host_showing`).
 pub(super) fn tray_host() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        sni::shown(false)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        true
-    }
-}
-
-/// dm's tray item and the StatusNotifierWatcher that panels (GNOME's
-/// extension, KDE, waybar) show items from.
-#[cfg(target_os = "linux")]
-mod sni {
-    use zbus::blocking::{fdo::DBusProxy, Connection, Proxy};
-
-    const WATCHER: &str = "org.kde.StatusNotifierWatcher";
-
-    /// Whether the watcher lists this process's tray item. With `register`,
-    /// one it does not list is registered again: a watcher that has just
-    /// (re)started can take its bus name before it answers calls, and a
-    /// registration that lands in that gap is dropped without a reply —
-    /// seen in the Linux check, and what a panel restart (waybar's, often)
-    /// would do. A watcher that will not say what it lists is believed.
-    pub fn shown(register: bool) -> bool {
-        let Ok(connection) = Connection::session() else {
-            return false;
-        };
-        check(&connection, register).unwrap_or(false)
-    }
-
-    /// Every few seconds, for as long as dm runs: the tray item stays
-    /// registered with whatever watcher there is.
-    pub fn keep_registered() {
-        let _ = std::thread::Builder::new()
-            .name("dm-tray-watch".into())
-            .spawn(|| {
-                let mut connection = None;
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                    if connection.is_none() {
-                        connection = Connection::session().ok();
-                    }
-                    if let Some(connection) = &connection {
-                        let _ = check(connection, true);
-                    }
-                }
-            });
-    }
-
-    fn check(connection: &Connection, register: bool) -> Option<bool> {
-        let bus = DBusProxy::new(connection).ok()?;
-        let watcher_up = bus
-            .name_has_owner(zbus::names::BusName::try_from(WATCHER).ok()?)
-            .ok()?;
-        if !watcher_up {
-            return Some(false);
-        }
-        let prefix = format!("org.kde.StatusNotifierItem-{}-", std::process::id());
-        let ours: Vec<String> = bus
-            .list_names()
-            .ok()?
-            .into_iter()
-            .map(|n| n.to_string())
-            .filter(|n| n.starts_with(&prefix))
-            .collect();
-        if ours.is_empty() {
-            return Some(false);
-        }
-        let watcher = zbus::blocking::proxy::Builder::<Proxy>::new(connection)
-            .destination(WATCHER)
-            .ok()?
-            .path("/StatusNotifierWatcher")
-            .ok()?
-            .interface(WATCHER)
-            .ok()?
-            .cache_properties(zbus::proxy::CacheProperties::No)
-            .build()
-            .ok()?;
-        let Ok(listed) = watcher.get_property::<Vec<String>>("RegisteredStatusNotifierItems")
-        else {
-            return Some(true);
-        };
-        let mut all = true;
-        for name in &ours {
-            let owner = zbus::names::BusName::try_from(name.as_str())
-                .ok()
-                .and_then(|n| bus.get_name_owner(n).ok())
-                .map(|o| o.to_string());
-            // Listed as the name, the name and a path, or the connection
-            // that owns it: watchers differ.
-            let is_ours = |entry: &String| {
-                [Some(name.as_str()), owner.as_deref()]
-                    .into_iter()
-                    .flatten()
-                    .any(|id| entry == id || entry.starts_with(&format!("{id}/")))
-            };
-            if !listed.iter().any(is_ours) {
-                all = false;
-                if register {
-                    let _ = watcher.call_method("RegisterStatusNotifierItem", &(name.as_str(),));
-                }
-            }
-        }
-        // Listed is not shown: a watcher with no panel drawing its items
-        // left a hidden window nothing could bring back. A
-        // watcher that will not say is believed.
-        let host = watcher
-            .get_property::<bool>("IsStatusNotifierHostRegistered")
-            .unwrap_or(true);
-        Some(all && host)
-    }
+    dm_desktop_base::tray::host_showing()
 }
 
 pub(super) fn panic_text(panic: &(dyn std::any::Any + Send)) -> String {

@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # these along until the tray moved to D-Bus.
       libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 \
       libwayland-client0 libwayland-egl1 \
+      # What the GPUI window (dm-gpui, Linux's since 2026-11-11) builds against.
+      libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+      libxcb1-dev libx11-xcb-dev libvulkan-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:$PATH

@@ -12,7 +12,7 @@
 use dm_desktop_base::add_url::{decide, Next};
 use dm_desktop_base::i18n::t;
 use gpui::{
-    div, prelude::*, px, size, App, Bounds, Context, Entity, KeyDownEvent, Role, SharedString,
+    div, prelude::*, px, size, App, Bounds, Context, Entity, KeyDownEvent, SharedString,
     WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -139,20 +139,13 @@ impl Render for AddUrl {
                     ),
             )
         });
-        div()
-            .id("add-url")
-            .role(Role::Dialog)
-            .aria_label(t("Add URL"))
+        crate::native::dialog("add-url", t("Add URL"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, window, cx| this.pick(pick, window, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                match event.keystroke.key.as_str() {
-                    "escape" => this.cancel(window),
-                    "enter" => this.ok(window, cx),
-                    _ => {}
+                if event.keystroke.key == "enter" {
+                    this.ok(window, cx);
                 }
             }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     .child(native::row(

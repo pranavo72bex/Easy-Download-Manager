@@ -214,6 +214,30 @@ impl Downloads {
     }
 }
 
+/// The file's name as its row shows it.
+fn shown_name(
+    row: &Entry,
+    names: &std::collections::HashMap<dm_core::Id, String>,
+) -> gpui::SharedString {
+    match names.get(&row.id) {
+        Some(name) => name.clone().into(),
+        None => crate::list::line(row).0,
+    }
+}
+
+/// A row as a screen reader says it: its file's name, then its status.
+fn spoken(
+    row: &Entry,
+    names: &std::collections::HashMap<dm_core::Id, String>,
+) -> gpui::SharedString {
+    format!(
+        "{}, {}",
+        shown_name(row, names),
+        dm_desktop_base::rows::status_of(row)
+    )
+    .into()
+}
+
 /// One row's cells.
 fn row_cells(
     row: &Entry,
@@ -228,10 +252,7 @@ fn row_cells(
         .map(|&column| match column {
             Column::Name => {
                 let (picture, colour) = kind_picture(kind);
-                let name: gpui::SharedString = match names.get(&row.id) {
-                    Some(name) => name.clone().into(),
-                    None => crate::list::line(row).0,
-                };
+                let name = shown_name(row, names);
                 cell(column)
                     .gap_2()
                     .child(
@@ -319,6 +340,9 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                     div()
                         .id(i)
                         .role(Role::Row)
+                        // What a screen reader says of it: its file and how
+                        // it stands, as the row shows them (it said nothing).
+                        .aria_label(spoken(row, &this.shown_names))
                         .aria_selected(chosen)
                         .w_full()
                         .h(px(ROW_HEIGHT))
@@ -334,6 +358,14 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             }),
                         )
                         .on_click(cx.listener(move |view, event: &gpui::ClickEvent, _, cx| {
+                            // The primary button's alone: GPUI hands the
+                            // right button's click here too, after its press
+                            // opened the menu above, and that chose the row
+                            // by itself, so Move/Rename for two chosen rows
+                            // renamed one (Linux, real input, 2026-11-11).
+                            if !event.standard_click() {
+                                return;
+                            }
                             // A Control-click is a right-click on macOS.
                             if event.modifiers().control && cfg!(target_os = "macos") {
                                 if let Some(at) = event.mouse_position() {

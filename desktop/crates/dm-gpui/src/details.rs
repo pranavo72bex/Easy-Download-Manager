@@ -848,21 +848,14 @@ impl Render for Details {
             rows
         });
 
-        div()
-            .id("download-details")
-            .role(Role::Dialog)
-            .aria_label(t("Download details"))
+        crate::native::dialog("download-details", t("Download details"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, window, cx| this.pick(pick, window, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                match event.keystroke.key.as_str() {
-                    "escape" => this.cancel(window, cx),
-                    "enter" => this.add(false, window, cx),
-                    _ => {}
+                if event.keystroke.key == "enter" {
+                    this.add(false, window, cx);
                 }
             }))
-            .size_full()
-            .bg(theme.window)
             .child(crate::fit::fitted(
                 native::body(theme)
                     // The address, as the window's subtitle says it.

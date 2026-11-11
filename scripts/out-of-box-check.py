@@ -6,7 +6,7 @@
 
 """dm as a person meets it after installing it: nothing else on the computer.
 
-The real dm-desktop binary, headless, with a dm home of its own made for
+The real dm binary (dm-gpui), headless, with a dm home of its own made for
 this run (no tools fetched before), told to see only the tools it fetches
 itself (DM_ONLY_FETCHED_TOOLS, so nothing installed on this computer is
 used) and given the PATH a browser or the Dock gives an app. Real
@@ -22,7 +22,7 @@ and that every sample the file points at is in it); it needs nothing
 installed. Needs the network; not run in CI.
 
     python3 scripts/out-of-box-check.py            # builds dm if needed
-    DM_BINARY=path/to/dm-desktop python3 scripts/out-of-box-check.py
+    DM_BINARY=path/to/dm-gpui python3 scripts/out-of-box-check.py
 """
 
 import json
@@ -39,7 +39,7 @@ import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get(
-    "DM_BINARY", ROOT / "desktop/target/release" / ("dm-gpui.exe" if sys.platform == "win32" else "dm-desktop")))
+    "DM_BINARY", ROOT / "desktop/target/release" / ("dm-gpui.exe" if sys.platform == "win32" else "dm-gpui")))
 
 # (what is asked, the quality word the panel sends, what must arrive)
 CASES = [
