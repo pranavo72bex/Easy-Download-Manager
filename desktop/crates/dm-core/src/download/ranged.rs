@@ -1076,8 +1076,13 @@ pub(super) async fn attempt_segment(
     /* Small: tokio's file keeps a copy of every write it hands to the
      * disk, so each connection holds this twice. 256 KiB cost 20–30 MB more
      * over ten downloads of eight connections than 16 KiB, and fetched 2 GB
-     * over loopback no faster nor with less CPU (qa/after.md). */
-    let mut file = tokio::io::BufWriter::with_capacity(16 * 1024, file);
+     * over loopback no faster nor with less CPU (qa/after.md). But not under
+     * the 16 to 64 KiB a held-down server sends at a time: at 16 KiB nearly
+     * every piece went past the buffer as a write of its own, each a trip to
+     * a blocking thread and a system call, which were most of the engine's
+     * time over eight connections held to 1 MiB/s (gaps row 176). Tokio's
+     * copy already grows to the 64 KiB such a server sends at most. */
+    let mut file = tokio::io::BufWriter::with_capacity(WRITE_BUFFER, file);
     // At this range's own place in the staged file, or in its own file.
     file.seek(std::io::SeekFrom::Start(origin + already))
         .await?;
@@ -1118,9 +1123,26 @@ pub(super) async fn attempt_segment(
         let chunk = match carry.take() {
             Some(rest) => Ok(rest),
             None => {
-                match tokio::time::timeout_at(window.ends(), reader.next(&mut stream, &job.control))
-                    .await
-                {
+                // While what came is not yet written down, no longer than the
+                // ledger's quarter second: a server that goes quiet does not
+                // keep what it sent in the write buffer, off the disk a preview
+                // reads and past the ledger a crash goes back to.
+                let until = if written > recorded {
+                    window.ends().min(tokio::time::Instant::from_std(
+                        recorded_at + LEDGER_EVERY_TIME,
+                    ))
+                } else {
+                    window.ends()
+                };
+                match tokio::time::timeout_at(until, reader.next(&mut stream, &job.control)).await {
+                    // Quiet past the quarter: what came is written down.
+                    Err(_) if written > recorded && recorded_at.elapsed() >= LEDGER_EVERY_TIME => {
+                        file.flush().await?;
+                        put(&mut ledger, written).await?;
+                        recorded = written;
+                        recorded_at = std::time::Instant::now();
+                        continue;
+                    }
                     // The window ran out with nothing arriving: judged at the top.
                     Err(_) => continue,
                     Ok(Ok(Some(chunk))) => chunk,

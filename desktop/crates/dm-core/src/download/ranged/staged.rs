@@ -22,6 +22,11 @@ pub(in crate::download) const LEDGER_EVERY: u64 = 512 * 1024;
 /// The longest a range's ledger goes unwritten while bytes arrive.
 pub(in crate::download) const LEDGER_EVERY_TIME: Duration = Duration::from_millis(250);
 
+/// What a connection gathers before it writes to its file: the most a
+/// held-down server sends at a time, so a write carries several of its
+/// pieces rather than each its own (`attempt_segment`).
+pub(in crate::download) const WRITE_BUFFER: usize = 64 * 1024;
+
 /// How much of a part's end is fetched again and compared on a resume: more
 /// than a filesystem leaves unwritten at a power cut, little enough to cost
 /// nothing beside the rest.

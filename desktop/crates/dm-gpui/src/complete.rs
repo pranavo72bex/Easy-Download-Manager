@@ -29,6 +29,36 @@ pub struct Complete {
     /// The window's keyboard: nothing in it takes typing, and Escape and
     /// Return reach it only through a focus of its own.
     focus: gpui::FocusHandle,
+    /// What it lists, as last drawn: drawn again only when that changes.
+    listed: Vec<Finished>,
+}
+
+/// One finished download as the window lists it: all it draws of one.
+#[derive(Clone, PartialEq)]
+struct Finished {
+    id: Id,
+    name: String,
+    size: u64,
+    path: String,
+    at: Option<u64>,
+}
+
+/// What the window lists of `view`, the newest first, where the eye lands.
+fn finished(view: &Downloads) -> Vec<Finished> {
+    let mut listed: Vec<Finished> = view
+        .complete
+        .iter()
+        .filter_map(|id| view.rows.iter().find(|r| r.id == *id))
+        .map(|row| Finished {
+            id: row.id,
+            name: dm_shell::app::names::name_of(row),
+            size: row.progress.total.unwrap_or(row.progress.downloaded),
+            path: row.path.clone(),
+            at: row.finished_at,
+        })
+        .collect();
+    listed.sort_by_key(|f| std::cmp::Reverse(f.at));
+    listed
 }
 
 impl Complete {
@@ -71,20 +101,8 @@ impl Render for Complete {
         let Some(view) = self.view.upgrade() else {
             return div().into_any_element();
         };
-        let mut rows: Vec<dm_core::Entry> = {
-            let view = view.read(cx);
-            view.complete
-                .iter()
-                .filter_map(|id| {
-                    view.rows
-                        .iter()
-                        .find(|r| r.id == *id)
-                        .map(|r| (**r).clone())
-                })
-                .collect()
-        };
-        // The newest first, where the eye lands.
-        rows.sort_by_key(|r| std::cmp::Reverse(r.finished_at));
+        let rows = finished(view.read(cx));
+        self.listed = rows.clone();
         let several = rows.len() > 1;
         let never = self.never;
         crate::native::dialog("complete", t("Download complete"), theme, cx)
@@ -112,10 +130,8 @@ impl Render for Complete {
                             .flex_col()
                             .gap(px(12.0))
                             .children(rows.iter().enumerate().map(|(i, row)| {
-                                let name = dm_shell::app::names::name_of(row);
-                                let size = format::bytes(
-                                    row.progress.total.unwrap_or(row.progress.downloaded),
-                                );
+                                let name = row.name.clone();
+                                let size = format::bytes(row.size);
                                 let (id, open_path, with_path, folder_path) =
                                     (row.id, row.path.clone(), row.path.clone(), row.path.clone());
                                 div()
@@ -229,8 +245,14 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) -> Option<gpui::AnyWindow
             let screen = Screen::default();
             Screens::register(window.window_handle(), screen.clone(), true, cx);
             let complete = cx.new(|cx| {
-                // Drawn again as more finish.
-                cx.observe(&downloads, |_, _, cx| cx.notify()).detach();
+                // Drawn again as more finish, and only then: drawn each time
+                // the list was, it was drawn with every download's progress.
+                cx.observe(&downloads, |this: &mut Complete, downloads, cx| {
+                    if finished(downloads.read(cx)) != this.listed {
+                        cx.notify();
+                    }
+                })
+                .detach();
                 let focus = cx.focus_handle();
                 window.focus(&focus, cx);
                 Complete {
@@ -238,6 +260,7 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) -> Option<gpui::AnyWindow
                     never: false,
                     screen,
                     focus,
+                    listed: Vec::new(),
                 }
             });
             crate::native::close_is_cancel(&complete, window, cx);

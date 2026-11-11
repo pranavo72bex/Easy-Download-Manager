@@ -12,7 +12,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gpui::{canvas, div, prelude::*, AnyWindowHandle, App, Bounds, Global, Pixels, SharedString};
+use gpui::{div, prelude::*, AnyWindowHandle, App, Bounds, Global, Pixels, SharedString};
 
 /// A piece of text, and where it was laid out (window points).
 #[derive(Debug, Clone)]
@@ -54,27 +54,28 @@ impl Screen {
     ) -> impl IntoElement {
         let words: SharedString = text.into();
         let record = Rc::clone(&self.0);
-        div().relative().child(element).child(
-            canvas(
-                move |bounds, window, _| {
-                    // Only what can be seen: words scrolled out of a page's
-                    // view are not on screen, and a click aimed at them
-                    // landed on whatever was there.
-                    let seen = bounds.intersect(&window.content_mask().bounds);
-                    if seen.size.width > gpui::px(0.0) && seen.size.height > gpui::px(0.0) {
-                        record.borrow_mut().push(Drawn {
-                            text: words,
-                            bounds: seen,
-                        });
-                    }
-                },
-                |_, _, _, _| {},
-            )
-            .absolute()
-            .top_0()
-            .left_0()
-            .size_full(),
-        )
+        // Where the element was laid out, told by the box around it as its
+        // contents are placed: a canvas of its own beside it, for each piece
+        // of text, was an element more to lay out and paint in every frame,
+        // about a quarter of the main window's (gaps row 176).
+        div()
+            .relative()
+            .child(element)
+            .on_children_prepainted(move |placed, window, _| {
+                let Some(bounds) = placed.first() else {
+                    return;
+                };
+                // Only what can be seen: words scrolled out of a page's
+                // view are not on screen, and a click aimed at them
+                // landed on whatever was there.
+                let seen = bounds.intersect(&window.content_mask().bounds);
+                if seen.size.width > gpui::px(0.0) && seen.size.height > gpui::px(0.0) {
+                    record.borrow_mut().push(Drawn {
+                        text: words.clone(),
+                        bounds: seen,
+                    });
+                }
+            })
     }
 }
 

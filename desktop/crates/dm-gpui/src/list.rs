@@ -5,14 +5,16 @@
 
 //! The download list as the shell draws it: the application read once each
 //! time the window is woken (a queue change, coalesced over a quarter of a
-//! second as the egui window does; an order or a signal at once; and once a
-//! second for the schedules' and When done's clocks), and only the rows on
-//! screen laid out (`uniform_list`), so a list of 10,000 costs what the
-//! screenful does.
+//! second as the egui window does; an order or a signal at once; every
+//! quarter of a second while a download runs, and once a second for the
+//! schedules' and When done's clocks), and only the rows on screen laid out
+//! (`uniform_list`), so a list of 10,000 costs what the screenful does. A
+//! script's reading of the list is answered on the control port's own
+//! thread (`port.rs`), the window neither woken nor drawn for it.
 
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use dm_core::{Entry, State};
 use dm_desktop_base::boot::Wake;
@@ -40,6 +42,41 @@ fn in_own_window<R>(
     cx.update(|window, cx| this.update(cx, |this, cx| update(this, window, cx)).ok())
         .ok()
         .flatten()
+}
+
+/// What ended one of the window's waits.
+enum Woke {
+    /// Something woke it.
+    By(Wake),
+    /// Its timer ran out first.
+    Clock,
+    /// Nothing can wake it any more: dm is ending.
+    Gone,
+}
+
+/// The next wake, or the timer's end, whichever comes first.
+async fn woke(woken: &async_channel::Receiver<Wake>, timer: gpui::Task<()>) -> Woke {
+    futures_lite::future::or(
+        async { woken.recv().await.map_or(Woke::Gone, Woke::By) },
+        async {
+            timer.await;
+            Woke::Clock
+        },
+    )
+    .await
+}
+
+/// How long the window sleeps with nothing waking it (`clock_every`), with
+/// a download `running` or a clock `ticking` (When done's countdown, the
+/// clipboard watched).
+fn clock(running: bool, ticking: bool) -> Duration {
+    if running {
+        RUNNING
+    } else if ticking {
+        Duration::from_secs(1)
+    } else {
+        IDLE
+    }
 }
 
 /// When done's countdown as it stands: what dm will do and in how many
@@ -90,6 +127,9 @@ pub(crate) const ROW_HEIGHT: f32 = 24.0;
 
 /// How often a window with nothing moving wakes of its own accord.
 const IDLE: Duration = Duration::from_secs(30);
+
+/// How often the window reads and draws the list while a download runs.
+const RUNNING: Duration = Duration::from_millis(250);
 
 /// How long a login launch waits for something to show its tray before its
 /// window opens instead.
@@ -422,61 +462,63 @@ impl Downloads {
             cx.notify();
         })
         .detach();
-        cx.spawn_in(window, async move |this, cx| loop {
-            // Nothing tells the window of a clock (the schedules, When
-            // done's countdown): once a second while a download runs or a
-            // countdown is on, else every 30 seconds, as the egui window.
-            let every = this
-                .read_with(cx, |this, _| this.clock_every())
-                .unwrap_or(IDLE);
-            let wake = futures_lite::future::or(async { woken.recv().await.ok() }, async {
-                cx.background_executor().timer(every).await;
-                Some(Wake::Now)
-            })
-            .await;
-            let Some(wake) = wake else {
-                return;
-            };
-            // A change to the queue is read a quarter of a second later, the
-            // burst within it as one; but something to act on now (a
-            // browser's hand-off, another dm's order) ends that wait, as it
-            // does in the egui window: behind a running download's changes,
-            // a hand-off waited the quarter out before its download began.
-            if wake == Wake::Soon {
-                let now_asked = async {
-                    while let Ok(next) = woken.recv().await {
-                        if next == Wake::Now {
-                            return;
+        cx.spawn_in(window, async move |this, cx| {
+            // When the window last looked: its clock runs from there.
+            let mut looked = Instant::now();
+            loop {
+                // Nothing tells the window of a running download's progress
+                // or of a clock (the schedules, When done's countdown): it
+                // looks of its own accord (`clock_every`).
+                let every = this
+                    .read_with(cx, |this, _| this.clock_every())
+                    .unwrap_or(IDLE);
+                let timer = cx
+                    .background_executor()
+                    .timer((looked + every).saturating_duration_since(Instant::now()));
+                let wake = match woke(&woken, timer).await {
+                    Woke::By(wake) => wake,
+                    Woke::Clock => Wake::Now,
+                    Woke::Gone => return,
+                };
+                // A change to the queue is read a quarter of a second later,
+                // the burst within it as one; but something to act on now (a
+                // browser's hand-off, another dm's order) ends that wait, as
+                // it does in the egui window: behind a running download's
+                // changes, a hand-off waited the quarter out before its
+                // download began.
+                if wake == Wake::Soon {
+                    // No later than the clock's own look, which reads it.
+                    let until = (Instant::now() + Duration::from_millis(250)).min(looked + every);
+                    loop {
+                        let timer = cx
+                            .background_executor()
+                            .timer(until.saturating_duration_since(Instant::now()));
+                        match woke(&woken, timer).await {
+                            Woke::By(Wake::Soon) => {}
+                            Woke::By(Wake::Now) | Woke::Clock | Woke::Gone => break,
                         }
                     }
-                    // The channel is closed: the wait ends with the timer.
-                    std::future::pending::<()>().await;
-                };
-                futures_lite::future::or(now_asked, async {
-                    cx.background_executor()
-                        .timer(Duration::from_millis(250))
-                        .await;
+                }
+                while woken.try_recv().is_ok() {}
+                // Asked to end (a logout, `kill`, an uninstall): as Exit does,
+                // the queue written down first.
+                if dm_desktop_base::signals::SIGNALLED.load(Ordering::SeqCst) {
+                    let _ = in_own_window(&this, cx, |this, _, cx| this.quit(cx));
+                    return;
+                }
+                if in_own_window(&this, cx, |this, window, cx| {
+                    this.read();
+                    this.taskbar_follow(window);
+                    this.tick(cx);
+                    this.watch_asks(cx);
+                    this.answer_requests(window, cx);
+                    cx.notify();
                 })
-                .await;
-            }
-            while woken.try_recv().is_ok() {}
-            // Asked to end (a logout, `kill`, an uninstall): as Exit does,
-            // the queue written down first.
-            if dm_desktop_base::signals::SIGNALLED.load(Ordering::SeqCst) {
-                let _ = in_own_window(&this, cx, |this, _, cx| this.quit(cx));
-                return;
-            }
-            if in_own_window(&this, cx, |this, window, cx| {
-                this.read();
-                this.taskbar_follow(window);
-                this.tick(cx);
-                this.watch_asks(cx);
-                this.answer_requests(window, cx);
-                cx.notify();
-            })
-            .is_none()
-            {
-                return;
+                .is_none()
+                {
+                    return;
+                }
+                looked = Instant::now();
             }
         })
         .detach();
@@ -502,16 +544,16 @@ impl Downloads {
         let _ = (window, &mut self.taskbar);
     }
 
-    /// How long the window sleeps when nothing wakes it.
+    /// How long the window sleeps when nothing wakes it: a quarter of a
+    /// second while a download runs, whose figures nothing else tells it of
+    /// (the engine reports them that often, and the egui window drew them so;
+    /// read once a second, they moved in jumps); a second for When done's
+    /// countdown and the clipboard; else 30 seconds.
     fn clock_every(&self) -> Duration {
-        if self.session.countdown.is_some()
-            || self.clipboard.on
-            || self.rows.iter().any(|r| r.state == State::Running)
-        {
-            Duration::from_secs(1)
-        } else {
-            IDLE
-        }
+        clock(
+            self.rows.iter().any(|r| r.state == State::Running),
+            self.session.countdown.is_some() || self.clipboard.on,
+        )
     }
 
     /// Answers what the control port asked, in order: who may ask as the
@@ -2155,5 +2197,22 @@ impl Render for Downloads {
                         ),
                 )
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{clock, IDLE, RUNNING};
+    use std::time::Duration;
+
+    /// A running download's figures are drawn four times a second, as the
+    /// engine reports them; a clock once a second; nothing moving, rarely.
+    #[test]
+    fn a_running_download_is_drawn_four_times_a_second() {
+        assert_eq!(RUNNING, Duration::from_millis(250));
+        assert_eq!(clock(true, false), RUNNING);
+        assert_eq!(clock(true, true), RUNNING);
+        assert_eq!(clock(false, true), Duration::from_secs(1));
+        assert_eq!(clock(false, false), IDLE);
     }
 }

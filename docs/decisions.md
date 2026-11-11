@@ -5899,3 +5899,95 @@ Tried and dropped:
   other's places. Positional writes would not, but change the whole write path for that.
 - Removing the ledgers and the plan after Completed rather than before (0.8 to 2.8 ms of the
   finish): a download of the same row started at once would have its new ledgers removed under it.
+
+## 2026-11-11 (night): CPU while a held-down download runs (gaps row 176)
+
+On macOS (Apple M1, GPUI release build) `per_conn` had used 1,860 ms against the floor's 1,281 and
+`flaky` 1,885 against 1,406, and a `sample` of the process showed no hot spot. Measured again by
+thread (`ps -M`), with the instructions and cycles the kernel counts for the process
+(`proc_pid_rusage`) beside its CPU time, and a symbolized release build under `sample`, with a
+copy of the bench's server driving one download at a time (not committed):
+
+- **The window drew for the harness.** `bench.mjs` asks `queue.list` every 100 ms, and each request
+  woke the window for a whole look: a read, the tick and a frame, ten frames a second while the
+  window was on screen, and after the first download "Download complete" was drawn with each of
+  them too (it was drawn again whenever the list was). GPUI draws nothing in a window it cannot
+  see, which is why the same build's main thread took 30 to 80 ms of a run in some runs and 260 to
+  990 in others: whether the window was covered.
+- **A running download was read once a second.** Progress raises no signal (`EVENT_FLOW.md`: it is
+  polled), and the GPUI window's clock was a second while a download ran, where the egui window and
+  that document say a quarter: a person saw the figures move in jumps.
+- **The engine wrote each piece a held-down server sends as a write of its own.** At 1 MiB/s a
+  connection the bench's server sends 16 to 20 KiB at a time, over the 16 KiB buffer, so about 450
+  pieces a second each went to a blocking thread and a `write`. With the window covered, the
+  engine took 1.85 to 2.03 G instructions for `per_conn`'s 64 MiB.
+
+What changed:
+
+1. `queue.list` is answered on the control port's own thread (`control::listen_reading`, the
+   reader in `dm-gpui/src/port.rs`), from a snapshot of its own with each finished row by its
+   file's size as the window's read gives it, and who may ask as the window says
+   (`control_api::refused`): the window is neither woken nor drawn for it, and the answer does not
+   wait behind a frame. Anything else a script asks is the window's, as before. First tried as an
+   answer on the window's thread that skipped the look and the frame (`Wake::Asked`); the port's
+   thread is simpler and cheaper again (3 % fewer instructions with the window on screen), and an
+   answer no longer waits while the window draws.
+2. The window reads and draws every quarter of a second while a download runs (`RUNNING`), a second
+   for When done's countdown and the clipboard, 30 seconds otherwise; its clock runs from its last
+   look, and a queue change's quarter-second wait ends no later than that.
+3. "Download complete" is drawn again only when what it lists changes.
+4. A range gathers 64 KiB before it writes (`WRITE_BUFFER`): the most a held-down server sends at a
+   time, which tokio's own copy of each write already grows to, so a download of eight connections
+   holds 384 KiB more. A fast server's pieces are larger than the buffer and pass as before. And
+   what came is written down within the ledger's quarter second even while the server says nothing
+   more (`attempt_segment`, `tests/quiet.rs`): held in the buffer, less than a buffer's worth sent
+   and then nothing stayed off the disk a preview reads, and past the ledger a crash goes back to,
+   for as long as the server was quiet (as up to 16 KiB had before). The window test of a preview
+   from what is on disk (`tests/window/downloads.rs`) now has its server send 128 KiB, two buffers,
+   where 64 KiB was four of the old.
+5. A piece of words the window draws records where it was laid out from the box around it
+   (`Screen::mark`, `on_children_prepainted`), not from a canvas of its own beside it: one element
+   fewer to lay out and paint for each, about a quarter of the main window's; 2.5 % fewer
+   instructions with the window on screen.
+
+Measured, `per_conn` with the window brought to the front (`ui.window shown`), the server polled
+every 100 ms, the two builds alternated: the old 2.46 to 2.88 G instructions and 600 to 1,060 ms,
+the new 1.18 to 1.39 G and 390 to 610 ms. The engine alone (`--headless`, interleaved): `per_conn`
+1.86 G instructions to 0.87, `flaky` 1.13 G to 0.99. The bench, the old and the new build
+alternated: in a quiet hour `per_conn` 1,550 ms to 1,000 and `flaky` 1,630 to 1,130 (medians of
+three, before changes 1's port thread and 5; the old build over its floors, the new under), and in a
+busier one 760 to 540 and 725 to 560 (of six). The whole bench on the new build
+(`bench/results/darwin-2026-11-11`): `cpuMs` better than the floor in every scenario (`per_conn`
+730, `flaky` 840, `fast` 440, `outage` 1,810, `big40` 2,695, `idle` 30), the time and what was
+fetched twice as before. The peak working set was 111 MiB against the old build's 118 to 120 in the
+alternated runs, and 133 to 142 in the whole run, as far from its floor as it was (row 175).
+
+**Why one run's CPU is not the next one's.** Counted per run, cycles over CPU time came to 1.1 to
+3.0 GHz and dm's time on the fast cores to 10 to 39 % of it, while the instructions moved by a few
+percent: the same work took up to two and a half times as long, by where the system ran dm's
+threads and how fast, and in the computer's quiet hours most. That is how the old build measured
+1,860 ms earlier in the day, 1,550 in the quiet hour and 760 in the busier one, and why builds were
+compared by instructions, alternated, never by one run's `cpuMs`.
+
+**The finish in that run.** `flaky`'s `lastByteToDoneMs` came out at 84 ms there (29, 84 and 85),
+over its floor of 71, and 83 to 87 in the run of `per_conn` and `flaky` before it. It is where the
+harness's look every 100 ms falls: with a copy of its server and its looks, both builds came out
+either 5 to 20 ms or 90 to 110 (the old: 98, 5, 99, 96, 109, 19; the new: 92, 94, 100, 10, 8, 106),
+the run finishing just before a look or just after it, and a `flaky` run is nearly the same length
+each time. Looked at every 5 ms, dm said Completed 6 to 12 ms after the server's last byte with the
+new build and 4 to 18 with the old.
+
+Tried and dropped:
+- Fewer of tokio's workers (`TOKIO_WORKER_THREADS` 2 and 4 against the 8 the M1 gets), alternated
+  over three rounds: 531, 568 and 572 M instructions, 535, 600 and 530 ms. Not a setting worth having.
+- GPUI and taffy built at opt-level 3, as egui and epaint are: the binary 0.99 MB larger
+  (19,901,696 bytes to 20,888,432) for 5 to 8 % fewer instructions with the window on screen. A
+  frame is GPUI's layout and prepaint of the whole tree (`sample`: 77 of 90 samples on the main
+  thread were `Window::draw`, half of it taffy's layout, dm's own `render` 3), which the level
+  barely moves. What would: drawing again only the parts that change (GPUI's cached views), which
+  the window's one view and its record of the words on screen do not allow as they are.
+- Not tried, written down: reading a slow connection's bytes in fewer, larger reads by pausing
+  between them. The bench's server sending 64 KiB pieces in place of 16 KiB took dm's engine from
+  0.83 to 0.88 G instructions to 0.56 to 0.66, so the share per piece is real; but every pause
+  would add to the finish after the last byte (row 177) and to the time a cut connection waits to
+  be asked again, and the kernel still wakes dm for each piece that arrives.

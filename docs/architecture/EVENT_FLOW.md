@@ -39,6 +39,12 @@ state change ──► Queue::save ──► Queue::on_change ──► changes:
   main.rs).
 - **Snapshots share, never copy.** `Snapshot::rows` is `Vec<Arc<Entry>>`: n
   pointer copies per read, and a row's own bytes only when it changed.
+- **A script's reading is not a frame.** The GPUI window opens the control port
+  with a reader (`control::listen_reading`, `dm-gpui/src/port.rs`): `queue.list`
+  is answered on the connection's own thread from a snapshot of its own, the
+  window neither woken nor drawn for it; anything else a script asks is the
+  window's, a whole look, as before. A script asking ten times a second drew
+  the window ten times a second (gaps row 176).
 
 ## Typed events (`dm_shell::app::events`)
 

@@ -36,6 +36,14 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+/// What a window answers on the connection's own thread rather than its
+/// own (`listen_reading`): given the method, its parameters and whether the
+/// client is an AI assistant (`dm-desktop mcp`), the answer, or `None` to
+/// hand the request to the window as any other. For what only reads: a
+/// script asking ten times a second for the list woke the window and drew
+/// it each time, and waited behind whatever the window was drawing.
+pub type Reads = Arc<dyn Fn(&str, &Value, bool) -> Option<Result<Value, String>> + Send + Sync>;
+
 /// One request, handed to the window to answer on its own thread.
 pub struct Request {
     /// Sent by `dm-desktop mcp` (it says so when it authenticates), so the
@@ -162,6 +170,18 @@ pub fn listen(
     to_window: mpsc::Sender<Request>,
     wake: impl Fn() + Send + Sync + 'static,
 ) -> std::io::Result<u16> {
+    listen_reading(port, token, to_window, wake, None)
+}
+
+/// As [`listen`], with what `reads` answers answered on the connection's
+/// own thread, the window neither woken nor waited for.
+pub fn listen_reading(
+    port: u16,
+    token: String,
+    to_window: mpsc::Sender<Request>,
+    wake: impl Fn() + Send + Sync + 'static,
+    reads: Option<Reads>,
+) -> std::io::Result<u16> {
     let listener = TcpListener::bind(("127.0.0.1", port))?;
     let port = listener.local_addr()?.port();
     let wake = Arc::new(wake);
@@ -182,12 +202,13 @@ pub fn listen(
             let Some(id) = dm_core::lock(&waiting).admit(&stream) else {
                 continue;
             };
-            let (token, to_window, wake, open, waiting) = (
+            let (token, to_window, wake, open, waiting, reads) = (
                 token.clone(),
                 to_window.clone(),
                 Arc::clone(&wake),
                 Arc::clone(&open),
                 Arc::clone(&waiting),
+                reads.clone(),
             );
             std::thread::spawn(move || {
                 let connection = Connection {
@@ -196,11 +217,24 @@ pub fn listen(
                     waiting: &waiting,
                     counted: false,
                 };
-                let _ = serve(stream, &token, &to_window, &*wake, connection);
+                let window = Window {
+                    to_window: &to_window,
+                    wake: &*wake,
+                    reads: reads.as_ref(),
+                };
+                let _ = serve(stream, &token, window, connection);
             });
         }
     });
     Ok(port)
+}
+
+/// Where a connection's requests go: what `reads` answers on the
+/// connection's thread, the rest to the window, woken for each.
+struct Window<'a> {
+    to_window: &'a mpsc::Sender<Request>,
+    wake: &'a (dyn Fn() + Send + Sync),
+    reads: Option<&'a Reads>,
 }
 
 /// One connection's place in the counts, given back however it ends.
@@ -248,8 +282,7 @@ impl Drop for Connection<'_> {
 fn serve(
     stream: TcpStream,
     token: &str,
-    to_window: &mpsc::Sender<Request>,
-    wake: &(dyn Fn() + Send + Sync),
+    window: Window<'_>,
     mut connection: Connection<'_>,
 ) -> std::io::Result<()> {
     stream.set_read_timeout(Some(AUTH_WITHIN))?;
@@ -329,8 +362,17 @@ fn serve(
             write_reply(&mut out, &id, Err("dm is closing".into()))?;
             return Ok(());
         }
+        // What only reads, answered here: the window is not woken for it.
+        if let Some(answer) = window
+            .reads
+            .and_then(|reads| reads(&method, &params, via_mcp))
+        {
+            write_reply(&mut out, &id, answer)?;
+            continue;
+        }
         let (reply, answered) = mpsc::channel();
-        if to_window
+        if window
+            .to_window
             .send(Request {
                 via_mcp,
                 method,
@@ -342,7 +384,7 @@ fn serve(
             write_reply(&mut out, &id, Err("dm is closing".into()))?;
             return Ok(());
         }
-        wake();
+        (window.wake)();
         let answer = wait_for(&answered, &CLOSING, ANSWER_WITHIN);
         write_reply(&mut out, &id, answer)?;
     }
@@ -556,6 +598,59 @@ mod tests {
             0,
             "answered again: {more}"
         );
+    }
+
+    /// What only reads is answered on the connection's thread, the window
+    /// neither woken nor handed it; anything else still goes to the window.
+    #[test]
+    fn a_reading_is_answered_on_the_port_without_the_window() {
+        let token = "c".repeat(64);
+        let (to_window, from_net) = mpsc::channel();
+        let woken = Arc::new(AtomicUsize::new(0));
+        let reads: Reads =
+            Arc::new(|method, _, _| (method == "queue.list").then(|| Ok(json!([{ "id": 7 }]))));
+        let port = {
+            let woken = Arc::clone(&woken);
+            listen_reading(
+                0,
+                token.clone(),
+                to_window,
+                move || {
+                    woken.fetch_add(1, Ordering::SeqCst);
+                },
+                Some(reads),
+            )
+            .unwrap()
+        };
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        let mut replies = BufReader::new(stream.try_clone().unwrap());
+        let mut ask = |line: Value| {
+            stream.write_all(format!("{line}\n").as_bytes()).unwrap();
+            let mut reply = String::new();
+            replies.read_line(&mut reply).unwrap();
+            reply
+        };
+        let said = ask(json!({ "id": 1, "method": "auth", "params": { "token": token } }));
+        assert!(said.contains("\"ok\":true"), "{said}");
+
+        let said = ask(json!({ "id": 2, "method": "queue.list" }));
+        assert!(said.contains("\"id\":7"), "{said}");
+        assert_eq!(woken.load(Ordering::SeqCst), 0, "the window was woken");
+        assert!(from_net.try_recv().is_err(), "the window was handed it");
+
+        // Anything else: the window's, woken for it.
+        let window = std::thread::spawn(move || {
+            let request = from_net.recv_timeout(Duration::from_secs(10)).unwrap();
+            assert_eq!(request.method, "commands.list");
+            request.reply.send(Ok(json!("the window's"))).unwrap();
+        });
+        let said = ask(json!({ "id": 3, "method": "commands.list" }));
+        window.join().unwrap();
+        assert!(said.contains("the window's"), "{said}");
+        assert_eq!(woken.load(Ordering::SeqCst), 1);
     }
 
     #[test]

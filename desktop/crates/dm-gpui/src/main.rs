@@ -241,12 +241,15 @@ fn main() {
     }
 
     // The control port, where asked for (`--control`, DM_CONTROL, or the
-    // person's setting), as the egui window opens it.
-    let requests = control.and_then(|port| match port::open(port, Arc::clone(&wake)) {
-        Ok(requests) => Some(requests),
-        Err(e) => {
-            backend.note(format!("the control protocol could not start: {e}"));
-            None
+    // person's setting), as the egui window opens it; the list read on the
+    // port's own thread.
+    let requests = control.and_then(|port| {
+        match port::open(port, Arc::clone(&wake), backend.clone(), assistants_only) {
+            Ok(requests) => Some(requests),
+            Err(e) => {
+                backend.note(format!("the control protocol could not start: {e}"));
+                None
+            }
         }
     });
 
