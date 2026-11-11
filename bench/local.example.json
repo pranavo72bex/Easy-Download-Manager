@@ -1,0 +1,7 @@
+{
+ "refa": {
+  "exe": "C:\\Program Files (x86)\\<reference A's folder>\\<its program>.exe",
+  "process": "<its process name, without .exe>",
+  "title": "<the title of its own question boxes>"
+ }
+}

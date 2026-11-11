@@ -5538,3 +5538,59 @@ window says so. The other direct `set_settings` callers in `dm-gpui` each start 
 settings in force and change no program. A test in `dm-gpui` (`main.rs`) fails where a source
 file both names a program field (`.run_when_done`, `.on_complete`, `.proxy.script`,
 `.queue_schedules`) and calls `.set_settings(`.
+
+## 2026-11-11: Reference A's benchmark is frozen in the repository as the floor of every parameter
+
+The maintainer asked on 2026-11-11 for reference A's benchmark to be added to the repository. They
+wanted it there so that work on other systems can make dm as fast. They said it never changes,
+because it is the bottom line and a standard, and that every parameter goes in. What was decided:
+
+- **Where.** `bench/` holds the harness (`bench.mjs`), the judge (`compare.mjs`), the frozen
+  `reference-a-baseline.json` and a README written for whoever picks the work up, a person or an
+  AI agent. The harness is `D:\compare\release-0.9.0\bench.mjs` with its server, data and
+  scenarios unchanged. Reference A is named only in the git-ignored `bench/local.json`, and its
+  results say `refa`.
+- **What is frozen.** All 84 of reference A's runs in the 46 result files of 2026-11-09 and
+  2026-11-10 are in the file, each with every parameter, along with the machine, both apps'
+  settings and the harness's parameters. The runs fall into four groups: `standard` (8
+  connections; dm's home on the SSD, both apps saving to the hard disk), `connections16`,
+  `allSsd` and `allSsdConnections16`. For each group and scenario, a floor is reference A's
+  **best** value of each parameter in any whole run. That is the strictest bar it has set, and a
+  run slowed by the harness (the `spawnSync` of 2026-11-09, the window helper left running) can
+  only have made a floor easier. The fastest run's request pattern and timeline are kept for each
+  standard scenario, as a record of how reference A goes about it.
+- **Every parameter is judged**, which widens the bottom line of 2026-11-10 ("faster in every
+  case; CPU and memory at rest"). dm's median must be lower than the floor in time from the
+  address and from the first request, the time to the first request, the finish after the last
+  byte, bytes fetched twice, peak working set, private bytes, CPU and recovery after the outage.
+  A tie fails, except at a floor of 0. Counts (requests, connections, bytes served) are recorded
+  and shown, not judged: more connections is neither better nor worse in itself.
+- **Other systems.** The capped scenarios are bound by the server's caps, not the computer, so
+  their floors apply as they are, as do memory and CPU. `fast` (and, on the baseline laptop,
+  `big40`) is bound by the computer, so its time floors are scaled by the `ceiling` scenario:
+  floor × min(1, ceiling there / ceiling on the laptop). On a faster computer the floor gets
+  stricter, and it is never looser than here. The ceiling is a reference client of the harness's
+  own (`ceiling-client.mjs`: a process of its own, 8 ranges, 4 MiB buffered writes). It was
+  measured on the same laptop on 2026-11-11, 6 runs, best 2.601 s for 512 MiB.
+- **Frozen by its digest.** `desktop/xtask/src/baseline.rs` (`the_reference_a_baseline_never_changes`,
+  in `cargo test --workspace`) and `compare.mjs` both pin the file's SHA-256. A new measurement
+  of reference A goes into a new file beside it.
+- **Not taken.** Re-measuring reference A now: the maintainer asked for the benchmark that exists
+  to be the fixed standard, and a new measurement would be a file of its own. A median floor:
+  dm could pass it while reference A has done better. curl as the ceiling: Windows' own wrote
+  512 MiB in 21.6 s and Git's is a debug build, where reference A took 3.7 s, so it measured the
+  tool. Scaling the capped scenarios too: their floors are near the ideal, and the outage's fixed
+  15 s would have made one impossible.
+- **Changed from the copy in `D:\compare`.** File names carry the run's key, so a second run no
+  longer saves `x (1).bin` and reads as not whole. dm is sampled by its process id, so an
+  installed dm left running is not counted. The sampler runs on macOS (`ps`) and Linux (`/proc`)
+  as well as Windows. `big40` is a scenario again (its parameters taken from its result file),
+  `ceiling` is new, and every result file carries the system, the binary and the folders.
+- **Node, as it was.** `AGENTS.md` keeps out a JavaScript test suite. The benchmark stays plain
+  Node with no packages and no `npm` because its server, write sizes and timers are part of the
+  standard reference A was measured against: a server in another language would pace bytes
+  differently and make the floors meaningless.
+
+`compare.mjs` on the laptop's runs of 2026-11-10, dm's release build of that day: dm is better
+end to end in `fast`, `per_conn`, `flaky` and `outage`, and worse in 22 parameters, which are
+gaps rows 171 and 175 to 177. `batch` has no floor (row 172), and `inet` is never one.

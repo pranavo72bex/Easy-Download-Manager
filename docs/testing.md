@@ -84,6 +84,15 @@ with what to try on each and columns for what reference A and dm did. A person r
 final human QA, in Microsoft Edge with both extensions; a place where dm does less is a row in
 `gaps.md` (row 152).
 
+## Speed, memory and CPU against reference A's frozen floor
+
+[`bench/`](../bench/README.md) holds the side-by-side benchmark. Reference A's runs of 2026-11-09
+and 10 are frozen in `bench/reference-a-baseline.json` as the floor of every parameter, and a test
+(`the_reference_a_baseline_never_changes`) keeps that file from changing. `node bench/bench.mjs`
+runs dm's release build on Windows, macOS or Linux (and reference A as well, on the computer that
+has it), and `node bench/compare.mjs` judges each parameter. It exits 0 only when dm is better in
+all of them. A parameter where dm is worse is a row in `gaps.md`.
+
 ## Video sites: the compatibility test plan
 
 `python scripts/video-sites-check.py` runs the video website compatibility test plan (the

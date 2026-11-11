@@ -41,3 +41,7 @@ docs/engine-local/
 
 # Graphify knowledge graph (local analysis only)
 graphify-out/
+
+# The benchmark: reference A named only here; results are per machine
+bench/local.json
+bench/results/

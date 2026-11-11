@@ -16,6 +16,7 @@ then `docs/parity.md`, then `docs/decisions.md`.
 | `docs/decisions.md` | Decisions not obvious from the code, and why |
 | `docs/scorecard.md` | Generated counts: behaviours, zoo, fuzzing, budgets |
 | `docs/testing.md` | Every check, what it proves and how to run it, in Docker too |
+| `bench/README.md` | Reference A's frozen benchmark: the floor for dm's speed, memory and CPU on every system |
 
 The loop: write down what dm should do; build it so that it runs through a
 registry command; test it in the window, in the real binary, or in a real
@@ -119,10 +120,13 @@ sh scripts/linux-gui-check.sh              # real mouse and keys on the window a
 sh scripts/linux-kde-close-check.sh        # closing the window under KDE's compositor (KWin), in a container
 python3 scripts/chrome-check.py            # Chrome for Testing, handing off to a real dm
 python3 scripts/firefox-check.py native    # a real Firefox, when one is installed
+node bench/bench.mjs && node bench/compare.mjs   # dm against reference A's frozen floor, every parameter (bench/README.md)
 ```
 
 `cargo` lives in `~/.cargo/bin`, which a fresh shell may not have on `PATH`.
-There is no Node, npm or JavaScript test suite; do not add one.
+There is no npm or JavaScript test suite; do not add one. The benchmark
+(`bench/`) is plain Node with no packages, because its server is part of
+the frozen standard that reference A was measured against.
 
 ### On Windows (learnt the hard way, 2026-11-04)
 

@@ -20,6 +20,8 @@
 //!
 //! Each is also a test, so `cargo test --workspace` runs them.
 
+#[cfg(test)]
+mod baseline;
 mod headers;
 
 use std::path::{Path, PathBuf};

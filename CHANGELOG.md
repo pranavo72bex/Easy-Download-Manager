@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Tools: the benchmark against reference A is in the repository (`bench/`). Reference A's 84 runs of 2026-11-09 and 10 are frozen as the floor of every parameter (time, the finish, bytes fetched twice, memory, CPU, recovery after an outage), and a test keeps that file from changing. `node bench/bench.mjs` runs dm on Windows, macOS or Linux, and `node bench/compare.mjs` judges it, with the machine-bound floors scaled by the computer's own measured ceiling.
 - Security: on macOS, a script on the control port or an AI assistant could set the Scheduler's "Run this program when they are done", which dm then ran when the scheduled hours ended. The Scheduler now keeps the program in force when a script was driving the window a moment ago, and says so, as Options already did.
 - macOS: dm's window is drawn with GPUI, natively: its menus in the system's menu bar and in the window's top bar beside the search box, the system's own menus, fonts, sheets and settings layout, a window that comes back where it was left, and a third of the CPU at 10,000 rows. Every row of the behaviour contract holds, checked from the release .dmg. The program inside dm.app is now `dm-gpui`; browsers and the login item are pointed at it on its first start.
 - Fixed: in Add URL, with a link on the clipboard, an address typed or pasted the moment the dialog opened went in beside that link, not over it.
