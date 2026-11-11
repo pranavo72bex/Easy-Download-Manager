@@ -6299,3 +6299,42 @@ Tried and dropped:
   stop that syncs the part and marks its ledger, an engine change left to the engine's track.
 - **`ui-bench.py`'s paging under load is a dm of its own with 60 downloads** (10 at once, dm's
   most), so the CPU figure with 20 stays comparable with the stored baseline.
+
+## 2026-11-12: Slow work off the window's thread; panels that do not hold it (gaps rows 183, 180)
+
+- **One errand thread, in the order asked** (`dm-shell` `app/errands.rs`, `Backend::later`). A
+  handler's slow work (a command on the chosen rows, Start and Stop Queue, Move/Rename, Update
+  download link's and Properties' OK, Delete's Trash, Export, the settings file after a drag) is
+  handed to it, and its answer comes back as a future the window awaits and applies on its own
+  thread (`list/later.rs`). One thread, not a pool or the runtime: two commands given one after
+  the other (Stop on 10,000 rows, then Move up) still happen in that order, as when the window
+  waited for each. The errand calls the same blocking `Backend` methods as before, so their
+  logic and words are unchanged; it is not the runtime's thread, so their `block_on` is allowed.
+- **A `command.run` answer waits for the errands it started**, held on the window's side and
+  sent when they are done, with the status bar's sentence then. A script that runs Stop and
+  reads the list finds every row stopped, as before; `ui.texts` on another connection is
+  answered meanwhile. Clicks (`ui.click`) are not held: they are a person's, who sees the result
+  come.
+- **Import still adds on the window's thread.** The rows it adds are marked the window's own
+  (`Session::own`) once their ids are known; added from an errand, a read in between would take
+  them for rows started elsewhere. Reading the file is quick; adding 10,000 rows is not, and is
+  what is left of row 183.
+- **The panels.** `rfd`'s sync panels run a modal loop on the window's thread for as long as
+  they are open. `rfd`'s async ones are, on macOS, a sheet on the window in front (and a sheet on
+  "Download complete", which closes as Open with… acts, would go with it); GPUI's prompt has no
+  filter and no starting folder. So on macOS dm begins the NSOpenPanel and NSSavePanel itself with
+  a completion handler (`services.rs`, `objc2-app-kit`, no `unsafe` needed): the same free
+  panel, filters (Download lists, dm settings, WAV, cookies.txt, Applications) and starting
+  folder as before. Elsewhere `rfd`'s async dialogs; checked on Linux and Windows in their passes.
+- **A drag of a column or toolbar button is the window's look alone** (`Backend::keep_look`): in
+  force at once, nothing applied to the queue, the file written by an errand that writes the
+  settings in force when it runs, so a change made in between is never written over by an older
+  copy.
+- **A row's provisional name is kept by address** (`names::provisional`, per thread, let go past
+  50,000). After Stop on 10,000 rows, a read named every row twice, each parsing its address:
+  most of the 90 to 140 ms the window's thread still spent per read once the errand had taken the
+  rest. It costs about 2 MB at 10,000 rows.
+- **Draw-time reads moved off the thread** (row 180's leftovers): the progress window's pieces and
+  resumability (on the runtime, beside the downloads, not behind the errands, every half second),
+  Download details' clash (a background task, again where the folder or name typed changed or a
+  second passed; Start now still asks it at the press), the add-to-browser bar's two files.
