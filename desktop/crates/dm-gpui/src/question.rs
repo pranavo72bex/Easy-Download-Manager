@@ -4,8 +4,9 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! A question, asked as macOS's own programs ask one: a sheet on the dm
-//! window (GPUI's `WindowKind::Dialog`), which holds that window until it
-//! is answered (`docs/decisions.md`, 2026-11-10). Its words are dm's
+//! window, which holds that window until it is answered (`docs/decisions.md`,
+//! 2026-11-10), begun and ended by dm so that dm works on while it slides
+//! (`sheets`); GPUI's `WindowKind::Dialog` on Windows. Its words are dm's
 //! (`dm_desktop_base::asks`); the buttons stand as macOS sets an alert's
 //! (the first rightmost), and the default is Return's.
 
@@ -66,6 +67,9 @@ pub struct Question {
     ticked: bool,
     answer: Option<Answer>,
     focus: FocusHandle,
+    /// Answered and going: a second press (Return again as the sheet slides
+    /// off) does nothing.
+    closing: bool,
 }
 
 impl Question {
@@ -75,6 +79,32 @@ impl Question {
             let ticked = self.ticked;
             cx.defer(move |cx| answer(button, ticked, cx));
         }
+        self.close(window, cx);
+    }
+
+    /// Closes the sheet: on macOS it slides off its window first, dm working
+    /// on meanwhile (`sheets`), out of the port's sight at once, as a closed
+    /// window is.
+    fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if std::mem::replace(&mut self.closing, true) {
+            return;
+        }
+        #[cfg(target_os = "macos")]
+        if let Some(sheet) = crate::syswindow::ns_window(window) {
+            let handle = window.window_handle();
+            crate::screen::Screens::forget(handle, cx);
+            let (gone, slid) = async_channel::bounded::<()>(1);
+            crate::sheets::end(sheet, move || {
+                let _ = gone.try_send(());
+            });
+            cx.spawn(async move |_, cx| {
+                let _ = slid.recv().await;
+                let _ = handle.update(cx, |_, window, _| window.remove_window());
+            })
+            .detach();
+            return;
+        }
+        let _ = cx;
         window.remove_window();
     }
 }
@@ -205,6 +235,17 @@ pub const KIND: WindowKind = if cfg!(any(target_os = "macos", windows)) {
     WindowKind::Floating
 };
 
+/// The kind of window [`ask`] makes. On macOS a `Floating` one, unshown,
+/// which dm makes a sheet itself (`sheets`, gaps row 194): GPUI's `Dialog`
+/// begins its sheet as it makes the window, inside GPUI, where AppKit's slide
+/// held every window and the control port about 0.26 s, opening and again
+/// closing. `sheets::begin` gives it a `Dialog`'s level back.
+const ASKED_KIND: WindowKind = if cfg!(target_os = "macos") {
+    WindowKind::Floating
+} else {
+    KIND
+};
+
 thread_local! {
     /// dm is quitting: the questions it closes as it goes are not answered.
     static QUITTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -248,7 +289,9 @@ pub fn ask(
         cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
-            kind: KIND,
+            kind: ASKED_KIND,
+            // Shown on macOS by `sheets::begin`, as a sheet, once drawn.
+            show: !cfg!(target_os = "macos"),
             // Named by its title (`screen::open_window`).
             titlebar: Some(gpui::TitlebarOptions {
                 title: Some(title),
@@ -274,6 +317,10 @@ pub fn ask(
                 .detach();
                 let focus = cx.focus_handle();
                 window.focus(&focus, cx);
+                #[cfg(target_os = "macos")]
+                if let Some(sheet) = crate::syswindow::ns_window(window) {
+                    crate::sheets::begin(sheet);
+                }
                 let screen = crate::screen::Screen::default();
                 crate::screen::Screens::register(window.window_handle(), screen.clone(), true, cx);
                 // Said again each time the list changes, where it follows
@@ -305,6 +352,7 @@ pub fn ask(
                     ticked: false,
                     answer: Some(answer),
                     focus,
+                    closing: false,
                 }
             })
         },

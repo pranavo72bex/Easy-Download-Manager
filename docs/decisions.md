@@ -6401,3 +6401,44 @@ Tried and dropped:
   answered nothing meanwhile, worst 60,039 ms) to 356 to 378 ms, skipped in 0.9 to 1.0 s. The worst
   answer through the second case is 278 to 312 ms, the question's window opening and closing
   (265 ms with a list of 10 links): row 194.
+
+## 2026-11-12: A question's sheet slides with dm working on
+
+Gaps row 194: a question held the GPUI window's thread about 0.27 s as it opened and again as it
+closed. Measured before anything was changed (macOS, Apple M1, the release code with symbols): the
+window's own wake-up log showed GPUI's `open_window` for the question taking 288 ms, and the time
+after `remove_window` 270 ms, with the main run loop in `_NSMoveTimerRunLoopMode` for 263 ms of
+each; `sample` put that under `-[NSWindow _beginWindowBlockingModalSessionForSheet:]` →
+`-[NSSheetMoveHelper openSheet]` → `-[NSMoveHelper _doAnimation]`, the thread waiting, not
+working. AppKit slides a sheet in a run loop mode of its own, which is not one of the common
+modes, so the main dispatch queue (GPUI's foreground executor) is not served until the slide is
+over; GPUI begins the sheet inside its window's making and ends it in a task of the main queue.
+Nothing of dm's (settings, translations, the list, fonts, Metal set-up: 9 to 18 ms of the 288)
+was the cost.
+
+- **dm begins and ends the sheet** (`dm-gpui/src/sheets.rs`): the question is made as GPUI's
+  `Floating` window, unshown, given a `Dialog`'s level back, drawn once, and then
+  `beginSheet:completionHandler:` is called from a run loop timer of dm's own, where nothing of
+  GPUI's is under way; `endSheet:` the same way, and the GPUI window is removed once the sheet is
+  off. While a sheet slides, a repeating 4 ms timer in AppKit's mode runs one pass of the default
+  mode (`CFRunLoopRunInMode`), which serves the main queue: GPUI's tasks, frames and the control
+  port's answers run as between any two frames. One sheet moves at a time, in order. A slide
+  begun by that work (from inside GPUI) runs none of it, so GPUI is never entered while its `App`
+  is in use. Quitting while a sheet slides waits for it (AppKit dropped a `terminate:` asked
+  inside the slide, and dm ran on); quitting otherwise takes every sheet off at once, as before.
+  The mode's name is private: were it renamed, the timer would never run and a slide would hold
+  the window as it did, nothing worse.
+- **Measured** (other work running): "Already in the list" opened and closed ten times, `ui.texts`
+  every 20 ms worst 305 ms to 24 ms; `stress-check.py import` (10,000 rows) the same list again
+  299 ms to 34 ms, asked in 373 to 134 ms. The question now slides in drawn; before, its first
+  frame came after the slide.
+- **Dropped: the main dispatch queue served in the slide's mode for good**
+  (`CFRunLoopAddCommonMode`). It cannot be taken back, and every other AppKit slide (a window
+  zoomed from a menu item, inside GPUI's handling of it) would then run GPUI's tasks while its
+  `App` is borrowed, a panic. Nor does a run loop inside a task of the main queue serve that
+  queue, so the slide cannot simply be started from a GPUI task.
+- **Dropped: a shorter slide** (the parent window's `animationResizeTime:`, or no animation): it
+  changes how the sheet looks. **Dropped: a question window kept and reused**: the slide is the
+  cost, and a reused window slides as long.
+- Options, File properties, a progress window, Add URL and the Scheduler are windows of their own,
+  not sheets: measured, they held `ui.texts` 13 to 28 ms opening and closing, before and after.

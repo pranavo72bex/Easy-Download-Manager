@@ -65,6 +65,8 @@ mod scheduler;
 mod screen;
 mod series;
 mod services;
+#[cfg(target_os = "macos")]
+mod sheets;
 mod sidebar;
 mod statusbar;
 mod syswindow;

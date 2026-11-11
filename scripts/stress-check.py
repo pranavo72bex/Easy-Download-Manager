@@ -2410,12 +2410,13 @@ def p_import(ctx):
                           f"worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
         check("import", "the same list again asks first, and Skip them adds none",
               bool(asked) and bool(skipped) and len(dm.rows()) == count, f"{said(dm)}; {len(dm.rows())} rows")
-        # Not held to 100 ms: the question is a sheet, and macOS holds the window's thread for its
-        # slide in and out, about 0.27 s each whatever the list (10 links: 265 ms). What the list
-        # costs is how soon it asks: counting 10,000 links against 10,000 rows held the window a
-        # minute when it was done there.
+        # What the list costs is how soon it asks: counting 10,000 links against 10,000 rows held
+        # the window a minute when it was done there. The question is a sheet, whose slide in and
+        # out held the window's thread about 0.27 s each when GPUI began and ended it (gaps row
+        # 194); dm slides it now with the window working on (`sheets.rs`).
         check("import", "the same list again is read and counted off the window's thread: asked within a second",
               bool(asked) and took_ask < 1.0, f"asked in {took_ask:.1f} s")
+        held("the same list again, its question opening and closing", answers)
         rss, cpu, fds, th = dm.peak()
         measure("import", f"peak rss {rss:.0f} MB, cpu {cpu:.0f}%")
     finally:

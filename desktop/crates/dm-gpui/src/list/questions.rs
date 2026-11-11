@@ -311,6 +311,22 @@ impl Downloads {
     /// logout or `kill` waited on an unanswered question), then the
     /// application.
     pub fn quit(&mut self, cx: &mut Context<Self>) {
+        // Asked as a question's sheet slides (Exit pressed as "Exit dm?"
+        // came in): once it has, as AppKit drops a quit asked inside the
+        // slide, and dm ran on.
+        #[cfg(target_os = "macos")]
+        if crate::sheets::sliding() {
+            cx.spawn(async move |this, cx| {
+                while crate::sheets::sliding() {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_millis(10))
+                        .await;
+                }
+                let _ = this.update(cx, |this, cx| this.quit(cx));
+            })
+            .detach();
+            return;
+        }
         // The downloads stopped and awaited, as a pause stops them, the
         // queue written last (gaps row 186).
         self.backend.shut_down();
@@ -325,9 +341,19 @@ impl Downloads {
         // The questions it closes are not answered, and none waiting is asked.
         crate::question::quitting();
         self.sheets.clear();
+        #[cfg(target_os = "macos")]
+        crate::sheets::end_all_now();
         for (handle, _, dialog) in crate::screen::Screens::all(cx) {
             if dialog {
-                let _ = handle.update(cx, |_, window, _| window.remove_window());
+                let _ = handle.update(cx, |_, window, _| {
+                    // A question's sheet taken off its window first (`sheets`):
+                    // macOS holds its quitting while one is up.
+                    #[cfg(target_os = "macos")]
+                    if let Some(sheet) = crate::syswindow::ns_window(window) {
+                        crate::sheets::end_now(&sheet);
+                    }
+                    window.remove_window()
+                });
             }
         }
         cx.quit();

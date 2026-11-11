@@ -119,6 +119,13 @@ impl Screens {
         screens.0.push((window, screen, dialog));
     }
 
+    /// `window` is out of the port's sight, as a closed window is, while it
+    /// is still going (a question's sheet sliding off, `question::close`).
+    pub fn forget(window: AnyWindowHandle, cx: &mut App) {
+        let screens = cx.default_global::<Screens>();
+        screens.0.retain(|(w, _, _)| *w != window);
+    }
+
     /// `window`'s dialog is called `name`, whatever its title says now (a
     /// progress window's title starts with how far it is).
     pub fn named(window: AnyWindowHandle, name: impl Into<SharedString>, cx: &mut App) {
