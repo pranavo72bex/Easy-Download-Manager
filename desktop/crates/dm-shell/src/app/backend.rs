@@ -13,6 +13,11 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{lists, shell, Settings};
+
+/// How long a dm that is ending waits for its downloads to stop
+/// (`Backend::shut_down`): each stops at its next piece, and a person
+/// quitting is not kept waiting past this.
+pub const SHUT_DOWN_WITHIN: std::time::Duration = std::time::Duration::from_secs(2);
 use dm_core::{AddOptions, Connection, Entry, Id, Queue};
 
 pub use super::platform::{chooser_here, Platform};
@@ -220,10 +225,18 @@ impl Backend {
         self.block_on(self.queue.remove_many(ids));
     }
 
-    /// Writes the queue file now if a change is still waiting to be written:
-    /// what a dm that is ending does last.
+    /// Writes the queue file now if a change is still waiting to be written.
     pub fn flush(&self) {
         self.block_on(self.queue.flush());
+    }
+
+    /// What a dm that is ending does last (Exit, a logout, a signal): every
+    /// running download stopped as a pause stops it, awaited for up to
+    /// [`SHUT_DOWN_WITHIN`], and put back in line for the next start; then
+    /// the queue file written (`Queue::shut_down`). Says how many runs were
+    /// still going at the deadline.
+    pub fn shut_down(&self) -> usize {
+        self.block_on(self.queue.shut_down(SHUT_DOWN_WITHIN))
     }
 
     /// One command for the lot, not one per row: pausing forty downloads by

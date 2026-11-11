@@ -875,6 +875,59 @@ def p_crash(ctx):
 
 
 @phase
+def p_quit(ctx):
+    """SIGTERM in the middle of 20 downloads, 10 running (dm's most at once), the rest waiting
+    (gaps row 186): dm stops them as a pause does and exits 0 within 2 s; a restart puts them
+    back in line and finishes them byte-exact."""
+    base, root = ctx["base"], ctx["root"]
+    n = 20
+    size = 24 * MB
+    settings = {"connections": 4, "concurrency": n}
+    dm = DM(root, settings, name="quit", window=True).start()
+    expect = {}
+    urls = []
+    for i in range(n):
+        name = f"q{i}.bin"
+        # A quarter of a megabyte a second a connection: a minute each, all still running when
+        # the signal comes.
+        urls.append(f"{base}/f/quit{i}/{size}/{name}?rate={MB // 4}")
+        expect[name] = (f"quit{i}", size)
+    dm.add(urls)
+    wait_for(lambda: sum(1 for r in dm.rows() if r["state"]["kind"] == "running" and r["progress"]["downloaded"] > 0) >= 10, 60, every=0.5)
+    time.sleep(2)
+    before = dm.rows()
+    running = sum(1 for r in before if r["state"]["kind"] == "running")
+    fetched = sum(r["progress"]["downloaded"] for r in before)
+    t = time.time()
+    dm.proc.terminate()
+    try:
+        code = dm.proc.wait(15)
+    except subprocess.TimeoutExpired:
+        code = None
+    took = time.time() - t
+    dm.stop()
+    measure("quit", f"SIGTERM with {running} of {n} downloads running ({fetched // MB} MB fetched): exit {code} after {took:.2f} s")
+    check("quit", "exits 0 within 2 s of SIGTERM with 10 downloads running", code == 0 and took < 2.0 and running >= 10,
+          f"exit {code} after {took:.2f} s")
+    dm2 = DM(root, settings, name="quit")
+    dm2.home, dm2.out = dm.home, dm.out
+    try:
+        dm2.start()
+        rows = dm2.rows()
+        st = states(rows)
+        measure("quit", f"after the restart: {st}, {sum(r['progress']['downloaded'] for r in rows) // MB} MB kept")
+        check("quit", "every row comes back to run again", len(rows) == n and all(r["state"]["kind"] in ("queued", "running", "completed") for r in rows), str(st))
+        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm2.rows()), 300, every=2)
+        ok, bad = verify(dm2.rows(), expect)
+        if bad:
+            finding("critical", "quit", f"files resumed after SIGTERM are corrupt: {bad[:3]}")
+        check("quit", "all resumed byte-exact", ok == n)
+    finally:
+        dm2.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+
+
+@phase
 def p_pause_storm(ctx):
     """Random pause/resume/cancel at speed on 80 downloads; survivors are exact."""
     base, root = ctx["base"], ctx["root"]

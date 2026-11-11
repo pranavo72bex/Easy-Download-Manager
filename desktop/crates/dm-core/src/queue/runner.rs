@@ -63,6 +63,10 @@ impl Queue {
     /// merely oversell the limit; it would put two writers on one set of
     /// part files.
     pub(super) async fn tick(&self) {
+        // dm is ending: what runs is being put down, and nothing starts.
+        if self.inner.closing.load(Ordering::SeqCst) {
+            return;
+        }
         // Outside the window, nothing new starts and what is running is put
         // down. Pausing rather than letting it run to the end is the point:
         // the reason to set a window is a link that must be free outside it.
