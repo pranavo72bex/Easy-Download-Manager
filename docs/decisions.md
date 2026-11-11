@@ -5658,3 +5658,18 @@ because it is the bottom line and a standard, and that every parameter goes in. 
 `compare.mjs` on the laptop's runs of 2026-11-10, dm's release build of that day: dm is better
 end to end in `fast`, `per_conn`, `flaky` and `outage`, and worse in 22 parameters, which are
 gaps rows 171 and 175 to 177. `batch` has no floor (row 172), and `inet` is never one.
+
+## 2026-11-11: Windows' GPUI window opens smaller
+
+At the maintainer's words of 2026-11-11 ("on windows UI looks super big", "fonts size is good. i
+mean default windows size is big", "make sure it did not break on mac os because on mac it is
+perfect"): on Windows the main window's first size is 840 by 520 points (as wide as its toolbar's buttons need) (900 by 600 before, two
+thirds of a 1366 by 768 laptop's screen and most of its height), and the tallest dialogs open
+smaller: Options 620 by 520 (680 by 600, nearly the screen's height), the Grabber 600 by 480,
+Download links 680 by 480; their pages scroll as they did. Each is `native::pick(macos, windows,
+gnome)` with only the Windows value changed, so macOS and Linux open as before, and the text and
+every control keep their sizes. A window put somewhere else or resized still comes back as it
+was left (`frame.rs`). On Windows a dialog has no minimize button (`screen::open_window`: not
+the main window, whose title bar dm draws, nor the drop target), as Windows' own dialogs have
+none. B25's Windows picture of the empty window (`docs/behaviour-baseline/gpui/windows/`) was
+drawn again at the new size with `human-qa.py --save-baseline` and looked at, at those words.

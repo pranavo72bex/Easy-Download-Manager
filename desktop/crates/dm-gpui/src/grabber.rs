@@ -534,7 +534,15 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
         return;
     };
     let listed = dm_shell::app::control_api::listed_addresses(&downloads.read(cx).rows);
-    let bounds = Bounds::centered(None, size(px(640.0), px(560.0)), cx);
+    // Smaller on Windows, as Options is.
+    let bounds = Bounds::centered(
+        None,
+        size(
+            px(crate::native::pick(640.0, 600.0, 640.0)),
+            px(crate::native::pick(560.0, 480.0, 560.0)),
+        ),
+        cx,
+    );
     let opened = crate::screen::open_window(
         cx,
         WindowOptions {

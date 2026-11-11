@@ -299,7 +299,16 @@ fn main() {
                 .map(|kept| (kept, display.map(gpui::DisplayId::from)))
         });
         let (window_bounds, display_id) = kept.unwrap_or_else(|| {
-            let middle = Bounds::centered(None, size(px(900.0), px(600.0)), cx);
+            // The first start's size: on Windows as reference A's window and
+            // the system's own programs open, not most of a laptop's screen
+            // (900 by 600 took two thirds of 1366 by 768, the maintainer's
+            // word of 2026-11-11), as wide as the toolbar's buttons need;
+            // macOS's as it was.
+            let first = size(
+                px(native::pick(900.0, 840.0, 900.0)),
+                px(native::pick(600.0, 520.0, 600.0)),
+            );
+            let middle = Bounds::centered(None, first, cx);
             (WindowBounds::Windowed(middle), None)
         });
         let opened = crate::screen::open_window(

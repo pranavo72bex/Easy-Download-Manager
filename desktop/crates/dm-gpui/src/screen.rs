@@ -170,9 +170,21 @@ impl Screens {
 /// Every dm window opens through here.
 pub fn open_window<V: 'static + gpui::Render>(
     cx: &mut App,
-    options: gpui::WindowOptions,
+    mut options: gpui::WindowOptions,
     build: impl FnOnce(&mut gpui::Window, &mut App) -> gpui::Entity<V>,
 ) -> gpui::Result<gpui::WindowHandle<V>> {
+    // On Windows a dialog has no minimize button, as Windows' own dialogs
+    // (and reference A's) have none: only the main window, whose title bar
+    // dm draws, goes down to the taskbar. Not the floating drop target (a
+    // pop-up), and nothing changes elsewhere.
+    let dialog = options.kind != gpui::WindowKind::PopUp
+        && !options
+            .titlebar
+            .as_ref()
+            .is_some_and(|titlebar| titlebar.appears_transparent);
+    if cfg!(windows) && dialog {
+        options.is_minimizable = false;
+    }
     let title = options.titlebar.as_ref().and_then(|t| t.title.clone());
     let opened = cx.open_window(options, build)?;
     let handle: AnyWindowHandle = opened.into();

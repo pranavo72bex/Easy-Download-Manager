@@ -30,9 +30,10 @@ use crate::theme::Theme;
 
 /// The window's size: one for every page, so the tabs and the buttons stay
 /// where they are when another page is picked; a page longer than that
-/// scrolls.
-const WIDTH: f32 = 680.0;
-const HEIGHT: f32 = 600.0;
+/// scrolls. Smaller on Windows, where 600 points stood nearly the height of
+/// a laptop's screen.
+const WIDTH: f32 = crate::native::pick(680.0, 620.0, 680.0);
+const HEIGHT: f32 = crate::native::pick(600.0, 520.0, 600.0);
 
 /// Options' view.
 pub struct Options {

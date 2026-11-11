@@ -651,7 +651,15 @@ fn open_now(view: WeakEntity<Downloads>, request: dm_shell::host::Request, cx: &
     let backend = downloads.read(cx).backend.clone();
     let queues = backend.queues();
     let failed = view.clone();
-    let bounds = Bounds::centered(None, size(px(760.0), px(560.0)), cx);
+    // Smaller on Windows, as Options is.
+    let bounds = Bounds::centered(
+        None,
+        size(
+            px(crate::native::pick(760.0, 680.0, 760.0)),
+            px(crate::native::pick(560.0, 480.0, 560.0)),
+        ),
+        cx,
+    );
     let opened = crate::screen::open_window(
         cx,
         WindowOptions {
