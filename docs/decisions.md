@@ -6615,3 +6615,107 @@ Not done, written down:
   writes held to 1 MB/s, eight connections to a server that would send 50 MB/s; over 6 s the
   download wrote 6.3 MB (1.03 MB/s) and the process grew 4.7 MB (most of it the test server's own
   buffers), within the 10 MB allowed. The hook is one atomic load a write when no test sets it.
+
+## 2026-11-12: A frame's costs counted, in a debug build (gaps row 180)
+
+- **Counted where they are made, while a thread draws** (`dm-shell` `app/costs.rs`): the main
+  window's `render` and the rows' builder (`table::rows`, run as the list is laid out, after
+  `render`) mark the window's thread as drawing; `Backend::block_on` and `Backend::settings`
+  count themselves when the thread they run on is. Only in a debug build: in a release build the
+  marks and counts are empty functions, and `ui.frames` says `"drawing": null`.
+- **The disk is counted by a library preloaded into dm, not by dm** (`scripts/fs-count.c`, built by
+  `stress-check.py frame` with the system's `cc` and loaded with `DYLD_INSERT_LIBRARIES`, or
+  `LD_PRELOAD` on Linux). dm reaches the disk through hundreds of calls in its own code, the
+  standard library's and the system's (AppKit, fonts); wrapping its own would have missed the
+  rest. The library counts each thread's `stat`, `open`, `access`, `opendir`, `realpath`,
+  `getattrlist` and the like, and says the calling thread's count as `dm_fs_calls`, which the
+  debug build reads (`dlsym`) as a draw begins and ends. Without the library the disk is reported
+  as not counted, not as zero.
+- **What it found:** one call. When a finished row finished ("Last try") was written in the frame
+  through chrono's `Local`, which looks at `/etc/localtime` to see whether the zone changed, at
+  most once a second. The words are now kept as the queue is read (`format::Whens`), worked out
+  where a time is new or the day, the zone's offset or the language changed, and the frame looks
+  them up. Not a fixed offset worked out once: a time on the other side of a change to summer
+  time would have been an hour out.
+- **The bound:** no `block_on`, no file-system call, and the settings copied once a frame at most
+  (a frame drawn after no read copies them once, `Downloads::drawn`; one after a read uses the
+  read's). Measured on macOS (debug build, the other track running): 58 and 59 frames at 1,000
+  rows (500 finished, 10 running), and 23 at 10,000 (5,000 finished), each with 0 `block_on`, 0
+  settings copied and 0 file-system calls; before the change, 1 and 2 file-system calls over 50
+  and 61 frames.
+
+## 2026-11-12: Import adds off the window's thread; its rows still the window's own (gaps row 183)
+
+- **The rows an import adds are held, not judged, while it adds them.** The decision of the morning
+  kept Import on the window's thread because its rows are marked the window's own
+  (`Session::own`) once their ids are known, and a read in between would have taken them for rows
+  started elsewhere (a browser's hand-off). The ids cannot be known before the queue gives them
+  (`dm-core` is not changed here), so instead the read does not judge new rows while an import
+  runs: `Session::adding` (on the window's thread) counts one, the errand imports and says the ids
+  it was given (`Adding::added`, under the same lock as the count going down), and each read takes
+  those ids and the count before it reads the queue (`Detector::read_holding`). An adding begins
+  only on the window's thread, where the read is made, so none begins between the two: a row of an
+  import in the read is either held or among the ids said. Held rows are judged at the first read
+  with no import running, so a browser's hand-off added meanwhile is still told, late by the
+  import's length (0.5 s for 10,000 links), rather than an imported row taken for one. An errand
+  that panics drops its `Adding` and its rows are then judged as any new row.
+- **Reserving ids or marking before adding was not done:** both need the queue to hand out ids
+  before it adds, an engine change on the other track's ground.
+- **The rows imported are the ids the queue gave**, not the rows new since the import began, which
+  took a hand-off added meanwhile for the list's (and read the whole queue twice).
+- **The list is read, and what of it is listed already counted, on the errand too**, and counted
+  against a set of the listed addresses made once: going through every row for each link was
+  10,000 times 10,000 comparisons, and imported a second time a list of 10,000 held the window
+  more than a minute before it asked.
+- **`ui.choose {path}`**: the control port answers the next of dm's panels with a path (within 30 s,
+  then forgotten, so a stray one does not answer a person's panel later; refused to an assistant
+  over MCP). A script cannot reach the system's panel; Import is measured through it.
+- **Measured** (macOS, Apple M1, release, the other track benchmarking; `stress-check.py import`,
+  `ui.texts` asked every 20 ms on its own connection; the base build with `ui.choose` added before,
+  this one after): 10,000 links imported, worst answer 323 ms to 90 ms (71 in a second run), the
+  rows listed in 0.6 to 0.5 s and said with them (the sentence came 60 s late before, the window
+  busy); the same list again, asked in more than 60 s (the probe's wait ran out; the window
+  answered nothing meanwhile, worst 60,039 ms) to 356 to 378 ms, skipped in 0.9 to 1.0 s. The worst
+  answer through the second case is 278 to 312 ms, the question's window opening and closing
+  (265 ms with a list of 10 links): row 194.
+
+## 2026-11-12: A question's sheet slides with dm working on
+
+Gaps row 194: a question held the GPUI window's thread about 0.27 s as it opened and again as it
+closed. Measured before anything was changed (macOS, Apple M1, the release code with symbols): the
+window's own wake-up log showed GPUI's `open_window` for the question taking 288 ms, and the time
+after `remove_window` 270 ms, with the main run loop in `_NSMoveTimerRunLoopMode` for 263 ms of
+each; `sample` put that under `-[NSWindow _beginWindowBlockingModalSessionForSheet:]` →
+`-[NSSheetMoveHelper openSheet]` → `-[NSMoveHelper _doAnimation]`, the thread waiting, not
+working. AppKit slides a sheet in a run loop mode of its own, which is not one of the common
+modes, so the main dispatch queue (GPUI's foreground executor) is not served until the slide is
+over; GPUI begins the sheet inside its window's making and ends it in a task of the main queue.
+Nothing of dm's (settings, translations, the list, fonts, Metal set-up: 9 to 18 ms of the 288)
+was the cost.
+
+- **dm begins and ends the sheet** (`dm-gpui/src/sheets.rs`): the question is made as GPUI's
+  `Floating` window, unshown, given a `Dialog`'s level back, drawn once, and then
+  `beginSheet:completionHandler:` is called from a run loop timer of dm's own, where nothing of
+  GPUI's is under way; `endSheet:` the same way, and the GPUI window is removed once the sheet is
+  off. While a sheet slides, a repeating 4 ms timer in AppKit's mode runs one pass of the default
+  mode (`CFRunLoopRunInMode`), which serves the main queue: GPUI's tasks, frames and the control
+  port's answers run as between any two frames. One sheet moves at a time, in order. A slide
+  begun by that work (from inside GPUI) runs none of it, so GPUI is never entered while its `App`
+  is in use. Quitting while a sheet slides waits for it (AppKit dropped a `terminate:` asked
+  inside the slide, and dm ran on); quitting otherwise takes every sheet off at once, as before.
+  The mode's name is private: were it renamed, the timer would never run and a slide would hold
+  the window as it did, nothing worse.
+- **Measured** (other work running): "Already in the list" opened and closed ten times, `ui.texts`
+  every 20 ms worst 305 ms to 24 ms; `stress-check.py import` (10,000 rows) the same list again
+  299 ms to 34 ms, asked in 373 to 134 ms. The question now slides in drawn; before, its first
+  frame came after the slide.
+- **Dropped: the main dispatch queue served in the slide's mode for good**
+  (`CFRunLoopAddCommonMode`). It cannot be taken back, and every other AppKit slide (a window
+  zoomed from a menu item, inside GPUI's handling of it) would then run GPUI's tasks while its
+  `App` is borrowed, a panic. Nor does a run loop inside a task of the main queue serve that
+  queue, so the slide cannot simply be started from a GPUI task.
+- **Dropped: a shorter slide** (the parent window's `animationResizeTime:`, or no animation): it
+  changes how the sheet looks. **Dropped: a question window kept and reused**: the slide is the
+  cost, and a reused window slides as long.
+- Options, File properties, a progress window, Add URL and the Scheduler are windows of their own,
+  not sheets: measured, they held `ui.texts` 13 to 28 ms opening and closing, before and after.

@@ -19,6 +19,7 @@ pub mod backend;
 pub mod changes;
 pub mod commands;
 pub mod control_api;
+pub mod costs;
 pub mod detect;
 pub mod errands;
 pub mod events;

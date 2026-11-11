@@ -138,7 +138,7 @@ const HIDDEN_WAIT: Duration = Duration::from_secs(10);
 mod later;
 mod questions;
 mod refresh;
-use refresh::{clicked, holding_top};
+use refresh::clicked;
 use refresh::{needs_drawing, placed_alike, NAMES_EVERY};
 
 /// The main window's view: the application, and the rows it last read.
@@ -308,6 +308,8 @@ pub struct Downloads {
     earlier: std::collections::HashMap<dm_core::Id, usize>,
     /// The next read works everything out again (the settings changed).
     pub(crate) read_all: bool,
+    /// When each row finished, in words, kept by the read (`keep_whens`).
+    pub(crate) whens: dm_desktop_base::format::Whens,
     /// Set when a second launch, the browser or the Dock asks for the window.
     show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// What an opener said went wrong, from its thread.
@@ -414,6 +416,7 @@ impl Downloads {
             earlier: Default::default(),
             // The first read works it all out: an empty list's queues too.
             read_all: true,
+            whens: Default::default(),
             show_asked,
             opener_said: Default::default(),
             show_sidebar: true,
@@ -1809,12 +1812,14 @@ impl Downloads {
                 .zip(&self.rows)
                 .all(|(new, old)| new.id == old.id);
         let mut moved = !same_rows || std::mem::take(&mut self.read_all);
+        let mut finished_at = Vec::new();
         if same_rows {
             for (new, old) in rows.iter().zip(&self.rows) {
                 if std::sync::Arc::ptr_eq(new, old) {
                     continue;
                 }
                 changed = true;
+                finished_at.extend(new.finished_at);
                 if !placed_alike(old, new) {
                     moved = true;
                     break;
@@ -1823,6 +1828,9 @@ impl Downloads {
         }
         changed |= moved;
         self.rows = rows;
+        // Every row's finishing words where the rows are placed again, else
+        // those of the rows that changed.
+        self.keep_whens(&settings.language, moved, finished_at);
         if moved {
             self.named_at = Some(Instant::now());
             // The queues the rows name, for Start Queue's and Stop Queue's
@@ -2155,50 +2163,6 @@ impl Downloads {
         };
         self.reshow();
     }
-
-    /// Which rows the list shows, in order: those in the place chosen,
-    /// sorted as chosen.
-    fn reshow(&mut self) {
-        // The row at the top of the view, held there below.
-        let top = self.top_row();
-        let categories = self.drawn.categories();
-        let mut shown: Vec<usize> = (0..self.rows.len())
-            .filter(|&i| {
-                self.places.within(&self.place, &self.rows[i], &categories)
-                    && self.places.matches_filter(&self.filter_text, &self.rows[i])
-            })
-            .collect();
-        if let Some((column, up)) = self.sort {
-            let rows = &self.rows;
-            shown.sort_by(|&a, &b| {
-                let order = dm_desktop_base::columns::compare(column, &rows[a], &rows[b]);
-                if up {
-                    order
-                } else {
-                    order.reverse()
-                }
-            });
-        }
-        self.positions = shown
-            .iter()
-            .enumerate()
-            .filter_map(|(at, &r)| self.rows.get(r).map(|row| (row.id, at)))
-            .collect();
-        self.shown = shown;
-        // Rows added or taken away above the view, or a sort, no longer
-        // move what is in it: the row that was at its top stays there
-        // (gaps row 182).
-        if let Some((id, was, height, offset)) = top {
-            if let Some(&now) = self.positions.get(&id) {
-                let held = holding_top(offset, height, was, now);
-                if held != offset {
-                    let state = self.scroll.0.borrow();
-                    let x = state.base_handle.offset().x;
-                    state.base_handle.set_offset(gpui::point(x, gpui::px(held)));
-                }
-            }
-        }
-    }
 }
 
 /// The command that sorts by `column`, for View › Sort by's tick; none for
@@ -2256,6 +2220,8 @@ pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::port::FRAMES.fetch_add(1, Ordering::Relaxed);
+        // Its waits, copies and disk calls, counted in a debug build (row 180).
+        let _drawing = dm_shell::app::costs::drawing();
         if !std::mem::take(&mut self.drawn_fresh) {
             self.drawn = std::rc::Rc::new(self.backend.settings());
         }

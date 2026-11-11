@@ -115,6 +115,31 @@ impl Asked {
     }
 }
 
+/// The path a script chose ahead (`ui.choose`) and when.
+static CHOSEN_AHEAD: std::sync::Mutex<Option<(PathBuf, std::time::Instant)>> =
+    std::sync::Mutex::new(None);
+
+/// How long a path chosen ahead waits for its panel: one left unused does
+/// not answer a person's panel later on.
+const CHOSEN_AHEAD_FOR: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The control port's `ui.choose {path}`: the next of dm's panels
+/// (`ask`), opened within half a minute, is answered with `path` as though
+/// a person had chosen it there, rather than shown. A script cannot reach
+/// the system's own panel (it is not dm's window), and Import, Export and
+/// the Browse… buttons are measured and checked through it (gaps row 183).
+pub fn choose_ahead(path: PathBuf) {
+    *dm_core::lock(&CHOSEN_AHEAD) = Some((path, std::time::Instant::now()));
+}
+
+/// The path chosen ahead, taken, where it is still fresh.
+fn chosen_ahead() -> Option<PathBuf> {
+    dm_core::lock(&CHOSEN_AHEAD)
+        .take()
+        .filter(|(_, at)| at.elapsed() < CHOSEN_AHEAD_FOR)
+        .map(|(path, _)| path)
+}
+
 /// Opens the system's own panel for `asked` and answers with what was
 /// chosen once it is closed, without holding the window's thread while it
 /// is open (gaps row 183): the window goes on drawing, the downloads'
@@ -124,6 +149,9 @@ impl Asked {
 /// not waiting is a sheet on the window); elsewhere `rfd`'s, the portal's or
 /// the common dialog.
 pub fn ask(asked: Asked) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<PathBuf>>>> {
+    if let Some(chosen) = chosen_ahead() {
+        return Box::pin(async move { Some(chosen) });
+    }
     #[cfg(target_os = "macos")]
     {
         let answer = macos::ask(&asked);

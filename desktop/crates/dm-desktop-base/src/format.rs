@@ -171,6 +171,57 @@ pub fn when(seconds: Option<u64>) -> String {
     }
 }
 
+/// [`when`]'s words for many times, kept: worked out where a time is new,
+/// and all again where the day, the zone's offset or the language changed.
+/// Asking chrono's `Local` looks at the disk for the zone now and then
+/// (`/etc/localtime`, at most once a second), which a window's frame must
+/// not (gaps row 180): the window keeps these as it reads the queue, and its
+/// frames look them up.
+#[derive(Debug, Default)]
+pub struct Whens {
+    /// The day, the zone's offset from UTC in seconds and the language the
+    /// words were worked out for.
+    kept_for: Option<(chrono::NaiveDate, i32, String)>,
+    words: std::collections::HashMap<u64, String>,
+}
+
+impl Whens {
+    /// Whether the words kept are for today, this zone and `language`:
+    /// where not, they are let go, and `true` says each time is to be kept
+    /// again.
+    pub fn renew(&mut self, language: &str) -> bool {
+        let now = chrono::Local::now();
+        let wanted = (
+            now.date_naive(),
+            now.offset().local_minus_utc(),
+            language.to_string(),
+        );
+        if self.kept_for.as_ref() == Some(&wanted) {
+            return false;
+        }
+        self.kept_for = Some(wanted);
+        self.words.clear();
+        true
+    }
+
+    /// Keeps the words for each of `times` not kept yet.
+    pub fn keep(&mut self, times: impl IntoIterator<Item = u64>) {
+        for seconds in times {
+            self.words
+                .entry(seconds)
+                .or_insert_with(|| when(Some(seconds)));
+        }
+    }
+
+    /// The words for `seconds`: those kept, or worked out now where they
+    /// were not.
+    pub fn of(&self, seconds: Option<u64>) -> String {
+        seconds
+            .and_then(|s| self.words.get(&s).cloned())
+            .unwrap_or_else(|| when(seconds))
+    }
+}
+
 /// Names in the order a person expects: case aside, and the numbers in
 /// them by value, so "part 2" comes before "part 10".
 pub fn natural(a: &str, b: &str) -> std::cmp::Ordering {

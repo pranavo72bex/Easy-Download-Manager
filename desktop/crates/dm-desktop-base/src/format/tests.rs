@@ -239,6 +239,26 @@ fn a_date_of_another_year_says_the_year_and_the_month_is_translated() {
     assert_eq!(said, format!("5 mars {}", year - 2));
 }
 
+/// The words kept for a time are `when`'s, and are let go where the
+/// language they were worked out in is no longer the one asked for.
+#[test]
+fn the_words_kept_for_a_time_are_whens_and_follow_the_language() {
+    crate::region::pin(None);
+    use chrono::{Datelike, Local, TimeZone};
+    let year = Local::now().year();
+    let then = Local
+        .with_ymd_and_hms(year - 2, 3, 5, 12, 0, 0)
+        .unwrap()
+        .timestamp() as u64;
+    let mut whens = super::Whens::default();
+    assert!(whens.renew("en"), "nothing kept yet");
+    whens.keep([then]);
+    assert_eq!(whens.of(Some(then)), when(Some(then)));
+    assert!(!whens.renew("en"), "the same day, zone and language");
+    assert!(whens.renew("de"), "another language");
+    assert_eq!(whens.of(None), "");
+}
+
 #[test]
 fn names_sort_with_their_numbers_by_value() {
     crate::region::pin(None);

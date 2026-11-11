@@ -45,6 +45,20 @@ impl Downloads {
                 .any(|r| r.state == State::Running || r.delete_after.is_some())
     }
 
+    /// Keeps the words for when each row finished (`format::Whens`), as the
+    /// queue is read: worked out in a frame, they asked the disk for the
+    /// time zone (gaps row 180). Every row's where `all` (the rows were
+    /// placed again) or the day, zone or `language` changed; otherwise those
+    /// of the rows that changed, `finished_at`.
+    pub(super) fn keep_whens(&mut self, language: &str, all: bool, finished_at: Vec<u64>) {
+        if self.whens.renew(language) || all {
+            self.whens
+                .keep(self.rows.iter().filter_map(|row| row.finished_at));
+        } else {
+            self.whens.keep(finished_at);
+        }
+    }
+
     /// Looks for the files of the finished rows on screen and of those
     /// chosen, off the window's thread, at most once a second, and draws
     /// again where one is found gone or back: a row's "File missing", and
@@ -124,6 +138,50 @@ impl Downloads {
         seen.sort_unstable();
         seen.dedup();
         seen
+    }
+
+    /// Which rows the list shows, in order: those in the place chosen,
+    /// sorted as chosen.
+    pub(super) fn reshow(&mut self) {
+        // The row at the top of the view, held there below.
+        let top = self.top_row();
+        let categories = self.drawn.categories();
+        let mut shown: Vec<usize> = (0..self.rows.len())
+            .filter(|&i| {
+                self.places.within(&self.place, &self.rows[i], &categories)
+                    && self.places.matches_filter(&self.filter_text, &self.rows[i])
+            })
+            .collect();
+        if let Some((column, up)) = self.sort {
+            let rows = &self.rows;
+            shown.sort_by(|&a, &b| {
+                let order = dm_desktop_base::columns::compare(column, &rows[a], &rows[b]);
+                if up {
+                    order
+                } else {
+                    order.reverse()
+                }
+            });
+        }
+        self.positions = shown
+            .iter()
+            .enumerate()
+            .filter_map(|(at, &r)| self.rows.get(r).map(|row| (row.id, at)))
+            .collect();
+        self.shown = shown;
+        // Rows added or taken away above the view, or a sort, no longer
+        // move what is in it: the row that was at its top stays there
+        // (gaps row 182).
+        if let Some((id, was, height, offset)) = top {
+            if let Some(&now) = self.positions.get(&id) {
+                let held = holding_top(offset, height, was, now);
+                if held != offset {
+                    let state = self.scroll.0.borrow();
+                    let x = state.base_handle.offset().x;
+                    state.base_handle.set_offset(gpui::point(x, gpui::px(held)));
+                }
+            }
+        }
     }
 
     /// The list laid out `range` on screen: its files are looked for at

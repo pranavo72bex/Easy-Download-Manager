@@ -53,10 +53,30 @@ fn reads(backend: Backend, assistants_only: bool) -> Reads {
         // How many times the main window has been drawn: what a test of
         // "a wake that changed nothing draws nothing" counts, asked here so
         // the asking draws nothing either (gaps row 181).
+        // In a debug build, what those draws waited for, copied and asked
+        // of the disk (`costs`, gaps row 180); a release build counts none.
         if method == "ui.frames" {
             return Some(Ok(serde_json::json!({
-                "frames": FRAMES.load(std::sync::atomic::Ordering::Relaxed)
+                "frames": FRAMES.load(std::sync::atomic::Ordering::Relaxed),
+                "drawing": dm_shell::app::costs::so_far(),
             })));
+        }
+        // The next panel answered with a path (`services::choose_ahead`),
+        // here so that a panel already being opened is not waited for; not
+        // for an assistant, which is not given the disk to choose from.
+        if method == "ui.choose" {
+            if via_mcp {
+                return Some(Err("ui.choose is for scripts on this computer".into()));
+            }
+            return Some(
+                match params.get("path").and_then(serde_json::Value::as_str) {
+                    Some(path) if !path.is_empty() => {
+                        crate::services::choose_ahead(path.into());
+                        Ok(serde_json::json!({ "chosen": path }))
+                    }
+                    _ => Err("give `path`: what the next panel is answered with".into()),
+                },
+            );
         }
         if method != "queue.list" {
             return None;
