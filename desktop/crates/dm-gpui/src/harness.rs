@@ -78,7 +78,10 @@ impl dm_shell::app::platform::Platform for Fake {
         action: dm_shell::app::power::WhenDone,
         _report: dm_shell::app::power::Report,
     ) -> Result<(), String> {
-        self.opened.lock().unwrap().push(format!("power {action:?}"));
+        self.opened
+            .lock()
+            .unwrap()
+            .push(format!("power {action:?}"));
         Ok(())
     }
     fn choose_app(&self) -> Option<std::path::PathBuf> {
@@ -300,6 +303,30 @@ impl Harness {
         });
         self.wakes.send(Wake::Now);
         self.cx.run_until_parked();
+        // The system's part of a frame and a resize, which the test platform leaves out: what
+        // waits for the next frame runs, and a dialog that grows to fit what it shows
+        // (`fit.rs`) is given the size it asked for, as the system gives it.
+        let asked: Vec<_> = self.cx.update(|cx| {
+            cx.windows()
+                .into_iter()
+                .filter_map(|handle| {
+                    handle
+                        .update(cx, |_, window, cx| {
+                            window.simulate_next_frame(cx);
+                            let size = window.bounds().size;
+                            (size != window.viewport_size()).then_some((handle, size))
+                        })
+                        .ok()
+                        .flatten()
+                })
+                .collect()
+        });
+        if !asked.is_empty() {
+            for (handle, size) in asked {
+                self.cx.simulate_window_resize(handle, size);
+            }
+            self.cx.run_until_parked();
+        }
     }
 
     /// Asks the window `method` with `params`, as the control port does, and its answer.
@@ -320,6 +347,167 @@ impl Harness {
             }
         }
         Err(format!("{method} was not answered"))
+    }
+
+    /// `alter` of the window's own state, with its context: what a menu's item or a hand-over
+    /// does to it.
+    pub(crate) fn update<R>(
+        &mut self,
+        alter: impl FnOnce(&mut Downloads, &mut gpui::Context<Downloads>) -> R,
+    ) -> R {
+        let done = self
+            .window
+            .update(&mut self.cx, |view, _, cx| alter(view, cx))
+            .unwrap();
+        self.step();
+        done
+    }
+
+    /// Runs `command` as a person's pick of it in a menu does: Open and Preview too, which the
+    /// port leaves to a person (the port's clicks a moment ago are not held against it).
+    pub(crate) fn run(&mut self, command: dm_shell::app::commands::Command) {
+        self.update(|view, cx| {
+            view.scripted = Default::default();
+            view.run(command, cx)
+        });
+    }
+
+    /// Whether `command` is offered for the rows selected, as its menu item is.
+    pub(crate) fn enabled(&mut self, command: dm_shell::app::commands::Command) -> bool {
+        self.view(|view| view.enabled(command))
+    }
+
+    /// The row the list names `name`.
+    pub(crate) fn row(&mut self, name: &str) -> dm_core::Entry {
+        self.view(|view| {
+            view.rows
+                .iter()
+                .find(|r| view.name_shown(r) == name)
+                .map(|r| (**r).clone())
+        })
+        .unwrap_or_else(|| panic!("no row {name}"))
+    }
+
+    /// Clicks the row `name`, which selects it alone.
+    pub(crate) fn select(&mut self, name: &str) {
+        self.click(name);
+        let id = self.row(name).id;
+        self.until(&format!("{name} to be selected"), |h| {
+            h.view(|view| view.selected.len() == 1 && view.selected.contains(&id))
+        });
+    }
+
+    /// A download the browser hands over, as dm's inbox leaves it for the window.
+    pub(crate) fn hand_over(&mut self, request: dm_shell::host::Request) {
+        self.view(|view| view.backend.handed.lock().unwrap().push_back(request));
+        self.step();
+    }
+
+    /// The settings changed by `alter`, through the window's own way in, as Options' OK
+    /// puts them in force.
+    pub(crate) fn apply(&mut self, alter: impl FnOnce(&mut dm_shell::Settings)) {
+        let mut wanted = self.view(|view| view.backend.settings());
+        alter(&mut wanted);
+        if let Err(why) = self.update(|view, cx| view.apply_settings(wanted, cx)) {
+            panic!("the settings were refused: {why}");
+        }
+    }
+
+    /// What the status bar says now, where it says anything.
+    pub(crate) fn said(&mut self) -> String {
+        self.view(|view| view.said.as_ref().map(|(said, _)| said.clone()))
+            .unwrap_or_default()
+    }
+
+    /// Clicks the `nth` words `text` as a person's pointer does, where the port will not
+    /// (Open, Open with…: what runs a downloaded file): pressed and let go over them, in the
+    /// window they are in, nearest the front first.
+    pub(crate) fn click_as_person(&mut self, text: &str, nth: usize) {
+        use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, PlatformInput};
+        let found = self.cx.update(|cx| {
+            crate::screen::Screens::all(cx)
+                .into_iter()
+                .flat_map(|(handle, screen, _)| {
+                    screen.drawn().into_iter().rev().map(move |d| (handle, d))
+                })
+                .filter(|(_, d)| d.text.as_ref() == text)
+                .nth(nth)
+        });
+        let Some((window, drawn)) = found else {
+            panic!("{text} ({nth}) is not on screen: {:?}", self.texts());
+        };
+        let at = drawn.bounds.center();
+        // A person's, not the port's: what the port clicked a moment ago is not held against it.
+        self.view(|view| view.scripted = Default::default());
+        self.cx.update(|cx| {
+            let _ = window.update(cx, |_, window, cx| {
+                let none = Modifiers::default();
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button: MouseButton::Left,
+                        position: at,
+                        modifiers: none,
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button: MouseButton::Left,
+                        position: at,
+                        modifiers: none,
+                        click_count: 1,
+                    }),
+                    cx,
+                );
+            });
+        });
+        self.step();
+    }
+
+    /// Double-clicks the words `text`, as a person does.
+    pub(crate) fn double_click(&mut self, text: &str) {
+        let asked = serde_json::json!({ "text": text, "double": true });
+        if let Err(why) = self.call("ui.click", asked) {
+            panic!("{text} could not be double-clicked: {why}");
+        }
+    }
+
+    /// Turns the wheel `lines` down (up where negative) with the pointer over the words `text`.
+    pub(crate) fn scroll(&mut self, text: &str, lines: f32) {
+        let asked = serde_json::json!({ "text": text, "lines": lines });
+        if let Err(why) = self.call("ui.scroll", asked) {
+            panic!("{text} could not be scrolled: {why}");
+        }
+    }
+
+    /// Scrolls the dialog in front down, a few lines at a time with the pointer over its
+    /// words, until `words` are in sight.
+    pub(crate) fn scroll_to(&mut self, words: &str) {
+        for _ in 0..60 {
+            if self.shows(words) {
+                return;
+            }
+            let texts = self.call("ui.texts", Value::Null).unwrap();
+            let in_dialog: Vec<String> = texts["texts"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|t| t["window"] == "dialog")
+                .filter_map(|t| t["text"].as_str().map(str::to_string))
+                .collect();
+            // One from the middle: the page's, not its buttons' at the foot.
+            let Some(over) = in_dialog.get(in_dialog.len() / 2).cloned() else {
+                break;
+            };
+            self.scroll(&over, 3.0);
+        }
+        assert!(
+            self.shows(words),
+            "{words} never came in sight: {:?}",
+            self.texts()
+        );
     }
 }
 

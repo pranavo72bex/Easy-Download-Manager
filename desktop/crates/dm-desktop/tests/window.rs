@@ -14,8 +14,6 @@
 #[path = "../../../test-support/secrets.rs"]
 mod test_secrets;
 
-#[path = "window/choices.rs"]
-mod choices;
 #[path = "window/commands.rs"]
 mod commands;
 #[path = "window/control.rs"]
@@ -36,5 +34,3 @@ mod options;
 mod speed_schedule;
 #[path = "window/support.rs"]
 mod support;
-#[path = "window/zip.rs"]
-mod zip;
