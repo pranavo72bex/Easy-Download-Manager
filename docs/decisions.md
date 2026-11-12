@@ -6971,3 +6971,6 @@ was the cost.
   keeps it on the row, finished or not, and the Status column says it after the state in the
   person's language (`rows::note_in`). Used for Y19 (`dash::Plan::protected_above`) and Y23 (a
   live playlist's sequence numbers that skip).
+- **S19**: a resolver of dm's own (`dm-core/src/dns.rs`, set in `http_client::builder_with`)
+  keeps each name's addresses for 60 s, at most 512 names, a failed lookup not kept; a miss
+  asks tokio's `lookup_host`. It is also where row 200 can judge the address a name gives.

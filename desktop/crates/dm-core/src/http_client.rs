@@ -89,6 +89,8 @@ pub fn builder_with(
          * read that stalls this long is a dead connection, and the retry
          * policy already knows what to do with one of those. */
         .connect_timeout(std::time::Duration::from_secs(20))
+        // A name looked up once a minute, not once a connection (`dns`, gaps row S19).
+        .dns_resolver(crate::dns::resolver())
         // An idle connection, its buffers grown by a download, kept ten seconds
         // for the next request to the same server rather than reqwest's ninety
         // (gaps row S14): long enough for the next file of a batch, short

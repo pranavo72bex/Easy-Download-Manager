@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Quicker to reconnect: a server's name is looked up once a minute, not again for every connection dm opens to it.
 - macOS: dm's Dock icon has a menu: Add URL, Resume all and Stop all.
 - A download can say something of itself on its row: a DASH video whose higher qualities are copy-protected says the best one that is not was taken, and a live recording says how many pieces the stream dropped before dm could fetch them.
 - An HLS stream fetches as many pieces at once as Connections per file says, where it stopped at eight.

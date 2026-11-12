@@ -50,6 +50,7 @@ pub mod fmp4;
 
 pub mod frames;
 
+mod dns;
 mod finish_trace;
 pub mod ftp;
 
