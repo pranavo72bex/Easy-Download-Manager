@@ -475,6 +475,38 @@ fn shown(command: Command) -> String {
     }
 }
 
+/// Downloads › Speed limiter's items, top to bottom (`None` a separator),
+/// each with whether it is ticked at a limit of `speed_limit` KB/s: Limit
+/// speed while a limit is in force, and the preset that is, as the tray
+/// ticks them. The status bar's Speed limiter pops up the same (gaps row
+/// U29).
+pub(crate) fn speed_limiter(speed_limit: u64) -> Vec<Option<(Command, bool)>> {
+    use dm_desktop_base::tray::{ticked, PRESETS};
+    let mut choices = vec![Some((Command::SpeedLimiterToggle, speed_limit > 0)), None];
+    choices.extend(
+        PRESETS
+            .into_iter()
+            .map(|preset| Some((preset, ticked(preset, speed_limit)))),
+    );
+    choices.extend([None, Some((Command::SpeedLimiterSettings, false))]);
+    choices
+}
+
+/// Downloads › Speed limiter's items as a pop-up of the system's own
+/// (`NativeMenu`), for the status bar's Speed limiter: the same words and
+/// ticks, each running its command as the menu bar's does.
+pub(crate) fn speed_limiter_popup(speed_limit: u64) -> gpui_component::native_menu::NativeMenu {
+    speed_limiter(speed_limit).into_iter().fold(
+        gpui_component::native_menu::NativeMenu::new(),
+        |menu, choice| match choice {
+            Some((command, ticked)) => {
+                menu.menu_with_check(shown(command), ticked, Box::new(Run(command)))
+            }
+            None => menu.separator(),
+        },
+    )
+}
+
 fn items(commands: &[Command]) -> Vec<MenuItem> {
     commands.iter().copied().map(item).collect()
 }
@@ -673,19 +705,12 @@ fn bar(ticks: &Ticks) -> Bar {
         MenuItem::submenu(
             // Limit speed ticked while a limit is in force, and the preset
             // that is.
-            Menu::new(t("Speed limiter")).items(
-                [
-                    item(C::SpeedLimiterToggle).checked(ticks.speed_limit > 0),
-                    MenuItem::separator(),
-                ]
-                .into_iter()
-                .chain(
-                    [C::SpeedLow, C::SpeedMedium, C::SpeedHigh, C::SpeedUnlimited]
-                        .into_iter()
-                        .map(|c| item(c).checked(c.speed_preset() == Some(ticks.speed_limit))),
-                )
-                .chain([MenuItem::separator(), item(C::SpeedLimiterSettings)]),
-            ),
+            Menu::new(t("Speed limiter")).items(speed_limiter(ticks.speed_limit).into_iter().map(
+                |choice| match choice {
+                    Some((command, ticked)) => item(command).checked(ticked),
+                    None => MenuItem::separator(),
+                },
+            )),
         ),
         // The choice ticked; greyed where this computer gives dm no way to
         // do it (macOS does not hibernate), rather than failing when the
@@ -911,6 +936,45 @@ mod tests {
         assert!(state(&on, "Limit speed").0);
         assert!(state(&on, Command::SpeedLow.label()).0);
         assert!(!state(&on, Command::SpeedHigh.label()).0);
+    }
+
+    /// The status bar's Speed limiter pops up Downloads › Speed limiter's
+    /// items, ticked alike: Limit speed and the preset in force, then
+    /// Settings… last (gaps row U29).
+    #[test]
+    fn the_status_bars_speed_limiter_offers_the_menus_items() {
+        let ticked_at = |limit| -> Vec<Command> {
+            speed_limiter(limit)
+                .into_iter()
+                .flatten()
+                .filter(|(_, ticked)| *ticked)
+                .map(|(command, _)| command)
+                .collect()
+        };
+        assert_eq!(ticked_at(0), vec![Command::SpeedUnlimited]);
+        let low = Command::SpeedLow.speed_preset().unwrap_or(0);
+        assert_eq!(
+            ticked_at(low),
+            vec![Command::SpeedLimiterToggle, Command::SpeedLow]
+        );
+        assert_eq!(ticked_at(low + 1), vec![Command::SpeedLimiterToggle]);
+        let choices = speed_limiter(low);
+        assert_eq!(
+            choices.first(),
+            Some(&Some((Command::SpeedLimiterToggle, true)))
+        );
+        assert_eq!(
+            choices.last(),
+            Some(&Some((Command::SpeedLimiterSettings, false)))
+        );
+        // The menu bar's submenu is built from the same list.
+        let menus = build(&Ticks {
+            speed_limit: low,
+            ..Default::default()
+        });
+        for (command, ticked) in choices.into_iter().flatten() {
+            assert_eq!(state(&menus, &shown(command)).0, ticked, "{command:?}");
+        }
     }
 
     /// An item is greyed exactly while its command does not apply (gaps row U5).

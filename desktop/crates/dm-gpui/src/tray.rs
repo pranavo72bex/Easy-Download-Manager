@@ -4,8 +4,10 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! dm in the menu bar's status area, as the egui window's tray: Show dm,
+//! Add URL… and Add links from clipboard… (the window brought forward),
 //! Start Queue and Stop All, the speed limiter (ticked while a limit is in
-//! force) with its presets and Settings… (B52), the Scheduler, Exit dm; a
+//! force) with its presets (the one in force ticked) and Settings… (B52),
+//! the Scheduler, Exit dm; a
 //! click on the icon shows the window. Its picture is a template image, as
 //! the system's own status items are, so it takes the menu bar's colour.
 //! The close button keeps dm here where Options says so (asked once: "Keep
@@ -38,6 +40,13 @@ pub struct Tray {
     /// Show dm, Scheduler…, Exit dm.
     items: [MenuItem; 3],
     limiter: CheckMenuItem,
+    /// The Speed submenu, its title following the language.
+    speeds: Submenu,
+    /// The speed presets, the one in force ticked.
+    presets: Vec<(Command, CheckMenuItem)>,
+    /// The items that run a command (Add URL…, Start Queue, Settings…),
+    /// named by it.
+    commands: Vec<(Command, MenuItem)>,
     /// The tooltip said now.
     tip: String,
     /// The language its words are in.
@@ -48,44 +57,42 @@ impl Tray {
     /// The tray, each choice of its menu and a click on its icon sent to
     /// `asked`.
     pub fn new(asked: async_channel::Sender<Asked>) -> Result<Tray, String> {
+        use dm_desktop_base::tray::{menu_words, PRESETS};
         let [show, limiter, scheduler, quit, tooltip] = dm_desktop_base::tray::words();
         let show = MenuItem::new(show, true, None);
         let limiter = CheckMenuItem::new(limiter, true, false, None);
         let scheduler = MenuItem::new(scheduler, true, None);
         let quit = MenuItem::new(quit, true, None);
-        // The speed presets, one click from the tray, and the limiter's own
-        // dialog, as Downloads › Speed limiter › Settings… (B52).
-        let presets: Vec<(Command, MenuItem)> = [
-            Command::SpeedLow,
-            Command::SpeedMedium,
-            Command::SpeedHigh,
-            Command::SpeedUnlimited,
-            Command::SpeedLimiterSettings,
-        ]
-        .into_iter()
-        .map(|c| {
-            (
-                c,
-                MenuItem::new(dm_desktop_base::i18n::t(c.label()), true, None),
-            )
-        })
-        .collect();
+        let command_item = |c: Command| (c, MenuItem::new(menu_words(c), true, None));
+        // Add URL… and the clipboard's links, as the toolbar adds them
+        // (gaps row U28).
+        let adds: Vec<(Command, MenuItem)> = dm_desktop_base::tray::ADDS
+            .into_iter()
+            .map(command_item)
+            .collect();
+        // The speed presets, one click from the tray, the one in force
+        // ticked (`follow`), and the limiter's own dialog, as Downloads ›
+        // Speed limiter › Settings… (B52).
+        let presets: Vec<(Command, CheckMenuItem)> = PRESETS
+            .into_iter()
+            .map(|c| (c, CheckMenuItem::new(menu_words(c), true, false, None)))
+            .collect();
+        let settings = command_item(Command::SpeedLimiterSettings);
         // Start and stop the downloads without opening the window.
         let queue: Vec<(Command, MenuItem)> = [Command::StartQueue, Command::StopAll]
             .into_iter()
-            .map(|c| {
-                (
-                    c,
-                    MenuItem::new(dm_desktop_base::i18n::t(c.label()), true, None),
-                )
-            })
+            .map(command_item)
             .collect();
         let speeds = Submenu::new(dm_desktop_base::i18n::t("Speed"), true);
         for (_, item) in &presets {
             speeds.append(item).map_err(|e| e.to_string())?;
         }
+        speeds.append(&settings.1).map_err(|e| e.to_string())?;
         let menu = Menu::with_items(&[
             &show,
+            &PredefinedMenuItem::separator(),
+            &adds[0].1,
+            &adds[1].1,
             &PredefinedMenuItem::separator(),
             &queue[0].1,
             &queue[1].1,
@@ -99,10 +106,12 @@ impl Tray {
         .map_err(|e| e.to_string())?;
         let (show_id, quit_id) = (show.id().clone(), quit.id().clone());
         let (limiter_id, scheduler_id) = (limiter.id().clone(), scheduler.id().clone());
-        let commands: Vec<(MenuId, Command)> = presets
+        let commands: Vec<(Command, MenuItem)> =
+            adds.into_iter().chain(queue).chain([settings]).collect();
+        let ids: Vec<(MenuId, Command)> = commands
             .iter()
-            .chain(queue.iter())
             .map(|(c, item)| (item.id().clone(), *c))
+            .chain(presets.iter().map(|(c, item)| (item.id().clone(), *c)))
             .collect();
         let to_menu = asked.clone();
         MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
@@ -114,9 +123,10 @@ impl Tray {
                 Asked::Run(Command::SpeedLimiterToggle, false)
             } else if event.id == scheduler_id {
                 Asked::Run(Command::Scheduler, true)
-            } else if let Some((_, command)) = commands.iter().find(|(id, _)| *id == event.id) {
-                // A dialog needs the window shown; the presets do not.
-                Asked::Run(*command, *command == Command::SpeedLimiterSettings)
+            } else if let Some((_, command)) = ids.iter().find(|(id, _)| *id == event.id) {
+                // A dialog (Add URL…, Settings…) needs the window shown and
+                // brought forward; the presets do not.
+                Asked::Run(*command, dm_desktop_base::tray::shows_window(*command))
             } else {
                 return;
             };
@@ -156,15 +166,21 @@ impl Tray {
             icon,
             items: [show, scheduler, quit],
             limiter,
+            speeds,
+            presets,
+            commands,
             tip: tooltip.to_string(),
             language: dm_desktop_base::i18n::code().to_string(),
         })
     }
 
     /// Its words in the language in force, its tooltip `tip` (how many
-    /// downloads and how fast, else what dm is doing there) and its
-    /// limiter's tick `limited`, where they changed.
-    pub fn follow(&mut self, tip: String, limited: bool) {
+    /// downloads and how fast, else what dm is doing there), its limiter's
+    /// tick (while a limit is in force) and the preset in force at a limit
+    /// of `speed_limit` KB/s, where they changed. A checked item the
+    /// system ticks or unticks on a click is put back as the settings say.
+    pub fn follow(&mut self, tip: String, speed_limit: u64) {
+        use dm_desktop_base::tray::{menu_words, ticked};
         let language = dm_desktop_base::i18n::code();
         if language != self.language {
             self.language = language.to_string();
@@ -173,14 +189,28 @@ impl Tray {
                 item.set_text(words);
             }
             self.limiter.set_text(limiter);
+            self.speeds.set_text(dm_desktop_base::i18n::t("Speed"));
+            for (command, item) in &self.commands {
+                item.set_text(menu_words(*command));
+            }
+            for (command, item) in &self.presets {
+                item.set_text(menu_words(*command));
+            }
             self.tip.clear();
         }
         if tip != self.tip {
             let _ = self.icon.set_tooltip(Some(&tip));
             self.tip = tip;
         }
+        let limited = speed_limit > 0;
         if self.limiter.is_checked() != limited {
             self.limiter.set_checked(limited);
+        }
+        for (preset, item) in &self.presets {
+            let on = ticked(*preset, speed_limit);
+            if item.is_checked() != on {
+                item.set_checked(on);
+            }
         }
     }
 }
@@ -296,13 +326,13 @@ impl Downloads {
         }
     }
 
-    /// The tray's tooltip and tick, as the window has them now.
+    /// The tray's tooltip and ticks, as the window has them now.
     pub(crate) fn tray_follow(&mut self) {
-        let limited = self.backend.settings().speed_limit > 0;
+        let speed_limit = self.backend.settings().speed_limit;
         let tip = dm_desktop_base::tray::activity(&self.rows)
             .unwrap_or_else(|| dm_desktop_base::tray::words()[4].to_string());
         if let Some(tray) = self.tray.as_mut() {
-            tray.follow(tip, limited);
+            tray.follow(tip, speed_limit);
         }
     }
 

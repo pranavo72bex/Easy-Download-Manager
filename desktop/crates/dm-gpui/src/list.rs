@@ -450,7 +450,7 @@ impl Downloads {
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
-        this.sort = Column::from_key(&settings.sort_column).map(|c| (c, settings.sort_ascending));
+        this.sort = dm_desktop_base::columns::kept_sort(&settings);
         // The taskbar button's jump list (Windows): Add URL and the folder.
         dm_desktop_base::jumplist::publish(
             dm_desktop_base::i18n::t("Add URL"),
@@ -784,7 +784,7 @@ impl Downloads {
                     Command::SortByDate => Column::LastTry,
                     _ => Column::Description,
                 };
-                self.sort_by(column);
+                self.sort_by(column, cx);
                 cx.notify();
                 return;
             }
@@ -2078,14 +2078,18 @@ impl Downloads {
         self.said = Some((sentence, std::time::Instant::now()));
     }
 
-    /// Sorts by `column`: up, then the other way on a second click, as
-    /// the egui window's header does.
-    pub fn sort_by(&mut self, column: Column) {
-        self.sort = match self.sort {
-            Some((c, up)) if c == column => Some((c, !up)),
-            _ => Some((column, true)),
-        };
+    /// Sorts by `column`: up, then the other way on a second click, then
+    /// back in the order the downloads were added, as the egui window's
+    /// header does; kept in the settings, so the list comes back sorted so
+    /// after a restart (gaps row U29).
+    pub fn sort_by(&mut self, column: Column, cx: &mut Context<Self>) {
+        self.sort = dm_desktop_base::columns::next_sort(self.sort, column);
         self.reshow();
+        let mut wanted = self.backend.settings();
+        dm_desktop_base::columns::keep_sort(&mut wanted, self.sort);
+        if let Err(e) = self.apply_settings(wanted, cx) {
+            self.say(e);
+        }
     }
 }
 

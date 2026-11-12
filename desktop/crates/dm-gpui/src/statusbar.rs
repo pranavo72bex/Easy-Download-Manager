@@ -5,7 +5,8 @@
 
 //! The status bar along the window's foot, as macOS programs keep one
 //! (Finder's): what is downloading and how fast, what is finishing, what
-//! waits for Start queue, and the speed limit. The counts are the
+//! waits for Start queue, and the speed limit, which a click opens the
+//! speed limiter's presets from. The counts are the
 //! application's (`rules::tally`); the sentences are the egui window's own,
 //! so each language says the same.
 
@@ -82,10 +83,29 @@ pub fn statusbar(
 ) -> impl IntoElement {
     // Undo, for the moment after downloads were taken off the list.
     let undo = view.undo.live();
+    let mut said = parts(view);
+    let whole = said.join(" ");
+    // The last part, the speed limit, is a control (gaps row U29): the same
+    // words as the rest until the pointer is on it, then in the link's
+    // colour, as Undo; a click pops up Downloads › Speed limiter's items.
+    let limit = said.pop().unwrap_or_default();
+    // Read to a screen reader as it is shown, without the dot before it.
+    let named = limit.trim_start_matches('·').trim().to_string();
+    let limiter = div()
+        .id("speed-limiter")
+        .role(Role::Button)
+        .aria_label(named)
+        .cursor_pointer()
+        .hover(|s| s.text_color(theme.selection))
+        .on_click(cx.listener(|view, event: &gpui::ClickEvent, window, cx| {
+            let speed_limit = view.backend.settings().speed_limit;
+            crate::menus::speed_limiter_popup(speed_limit).show(event.position(), window, cx);
+        }))
+        .child(screen.label(limit));
     div()
         .id("status")
         .role(Role::Status)
-        .aria_label(parts(view).join(" "))
+        .aria_label(whole)
         .h(px(HEIGHT))
         .flex_none()
         .flex()
@@ -97,7 +117,8 @@ pub fn statusbar(
         .bg(crate::theme::frame(theme.sidebar))
         .text_size(px(crate::native::SMALL_TEXT))
         .text_color(theme.muted)
-        .children(parts(view).into_iter().map(|part| screen.label(part)))
+        .children(said.into_iter().map(|part| screen.label(part)))
+        .child(limiter)
         .when(undo, |bar| {
             bar.child(
                 div()
