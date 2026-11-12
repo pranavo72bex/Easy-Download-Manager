@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   desktop:
-    name: Engine, shell, protocol, window
+    name: Engine, shell, protocol, the shared readers
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -24,10 +24,6 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: desktop
-      - name: Libraries the window links
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
       - name: Hunt
         working-directory: desktop
         env:
@@ -36,7 +32,7 @@ jobs:
           cargo test --release -p dm-core --test fuzz
           cargo test --release -p dm-shell --test fuzz
           cargo test --release -p dm-protocol --test fuzz
-          PROPTEST_CASES=5000 cargo test --release -p dm-desktop --test fuzz
+          PROPTEST_CASES=5000 cargo test --release -p dm-desktop-base --test fuzz
 
   extension:
     name: The extension's decisions

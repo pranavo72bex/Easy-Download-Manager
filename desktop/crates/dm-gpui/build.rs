@@ -3,16 +3,15 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The Windows program's own description, as the egui window's build script
-//! gives it: its icon, and the product name and version Explorer, SmartScreen
-//! and a code signature read off it. No manifest: GPUI links its own into
+//! The Windows program's own description: its icon, and the product name and
+//! version Explorer, SmartScreen and a code signature read off it. No manifest: GPUI links its own into
 //! every program built on it (per-monitor DPI, asInvoker, the system's
 //! common controls), and a second one is a duplicate resource the linker
 //! refuses. Nothing is done for any other system.
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../dm-desktop/icons/icon.ico");
+    println!("cargo:rerun-if-changed=icons/icon.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
@@ -26,11 +25,7 @@ fn main() {
         parts.next().unwrap_or(0),
     );
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
-    let icon = std::path::Path::new(&dir)
-        .join("..")
-        .join("dm-desktop")
-        .join("icons")
-        .join("icon.ico");
+    let icon = std::path::Path::new(&dir).join("icons").join("icon.ico");
     let icon = icon.display().to_string().replace('\\', "\\\\");
     let rc = format!(
         r#"1 ICON "{icon}"

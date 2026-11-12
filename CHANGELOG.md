@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The older egui window is gone from the source: its crate, its fonts (Inter, Selawik, the Fluent icon font) and its patched winit, egui-winit and eframe. dm's window is the GPUI one on every system, as it has been in every package since 2026-11-11; the installers' icons and `Info.plist` now live with it. A Windows build in Docker (`make build-windows`) is no longer offered: the window's release build needs Windows.
 - A download that finishes with its progress window open turns that window into Download complete, with Open and Open folder, rather than opening a second window.
 - The browser's toast after a hand-off says "Sent to dm" (in the browser's language), says several sent together in one, and is not posted when dm's own window comes forward to ask.
 - Options has a Find a setting field: the settings of every page that say what is typed, under their page's name.

@@ -9,7 +9,7 @@
 #
 #     sh scripts/windows-modules-check.sh
 #
-# `cargo check --target x86_64-pc-windows-msvc -p dm-desktop` does not get
+# `cargo check --target x86_64-pc-windows-msvc -p dm-gpui` does not get
 # past the C build of aws-lc-sys without a Windows toolchain. These modules
 # need only `windows-sys` and `windows`, which are plain Rust, so each is
 # included in a small crate of its own and checked there; their logic is

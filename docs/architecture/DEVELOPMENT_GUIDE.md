@@ -14,10 +14,9 @@ may depend on is in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
    means, a new kind of change to tell presentations of.
 3. **Is it how something looks, or what a person clicks?** It is the
    presentation: `dm-gpui`, the window people install. It asks the
-   application to act and words the answer itself. What both windows need
+   application to act and words the answer itself. What the program needs
    that is not drawing (words, numbers, the system's services) goes in
-   `dm-desktop-base`. `dm-desktop` is the older egui window, kept until gaps
-   row G9 removes it: new work does not go there.
+   `dm-desktop-base`.
 4. **Does it need the computer itself (a notification, the clipboard, the
    tray, power)?** Declare what the application needs on `Platform` (or
    another trait in `dm_shell::app`); implement it in the desktop.

@@ -28,7 +28,7 @@ sys.path.insert(0, str(QA / "origin"))
 import content  # noqa: E402
 
 ROOT = QA.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
 DOWNLOADS = pathlib.Path(os.environ.get("QA_DOWNLOADS") or "/downloads")
 if not DOWNLOADS.exists():
     DOWNLOADS = pathlib.Path(tempfile.mkdtemp(prefix="qa-downloads-"))

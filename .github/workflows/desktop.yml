@@ -3,8 +3,8 @@ name: Desktop
 # Packaging is the one thing that cannot be done from a development machine:
 # each platform's installer is built on that platform, then installed there
 # and run (scripts/smoke.py) before anything is released. The window is
-# drawn in Rust with egui and the Linux tray speaks D-Bus, so nothing links
-# GTK; what Linux needs at run time is what winit and glow open, which the
+# drawn in Rust with GPUI and the Linux tray speaks D-Bus, so nothing links
+# GTK; what Linux needs at run time is what GPUI links and opens, which the
 # packages name.
 # No `paths` filter on the push trigger: a tag push evaluates paths against a
 # range that is often empty, so filtering here is how a release quietly fails
@@ -71,8 +71,7 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
 
-      # The GPUI window (dm-gpui, docs/gaps.md G6) builds against these on
-      # Linux; the egui window needs none of them.
+      # The window (dm-gpui, GPUI) builds against these on Linux.
       - name: GPUI's Linux libraries
         if: runner.os == 'Linux'
         run: |
@@ -182,25 +181,25 @@ jobs:
             os: ubuntu-22.04
             formats: deb,appimage
             artifact: linux-x86_64
-            # The GPUI window on Linux (docs/gaps.md G9).
+            # The GPUI window.
             crate: dm-gpui
           - name: Linux arm64 (deb, AppImage, rpm)
             os: ubuntu-22.04-arm
             formats: deb,appimage
             artifact: linux-arm64
-            # The GPUI window on Linux (docs/gaps.md G9).
+            # The GPUI window.
             crate: dm-gpui
           - name: Windows (NSIS installer)
             os: windows-latest
             formats: nsis
             artifact: windows
-            # The GPUI window on Windows (docs/gaps.md G9).
+            # The GPUI window.
             crate: dm-gpui
           - name: macOS (app, dmg)
             os: macos-latest
             formats: app,dmg
             artifact: macos
-            # The GPUI window on macOS (docs/gaps.md G9).
+            # The GPUI window.
             crate: dm-gpui
 
     runs-on: ${{ matrix.os }}
@@ -252,7 +251,7 @@ jobs:
           CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
           export CARGO_BUILD_RUSTFLAGS
           # This crate's packages alone: without -p, cargo-packager packages every
-          # crate of the workspace that has packager settings, both windows.
+          # crate of the workspace that has packager settings.
           cargo packager --release -p ${{ matrix.crate }} --formats ${{ matrix.formats }}
         # This step's own: the check below was put between its run and its env,
         # and took the signing secrets from it.
@@ -295,7 +294,7 @@ jobs:
           sh scripts/linux/nfpm.sh desktop/target/release/${{ matrix.crate }} "$version" desktop/target/release/bundle
 
       # cargo-packager names the .deb, the AppImage and the Windows installer
-      # after the binary (dm-desktop_…, dm-gpui_…) and only the .dmg after the
+      # after the binary (dm-gpui_…) and only the .dmg after the
       # product; one name for all of them, the one the README and the update
       # check use. Only this job's crate's, so another's left in the folder
       # is never renamed over it.
@@ -319,7 +318,7 @@ jobs:
         shell: pwsh
         working-directory: .
         run: |
-          $version = (Select-String -Path desktop/crates/dm-desktop/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          $version = (Select-String -Path desktop/crates/${{ matrix.crate }}/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
           $dir = Join-Path desktop/target/release/bundle "dm_${version}_x64-portable"
           New-Item -ItemType Directory -Path $dir | Out-Null
           Copy-Item desktop/target/release/${{ matrix.crate }}.exe $dir
@@ -411,7 +410,7 @@ jobs:
         run: |
           $setup = Get-ChildItem installers -Filter '*-setup.exe' | Select-Object -First 1
           Start-Process $setup.FullName -ArgumentList '/S' -Wait
-          # The GPUI window, the one dm ships on Windows (docs/gaps.md G9).
+          # The GPUI window, the one dm ships.
           $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter 'dm-gpui.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $exe) { throw 'the installer put no dm-gpui.exe anywhere' }
           # The runner has no graphics driver: GPUI draws through Direct3D 11

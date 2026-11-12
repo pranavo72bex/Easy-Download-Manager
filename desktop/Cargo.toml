@@ -7,9 +7,9 @@
 # rather than the place the logic hides.
 [workspace]
 resolver = "2"
-members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop-base", "crates/dm-desktop", "crates/dm-gpui", "xtask"]
+members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop-base", "crates/dm-gpui", "xtask"]
 # A patched copy, used through [patch.crates-io], not a member.
-exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/eframe", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
+exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
 
 # The lints every dm crate keeps, in one place rather than pasted into each crate's root
 # (gaps row A1); each crate's `[lints] workspace = true` takes them. Clippy refuses warnings in
@@ -35,8 +35,8 @@ strip = true
 # Built for speed where the work is the CPU's: dm's engine with its MP3, GIF
 # and resampling code ("z" made it three times as slow), digests, unpacking,
 # TLS, AAC decoding and drawing. The rest waits on the network or the window
-# and is built for size. Not dm-gpui or dm-desktop: with LTO a binary's
-# setting becomes the whole program's (dm-desktop at 3 was 27 MB).
+# and is built for size. Not dm-gpui: with LTO a binary's setting becomes
+# the whole program's (the older egui window's binary at 3 was 27 MB).
 # docs/decisions.md, 2026-11-06 and 2026-11-12 (gaps row S12).
 [profile.release.package.dm-core]
 opt-level = 3
@@ -86,12 +86,6 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.gpui-pre-windows]
 opt-level = 3
-# The egui window's drawing, only while that window is still built (gaps G9):
-# they go with it. dm-gpui's build has neither crate.
-[profile.release.package.epaint]
-opt-level = 3
-[profile.release.package.egui]
-opt-level = 3
 
 # The release build with its symbols and line tables kept, for a profiler
 # (docs/testing.md, Profiling): `cargo build --profile profiling -p dm-gpui`.
@@ -105,9 +99,6 @@ strip = false
 
 # Crates built with a change of dm's own (desktop/vendor/README.md).
 [patch.crates-io]
-winit = { path = "vendor/winit" }
-egui-winit = { path = "vendor/egui-winit" }
-eframe = { path = "vendor/eframe" }
 librqbit = { path = "vendor/librqbit" }
 librqbit-sha1-wrapper = { path = "vendor/librqbit-sha1-wrapper" }
 gpui-pre-linux = { path = "vendor/gpui-pre-linux" }

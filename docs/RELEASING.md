@@ -48,8 +48,9 @@ anyway.
 ## Cutting a release
 
 ```sh
-# The version appears in two places and they must agree.
-$EDITOR desktop/crates/dm-desktop/Cargo.toml   # version
+# The version appears in these places and they must agree.
+$EDITOR desktop/crates/dm-gpui/Cargo.toml      # version (and dm-core's, dm-shell's,
+                                               # dm-desktop-base's: a test holds them equal)
 $EDITOR desktop/packaging/PKGBUILD             # pkgver
 
 cd desktop && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings

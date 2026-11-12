@@ -12,7 +12,7 @@
 //! key), whether it asks for more first, the speed a preset holds, and its
 //! keys as [`Chord`]s, which a presentation turns into its own shortcuts.
 //! The words in the language in force, and matching a key press, are the
-//! presentation's (`dm_desktop::commands`). Which commands apply to the
+//! presentation's (dm-gpui's `menus.rs`). Which commands apply to the
 //! rows chosen is decided here too ([`applies`]).
 
 use std::sync::Arc;

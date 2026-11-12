@@ -41,5 +41,4 @@ THIRD-PARTY MATERIAL
 
 dm is built with libraries and assets under their own licences (MIT,
 Apache-2.0, BSD, ISC, Zlib, MPL-2.0, Unicode, OFL and others), which stay
-with them. The Fluent UI System Icons are under the MIT licence
-(desktop/crates/dm-desktop/fonts/LICENSE-FluentSystemIcons.txt).
+with them.

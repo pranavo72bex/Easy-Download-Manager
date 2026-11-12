@@ -10,8 +10,8 @@
                                 [--only start,idle,list,busy,many,transfer]
                                 [--json FILE] [--save-baseline] [BINARY]
 
-Talks to the window as `human-qa.py` does, over `--control`, so the GPUI window and the egui
-one are measured the same way. For each list size a home is seeded once with that many rows
+Talks to the window as `human-qa.py` does, over `--control`, so a build and an earlier one
+are measured the same way. For each list size a home is seeded once with that many rows
 (added for later, against a local server); each run then starts dm on a copy of it and takes,
 group by group (`--only` picks groups; all of them by default):
 
@@ -31,8 +31,7 @@ group by group (`--only` picks groups; all of them by default):
                   heading (sort) and the slowest (sort_worst)
            filter the last row's name typed into the search box (Find, Cmd-F or Ctrl-F), until
                   the list shows that row alone; find, then Find next (F3) until it is chosen;
-                  unfilter, Escape in the box until the whole list is back. The egui window's
-                  Find dialog is driven as before, and gives find only
+                  unfilter, Escape in the box until the whole list is back
   busy     busy   the CPU over 30 s with 20 downloads queued at 1 MB/s each (dm runs as many at
                   once as its setting allows, 3 by default)
            busy_page, busy_page_worst: with `list` too, the list paged through in a dm started
@@ -59,7 +58,7 @@ this system, scripts/ui-bench-baselines/<system>-<machine>.json, where there is 
 computer are upper bounds: say so where they are written.
 
 A release build is what the numbers are for (`cargo build --release -p dm-gpui`); BINARY or
-DM_BINARY names it, else the release build of dm-gpui, else of dm-desktop, else a debug one.
+DM_BINARY names it, else the release build of dm-gpui, else a debug one.
 Needs a display. Frame times are not taken here: neither window reports them over the control
 port (docs/testing.md, Profiling, says how to take them with the system's profiler).
 """
@@ -129,9 +128,7 @@ METRICS = {
 def binary(named):
     for candidate in (named, os.environ.get("DM_BINARY"),
                       ROOT / "desktop/target/release/dm-gpui",
-                      ROOT / "desktop/target/release/dm-desktop",
-                      ROOT / "desktop/target/debug/dm-gpui",
-                      ROOT / "desktop/target/debug/dm-desktop"):
+                      ROOT / "desktop/target/debug/dm-gpui"):
         if candidate and pathlib.Path(candidate).exists():
             return pathlib.Path(candidate)
     sys.exit("no dm binary: build one, or name it")
@@ -354,15 +351,8 @@ def filter_and_find(dm, rows, took):
         # A window with no keys says so, and nothing is measured.
         print(f"  find: {pressed.get('error')}", flush=True)
         return
-    # The egui window opens a Find dialog; the GPUI window puts the keyboard in its search
-    # box, which filters the list as it is typed into.
-    if until(lambda: "Find next" in texts(dm), 1.5):
-        dm.call("ui.type", text=last)
-        dm.call("ui.click", text="Find next")
-        if until(chosen, 30):
-            took["find"] = time.time() - t
-        dm.call("ui.key", key="Escape")
-        return
+    # The window puts the keyboard in its search box, which filters the list as it is
+    # typed into.
     whole = len(names(dm))
     t = time.time()
     dm.call("ui.type", text=last)
@@ -439,8 +429,8 @@ def run_once(root, base, home, rows, idle, run, groups):
             drawn_before = frames(dm)
             time.sleep(idle)
             took["idle"] = 100 * (cpu_seconds(dm.proc.pid) - before) / idle
-            # Nothing changed, so nothing is drawn (the GPUI window counts its frames, gaps
-            # row 181; the egui window does not say).
+            # Nothing changed, so nothing is drawn (the window counts its frames, gaps
+            # row 181).
             drawn_after = frames(dm)
             if drawn_before is not None and drawn_after is not None:
                 took["idle_frames"] = drawn_after - drawn_before

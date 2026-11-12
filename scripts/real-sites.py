@@ -30,7 +30,7 @@ import media_check  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # dm's agent, as dm-core says it (USER_AGENT), for curl's second opinion.
 AGENT = "dm/0.1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
 
 # (site, url, what should happen, how the result is checked)
 CASES = [
@@ -59,7 +59,7 @@ if os.environ.get("SITES"):
 
 def main():
     if not BINARY.exists():
-        sys.exit(f"no dm binary at {BINARY} — cargo build -p dm-desktop")
+        sys.exit(f"no dm binary at {BINARY} — cargo build -p dm-gpui")
     root = pathlib.Path(tempfile.mkdtemp(prefix="dm-real-"))
     home, downloads, cache = root / "home", root / "downloads", root / "cache"
     for d in (home, downloads, cache):

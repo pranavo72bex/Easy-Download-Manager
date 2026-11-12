@@ -93,7 +93,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 
 # Media Foundation, the system's own decoders, for a video's sound saved as MP3
 # and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers
-# for. The same version dm-desktop uses, so already in the tree.
+# for. The same version GPUI's Windows platform uses, so already in the tree.
 windows = { version = "0.62", features = [
   "Win32_Foundation",
   "Win32_Media_MediaFoundation",

@@ -1,7 +1,7 @@
 name: Windows, the app driven end to end
 
 # Started by hand (Actions › this workflow › Run workflow). The real
-# dm-gpui.exe (the GPUI window, the one dm ships on Windows: docs/gaps.md G9)
+# dm-gpui.exe (the GPUI window, the one dm ships)
 # on Windows, driven by scripts/app-check.py as it is on
 # macOS and Linux: one dm at a time and links handed to it, a browser's
 # hand-off through the native host, downloads sorted by kind, an HLS stream

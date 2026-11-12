@@ -5,45 +5,6 @@ place of it through `[patch.crates-io]` in `desktop/Cargo.toml`. When the
 crate is upgraded, its change is carried over or, once the crate does it
 itself, the copy is removed.
 
-## winit 0.30.13
-
-X11 drops (`src/platform_impl/linux/x11/dnd.rs`, `event_processor.rs`,
-`atoms.rs`): a link dragged from a browser is handed over as the dropped
-"path", for dm to read as a link (`dm-desktop` `app::dropped_links`).
-Upstream winit takes `text/uri-list` of `file://` addresses only, and turned
-a link away twice: an `https://` address in `text/uri-list` (Chrome's) failed
-the whole drop, and Firefox, which offers a link as `_NETSCAPE_URL` and
-UTF-8 text but not as `text/uri-list`, was refused at once. Now the drag is
-asked for `text/uri-list` where it is offered, else `_NETSCAPE_URL`, else
-UTF-8 text, and a link's address is passed on. Files are as before. Search
-the files for `dm:`. Checked with real input: `scripts/linux-drag-check.sh`.
-
-Wayland drag and drop (`src/platform_impl/linux/wayland/dnd.rs`, and `dm:`
-lines in `state.rs`, `seat/mod.rs`, `event_loop/mod.rs`, `mod.rs`,
-`src/platform/wayland.rs`): upstream winit 0.30 has none on Wayland. A drop
-is read as `text/uri-list`, Firefox's `text/x-moz-url` or text, and each
-item handed over as a dropped "path" as on X11. A drag out
-(`platform::wayland::dm_request_drag_out`) is started on winit's own
-connection from the window under the pointer, with the press's serial,
-which only that connection holds, and hands the target `text/uri-list`;
-`dm_take_drag_ended` tells dm the button is up. Checked with a real
-Wayland drag both ways: `scripts/linux-wayland-drag-check.sh`.
-
-## egui-winit 0.37.0
-
-Licence MIT OR Apache-2.0 (its `Cargo.toml`); the version eframe 0.37.0 uses.
-The `Cargo.lock` of the published package is left out; `src/lib.rs` is the
-only file changed.
-
-`src/lib.rs` (`OTHER_WINDOWS_INPUT`, searched for `dm:`): a function the
-application sets once, called with the input of every window but the first as
-`State::take_egui_input` hands it to egui. eframe offers the first window's
-input to the app (`App::raw_input_hook`) and the others' to nobody; dm draws
-each dialog as a window of its own (`dialogs/frame.rs`), and the clicks, keys
-and typing a control client sends (`ui.click`, `ui.key`, `ui.type`) have to
-reach them as a person's would, through the input of the window they are for
-(`app/human.rs`). Nothing else is changed.
-
 ## librqbit 9.0.1
 
 Encrypted peer connections (`src/mse.rs`, and `dm:` lines in
@@ -114,23 +75,6 @@ instructions where it has them (x86 SHA-NI, ARMv8 SHA). The other backend,
 FIPS 180 "abc" vector for SHA-1, fed in two parts, is added beside upstream's
 SHA-256 one (`cargo test --features sha1-ring --no-default-features` here).
 Licence Apache-2.0, as published; its `Cargo.lock` is left out.
-
-## eframe 0.37.0
-
-Each further window's own AccessKit adapter (`src/native/glow_integration.rs`, search
-for `dm:`). Upstream starts an adapter for the root window only, so since every dialog
-of dm's became a window of its own (contract row B42) no dialog reached a screen
-reader: AT-SPI (Orca) found the main window's controls and none of Add URL's, Options'
-or the close question's (gaps row 160). The proxy given to the root's adapter is kept,
-and a window made after it is created hidden, given an adapter of its own, then shown
-as asked (AccessKit panics on a window already shown); the root made again later gets
-one the same way, and only the root's adapter may turn AccessKit off for all. The same on
-every system (`ADAPTER_PER_WINDOW`). Checked: `scripts/linux-gui-check.sh` asks AT-SPI
-alone for Add URL's OK and Cancel, inside the dialog's window; on Windows
-`scripts/windows-a11y-check.py` asks UI Automation (what Narrator reads) for the buttons of
-Add URL, Options, the Scheduler, the Speed limiter and About, each inside its own window
-(5 of 5 on 2026-11-08; with the copy as published, none of Add URL's). MIT OR Apache-2.0,
-as published.
 
 ## gpui-pre-linux 0.3.12
 

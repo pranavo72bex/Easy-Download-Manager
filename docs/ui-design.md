@@ -3,12 +3,13 @@
 How dm's window looks, and the rules that keep it consistent: the look is
 written down as tokens, every widget draws from them, and every visual change
 is checked by looking at a picture of the real window. The pictures are dm's
-own, drawn in code (`crates/dm-desktop/src/icons.rs`).
+own (`crates/dm-gpui/assets/icons/`).
 
-The files named below are the older egui window's (`crates/dm-desktop`, kept
-until gaps row G9 removes it). The window shipped is the GPUI one: its tokens
-are in `crates/dm-gpui/src/theme.rs`, and its look is held by the pictures in
-`docs/behaviour-baseline/gpui/` (contract row B25).
+The window is the GPUI one (`crates/dm-gpui`): its tokens are in
+`crates/dm-gpui/src/theme.rs`, and its look is held by the pictures in
+`docs/behaviour-baseline/gpui/` (contract row B25). The tokens below were
+first set for the older egui window, removed on 2026-11-13 (gaps row G9);
+the GPUI window keeps their values.
 
 ## Themes
 
@@ -21,7 +22,7 @@ are in `crates/dm-gpui/src/theme.rs`, and its look is held by the pictures in
 
 Chosen in Options › General › Look; saved as `theme` in the settings.
 
-## Tokens (`crates/dm-desktop/src/theme.rs`)
+## Tokens (`crates/dm-gpui/src/theme.rs`)
 
 The modern looks are WinUI 3's Fluent 2 brushes (decisions.md, 2026-10-19),
 each laid over the surface it sits on; see-through ones are given as WinUI
@@ -45,12 +46,9 @@ gives them.
 | `error` / `success` / `warn` | `#c42b1c` / `#0f7b0f` / `#9d5d00` | `#ff99a4` / `#6ccb5f` / `#fce100` | SystemFillColor Critical / Success / Caution |
 | `radius` / `card_radius` | 4 / 8 px | 4 / 8 px | ControlCornerRadius / OverlayCornerRadius |
 
-Type: Segoe UI, Fluent's face, taken from Windows where it is installed
-(it is never shipped); elsewhere Selawik, Microsoft's open stand-in made to
-its measure (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Selawik.txt`);
-Inter behind both for Greek and Cyrillic (SIL OFL 1.1). Icons: Fluent UI
-System Icons (MIT, `fonts/LICENSE-FluentSystemIcons.txt`), 20 px regular,
-cut down to those drawn (`icons::fluent`). Sizes and weights: the WinUI ramp's
+Type: the system's own font (`.SystemUIFont`, GPUI's default: Segoe UI on
+Windows); dm ships none. Icons: dm's own SVGs (`assets/icons/`). Sizes and
+weights: the WinUI ramp's
 Body 14, Caption 12, Body Strong 14 semibold for group headings, Subtitle
 20 semibold for a dialog's title; sizes, speeds and times in tabular
 figures. Sizes: WinUI's compact density (24 px fields and drop-downs, 32 px
@@ -84,9 +82,6 @@ Shadows: Fluent's 28 under dialogs, 16 under menus.
   the handle in the text colour; the focus ring is kept inside the list's
   frame. Classic's toolbar buttons are as wide as their longest name, and
   its progress bar's track is drawn in the border colour.
-- **Right-to-left names** (Arabic, Hebrew) are put into reading order
-  before egui draws them (`bidi.rs`), which lays out a line in stored
-  order; a screen reader is given the name as stored.
 - **Colours come from tokens.** Read them with `Tokens::get(ctx)`; never
   hard-code a colour in a widget.
 - **Window grammar:** menu bar (Program, File, Downloads, View, Help), then a

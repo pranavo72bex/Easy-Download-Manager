@@ -6,7 +6,7 @@
 //! Mica, Windows 11's backdrop: the desktop's colours faintly through the
 //! window's frame. Opt-in (Options › General, from dm's next start), as it
 //! needs a see-through window, which an old GPU driver can draw black
-//! (docs/decisions.md). Both windows, egui's and GPUI's, ask here.
+//! (docs/decisions.md). The window asks here.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

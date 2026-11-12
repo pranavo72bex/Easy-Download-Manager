@@ -13,20 +13,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       xvfb xauth x11-utils dbus procps lsof git fonts-noto-core fonts-noto-cjk python3 ca-certificates \
       # xclip: the stress check's clipboard phase copies from another program, on Xvfb's clipboard.
       xclip \
-      libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
-      # What winit opens at run time, as the .deb declares: GTK brought
-      # these along until the tray moved to D-Bus.
-      libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 \
+      # What the window opens at run time, as the .deb declares: Vulkan where
+      # there is a driver, else GL through EGL (Mesa), and Wayland's client.
+      libxkbcommon-x11-0 libxkbcommon0 libvulkan1 libegl1 libgl1-mesa-dri \
       libwayland-client0 libwayland-egl1 \
       # WebKitGTK's JavaScriptCore, which dm's .deb recommends: YouTube's checks
       # and a proxy script run in it, nothing fetched (gaps row 164).
       libjavascriptcoregtk-4.1-0 \
-      # What the GPUI window (dm-gpui, docs/gaps.md G6) builds against.
+      # What the window (dm-gpui, GPUI) builds against.
       libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
       libxcb1-dev libx11-xcb-dev libvulkan-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# No web view: the window is egui on GL, drawn by Mesa under Xvfb.
+# No web view: the window is GPUI, drawn by Mesa under Xvfb.
 ENV CARGO_TARGET_DIR=/target \
     CARGO_PROFILE_DEV_DEBUG=0 \
     CARGO_INCREMENTAL=0

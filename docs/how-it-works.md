@@ -72,14 +72,10 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
 - **The whole window held to the behaviour contract**
   (`scripts/human-qa.py`, in a visible window, against the GPUI window as
   shipped), and the control port's checks (`scripts/app-check.py`). The
-  older egui window (`desktop/crates/dm-desktop`, kept until gaps row G9) has
-  window tests that click every control by its name
-  (`desktop/crates/dm-desktop/tests/window.rs` and `tests/window/`): every
-  menu item, toolbar button and row-menu item clicked through the
-  accessibility tree and checked for what it does
-  (`every_menu_item_clicked_does_what_it_says`,
-  `every_toolbar_button_clicked_does_what_it_says`,
-  `every_row_menu_item_clicked_does_what_it_says`).
+  window's own tests (`desktop/crates/dm-gpui/src/window_tests/`) open it in
+  GPUI's test platform over a real queue and drive it through the control
+  port's methods (`src/harness.rs`): menus, toolbar, row commands, dialogs
+  and Options, each checked for what it does.
 - **A control protocol** (`dm-desktop-base/src/control.rs`): `dm-gpui --control <port>` takes
   JSON lines on loopback with a private token, to list and run commands,
   add downloads, run a batch of up to 256 steps, read the window back and
@@ -190,14 +186,13 @@ engine and has no idea a screen exists; `dm-shell` is the settings, the
 browser hand-off, startup and the application layer; `dm-desktop-base` is what
 the program does that is not drawing (the control port, the command line,
 MCP, the words); `dm-gpui` is the window, drawn with GPUI — no web view, no
-Electron. `dm-desktop` is the older window, drawn with egui, still built and
-tested until gaps row G9 removes it.
+Electron.
 
 ```sh
 cd desktop
 cargo run -p dm-gpui          # the window
 cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
-                              # swarm, and the egui window driven through its accessibility tree
+                              # swarm, and the window driven through its control port
 cd crates/dm-gpui && cargo packager --release -p dm-gpui   # a .dmg, NSIS installer, .deb or AppImage
 ```
 
@@ -228,7 +223,7 @@ failure is silent. Install to `/Applications` and register that;
 | **Watched folder** | `app/watch.rs`: every five seconds a folder named in Options is read for links saved as `.url`, `.webloc`, text or `.torrent`, read as a drop is read; handled files move to its `done` folder |
 | **Site rules** | `Settings::with_site_rule` gives a site's downloads a folder and a speed of their own at the moment a row is added, whatever the way in; what a person chose for one download stands |
 | **Checking and naming** | Properties shows a finished file's SHA-256 (hashed on the app's runtime) and checks a pasted digest; Move/Rename of several files takes a `{n}`/`{name}` pattern |
-| **Closing the window** | With a tray, closing hides the window and the queue keeps going. On Wayland a program cannot hide or unminimize its own window (winit's `set_visible` does nothing there), so dm minimizes it and keeps drawing; the task manager restores it |
+| **Closing the window** | With a tray, closing hides the window and the queue keeps going. On Wayland a program cannot hide or unminimize its own window, so dm minimizes it and keeps drawing; the task manager restores it |
 
 Down the left is a rail of places, and each is a filter over the one list
 rather than a list of its own — by state, or by the kind of file, with a count
@@ -422,11 +417,11 @@ erased, types the app does not list left alone, a cookie-gated file refused
 by dm and finished by the browser, the menu's handler, and a download with no
 host finishing in the browser.
 
-The egui window's tests click its controls through its accessibility tree —
-the same names a screen reader reads — against a real queue fetching from a
-server on loopback, and check what each did to the queue. The GPUI window is
-driven through the control port (`ui.texts`, `ui.click`, `ui.type`) by
-`scripts/human-qa.py` and `scripts/app-check.py`.
+The window's tests (`dm-gpui/src/window_tests/`) open it in GPUI's test
+platform against a real queue fetching from a server on loopback, click its
+controls by the names it gives them, and check what each did to the queue.
+The built window is driven through the control port (`ui.texts`, `ui.click`,
+`ui.type`) by `scripts/human-qa.py` and `scripts/app-check.py`.
 
 ```
 browser/                  the extension, in Rust (crate dm-catcher)
@@ -501,22 +496,9 @@ desktop/
                           i18n/ (the catalogs), the system's services (tray, toasts, taskbar…)
   crates/dm-gpui/         the window shipped, in GPUI: list.rs (the rows, each wake's read),
                           tick.rs, table.rs, menus.rs, one file per dialog, port.rs and probe.rs
-                          (the control port), syswindow/ (the system's own window calls)
-  crates/dm-desktop/      the older window, in egui, until gaps row G9; the tray, login item, notifications
-    src/table.rs, theme.rs   the download list and the look; table/ and theme/ hold their parts
-    src/main.rs           startup; platform.rs, tray.rs, window.rs, hidden.rs, signals.rs, login.rs are its parts
-    src/app/              the window's state (mod.rs) and what it does, one concern per file:
-                          sync.rs (queue ↔ rows), commands.rs (enabled/run), control.rs (the control protocol),
-                          places.rs, ui.rs, menus.rs, tree.rs, bars.rs, drops.rs, search.rs, lists.rs, files.rs…
-    src/dialogs/          one file per dialog (add.rs, options.rs, file_info.rs…); frame.rs and
-                          controls.rs are the toolkit they share; state.rs holds the open dialogs;
-                          apart.rs opens each as a window of its own (an egui viewport, sized to
-                          what the body measures), and hands the control port's clicks and keys
-                          to it (the input hook in vendor/egui-winit)
-    src/commands.rs       the command registry every menu, key and script runs
-    src/cli.rs, mcp.rs, control.rs   the command line, the MCP server, the control protocol
-    tests/window.rs       indexes tests/window/*.rs, grouped by what they check (options, dialogs,
-                          keyboard, layout, lists, commands, control…); support.rs is the shared harness
+                          (the control port), syswindow/ (the system's own window calls),
+                          tray.rs; harness.rs and window_tests/ the window's tests;
+                          icons/ and macos/Info.plist for the installers
   xtask/                  cargo xtask scorecard | layers | privacy | secrets
   packaging/PKGBUILD      the Arch package
 shared/naming-cases.json  filename cases the engine's naming is held to

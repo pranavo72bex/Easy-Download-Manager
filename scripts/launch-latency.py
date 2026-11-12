@@ -16,8 +16,8 @@ local file server sees dm ask for the file. Twice over:
 Each case is run several times and the median is printed. Needs a built dm
 and a display (Xvfb will do):
 
-    cargo build --release -p dm-desktop
-    xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-desktop
+    cargo build --release -p dm-gpui
+    xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-gpui
 """
 
 import http.server

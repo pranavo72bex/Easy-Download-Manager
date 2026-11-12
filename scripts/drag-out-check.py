@@ -8,8 +8,7 @@
 
     python3 scripts/drag-out-check.py
 
-Runs the built dm (the GPUI window, `dm-gpui`; DM_BINARY names another,
-such as the egui window's `dm-desktop`) on a throwaway home, downloads a
+Runs the built dm (`dm-gpui`; DM_BINARY names another) on a throwaway home, downloads a
 file from a loopback server, opens an empty folder in Finder, then drags the row with the real
 mouse (CGEvent, through a small Swift helper) from dm's window into that
 Finder window, and checks the file was copied there byte for byte. Needs
@@ -31,10 +30,9 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
-# The GPUI window draws its own title bar on macOS, inside its content, so a
-# row's place counts from the window's top; the egui window's from below the
-# system's title bar.
-TITLE_BAR = 0 if "gpui" in BINARY.name else 28
+# The window draws its own title bar on macOS, inside its content, so a
+# row's place counts from the window's top.
+TITLE_BAR = 0
 PAYLOAD = os.urandom(300_000)
 
 # Window bounds by owner and title, and a real left-button drag along a path.

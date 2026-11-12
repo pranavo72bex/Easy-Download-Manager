@@ -8,7 +8,7 @@
 use super::*;
 
 /// Says a toast: one whose click opens a finished file, or a plain one.
-/// Posted by dm itself on Windows (`dm_desktop::toast`): notify-rust's kept
+/// Posted by dm itself on Windows (`crate::toast`): notify-rust's kept
 /// three handles for every toast (gaps row 156).
 pub(super) fn say_on_windows(note: Note) {
     let Note {

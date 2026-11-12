@@ -18,11 +18,9 @@
 # Streamed in, not mounted, for the reason linux-check.sh gives.
 set -e
 cd "$(dirname "$0")/.."
-# The window Linux ships (dm-gpui): nfpm.yaml names its libraries, not the
-# egui window's, so an egui .rpm would be checked against the wrong list.
+# The window Linux ships (dm-gpui), whose libraries nfpm.yaml names.
 # shellcheck source=scripts/linux/window.sh
 . scripts/linux/window.sh
-[ "$binary" = dm-gpui ] || { echo "the .rpm carries the GPUI window; DM_WINDOW=egui does not apply here"; exit 2; }
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' "desktop/crates/$binary/Cargo.toml" | head -1)
 docker build -q -t dm-linux-check scripts/linux >/dev/null
 stream() { git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -; }

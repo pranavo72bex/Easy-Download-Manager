@@ -11,7 +11,7 @@
 set -e
 browser=$1
 rm -rf /shots/* && mkdir -p /opt/dm
-# The window scripts/linux/window.sh chose (dm-gpui unless DM_WINDOW=egui).
+# The window scripts/linux/window.sh chose (dm-gpui).
 binary="${DM_LINUX_BINARY:-dm-gpui}"
 cp "/target/debug/$binary" "/opt/dm/$binary"
 export DM_BINARY="/opt/dm/$binary" DM_SHOTS=/shots

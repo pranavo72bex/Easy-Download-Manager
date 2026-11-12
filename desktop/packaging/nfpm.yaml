@@ -48,9 +48,9 @@ depends:
   # (docs/gaps.md P1). Named by library, as above.
   - libjavascriptcoregtk-4.1.so.0()(64bit)
 
-# A font for names in Chinese, Japanese and Korean, which neither Inter nor
-# egui's fonts have: dm takes the computer's own (gap 116), and a system
-# with none showed such names blank (gap 45). Recommended, as it is large;
+# A font for names in Chinese, Japanese and Korean: dm draws in the
+# computer's own fonts (gap 116), and a system with none showed such names
+# blank (gap 45). Recommended, as it is large;
 # Fedora's name, then openSUSE's.
 recommends:
   - google-noto-sans-cjk-fonts
@@ -63,9 +63,9 @@ contents:
       mode: 0755
   - src: desktop/packaging/dm.desktop
     dst: /usr/share/applications/dm.desktop
-  - src: desktop/crates/dm-desktop/icons/icon.png
+  - src: desktop/crates/dm-gpui/icons/icon.png
     dst: /usr/share/icons/hicolor/512x512/apps/dm.png
-  - src: desktop/crates/dm-desktop/icons/128x128.png
+  - src: desktop/crates/dm-gpui/icons/128x128.png
     dst: /usr/share/icons/hicolor/128x128/apps/dm.png
   - src: LICENSE
     dst: /usr/share/licenses/dm/LICENSE

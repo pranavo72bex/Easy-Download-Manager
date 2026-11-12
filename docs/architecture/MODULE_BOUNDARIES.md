@@ -12,13 +12,11 @@ enforced by `cargo xtask layers` (`desktop/xtask/src/main.rs`, run by
 | `dm-core` | nothing | a window toolkit | the queue and its rows, every downloader, persistence of the queue |
 | `dm-shell` | `dm-core`, `dm-protocol` | a window toolkit | the application layer (`dm_shell::app`), settings, the browser's native host, the inbox, lists, registration |
 | `dm-desktop-base` | `dm-core`, `dm-protocol`, `dm-shell` | a window toolkit | what the desktop program does that is not drawing: `Desktop` (the Platform, taking `WindowServices` from the window), the login item, the control port's server, MCP, the command line, the words (`i18n` and its catalogs) and numbers (`format`, `details`), the system's services (quiet hours, sounds and When done, keeping awake, the wake timer, Windows' toasts, taskbar and jump list, theme and High Contrast, signals) |
-| `dm-gpui` | `dm-core`, `dm-protocol`, `dm-shell`, `dm-desktop-base` | `dm-desktop` | the window built and shipped on macOS, Windows and Linux, drawn with GPUI: dialogs, table, tray, drops and dragging out, what the system does for `Desktop` (clipboard, file choosers, notifications), and the `ui.*` answers (`probe.rs`) |
-| `dm-desktop` | `dm-core`, `dm-protocol`, `dm-shell`, `dm-desktop-base` | — | the older egui window, still built and tested until gaps row G9 removes it: the same parts in egui; it re-exports each moved module at its old path. New work goes to `dm-gpui` |
+| `dm-gpui` | `dm-core`, `dm-protocol`, `dm-shell`, `dm-desktop-base` | — | the window built and shipped on macOS, Windows and Linux, drawn with GPUI: dialogs, table, tray, drops and dragging out, what the system does for `Desktop` (clipboard, file choosers, notifications), and the `ui.*` answers (`probe.rs`) |
 | `dm-catcher` (browser/) | `dm-protocol` | a window toolkit, sockets | the extension's decisions, compiled to WebAssembly |
 
-`dm-gpui` has taken `dm-desktop`'s place as the program people install; it
-never depends on `dm-desktop`, so removing the egui crate (G9) touches no
-other crate.
+`dm-gpui` took the older egui window's (`dm-desktop`'s) place as the program
+people install, and that crate was removed on 2026-11-13 (gaps row G9).
 
 ## Inside the application layer, `dm_shell::app`
 

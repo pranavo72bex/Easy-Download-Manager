@@ -29,9 +29,8 @@ cd ../browser && cargo test                     # the extension's decisions, on 
   control port's methods (`crates/dm-gpui/src/harness.rs`; the tests in
   `src/window_tests/`, grouped by what they check: `cargo test -p dm-gpui
   window_tests`), and driven whole by `scripts/human-qa.py` and
-  `scripts/app-check.py`. The older egui window's own tests went to it, file by
-  file; its cover tests (`crates/dm-desktop/tests/*_cover.rs`) still share
-  `tests/window/support.rs` until gaps row G9.
+  `scripts/app-check.py`. The older egui window's tests were ported to it,
+  file by file, before that window was removed (gaps row G9).
 - Every reader of outside input (names, headers, playlists, archives, the
   control protocol) has a property test in `tests/fuzz.rs`; `PROPTEST_CASES=200000
   cargo test --release -p dm-core --test fuzz` hunts deeper.
@@ -175,7 +174,7 @@ test and the release gate. `--phases engine` runs one phase; `--list` prints eve
 | Check | What it proves | Run |
 |---|---|---|
 | `scripts/app-check.py` | The real binary as a process: the one-instance lock, a browser hand-off, downloads sorted, HLS, a player page that is not YouTube's refused with a reason, a proxy not gone around, a speed limit, a schedule, the login launch in the tray, the command line (`list`, `status`, `pause`…, exit codes), the control protocol, headless and MCP | `python3 scripts/app-check.py` (`DM_BINARY=` for a packaged one) |
-| `scripts/smoke.py` | An *installed* dm starts, answers as the browsers' native host, opens a window, runs headless and downloads byte-exact. The same on Linux, Windows and macOS | `python3 scripts/smoke.py /path/to/dm-desktop` |
+| `scripts/smoke.py` | An *installed* dm starts, answers as the browsers' native host, opens a window, runs headless and downloads byte-exact. The same on Linux, Windows and macOS | `python3 scripts/smoke.py /path/to/dm-gpui` |
 | `scripts/chrome-check.py` | The extension in Chrome for Testing handing off to a real dm: byte-exact files, the browser's copy gone, cookie-gated files left to the browser, no host | `sh scripts/package.sh` then `python3 scripts/chrome-check.py` |
 | `scripts/firefox-check.py` | The same in a real Firefox | `python3 scripts/firefox-check.py native` |
 | `scripts/chrome-check.py` with `CHROME_PATH` set to Microsoft Edge | The same 69 checks in Edge itself (catching, helping connections, PDF in a tab, Alt, paused sites, popup, no-host); Edge's and Chrome's host registrations are set aside for the run and put back | `CHROME_PATH="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" DM_CHROME_HEADLESS=1 python3 scripts/chrome-check.py` |
@@ -239,7 +238,7 @@ differs from a developer's machine in ways that are not dm's:
   telling the truth. The build volume `dm-linux-target` gathers a stale copy of
   the workspace crates' artifacts with every source change (17 GB after a day's
   work); `cd desktop && cargo clean -p dm-core -p dm-protocol -p dm-shell
-  -p dm-desktop -p xtask` inside a container on that volume frees them and
+  -p dm-desktop-base -p dm-gpui -p xtask` inside a container on that volume frees them and
   keeps the third-party builds. Nothing in these scripts deletes anything.
 
 ## On a real desktop
@@ -253,7 +252,7 @@ unseen.
 ## Before a push
 
 Run the whole workspace's tests, not only the crate you changed: `xtask`'s
-privacy check reads comments in every crate, and a change in `dm-desktop`
+privacy check reads comments in every crate, and a change in `dm-gpui`
 can break it. The pre-commit hook (`scripts/pre-commit`; install with
 `ln -sf ../../scripts/pre-commit .git/hooks/pre-commit`) refuses a commit that
 writes a credential into a tracked file.

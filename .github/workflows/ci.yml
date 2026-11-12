@@ -74,11 +74,11 @@ jobs:
       - name: Linux libraries dm links and Chrome needs
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev xvfb \
+          sudo apt-get install -y xvfb \
             libnss3 libgbm1 libxkbcommon0 libxkbcommon-x11-0 libxdamage1 libxfixes3 libxrandr2 \
             libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
-          # What the GPUI window (dm-gpui, the window dm ships) builds against.
+          # What the window (dm-gpui, GPUI) builds against.
           sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
             libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 

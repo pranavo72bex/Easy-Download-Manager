@@ -60,12 +60,6 @@ allow = [
     "NCSA",
 ]
 confidence-threshold = 0.9
-# The egui window's default fonts, while it is still built (G9: it goes once
-# the Windows laptop holds the GPUI window). Fonts are data dm carries beside
-# its code, which the OFL and the Ubuntu font licence allow.
-exceptions = [
-    { allow = ["OFL-1.1", "Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
-]
 
 [licenses.private]
 # dm's own crates are not published; their licence is the repository's.

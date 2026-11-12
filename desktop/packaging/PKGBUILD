@@ -69,9 +69,9 @@ package() {
 
   install -Dm755 "target/release/dm-gpui" "$pkgdir/usr/bin/dm"
   install -Dm644 "packaging/dm.desktop" "$pkgdir/usr/share/applications/dm.desktop"
-  install -Dm644 "crates/dm-desktop/icons/icon.png" \
+  install -Dm644 "crates/dm-gpui/icons/icon.png" \
     "$pkgdir/usr/share/icons/hicolor/512x512/apps/dm.png"
-  install -Dm644 "crates/dm-desktop/icons/128x128.png" \
+  install -Dm644 "crates/dm-gpui/icons/128x128.png" \
     "$pkgdir/usr/share/icons/hicolor/128x128/apps/dm.png"
   install -Dm644 "../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 "../NOTICE" "$pkgdir/usr/share/licenses/$pkgname/NOTICE"

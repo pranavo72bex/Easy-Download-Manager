@@ -7,7 +7,7 @@
 # place (Edge for Linux is x86_64 only), an X server, a window manager, a
 # session bus with a keyring, ImageMagick for the dialogs' pictures, and the
 # libraries the .deb depends on, so a build of the checkout runs here too.
-# The window's Linux baseline pictures (docs/behaviour-baseline/linux) are
+# The window's Linux baseline pictures (docs/behaviour-baseline/gpui/linux) are
 # drawn in this image: its fonts and screen are part of what they show.
 FROM debian:12
 ENV DEBIAN_FRONTEND=noninteractive

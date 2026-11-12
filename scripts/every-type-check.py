@@ -6,7 +6,7 @@
 """Every type of file a person clicks goes to dm, with dm set as installed.
 
     sh scripts/package.sh                      # builds dist/chrome
-    (cd desktop && cargo build -p dm-desktop)  # the app the host starts
+    (cd desktop && cargo build -p dm-gpui)  # the app the host starts
     CHROME_PATH=/path/to/msedge python3 scripts/every-type-check.py
 
 chrome-check.py sets the app to catch `.bin` and `.pdf` only, to check that a

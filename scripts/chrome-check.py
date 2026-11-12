@@ -1504,7 +1504,7 @@ def main():
     }))
 
     # The app, copied out of the checkout, with a home and settings of its own.
-    # Named as the program it copies (dm-gpui or dm-desktop).
+    # Named as the program it copies.
     host = engine_home / BINARY.name
     shutil.copy2(BINARY, host)
     host.chmod(0o755)
