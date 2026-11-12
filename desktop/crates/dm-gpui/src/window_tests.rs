@@ -7,4 +7,5 @@
 //! egui window's (`dm-desktop/tests/window/`), file by file.
 
 mod asks;
+mod find;
 mod options;

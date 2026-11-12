@@ -760,7 +760,18 @@ impl WindowProbe for Probe<'_, '_> {
                 format!("{id} is not in the GPUI shell yet")
             });
         }
-        self.view.run(command, self.cx);
+        use dm_shell::app::commands::Command;
+        match command {
+            // The search box is the window's: these need it, as its action handler has it
+            // (`list.rs`, `menus::Run`), where `run` alone left them undone and the port said
+            // they ran.
+            Command::Find => self.view.find(self.window, self.cx),
+            Command::FindNext | Command::FindPrevious => {
+                self.view.find_step(command == Command::FindNext);
+                self.cx.notify();
+            }
+            _ => self.view.run(command, self.cx),
+        }
         Ok(probe::Ran {
             ran: id.to_string(),
             said: self

@@ -945,5 +945,9 @@
  "Delete the file?": "Dosya silinsin mi?",
  "{} parts of the stream in another format, such as an advert, were left out": "Reklam gibi başka biçimdeki {} yayın bölümü atlandı",
  "{} finished.": "{} tamamlandı.",
- "{} failed: {}": "{} başarısız oldu: {}"
+ "{} failed: {}": "{} başarısız oldu: {}",
+  "Use {}": "{} kullan",
+  "Keep {}": "{} olarak bırak",
+  "Save as HTML": "HTML olarak kaydet",
+  "Don't download": "İndirme"
 }

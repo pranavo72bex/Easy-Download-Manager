@@ -945,5 +945,9 @@
  "Delete the file?": "ファイルを削除しますか？",
  "{} parts of the stream in another format, such as an advert, were left out": "広告など別の形式の部分 {} 件を除外しました",
  "{} finished.": "{} が完了しました。",
- "{} failed: {}": "{} が失敗しました: {}"
+ "{} failed: {}": "{} が失敗しました: {}",
+  "Use {}": "{} を使う",
+  "Keep {}": "{} のままにする",
+  "Save as HTML": "HTML として保存",
+  "Don't download": "ダウンロードしない"
 }

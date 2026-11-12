@@ -116,7 +116,11 @@ fn run_time_words() -> Vec<&'static str> {
     words.extend(base::held::DAYS);
     words.extend(base::toolbar::TOOL_STYLES.iter().map(|(_, w)| *w));
     words.extend(dm_shell::app::commands::TOOLBAR.iter().map(|(_, w)| *w));
-    words.extend(dm_shell::app::commands::Command::ALL.iter().map(|c| c.label()));
+    words.extend(
+        dm_shell::app::commands::Command::ALL
+            .iter()
+            .map(|c| c.label()),
+    );
     words.extend(base::columns::Column::ALL.iter().map(|c| c.english()));
     words.extend(dm_shell::app::power::WhenDone::ALL.iter().map(|w| w.verb()));
     words.extend(base::i18n::BUILT_IN_NAMES);
