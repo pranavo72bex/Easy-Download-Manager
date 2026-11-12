@@ -952,5 +952,6 @@
   "Don't download": "Niet downloaden",
   "When this download is done": "Als deze download klaar is",
   "{} \u00b7 {} free": "{} · {} vrij",
-  "+{} more||+{} more": "+{} meer||+{} meer"
+  "+{} more||+{} more": "+{} meer||+{} meer",
+  "Reading\u2026 {} pages, {} files found": "Lezen… {} pagina's, {} bestanden gevonden"
 }

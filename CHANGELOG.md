@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Grabber: Start now beside Add for later, and a search under way shows how many pages it has read and files it has found, with Stop, which keeps what was found.
 - The bars above the list stand one at a time, the most pressing first, with "+N more" to see the rest; the add-to-browser bar keeps to one line.
 - Easier to read: muted, warning and "Connected" words reach 4.5 to 1 on every surface, and a chosen row's file picture takes the row's text colour.
 - Download details says "Checking…" while it asks the server, then the size beside the room the folder has left, marked when it will not fit.

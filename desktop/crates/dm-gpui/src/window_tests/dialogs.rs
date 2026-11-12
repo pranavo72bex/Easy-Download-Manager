@@ -564,6 +564,25 @@ fn the_site_file_finder_finds_the_files_a_page_links_to() {
     assert!(urls.iter().any(|u| u.ends_with("/other.pdf")));
 }
 
+/// The Grabber's Start now adds what it found and starts it at once, where Add for later
+/// needed Start Queue after it (gaps row U25).
+#[test]
+fn the_grabbers_start_now_starts_what_it_found() {
+    let world = world();
+    let mut h = world.harness();
+    h.click("Grabber");
+    h.until("the Grabber", |h| h.dialog_open("Grabber"));
+    h.type_into("Start page", &world.url("page.html"));
+    h.type_into("File types", "zip pdf");
+    h.click("Find files");
+    h.until("the files found", |h| h.shows_part("Files found: 2 "));
+    h.click("Start now");
+    h.until("both fetched", |h| {
+        let rows = h.rows();
+        rows.len() == 2 && rows.iter().all(|r| r.state == dm_core::State::Completed)
+    });
+}
+
 /// A search a page deep reads the pages of the start page's site; saved to run every hour, it
 /// runs an hour on and its files are added for later, and run again by hand it adds nothing
 /// twice. The egui window also listed it under Grabber projects in the side panel, which the

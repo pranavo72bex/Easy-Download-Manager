@@ -362,3 +362,35 @@ async fn files_outside_the_size_limits_are_left_out_and_unknown_sizes_kept() {
     kept.sort_unstable();
     assert_eq!(kept, ["mid.zip", "unsaid.zip"]);
 }
+
+/// Stop pressed during a run ends it after the page it is on, with what it found, said to have
+/// stopped; the watch counts the pages read and the files found (gaps row U25).
+#[tokio::test]
+async fn a_search_stopped_keeps_what_it_found_and_counts_as_it_goes() {
+    let app = axum::Router::new()
+        .route(
+            "/",
+            get(|| async { Html(r#"<a href="a.zip">a</a> <a href="more/">more</a>"#) }),
+        )
+        .route(
+            "/more/",
+            get(|| async { Html(r#"<a href="late.zip">late</a>"#) }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let search = zips(&format!("http://{addr}"), 1);
+    let watch = dm_shell::lists::CrawlWatch::default();
+    watch.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let found = dm_shell::lists::crawl_watched(&dm_core::client(), &search, None, &watch)
+        .await
+        .unwrap();
+    assert!(found.stopped);
+    assert_eq!(found.pages, 1, "the start page alone is read");
+    assert_eq!(names(&found.files), ["a.zip"]);
+    let counted = (
+        watch.pages.load(std::sync::atomic::Ordering::Relaxed),
+        watch.files.load(std::sync::atomic::Ordering::Relaxed),
+    );
+    assert_eq!(counted, (1, 1));
+}

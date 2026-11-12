@@ -20,11 +20,26 @@ fn rust_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut found = Vec::new();
     for entry in std::fs::read_dir(dir).unwrap().flatten() {
         let path = entry.path();
+        // The window's tests and their harness are test modules whose files hold no
+        // `#[cfg(test)]` of their own: their made-up strings are not the window's.
+        let test_only = path.file_name().is_some_and(|n| {
+            [
+                "tests.rs",
+                "window_tests",
+                "window_tests.rs",
+                "harness",
+                "harness.rs",
+                "i18n_check.rs",
+            ]
+            .iter()
+            .any(|t| n == *t)
+        });
+        if test_only {
+            continue;
+        }
         if path.is_dir() {
             found.extend(rust_files(&path));
-        } else if path.extension().is_some_and(|e| e == "rs")
-            && path.file_name().is_some_and(|n| n != "tests.rs")
-        {
+        } else if path.extension().is_some_and(|e| e == "rs") {
             found.push(path);
         }
     }

@@ -25,10 +25,20 @@ pub fn crawl_later(
     search: crate::lists::Search,
     done: impl FnOnce(Result<crate::lists::Crawled, String>) + Send + 'static,
 ) {
+    crawl_watched_later(backend, search, Arc::default(), done);
+}
+
+/// [`crawl_later`], telling `watch` how far it has come and stopped by it (gaps row U25).
+pub fn crawl_watched_later(
+    backend: &crate::app::backend::Backend,
+    search: crate::lists::Search,
+    watch: Arc<crate::lists::CrawlWatch>,
+    done: impl FnOnce(Result<crate::lists::Crawled, String>) + Send + 'static,
+) {
     let (client, queue) = (backend.client(), backend.queue.clone());
     backend.runtime.spawn(async move {
         let options = queue.options().await;
-        done(crate::lists::crawl_with(&client, &search, Some(&options)).await);
+        done(crate::lists::crawl_watched(&client, &search, Some(&options), &watch).await);
     });
 }
 

@@ -433,6 +433,18 @@ pub struct Crawled {
     pub stopped: bool,
 }
 
+/// A crawl as it goes, for the window to show and stop (gaps row U25): the pages read and the
+/// files found so far, and whether Stop was pressed, which ends it keeping what it found.
+#[derive(Debug, Default)]
+pub struct CrawlWatch {
+    /// Pages read so far.
+    pub pages: std::sync::atomic::AtomicUsize,
+    /// Files found so far.
+    pub files: std::sync::atomic::AtomicUsize,
+    /// Set by Stop.
+    pub stop: std::sync::atomic::AtomicBool,
+}
+
 /// A link's path, for the filters: lower-cased, decoded.
 fn path_of(link: &str) -> String {
     url::Url::parse(link)
@@ -565,6 +577,16 @@ pub async fn crawl_with(
     search: &Search,
     options: Option<&dm_core::Options>,
 ) -> Result<Crawled, String> {
+    crawl_watched(client, search, options, &CrawlWatch::default()).await
+}
+
+/// [`crawl_with`], telling `watch` how far it has come and stopped by it (gaps row U25).
+pub async fn crawl_watched(
+    client: &dm_core::reqwest::Client,
+    search: &Search,
+    options: Option<&dm_core::Options>,
+    watch: &CrawlWatch,
+) -> Result<Crawled, String> {
     let minutes = search.stop_after_minutes.min(MOST_MINUTES);
     let deadline = (minutes > 0)
         .then(|| tokio::time::Instant::now() + std::time::Duration::from_secs(minutes * 60));
@@ -574,7 +596,7 @@ pub async fn crawl_with(
         };
         return crawl_ftp(search, options, deadline).await;
     }
-    let mut found = crawl_until(client, search, deadline).await?;
+    let mut found = crawl_until_watched(client, search, deadline, watch).await?;
     found.files = within_sizes(client, found.files, search.min_kb, search.max_kb).await;
     Ok(found)
 }
@@ -717,7 +739,18 @@ pub async fn crawl_until(
     search: &Search,
     deadline: Option<tokio::time::Instant>,
 ) -> Result<Crawled, String> {
+    crawl_until_watched(client, search, deadline, &CrawlWatch::default()).await
+}
+
+/// [`crawl_until`], telling `watch` how far it has come and stopped by it.
+async fn crawl_until_watched(
+    client: &dm_core::reqwest::Client,
+    search: &Search,
+    deadline: Option<tokio::time::Instant>,
+    watch: &CrawlWatch,
+) -> Result<Crawled, String> {
     use std::collections::{HashSet, VecDeque};
+    use std::sync::atomic::Ordering;
     let start = url::Url::parse(search.page.trim())
         .map_err(|e| format!("that is not a page address: {e}"))?;
     let depth = search.depth.min(MAX_DEPTH);
@@ -733,6 +766,11 @@ pub async fn crawl_until(
 
     while let Some((page, level)) = frontier.pop_front() {
         if found.pages >= MAX_PAGES {
+            break;
+        }
+        // Stop pressed: what was found so far is the answer, as at the time limit.
+        if found.pages > 0 && watch.stop.load(Ordering::Relaxed) {
+            found.stopped = true;
             break;
         }
         // Past the time it was given: what was found so far is the answer.
@@ -761,6 +799,7 @@ pub async fn crawl_until(
             }
         }
         found.pages += 1;
+        watch.pages.store(found.pages, Ordering::Relaxed);
         for link in links_on_page(&base, &html) {
             let path = path_of(&link);
             if has_any(&path, &search.exclude) {
@@ -776,6 +815,7 @@ pub async fn crawl_until(
                     || has_any(&path, &search.include);
                 if wanted && !found.files.contains(&link) {
                     found.files.push(link);
+                    watch.files.store(found.files.len(), Ordering::Relaxed);
                 }
                 continue;
             }

@@ -952,5 +952,6 @@
   "Don't download": "Jangan unduh",
   "When this download is done": "Saat unduhan ini selesai",
   "{} \u00b7 {} free": "{} · {} kosong",
-  "+{} more||+{} more": "+{} lagi"
+  "+{} more||+{} more": "+{} lagi",
+  "Reading\u2026 {} pages, {} files found": "Membaca… {} halaman, {} berkas ditemukan"
 }

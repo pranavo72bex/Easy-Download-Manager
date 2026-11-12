@@ -952,5 +952,6 @@
   "Don't download": "ダウンロードしない",
   "When this download is done": "このダウンロードが終わったら",
   "{} \u00b7 {} free": "{} · 空き {}",
-  "+{} more||+{} more": "他 {} 件"
+  "+{} more||+{} more": "他 {} 件",
+  "Reading\u2026 {} pages, {} files found": "読み込み中… {} ページ、{} 件のファイル"
 }

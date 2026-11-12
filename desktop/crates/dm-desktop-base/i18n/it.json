@@ -952,5 +952,6 @@
   "Don't download": "Non scaricare",
   "When this download is done": "Al termine di questo download",
   "{} \u00b7 {} free": "{} · {} liberi",
-  "+{} more||+{} more": "+{} altro||+{} altri"
+  "+{} more||+{} more": "+{} altro||+{} altri",
+  "Reading\u2026 {} pages, {} files found": "Lettura… {} pagine, {} file trovati"
 }

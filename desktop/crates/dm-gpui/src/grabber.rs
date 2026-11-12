@@ -53,6 +53,8 @@ pub struct Grabber {
     focus: FocusHandle,
     screen: Screen,
     scroll: UniformListScrollHandle,
+    /// The crawl under way, its pages and files so far, and its Stop (gaps row U25).
+    watch: std::sync::Arc<dm_shell::lists::CrawlWatch>,
 }
 
 /// A whole number as typed, within its bounds; what is not one is 0.
@@ -104,30 +106,58 @@ impl Grabber {
         let state = self.d.state.clone();
         let listed = self.listed.clone();
         let (tell, told) = async_channel::bounded::<()>(1);
-        dm_shell::app::search::crawl_later(&backend, search, move |found| {
-            *dm_core::lock(&state) = match found {
-                Ok(found) => Grab::Found(
-                    found
-                        .files
-                        .into_iter()
-                        .map(|l| {
-                            let new = !listed.contains(&dm_shell::lists::bare(&l));
-                            (l, new)
-                        })
-                        .collect(),
-                    found.pages,
-                    found.stopped,
-                ),
-                Err(e) => Grab::Failed(e),
-            };
-            let _ = tell.try_send(());
-        });
+        self.watch = Default::default();
+        dm_shell::app::search::crawl_watched_later(
+            &backend,
+            search,
+            self.watch.clone(),
+            move |found| {
+                *dm_core::lock(&state) = match found {
+                    Ok(found) => Grab::Found(
+                        found
+                            .files
+                            .into_iter()
+                            .map(|l| {
+                                let new = !listed.contains(&dm_shell::lists::bare(&l));
+                                (l, new)
+                            })
+                            .collect(),
+                        found.pages,
+                        found.stopped,
+                    ),
+                    Err(e) => Grab::Failed(e),
+                };
+                let _ = tell.try_send(());
+            },
+        );
         cx.spawn_in(window, async move |this, cx| {
             if told.recv().await.is_ok() {
                 let _ = this.update(cx, |_, cx| cx.notify());
             }
         })
         .detach();
+        // Drawn again while it reads, so its count moves (gaps row U25).
+        let state = self.d.state.clone();
+        cx.spawn_in(window, async move |this, cx| loop {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(300))
+                .await;
+            if !matches!(*dm_core::lock(&state), Grab::Looking) {
+                return;
+            }
+            if this.update(cx, |_, cx| cx.notify()).is_err() {
+                return;
+            }
+        })
+        .detach();
+        cx.notify();
+    }
+
+    /// Stop: the crawl ends after the page it is reading, keeping what it found.
+    fn stop(&mut self, cx: &mut Context<Self>) {
+        self.watch
+            .stop
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         cx.notify();
     }
 
@@ -179,16 +209,16 @@ impl Grabber {
         cx.notify();
     }
 
-    /// Add for later: the files ticked, in the Main queue (in folders that
-    /// mirror the site's, where that is asked for).
-    fn add(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// Add for later, or Start now (`later` false, gaps row U25): the files ticked, in the Main
+    /// queue (in folders that mirror the site's, where that is asked for).
+    fn add(&mut self, later: bool, window: &mut Window, cx: &mut Context<Self>) {
         let chosen: Vec<String> = match &*dm_core::lock(&self.d.state) {
             Grab::Found(links, _, _) => links.iter().filter(|l| l.1).map(|l| l.0.clone()).collect(),
             _ => return,
         };
         let keep_layout = self.d.keep_layout;
         let with = dm_core::AddOptions {
-            later: true,
+            later,
             queue: dm_core::MAIN_QUEUE.into(),
             ..dm_core::AddOptions::default()
         };
@@ -262,12 +292,40 @@ impl Render for Grabber {
         // What the last Find files found.
         let state = match &*dm_core::lock(&self.d.state) {
             Grab::Idle => None,
-            Grab::Looking => Some(
-                div()
-                    .text_color(theme.muted)
-                    .child(screen.label(t("Reading the page…")))
-                    .into_any_element(),
-            ),
+            // How far it has come, and a way to stop it keeping what it found (gaps row U25).
+            Grab::Looking => {
+                use std::sync::atomic::Ordering;
+                let pages = self.watch.pages.load(Ordering::Relaxed);
+                let files = self.watch.files.load(Ordering::Relaxed);
+                let stopping = self.watch.stop.load(Ordering::Relaxed);
+                Some(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(native::LABEL_GAP))
+                        .child(div().flex_1().text_color(theme.muted).child(screen.label(
+                            if pages == 0 {
+                                t("Reading the page…").to_string()
+                            } else {
+                                tf("Reading… {} pages, {} files found", &[&pages, &files])
+                            },
+                        )))
+                        .when(pages > 0, |d| {
+                            d.child(
+                                native::button(
+                                    "stop-reading",
+                                    t("Stop").into(),
+                                    false,
+                                    theme,
+                                    &screen,
+                                )
+                                .when(stopping, |b| b.opacity(0.5))
+                                .on_click(cx.listener(|this, _, _, cx| this.stop(cx))),
+                            )
+                        })
+                        .into_any_element(),
+                )
+            }
             Grab::Failed(e) => {
                 Some(native::note(e.clone(), theme.warning, &screen).into_any_element())
             }
@@ -513,8 +571,15 @@ impl Render for Grabber {
                                 .into_any_element(),
                         )
                         .chain(found_any.then(|| {
-                            native::button("add-later", t("Add for later").into(), true, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.add(window, cx)))
+                            native::button("add-later", t("Add for later").into(), false, theme, &screen)
+                                .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
+                                .into_any_element()
+                        }))
+                        // Started at once, where Add for later needed Start Queue after it (gaps
+                        // row U25).
+                        .chain(found_any.then(|| {
+                            native::button("start-now", t("Start now").into(), true, theme, &screen)
+                                .on_click(cx.listener(|this, _, window, cx| this.add(false, window, cx)))
                                 .into_any_element()
                         }))
                         .collect(),
@@ -604,6 +669,7 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
                     focus: cx.focus_handle(),
                     screen,
                     scroll: UniformListScrollHandle::new(),
+                    watch: Default::default(),
                 }
             });
             cx.new(|cx| gpui_component::Root::new(grabber, window, cx))
