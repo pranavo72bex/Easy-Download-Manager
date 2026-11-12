@@ -1116,7 +1116,36 @@ async fn read_within(
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        return Err(Error::Internal("a live stream".into()));
+        // Recorded from YouTube's own HLS playlist of it, where the player names one, by the
+        // engine's live recording (gaps row Y5); refused, as before, where it names none.
+        let live = player
+            .pointer("/streamingData/hlsManifestUrl")
+            .and_then(Value::as_str)
+            .filter(|u| u.starts_with("https://"));
+        let Some(live) = live else {
+            return Err(Error::Internal("a live stream".into()));
+        };
+        let title = player
+            .pointer("/videoDetails/title")
+            .and_then(Value::as_str)
+            .unwrap_or("live");
+        return Ok(json!({
+            "id": id,
+            "title": title,
+            "extractor": "youtube",
+            "extractor_key": "Youtube",
+            "webpage_url": format!("https://www.youtube.com/watch?v={id}"),
+            "is_live": true,
+            "url": live,
+            "protocol": "m3u8_native",
+            "ext": "mp4",
+            "filename": staging
+                .join(format!("{} [{id}].mp4", safe_title(title)))
+                .display()
+                .to_string(),
+            "read_by": "dm",
+        })
+        .to_string());
     }
     // The picture and the sound apart (`adaptiveFormats`), as a player
     // `bv+ba` takes them; the formats with both in one file only where

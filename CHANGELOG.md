@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A YouTube live stream can be recorded: dm takes YouTube's own live playlist and records it from now until it ends or is stopped, where it refused a live stream before.
 - Quicker to reconnect: a server's name is looked up once a minute, not again for every connection dm opens to it.
 - macOS: dm's Dock icon has a menu: Add URL, Resume all and Stop all.
 - A download can say something of itself on its row: a DASH video whose higher qualities are copy-protected says the best one that is not was taken, and a live recording says how many pieces the stream dropped before dm could fetch them.

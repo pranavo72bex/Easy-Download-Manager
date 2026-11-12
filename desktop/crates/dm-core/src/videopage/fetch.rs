@@ -44,6 +44,23 @@ pub async fn download_page(
         .map_err(Error::Disk)?;
 
     let read = resolve(url, options).await?;
+    // A live stream (YouTube's own HLS playlist of it): recorded by the engine's live HLS
+    // recording, as a stream's address is, from now until it ends or is stopped (gaps row Y5).
+    if read.info.is_live == Some(true) && !part {
+        if let Some(live) = read
+            .info
+            .single
+            .url
+            .as_deref()
+            .filter(|u| u.starts_with("https://"))
+            .filter(|_| read.info.single.protocol.as_deref() == Some("m3u8_native"))
+        {
+            return Box::pin(crate::download::download_reporting(
+                client, live, options, report,
+            ))
+            .await;
+        }
+    }
     let Some(plan) = read.plan(staging) else {
         if part {
             return Err(Error::Internal(

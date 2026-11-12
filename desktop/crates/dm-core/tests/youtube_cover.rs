@@ -384,6 +384,13 @@ fn player(id: &str, call: usize, origin: &str) -> Response {
             live["videoDetails"]["isLive"] = json!(true);
             live
         }
+        "liveHlsUrl1" => {
+            let mut live = ok(Some("Live now"), plain_streams());
+            live["videoDetails"]["isLive"] = json!(true);
+            live["streamingData"]["hlsManifestUrl"] =
+                json!("https://manifest.googlevideo.com/api/manifest/hls_variant/live.m3u8");
+            live
+        }
         "noStreams01" => ok(
             Some("Nothing"),
             vec![
@@ -1139,6 +1146,31 @@ async fn what_youtube_refuses_is_said_in_words() {
     assert!(asked_with("far.example").is_empty());
     // A caption reading never asks the API.
     assert!(asked_with("\"videoId\":\"captions001\"").is_empty());
+}
+
+/// A live video whose player names YouTube's HLS playlist of it is read as that live stream,
+/// for the engine's live recording (gaps row Y5); one that names none is refused as before.
+#[tokio::test]
+async fn a_live_video_is_read_as_its_live_playlist() {
+    let _env = ENV.read().await;
+    stand_in();
+    let staging = tempdir();
+    let text = youtube::read(
+        &dm_core::client(),
+        &page("liveHlsUrl1"),
+        Quality::Best,
+        None,
+        false,
+        None,
+        staging.path(),
+    )
+    .await
+    .unwrap();
+    let read: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(read["is_live"], true);
+    assert_eq!(read["protocol"], "m3u8_native");
+    assert!(read["url"].as_str().unwrap().ends_with("live.m3u8"));
+    assert!(read["filename"].as_str().unwrap().contains("Live now"));
 }
 
 /// What the engine says when the player fails in it, or what it answers
