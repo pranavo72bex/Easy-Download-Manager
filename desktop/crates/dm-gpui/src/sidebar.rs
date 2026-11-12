@@ -153,22 +153,38 @@ pub fn sidebar(
                 .py_2()
                 .flex()
                 .flex_col()
-                .children(places(view).into_iter().enumerate().map(
-                    |(i, (heading, place, label))| {
-                        place_row(
-                            view,
-                            theme,
-                            screen,
-                            window,
-                            cx,
-                            &categories,
-                            i,
-                            heading,
-                            place,
-                            label,
-                        )
-                    },
-                )),
+                .children({
+                    // A group shut from its heading shows its heading alone (gaps row U42).
+                    let mut group = "";
+                    let mut rows = Vec::new();
+                    for (i, (heading, place, label)) in places(view).into_iter().enumerate() {
+                        if let Some(h) = heading {
+                            group = h;
+                        }
+                        let shut = view.group_shut(group);
+                        if shut && heading.is_none() {
+                            continue;
+                        }
+                        rows.push(
+                            place_row(
+                                view,
+                                theme,
+                                screen,
+                                window,
+                                cx,
+                                &categories,
+                                i,
+                                heading,
+                                place,
+                                label,
+                                shut,
+                            )
+                            .into_any_element(),
+                        );
+                    }
+                    rows
+                })
+                .children(projects(view, theme, screen, cx)),
         )
         .child(
             div()
@@ -187,6 +203,101 @@ pub fn sidebar(
         )
 }
 
+/// A group's heading: small, in the secondary colour, a little bolder, as a source list's
+/// section heading; a click shuts the group or opens it again (gaps row U42). The group under no
+/// heading (Unfinished, Finished) has none to click.
+fn group_heading(
+    heading: &'static str,
+    shut: bool,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(gpui::ElementId::Name(format!("group-{heading}").into()))
+        .px_4()
+        .pt_3()
+        .pb_1()
+        .flex()
+        .items_center()
+        .gap_1()
+        .text_size(px(crate::native::SMALL_TEXT))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(theme.muted)
+        .when(!heading.is_empty(), |d| {
+            d.role(Role::Button)
+                .aria_label(t(heading))
+                .cursor_pointer()
+                .child(screen.label(t(heading)))
+                // Shut, it says so: an arrow toward the words, as a source list's does.
+                .child(div().child(if shut { "›" } else { "⌄" }))
+                .on_click(cx.listener(move |view, _, _, cx| {
+                    view.toggle_group(heading);
+                    cx.notify();
+                }))
+        })
+}
+
+/// The Grabber's saved searches, under their heading: a click opens the Grabber filled in
+/// with one (gaps rows U40, U41), as the egui window's panel did.
+fn projects(
+    view: &Downloads,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> Option<gpui::AnyElement> {
+    const HEADING: &str = "Grabber projects";
+    let searches = &view.drawn.site_searches;
+    if searches.is_empty() {
+        return None;
+    }
+    let shut = view.group_shut(HEADING);
+    let rows = (!shut).then(|| {
+        searches
+            .iter()
+            .enumerate()
+            .map(|(i, search)| {
+                let search = search.clone();
+                let name: SharedString = search.name.clone().into();
+                let page: SharedString = search.page.clone().into();
+                div()
+                    .id(("project", i))
+                    .role(Role::ListItem)
+                    .aria_label(name.clone())
+                    .mx_2()
+                    .px_2()
+                    .h(px(26.0))
+                    .rounded(px(crate::native::RADIUS))
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .text_size(px(crate::native::TEXT))
+                    .hover(|s| s.bg(theme.stripe))
+                    .tooltip(move |window, cx| {
+                        gpui_component::tooltip::Tooltip::new(page.clone()).build(window, cx)
+                    })
+                    .child(
+                        gpui::svg()
+                            .path("icons/place-folder.svg")
+                            .size(px(16.0))
+                            .flex_none()
+                            .text_color(theme.accent),
+                    )
+                    .child(screen.label(name))
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        crate::grabber::open_with(cx.entity().downgrade(), &search, cx);
+                    }))
+            })
+            .collect::<Vec<_>>()
+    });
+    Some(
+        div()
+            .child(group_heading(HEADING, shut, theme, screen, cx))
+            .children(rows.into_iter().flatten())
+            .into_any_element(),
+    )
+}
+
 /// One place's row, under its group's heading where a group starts.
 #[allow(clippy::too_many_arguments)]
 fn place_row(
@@ -200,6 +311,7 @@ fn place_row(
     heading: Option<&'static str>,
     place: Place,
     label: SharedString,
+    shut: bool,
 ) -> impl IntoElement {
     let count = view.places.count(&place, &view.rows, categories);
     let chosen = place == view.place;
@@ -211,18 +323,10 @@ fn place_row(
         crate::zoom::factor(),
     )
     .then(|| label.clone());
-    let heading = heading.map(|h| {
-        div()
-            // A source list's section heading: small,
-            // in the secondary colour, a little bolder.
-            .px_4()
-            .pt_3()
-            .pb_1()
-            .text_size(px(crate::native::SMALL_TEXT))
-            .font_weight(gpui::FontWeight::SEMIBOLD)
-            .text_color(theme.muted)
-            .when(!h.is_empty(), |d| d.child(screen.label(t(h))))
-    });
+    let heading = heading.map(|h| group_heading(h, shut, theme, screen, cx));
+    if shut {
+        return div().children(heading);
+    }
     div().children(heading).child(
         div()
             .id(("place", i))
@@ -357,6 +461,25 @@ impl Downloads {
     fn keep_panel_width(&self, wide: f32) {
         self.backend
             .keep_look(|settings| settings.sidebar_width = wide);
+    }
+
+    /// Whether the side panel's group under `heading` is shut (gaps row U42).
+    pub(crate) fn group_shut(&self, heading: &str) -> bool {
+        !heading.is_empty() && self.drawn.shut_groups.iter().any(|g| g == heading)
+    }
+
+    /// The group under `heading` shut, or opened again, and kept for the next launch.
+    pub(crate) fn toggle_group(&mut self, heading: &str) {
+        let shut = self.group_shut(heading);
+        let heading = heading.to_string();
+        self.backend.keep_look(move |settings| {
+            if shut {
+                settings.shut_groups.retain(|g| *g != heading);
+            } else if !settings.shut_groups.contains(&heading) {
+                settings.shut_groups.push(heading);
+            }
+        });
+        self.read();
     }
 }
 

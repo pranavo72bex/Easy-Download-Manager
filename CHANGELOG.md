@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Side panel: the Grabber's saved searches are listed as projects, a click opening the Grabber filled in; a group (All Downloads, Queues, Grabber projects) shuts and opens from its heading, and stays so.
 - Grabber: Start now beside Add for later, and a search under way shows how many pages it has read and files it has found, with Stop, which keeps what was found.
 - The bars above the list stand one at a time, the most pressing first, with "+N more" to see the rest; the add-to-browser bar keeps to one line.
 - Easier to read: muted, warning and "Connected" words reach 4.5 to 1 on every surface, and a chosen row's file picture takes the row's text colour.

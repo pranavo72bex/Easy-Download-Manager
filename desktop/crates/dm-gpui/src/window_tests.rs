@@ -15,6 +15,7 @@ mod find;
 mod lists;
 mod options;
 mod second_network;
+mod sidebar;
 mod speed_schedule;
 mod status;
 mod this_done;

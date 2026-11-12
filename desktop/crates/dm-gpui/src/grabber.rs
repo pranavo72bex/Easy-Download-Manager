@@ -591,10 +591,17 @@ impl Render for Grabber {
 /// Opens the Grabber.
 pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
     // After the update that asked: the main window's view is read.
-    cx.defer(move |cx| open_now(view, cx));
+    cx.defer(move |cx| open_now(view, SiteFiles::default(), cx));
 }
 
-fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
+/// Opens the Grabber filled in with a saved `search`: a Grabber project clicked in the side
+/// panel (gaps rows U40, U41).
+pub fn open_with(view: WeakEntity<Downloads>, search: &dm_shell::lists::Search, cx: &mut App) {
+    let filled = SiteFiles::from_search(search);
+    cx.defer(move |cx| open_now(view, filled, cx));
+}
+
+fn open_now(view: WeakEntity<Downloads>, filled: SiteFiles, cx: &mut App) {
     // Asked for again while open: the one open, as it stands.
     if crate::screen::bring_named(t("Grabber"), cx) {
         return;
@@ -625,7 +632,7 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
         move |window, cx| {
             let screen = Screen::default();
             Screens::register(window.window_handle(), screen.clone(), true, cx);
-            let d = SiteFiles::default();
+            let d = filled;
             let field = |value: String, window: &mut Window, cx: &mut App| {
                 cx.new(|cx| {
                     let mut s = InputState::new(window, cx);
@@ -677,5 +684,19 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
     );
     if let Err(e) = opened {
         eprintln!("dm-gpui: the Grabber could not be opened: {e}");
+    }
+}
+
+#[cfg(test)]
+impl Grabber {
+    /// The start page, the types, the smallest size and the name as typed (the window's tests).
+    pub(crate) fn typed(&self, cx: &App) -> (String, String, String, String) {
+        let value = |field: &Entity<InputState>| field.read(cx).value().to_string();
+        (
+            value(&self.page),
+            value(&self.types),
+            value(&self.min_kb),
+            value(&self.name),
+        )
     }
 }

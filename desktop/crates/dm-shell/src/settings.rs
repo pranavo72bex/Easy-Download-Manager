@@ -380,6 +380,10 @@ pub struct Settings {
     /// here so it holds across launches; `SIDEBAR_WIDTH.default` for a file from before it.
     #[serde(default = "default_sidebar_width")]
     pub sidebar_width: f32,
+    /// The side panel's groups shut from their heading ("All Downloads", "Queues", "Grabber
+    /// projects"), by their English heading, kept for the next launch (gaps row U42).
+    #[serde(default)]
+    pub shut_groups: Vec<String>,
     /// The column the list is sorted by, by its key, and which way; empty
     /// for the order downloads were added in. Kept so the list is sorted
     /// the same way at the next launch.
@@ -859,6 +863,7 @@ impl Default for Settings {
             column_widths: std::collections::BTreeMap::new(),
             columns_hidden: Vec::new(),
             sidebar_width: SIDEBAR_WIDTH.default,
+            shut_groups: Vec::new(),
             sort_column: String::new(),
             sort_ascending: true,
             toolbar_hidden: Vec::new(),

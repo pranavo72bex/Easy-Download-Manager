@@ -82,6 +82,26 @@ impl Default for SiteFiles {
 }
 
 impl SiteFiles {
+    /// The dialog filled in with a saved `search`: a Grabber project opened from the side panel
+    /// (gaps rows U40 and U41).
+    pub fn from_search(search: &dm_shell::lists::Search) -> SiteFiles {
+        SiteFiles {
+            page: search.page.clone(),
+            types: search.types.join(" "),
+            depth: search.depth,
+            include: search.include.join(" "),
+            exclude: search.exclude.join(" "),
+            name: search.name.clone(),
+            every_hours: search.every_hours,
+            stop_after_minutes: search.stop_after_minutes,
+            other_sites: search.other_sites,
+            keep_layout: search.keep_layout,
+            min_kb: search.min_kb,
+            max_kb: search.max_kb,
+            ..SiteFiles::default()
+        }
+    }
+
     /// What the dialog describes, as a search.
     pub fn search(&self) -> dm_shell::lists::Search {
         let words = |text: &str| -> Vec<String> {
@@ -189,5 +209,27 @@ mod tests {
             vec!["https://e.com/a.zip".to_string()]
         );
         assert_eq!(twice.site_searches[0].last_run, 100);
+    }
+
+    /// A saved search opens the dialog filled in, and the dialog gives the same search back
+    /// (gaps rows U40, U41).
+    #[test]
+    fn a_saved_search_fills_the_dialog_and_comes_back_the_same() {
+        let search = dm_shell::lists::Search {
+            name: "Manuals".into(),
+            page: "https://e.com/docs/".into(),
+            types: vec!["pdf".into(), "epub".into()],
+            depth: 2,
+            include: vec!["manual".into()],
+            exclude: vec!["draft".into()],
+            every_hours: 6,
+            stop_after_minutes: 10,
+            other_sites: true,
+            keep_layout: true,
+            min_kb: 20,
+            max_kb: 900,
+            ..Default::default()
+        };
+        assert_eq!(SiteFiles::from_search(&search).search(), search);
     }
 }
