@@ -285,6 +285,28 @@ impl Render for Progress {
                     .into_any_element(),
                 );
             }
+            // Each path's share, where a second network is in use (Options › Advanced): the
+            // pieces it took, by what they hold now (gaps row U38).
+            if connections.iter().any(|c| c.second) {
+                let came: u64 = held.iter().sum();
+                let over_second: u64 = connections
+                    .iter()
+                    .zip(&held)
+                    .filter(|(c, _)| c.second)
+                    .map(|(_, &done)| done)
+                    .sum();
+                lines.push(
+                    native::note(
+                        dm_desktop_base::i18n::tf(
+                            "{} of {} came over the second network",
+                            &[&format::bytes(over_second), &format::bytes(came)],
+                        ),
+                        theme.muted,
+                        &screen,
+                    )
+                    .into_any_element(),
+                );
+            }
             for (n, ((c, (span, _)), &done)) in
                 connections.iter().zip(&pieces).zip(&held).enumerate()
             {
