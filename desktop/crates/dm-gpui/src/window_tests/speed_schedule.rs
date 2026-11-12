@@ -15,6 +15,47 @@ use crate::harness::world::{world, World};
 use crate::harness::{settings_file, Harness};
 use crate::scheduler::Scheduler;
 
+/// A time chosen from its pop-ups, hour then minute, as a person chooses it (gaps row U32):
+/// `field` is the Scheduler's "Start at" or "Stop at", or the Speed limiter's.
+fn set_time(h: &mut Harness, field: &str, time: &str) {
+    use crate::popup::Pick;
+    let (hour, minute) = dm_desktop_base::scheduler::time_parts(time);
+    let (hour_field, minute_field): (&'static str, &'static str) = match field {
+        "Start at" => ("from-hour", "from-minute"),
+        "Stop at" => ("to-hour", "to-minute"),
+        "Slow start at" => ("slow-from-hour", "slow-from-minute"),
+        _ => ("slow-to-hour", "slow-to-minute"),
+    };
+    let picks = [(hour_field, hour), (minute_field, minute)];
+    if h.dialog_open("Scheduler") {
+        for (field, index) in picks {
+            h.dialog(|s: &mut Scheduler, _, cx| {
+                s.pick(
+                    &Pick {
+                        field,
+                        item: 0,
+                        index: index as usize,
+                    },
+                    cx,
+                )
+            });
+        }
+    } else {
+        for (field, index) in picks {
+            h.dialog(|l: &mut crate::limiter::Limiter, _, cx| {
+                l.pick(
+                    &Pick {
+                        field,
+                        item: 0,
+                        index: index as usize,
+                    },
+                    cx,
+                )
+            });
+        }
+    }
+}
+
 /// The settings in force.
 fn kept(h: &mut Harness) -> dm_shell::Settings {
     h.view(|view| view.backend.settings())
@@ -158,26 +199,22 @@ fn a_sleep_the_system_refuses_is_said_in_the_problems() {
 }
 
 #[test]
-fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
+fn the_scheduler_holds_only_times_that_are_times_and_says_why_otherwise() {
     let _file = settings_file();
     let world = world();
     let mut h = world.harness();
     h.command("downloads.scheduler");
     h.until("the Scheduler", |h| h.dialog_open("Scheduler"));
     h.click("Only download between set hours");
-    h.fill("Start at", "25:00");
-    h.fill("Stop at", "1am");
-    h.click("OK");
-    h.until("the reason", |h| {
-        h.shows_part("times are HH:MM in 24 hours")
-    });
-    assert!(h.dialog_open("Scheduler"), "closed as if taken");
-    assert!(!kept(&mut h).schedule.enabled);
+    // A time is chosen, hour and minute, so none can be held that is not one (gaps row U32):
+    // typed, "25:00" and "1am" were refused only at OK.
+    let hour12 = dm_desktop_base::region::system().is_some_and(|r| r.hour12);
+    assert_eq!(dm_desktop_base::scheduler::hour_choices(hour12).len(), 24);
 
     // No day ticked is refused where it was unticked: every day is shown, and kept, as seven
     // ticks.
-    h.fill("Start at", "01:00");
-    h.fill("Stop at", "07:00");
+    set_time(&mut h, "Start at", "01:00");
+    set_time(&mut h, "Stop at", "07:00");
     let days = dm_desktop_base::held::DAYS.map(dm_desktop_base::i18n::t);
     assert_eq!(
         h.dialog(|s: &mut Scheduler, _, _| s.draft.schedule.days.len()),
@@ -388,8 +425,8 @@ fn the_scheduler_hangs_up_the_dial_up_connection_when_its_downloads_are_done() {
     h.until("the Scheduler", |h| h.dialog_open("Scheduler"));
     // Start and stop the same: open all day.
     h.click("Only download between set hours");
-    h.fill("Start at", "00:00");
-    h.fill("Stop at", "00:00");
+    set_time(&mut h, "Start at", "00:00");
+    set_time(&mut h, "Stop at", "00:00");
     let offered = h.shows("Hang up modem when done");
     assert_eq!(offered, cfg!(windows), "offered on Windows alone");
     if !cfg!(windows) {
@@ -484,8 +521,8 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
         "opened on the list's queue"
     );
     h.click("Only download between set hours");
-    h.fill("Start at", "01:00");
-    h.fill("Stop at", "07:00");
+    set_time(&mut h, "Start at", "01:00");
+    set_time(&mut h, "Stop at", "07:00");
     h.click("Night");
     h.until("Night chosen", |h| draft(h).queue == "Night");
     assert!(
@@ -497,8 +534,8 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     if !draft(&mut h).schedule.enabled {
         h.click("Only download between set hours");
     }
-    h.fill("Start at", "22:00");
-    h.fill("Stop at", "23:00");
+    set_time(&mut h, "Start at", "22:00");
+    set_time(&mut h, "Stop at", "23:00");
     h.click("OK");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));
     let settings = kept(&mut h);
@@ -516,13 +553,23 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     h.until("Night chosen", |h| draft(h).queue == "Night");
     let night = draft(&mut h);
     assert!(night.own && night.schedule.from == "22:00");
-    assert!(h.shows("22:00"), "its hours shown");
-    // Once, on a date: a date that is not one is refused where it was typed.
+    assert!(h.shows("22"), "its hours shown");
+    // Once, on a date chosen from its pop-ups, which hold only dates (gaps row U32): the last
+    // day of this year.
     h.click("Once, on this date");
-    h.fill("Once, on this date", "tomorrow");
-    h.click("OK");
-    h.until("the refusal", |h| h.shows_part("is not a date"));
-    h.fill("Once, on this date", "2026-12-31");
+    for (field, index) in [("date-year", 0), ("date-month", 11), ("date-day", 30)] {
+        h.dialog(|s: &mut Scheduler, _, cx| {
+            s.pick(
+                &crate::popup::Pick {
+                    field,
+                    item: 0,
+                    index,
+                },
+                cx,
+            )
+        });
+    }
+    let last_day = format!("{}-12-31", dm_desktop_base::scheduler::today().0);
     // Start now acts on the queue chosen in the list, not the list's.
     h.click("Start now");
     let said = h.view(|view| view.said.clone().map(|(said, _)| said).unwrap_or_default());
@@ -530,7 +577,7 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     h.click("OK");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));
     let night = kept(&mut h).queue_schedules["Night"].clone();
-    assert_eq!(night.once_at.as_deref(), Some("2026-12-31 22:00"));
+    assert_eq!(night.once_at, Some(format!("{last_day} 22:00")));
 
     // A queue given back to the Main queue's hours loses its own.
     h.command("downloads.scheduler");
@@ -543,8 +590,8 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     assert!(!kept(&mut h).queue_schedules.contains_key("Night"));
 }
 
-/// The Speed limiter's settings keep the slow hours, refuse a time that is not one, and the
-/// window puts the slow limit in force in its hours.
+/// The Speed limiter's settings keep the slow hours, chosen from pop-ups that cannot hold a time
+/// that is not one (gaps row U32), and the window puts the slow limit in force in its hours.
 #[test]
 fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
     let _file = settings_file();
@@ -553,15 +600,9 @@ fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
     h.command("downloads.speed_limiter.settings");
     h.until("the Speed limiter", |h| h.dialog_open("Speed limiter"));
     h.click("Slower between set hours");
-    h.fill("Start at", "7pm");
-    h.click("OK");
-    h.until("the reason", |h| {
-        h.shows_part("times are HH:MM in 24 hours")
-    });
-    assert!(!kept(&mut h).slow_hours.enabled);
     // Hours that hold every minute of the day, so the test is in them.
-    h.fill("Start at", "00:00");
-    h.fill("Stop at", "23:59");
+    set_time(&mut h, "Slow start at", "00:00");
+    set_time(&mut h, "Slow stop at", "23:59");
     h.fill("Speed limit in those hours (KB/s)", "64");
     h.click("OK");
     h.until("the Speed limiter to close", |h| {

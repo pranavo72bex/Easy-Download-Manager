@@ -113,9 +113,10 @@ pub fn http2_client() -> reqwest::Client {
         .expect("a client with no TLS backend cannot be built")
 }
 
-/// Whether `why` is a server refusing HTTP/1.1: it answered 505, closed on an HTTP/1.1 request
-/// (an HTTP/2-only server sends its own preface or a GOAWAY), or would agree only on HTTP/2 in
-/// the TLS handshake.
+/// Whether `why` is a server refusing HTTP/1.1: it answered 505, answered an HTTP/1.1 request
+/// with HTTP/2's own preface or a GOAWAY, or would agree only on HTTP/2 in the TLS handshake. Not
+/// a connection that merely closed: that is any download cut short, and asked again over HTTP/2
+/// one failed in the wrong words.
 pub fn refuses_http1(why: &str) -> bool {
     let why = why.to_ascii_lowercase();
     [
@@ -124,7 +125,6 @@ pub fn refuses_http1(why: &str) -> bool {
         "invalid http version",
         "noapplicationprotocol",
         "no application protocol",
-        "connection closed before message completed",
         // An HTTP/2 server's own preface, read as an HTTP/1.1 answer.
         "unexpectedmessage",
         "unexpected message",

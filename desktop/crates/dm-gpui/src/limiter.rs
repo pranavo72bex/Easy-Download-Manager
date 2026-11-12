@@ -28,13 +28,26 @@ pub struct Limiter {
     mb: Entity<InputState>,
     hours: Entity<InputState>,
     slow: dm_shell::settings::SlowHours,
-    slow_from: Entity<InputState>,
-    slow_to: Entity<InputState>,
     slow_limit: Entity<InputState>,
     says: Option<SharedString>,
     done: bool,
     focus: FocusHandle,
     screen: Screen,
+}
+
+impl Limiter {
+    /// A slow hour's time chosen from its pop-ups (gaps row U32).
+    pub(crate) fn pick(&mut self, pick: &crate::popup::Pick, cx: &mut Context<Self>) {
+        let slow = &mut self.slow;
+        match pick.field {
+            "slow-from-hour" => native::time_picked(&mut slow.from, true, pick.index),
+            "slow-from-minute" => native::time_picked(&mut slow.from, false, pick.index),
+            "slow-to-hour" => native::time_picked(&mut slow.to, true, pick.index),
+            "slow-to-minute" => native::time_picked(&mut slow.to, false, pick.index),
+            _ => return,
+        }
+        cx.notify();
+    }
 }
 
 /// A whole number as typed, within `range`; what is not one is `fallback`.
@@ -64,8 +77,6 @@ impl Limiter {
         };
         let backend = view.read(cx).backend.clone();
         let now = backend.settings();
-        self.slow.from = self.slow_from.read(cx).value().trim().to_string();
-        self.slow.to = self.slow_to.read(cx).value().trim().to_string();
         self.slow.limit = number(&self.slow_limit, 1..=10_000_000, now.slow_hours.limit, cx);
         if let Some(why) = dm_desktop_base::scheduler::slow_hours_problem(&self.slow) {
             self.says = Some(why.into());
@@ -115,6 +126,7 @@ impl Render for Limiter {
             div().w(px(110.0)).child(native::field(input, name, theme))
         };
         crate::native::dialog("limiter", t("Speed limiter"), theme, cx)
+            .on_action(cx.listener(|this, pick: &crate::popup::Pick, _, cx| this.pick(pick, cx)))
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" {
@@ -177,18 +189,20 @@ impl Render for Limiter {
                                         .items_center()
                                         .gap(px(native::LABEL_GAP))
                                         .child(screen.label(t("Start at")))
-                                        .child(div().w(px(70.0)).child(native::field(
-                                            &self.slow_from,
-                                            "Start at",
+                                        .child(native::time_picker(
+                                            ("slow-from-hour", "slow-from-minute"),
+                                            &self.slow.from,
                                             theme,
-                                        )))
+                                            &screen,
+                                        ))
                                         .child(div().w(px(8.0)))
                                         .child(screen.label(t("Stop at")))
-                                        .child(div().w(px(70.0)).child(native::field(
-                                            &self.slow_to,
-                                            "Stop at",
+                                        .child(native::time_picker(
+                                            ("slow-to-hour", "slow-to-minute"),
+                                            &self.slow.to,
                                             theme,
-                                        ))),
+                                            &screen,
+                                        )),
                                 )
                                 .child(
                                     div()
@@ -287,8 +301,6 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
             let limit = field(settings.speed_limit.to_string(), window, cx);
             let mb = field(settings.limit_mb.to_string(), window, cx);
             let hours = field(settings.limit_hours.to_string(), window, cx);
-            let slow_from = field(settings.slow_hours.from.clone(), window, cx);
-            let slow_to = field(settings.slow_hours.to.clone(), window, cx);
             let slow_limit = field(settings.slow_hours.limit.to_string(), window, cx);
             // The limit takes the keyboard as the dialog opens, selected.
             limit.update(cx, |l, cx| {
@@ -297,7 +309,7 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
             });
             let limiter = cx.new(|cx| {
                 // Return in a field is OK.
-                for input in [&limit, &mb, &hours, &slow_from, &slow_to, &slow_limit] {
+                for input in [&limit, &mb, &hours, &slow_limit] {
                     cx.subscribe_in(input, window, |this: &mut Limiter, _, event, window, cx| {
                         if let InputEvent::PressEnter { .. } = event {
                             this.ok(window, cx);
@@ -311,8 +323,6 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
                     mb,
                     hours,
                     slow: settings.slow_hours.clone(),
-                    slow_from,
-                    slow_to,
                     slow_limit,
                     says: None,
                     done: false,

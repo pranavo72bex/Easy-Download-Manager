@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The Scheduler and the Speed limiter take times from hour and minute pop-ups in your clock, and the Scheduler's date from day, month and year pop-ups, so a wrong one cannot be entered.
 - A server that speaks HTTP/2 alone is downloaded: dm asks it again over HTTP/2 when HTTP/1.1 is refused, keeping HTTP/1.1 (a connection per range) everywhere else.
 - HLS: a stream whose encryption key changes part-way is downloaded, each piece with its own key, where it was refused.
 - A download that finishes with its progress window open turns that window into Download complete, with Open and Open folder, rather than opening a second window.

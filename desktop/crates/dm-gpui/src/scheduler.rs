@@ -30,14 +30,54 @@ use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
 use crate::zoom::px;
 
+/// The date of "Once, on this date" as three pop-ups, year, month and day, this year and the
+/// next four (gaps row U32): typed as "YYYY-MM-DD", a wrong one was refused only at OK.
+fn date_picker(date: &str, theme: Theme, screen: &Screen) -> gpui::Div {
+    use dm_desktop_base::scheduler::{date_parts, today};
+    let now = today();
+    let (y, m, d) = date_parts(date, now);
+    let years: Vec<SharedString> = (0..5).map(|n| (now.0 + n).to_string().into()).collect();
+    let months: Vec<SharedString> = dm_desktop_base::format::MONTHS
+        .iter()
+        .map(|w| t(w).into())
+        .collect();
+    let days: Vec<SharedString> = (1..=31).map(|n: u32| n.to_string().into()).collect();
+    let year_at = usize::try_from(y - now.0).ok().filter(|i| *i < years.len());
+    div()
+        .flex()
+        .items_center()
+        .gap(px(4.0))
+        .child(crate::popup::button(
+            "date-day",
+            days[(d as usize).saturating_sub(1).min(30)].clone(),
+            days,
+            Some((d as usize).saturating_sub(1)),
+            theme,
+            screen,
+        ))
+        .child(crate::popup::button(
+            "date-month",
+            months[(m as usize).saturating_sub(1).min(11)].clone(),
+            months,
+            Some((m as usize).saturating_sub(1)),
+            theme,
+            screen,
+        ))
+        .child(crate::popup::button(
+            "date-year",
+            y.to_string().into(),
+            years,
+            year_at,
+            theme,
+            screen,
+        ))
+}
+
 /// The Scheduler window's view.
 pub struct Scheduler {
     view: WeakEntity<Downloads>,
     pub(crate) draft: SchedulerDraft,
     queues: Vec<String>,
-    from: Entity<InputState>,
-    to: Entity<InputState>,
-    date: Entity<InputState>,
     retries: Entity<InputState>,
     run: Entity<InputState>,
     done: bool,
@@ -49,11 +89,6 @@ impl Scheduler {
     /// The fields as the draft shows the chosen queue.
     fn fields_from_draft(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let s = self.draft.schedule.clone();
-        let date = self.draft.date.clone();
-        self.from
-            .update(cx, |f, cx| f.set_value(s.from, window, cx));
-        self.to.update(cx, |f, cx| f.set_value(s.to, window, cx));
-        self.date.update(cx, |f, cx| f.set_value(date, window, cx));
         self.retries
             .update(cx, |f, cx| f.set_value(s.retries.to_string(), window, cx));
         self.run
@@ -62,9 +97,6 @@ impl Scheduler {
 
     /// What the fields hold, into the draft's chosen queue.
     fn draft_from_fields(&mut self, cx: &App) {
-        self.draft.schedule.from = self.from.read(cx).value().trim().to_string();
-        self.draft.schedule.to = self.to.read(cx).value().trim().to_string();
-        self.draft.date = self.date.read(cx).value().trim().to_string();
         self.draft.schedule.retries = self
             .retries
             .read(cx)
@@ -74,6 +106,30 @@ impl Scheduler {
             .unwrap_or(0)
             .min(5);
         self.draft.schedule.run_when_done = self.run.read(cx).value().to_string();
+    }
+
+    /// A time's hour or minute, or the date's year, month or day, chosen from its pop-up: what
+    /// it can hold is only what can be (gaps row U32).
+    pub(crate) fn pick(&mut self, pick: &crate::popup::Pick, cx: &mut Context<Self>) {
+        use dm_desktop_base::scheduler::{date_of, date_parts, today};
+        let i = pick.index as u32;
+        let schedule = &mut self.draft.schedule;
+        match pick.field {
+            "from-hour" => native::time_picked(&mut schedule.from, true, pick.index),
+            "from-minute" => native::time_picked(&mut schedule.from, false, pick.index),
+            "to-hour" => native::time_picked(&mut schedule.to, true, pick.index),
+            "to-minute" => native::time_picked(&mut schedule.to, false, pick.index),
+            "date-year" | "date-month" | "date-day" => {
+                let (y, m, d) = date_parts(&self.draft.date, today());
+                self.draft.date = match pick.field {
+                    "date-year" => date_of(today().0 + i as i32, m, d),
+                    "date-month" => date_of(y, i + 1, d),
+                    _ => date_of(y, m, i + 1),
+                };
+            }
+            _ => return,
+        }
+        cx.notify();
     }
 
     /// Another queue chosen in the list: the one shown kept, its hours shown.
@@ -278,10 +334,10 @@ impl Render for Scheduler {
                                     .items_center()
                                     .gap(px(native::LABEL_GAP))
                                     .child(screen.label(t("Start at")))
-                                    .child(field(&self.from, "Start at", 70.0))
+                                    .child(native::time_picker(("from-hour", "from-minute"), &self.draft.schedule.from, theme, &screen))
                                     .child(div().w(px(8.0)))
                                     .child(screen.label(t("Stop at")))
-                                    .child(field(&self.to, "Stop at", 70.0)),
+                                    .child(native::time_picker(("to-hour", "to-minute"), &self.draft.schedule.to, theme, &screen)),
                             )
                             // Every week on the days ticked, or once on a
                             // date, as reference A's "Daily" and "Once at".
@@ -342,7 +398,7 @@ impl Render for Scheduler {
                                             cx.notify();
                                         })),
                                     )
-                                    .child(enabled(once, field(&self.date, "Date (YYYY-MM-DD)", 110.0))),
+                                    .child(enabled(once, date_picker(&self.draft.date, theme, &screen))),
                             )
                             // Where the system lets dm wake the computer.
                             .when(dm_desktop_base::wake::possible(), |d| {
@@ -438,6 +494,7 @@ impl Render for Scheduler {
             ));
 
         crate::native::dialog("scheduler", t("Scheduler"), theme, cx)
+            .on_action(cx.listener(|this, pick: &crate::popup::Pick, _, cx| this.pick(pick, cx)))
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" {
@@ -509,14 +566,11 @@ fn open_now(view: WeakEntity<Downloads>, queue: String, cx: &mut App) {
             Screens::register(window.window_handle(), screen.clone(), true, cx);
             let input =
                 |window: &mut Window, cx: &mut App| cx.new(|cx| InputState::new(window, cx));
-            let from = input(window, cx);
-            let to = input(window, cx);
-            let date = input(window, cx);
             let retries = input(window, cx);
             let run = input(window, cx);
             let scheduler = cx.new(|cx| {
                 // Return in a field is OK.
-                for input in [&from, &to, &date, &retries, &run] {
+                for input in [&retries, &run] {
                     cx.subscribe_in(
                         input,
                         window,
@@ -532,9 +586,6 @@ fn open_now(view: WeakEntity<Downloads>, queue: String, cx: &mut App) {
                     view,
                     draft: SchedulerDraft::new(&settings, &queue),
                     queues,
-                    from,
-                    to,
-                    date,
                     retries,
                     run,
                     done: false,

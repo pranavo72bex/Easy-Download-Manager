@@ -493,3 +493,49 @@ pub fn mono(cx: &gpui::App) -> gpui::SharedString {
         .mono_font_family
         .clone()
 }
+
+/// A time as two pop-ups, hour and minute, in the system's clock (gaps row U32), named by
+/// `fields` (the hour's, the minute's) for the view's `popup::Pick` to set: typed, a wrong one
+/// was refused only at OK.
+pub fn time_picker(
+    fields: (&'static str, &'static str),
+    time: &str,
+    theme: Theme,
+    screen: &Screen,
+) -> Div {
+    use dm_desktop_base::scheduler::{hour_choices, minute_choices, time_parts};
+    let hour12 = dm_desktop_base::region::system().is_some_and(|r| r.hour12);
+    let (h, m) = time_parts(time);
+    let hours: Vec<SharedString> = hour_choices(hour12).into_iter().map(Into::into).collect();
+    let minutes: Vec<SharedString> = minute_choices().into_iter().map(Into::into).collect();
+    div()
+        .flex()
+        .items_center()
+        .gap(px(4.0))
+        .child(crate::popup::button(
+            fields.0,
+            hours[h as usize].clone(),
+            hours,
+            Some(h as usize),
+            theme,
+            screen,
+        ))
+        .child(screen.label(":"))
+        .child(crate::popup::button(
+            fields.1,
+            minutes[m as usize].clone(),
+            minutes,
+            Some(m as usize),
+            theme,
+            screen,
+        ))
+}
+
+/// The time `time` ("HH:MM") with its hour (`hour`) or minute set to `to`: what a time pop-up's
+/// choice does.
+pub fn time_picked(time: &mut String, hour: bool, to: usize) {
+    use dm_desktop_base::scheduler::{time_of, time_parts};
+    let (h, m) = time_parts(time);
+    let to = to as u32;
+    *time = if hour { time_of(to, m) } else { time_of(h, to) };
+}
