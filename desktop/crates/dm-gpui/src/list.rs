@@ -124,6 +124,16 @@ fn exit_question(view: &Downloads) -> crate::question::Asked {
     }
 }
 
+/// When the list's bars show, as each system's own lists show theirs: always on Windows and
+/// Linux, under the pointer on macOS (gaps row U43).
+fn scrollbar_mode() -> gpui_base::ScrollbarMode {
+    if cfg!(target_os = "macos") {
+        gpui_base::ScrollbarMode::Hover
+    } else {
+        gpui_base::ScrollbarMode::Always
+    }
+}
+
 /// The rows' height, in points.
 pub(crate) const ROW_HEIGHT: f32 = 24.0;
 
@@ -193,6 +203,8 @@ pub struct Downloads {
     /// A sentence for the status bar, and when it was said: it stands for
     /// a while, as the egui window's does.
     pub(crate) said: Option<(String, std::time::Instant)>,
+    /// Where the list stands sideways, for its sideways bar (gaps row U43).
+    pub(crate) sideways: gpui::ScrollHandle,
     /// Whether `said` says a queue waits for the schedule, so the status bar does not say it
     /// twice (`statusbar::parts`).
     pub(crate) said_schedule_wait: bool,
@@ -401,6 +413,7 @@ impl Downloads {
             panel_resizing: None,
             menu: None,
             said: None,
+            sideways: gpui::ScrollHandle::new(),
             said_schedule_wait: false,
             heard: None,
             undo: Default::default(),
@@ -2584,25 +2597,77 @@ impl Render for Downloads {
                             // columns' whole width.
                             .child(
                                 div()
-                                    .id("table")
-                                    .map(|table| crate::table::told_table(table, self))
+                                    .relative()
                                     .flex()
-                                    .when(empty, |table| table.flex_none())
-                                    .when(!empty, |table| table.flex_1().min_h_0())
-                                    .overflow_x_scroll()
-                                    .restrict_scroll_to_axis()
+                                    .when(empty, |frame| frame.flex_none())
+                                    .when(!empty, |frame| frame.flex_1().min_h_0())
                                     .child(
                                         div()
+                                            .id("table")
+                                            .map(|table| crate::table::told_table(table, self))
                                             .flex()
-                                            .flex_col()
-                                            .when(!empty, |list| list.h_full())
-                                            .w_full()
-                                            .min_w(crate::zoom::px(crate::table::least_width(self)))
-                                            .child(crate::table::header(self, theme, &screen, cx))
-                                            .when(!empty, |list| {
-                                                list.child(crate::table::rows(self, theme, cx))
-                                            }),
-                                    ),
+                                            .flex_1()
+                                            .min_w_0()
+                                            .overflow_x_scroll()
+                                            .restrict_scroll_to_axis()
+                                            .track_scroll(&self.sideways)
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .flex_col()
+                                                    .when(!empty, |list| list.h_full())
+                                                    .w_full()
+                                                    .min_w(crate::zoom::px(
+                                                        crate::table::least_width(self),
+                                                    ))
+                                                    .child(crate::table::header(
+                                                        self, theme, &screen, cx,
+                                                    ))
+                                                    .when(!empty, |list| {
+                                                        list.child(crate::table::rows(
+                                                            self, theme, cx,
+                                                        ))
+                                                    }),
+                                            ),
+                                    )
+                                    // The list's bars, each dragged (gaps row U43): the up-and-down
+                                    // one at the list's visible right edge, however far the columns
+                                    // run past it; the sideways one along its foot.
+                                    .when(!empty, |frame| {
+                                        frame
+                                            .child(
+                                                div()
+                                                    .absolute()
+                                                    .top(crate::zoom::px(
+                                                        crate::table::HEADER_HEIGHT,
+                                                    ))
+                                                    .right_0()
+                                                    .bottom_0()
+                                                    .w(gpui_base::Scrollbar::width())
+                                                    .child(
+                                                        gpui_base::Scrollbar::vertical(
+                                                            &self.scroll,
+                                                        )
+                                                        .viewport_from_layout()
+                                                        .mode(scrollbar_mode()),
+                                                    ),
+                                            )
+                                            .child(
+                                                div()
+                                                    .absolute()
+                                                    .left_0()
+                                                    .right_0()
+                                                    .bottom_0()
+                                                    .h(gpui_base::Scrollbar::width())
+                                                    .child(
+                                                        gpui_base::Scrollbar::horizontal(
+                                                            &self.sideways,
+                                                        )
+                                                        .viewport_from_layout()
+                                                        .mode(scrollbar_mode()),
+                                                    ),
+                                            )
+                                    }),
                             )
                             .when(empty, |list| {
                                 list.child(crate::table::empty(self, theme, cx))
