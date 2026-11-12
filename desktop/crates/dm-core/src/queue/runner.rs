@@ -673,6 +673,10 @@ impl Queue {
                     slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
                     slot.entry_mut().category = Some(finished.category);
                     slot.entry_mut().verified = finished.verified;
+                    // A file fetched again and not checked this time no longer says it was.
+                    if !finished.verified && slot.entry.said == crate::download::CHECKED_BESIDE {
+                        slot.entry_mut().said.clear();
+                    }
                     slot.entry_mut().mirrors = finished.mirrors;
                     slot.entry_mut().replaces = None;
                     if std::mem::take(&mut slot.entry_mut().cookies_once) {

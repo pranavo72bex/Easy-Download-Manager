@@ -915,5 +915,6 @@
  "Not for the downloads chosen": "Nicht für die ausgewählten Downloads",
  "Nothing in the list for it now": "Gerade nichts in der Liste dafür",
  "higher qualities are copy-protected, so the best one that is not was taken": "höhere Qualitäten sind kopiergeschützt, daher wurde die beste ungeschützte genommen",
- "{} pieces of the live stream were gone before dm could fetch them": "{} Teile des Livestreams waren weg, bevor dm sie holen konnte"
+ "{} pieces of the live stream were gone before dm could fetch them": "{} Teile des Livestreams waren weg, bevor dm sie holen konnte",
+ "checked against the checksum file published beside it": "mit der daneben veröffentlichten Prüfsummendatei geprüft"
 }

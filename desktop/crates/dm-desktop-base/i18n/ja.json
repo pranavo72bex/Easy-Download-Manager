@@ -915,5 +915,6 @@
  "Not for the downloads chosen": "選んだダウンロードには使えません",
  "Nothing in the list for it now": "今は一覧に対象がありません",
  "higher qualities are copy-protected, so the best one that is not was taken": "より高い画質はコピー保護されているため、保護されていない中で最高のものを取得しました",
- "{} pieces of the live stream were gone before dm could fetch them": "ライブ配信の {} 個の断片は、dm が取得する前に消えていました"
+ "{} pieces of the live stream were gone before dm could fetch them": "ライブ配信の {} 個の断片は、dm が取得する前に消えていました",
+ "checked against the checksum file published beside it": "隣に公開されているチェックサムファイルで確認済み"
 }

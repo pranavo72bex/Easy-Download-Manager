@@ -756,10 +756,13 @@ async fn a_compressed_answer_with_its_length_is_fetched_once() {
     let gz = e.finish().unwrap();
     let fetched = Arc::new(AtomicUsize::new(0));
     let count = fetched.clone();
-    let addr = common::serve(axum::Router::new().fallback(move || {
+    let addr = common::serve(axum::Router::new().fallback(move |uri: axum::http::Uri| {
         let (gz, count) = (gz.clone(), count.clone());
         async move {
-            count.fetch_add(1, Ordering::SeqCst);
+            // The file's own fetches: a checksum file looked for beside it is not one.
+            if uri.path() == "/file.txt" {
+                count.fetch_add(1, Ordering::SeqCst);
+            }
             Response::builder()
                 .header("content-encoding", "gzip")
                 .header("content-length", gz.len())

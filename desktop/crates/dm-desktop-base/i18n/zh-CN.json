@@ -915,5 +915,6 @@
  "Not for the downloads chosen": "不适用于所选下载",
  "Nothing in the list for it now": "列表中暂无可用项",
  "higher qualities are copy-protected, so the best one that is not was taken": "更高画质受版权保护，因此下载了未受保护的最佳画质",
- "{} pieces of the live stream were gone before dm could fetch them": "直播流有 {} 个片段在 dm 获取之前就已消失"
+ "{} pieces of the live stream were gone before dm could fetch them": "直播流有 {} 个片段在 dm 获取之前就已消失",
+ "checked against the checksum file published beside it": "已用旁边发布的校验和文件核对"
 }

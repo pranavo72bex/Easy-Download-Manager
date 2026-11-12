@@ -194,9 +194,147 @@ pub(crate) async fn verify(
     })
 }
 
+/// The endings a checksum file of one file is published under beside it (`dm.zip.sha256`), in
+/// the order they are preferred: the strongest hash first (gaps row F5).
+pub(crate) const BESIDE: [(&str, Algorithm); 4] = [
+    ("sha256", Algorithm::Sha256),
+    ("sha512", Algorithm::Sha512),
+    ("sha1", Algorithm::Sha1),
+    ("md5", Algorithm::Md5),
+];
+
+/// The lists of a whole folder's digests a release publishes beside its files, in the order
+/// they are preferred.
+pub(crate) const LISTS: [(&str, Algorithm); 2] = [
+    ("SHA256SUMS", Algorithm::Sha256),
+    ("SHA512SUMS", Algorithm::Sha512),
+];
+
+/// The digest a checksum file of `algorithm` publishes for a file called one of `names`.
+///
+/// Reads the forms the common tools write: `<digest>  name` and `<digest> *name` (the GNU
+/// tools), and `SHA256 (name) = <digest>` (the BSD ones). A list (`SHA256SUMS`) must name the
+/// file; a file of one digest (`alone`, `dm.zip.sha256`) may hold the bare digest, but one that
+/// names some other file is not taken for this one. A digest of the wrong length for the
+/// algorithm is never taken, so a page or a note that happens to hold hex is not a checksum.
+pub(crate) fn listed_for(
+    text: &str,
+    algorithm: Algorithm,
+    names: &[&str],
+    alone: bool,
+) -> Option<Checksum> {
+    let fits = |digest: &str| {
+        digest.chars().all(|c| c.is_ascii_hexdigit())
+            && Algorithm::from_digest_length(digest) == Some(algorithm)
+    };
+    // A listed name may carry the folder it was hashed from (`./dm.zip`, `dist/dm.zip`).
+    let names_this = |listed: &str| {
+        let listed = listed.trim();
+        let base = listed.rsplit(['/', '\\']).next().unwrap_or(listed);
+        names.iter().any(|name| !name.is_empty() && *name == base)
+    };
+    for line in text.lines() {
+        let line = line.trim().trim_start_matches('\u{feff}');
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        // BSD: `SHA256 (name) = digest`, its tag naming the algorithm.
+        if let Some((head, digest)) = line.rsplit_once(") = ") {
+            let Some((tag, name)) = head.split_once(" (") else {
+                continue;
+            };
+            let tag = tag.trim().to_ascii_lowercase().replace('-', "");
+            let digest = digest.trim();
+            if tag == algorithm.name() && fits(digest) && names_this(name) {
+                return Some(Checksum {
+                    algorithm,
+                    expected: digest.to_ascii_lowercase(),
+                });
+            }
+            continue;
+        }
+        // GNU: the digest, then the name after a space and, in binary mode, a `*`.
+        let (digest, name) = match line.split_once(char::is_whitespace) {
+            Some((digest, name)) => (digest, Some(name.trim_start().trim_start_matches('*'))),
+            None => (line, None),
+        };
+        if !fits(digest) {
+            continue;
+        }
+        let taken = match name {
+            Some(name) if !name.trim().is_empty() => names_this(name),
+            _ => alone,
+        };
+        if taken {
+            return Some(Checksum {
+                algorithm,
+                expected: digest.to_ascii_lowercase(),
+            });
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file of one digest is read bare or naming the file; a list only where it names it
+    /// (gaps row F5).
+    #[test]
+    fn a_checksum_file_gives_the_digest_it_lists_for_this_file() {
+        let sha = "ab".repeat(32);
+        let names = ["dm.zip"];
+        let want = Some(Checksum {
+            algorithm: Algorithm::Sha256,
+            expected: sha.clone(),
+        });
+        for text in [
+            sha.clone(),
+            format!("{sha}\r\n"),
+            format!("{}  dm.zip\n", sha.to_ascii_uppercase()),
+            format!("{sha} *dm.zip"),
+            format!("{sha}  ./dm.zip"),
+            format!("SHA256 (dm.zip) = {sha}"),
+        ] {
+            assert_eq!(
+                listed_for(&text, Algorithm::Sha256, &names, true),
+                want,
+                "{text:?}"
+            );
+        }
+        let list = format!(
+            "# release\n{}  other.zip\n{sha}  dist/dm.zip\n{}  dm.zip.asc\n",
+            "cd".repeat(32),
+            "ef".repeat(32)
+        );
+        assert_eq!(listed_for(&list, Algorithm::Sha256, &names, false), want);
+        // A bare digest says nothing of which file a list means.
+        assert_eq!(listed_for(&sha, Algorithm::Sha256, &names, false), None);
+        // Another file's digest, a digest of the wrong length, and a page are not this one's.
+        for text in [
+            format!("{sha}  other.zip"),
+            "ab".repeat(20),
+            format!("MD5 (dm.zip) = {sha}"),
+            "<!doctype html><title>Not found</title>".to_string(),
+        ] {
+            assert_eq!(
+                listed_for(&text, Algorithm::Sha256, &names, true),
+                None,
+                "{text:?}"
+            );
+        }
+        assert_eq!(
+            listed_for(
+                &format!("{}  dm.zip", "1".repeat(40)),
+                Algorithm::Sha1,
+                &names,
+                true
+            )
+            .map(|c| c.algorithm),
+            Some(Algorithm::Sha1)
+        );
+    }
 
     /// A 40-digit digest is SHA-1 and an 8-digit one CRC-32, each checked as such (gaps row F5).
     #[tokio::test]
