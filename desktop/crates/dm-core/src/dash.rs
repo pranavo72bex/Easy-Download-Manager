@@ -704,8 +704,9 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
             .children("AdaptationSet")
             .any(|s| s.child("ContentProtection").is_some());
         return Err(Error::Internal(
+            // The same words as HLS's (`stream::PROTECTED`, gaps row Y19).
             if protected {
-                "this stream is protected by a rights system, which dm does not decrypt"
+                crate::stream::PROTECTED
             } else {
                 "that manifest lists no picture or sound dm can fetch"
             }
