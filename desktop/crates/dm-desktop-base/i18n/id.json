@@ -956,5 +956,7 @@
   "Reading\u2026 {} pages, {} files found": "Membaca… {} halaman, {} berkas ditemukan",
   "Open the page": "Buka halamannya",
   "Check now": "Periksa sekarang",
-  "Connected \u00b7 last heard {} ago": "Terhubung · terakhir terdengar {} lalu"
+  "Connected \u00b7 last heard {} ago": "Terhubung · terakhir terdengar {} lalu",
+  "Find a setting": "Cari pengaturan",
+  "No setting says \u201c{}\u201d.": "Tidak ada pengaturan yang memuat “{}”."
 }

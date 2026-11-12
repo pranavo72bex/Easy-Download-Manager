@@ -83,6 +83,9 @@ pub struct Options {
     /// Each browser whose extension has talked to dm and when it was last heard from: read
     /// once as Options opens and again by Check now, not at every frame (gaps row U24).
     pub(crate) heard: Vec<(String, Option<u64>)>,
+    /// What Options' search field holds: the settings of every page that say it are shown in
+    /// place of the page (gaps row U24).
+    pub(crate) search: Entity<InputState>,
 }
 
 /// Whether `text` is a number as a number box holds one.
@@ -505,7 +508,7 @@ impl Options {
     }
 
     /// Another page shown, from its top.
-    fn show(&mut self, tab: Tab, cx: &mut Context<Self>) {
+    pub(crate) fn show(&mut self, tab: Tab, cx: &mut Context<Self>) {
         if self.tab != tab {
             self.tab = tab;
             self.scroll.set_offset(gpui::point(px(0.0), px(0.0)));
@@ -519,7 +522,12 @@ impl Render for Options {
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
-        let page = crate::options_pages::page(self, theme, window, cx);
+        let wanted = self.search.read(cx).value().to_string();
+        let page = if wanted.trim().is_empty() {
+            crate::options_pages::page(self, theme, window, cx)
+        } else {
+            crate::options_pages::search(self, &wanted, theme, window, cx)
+        };
         // The pages as a tab view's segments, as macOS draws them.
         let tabs = options::TABS.iter().map(|(tab, words)| {
             let tab = *tab;
@@ -554,7 +562,15 @@ impl Render for Options {
                     .pt(px(native::MARGIN - 6.0))
                     .pb(px(native::ROW_GAP))
                     .flex()
+                    .items_center()
                     .justify_center()
+                    .gap(px(native::LABEL_GAP))
+                    // Search, for a setting whose page is not known (gaps row U24).
+                    .child(div().w(px(170.0)).child(native::field(
+                        &self.search,
+                        "Find a setting",
+                        theme,
+                    )))
                     .child(
                         div()
                             .id("pages")
@@ -745,6 +761,7 @@ fn open_window(
             Screens::register(window.window_handle(), screen.clone(), true, cx);
             let focus = cx.focus_handle();
             window.focus(&focus, cx);
+            let search = cx.new(|cx| InputState::new(window, cx).placeholder(t("Find a setting")));
             let options = cx.new(|_| Options {
                 view,
                 tab,
@@ -769,7 +786,18 @@ fn open_window(
                 done: false,
                 screen,
                 heard: dm_shell::host::browsers_heard(&dm_shell::settings::home()),
+                search: search.clone(),
             });
+            // Each letter typed into the search draws the settings it finds.
+            cx.subscribe(&search, {
+                let options = options.downgrade();
+                move |_, event: &InputEvent, cx| {
+                    if matches!(event, InputEvent::Change) {
+                        let _ = options.update(cx, |_, cx| cx.notify());
+                    }
+                }
+            })
+            .detach();
             crate::native::close_is_cancel(&options, window, cx);
             cx.new(|cx| gpui_component::Root::new(options, window, cx))
         },

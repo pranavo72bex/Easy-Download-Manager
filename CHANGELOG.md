@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options has a Find a setting field: the settings of every page that say what is typed, under their page's name.
 - Options › Browser says when each browser's extension was last heard from, with Check now, where it said "Connected" for one removed long ago.
 - Buttons and the selection follow the system's accent colour (Windows, macOS, and Linux desktops that say one), unless it would make their words hard to read.
 - A row can be dragged onto another to take its place in the queue's order, while the list is in its own order (not sorted by a column).

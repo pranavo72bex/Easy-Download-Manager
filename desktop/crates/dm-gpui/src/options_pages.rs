@@ -56,6 +56,11 @@ const PROXY_KINDS: [dm_core::ProxyKind; 5] = [
 /// A page being laid out: its rows, one under another.
 struct Page {
     items: Vec<AnyElement>,
+    /// The words of each item, lower case, for Options' search (gaps row U24): what the item
+    /// says, given by whatever added it.
+    words: Vec<String>,
+    /// The words of the item about to be added.
+    saying: String,
     theme: Theme,
     screen: Screen,
 }
@@ -63,10 +68,21 @@ struct Page {
 impl Page {
     fn add(&mut self, element: impl IntoElement) {
         self.items.push(element.into_any_element());
+        self.words
+            .push(std::mem::take(&mut self.saying).to_lowercase());
+    }
+
+    /// The next item added says `words`, for the search.
+    fn says(&mut self, words: &str) {
+        if !self.saying.is_empty() {
+            self.saying.push(' ');
+        }
+        self.saying.push_str(words);
     }
 
     /// A section's heading, a little apart from what is above it.
     fn section(&mut self, words: &str) {
+        self.says(words);
         let heading = div()
             .mt(px(10.0))
             .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -76,6 +92,7 @@ impl Page {
 
     /// What a check box does, under its words.
     fn hint(&mut self, words: &str) {
+        self.says(words);
         let hint = div().pl(px(UNDER_CHECK)).child(native::note(
             words.to_string(),
             self.theme.muted,
@@ -86,18 +103,21 @@ impl Page {
 
     /// Small words of their own, at the page's edge.
     fn note(&mut self, words: &str) {
+        self.says(words);
         let note = native::note(words.to_string(), self.theme.muted, &self.screen);
         self.add(note);
     }
 
     /// Plain words.
     fn words(&mut self, words: &str) {
+        self.says(words);
         let label = div().child(self.screen.label(words.to_string()));
         self.add(label);
     }
 
     /// Words, then a control beside them; greyed while `on` is false.
     fn labelled(&mut self, words: &str, on: bool, control: impl IntoElement) {
+        self.says(words);
         let row = div()
             .flex()
             .flex_wrap()
@@ -125,6 +145,7 @@ fn check(
             cx.notify();
         }),
     );
+    p.says(words);
     p.add(native::enabled(enabled, check));
 }
 
@@ -183,12 +204,25 @@ pub(crate) fn page(
     window: &mut Window,
     cx: &mut Context<Options>,
 ) -> Vec<AnyElement> {
+    built(o, o.tab, theme, window, cx).items
+}
+
+/// The page of `tab`, with what each of its items says.
+fn built(
+    o: &mut Options,
+    tab: Tab,
+    theme: Theme,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) -> Page {
     let mut p = Page {
         items: Vec::new(),
+        words: Vec::new(),
+        saying: String::new(),
         theme,
         screen: o.screen.clone(),
     };
-    match o.tab {
+    match tab {
         Tab::General => general(o, &mut p, window, cx),
         Tab::FileTypes => browser(o, &mut p, window, cx),
         Tab::SaveTo => folders(o, &mut p, window, cx),
@@ -196,7 +230,59 @@ pub(crate) fn page(
         Tab::Advanced => advanced(o, &mut p, window, cx),
         Tab::SiteLogins => sign_ins(o, &mut p, window, cx),
     }
-    p.items
+    p
+}
+
+/// What Options' search finds (gaps row U24): every setting whose words hold `wanted`, on
+/// whatever page, under its page's name, which a click opens.
+pub(crate) fn search(
+    o: &mut Options,
+    wanted: &str,
+    theme: Theme,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) -> Vec<AnyElement> {
+    let wanted = wanted.trim().to_lowercase();
+    let mut found = Vec::new();
+    for (tab, name) in options::TABS {
+        let page = built(o, tab, theme, window, cx);
+        let mut hits = page
+            .items
+            .into_iter()
+            .zip(page.words)
+            .filter(|(_, words)| words.contains(&wanted))
+            .map(|(item, _)| item)
+            .peekable();
+        if hits.peek().is_none() {
+            continue;
+        }
+        found.push(
+            div()
+                .id(SharedString::from(format!("found-{name}")))
+                .mt(px(10.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme.selection)
+                .cursor_pointer()
+                .child(o.screen.label(t(name).to_string()))
+                .on_click(cx.listener(move |o, _, window, cx| {
+                    o.search.update(cx, |s, cx| s.set_value("", window, cx));
+                    o.show(tab, cx);
+                }))
+                .into_any_element(),
+        );
+        found.extend(hits);
+    }
+    if found.is_empty() {
+        found.push(
+            native::note(
+                tf("No setting says “{}”.", &[&wanted]),
+                theme.muted,
+                &o.screen,
+            )
+            .into_any_element(),
+        );
+    }
+    found
 }
 
 /// A choice made in a page's pop-up.

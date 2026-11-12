@@ -962,3 +962,28 @@ fn options_says_when_each_browser_was_last_heard_from() {
     });
     let _ = std::fs::remove_file(&seen);
 }
+
+/// Options' search finds a setting on whatever page it is, under its page's name, which a click
+/// opens; a word nothing says is said so (gaps row U24).
+#[test]
+fn options_search_finds_a_setting_on_any_page() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    assert!(!h.shows("Proxy"), "the proxy on General");
+    let set = |h: &mut Harness, words: &'static str| {
+        h.dialog(|o: &mut Options, window, cx| {
+            o.search.update(cx, |s, cx| s.set_value(words, window, cx));
+            cx.notify();
+        });
+    };
+    set(&mut h, "proxy");
+    h.until("the proxy found", |h| h.shows("Proxy"));
+    h.click("Advanced");
+    h.until("Advanced open", |h| {
+        h.dialog(|o: &mut Options, _, _| o.tab == dm_desktop_base::options::Tab::Advanced)
+    });
+    set(&mut h, "zzzz");
+    h.until_shown("No setting says “zzzz”.");
+}

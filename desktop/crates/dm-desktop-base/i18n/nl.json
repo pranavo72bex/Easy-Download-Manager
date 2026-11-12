@@ -956,5 +956,7 @@
   "Reading\u2026 {} pages, {} files found": "Lezen… {} pagina's, {} bestanden gevonden",
   "Open the page": "De pagina openen",
   "Check now": "Nu controleren",
-  "Connected \u00b7 last heard {} ago": "Verbonden · laatst gehoord {} geleden"
+  "Connected \u00b7 last heard {} ago": "Verbonden · laatst gehoord {} geleden",
+  "Find a setting": "Instelling zoeken",
+  "No setting says \u201c{}\u201d.": "Geen instelling bevat ‘{}’."
 }
