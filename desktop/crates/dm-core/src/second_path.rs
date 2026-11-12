@@ -269,11 +269,17 @@ fn ports_of(listing: &str) -> HashMap<String, String> {
 pub fn set_second_path(name: Option<&str>) -> Result<(), String> {
     let name = name.map(str::trim).filter(|n| !n.is_empty());
     let Some(name) = name else {
-        set_second_client(None);
+        // None chosen: the path a name set goes. One given outright (a test's,
+        // `set_second_client`) is not a setting's to take away: every save of the
+        // settings came here, and took it from under that test (2026-11-13).
+        if NAMED.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            put(None);
+        }
         return Ok(());
     };
     let Some(found) = interfaces().into_iter().find(|i| i.name == name) else {
-        set_second_client(None);
+        NAMED.store(false, std::sync::atomic::Ordering::SeqCst);
+        put(None);
         return Err(format!("the network {name} is not connected"));
     };
     let builder = crate::builder().local_address(found.address);
@@ -284,12 +290,21 @@ pub fn set_second_path(name: Option<&str>) -> Result<(), String> {
     let client = builder
         .build()
         .map_err(|e| format!("the network {name} could not be used: {e}"))?;
-    set_second_client(Some(client));
+    put(Some(client));
+    NAMED.store(true, std::sync::atomic::Ordering::SeqCst);
     Ok(())
 }
 
+/// Whether the second path in force is one a name chose (`set_second_path`).
+static NAMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// The second path's client as given: for a test, one bound to an address.
 pub fn set_second_client(client: Option<reqwest::Client>) {
+    NAMED.store(false, std::sync::atomic::Ordering::SeqCst);
+    put(client);
+}
+
+fn put(client: Option<reqwest::Client>) {
     if let Ok(mut slot) = SECOND.write() {
         *slot = client;
     }

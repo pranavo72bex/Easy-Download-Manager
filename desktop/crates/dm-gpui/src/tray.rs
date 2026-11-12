@@ -375,6 +375,7 @@ impl Downloads {
             named: None,
             detail: None,
             toggle: None,
+            ticked: false,
             // Exit at the leading side, Keep running the default, as the
             // egui window's buttons read.
             buttons: vec![t("Exit").into(), t("Keep running").into()],

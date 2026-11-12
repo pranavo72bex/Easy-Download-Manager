@@ -41,6 +41,24 @@ pub fn adopt(home: &Path, text: &str) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Hands the served rules' YouTube clients to the engine, asked before its own (gaps row Y1): at
+/// start, and again when a newer document is kept.
+pub fn apply(home: &Path) {
+    let clients = served(home)
+        .youtube
+        .clients
+        .into_iter()
+        .map(|c| dm_core::youtube::PlayerClient {
+            name: c.name,
+            version: c.version,
+            id: c.id,
+            agent: c.agent,
+            context: c.context.into_iter().collect(),
+        })
+        .collect();
+    dm_core::youtube::set_player_clients(clients);
+}
+
 /// The home folder's document, if it is there and is one.
 fn found(home: &Path) -> Option<Rules> {
     let path = home.join(FILE);
@@ -161,5 +179,26 @@ mod tests {
         );
         assert!(dir.join(FILE).join("held").is_dir());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A newer document's YouTube clients are handed to the engine by `apply`, with no new build
+    /// (gaps row Y1).
+    #[test]
+    fn a_newer_documents_youtube_clients_reach_the_engine() {
+        let dir = home();
+        let shipped = Rules::parse(SHIPPED).expect("shipped");
+        let doc = format!(
+            r#"{{"format": {}, "revision": {}, "youtube": {{"clients": [{{"name": "ANDROID_VR", "version": "1.6", "id": "28", "agent": "VR"}}]}}}}"#,
+            dm_protocol::RULES_FORMAT,
+            shipped.revision + 1
+        );
+        assert_eq!(adopt(&dir, &doc), Ok(true));
+        apply(&dir);
+        let names: Vec<String> = dm_core::youtube::served_player_clients()
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
+        dm_core::youtube::set_player_clients(Vec::new());
+        assert_eq!(names, ["ANDROID_VR"]);
     }
 }

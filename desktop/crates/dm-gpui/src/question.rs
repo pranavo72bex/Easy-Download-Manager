@@ -32,6 +32,8 @@ pub struct Asked {
     pub detail: Option<SharedString>,
     /// A choice to tick, where there is one.
     pub toggle: Option<SharedString>,
+    /// Whether that choice starts ticked: Delete file's "Also delete the file" does.
+    pub ticked: bool,
     /// Its buttons, in order: the first stands rightmost, the place of
     /// the default (`placed`).
     pub buttons: Vec<SharedString>,
@@ -362,11 +364,11 @@ pub fn ask(
                 }
                 Question {
                     screen,
+                    ticked: asked.ticked,
                     asked,
                     reword,
                     steady,
                     widest: Vec::new(),
-                    ticked: false,
                     answer: Some(answer),
                     focus,
                     closing: false,

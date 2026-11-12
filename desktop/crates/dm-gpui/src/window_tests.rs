@@ -7,6 +7,8 @@
 //! egui window's (`dm-desktop/tests/window/`), file by file.
 
 mod asks;
+mod choices;
+mod downloads;
 mod find;
 mod lists;
 mod options;
@@ -14,3 +16,4 @@ mod second_network;
 mod speed_schedule;
 mod status;
 mod undo;
+mod zip;

@@ -261,7 +261,7 @@ impl Downloads {
 
     /// A very big download that has started: said once, ever, that the
     /// Scheduler can run it at night.
-    fn big_download_hint(&mut self) {
+    pub(crate) fn big_download_hint(&mut self) {
         use dm_shell::app::hints::Hint;
         let settings = self.backend.settings();
         if !Hint::BigDownload.due(&settings, &self.rows, self.said.is_none()) {

@@ -553,6 +553,40 @@ fn sets_alr_yes(src: &str, st: &[Token], at: usize) -> bool {
     false
 }
 
+/// Whether the function whose `function` word is at `at` in `st` takes a text apart letter by
+/// letter and puts it back (`.split("")` and `.join("")` in its body): the shape of the player's
+/// own `n` function, a second way to it where the address class's method is not found or gives
+/// nothing (gaps row Y3).
+fn splits_and_joins(src: &str, st: &[Token], at: usize) -> bool {
+    let mut k = at + 1;
+    if st.get(k).is_some_and(|t| t.kind == Kind::Word) {
+        k += 1;
+    }
+    if !is(src, st.get(k), "(") {
+        return false;
+    }
+    let Some(open) = past_group(src, st, k) else {
+        return false;
+    };
+    let (Some(first), Some(end)) = (st.get(open), past_group(src, st, open)) else {
+        return false;
+    };
+    let Some(last) = st.get(end.saturating_sub(1)) else {
+        return false;
+    };
+    let body = src.get(first.start..last.end).unwrap_or("");
+    let squeezed: String = body.split_whitespace().collect();
+    let any = |call: &str| {
+        [format!("{call}(\"\")"), format!("{call}('')")]
+            .iter()
+            .any(|form| squeezed.contains(form.as_str()))
+    };
+    any(".split") && any(".join")
+}
+
+/// The most functions of the `n` function's shape the program tries (gaps row Y3).
+const MOST_N_FUNCTIONS: usize = 8;
+
 /// What the player's code finds in place of the browser: a window that is the program's own
 /// global object, and a page with nothing in it.
 const BEFORE: &str = r#"var globalThis = this, window = this, self = this;
@@ -561,7 +595,7 @@ var location = { hash: "", host: "www.youtube.com", hostname: "www.youtube.com",
   href: "https://www.youtube.com/watch?v=dm", origin: "https://www.youtube.com", password: "",
   pathname: "/watch", port: "", protocol: "https:", search: "?v=dm", username: "" };
 var document = Object.create(null), navigator = Object.create(null);
-var __dm = { makers: [] };
+var __dm = { makers: [], nfuncs: [] };
 var _yt_player = {};
 "#;
 
@@ -574,6 +608,20 @@ __dm.solve = function (input) {
     return make("https://www.youtube.com/watch?v=dm", "s", sig === undefined ? undefined : encodeURIComponent(sig));
   }
   function n(make, value) {
+    try {
+      return byMethod(make, value);
+    } catch (e) {
+      // A second way to it: a function of the `n` function's own shape, called on the value.
+      for (var f = 0; f < __dm.nfuncs.length; f++) {
+        try {
+          var got = __dm.nfuncs[f](value);
+          if (typeof got === "string" && got !== "" && got !== value) return got;
+        } catch (ignored) {}
+      }
+      throw e;
+    }
+  }
+  function byMethod(make, value) {
     var url = made(make);
     url.set("n", value);
     var proto = Object.getPrototypeOf(url);
@@ -599,9 +647,11 @@ __dm.solve = function (input) {
     var asked = input[kind] || [];
     for (var c = 0; c < asked.length; c++) {
       var found = null, errors = [];
-      for (var m = 0; m < __dm.makers.length; m++) {
+      // With no address function found, the `n` function's own shape is the one way (gaps row Y3).
+      var makers = __dm.makers.length ? __dm.makers : [null];
+      for (var m = 0; m < makers.length; m++) {
         try {
-          var got = kinds[kind](__dm.makers[m], asked[c]);
+          var got = kinds[kind](makers[m], asked[c]);
           if (found !== null && found !== got) throw new Error("the functions found disagree");
           found = got;
         } catch (e) {
@@ -650,14 +700,21 @@ pub(crate) fn program(player: &str) -> Result<String, String> {
         .filter(|st| !left_out(player, st))
         .collect();
     let mut makers: Vec<String> = Vec::new();
+    let mut nfuncs: Vec<String> = Vec::new();
     for st in &kept {
         for (name, at) in defined(player, st) {
             if sets_alr_yes(player, st, at) && !makers.contains(&name) {
                 makers.push(name);
+            } else if !name.contains('.')
+                && nfuncs.len() < MOST_N_FUNCTIONS
+                && splits_and_joins(player, st, at)
+                && !nfuncs.contains(&name)
+            {
+                nfuncs.push(name);
             }
         }
     }
-    if makers.is_empty() {
+    if makers.is_empty() && nfuncs.is_empty() {
         return Err(changed("no function in it builds a stream's address"));
     }
     let mut out = String::with_capacity(player.len());
@@ -671,6 +728,7 @@ pub(crate) fn program(player: &str) -> Result<String, String> {
         out.push('\n');
     }
     let _ = writeln!(out, ";__dm.makers = [{}];", makers.join(", "));
+    let _ = writeln!(out, "__dm.nfuncs = [{}];", nfuncs.join(", "));
     // Called on the program's window, as a page calls it (`this` is the window in either shape).
     out.push_str("}).call(this, _yt_player);\n");
     out.push_str(AFTER);
@@ -923,5 +981,39 @@ document.body.appendChild(null);}).call(this);
         );
         let why = program("(function(g){var a='x;").unwrap_err();
         assert!(why.contains("never ends"), "{why}");
+    }
+
+    /// A player of another shape, whose address function is not found, still answers `n`
+    /// through a function of the `n` function's own shape: one that takes the value apart letter
+    /// by letter and puts it back (gaps row Y3). A signature it cannot answer says so.
+    #[tokio::test]
+    async fn a_player_of_another_shape_answers_n_by_its_n_function() {
+        const OTHER: &str = r#"var _yt_player={};(function(g){var window=this;
+var Xy=function(a){var b=a.split(""),c=b.length;b.reverse();b.push(String(c));return b.join("")};
+var Qz=function(a){return a+1};
+document.body.appendChild(null);})(_yt_player);
+"#;
+        let program = program(OTHER).unwrap();
+        assert!(program.contains("__dm.nfuncs = [Xy];"), "{program}");
+        if !an_engine_is_here() {
+            eprintln!("no JavaScript engine here: not run");
+            return;
+        }
+        let got = crate::javascript::run(
+            &program,
+            &call(&["abc"], &[]),
+            std::time::Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        assert_eq!(got, r#"{"n":{"abc":"cba3"},"sig":{}}"#);
+        let why = crate::javascript::run(
+            &program,
+            &call(&[], &["xyz"]),
+            std::time::Duration::from_secs(30),
+        )
+        .await
+        .unwrap_err();
+        assert!(why.contains("no answer for sig xyz"), "{why}");
     }
 }

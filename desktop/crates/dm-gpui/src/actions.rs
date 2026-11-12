@@ -171,6 +171,7 @@ impl Downloads {
             named: None,
             detail: None,
             toggle: None,
+            ticked: false,
             // Skip them (the default), Add them again beside, Cancel.
             buttons: vec![
                 t("Skip them").into(),
