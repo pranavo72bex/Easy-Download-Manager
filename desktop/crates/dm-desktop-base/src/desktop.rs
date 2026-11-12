@@ -19,6 +19,16 @@ use crate::login::{login_item_program, login_launcher};
 use crate::power::{Report, WhenDone};
 use crate::quiet::Note;
 
+// What only one system does, in a file of its own.
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux::{file_chooser_portal, show_item};
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+use windows::say_on_windows;
+
 /// What only the window's own crates can do for [`Desktop`].
 pub trait WindowServices: Send + Sync {
     /// The clipboard's text, if it holds any.
@@ -266,101 +276,4 @@ impl<W: WindowServices> Platform for Desktop<W> {
     fn choose_file(&self, save: bool, suggested: &str) -> Option<PathBuf> {
         self.window.choose_file(save, suggested)
     }
-}
-
-/// Shows `path` selected in its folder through the freedesktop file
-/// manager interface, which the usual file managers answer (and are
-/// started for). False where none is there to ask.
-#[cfg(target_os = "linux")]
-fn show_item(path: &str) -> bool {
-    const NAME: &str = "org.freedesktop.FileManager1";
-    let Ok(connection) = zbus::blocking::Connection::session() else {
-        return false;
-    };
-    let there = zbus::blocking::fdo::DBusProxy::new(&connection).is_ok_and(|bus| {
-        let Ok(name) = zbus::names::BusName::try_from(NAME) else {
-            return false;
-        };
-        bus.name_has_owner(name).unwrap_or(false)
-            || bus
-                .list_activatable_names()
-                .is_ok_and(|names| names.iter().any(|n| n.as_str() == NAME))
-    });
-    if !there {
-        return false;
-    }
-    let proxy = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&connection)
-        .destination(NAME)
-        .and_then(|b| b.path("/org/freedesktop/FileManager1"))
-        .and_then(|b| b.interface(NAME))
-        .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
-        .and_then(|b| b.build());
-    let Ok(proxy) = proxy else {
-        return false;
-    };
-    proxy
-        .call::<_, _, ()>("ShowItems", &(vec![crate::format::file_uri(path)], ""))
-        .is_ok()
-}
-
-/// Whether the desktop portal offers its file chooser on the session bus.
-#[cfg(target_os = "linux")]
-fn file_chooser_portal() -> bool {
-    let Ok(connection) = zbus::blocking::Connection::session() else {
-        return false;
-    };
-    let proxy = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&connection)
-        .destination("org.freedesktop.portal.Desktop")
-        .and_then(|b| b.path("/org/freedesktop/portal/desktop"))
-        .and_then(|b| b.interface("org.freedesktop.portal.FileChooser"))
-        .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
-        .and_then(|b| b.build());
-    proxy.is_ok_and(|p| p.get_property::<u32>("version").is_ok())
-}
-
-/// Says a toast: one whose click opens a finished file, or a plain one.
-/// Posted by dm itself on Windows (`dm_desktop::toast`): notify-rust's kept
-/// three handles for every toast (gaps row 156).
-#[cfg(windows)]
-fn say_on_windows(note: Note) {
-    let Note {
-        title,
-        body,
-        path,
-        retry,
-    } = note;
-    // In the window's language, which is this thread's.
-    let button = crate::i18n::t("Open folder");
-    let retry_words = crate::i18n::t("Retry");
-    // On a thread of its own, as before: the session's first toast starts
-    // Windows' runtime, which takes a moment the window should not wait.
-    std::thread::spawn(move || {
-        match path.filter(|p| !p.is_empty()) {
-            // A click opens the file, its Open folder shows it in Explorer
-            // (gaps row U15).
-            Some(path) => {
-                let _ = crate::toast::show_file(&title, &body, button, move |what| {
-                    let _ = if what == crate::toast::FOLDER {
-                        shell::reveal_in_folder(&path)
-                    } else {
-                        shell::open_file(&path)
-                    };
-                });
-            }
-            None => match retry {
-                // Its Retry tries the row again, through the running dm's
-                // inbox; a click on the toast itself brings dm forward.
-                Some(id) => {
-                    let _ = crate::toast::show_file(&title, &body, retry_words, move |what| {
-                        if what == crate::toast::FOLDER {
-                            shell::ask_running_to_retry(&dm_shell::settings::home(), id);
-                        }
-                    });
-                }
-                None => {
-                    let _ = crate::toast::show(&title, &body, None::<fn()>);
-                }
-            },
-        }
-    });
 }

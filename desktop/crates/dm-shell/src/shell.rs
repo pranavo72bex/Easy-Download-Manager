@@ -14,7 +14,12 @@ use std::path::{Path, PathBuf};
 use dm_core::{Checksum, Id, Queue};
 
 use crate::host;
+
+// Opening a file and showing it in its folder, one file for each system.
+mod opener;
 use crate::settings::{self, Settings};
+#[cfg(all(test, unix, not(target_os = "macos")))]
+use opener::linux_open_in;
 
 /// The name of the native messaging manifest, which is also how Firefox
 /// identifies itself when it launches this binary as a host.
@@ -815,7 +820,7 @@ pub fn for_shell(path: &str) -> String {
     if path.encode_utf16().count() < SHELL_PATH_MOST {
         return path.to_string();
     }
-    short_form(&verbatim(path))
+    opener::short_form(&verbatim(path))
         .map(|short| plain(&short))
         .unwrap_or_else(|| path.to_string())
 }
@@ -843,33 +848,6 @@ pub fn plain(path: &str) -> String {
     }
 }
 
-/// The file system's 8.3 short form of a verbatim path, where it has one.
-#[cfg(windows)]
-fn short_form(path: &str) -> Option<String> {
-    use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
-    let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
-    // SAFETY: `wide` is NUL-terminated; with no buffer the call only says
-    // how long the answer is, NUL included.
-    let needed = unsafe { GetShortPathNameW(wide.as_ptr(), std::ptr::null_mut(), 0) };
-    if needed == 0 {
-        return None;
-    }
-    let mut out = vec![0u16; needed as usize];
-    // SAFETY: `out` holds the `needed` letters the call asked for.
-    let written = unsafe { GetShortPathNameW(wide.as_ptr(), out.as_mut_ptr(), needed) };
-    if written == 0 || written >= needed {
-        return None;
-    }
-    out.truncate(written as usize);
-    String::from_utf16(&out).ok()
-}
-
-/// No short forms off Windows.
-#[cfg(not(windows))]
-fn short_form(_path: &str) -> Option<String> {
-    None
-}
-
 /// Opens the finished file's folder, with the file selected where the OS can.
 ///
 /// A finished download the user cannot get to is a download half-delivered;
@@ -879,199 +857,7 @@ pub fn reveal_in_folder(path: &str) -> Result<(), String> {
     if !p.exists() {
         return Err("that file is no longer where dm saved it".into());
     }
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut c = std::process::Command::new("open");
-        c.arg("-R").arg(p);
-        c
-    };
-    #[cfg(target_os = "windows")]
-    let mut command = {
-        // Passed as it is, quoted by hand: Explorer reads `/select,` and
-        // the path as one argument, and Rust's own quoting of a path with
-        // spaces wraps the whole of it, which Explorer does not undo.
-        use std::os::windows::process::CommandExt;
-        let mut c = std::process::Command::new("explorer");
-        c.raw_arg(format!("/select,\"{}\"", for_shell(path)));
-        c
-    };
-    // No portable "select the file", so the containing folder is opened.
-    #[cfg(all(unix, not(target_os = "macos")))]
-    return linux_open(p.parent().unwrap_or(p));
-    #[cfg(not(all(unix, not(target_os = "macos"))))]
-    command.spawn().map(|_| ()).map_err(|e| e.to_string())
-}
-
-/// The programs a Linux desktop opens things with, in the order tried:
-/// the freedesktop one, then GNOME's, KDE's and Xfce's own, which a
-/// minimal install can have without `xdg-utils`.
-#[cfg(all(unix, not(target_os = "macos")))]
-const LINUX_OPENERS: [&[&str]; 5] = [
-    &["xdg-open"],
-    &["gio", "open"],
-    &["kde-open"],
-    &["kde-open5"],
-    &["exo-open"],
-];
-
-/// Opens a file or folder on Linux with the first opener that is there.
-///
-/// `xdg-open` comes with `xdg-utils`, which the packages now require, but
-/// a desktop that lacks it (a minimal install, a container) still has its
-/// own. Started from an AppImage, the AppImage's private library path is
-/// not passed on: an opener loading its libraries from there fails in ways
-/// nobody would trace to dm.
-#[cfg(all(unix, not(target_os = "macos")))]
-fn linux_open(target: &Path) -> Result<(), String> {
-    linux_open_in(target, None)
-}
-
-/// How long an opener is given to fail before it is taken to be opening.
-///
-/// `xdg-open` with nothing to hand the file to ("no method available")
-/// exits at once with 3 or 4; one that found a program has handed over or
-/// is running it within a few hundred milliseconds. Waited for in place,
-/// since the answer is the button's: only an opener still running after
-/// this holds the window this long.
-#[cfg(all(unix, not(target_os = "macos")))]
-const OPENER_VERDICT: std::time::Duration = std::time::Duration::from_millis(1500);
-
-/// The same, looking for the openers along `path` where one is given.
-///
-/// Each opener's exit is waited for (`OPENER_VERDICT`): `xdg-open` that
-/// starts and then fails was taken as success, and the file simply did not
-/// open. A failing opener passes to the next; when every one there failed,
-/// what each said is the error.
-#[cfg(all(unix, not(target_os = "macos")))]
-fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Result<(), String> {
-    let in_appimage = std::env::var_os("APPIMAGE").is_some();
-    let mut failures: Vec<String> = Vec::new();
-    for opener in LINUX_OPENERS {
-        let Some((program, args)) = opener.split_first() else {
-            continue;
-        };
-        let mut command = std::process::Command::new(program);
-        command.args(args.iter()).arg(target);
-        if let Some(path) = path {
-            command.env("PATH", path);
-        }
-        if in_appimage {
-            command
-                .env_remove("LD_LIBRARY_PATH")
-                .env_remove("LD_PRELOAD");
-        }
-        // Its error goes to a file, not a pipe: an opener that runs the
-        // program in the foreground passes its stderr on, and a pipe whose
-        // reader has gone would kill that program at its first warning.
-        let said = OpenerSays::new();
-        command.stdin(std::process::Stdio::null());
-        if let Some(file) = said.as_ref().and_then(|s| s.stdio()) {
-            command.stderr(file);
-        }
-        let mut child = match command.spawn() {
-            Ok(child) => child,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(e.to_string()),
-        };
-        let deadline = std::time::Instant::now() + OPENER_VERDICT;
-        let status = loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break Some(status),
-                Ok(None) if std::time::Instant::now() < deadline => {
-                    std::thread::sleep(std::time::Duration::from_millis(20));
-                }
-                // Still running: it found something to open the file with.
-                // Reaped when it ends, so it leaves no zombie behind.
-                Ok(None) | Err(_) => {
-                    std::thread::spawn(move || child.wait());
-                    break None;
-                }
-            }
-        };
-        match status {
-            None => return Ok(()),
-            Some(status) if status.success() => return Ok(()),
-            Some(status) => {
-                let words = said.map(|s| s.read()).unwrap_or_default();
-                let name = opener.join(" ");
-                failures.push(if words.is_empty() {
-                    match status.code() {
-                        Some(code) => format!("{name} failed (exit {code})"),
-                        None => format!("{name} failed"),
-                    }
-                } else {
-                    format!("{name}: {words}")
-                });
-            }
-        }
-    }
-    if !failures.is_empty() {
-        return Err(format!(
-            "this computer could not open {}: {}",
-            target.display(),
-            failures.join("; ")
-        ));
-    }
-    Err("nothing on this computer opens files: install xdg-utils \
-         (`sudo apt install xdg-utils`, `sudo dnf install xdg-utils` or \
-         `sudo pacman -S xdg-utils`)"
-        .into())
-}
-
-/// A file an opener's stderr goes to, removed when read or dropped.
-///
-/// In dm's own home, which only this account can enter, made new (never a file or link already
-/// there) and handed to the opener as the same open file: in the shared temporary folder,
-/// another account could have put a link at its name first, and dm truncated what it pointed at
-/// and wrote the opener's words into it (security audit, 2026-11-12).
-#[cfg(all(unix, not(target_os = "macos")))]
-struct OpenerSays(PathBuf, std::fs::File);
-
-#[cfg(all(unix, not(target_os = "macos")))]
-impl OpenerSays {
-    fn new() -> Option<Self> {
-        use std::os::unix::fs::OpenOptionsExt;
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        let dir = settings::home();
-        std::fs::create_dir_all(&dir).ok()?;
-        let path = dir.join(format!(
-            ".opener-{}-{}.txt",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .append(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&path)
-            .ok()?;
-        Some(Self(path, file))
-    }
-
-    fn stdio(&self) -> Option<std::process::Stdio> {
-        self.1.try_clone().ok().map(std::process::Stdio::from)
-    }
-
-    /// Its last few lines, which is where an opener says why.
-    fn read(self) -> String {
-        let text = std::fs::read_to_string(&self.0).unwrap_or_default();
-        let lines: Vec<&str> = text
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty())
-            .collect();
-        let tail = lines.len().saturating_sub(3);
-        lines.get(tail..).unwrap_or_default().join(" ")
-    }
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-impl Drop for OpenerSays {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
-    }
+    opener::reveal(p, path)
 }
 
 /// Opens a finished file with whatever the system opens it with.
@@ -1082,26 +868,7 @@ pub fn open_file(path: &str) -> Result<(), String> {
     if !is_link && !p.exists() {
         return Err("that file is no longer where dm saved it".into());
     }
-    #[cfg(target_os = "macos")]
-    let mut command = std::process::Command::new("open");
-    // Explorer opens a file with its program, and an address in the
-    // browser. Not `cmd /C start`: cmd reads `&`, `^` and `%` in a name a
-    // server chose, so a file called `a&calc` ran calc.
-    #[cfg(target_os = "windows")]
-    let mut command = std::process::Command::new("explorer");
-    // Quoted by hand, as for `/select`: Explorer splits its command line on
-    // commas, and Rust quotes only a path with a space in it.
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        command.raw_arg(format!("\"{}\"", for_shell(path)));
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    return linux_open(p);
-    #[cfg(target_os = "macos")]
-    command.arg(p);
-    #[cfg(not(all(unix, not(target_os = "macos"))))]
-    command.spawn().map(|_| ()).map_err(|e| e.to_string())
+    opener::open(p, path)
 }
 
 /// The program and arguments that open `path` with `app`: on macOS through
