@@ -30,27 +30,32 @@ const EDGE: f32 = 5.0;
 /// `px_2`: 8 each side), its picture (16) and the gap after it (8), and a gap before its count.
 const ROW_BESIDE_NAME: f32 = 16.0 + 16.0 + 16.0 + 8.0 + 8.0;
 
-/// About how wide a letter of a place's name is, as a share of the text's size: a little more
-/// than an average letter, so a name near the edge is offered whole on hover rather than cut
-/// without a way to read it.
-const LETTER: f32 = 0.6;
+/// Whether a name `name` pixels wide, beside a count `count` pixels wide, is cut in a panel
+/// `wide` points across (at 100%) at the scale `factor`: then it is offered whole in a tooltip.
+/// The widths are the laid-out text's (`drawn_width`), not guessed from its letters: a guess
+/// missed names of wide letters (capitals, a W or an M, some scripts) that the panel cut. A
+/// pixel's leeway, and the panel's 1-pixel edge line, err toward offering it.
+fn cut(name: f32, count: f32, wide: f32, factor: f32) -> bool {
+    let room = (wide - ROW_BESIDE_NAME) * factor - 1.0 - count;
+    name > room - 1.0
+}
 
-/// Whether `label`, beside a count of `count`, is likely cut in a panel `wide` points across
-/// (at 100%): then it is offered whole in a tooltip. Measured in letters, as the list's Status
-/// column is, rather than laid out twice a frame.
-fn cut(label: &str, count: usize, wide: f32) -> bool {
-    let count_room = count.to_string().len() as f32 * crate::native::SMALL_TEXT * LETTER;
-    let room = wide - ROW_BESIDE_NAME - count_room;
-    // From Hangul on (Chinese, Japanese, Korean) a letter is about as wide as the text is
-    // tall; before it, Latin, Greek, Cyrillic, Arabic and the scripts of India are narrower.
-    let drawn: f32 = label
-        .chars()
-        .map(|c| match c as u32 {
-            0x1100.. => crate::native::TEXT,
-            _ => crate::native::TEXT * LETTER,
-        })
-        .sum();
-    drawn > room
+/// How wide `text` is drawn at `size` points (at 100%) in the window's interface font, in pixels
+/// on screen: laid out by the system's text shaper, which keeps what it laid out from one frame
+/// to the next, so a panel's dozen names cost little.
+fn drawn_width(text: &str, size: f32, window: &Window, cx: &gpui::App) -> f32 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    // One line, as the row draws it: a line break typed into a category's name is a space.
+    let line: SharedString = text.replace(['\n', '\r'], " ").into();
+    let mut style = window.text_style();
+    style.font_family = gpui_component::ActiveTheme::theme(cx).font_family.clone();
+    let run = style.to_run(line.len());
+    let shaped = window
+        .text_system()
+        .shape_line(line, px(size), &[run], None);
+    f32::from(shaped.width)
 }
 
 /// A place's picture beside its name, as Finder's and Mail's sidebars have one: each kind its
@@ -107,7 +112,7 @@ pub fn sidebar(
     view: &Downloads,
     theme: Theme,
     screen: &Screen,
-    _window: &mut Window,
+    window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
     let categories = view.drawn.categories();
@@ -154,6 +159,7 @@ pub fn sidebar(
                             view,
                             theme,
                             screen,
+                            window,
                             cx,
                             &categories,
                             i,
@@ -187,6 +193,7 @@ fn place_row(
     view: &Downloads,
     theme: Theme,
     screen: &Screen,
+    window: &Window,
     cx: &mut Context<Downloads>,
     categories: &dm_core::Categories,
     i: usize,
@@ -197,7 +204,13 @@ fn place_row(
     let count = view.places.count(&place, &view.rows, categories);
     let chosen = place == view.place;
     let icon = picture(&place);
-    let whole = cut(&label, count, view.panel_width()).then(|| label.clone());
+    let whole = cut(
+        drawn_width(&label, crate::native::TEXT, window, cx),
+        drawn_width(&count.to_string(), crate::native::SMALL_TEXT, window, cx),
+        view.panel_width(),
+        crate::zoom::factor(),
+    )
+    .then(|| label.clone());
     let heading = heading.map(|h| {
         div()
             // A source list's section heading: small,
@@ -351,36 +364,29 @@ impl Downloads {
 mod tests {
     use super::*;
 
-    /// A short name fits at every width the edge can be dragged to; a long one is cut (and
-    /// offered whole) at the narrowest and not at the widest; a larger count leaves less room.
+    /// A name is offered whole where its laid-out width passes the room the panel leaves it:
+    /// the panel's width less the row's margins, picture and gaps, its edge line and the count's
+    /// width; wider at a larger text size, and a wider count leaves less room.
     #[test]
     fn a_long_name_is_offered_whole_where_the_panel_cuts_it() {
-        for wide in [
-            SIDEBAR_WIDTH.least,
-            SIDEBAR_WIDTH.default,
-            SIDEBAR_WIDTH.most,
-        ] {
-            assert!(!cut("All", 12, wide), "{wide}");
-            assert!(!cut("Video", 1234, wide), "{wide}");
-        }
-        assert!(!cut("Compressed", 1234, SIDEBAR_WIDTH.default));
-        let long = "Photographs from the summer holiday";
-        assert!(cut(long, 3, SIDEBAR_WIDTH.least));
-        assert!(cut(long, 3, SIDEBAR_WIDTH.default));
-        assert!(!cut(long, 3, SIDEBAR_WIDTH.most));
-        // Letters, not bytes, and a Japanese letter about twice a Latin one.
-        assert!(!cut("ダウンロード", 3, SIDEBAR_WIDTH.default));
-        assert!(cut(&"ダ".repeat(12), 3, SIDEBAR_WIDTH.default));
-        assert!(!cut(&"a".repeat(12), 3, SIDEBAR_WIDTH.default));
-        let edge = (1..200)
-            .map(|n| "a".repeat(n))
-            .find(|name| cut(name, 1, SIDEBAR_WIDTH.default))
-            .map_or(0, |name| name.len());
-        let wider = (1..200)
-            .map(|n| "a".repeat(n))
-            .find(|name| cut(name, 1_000_000, SIDEBAR_WIDTH.default))
-            .map_or(0, |name| name.len());
-        assert!(wider < edge, "a count of more figures leaves fewer letters");
+        // At 200 points and 100%: 200 - 64 - 1 (the edge line) - 7 (a figure) = 128 to draw in.
+        let count = 7.0;
+        assert!(!cut(120.0, count, SIDEBAR_WIDTH.default, 1.0));
+        assert!(!cut(126.9, count, SIDEBAR_WIDTH.default, 1.0));
+        assert!(
+            cut(127.5, count, SIDEBAR_WIDTH.default, 1.0),
+            "within a pixel: offered"
+        );
+        assert!(cut(180.0, count, SIDEBAR_WIDTH.default, 1.0));
+        // A name cut at the least width fits at the most.
+        assert!(cut(150.0, count, SIDEBAR_WIDTH.least, 1.0));
+        assert!(!cut(150.0, count, SIDEBAR_WIDTH.most, 1.0));
+        // At 120% the margins and the name grow together; the same name, drawn 20% wider,
+        // still fits.
+        assert!(!cut(120.0 * 1.2, count * 1.2, SIDEBAR_WIDTH.default, 1.2));
+        // A count of more figures leaves less room for the same name.
+        assert!(!cut(115.0, count, SIDEBAR_WIDTH.default, 1.0));
+        assert!(cut(115.0, 4.0 * count, SIDEBAR_WIDTH.default, 1.0));
     }
 
     /// The panel's bounds as the drag holds them: 150 to 400, whole points, today's 200 the
