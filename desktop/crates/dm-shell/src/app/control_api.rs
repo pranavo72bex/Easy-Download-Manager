@@ -336,10 +336,45 @@ pub const SCRIPT_ACTS_FOR: std::time::Duration = std::time::Duration::from_secs(
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ScriptGuard(Option<std::time::Instant>);
 
+/// When a control client last acted on any window, for what no window holds itself: a download
+/// added or moved into a folder of a script's typing (`folder_refused`, gaps row 199).
+static LAST_ACTED: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// Why a download may not be put in `folder` now, or `None`: while a script drives the window
+/// ([`SCRIPT_ACTS_FOR`] after it last acted), a folder typed into Add URL, Properties, Save to or
+/// Move/Rename is held to the download folder or below it, as the port's own `downloads.add` is
+/// (`add_asked`) and Options' folders are (`Settings::keep_places_of`): a script that typed
+/// `~/Library/LaunchAgents` there put a file of a page's choosing where it runs at login
+/// (security audit of 2026-11-12, gaps row 199).
+pub fn folder_refused(folder: &std::path::Path, download_dir: &std::path::Path) -> Option<String> {
+    let acting = dm_core::lock(&LAST_ACTED).is_some_and(|at| at.elapsed() < SCRIPT_ACTS_FOR);
+    folder_refused_while(acting, folder, download_dir)
+}
+
+/// [`folder_refused`], with whether a script is acting said outright.
+fn folder_refused_while(
+    acting: bool,
+    folder: &std::path::Path,
+    download_dir: &std::path::Path,
+) -> Option<String> {
+    let below = !folder
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+        && folder.starts_with(download_dir);
+    (acting && !below).then(|| {
+        format!(
+            "a script was driving the window a moment ago, so a download goes into the download folder ({}) or below it; choose the folder yourself",
+            download_dir.display()
+        )
+    })
+}
+
 impl ScriptGuard {
     /// A control client acted now.
     pub fn acted(&mut self) {
-        self.0 = Some(std::time::Instant::now());
+        let now = std::time::Instant::now();
+        self.0 = Some(now);
+        *dm_core::lock(&LAST_ACTED) = Some(now);
     }
 
     /// Whether a control client acted a moment ago ([`SCRIPT_ACTS_FOR`]).
@@ -358,6 +393,21 @@ impl ScriptGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// While a script acts, a folder outside the download folder is refused, `..` included; a
+    /// folder below it, or any folder with no script acting, is not (gaps row 199).
+    #[test]
+    fn a_scripts_folder_is_held_to_the_download_folder() {
+        let downloads = std::path::Path::new("/home/me/Downloads");
+        let away = std::path::Path::new("/home/me/.config/autostart");
+        assert!(folder_refused_while(true, away, downloads).is_some());
+        assert!(
+            folder_refused_while(true, &downloads.join("../.config/autostart"), downloads)
+                .is_some()
+        );
+        assert!(folder_refused_while(true, &downloads.join("films"), downloads).is_none());
+        assert!(folder_refused_while(false, away, downloads).is_none());
+    }
 
     /// `url` with a login in it, set through its parts rather than written
     /// out: a login spelled in the source reads to a secret scanner as a leak.

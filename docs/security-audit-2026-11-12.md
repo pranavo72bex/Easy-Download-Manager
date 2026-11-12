@@ -58,9 +58,10 @@ had a path around it. All six are fixed in the same change as this report, with 
 
 ## Still owed
 
-- A script typing a folder into Add URL's, Properties' or Save to's folder field is not yet held to
-  the download folder, as Options now is (the folder verifier's note). The control port's own
-  `downloads.add` is (`control_api::add_asked`).
+- Fixed after the report (gaps row 199): a folder typed by a script into Add URL, Properties,
+  Save to or Move/Rename is held to the download folder or below it for three seconds after the
+  script acted (`control_api::folder_refused`, checked in `Backend::add_with`, `add_each`,
+  `relocate` and `move_to`).
 - An inside address reached through a public name that resolves inside (DNS rebinding) is judged
   by the name as written, for redirects and the new checks alike.
 - The JavaScript host has no OS sandbox of its own (seatbelt, seccomp, AppContainer): an exploit

@@ -6938,3 +6938,8 @@ was the cost.
   inside to inside, or public to public, is not.
 - **A script's settings change keeps the folders** (`keep_places_of`), as it kept the programs;
   an imported settings file does not, as a person moving dm brings their folders.
+- **Row 199**: one rule for every window and dialog, held where a folder reaches the queue
+  (`Backend::add_with`, `add_each`, `relocate`, `move_to`) rather than in each dialog: a folder
+  outside the download folder (or reaching out of it by `..`) is refused for `SCRIPT_ACTS_FOR`
+  after a control client last acted (`control_api::folder_refused`, a process-wide mark set by
+  `ScriptGuard::acted`).

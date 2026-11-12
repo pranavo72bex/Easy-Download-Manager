@@ -295,6 +295,11 @@ impl Backend {
     /// A stopped download sent on to another folder, its unfinished parts
     /// moved there, and started again.
     pub fn relocate(&self, id: Id, dir: std::path::PathBuf) -> Result<(), String> {
+        if let Some(why) =
+            crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
+        {
+            return Err(why);
+        }
         self.block_on(async {
             self.queue.relocate(id, dir).await?;
             shell::wake(&self.queue);
@@ -526,6 +531,7 @@ impl Backend {
     pub fn add_with(&self, url: &str, with: AddOptions) -> Result<Id, String> {
         let settings = self.settings();
         let with = settings.with_site_rule(url, admit(url, with)?);
+        held_to_downloads(&with, &settings)?;
         let url = settings.with_login(url.trim());
         let later = with.later;
         let id = self
@@ -547,6 +553,7 @@ impl Backend {
             .into_iter()
             .map(|(url, with)| {
                 let with = settings.with_site_rule(&url, admit(&url, with)?);
+                held_to_downloads(&with, &settings)?;
                 Ok((settings.with_login(url.trim()), with))
             })
             .collect();
@@ -670,6 +677,11 @@ impl Backend {
     /// went there.
     pub fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
         let dir = full_folder(&dir.to_string_lossy())?;
+        if let Some(why) =
+            crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
+        {
+            return Err(why);
+        }
         self.block_on(self.queue.move_to(id, &dir))
     }
 
@@ -790,6 +802,19 @@ fn admit(url: &str, mut with: AddOptions) -> Result<AddOptions, String> {
         with.save_dir = Some(full_folder(&typed)?.display().to_string());
     }
     Ok(with)
+}
+
+/// A chosen folder held to the download folder while a script drives the window
+/// (`control_api::folder_refused`).
+fn held_to_downloads(with: &AddOptions, settings: &crate::Settings) -> Result<(), String> {
+    match with.save_dir.as_deref() {
+        Some(folder) => crate::app::control_api::folder_refused(
+            std::path::Path::new(folder),
+            &settings.download_dir,
+        )
+        .map_or(Ok(()), Err),
+        None => Ok(()),
+    }
 }
 
 /// A folder typed for a row, as a full path (`~` is the home folder), or why not.
