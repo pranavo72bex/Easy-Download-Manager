@@ -192,14 +192,27 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
     // after in five runs (19 to 36 KiB).
     let served = sent.load(Ordering::SeqCst);
     let twice = served.saturating_sub(SIZE * DOWNLOADS);
+    let before = (sent_by_then as u64).saturating_sub(staged) as usize;
+    let after = twice.saturating_sub(before);
+    // Two parts, bounded apart. Before the restart: what the server had
+    // written to a connection that dm had not read when it let go, which
+    // the kernel's buffers on loopback hold (one in ten runs alone held
+    // 90 KiB a connection, 3.6 MB in all, 2026-11-12), so up to 128 KiB a
+    // connection. After: what the restart asks again, the seams included,
+    // which is dm's own and held to 48 KiB a connection.
+    let held_by_buffers = DOWNLOADS * CONNECTIONS * 128 * 1024;
     let allowed = DOWNLOADS * CONNECTIONS * 48 * 1024;
     println!(
-        "{twice} bytes fetched twice, {} of them before the restart; at most {allowed} allowed",
-        sent_by_then as u64 - staged
+        "{twice} bytes fetched twice: {before} before the restart (at most {held_by_buffers}), \
+         {after} by it (at most {allowed})"
     );
     assert!(
-        twice <= allowed,
-        "{twice} bytes fetched twice ({sent_by_then} sent before the restart, {staged} staged), \
-         more than {allowed}"
+        before <= held_by_buffers,
+        "{before} bytes sent before the restart were never staged ({sent_by_then} sent, \
+         {staged} staged), more than {held_by_buffers}"
+    );
+    assert!(
+        after <= allowed,
+        "{after} bytes fetched again by the restart, more than {allowed}"
     );
 }
