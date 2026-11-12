@@ -7021,3 +7021,21 @@ compiled and linted for Windows by `scripts/windows-check.sh clippy` and for Lin
   (`redirects::inward`) tells it: a public-looking name a public address leads to is held to
   public addresses for ten minutes. The check and the connection read the same kept answer, so
   the name cannot change between them.
+
+## 2026-11-12: The maintainer's word on every open decision
+
+The maintainer (2026-11-12): "do all things like removable of egui code and everything. okay from
+my side. only things take care of security and coding is finished and all the gaps of gaps.md
+finsished", after "if all coding part finished then merge all the branches to main and we will test
+in main itself", and that Windows and Linux are only tested, with no coding there.
+
+- **G9**: egui is removed: the `dm-desktop` crate, its vendored `winit`, `egui-winit` and `eframe`,
+  its fonts and everything rows A2 and A3 name; the tests that hold shared behaviour move to
+  `dm-desktop-base`, `dm-shell` or `dm-gpui` first.
+- **Every row marked "decide" or awaiting "the maintainer's word"** (G8's packaging choices, P2 to
+  P5, F1, F4, F8, F9, F11 to F13, F15, U10, U11, U14, U17, U20, U22, U24, U26, U30 to U32, U34,
+  Y7, Y27, A4, A16, R1, R4): the option the row recommends is taken, and a contract row it changes
+  is edited in the same commit, naming this word.
+- **Security** is checked again over the whole tree before the merge to `main`.
+- **When the code is finished**, `gpui-migration` is merged to `main` and the testing (the full
+  gate, `human-qa.py`, Windows and Linux) is done there.
