@@ -63,8 +63,8 @@ pub struct Extracted {
 /// Why an archive was not extracted.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The file is not a ZIP archive dm can read.
-    #[error("this is not a ZIP archive that can be read: {0}")]
+    /// The file is not an archive dm can read.
+    #[error("this is not an archive that can be read: {0}")]
     Unreadable(String),
     /// An entry would land outside the folder.
     #[error("the archive has an entry that would leave its folder: {0}")]
@@ -117,9 +117,17 @@ pub fn destination_in(archive: &Path, parent: &Path) -> PathBuf {
     candidate
 }
 
-/// Whether a file name is one this extracts.
+/// Whether a file name is a ZIP.
 pub fn is_zip(name: &str) -> bool {
     name.to_ascii_lowercase().ends_with(".zip")
+}
+
+mod tar;
+pub use tar::is_tar;
+
+/// Whether a file name is an archive this extracts: a ZIP, or a tar plain or gzipped.
+pub fn is_archive(name: &str) -> bool {
+    is_zip(name) || is_tar(name)
 }
 
 /// Whether a Unix mode, if the entry has one, is a file or a folder: not a
@@ -200,6 +208,10 @@ pub fn extract_into(
     origin: Option<&str>,
     progress: &dyn Fn(u64, u64),
 ) -> Result<Extracted, Error> {
+    // A tar, plain or gzipped, by dm's own reader under the same rules (gaps row F10).
+    if is_tar(&archive.to_string_lossy()) {
+        return tar::extract_into(archive, folder, limits, cancel, origin, progress);
+    }
     let file = File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::Unreadable(e.to_string()))?;
     if zip.len() > limits.max_entries {

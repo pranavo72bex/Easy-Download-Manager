@@ -534,7 +534,7 @@ pub fn applies(
         // A finished ZIP that is still on disk.
         Command::ExtractHere | Command::ExtractTo => {
             one && chosen[0].state == State::Completed
-                && dm_core::extract::is_zip(&chosen[0].path)
+                && dm_core::extract::is_archive(&chosen[0].path)
                 && !looks.gone(chosen[0])
         }
         Command::OpenFile | Command::OpenWith => {
