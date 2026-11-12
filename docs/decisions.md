@@ -7003,3 +7003,7 @@ compiled and linted for Windows by `scripts/windows-check.sh clippy` and for Lin
 - **U15**: on macOS a notification is waited on in step, as on Linux (`notify-rust`'s
   `wait_for_response`, which macOS answers while GPUI's main run loop runs), at most eight at
   once.
+- **Row 202, closed (2026-11-12)**: not dm's. The test server let the probe's open-ended
+  request through uncounted, so dm saw three connections served at once and kept a third ranged
+  request out, which the server held. Counting every connection, as nginx's `limit_conn` does,
+  every run held exactly the first wave's four ranges and none twice; the test now asserts both.

@@ -152,8 +152,9 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
                 } else {
                     0
                 };
-                // Past two at once: taken, and never answered.
-                if matches!(fault, Fault::SilentPastTwo) && b > a && !open_ended {
+                // Past two at once, the probe's open-ended request counted
+                // as any other: taken, and never answered.
+                if matches!(fault, Fault::SilentPastTwo) && b > a {
                     let now = in_flight.fetch_add(1, Ordering::SeqCst);
                     if now >= 2 {
                         in_flight.fetch_sub(1, Ordering::SeqCst);
@@ -382,20 +383,27 @@ async fn connections_a_server_holds_unanswered_step_aside_for_the_served() {
     let done = download(&client, &url, &options).await.expect("the file");
     let took = started.elapsed();
     assert_eq!(std::fs::read(&done.path).unwrap(), *data, "byte for byte");
-    // The held step aside at their read timeout and the file comes whole in
-    // seconds. How many pieces are held depends on timing: the first wave
-    // (the probe, which reads on from range 0, and five ranges, two of them
-    // served) holds three, a helper given to each range that shows nothing is
-    // held too, and a range given back at its timeout is now and then asked
-    // again on a fresh connection while the two still stream, and held again
-    // (gaps row 202): six to eight pieces in runs on macOS (2026-11-12).
-    // Seams' checks are not counted (one asked while two pieces stream is
-    // held and steps aside too); counted, a bound of six failed one run in
-    // ten.
+    // The held step aside at their read timeout, their ranges go to the two
+    // being served, and the file comes whole in seconds: a range held is not
+    // asked again and held again. The first wave is the probe (served: it
+    // counts as one of the two, as a server that limits connections counts
+    // every one) and five ranges, one served: four held, in every run. The
+    // server once let the probe through uncounted, so dm saw three served at
+    // once and sent a third ranged request, which was held: six or seven
+    // held, a range now and then twice (gaps row 202, closed). Seams' checks
+    // are not counted: one asked while two pieces stream steps aside too.
     let pieces = server.held_pieces.lock().unwrap().clone();
+    let mut starts: Vec<usize> = pieces.iter().map(|(a, _)| *a).collect();
+    starts.sort_unstable();
+    starts.dedup();
+    assert_eq!(
+        starts.len(),
+        pieces.len(),
+        "a held range was asked again and held again: {pieces:?}"
+    );
     assert!(
-        pieces.len() <= 8,
-        "held pieces kept coming: {pieces:?}; asked, in order: {:?}",
+        pieces.len() <= 4,
+        "held pieces past the first wave's four: {pieces:?}; asked, in order: {:?}",
         server.asked.lock().unwrap()
     );
     assert!(
