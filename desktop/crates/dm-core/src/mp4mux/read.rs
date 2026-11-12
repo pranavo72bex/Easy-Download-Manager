@@ -21,7 +21,7 @@ pub(super) fn u64_at(data: &[u8], at: usize) -> Option<u64> {
 
 /// The boxes in `data`, in order: each one's type, its body, and the whole
 /// box. Stops at the first that does not fit.
-pub(super) fn boxes(data: &[u8]) -> impl Iterator<Item = ([u8; 4], &[u8], &[u8])> {
+pub(crate) fn boxes(data: &[u8]) -> impl Iterator<Item = ([u8; 4], &[u8], &[u8])> {
     let mut at = 0usize;
     std::iter::from_fn(move || {
         let size = u32_at(data, at)?;
@@ -41,7 +41,7 @@ pub(super) fn boxes(data: &[u8]) -> impl Iterator<Item = ([u8; 4], &[u8], &[u8])
     })
 }
 
-pub(super) fn child<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
+pub(crate) fn child<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
     boxes(data).find(|(k, _, _)| k == kind).map(|(_, b, _)| b)
 }
 

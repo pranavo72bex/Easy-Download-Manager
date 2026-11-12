@@ -304,8 +304,23 @@ async fn finish_dm(
                     "a part is cut from MP4 streams only, not WebM".into(),
                 ));
             }
-            let joined = produced.with_extension(if webm { "webm" } else { "mp4" });
-            let joining = if webm {
+            // Matroska where it was asked for, or where the picture and
+            // sound are a pair no MP4 holds (VP8 or Vorbis beside an MP4's
+            // samples), rather than refused. A part or a reshaped picture
+            // is made by the MP4 writer alone, as before.
+            let mkv = !webm
+                && cut.is_none()
+                && options.shape.is_none()
+                && (options.container.as_deref() == Some("mkv")
+                    || crate::mkvmux::needs_matroska(&parts));
+            let joined = produced.with_extension(if webm {
+                "webm"
+            } else if mkv {
+                "mkv"
+            } else {
+                "mp4"
+            });
+            let joining = if webm || mkv {
                 crate::mkvmux::join_with_text_async(parts.clone(), texts, joined.clone()).await
             } else {
                 crate::mp4mux::join_cut_async(
@@ -710,6 +725,46 @@ mod coverage_tests {
             .unwrap_err()
             .to_string();
         assert!(why.contains("a part is cut from MP4 streams only"), "{why}");
+    }
+
+    /// A VP8 picture beside an MP4's sound, which no MP4 holds, is saved as
+    /// an MKV; a pair an MP4 holds is an MP4 still, unless MKV was asked.
+    #[tokio::test]
+    async fn a_pair_no_mp4_holds_is_saved_as_an_mkv() {
+        let dir = tempfile::tempdir().unwrap();
+        crate::mkvmux::tests::tiny_webm(&dir.path().join("v.f1.webm"), "V_VP8", 1, 5);
+        std::fs::write(
+            dir.path().join("v.f140.m4a"),
+            fixture("media/mp4mux/sound.m4a"),
+        )
+        .unwrap();
+        let done = finish_dm(&dir.path().join("v.mp4"), Vec::new(), &options(dir.path()))
+            .await
+            .unwrap();
+        assert_eq!(done.path.extension().unwrap(), "mkv");
+        let data = std::fs::read(&done.path).unwrap();
+        assert!(has(&data, b"V_VP8") && has(&data, b"A_AAC"));
+
+        let dir = tempfile::tempdir().unwrap();
+        let both = |dir: &Path| {
+            std::fs::write(dir.join("v.f137.mp4"), fixture("media/mp4mux/picture.mp4")).unwrap();
+            std::fs::write(dir.join("v.f140.m4a"), fixture("media/mp4mux/sound.m4a")).unwrap();
+        };
+        both(dir.path());
+        let done = finish_dm(&dir.path().join("v.mp4"), Vec::new(), &options(dir.path()))
+            .await
+            .unwrap();
+        assert_eq!(done.path.extension().unwrap(), "mp4", "as before");
+
+        let dir = tempfile::tempdir().unwrap();
+        both(dir.path());
+        let mut asked = options(dir.path());
+        asked.container = Some("mkv".into());
+        let done = finish_dm(&dir.path().join("v.mp4"), Vec::new(), &asked)
+            .await
+            .unwrap();
+        assert_eq!(done.path.extension().unwrap(), "mkv");
+        assert!(has(&std::fs::read(&done.path).unwrap(), b"V_MPEG4/ISO/AVC"));
     }
 
     /// Streams that are not media, joined or cut, fail in words rather than

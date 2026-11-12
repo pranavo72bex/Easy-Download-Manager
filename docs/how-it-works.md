@@ -442,7 +442,9 @@ desktop/
                           and sound chosen (the fetching is download/dash.rs)
     stream.rs, tsmux.rs   HLS playlists, and transport streams put into MP4 (tsmux/: demux,
                           samples, sound, headers, tracks)
-    mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM (mp4mux/: read, write, text)
+    mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4, WebM or MKV (mp4mux/: read, write,
+                          text; mkvmux/from_mp4.rs: an MP4's samples as Matroska blocks, for a
+                          pair no MP4 holds, VP8 or Vorbis beside MP4, or MKV asked)
     live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
                           recorder, connect, session)
     youtube.rs            a YouTube page read by dm itself (the player API; the player's checks
