@@ -9,8 +9,10 @@ downloading, and a browser extension that catches downloads and hands them
 to it. Both are Rust — the app natively, the extension compiled to
 WebAssembly.
 
-The engine's blueprint (what it must do, what is built, what is not, and how
-each part is tested) is in [engine/README.md](engine/README.md).
+Where each part of the engine lives, and the layers the app is built in, is in
+[architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md); what is built and
+how each part is tested is in [feature-status.md](feature-status.md) and
+[testing.md](testing.md).
 
 dm splits a file across several connections, resumes what was interrupted,
 keeps a queue, and takes the downloads you start by clicking a link — the
@@ -53,8 +55,8 @@ its dialogs: Add URL, Download details, a progress window with each
 connection, Download complete, Properties, Add numbered series, Files on a
 site, Scheduler, Speed limiter, Options. It is held together like this:
 
-- **A command registry** (`dm_shell::app::commands`, with the window's
-  words and keys in `desktop/crates/dm-desktop/src/commands.rs`). The menus,
+- **A command registry** (`dm_shell::app::commands`: each command's name,
+  label and keys; the GPUI window's menus in `desktop/crates/dm-gpui/src/menus.rs`). The menus,
   the toolbar, the row menu, the keyboard and the control protocol all run
   the same named commands.
 - **An application layer under the window** (`dm_shell::app`,
@@ -67,18 +69,22 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
   shown on the window's thread; the open and save panels are begun without
   a modal loop. `scripts/stress-check.py handlers` holds the window to an
   answer in under 100 ms throughout.
-- **Window tests that click every control by its name**
-  (`desktop/crates/dm-desktop/tests/window.rs` and `tests/window/`): every menu item, toolbar
-  button and row-menu item is clicked through the accessibility tree and
-  checked for what it does (`every_menu_item_clicked_does_what_it_says`,
+- **The whole window held to the behaviour contract**
+  (`scripts/human-qa.py`, in a visible window, against the GPUI window as
+  shipped), and the control port's checks (`scripts/app-check.py`). The
+  older egui window (`desktop/crates/dm-desktop`, kept until gaps row G9) has
+  window tests that click every control by its name
+  (`desktop/crates/dm-desktop/tests/window.rs` and `tests/window/`): every
+  menu item, toolbar button and row-menu item clicked through the
+  accessibility tree and checked for what it does
+  (`every_menu_item_clicked_does_what_it_says`,
   `every_toolbar_button_clicked_does_what_it_says`,
-  `every_row_menu_item_clicked_does_what_it_says`); the others drive each
-  control against a real queue.
-- **A control protocol** (`control.rs`): `dm-desktop --control <port>` takes
+  `every_row_menu_item_clicked_does_what_it_says`).
+- **A control protocol** (`dm-desktop-base/src/control.rs`): `dm-gpui --control <port>` takes
   JSON lines on loopback with a private token, to list and run commands,
   add downloads, run a batch of up to 256 steps, read the window back and
   take screenshots. `--headless` runs dm with no window at all, and
-  `dm-desktop mcp` serves the same as tools to an AI client over the Model
+  `dm-gpui mcp` serves the same as tools to an AI client over the Model
   Context Protocol.
 - **A server zoo with a ratchet** ([docs/zoo.md](zoo.md)): 31 ways real
   servers behave — lying ranges, cut-off bodies, redirect loops, names only
@@ -146,8 +152,8 @@ installs system-wide instead of under `~/.local`.
 
 ```sh
 sh scripts/package.sh                         # dist/chrome, dist/firefox and their zips
-(cd desktop && cargo build --release -p dm-desktop)
-desktop/target/release/dm-desktop --register  # from a copy outside ~/Downloads on macOS
+(cd desktop && cargo build --release -p dm-gpui)
+desktop/target/release/dm-gpui --register     # from a copy outside ~/Downloads on macOS
 ```
 
 **Chrome, Edge, Brave, Vivaldi, Opera** — `chrome://extensions`, turn on
@@ -181,15 +187,18 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 
 `desktop/` is all Rust: `dm-core` is the
 engine and has no idea a screen exists; `dm-shell` is the settings, the
-browser hand-off and startup; `dm-desktop` is the window, drawn with egui —
-no web view, no Electron, no WebKit.
+browser hand-off, startup and the application layer; `dm-desktop-base` is what
+the program does that is not drawing (the control port, the command line,
+MCP, the words); `dm-gpui` is the window, drawn with GPUI — no web view, no
+Electron. `dm-desktop` is the older window, drawn with egui, still built and
+tested until gaps row G9 removes it.
 
 ```sh
 cd desktop
-cargo run -p dm-desktop       # the window
+cargo run -p dm-gpui          # the window
 cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
-                              # swarm, and the window driven through its accessibility tree
-cd crates/dm-gpui && cargo packager --release -p dm-gpui   # a .dmg, .deb or AppImage (Windows: dm-desktop)
+                              # swarm, and the egui window driven through its accessibility tree
+cd crates/dm-gpui && cargo packager --release -p dm-gpui   # a .dmg, NSIS installer, .deb or AppImage
 ```
 
 The installers are not signed with a paid certificate, so the first launch
@@ -201,7 +210,7 @@ is signed and what a certificate would change.
 To have the browser hand downloads to it:
 
 ```sh
-dm-desktop --register [<store extension id>]
+dm-gpui --register [<store extension id>]
 ```
 
 On macOS the binary must not live in `~/Downloads`, `~/Desktop` or
@@ -215,7 +224,7 @@ failure is silent. Install to `/Applications` and register that;
 |---|---|
 | **Archives** | A finished `.zip` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `dm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs |
 | **Live streams** | RTMP, RTSP and MMS are recorded as they come (`live.rs`). Options › Downloads › *Stop recording a live stream after, minutes* ends a recording the way Stop does — the file closed first — and keeps and places what was recorded; 0 records until the stream ends or Stop |
-| **Command line** | `dm-desktop list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
+| **Command line** | `dm-gpui list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`dm-desktop-base/src/cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
 | **Watched folder** | `app/watch.rs`: every five seconds a folder named in Options is read for links saved as `.url`, `.webloc`, text or `.torrent`, read as a drop is read; handled files move to its `done` folder |
 | **Site rules** | `Settings::with_site_rule` gives a site's downloads a folder and a speed of their own at the moment a row is added, whatever the way in; what a person chose for one download stands |
 | **Checking and naming** | Properties shows a finished file's SHA-256 (hashed on the app's runtime) and checks a pasted digest; Move/Rename of several files takes a `{n}`/`{name}` pattern |
@@ -409,9 +418,11 @@ erased, types the app does not list left alone, a cookie-gated file refused
 by dm and finished by the browser, the menu's handler, and a download with no
 host finishing in the browser.
 
-The window's tests click its controls through egui's accessibility tree —
+The egui window's tests click its controls through its accessibility tree —
 the same names a screen reader reads — against a real queue fetching from a
-server on loopback, and check what each did to the queue.
+server on loopback, and check what each did to the queue. The GPUI window is
+driven through the control port (`ui.texts`, `ui.click`, `ui.type`) by
+`scripts/human-qa.py` and `scripts/app-check.py`.
 
 ```
 browser/                  the extension, in Rust (crate dm-catcher)
@@ -476,8 +487,14 @@ desktop/
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)
   crates/dm-protocol/     what the extension and the host say, and the catch rule
-  crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup
-  crates/dm-desktop/      the window, in egui; the tray, login item, notifications
+  crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup;
+                          app/ the application layer every window drives
+  crates/dm-desktop-base/ the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
+                          i18n/ (the catalogs), the system's services (tray, toasts, taskbar…)
+  crates/dm-gpui/         the window shipped, in GPUI: list.rs (the rows, each wake's read),
+                          tick.rs, table.rs, menus.rs, one file per dialog, port.rs and probe.rs
+                          (the control port), syswindow/ (the system's own window calls)
+  crates/dm-desktop/      the older window, in egui, until gaps row G9; the tray, login item, notifications
     src/table.rs, theme.rs   the download list and the look; table/ and theme/ hold their parts
     src/main.rs           startup; platform.rs, tray.rs, window.rs, hidden.rs, signals.rs, login.rs are its parts
     src/app/              the window's state (mod.rs) and what it does, one concern per file:

@@ -40,14 +40,17 @@ extension that hands it the browser's downloads.
   desktop program does that is not drawing, with no window toolkit: `Desktop`
   (the application's `Platform`), the login item, the control port, MCP, the
   command line, the words (`i18n`, its catalogs in `dm-desktop-base/i18n`) and
-  numbers (`format`), and the system's services. `crates/dm-desktop` is the
-  window, drawn in Rust with egui, no web view, plus the tray; it re-exports
-  each of the base crate's modules at its old path. `cargo packager` there
-  builds the installers. The Tauri web-view window it replaced is in git
-  history. Inside `dm-desktop`, `src/app/` is the window's state and
-  behaviour, `src/dialogs/` is one file per dialog, and `main.rs` is split
-  into `platform` (what its crates do for `Desktop`, and dragging out),
-  `tray`, `window`, `hidden`, `opened` and `dock`.
+  numbers (`format`), and the system's services. `crates/dm-gpui` is the
+  window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
+  no web view, plus the tray: one file per part of the window (`list.rs` the
+  rows and their reads, `tick.rs` what each wake does, `table.rs`,
+  `menus.rs`, `toolbar.rs`, `sidebar.rs`, one file per dialog such as
+  `addurl.rs`, `details.rs`, `options.rs`, and `port.rs` with `probe.rs` for
+  the control port). `cargo packager -p dm-gpui` there builds the installers.
+  `crates/dm-desktop` is the older window, drawn with egui, still built and
+  tested until gaps row G9 removes it; new window work goes to `dm-gpui`. It
+  re-exports each of the base crate's modules at its old path; inside it,
+  `src/app/` is the window's state, `src/dialogs/` one file per dialog.
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
   by both sides.
@@ -70,7 +73,7 @@ extension that hands it the browser's downloads.
 | File | What it says |
 |---|---|
 | `docs/parity.md` | Every behaviour, its status, and the test or run that proves it |
-| `crates/dm-desktop/tests/window.rs` (indexing `tests/window/`) | Every menu item, toolbar button and row-menu item clicked by its name and checked for what it does |
+| `crates/dm-desktop/tests/window.rs` (indexing `tests/window/`) | The egui window's every menu item, toolbar button and row-menu item clicked by its name and checked for what it does (until G9); the GPUI window is held by `scripts/human-qa.py` and the control port's checks |
 | `docs/zoo.md` | Thirty-one server behaviours and what dm does with each (generated; floor only rises) |
 | `docs/scorecard.md` | The counts of all of the above, by area (generated) |
 | `docs/how-it-works.md` | How the app and the extension fit together, and how to build them |
@@ -112,13 +115,13 @@ cd desktop && cargo test --workspace       # Rust unit + integration (real HTTP 
 cd desktop && cargo clippy --workspace --all-targets -- -D warnings
 cd desktop && cargo fmt --check
 python3 scripts/app-check.py               # drives the built binary (DM_BINARY= for a packaged one)
-cd desktop && cargo test -p dm-desktop --test window   # the window, through its accessibility tree
 python3 scripts/readme-shots.py           # the README's pictures, of the GPUI window (macOS)
-./target/debug/dm-desktop --control 0      # drive the running window: see control.rs
-./target/debug/dm-desktop --headless --control 0   # no window, for scripts and agents
-./target/debug/dm-gpui --control 0         # the GPUI window, the one shipped on macOS and Windows (gaps.md G9); --headless too
-./target/debug/dm-desktop mcp              # MCP tools for an AI client, relayed to a running dm
-./target/debug/dm-desktop list | status N | pause N | resume N | cancel N   # the command line, against a running dm
+./target/debug/dm-gpui --control 0         # drive the running window, the one shipped: see dm-desktop-base control.rs
+./target/debug/dm-gpui --headless --control 0   # no window, for scripts and agents
+./target/debug/dm-gpui mcp                 # MCP tools for an AI client, relayed to a running dm
+./target/debug/dm-gpui list | status N | pause N | resume N | cancel N   # the command line, against a running dm
+cd desktop && cargo test -p dm-desktop --test window   # the older egui window, through its accessibility tree (until G9)
+./target/debug/dm-desktop --control 0      # the older egui window, the same flags
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home
 cargo test -p dm-core --test zoo -- --nocapture   # the server zoo; DM_RAISE_FLOOR=1 after a fix
 PROPTEST_CASES=200000 cargo test --release -p dm-core --test fuzz   # a deep fuzz hunt

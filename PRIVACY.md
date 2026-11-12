@@ -88,14 +88,14 @@ the "Download video" panel, or "Download media with dm" — the extension
 sends that page's cookies along, for that one video. Video sites turn away a
 download that does not carry the session your browser has ("confirm you're
 not a bot"). They go to the app on this computer only, are sent to that
-page's server only (in a file of the download's own, readable by your
-account alone and removed when the download ends), and are dropped from the
-row once the video is downloaded. This is why the extension has the
-browser's cookies permission. The video helper's reading of a page, which
-can hold those cookies and the video's addresses, is kept for ten minutes
-in a `readings` folder in dm's own data (readable by your account alone),
-so the download a click on the panel starts does not read the page again;
-older ones are deleted.
+page's server only, are kept with the row in `secrets.json` beside the
+queue (readable by your account alone; never in the queue file itself), and
+are dropped from the row once the video is downloaded. This is why the extension has the
+browser's cookies permission. The panel's list of a page's qualities is
+kept for ten minutes, 48 pages at most, in `formats.cache.json` in dm's own
+data, so asking again soon after does not read the page again; it is filed
+under the page's address and the names of its cookies, never their values,
+and older ones are deleted.
 
 **Sign-ins for other downloads.** Other downloads go without your cookies;
 one that needs a sign-in is left to the browser — unless you switch "Hand

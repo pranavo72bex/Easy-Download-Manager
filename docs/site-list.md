@@ -43,7 +43,7 @@ site, the row says which.
 | X (Twitter) | a post with a video | no | panel | run 2026-11-04 (row 142) | whole (row 142) |
 | Reddit | a post with a video | maintainer | panel (plain-JavaScript panel: Reddit forbids WebAssembly) | run 2026-11-04 (row 142) | whole with sound (rows 63, 142) |
 | Rumble | a public video | no | panel | not yet | 2026-11-07: Rumble answered the automated Edge with Cloudflare's "Just a moment…" check; not judged |
-| Bilibili | a public video | no | panel (DASH, picture and sound apart) | not yet | 2026-11-07: **less than it should** (gaps row 155): the panel lists no quality for the page's range-fetched MP4 streams, and the page it hands over fails as an expired link |
+| Bilibili | a public video | no | panel (picture and sound as two whole MP4 files the player fetches in ranges, joined by dm) | not yet | 2026-11-07, Edge on macOS, signed out: a whole 480p video with sound, 65.9 s (gaps row 155, closed: the panel tells the two files apart by their first bytes, `decide::mp4_track`) |
 | Metacafe | a video | no | panel | not yet; check the site is still running | not yet |
 | Veoh | a video | no | panel | not yet; check the site is still running | not yet |
 | Break | a video | no | panel | not yet; check the site is still running | not yet |

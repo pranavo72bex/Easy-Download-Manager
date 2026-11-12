@@ -5,6 +5,11 @@ written down as tokens, every widget draws from them, and every visual change
 is checked by looking at a picture of the real window. The pictures are dm's
 own, drawn in code (`crates/dm-desktop/src/icons.rs`).
 
+The files named below are the older egui window's (`crates/dm-desktop`, kept
+until gaps row G9 removes it). The window shipped is the GPUI one: its tokens
+are in `crates/dm-gpui/src/theme.rs`, and its look is held by the pictures in
+`docs/behaviour-baseline/gpui/` (contract row B25).
+
 ## Themes
 
 | Theme | Word | Intent |

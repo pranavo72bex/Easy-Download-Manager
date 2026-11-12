@@ -1,5 +1,9 @@
 # Clean-room behaviour specification: the other macOS manager's download engine and its video helper
 
+> History, kept where `docs/decisions.md` (2026-10-30) cites it. dm has since stopped using a
+> video helper of any kind: YouTube is read by dm itself (`youtube.rs`) and every other site's
+> video comes from the player's requests the extension catches (`docs/feature-matrix.md`).
+
 Prepared 2026-10-30 by the analyst side of a clean-room process, for dm's
 implementers. It describes behaviour only. It contains no source code, no
 assembly, no decompiled output and no copied interface text; where the
