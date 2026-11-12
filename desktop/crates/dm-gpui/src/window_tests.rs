@@ -6,6 +6,7 @@
 //! The window's tests, driven as a person or a script drives it (`harness.rs`). Moved from the
 //! egui window's (`dm-desktop/tests/window/`), file by file.
 
+mod around;
 mod asks;
 mod choices;
 mod commands;

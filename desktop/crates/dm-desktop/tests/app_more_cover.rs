@@ -790,36 +790,6 @@ fn the_speed_chip_turns_the_limiter_on_and_off() {
     assert_eq!(harness.state().applied.speed_limit, 0);
 }
 
-/// The download limit reached is said in the status line, with how long
-/// downloads are held.
-#[test]
-fn the_download_limit_reached_is_said_in_the_status_line() {
-    let _one = one_at_a_time();
-    let _file = settings_file();
-    let world = world();
-    let mut harness = world.harness();
-    let mut wanted = harness.state().applied.clone();
-    wanted.limit_mb = 1;
-    harness.state_mut().apply_settings(wanted).unwrap();
-    for _ in 0..6 {
-        harness
-            .state_mut()
-            .add(&[world.url("file.zip")], dm_core::AddOptions::default())
-            .unwrap();
-    }
-    until(&mut harness, "the download limit to be reached", |app| {
-        app.backend.queue.allowance_spent().is_some()
-    });
-    harness.run_steps(3);
-    let found = harness
-        .query_by_label_contains("· download limit of 1 MB reached, held for ")
-        .is_some();
-    let mut wanted = harness.state().applied.clone();
-    wanted.limit_mb = 0;
-    harness.state_mut().apply_settings(wanted).unwrap();
-    assert!(found, "the limit reached was not said");
-}
-
 /// A schedule that never opens, with a download waiting on it: the status
 /// line says it waits for the schedule, with no time to give.
 #[test]
