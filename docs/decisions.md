@@ -7059,3 +7059,18 @@ own beyond pure functions: dm-gpui is a binary, with no library for a test crate
   runner's threads are not the main thread, and muda refuses to make a tray there.
 - **Dropped, not ported**: what tests egui itself (its fonts, kittest's pictures). The egui
   window's own font check goes (the GPUI window draws in the system's fonts).
+
+## 2026-11-13: Three settings kept (gaps row F13)
+
+Taken at the maintainer's word of 2026-11-12 (each decide row's recommendation): each setting that
+looked droppable is kept, with its reason.
+
+- **`remux_ts`** (Options › Downloads, "Put a .ts stream into an MP4"): a transport stream holds
+  what an MP4 does not (teletext and broadcast subtitles, some sound tracks a recorder keeps), and a
+  published digest can name the `.ts` bytes, which the remux would change (`download/hls.rs`,
+  `remux_wanted`). On by default; off keeps the stream as it came.
+- **`second_path`** (Options › Advanced › Network, a second network): a real use, a phone's
+  connection over USB beside the Wi-Fi, every other connection of a download on it. Tested with a
+  second local address only (gaps row 47); not removed for that.
+- **`mica`** (Options › General, Windows 11): the GPUI window draws it since gaps row G11, opt-in
+  because an old GPU driver can draw a see-through window black.
