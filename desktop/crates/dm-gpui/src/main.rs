@@ -289,6 +289,21 @@ fn main() {
     }
     drop(headless_woken);
 
+    // An installed dm tells the browsers where it is, so the extension works without a
+    // terminal and no browser is left pointing at an old copy of dm (not a development build
+    // or a test's dm: `register::may_claim`). Off the window's thread: it writes a file for
+    // each browser, and the first frame is not held back for them.
+    {
+        let backend = backend.clone();
+        let _ = std::thread::Builder::new()
+            .name("dm-register".into())
+            .spawn(move || {
+                if let Some(words) = dm_shell::register::ensure_and_say() {
+                    backend.note(words);
+                }
+            });
+    }
+
     // The login item, put in step once the window is up (gaps row S16):
     // asked of the system before it, it held the first frame back.
     let login_item = login_item.map(|item| (item, backend.clone(), Arc::clone(&wake)));

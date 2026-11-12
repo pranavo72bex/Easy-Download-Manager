@@ -331,6 +331,8 @@ pub struct Downloads {
     show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// What an opener said went wrong, from its thread.
     opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    /// What Scheduler › Hang up modem when done came to, from its thread.
+    pub(crate) hung_up: std::sync::Arc<std::sync::Mutex<Option<dm_shell::dialup::HungUp>>>,
     /// View › Categories: the side panel shown.
     pub(crate) show_sidebar: bool,
     /// View › Toolbar: the toolbar shown.
@@ -443,6 +445,7 @@ impl Downloads {
             whens: Default::default(),
             show_asked,
             opener_said: Default::default(),
+            hung_up: Default::default(),
             show_sidebar: true,
             show_toolbar: true,
             taskbar: Default::default(),

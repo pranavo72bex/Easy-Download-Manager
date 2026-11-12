@@ -1350,6 +1350,28 @@ pub fn worth_saying(
     }
 }
 
+/// The last registration failure said by [`ensure_and_say`], so the same one is not said
+/// again at every Show.
+static LAST_SAID: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// [`ensure_if_claimed`], run as the window starts and each time it is asked to show itself,
+/// and what to note of it: a failure, in words, the first time it is met ([`worth_saying`]).
+pub fn ensure_and_say() -> Option<String> {
+    let result = ensure_if_claimed();
+    let mut last = LAST_SAID
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    worth_saying(&mut last, result).map(|why| failed_words(&why))
+}
+
+/// A registration failure, as the problems list says it.
+pub fn failed_words(why: &str) -> String {
+    format!(
+        "your browsers could not be told where dm is: {why}. Until they are, the extension \
+         leaves downloads in the browser."
+    )
+}
+
 /// `--register [id…]` or `--unregister`, run and finished with an exit code;
 /// `None` when neither was asked for.
 pub fn from_args(args: &[String]) -> Option<i32> {

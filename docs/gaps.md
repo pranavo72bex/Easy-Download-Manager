@@ -240,6 +240,11 @@ staging on the download drive, copying to it during the download.
 | U34 | Sizes are counted in 1,024s and named KB and MB (`format.rs:20`), so a "96.0 MB" file is 100.7 MB in macOS's own file manager | OPEN · S · the maintainer's word (B20's words) | Counted as each system's file manager counts |
 | U35 | No right-to-left language: Arabic and Hebrew were dropped because egui laid text out left to right (`decisions.md:1288`), a reason gone with GPUI | OPEN · M | An Arabic catalog and a mirrored window, pictured in the baseline |
 | U36 | "When done" is one choice for the whole session; a download's own progress window has none | OPEN · S | "When this download is done" in the progress window (nothing, open it, open its folder, exit, sleep, shut down); a window test |
+| U37 | (egui-removal map, 2026-11-12) The GPUI status line does not say when a download limit (Options' connections or downloads at once, a queue's own) is holding downloads back, as the egui window's did | OPEN · S | The status line names the limit while a row waits on it; a `dm-gpui` test of the words |
+| U38 | (egui-removal map) The GPUI progress window lacks the egui window's line saying how much came over the second network (two networks at once) | OPEN · S | The line shown where a download used the second network; a test |
+| U39 | (egui-removal map) Rows cannot be dragged to reorder them in the GPUI window (the egui window's queue order by drag) | OPEN · M | A row dragged within its queue moves there and the queue's order is saved; a test through the control port |
+| U40 | (egui-removal map) The GPUI side panel has no Grabber projects | OPEN · M | The Grabber's saved projects listed under their heading, opened with a click; a test |
+| U41 | (egui-removal map) Three egui-only rules, each to build in the GPUI window or drop by decision: a sentence about one row stands until that row runs; a saved search opens the Grabber filled in; a typed path for list files | OPEN · S each · decide | Each built with a test, or dropped with a line in `docs/decisions.md` |
 
 ### F. Features against reference A, and beyond it
 

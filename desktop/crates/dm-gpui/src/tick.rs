@@ -69,6 +69,11 @@ impl Downloads {
         // A second launch, the browser's button or the Dock asked for the
         // window; the tray says how the downloads go.
         if self.take_show_asked() {
+            // A browser installed since dm started is registered now, so "open dm once" works
+            // while dm runs.
+            if let Some(words) = dm_shell::register::ensure_and_say() {
+                self.backend.note(words);
+            }
             self.show_main(cx);
         }
         self.tray_follow();
@@ -203,6 +208,29 @@ impl Downloads {
             ));
         }
         self.problems.extend(tick.problems);
+        // Scheduler › Hang up modem when done: off the window's thread, as Windows takes a
+        // moment to end a connection; what it came to is said when it is known.
+        if tick.hang_up && cfg!(windows) {
+            if let Some(hung) =
+                dm_shell::dialup::hang_up_later(std::sync::Arc::clone(&self.hung_up))
+            {
+                self.say_hung_up(hung);
+            }
+        }
+        let hung = dm_core::lock(&self.hung_up).take();
+        if let Some(hung) = hung {
+            self.say_hung_up(hung);
+        }
+    }
+
+    /// Says what hanging up came to: a connection that was not up needs no word, one
+    /// Windows would not end is a problem.
+    fn say_hung_up(&mut self, hung: dm_shell::dialup::HungUp) {
+        match hung_up_words(hung) {
+            Some(Ok(sentence)) => self.say(sentence),
+            Some(Err(problem)) => self.problems.push(problem),
+            None => {}
+        }
     }
 
     /// A queue that has run dry has finished: its own sound, where the
@@ -358,5 +386,45 @@ impl Downloads {
         {
             let _ = self.add(links, Default::default(), cx);
         }
+    }
+}
+
+/// What hanging up came to, in words: a sentence for the status line, a problem, or nothing
+/// for a connection that was not up.
+fn hung_up_words(hung: dm_shell::dialup::HungUp) -> Option<Result<String, String>> {
+    use dm_shell::dialup::HungUp;
+    match hung {
+        HungUp::Done(name) => Some(Ok(tf(
+            "The scheduled downloads are done: {} is hung up.",
+            &[&name],
+        ))),
+        HungUp::WasDown(_) => None,
+        HungUp::NoneSet => Some(Ok(t(
+            "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN.",
+        )
+        .into())),
+        HungUp::Failed(name, why) => Some(Err(tf("{} was not hung up: {}", &[&name, &why]))),
+    }
+}
+
+#[cfg(test)]
+mod hang_up_tests {
+    use super::hung_up_words;
+    use dm_shell::dialup::HungUp;
+
+    /// Scheduler › Hang up modem when done is said as the egui window said it: hung up, no
+    /// connection set, or a problem; a connection that was down is not said.
+    #[test]
+    fn what_hanging_up_came_to_is_said() {
+        let done = hung_up_words(HungUp::Done("Office VPN".into()));
+        assert!(
+            matches!(done, Some(Ok(ref s)) if s.contains("Office VPN") && s.contains("hung up"))
+        );
+        assert_eq!(hung_up_words(HungUp::WasDown("Office VPN".into())), None);
+        assert!(
+            matches!(hung_up_words(HungUp::NoneSet), Some(Ok(ref s)) if s.contains("Dial Up / VPN"))
+        );
+        let failed = hung_up_words(HungUp::Failed("Office VPN".into(), "busy".into()));
+        assert!(matches!(failed, Some(Err(ref s)) if s.contains("busy")));
     }
 }
