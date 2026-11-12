@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — менеджер загрузок"
+  },
+  "extDescription": {
+    "message": "Передаёт загрузки и видео приложению dm, которое их скачивает. Без приложения их сохраняет браузер."
+  },
+  "menuLink": {
+    "message": "Скачать ссылку с помощью dm"
+  },
+  "menuMedia": {
+    "message": "Скачать медиафайл с помощью dm"
+  },
+  "menuAllLinks": {
+    "message": "Скачать все ссылки с помощью dm"
+  },
+  "menuSelectedLinks": {
+    "message": "Скачать выбранные ссылки с помощью dm"
+  },
+  "popupLooking": {
+    "message": "Поиск приложения dm…"
+  },
+  "popupCatch": {
+    "message": "Перехватывать загрузки"
+  },
+  "popupPanelHere": {
+    "message": "Показывать «Скачать видео» на этом сайте"
+  },
+  "popupPanelOn": {
+    "message": "Показывать «Скачать видео» на $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "На этой странице нет панели видео"
+  },
+  "popupCatchAllHere": {
+    "message": "Забирать все загрузки с этого сайта"
+  },
+  "popupCatchAllOn": {
+    "message": "Забирать все загрузки с $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "С этой страницы нечего забирать"
+  },
+  "popupPausedHere": {
+    "message": "Приостановить перехват на этом сайте"
+  },
+  "popupPausedOn": {
+    "message": "Приостановить перехват на $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "На этой странице нечего приостанавливать"
+  },
+  "popupCookiesHere": {
+    "message": "Передавать вход на этом сайте вместе с его загрузками"
+  },
+  "popupCookiesOn": {
+    "message": "Передавать вход на $SITE$ вместе с его загрузками",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "С этой страницы нечего передавать для входа"
+  },
+  "popupOpen": {
+    "message": "Открыть dm"
+  },
+  "popupGetApp": {
+    "message": "Получить приложение dm"
+  },
+  "popupNoAnswer": {
+    "message": "Приложение dm не ответило"
+  },
+  "popupOpening": {
+    "message": "Открытие dm…"
+  },
+  "popupIsOpen": {
+    "message": "dm открыт"
+  },
+  "popupConnected": {
+    "message": "Подключено к dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "Подключено к dm $VERSION$ · обновите приложение dm: до тех пор браузер сохраняет свои загрузки",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "Это было задано для всего $SITES$, поэтому изменено и там",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ и $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm ещё не подключён к этому браузеру. На этом компьютере ещё нет приложения dm? Нажмите ниже «Получить приложение dm», установите его и откройте один раз. Уже установлено: откройте dm один раз (если он уже открыт, откройте его снова), чтобы он подключился, затем снова откройте это окно. Для опытных: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm не ответил ($REASON$). Откройте dm (если он уже открыт, откройте его снова), затем снова откройте это окно. Если он всё ещё не отвечает: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "Скачать видео"
+  },
+  "panelDownloadAudio": {
+    "message": "Скачать это аудио"
+  },
+  "panelProtected": {
+    "message": "Защищённое видео"
+  },
+  "panelProtectedSaid": {
+    "message": "Это видео защищено от копирования, поэтому воспроизвести его может только плеер самого сайта. dm не скачивает защищённое видео."
+  },
+  "panelThroughApp": {
+    "message": "эта страница, через приложение dm"
+  },
+  "panelHelp": {
+    "message": "dm скачивает это видео приложением dm, где вы выбираете имя и папку. Ссылка, нажатая с зажатой клавишей «оставить» (Alt, если её не изменили в параметрах dm), остаётся в браузере."
+  },
+  "panelDrag": {
+    "message": "Перетащите, чтобы переместить"
+  },
+  "panelWhat": {
+    "message": "Что это?"
+  },
+  "panelHide": {
+    "message": "Скрыть"
+  },
+  "panelHideForNow": {
+    "message": "Скрыть пока"
+  },
+  "panelNeverOn": {
+    "message": "Никогда на $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "этом сайте"
+  },
+  "panelReading": {
+    "message": "Чтение вариантов качества…"
+  },
+  "panelReadingSaid": {
+    "message": "dm читает варианты качества видео на этой странице; это может занять до полуминуты."
+  },
+  "panelTimedOut": {
+    "message": "dm не ответил вовремя. Попробуйте ещё раз или щёлкните видео правой кнопкой и выберите «Скачать медиафайл с помощью dm»."
+  },
+  "panelSending": {
+    "message": "Отправка в dm…"
+  },
+  "panelNotTaken": {
+    "message": "dm не смог это принять"
+  },
+  "panelUpdated": {
+    "message": "dm обновлён: перезагрузите эту страницу, чтобы им пользоваться"
+  },
+  "panelSent": {
+    "message": "Отправлено в dm"
+  },
+  "panelInBrowser": {
+    "message": "Скачивается в браузере"
+  },
+  "panelDownloadAll": {
+    "message": "Скачать всё"
+  },
+  "panelPart": {
+    "message": "Часть"
+  },
+  "panelPartTo": {
+    "message": "по"
+  },
+  "panelPartStart": {
+    "message": "Начало части"
+  },
+  "panelPartEnd": {
+    "message": "Конец части"
+  },
+  "panelFileQuality": {
+    "message": "Файл $KIND$, качество $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "Приложение dm читает эту страницу, чтобы найти видео"
+  },
+  "panelAppHas": {
+    "message": "Приложение dm получило его"
+  },
+  "panelAppDownloading": {
+    "message": "Приложение dm скачивает его"
+  },
+  "panelNoAnswer": {
+    "message": "dm не ответил"
+  },
+  "panelFailed": {
+    "message": "dm не ответил. Попробуйте ещё раз или щёлкните видео правой кнопкой и выберите «Скачать медиафайл с помощью dm»."
+  },
+  "panelHls": {
+    "message": "Поток HLS, лучшее качество"
+  },
+  "panelDownload": {
+    "message": "Загрузить"
+  }
+}

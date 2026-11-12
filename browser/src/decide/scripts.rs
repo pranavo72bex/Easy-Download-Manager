@@ -10,30 +10,26 @@
 //! the message names are: a rule changed here and not there fails the build.
 
 // What the panel says, the full one (`content/handoff.rs`) and the plain one in `content.js`
-// (where the full one's WebAssembly cannot load) alike.
+// (where the full one's WebAssembly cannot load) alike, is in `crate::words`, in the browser's
+// language.
 
-/// The panel's button.
-pub const SAY_DOWNLOAD_VIDEO: &str = "Download video";
-/// While the app reads the video's qualities.
-pub const SAY_READING: &str = "Reading qualities…";
-/// While the choice is handed to the app.
-pub const SAY_SENDING: &str = "Sending to dm…";
-/// The app refused it.
-pub const SAY_NOT_TAKEN: &str = "dm could not take it";
-/// The page's script is older than the extension it talks to.
-pub const SAY_UPDATED: &str = "dm was updated: reload this page to use it";
-
-// What only the plain panel says.
-
-/// Before what the app said of it.
-pub const LITE_SENT: &str = "Sent to dm. ";
-/// The app gave no answer to the list of qualities.
-pub const LITE_NO_ANSWER: &str = "dm did not answer";
-/// Asking for the list failed.
-pub const LITE_FAILED: &str =
-    "dm did not answer. Try again, or right-click the video and choose Download media with dm.";
-/// The line for the HLS playlist the page's own player names.
-pub const LITE_HLS: &str = "HLS stream, best quality";
+/// The words the plain panel in `content.js` says, each through its `t(key, english)`.
+pub const LITE_WORDS: &[crate::words::Word] = {
+    use crate::words::*;
+    &[
+        PANEL_DOWNLOAD_VIDEO,
+        PANEL_HIDE,
+        PANEL_READING,
+        PANEL_SENDING,
+        PANEL_NOT_TAKEN,
+        PANEL_UPDATED,
+        PANEL_SENT,
+        PANEL_NO_ANSWER,
+        PANEL_FAILED,
+        PANEL_HLS,
+        PANEL_DOWNLOAD,
+    ]
+};
 
 /// The elements whose `src` names a video's HLS playlist, picture and sound together (Reddit's
 /// player), read by the plain panel where the MP4 files the player loads are the picture alone.
@@ -124,42 +120,48 @@ mod tests {
 
     #[test]
     fn the_plain_panel_says_what_the_full_one_says() {
-        for words in [
-            SAY_DOWNLOAD_VIDEO,
-            SAY_READING,
-            SAY_SENDING,
-            SAY_NOT_TAKEN,
-            SAY_UPDATED,
-            LITE_SENT,
-            LITE_NO_ANSWER,
-            LITE_FAILED,
-            LITE_HLS,
+        // Each of the plain panel's words through the browser's catalog, its English the
+        // fallback.
+        for word in LITE_WORDS {
+            let asked = format!("t('{}', '{}')", word.key, word.en);
+            assert!(CONTENT.contains(&asked), "content.js does not say {asked}");
+        }
+        // The background's answers, which it says in English, said in the browser's language as
+        // the full panel says them (`words::answered`), the English matched and its key asked.
+        for word in [
+            crate::words::PANEL_APP_READING,
+            crate::words::PANEL_APP_HAS,
+            crate::words::PANEL_APP_DOWNLOADING,
         ] {
-            assert!(
-                CONTENT.contains(&format!("'{words}'")),
-                "content.js: {words}"
+            let pair = format!("['{}', '{}']", word.key, word.en);
+            assert!(CONTENT.contains(&pair), "content.js does not answer {pair}");
+        }
+        assert!(CONTENT.contains("answered(reply.said"));
+        // No word of the catalog spelled out in content.js other than as `t`'s English, but the
+        // HLS line's label, which goes to the app as the list's own name for it.
+        let label = format!("label: '{}'", crate::words::PANEL_HLS.en);
+        let script = CONTENT.replacen(&label, "", 1);
+        for word in crate::words::ALL {
+            let spelled = format!("'{}'", word.en);
+            let asked = format!("t('{}', {spelled})", word.key);
+            let answer = format!("['{}', {spelled}]", word.key);
+            assert_eq!(
+                script.matches(&spelled).count(),
+                script.matches(&asked).count() + script.matches(&answer).count(),
+                "content.js spells out {spelled} outside t()"
             );
         }
-        // The full panel says the shared words from here, not words of its own (in its code; a
-        // comment may quote them).
-        let full = include_str!("../content/handoff.rs");
-        let code: String = full
-            .lines()
-            .filter(|l| !l.trim_start().starts_with("//"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        for (name, words) in [
-            ("SAY_DOWNLOAD_VIDEO", SAY_DOWNLOAD_VIDEO),
-            ("SAY_READING", SAY_READING),
-            ("SAY_SENDING", SAY_SENDING),
-            ("SAY_NOT_TAKEN", SAY_NOT_TAKEN),
-            ("SAY_UPDATED", SAY_UPDATED),
-        ] {
-            assert!(full.contains(name), "handoff.rs does not use {name}");
-            assert!(
-                !code.contains(&format!("\"{words}\"")),
-                "handoff.rs spells out {words}"
-            );
+        // The panel's words, said by the full panel too.
+        let full = [
+            include_str!("../content/handoff.rs"),
+            include_str!("../content/show.rs"),
+        ]
+        .concat();
+        for name in ["PANEL_DOWNLOAD_VIDEO", "PANEL_READING", "PANEL_SENDING"] {
+            assert!(full.contains(name), "the full panel does not say {name}");
+        }
+        for name in ["PANEL_NOT_TAKEN", "PANEL_UPDATED", "PANEL_SENT"] {
+            assert!(full.contains(name), "the full panel does not say {name}");
         }
     }
 

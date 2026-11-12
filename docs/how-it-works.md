@@ -305,7 +305,11 @@ have no hand-written JavaScript: a Manifest V3 background must register its
 listeners on its first turn, so `scripts/package.sh` writes the WebAssembly
 into the background's script (`pkg/background.js`), which starts it at once
 (`initSync`) and Rust registers them (`web/listen.rs`); the popup's script
-(`pkg/popup.js`) only starts the Rust. Permissions:
+(`pkg/popup.js`) only starts the Rust. Its words are the browser's language:
+each is named in `browser/src/words.rs` and read with `i18n.getMessage` from
+`extension/_locales` (English and the app's other languages), the English
+where the browser gives none; the background's reasons and notifications are
+English still. Permissions:
 `downloads`, `contextMenus`, `nativeMessaging`, `notifications`, `storage`
 (the app's catch rules, kept so a download is held at once; the popup's
 switches), `webRequest` with access to all sites (the media a page's player

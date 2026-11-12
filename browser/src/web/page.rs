@@ -140,12 +140,13 @@ pub(super) async fn hand_chosen(
     log("info", &format!("handed {} to the dm app", target.url));
     // A page goes to the app to be read for its video, which it may not be able to do (it
     // reads YouTube's pages; gaps row 155): said as that, never as the app having the video.
+    // In English here: the panel says each in the browser's language (`words::answered`).
     Ok(if target.page {
-        "the dm app is reading this page for its video".into()
+        crate::words::PANEL_APP_READING.en.into()
     } else if ask {
-        "the dm app has it".into()
+        crate::words::PANEL_APP_HAS.en.into()
     } else {
-        "the dm app is downloading it".into()
+        crate::words::PANEL_APP_DOWNLOADING.en.into()
     })
 }
 

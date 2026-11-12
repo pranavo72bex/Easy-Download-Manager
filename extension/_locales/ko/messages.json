@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — 다운로드 관리자"
+  },
+  "extDescription": {
+    "message": "다운로드와 동영상을 dm 앱에 넘겨 앱이 다운로드합니다. 앱이 없으면 브라우저가 그대로 보관합니다."
+  },
+  "menuLink": {
+    "message": "dm으로 링크 내려받기"
+  },
+  "menuMedia": {
+    "message": "dm으로 미디어 내려받기"
+  },
+  "menuAllLinks": {
+    "message": "dm으로 모든 링크 내려받기"
+  },
+  "menuSelectedLinks": {
+    "message": "dm으로 선택한 링크 내려받기"
+  },
+  "popupLooking": {
+    "message": "dm 앱을 찾는 중…"
+  },
+  "popupCatch": {
+    "message": "다운로드 가로채기"
+  },
+  "popupPanelHere": {
+    "message": "이 사이트에서 “동영상 다운로드” 표시"
+  },
+  "popupPanelOn": {
+    "message": "$SITE$에서 “동영상 다운로드” 표시",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "이 페이지에는 동영상 패널이 없습니다"
+  },
+  "popupCatchAllHere": {
+    "message": "이 사이트의 모든 다운로드 가져오기"
+  },
+  "popupCatchAllOn": {
+    "message": "$SITE$의 모든 다운로드 가져오기",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "이 페이지에서 가져올 다운로드가 없습니다"
+  },
+  "popupPausedHere": {
+    "message": "이 사이트에서 가로채기 일시 중지"
+  },
+  "popupPausedOn": {
+    "message": "$SITE$에서 가로채기 일시 중지",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "이 페이지에서 일시 중지할 다운로드가 없습니다"
+  },
+  "popupCookiesHere": {
+    "message": "이 사이트의 로그인 정보를 다운로드와 함께 넘기기"
+  },
+  "popupCookiesOn": {
+    "message": "$SITE$의 로그인 정보를 다운로드와 함께 넘기기",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "이 페이지에서 넘길 로그인 정보가 없습니다"
+  },
+  "popupOpen": {
+    "message": "dm 열기"
+  },
+  "popupGetApp": {
+    "message": "dm 앱 받기"
+  },
+  "popupNoAnswer": {
+    "message": "dm 앱이 응답하지 않았습니다"
+  },
+  "popupOpening": {
+    "message": "dm을 여는 중…"
+  },
+  "popupIsOpen": {
+    "message": "dm이 열렸습니다"
+  },
+  "popupConnected": {
+    "message": "dm $VERSION$에 연결됨",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "dm $VERSION$에 연결됨 · dm 앱을 업데이트하세요. 그때까지는 브라우저가 다운로드를 보관합니다",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "$SITES$ 전체에 설정되어 있었으므로 그곳도 함께 바뀝니다",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$, $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm이 아직 이 브라우저에 연결되지 않았습니다. 이 컴퓨터에 dm 앱이 아직 없나요? 아래의 “dm 앱 받기”를 클릭해 설치한 뒤 한 번 여세요. 이미 설치했다면: dm을 한 번 열어(이미 열려 있으면 다시 열어) 연결되게 한 다음 이 창을 다시 여세요. 고급: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm이 응답하지 않았습니다($REASON$). dm을 열고(이미 열려 있으면 다시 열고) 이 창을 다시 여세요. 그래도 응답하지 않으면: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "동영상 다운로드"
+  },
+  "panelDownloadAudio": {
+    "message": "이 오디오 다운로드"
+  },
+  "panelProtected": {
+    "message": "보호된 동영상"
+  },
+  "panelProtectedSaid": {
+    "message": "이 동영상은 복사 방지되어 있어 사이트 자체 플레이어에서만 재생할 수 있습니다. dm은 보호된 동영상을 다운로드하지 않습니다."
+  },
+  "panelThroughApp": {
+    "message": "이 페이지, dm 앱을 통해"
+  },
+  "panelHelp": {
+    "message": "dm은 이 동영상을 dm 앱으로 다운로드하며, 이름과 폴더는 앱에서 고릅니다. 브라우저에 남기는 키(dm 옵션에서 바꾸지 않았다면 Alt)를 누른 채 클릭한 링크는 브라우저에 남습니다."
+  },
+  "panelDrag": {
+    "message": "드래그하여 이동"
+  },
+  "panelWhat": {
+    "message": "이게 뭔가요?"
+  },
+  "panelHide": {
+    "message": "숨기기"
+  },
+  "panelHideForNow": {
+    "message": "지금은 숨기기"
+  },
+  "panelNeverOn": {
+    "message": "$SITE$에서는 표시 안 함",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "이 사이트"
+  },
+  "panelReading": {
+    "message": "화질을 읽는 중…"
+  },
+  "panelReadingSaid": {
+    "message": "dm이 이 페이지의 동영상 화질을 읽고 있습니다. 최대 30초 정도 걸릴 수 있습니다."
+  },
+  "panelTimedOut": {
+    "message": "dm이 제시간에 응답하지 않았습니다. 다시 시도하거나 동영상을 마우스 오른쪽 버튼으로 클릭하고 “dm으로 미디어 내려받기”를 선택하세요."
+  },
+  "panelSending": {
+    "message": "dm으로 보내는 중…"
+  },
+  "panelNotTaken": {
+    "message": "dm이 받을 수 없었습니다"
+  },
+  "panelUpdated": {
+    "message": "dm이 업데이트되었습니다. 사용하려면 이 페이지를 새로 고치세요"
+  },
+  "panelSent": {
+    "message": "dm으로 보냄"
+  },
+  "panelInBrowser": {
+    "message": "브라우저에서 다운로드 중"
+  },
+  "panelDownloadAll": {
+    "message": "모두 다운로드"
+  },
+  "panelPart": {
+    "message": "일부"
+  },
+  "panelPartTo": {
+    "message": "끝"
+  },
+  "panelPartStart": {
+    "message": "일부 시작"
+  },
+  "panelPartEnd": {
+    "message": "일부 끝"
+  },
+  "panelFileQuality": {
+    "message": "$KIND$ 파일, 화질 $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "dm 앱이 이 페이지에서 동영상을 읽고 있습니다"
+  },
+  "panelAppHas": {
+    "message": "dm 앱이 받았습니다"
+  },
+  "panelAppDownloading": {
+    "message": "dm 앱이 다운로드하고 있습니다"
+  },
+  "panelNoAnswer": {
+    "message": "dm이 응답하지 않았습니다"
+  },
+  "panelFailed": {
+    "message": "dm이 응답하지 않았습니다. 다시 시도하거나 동영상을 마우스 오른쪽 버튼으로 클릭하고 “dm으로 미디어 내려받기”를 선택하세요."
+  },
+  "panelHls": {
+    "message": "HLS 스트림, 최고 화질"
+  },
+  "panelDownload": {
+    "message": "다운로드"
+  }
+}

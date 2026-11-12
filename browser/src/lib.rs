@@ -33,6 +33,7 @@
 #![warn(missing_docs)]
 pub mod decide;
 pub mod panel;
+pub mod words;
 
 #[cfg(target_arch = "wasm32")]
 mod content;

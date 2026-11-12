@@ -44,6 +44,15 @@ pub(super) fn build(document: &Document) -> Option<Panel> {
     let help = root.query_selector(".help").ok()??;
     let grip = root.query_selector(".grip").ok()??;
     let close = root.query_selector(".close").ok()??;
+    // The names BODY gives in English, in the browser's language.
+    for (selector, attributes, word) in panel::NAMED {
+        if let Ok(Some(named)) = root.query_selector(selector) {
+            let said = word.say();
+            for attribute in *attributes {
+                let _ = named.set_attribute(attribute, &said);
+            }
+        }
+    }
     let parent: Element = document
         .body()
         .map(Into::into)
@@ -117,9 +126,10 @@ pub(super) fn build(document: &Document) -> Option<Panel> {
         event.prevent_default();
         event.stop_propagation();
         with_panel(|p| {
-            let showing =
-                !p.sub.has_attribute("hidden") && p.sub.text_content().as_deref() == Some(HELP);
-            say(p, if showing { "" } else { HELP });
+            let help = line_of(&words::PANEL_HELP.say());
+            let showing = !p.sub.has_attribute("hidden")
+                && p.sub.text_content().as_deref() == Some(help.as_str());
+            say(p, if showing { "" } else { &help });
         });
     });
     // × offers two ways to go: for now, or for this whole site.

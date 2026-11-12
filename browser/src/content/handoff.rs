@@ -327,7 +327,7 @@ pub(super) fn clicked() {
     if with_panel(|p| {
         let protected = p.go.has_attribute("data-protected");
         if protected {
-            say(p, decide::PROTECTED_SAID);
+            say(p, &words::PANEL_PROTECTED_SAID.say());
         }
         protected
     })
@@ -347,14 +347,11 @@ pub(super) fn clicked() {
         p.settled = true;
         // Short enough for the bar's title, which cut the longer one to
         // "Reading the vi…".
-        set_title(p, decide::SAY_READING);
+        set_title(p, &words::PANEL_READING.say());
         close_list(p);
         // Said, so a wait is not taken for a hang: reading a video page can
         // take up to half a minute.
-        say(
-            p,
-            "dm is reading this page's video qualities; this can take up to half a minute.",
-        );
+        say(p, &words::PANEL_READING_SAID.say());
     });
     let pending = reading(&src, &frame);
     // YouTube's own player lists its qualities in a moment: shown at once,
@@ -398,7 +395,7 @@ pub(super) fn clicked() {
             move || {
                 if !answered.replace(true) && !fast.get() {
                     stop.set(true);
-                    failed("dm did not answer in time. Try again, or right-click the video and choose Download media with dm.");
+                    failed(&words::PANEL_TIMED_OUT.say());
                 }
             },
             decide::FORMATS_PATIENCE_MS,
@@ -420,7 +417,7 @@ pub(super) fn clicked() {
             Err(e) => {
                 stop.set(true);
                 web_sys::console::debug_2(&"dm: the panel's message was not delivered:".into(), &e);
-                failed(decide::SAY_UPDATED);
+                failed(&words::PANEL_UPDATED.say());
                 return;
             }
         };
@@ -561,7 +558,7 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     // kind and quality (gaps row 72a).
     let title = video_title(&document);
     let first = with_panel(|p| {
-        set_title(p, decide::SAY_DOWNLOAD_VIDEO);
+        set_title(p, &words::PANEL_DOWNLOAD_VIDEO.say());
         close_list(p);
         // Reference A's first line: every quality listed, handed over at
         // once; the app asks about each in turn (gaps row 72b).
@@ -570,7 +567,7 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
                 // Looks as a line does; told apart from the qualities.
                 all.set_class_name("item all");
                 let _ = all.set_attribute("role", "menuitem");
-                all.set_text_content(Some(decide::DOWNLOAD_ALL));
+                all.set_text_content(Some(&words::PANEL_DOWNLOAD_ALL.say()));
                 let (src, frame, every) = (src.to_string(), frame.to_string(), choices.clone());
                 listen(&all, "click", move |event| {
                     event.prevent_default();
@@ -617,18 +614,21 @@ fn part_line(document: &web_sys::Document, p: &Panel) {
     };
     row.set_class_name("part");
     let mut fields = Vec::new();
-    for (word, class, name) in [("Part", "from", "Part start"), ("to", "to", "Part end")] {
+    for (word, class, name) in [
+        (words::PANEL_PART, "from", words::PANEL_PART_START),
+        (words::PANEL_PART_TO, "to", words::PANEL_PART_END),
+    ] {
         let Ok(label) = document.create_element("span") else {
             return;
         };
-        label.set_text_content(Some(word));
+        label.set_text_content(Some(&word.say()));
         let Ok(input) = document.create_element("input") else {
             return;
         };
         input.set_class_name(class);
         let _ = input.set_attribute("type", "text");
         let _ = input.set_attribute("placeholder", "m:ss");
-        let _ = input.set_attribute("aria-label", name);
+        let _ = input.set_attribute("aria-label", &name.say());
         let _ = input.set_attribute("autocomplete", "off");
         let _ = input.set_attribute("spellcheck", "false");
         let _ = input.set_attribute("maxlength", "16");
@@ -678,7 +678,7 @@ pub(super) fn failed(said: &str) {
     with_panel(|p| {
         p.settled = true;
         p.wrap.set_class_name("wrap dead");
-        set_title(p, decide::SAY_NOT_TAKEN);
+        set_title(p, &words::PANEL_NOT_TAKEN.say());
         say(p, said);
     });
     hide_soon(6000);
@@ -727,7 +727,7 @@ pub(super) fn hand_with(
     with_panel(|p| {
         p.settled = true;
         close_list(p);
-        set_title(p, decide::SAY_SENDING);
+        set_title(p, &words::PANEL_SENDING.say());
     });
     wasm_bindgen_futures::spawn_local(async move {
         let answer = send(message.into()).await;
@@ -742,7 +742,7 @@ pub(super) fn hand_with(
             // The extension was updated or removed under this page.
             Err(e) => {
                 web_sys::console::debug_2(&"dm: the panel's message was not delivered:".into(), &e);
-                (false, decide::SAY_UPDATED.into())
+                (false, words::PANEL_UPDATED.say())
             }
         };
         if !ok {
@@ -751,19 +751,22 @@ pub(super) fn hand_with(
         }
         // dm could not take it and the browser is downloading it instead:
         // said as that, not as sent.
-        let title = if said.starts_with("the browser is downloading it") {
-            "Downloading in the browser"
+        let in_browser = said.starts_with("the browser is downloading it");
+        let title = if in_browser {
+            words::PANEL_IN_BROWSER
         } else {
-            "Sent to dm"
+            words::PANEL_SENT
         };
-        // The quality it was sent at, where the page said one, ahead of what the app said.
+        // The background's answer in the browser's language, and the quality it was sent at,
+        // where the page said one, ahead of it.
+        let said = words::answered(&said);
         let said = match label.as_deref().filter(|l| !l.is_empty()) {
-            Some(label) if title == "Sent to dm" => format!("{label}: {said}"),
+            Some(label) if !in_browser => format!("{label}: {said}"),
             _ => said,
         };
         with_panel(|p| {
             p.wrap.set_class_name("wrap done");
-            set_title(p, title);
+            set_title(p, &title.say());
             say(p, &said);
         });
         hide_soon(2500);
@@ -782,6 +785,7 @@ pub(super) async fn send(message: JsValue) -> Result<JsValue, JsValue> {
 /// WebAssembly has loaded. Runs once per page and frame.
 #[wasm_bindgen]
 pub fn content_start(ext: JsValue) {
+    words::use_api(&ext);
     EXT.with(|cell| *cell.borrow_mut() = ext);
     let Some(document) = document() else {
         return;

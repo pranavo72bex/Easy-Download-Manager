@@ -40,10 +40,11 @@ if [ -z "$py" ]; then
 fi
 
 # The stores refuse a description over 132 characters (Edge Add-ons said
-# so on a manual upload); refused here first.
-for manifest in "$root/extension/manifest.json" "$root/extension/manifest.firefox.json"; do
-  if ! "$py" -c "import json,sys; d=json.load(open(sys.argv[1]))['description']; sys.exit(len(d) > 132)" "$manifest"; then
-    echo "$manifest: the description is over the stores' 132 characters" >&2
+# so on a manual upload); refused here first. The manifests take it from
+# each language's catalog (extension/_locales), so each is checked.
+for messages in "$root"/extension/_locales/*/messages.json; do
+  if ! "$py" -c "import json,sys; d=json.load(open(sys.argv[1], encoding='utf-8'))['extDescription']['message']; sys.exit(len(d) > 132)" "$messages"; then
+    echo "$messages: the description is over the stores' 132 characters" >&2
     exit 1
   fi
 done
@@ -132,7 +133,7 @@ echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAss
 
 # Everything the browser loads, listed rather than globbed so nothing stray
 # ships; the check below compares it with what the manifests name.
-files="content.js document.js popup.html pkg icons"
+files="content.js document.js popup.html pkg icons _locales"
 
 # Built beside the folder and swapped in whole: a browser with dist/chrome
 # loaded as an unpacked extension (a developer's, or a tester's) restarts the
@@ -160,7 +161,8 @@ pack() {
   # Every file a manifest names must be in what ships, and so must the
   # module the loader imports and the WebAssembly that module fetches.
   for named in $(sed -n 's/.*"\(icons\/[^"]*\)".*/\1/p; s/.*"\(pkg\/background\.js\)".*/\1/p; s/.*"\(content\.js\)".*/\1/p; s/.*"\(document\.js\)".*/\1/p; s/.*"\(popup\.html\)".*/\1/p' "$stage/manifest.json") \
-               pkg/popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js pkg/background.js; do
+               pkg/popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js pkg/background.js \
+               _locales/en/messages.json; do
     if [ ! -f "$stage/$named" ]; then
       echo "the $browser build is missing $named" >&2
       exit 1

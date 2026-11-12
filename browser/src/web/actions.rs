@@ -89,6 +89,8 @@ pub(super) async fn make_menus_without(hidden: &[String]) {
         if hidden.iter().any(|h| h == id) {
             continue;
         }
+        // In the browser's language: the menus are made again at each start.
+        let title = title.say();
         let item = to_js(&serde_json::json!({ "id": id, "title": title, "contexts": contexts }));
         // With a callback, so a refusal is read here rather than reported
         // by the browser as an unchecked error.

@@ -11,6 +11,7 @@
 //! are decided here.
 
 use super::*;
+use crate::words::{self, Word};
 
 /// A video or audio element the page script found.
 #[derive(Deserialize, Default, Debug, Clone)]
@@ -29,8 +30,8 @@ pub struct Media {
 /// What the panel offers for one element.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Offer {
-    /// The panel's heading.
-    pub title: &'static str,
+    /// The panel's heading, said in the browser's language where it is drawn.
+    pub title: Word,
     /// Where the file comes from, or how it is fetched: the bar's tooltip.
     pub sub: String,
     /// A player page rather than a file: its qualities are listed, so the
@@ -47,8 +48,8 @@ pub const MIN_AUDIO: (f64, f64) = (160.0, 24.0);
 /// Whether a media element gets the panel, and what it says.
 pub fn offer(media: &Media) -> Option<Offer> {
     let (min_w, min_h, title) = match media.tag.to_ascii_lowercase().as_str() {
-        "video" => (MIN_VIDEO.0, MIN_VIDEO.1, "Download video"),
-        "audio" => (MIN_AUDIO.0, MIN_AUDIO.1, "Download this audio"),
+        "video" => (MIN_VIDEO.0, MIN_VIDEO.1, words::PANEL_DOWNLOAD_VIDEO),
+        "audio" => (MIN_AUDIO.0, MIN_AUDIO.1, words::PANEL_DOWNLOAD_AUDIO),
         _ => return None,
     };
     if !(media.width >= min_w && media.height >= min_h) {
@@ -60,7 +61,7 @@ pub fn offer(media: &Media) -> Option<Offer> {
     } else {
         // A `blob:` or Media Source player: no file exists to fetch, so the
         // page goes to the app, which reads it.
-        "this page, through the dm app".to_string()
+        words::PANEL_THROUGH_APP.say()
     };
     Some(Offer {
         title,
@@ -228,10 +229,6 @@ pub fn part_text(typed: &str) -> String {
         .collect()
 }
 
-/// The panel list's first line, as reference A's: every quality listed,
-/// handed over at once (gaps row 72b).
-pub const DOWNLOAD_ALL: &str = "Download all";
-
 /// The most of a video's title a list line carries before "…".
 pub const LINE_TITLE_MOST: usize = 40;
 
@@ -262,10 +259,13 @@ pub fn reference_line(number: usize, title: &str, line: &str) -> String {
         _ => (container, String::new()),
     };
     let quality = match height.strip_suffix('p').and_then(|h| h.parse::<u32>().ok()) {
-        Some(height) if !container.contains(' ') => format!(
-            "{container} file, quality {height}p{}{rate}{size}",
-            if height >= 720 { " HD" } else { "" }
-        ),
+        Some(height) if !container.contains(' ') => words::PANEL_FILE_QUALITY.with(&[
+            container,
+            &format!(
+                "{height}p{}{rate}{size}",
+                if height >= 720 { " HD" } else { "" }
+            ),
+        ]),
         _ => line.to_string(),
     };
     let title = title.trim();
@@ -303,14 +303,6 @@ pub fn human_size(bytes: u64) -> String {
         format!("{value:.0} {unit}")
     }
 }
-
-/// What the panel says over a copy-protected player (one the page plays
-/// through the browser's DRM, EME): offered nothing, and said so, rather
-/// than handing over something that could only fail or come out scrambled.
-pub const PROTECTED_TITLE: &str = "Protected video";
-/// What the panel says over a protected video.
-pub const PROTECTED_SAID: &str =
-    "This video is copy-protected, so only the site's own player can play it. dm does not download protected video.";
 
 /// The message type a panel click is sent as.
 pub const PANEL_MESSAGE: &str = "dm.media";

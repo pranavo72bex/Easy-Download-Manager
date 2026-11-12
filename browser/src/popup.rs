@@ -33,6 +33,7 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{Document, Element, HtmlInputElement};
 
 use crate::decide;
+use crate::words::{self, Word};
 
 fn document() -> Option<Document> {
     web_sys::window()?.document()
@@ -103,6 +104,30 @@ fn say(text: &str, bad: bool) {
     }
 }
 
+/// The page's own words (`popup.html`, each marked `data-i18n` with its key) in the browser's
+/// language, and the page's `lang` with them, so a screen reader reads them in it. A key the
+/// list does not know leaves its English.
+fn in_browser_language() {
+    let Some(document) = document() else {
+        return;
+    };
+    if let (Some(root), Some(language)) = (document.document_element(), words::ui_language()) {
+        let _ = root.set_attribute("lang", &language);
+    }
+    let Ok(marked) = document.query_selector_all("[data-i18n]") else {
+        return;
+    };
+    for at in 0..marked.length() {
+        let Some(element) = marked.item(at).and_then(|n| n.dyn_into::<Element>().ok()) else {
+            continue;
+        };
+        let key = element.get_attribute("data-i18n").unwrap_or_default();
+        if let Some(word) = words::ALL.iter().find(|w| w.key == key) {
+            element.set_text_content(Some(&word.say()));
+        }
+    }
+}
+
 fn on_change(element: &Element, handler: impl Fn() + 'static) {
     let closure = Closure::<dyn Fn()>::new(handler);
     let _ = element.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref());
@@ -136,10 +161,10 @@ struct SiteSwitch {
     /// Whether a listed site reads as on (the panel's list is of sites it
     /// is kept off).
     listed_is_on: bool,
-    /// The label, given the site.
-    says: fn(&str) -> String,
+    /// The label, its gap filled with the site.
+    says: Word,
     /// The label on a page that is not a site.
-    none: &'static str,
+    none: Word,
 }
 
 /// Draws a per-site switch for the tab in front and wires it. Turned off
@@ -157,10 +182,10 @@ async fn site_switch(ext: JsValue, switch: SiteSwitch) {
         input.set_disabled(true);
         input.set_checked(false);
         row.set_class_name("row off");
-        label.set_text_content(Some(switch.none));
+        label.set_text_content(Some(&switch.none.say()));
         return;
     };
-    label.set_text_content(Some(&(switch.says)(&site)));
+    label.set_text_content(Some(&switch.says.with(&[&site])));
     let listed = sites(&stored(&ext, switch.key).await);
     input.set_checked(decide::site_listed(&listed, &url) == switch.listed_is_on);
     let box_ = input.clone();
@@ -200,12 +225,10 @@ async fn cookies_switch(ext: JsValue) {
         input.set_disabled(true);
         input.set_checked(false);
         row.set_class_name("row off");
-        label.set_text_content(Some("No sign-in to hand over from this page"));
+        label.set_text_content(Some(&words::POPUP_COOKIES_NONE.say()));
         return;
     };
-    label.set_text_content(Some(&format!(
-        "Hand over {site}'s sign-in with its downloads"
-    )));
+    label.set_text_content(Some(&words::POPUP_COOKIES_ON.with(&[&site])));
     let listed = sites(&stored(&ext, decide::COOKIES_SITES_KEY).await);
     input.set_checked(decide::cookies_wanted(&listed, &url));
     // Kept here, so a switch-on can store the site without waiting.
@@ -246,6 +269,7 @@ fn extension() -> JsValue {
 /// writes, starts it).
 #[wasm_bindgen]
 pub fn popup_start() {
+    in_browser_language();
     let ext = extension();
     // The app, asked through the background, which owns the connection.
     let asked = ext.clone();
@@ -278,14 +302,12 @@ pub fn popup_start() {
                 }
             }
             let said = text(&reply, "said");
-            say(
-                if said.is_empty() {
-                    "The dm app did not answer"
-                } else {
-                    &said
-                },
-                true,
-            );
+            let said = if said.is_empty() {
+                words::POPUP_NO_ANSWER.say()
+            } else {
+                said
+            };
+            say(&said, true);
         }
     });
 
@@ -314,8 +336,8 @@ pub fn popup_start() {
             label: "panel-label",
             key: decide::PANEL_OFF_KEY,
             listed_is_on: false,
-            says: |site| format!("Show “Download video” on {site}"),
-            none: "No video panel on this page",
+            says: words::POPUP_PANEL_ON,
+            none: words::POPUP_PANEL_NONE,
         },
     ));
 
@@ -329,8 +351,8 @@ pub fn popup_start() {
             label: "catchall-label",
             key: decide::CATCH_ALL_KEY,
             listed_is_on: true,
-            says: |site| format!("Take every download from {site}"),
-            none: "No downloads to take from this page",
+            says: words::POPUP_CATCH_ALL_ON,
+            none: words::POPUP_CATCH_ALL_NONE,
         },
     ));
 
@@ -343,8 +365,8 @@ pub fn popup_start() {
             label: "paused-label",
             key: decide::PAUSED_KEY,
             listed_is_on: true,
-            says: |site| format!("Pause capturing on {site}"),
-            none: "No downloads to pause on this page",
+            says: words::POPUP_PAUSED_ON,
+            none: words::POPUP_PAUSED_NONE,
         },
     ));
 
@@ -357,14 +379,14 @@ pub fn popup_start() {
         let closure = Closure::<dyn Fn()>::new(move || {
             let ext = ext.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                say("Opening dm…", false);
+                say(&words::POPUP_OPENING.say(), false);
                 let reply = ask(&ext, decide::OPEN_MESSAGE).await;
                 let ok = Reflect::get(&reply, &"ok".into())
                     .ok()
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
                 if ok {
-                    say("dm is open", false);
+                    say(&words::POPUP_IS_OPEN.say(), false);
                     if let Some(window) = web_sys::window() {
                         let _ = window.close();
                     }

@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — Pengelola Unduhan"
+  },
+  "extDescription": {
+    "message": "Menyerahkan unduhan dan video ke aplikasi dm, yang mengunduhnya. Tanpa aplikasi, browser menyimpannya."
+  },
+  "menuLink": {
+    "message": "Unduh tautan dengan dm"
+  },
+  "menuMedia": {
+    "message": "Unduh media dengan dm"
+  },
+  "menuAllLinks": {
+    "message": "Unduh semua tautan dengan dm"
+  },
+  "menuSelectedLinks": {
+    "message": "Unduh tautan terpilih dengan dm"
+  },
+  "popupLooking": {
+    "message": "Mencari aplikasi dm…"
+  },
+  "popupCatch": {
+    "message": "Tangkap unduhan"
+  },
+  "popupPanelHere": {
+    "message": "Tampilkan “Unduh video” di situs ini"
+  },
+  "popupPanelOn": {
+    "message": "Tampilkan “Unduh video” di $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "Tidak ada panel video di halaman ini"
+  },
+  "popupCatchAllHere": {
+    "message": "Ambil setiap unduhan dari situs ini"
+  },
+  "popupCatchAllOn": {
+    "message": "Ambil setiap unduhan dari $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "Tidak ada unduhan untuk diambil dari halaman ini"
+  },
+  "popupPausedHere": {
+    "message": "Jeda penangkapan di situs ini"
+  },
+  "popupPausedOn": {
+    "message": "Jeda penangkapan di $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "Tidak ada unduhan untuk dijeda di halaman ini"
+  },
+  "popupCookiesHere": {
+    "message": "Serahkan login situs ini bersama unduhannya"
+  },
+  "popupCookiesOn": {
+    "message": "Serahkan login $SITE$ bersama unduhannya",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "Tidak ada login untuk diserahkan dari halaman ini"
+  },
+  "popupOpen": {
+    "message": "Buka dm"
+  },
+  "popupGetApp": {
+    "message": "Dapatkan aplikasi dm"
+  },
+  "popupNoAnswer": {
+    "message": "Aplikasi dm tidak menjawab"
+  },
+  "popupOpening": {
+    "message": "Membuka dm…"
+  },
+  "popupIsOpen": {
+    "message": "dm sudah terbuka"
+  },
+  "popupConnected": {
+    "message": "Terhubung ke dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "Terhubung ke dm $VERSION$ · perbarui aplikasi dm: sampai saat itu browser menyimpan unduhannya",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "Itu diatur untuk seluruh $SITES$, jadi diubah di sana juga",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ dan $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm belum terhubung ke browser ini. Belum ada aplikasi dm di komputer ini? Klik “Dapatkan aplikasi dm” di bawah, pasang, lalu buka sekali. Sudah terpasang: buka dm sekali (jika sudah terbuka, buka lagi) agar dapat terhubung, lalu buka kembali jendela ini. Lanjutan: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm tidak menjawab ($REASON$). Buka dm (jika sudah terbuka, buka lagi), lalu buka kembali jendela ini. Jika masih tidak menjawab: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "Unduh video"
+  },
+  "panelDownloadAudio": {
+    "message": "Unduh audio ini"
+  },
+  "panelProtected": {
+    "message": "Video terlindungi"
+  },
+  "panelProtectedSaid": {
+    "message": "Video ini dilindungi dari penyalinan, jadi hanya pemutar milik situs itu sendiri yang dapat memutarnya. dm tidak mengunduh video terlindungi."
+  },
+  "panelThroughApp": {
+    "message": "halaman ini, melalui aplikasi dm"
+  },
+  "panelHelp": {
+    "message": "dm mengunduh video ini dengan aplikasi dm, tempat Anda memilih nama dan foldernya. Tautan yang diklik sambil menahan tombol simpan (Alt, kecuali diubah di Opsi dm) tetap di browser."
+  },
+  "panelDrag": {
+    "message": "Seret untuk memindahkan"
+  },
+  "panelWhat": {
+    "message": "Apa ini?"
+  },
+  "panelHide": {
+    "message": "Sembunyikan"
+  },
+  "panelHideForNow": {
+    "message": "Sembunyikan untuk sekarang"
+  },
+  "panelNeverOn": {
+    "message": "Jangan pernah di $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "situs ini"
+  },
+  "panelReading": {
+    "message": "Membaca kualitas…"
+  },
+  "panelReadingSaid": {
+    "message": "dm sedang membaca kualitas video halaman ini; ini bisa memakan waktu hingga setengah menit."
+  },
+  "panelTimedOut": {
+    "message": "dm tidak menjawab tepat waktu. Coba lagi, atau klik kanan video lalu pilih “Unduh media dengan dm”."
+  },
+  "panelSending": {
+    "message": "Mengirim ke dm…"
+  },
+  "panelNotTaken": {
+    "message": "dm tidak dapat mengambilnya"
+  },
+  "panelUpdated": {
+    "message": "dm telah diperbarui: muat ulang halaman ini untuk menggunakannya"
+  },
+  "panelSent": {
+    "message": "Terkirim ke dm"
+  },
+  "panelInBrowser": {
+    "message": "Mengunduh di browser"
+  },
+  "panelDownloadAll": {
+    "message": "Unduh semua"
+  },
+  "panelPart": {
+    "message": "Bagian"
+  },
+  "panelPartTo": {
+    "message": "sampai"
+  },
+  "panelPartStart": {
+    "message": "Awal bagian"
+  },
+  "panelPartEnd": {
+    "message": "Akhir bagian"
+  },
+  "panelFileQuality": {
+    "message": "Berkas $KIND$, kualitas $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "Aplikasi dm sedang membaca halaman ini untuk videonya"
+  },
+  "panelAppHas": {
+    "message": "Aplikasi dm sudah menerimanya"
+  },
+  "panelAppDownloading": {
+    "message": "Aplikasi dm sedang mengunduhnya"
+  },
+  "panelNoAnswer": {
+    "message": "dm tidak menjawab"
+  },
+  "panelFailed": {
+    "message": "dm tidak menjawab. Coba lagi, atau klik kanan video lalu pilih “Unduh media dengan dm”."
+  },
+  "panelHls": {
+    "message": "Stream HLS, kualitas terbaik"
+  },
+  "panelDownload": {
+    "message": "Unduh"
+  }
+}

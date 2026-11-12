@@ -64,6 +64,10 @@ extension that hands it the browser's downloads.
   `extension/pkg`, `dist/chrome` and `dist/firefox`, and writes the scripts that start the background
   and the popup (`pkg/background.js`, with the WebAssembly in it so Rust registers the listeners on the
   worker's first turn, `web/listen.rs`; `pkg/popup.js`): they have no JavaScript of their own.
+  What the extension says (the popup, the four menu items, the panel, its name) is listed in
+  `browser/src/words.rs` and said through the browser's own `i18n` from `extension/_locales`,
+  one catalog per language the app speaks; a word added there needs an entry in every catalog,
+  which `words/tests.rs` checks.
 - `scripts/` holds the checks that drive the built program, a browser or a
   container; `docs/testing.md` lists them.
 - `shared/naming-cases.json` holds the filename cases the engine is held to.

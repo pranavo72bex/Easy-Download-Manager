@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "dm — Download Manager",
+  "name": "__MSG_extName__",
   "version": "3.3.0",
-  "description": "Hands downloads and videos to the dm app, which downloads them. With no app, the browser keeps them.",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
   "permissions": [
     "downloads",
     "contextMenus",

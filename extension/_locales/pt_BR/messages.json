@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — Gerenciador de downloads"
+  },
+  "extDescription": {
+    "message": "Entrega downloads e vídeos ao app dm, que os baixa. Sem o app, o navegador fica com eles."
+  },
+  "menuLink": {
+    "message": "Baixar o link com o dm"
+  },
+  "menuMedia": {
+    "message": "Baixar a mídia com o dm"
+  },
+  "menuAllLinks": {
+    "message": "Baixar todos os links com o dm"
+  },
+  "menuSelectedLinks": {
+    "message": "Baixar os links selecionados com o dm"
+  },
+  "popupLooking": {
+    "message": "Procurando o app dm…"
+  },
+  "popupCatch": {
+    "message": "Capturar downloads"
+  },
+  "popupPanelHere": {
+    "message": "Mostrar “Baixar vídeo” neste site"
+  },
+  "popupPanelOn": {
+    "message": "Mostrar “Baixar vídeo” em $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "Nenhum painel de vídeo nesta página"
+  },
+  "popupCatchAllHere": {
+    "message": "Pegar todos os downloads deste site"
+  },
+  "popupCatchAllOn": {
+    "message": "Pegar todos os downloads de $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "Nenhum download para pegar desta página"
+  },
+  "popupPausedHere": {
+    "message": "Pausar a captura neste site"
+  },
+  "popupPausedOn": {
+    "message": "Pausar a captura em $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "Nenhum download para pausar nesta página"
+  },
+  "popupCookiesHere": {
+    "message": "Entregar o login deste site com os downloads dele"
+  },
+  "popupCookiesOn": {
+    "message": "Entregar o login de $SITE$ com os downloads dele",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "Nenhum login para entregar desta página"
+  },
+  "popupOpen": {
+    "message": "Abrir o dm"
+  },
+  "popupGetApp": {
+    "message": "Obter o app dm"
+  },
+  "popupNoAnswer": {
+    "message": "O app dm não respondeu"
+  },
+  "popupOpening": {
+    "message": "Abrindo o dm…"
+  },
+  "popupIsOpen": {
+    "message": "O dm está aberto"
+  },
+  "popupConnected": {
+    "message": "Conectado ao dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "Conectado ao dm $VERSION$ · atualize o app dm: até lá o navegador fica com os downloads",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "Isso estava definido para todo o $SITES$, então foi alterado lá também",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ e $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "O dm ainda não está conectado a este navegador. Ainda não tem o app dm neste computador? Clique em “Obter o app dm” abaixo, instale-o e abra-o uma vez. Já instalado: abra o dm uma vez (se já estiver aberto, abra-o de novo) para que ele possa se conectar e depois reabra esta janela. Avançado: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "O dm não respondeu ($REASON$). Abra o dm (se já estiver aberto, abra-o de novo) e depois reabra esta janela. Se ainda não responder: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "Baixar vídeo"
+  },
+  "panelDownloadAudio": {
+    "message": "Baixar este áudio"
+  },
+  "panelProtected": {
+    "message": "Vídeo protegido"
+  },
+  "panelProtectedSaid": {
+    "message": "Este vídeo é protegido contra cópia, então só o próprio player do site pode reproduzi-lo. O dm não baixa vídeo protegido."
+  },
+  "panelThroughApp": {
+    "message": "esta página, pelo app dm"
+  },
+  "panelHelp": {
+    "message": "O dm baixa este vídeo com o app dm, onde você escolhe o nome e a pasta. Um link clicado com a tecla de manter pressionada (Alt, a menos que alterada nas Opções do dm) fica no navegador."
+  },
+  "panelDrag": {
+    "message": "Arraste para mover"
+  },
+  "panelWhat": {
+    "message": "O que é isto?"
+  },
+  "panelHide": {
+    "message": "Ocultar"
+  },
+  "panelHideForNow": {
+    "message": "Ocultar por enquanto"
+  },
+  "panelNeverOn": {
+    "message": "Nunca em $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "este site"
+  },
+  "panelReading": {
+    "message": "Lendo as qualidades…"
+  },
+  "panelReadingSaid": {
+    "message": "O dm está lendo as qualidades de vídeo desta página; isso pode levar até meio minuto."
+  },
+  "panelTimedOut": {
+    "message": "O dm não respondeu a tempo. Tente de novo ou clique com o botão direito no vídeo e escolha “Baixar a mídia com o dm”."
+  },
+  "panelSending": {
+    "message": "Enviando ao dm…"
+  },
+  "panelNotTaken": {
+    "message": "O dm não pôde pegá-lo"
+  },
+  "panelUpdated": {
+    "message": "O dm foi atualizado: recarregue esta página para usá-lo"
+  },
+  "panelSent": {
+    "message": "Enviado ao dm"
+  },
+  "panelInBrowser": {
+    "message": "Baixando no navegador"
+  },
+  "panelDownloadAll": {
+    "message": "Baixar tudo"
+  },
+  "panelPart": {
+    "message": "Parte"
+  },
+  "panelPartTo": {
+    "message": "até"
+  },
+  "panelPartStart": {
+    "message": "Início da parte"
+  },
+  "panelPartEnd": {
+    "message": "Fim da parte"
+  },
+  "panelFileQuality": {
+    "message": "Arquivo $KIND$, qualidade $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "O app dm está lendo esta página para pegar o vídeo"
+  },
+  "panelAppHas": {
+    "message": "O app dm está com ele"
+  },
+  "panelAppDownloading": {
+    "message": "O app dm está baixando"
+  },
+  "panelNoAnswer": {
+    "message": "O dm não respondeu"
+  },
+  "panelFailed": {
+    "message": "O dm não respondeu. Tente de novo ou clique com o botão direito no vídeo e escolha “Baixar a mídia com o dm”."
+  },
+  "panelHls": {
+    "message": "Stream HLS, melhor qualidade"
+  },
+  "panelDownload": {
+    "message": "Baixar"
+  }
+}
