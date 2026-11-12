@@ -227,6 +227,7 @@ fn main() {
         assistants_only,
         show_asked,
         hidden,
+        login_item,
         ..
     } = match boot::start(&args, &handed, platform, wake.clone()) {
         Ok(booted) => booted,
@@ -276,10 +277,17 @@ fn main() {
     if headless {
         #[cfg(not(windows))]
         notify::claim();
+        if let Some(item) = login_item {
+            item.follow(&backend, Arc::clone(&wake));
+        }
         dm_desktop_base::headless::run(backend, requests, assistants_only, &headless_woken);
         return;
     }
     drop(headless_woken);
+
+    // The login item, put in step once the window is up (gaps row S16):
+    // asked of the system before it, it held the first frame back.
+    let login_item = login_item.map(|item| (item, backend.clone(), Arc::clone(&wake)));
 
     let application = gpui_platform::application().with_assets(assets::Assets);
     // A click on the Dock icon with the window put away in the tray asks
@@ -404,6 +412,11 @@ fn main() {
                 return;
             }
         };
+        // The window is made (shown, or in the tray for a login launch): the
+        // login item now, on a thread of its own.
+        if let Some((item, backend, wake)) = login_item {
+            item.follow(&backend, wake);
+        }
         // dm's menus in the system's menu bar, and every command's keys.
         menus::bind_keys(cx);
         view.update(cx, |view, cx| view.refresh_menus(cx));
@@ -515,6 +528,29 @@ mod tests {
             .find("application.run(")
             .expect("main runs the application");
         assert!(set < run, "the language is set after the window is made");
+    }
+
+    /// The login item is put in step once the window is made, not before it:
+    /// asked of the system first, it held back the first frame of every
+    /// launch (gaps row S16).
+    #[test]
+    fn the_login_item_follows_the_setting_after_the_window_is_made() {
+        let source = include_str!("main.rs");
+        let main = source.split("#[cfg(test)]").next().unwrap_or_default();
+        let opened = main
+            .find("open_main_window(")
+            .expect("main opens the window");
+        let follows = main
+            .rfind("item.follow(&backend, wake)")
+            .expect("main puts the login item in step");
+        assert!(
+            opened < follows,
+            "the login item is asked before the window"
+        );
+        assert!(
+            !main.contains("set_login_item"),
+            "main asks the system itself"
+        );
     }
 
     /// The windows that save a program dm runs (the command after each
