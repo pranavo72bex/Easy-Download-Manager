@@ -449,14 +449,41 @@ async fn fetch_tracks(
     options: &Options,
     downloaded: &AtomicU64,
 ) -> Result<Vec<PathBuf>, Error> {
+    // A track that is one whole file (no range, no key) is cut into ranged pieces first, as a
+    // picture and sound fetched apart are: held whole in memory, it was refused past 512 MiB and
+    // fetched again from its start after a stop (gaps row Y17). Where the server will not say
+    // its length by a range, it is fetched whole, as before.
+    let mut cut: Vec<Track> = Vec::with_capacity(tracks.len());
+    for track in tracks {
+        cut.push(whole_file_in_pieces(client, track, options).await);
+    }
     let mut first = 0usize;
     let mut work = Vec::new();
-    for (n, track) in tracks.iter().enumerate() {
+    for (n, track) in cut.iter().enumerate() {
         work.push(fetch_track(client, track, n, first, options, downloaded));
         first += track.pieces.len();
     }
     futures_util::future::try_join_all(work).await
 }
+
+/// `track` as ranged pieces of [`ONE_FILE_PIECE`] where it is one whole file a server serves
+/// by ranges; as it was otherwise. A part of one (`options.span`) is the index's to cut.
+async fn whole_file_in_pieces(client: &reqwest::Client, track: &Track, options: &Options) -> Track {
+    let whole = match track.pieces.as_slice() {
+        [only] if only.range.is_none() && only.lock.is_none() && options.span.is_none() => only,
+        _ => return track.clone(),
+    };
+    match total_of(client, &whole.url, options).await {
+        Ok(total) => Track {
+            pieces: pieces_of(&whole.url, total, ONE_FILE_PIECE),
+            ..track.clone()
+        },
+        Err(_) => track.clone(),
+    }
+}
+
+/// The size of one request of a one-file track: as a picture and sound fetched apart.
+const ONE_FILE_PIECE: u64 = 8 * 1024 * 1024;
 
 /// One track: its pieces (numbered from `first`), gathered into `track{n}`.
 async fn fetch_track(

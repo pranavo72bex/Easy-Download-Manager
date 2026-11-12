@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A DASH video whose picture or sound is one large file is fetched in pieces: no size limit, and a pause or a cut picks up from the pieces it has.
 - YouTube: HDR, 8K and more 60-frame qualities are known by their sizes, in the browser's panel and in the app alike.
 - An MP3 dm makes from a video carries the video's title, channel and page, as a music player or library reads them; so does a YouTube M4A.
 - Extract here and Extract to unpack a `.tar`, `.tar.gz` or `.tgz`, as they do a ZIP, under the same rules: nothing outside the new folder, no links, nothing written unless every entry is safe.
