@@ -608,9 +608,11 @@ async fn a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_on
         );
     }
     // Two connections at once take half as long as one; refusals and the answers' 100 ms
-    // allowed for, about 0.6 of it.
+    // allowed for, about 0.6 of it alone, and up to 0.65 beside a whole workspace's tests (4.85
+    // to 5.2 s of 8 in four runs beside four copies of the queue tests, 2026-11-12): held to 0.7.
+    // Before row 197 it took 1.6 times one connection's.
     assert!(
-        took < one_connection.mul_f64(0.6),
+        took < one_connection.mul_f64(0.7),
         "took {took:?} where one connection takes {one_connection:?}"
     );
 }

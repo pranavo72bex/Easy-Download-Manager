@@ -38,7 +38,8 @@ group by group (`--only` picks groups; all of them by default):
            busy_page, busy_page_worst: with `list` too, the list paged through in a dm started
                   again with 60 downloads at 1 MB/s running at once
   idle     idle_frames: how many times the window was drawn in the idle spell (GPUI's
-                  `ui.frames`), none where nothing changed
+                  `ui.frames`), none where nothing changed; list_frames: drawn over 100
+                  `queue.list` asks, none (they are answered on the port's thread, gaps row S1)
   many     300 downloads added at once at 256 KB/s each, 1 MB apiece, 10 at a time (dm's
            most): many_answer and many_worst, the window's answer to `ui.texts` over 20 asks
            while the queue turns over; many_cpu over 15 s; how many finished meanwhile
@@ -443,6 +444,12 @@ def run_once(root, base, home, rows, idle, run, groups):
             drawn_after = frames(dm)
             if drawn_before is not None and drawn_after is not None:
                 took["idle_frames"] = drawn_after - drawn_before
+                # A script asking for the list draws nothing (gaps row S1).
+                for _ in range(100):
+                    dm.call("queue.list")
+                listed = frames(dm)
+                if listed is not None:
+                    took["list_frames"] = listed - drawn_after
             took["rss"], took["footprint"] = resident_mb(dm.proc.pid)
 
         if "list" in groups:

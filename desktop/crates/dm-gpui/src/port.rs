@@ -6,7 +6,8 @@
 //! The control port, as the egui window opens it: the same server
 //! (`dm_desktop_base::control`), its requests handed to the window's thread
 //! through the window's own wake-up, and answered there (`list::Downloads`);
-//! `queue.list`, which only reads, answered on the port's own thread.
+//! `queue.list` and `downloads.pause`, `.resume` and `.cancel` by id, which need
+//! only the queue, answered on the port's own thread.
 
 use std::sync::{mpsc, Arc, Mutex};
 
@@ -78,7 +79,13 @@ fn reads(backend: Backend, assistants_only: bool) -> Reads {
                 },
             );
         }
-        if method != "queue.list" {
+        // The list, and pausing, resuming or cancelling downloads by id: from the queue alone
+        // (`control_api::answer`), with no wake of the window, which reads what changed in the
+        // queue as it does for any change (gaps row S1).
+        if !matches!(
+            method,
+            "queue.list" | "downloads.pause" | "downloads.resume" | "downloads.cancel"
+        ) {
             return None;
         }
         let allow_mcp = dm_core::lock(&backend.settings_handle()).allow_mcp;

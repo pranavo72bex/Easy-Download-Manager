@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A YouTube video carries its subtitles when Options' subtitles are on: the captions a person wrote (or, with none, the spoken ones) go inside the MP4 or WebM, where they were never asked for. With subtitles off none is fetched.
+- GPUI window: a column is made wider or narrower by dragging its heading's right edge, and a double-click there fits it to what it shows; the widths are kept.
+- A script pausing, resuming or cancelling downloads over the control port no longer wakes the window, as asking for the list already did not.
 - GPUI window: the list answers Home, End, Page Up and Page Down, Shift with them and with the arrows to choose a run of downloads, Enter for the chosen downloads' progress, and Shift+F10 for the row menu; Ctrl+W closes a window on Windows and Linux, where ⌘W was bound.
 - GPUI window: a greyed toolbar button says why on hover ("Choose a download first", "Not for the downloads chosen", "Nothing in the list for it now").
 - GPUI window: "Delete file after" can be changed or taken back after a download is added, from the row menu and from Properties; Never stops the countdown to the Trash.

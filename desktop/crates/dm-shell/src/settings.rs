@@ -344,6 +344,9 @@ pub struct Settings {
     pub column_order: Vec<String>,
     /// The columns turned off, by key.
     pub columns_hidden: Vec<String>,
+    /// The widths a person gave columns by dragging a heading's edge, in points at 100%, by key;
+    /// a column not named has its own (gaps row U4).
+    pub column_widths: std::collections::BTreeMap<String, f32>,
     /// The column the list is sorted by, by its key, and which way; empty
     /// for the order downloads were added in. Kept so the list is sorted
     /// the same way at the next launch.
@@ -779,6 +782,7 @@ impl Default for Settings {
             toolbar_style: "both".into(),
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
+            column_widths: std::collections::BTreeMap::new(),
             columns_hidden: Vec::new(),
             sort_column: String::new(),
             sort_ascending: true,

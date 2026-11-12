@@ -171,6 +171,10 @@ pub struct Downloads {
     pub(crate) selected: std::collections::BTreeSet<dm_core::Id>,
     /// Where a ⇧-click's range starts: the row last clicked alone.
     anchor: Option<dm_core::Id>,
+    /// A column's width as its heading's edge is dragged, and when the drag's width was last
+    /// kept (`table.rs`).
+    pub(crate) resizing: Option<(Column, f32)>,
+    pub(crate) resize_kept: Option<std::time::Instant>,
     /// The keyboard's place: the row last clicked or moved to, which the
     /// arrows, Home, End and the page keys move from (`keys.rs`).
     cursor: Option<dm_core::Id>,
@@ -360,6 +364,8 @@ impl Downloads {
             selected: Default::default(),
             anchor: None,
             cursor: None,
+            resizing: None,
+            resize_kept: None,
             menu: None,
             said: None,
             undo: Default::default(),

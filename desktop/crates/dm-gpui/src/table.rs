@@ -60,6 +60,23 @@ pub fn columns(view: &Downloads) -> Vec<Column> {
 /// hover.
 const STATUS_FITS: usize = 22;
 
+/// The widths a person gave columns, by key (`Settings::column_widths`).
+pub(crate) type Widths = std::collections::BTreeMap<String, f32>;
+
+/// The narrowest and widest a column is dragged to.
+const NARROWEST: f32 = 24.0;
+const WIDEST: f32 = 800.0;
+
+/// A column's width: the one a person gave it, else its own; none for the name, which takes
+/// what the others leave.
+fn width_of(column: Column, widths: &Widths) -> Option<f32> {
+    width(column).map(|own| {
+        widths
+            .get(column.key())
+            .map_or(own, |&chosen| chosen.clamp(NARROWEST, WIDEST))
+    })
+}
+
 /// The most Status grows to, as a share of its least width.
 const STATUS_GROWS_TO: f32 = 2.0;
 
@@ -84,16 +101,17 @@ const NAME_AT_LEAST: f32 = 180.0;
 /// its least: narrower than this, the list scrolls sideways.
 pub fn least_width(view: &Downloads) -> f32 {
     // The row's own margins (`px_1` each side) beside its cells.
+    let widths = view.widths();
     columns(view)
         .into_iter()
-        .map(|column| width(column).unwrap_or(NAME_AT_LEAST))
+        .map(|column| width_of(column, &widths).unwrap_or(NAME_AT_LEAST))
         .sum::<f32>()
         + 8.0
 }
 
 /// A cell of `column` sized as its column is: one line, cut short with an
 /// ellipsis where its words are longer.
-fn cell(column: Column) -> gpui::Div {
+fn cell(column: Column, widths: &Widths) -> gpui::Div {
     let cell = div()
         .h_full()
         .flex()
@@ -102,11 +120,12 @@ fn cell(column: Column) -> gpui::Div {
         .overflow_hidden()
         .whitespace_nowrap()
         .text_ellipsis();
-    let cell = match (column, width(column)) {
+    let chosen = widths.contains_key(column.key());
+    let cell = match (column, width_of(column, widths)) {
         // Status takes a share of what a wider window gives, up to twice its width, so a
         // failure's words are read whole where there is room (gaps row U3); the name takes the
         // rest, twice as much.
-        (Column::Status, Some(w)) => cell
+        (Column::Status, Some(w)) if !chosen => cell
             .flex_grow(1.0)
             .flex_shrink_0()
             .flex_basis(px(w))
@@ -154,6 +173,7 @@ pub fn header(
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
     let sort = view.sort;
+    let widths = view.widths();
     div()
         .id("header")
         .role(Role::Row)
@@ -178,7 +198,7 @@ pub fn header(
             };
             // The file name stays first: every other heading moves.
             let movable = column != Column::Name;
-            cell(column)
+            cell(column, &widths)
                 .id(column.key())
                 .role(Role::ColumnHeader)
                 .aria_label(column.title())
@@ -200,7 +220,61 @@ pub fn header(
                         }))
                 })
                 .child(screen.label(format!("{heading}{arrow}")))
+                // Its right edge dragged makes it wider or narrower, and a double-click there
+                // fits it to what it shows (gaps row U4). Not the name's, which takes the rest.
+                .when(width(column).is_some(), |heading| {
+                    heading
+                        .relative()
+                        .on_drag_move::<ResizingColumn>(cx.listener(
+                            move |view, event: &gpui::DragMoveEvent<ResizingColumn>, _, cx| {
+                                if event.drag(cx).column != column {
+                                    return;
+                                }
+                                let wide = f32::from(event.event.position.x - event.bounds.left());
+                                view.resize_column(column, wide / crate::zoom::factor(), cx);
+                            },
+                        ))
+                        .child(
+                            div()
+                                .id(gpui::ElementId::Name(
+                                    format!("edge-{}", column.key()).into(),
+                                ))
+                                .absolute()
+                                .top_0()
+                                .right_0()
+                                .h_full()
+                                .w(px(6.0))
+                                .cursor(gpui::CursorStyle::ResizeColumn)
+                                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                                    cx.stop_propagation();
+                                })
+                                .on_click(cx.listener(
+                                    move |view, event: &gpui::ClickEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        if event.click_count() == 2 {
+                                            view.fit_column(column, cx);
+                                        }
+                                    },
+                                ))
+                                .on_drag(ResizingColumn { column }, |dragged, _, _, cx| {
+                                    cx.new(|_| dragged.clone())
+                                }),
+                        )
+                })
         }))
+        .on_drop(cx.listener(|view, _: &ResizingColumn, _, cx| view.finish_resize(cx)))
+}
+
+/// A heading's edge being dragged: nothing drawn under the pointer but the column itself.
+#[derive(Clone)]
+pub struct ResizingColumn {
+    column: Column,
+}
+
+impl Render for ResizingColumn {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+    }
 }
 
 /// `order` with `moved` in `onto`'s place: after it when it came from its
@@ -238,6 +312,68 @@ impl Render for DraggedColumn {
 }
 
 impl Downloads {
+    /// The columns' widths as drawn: the ones kept, and the one being dragged.
+    pub(crate) fn widths(&self) -> Widths {
+        let mut widths = self.drawn.column_widths.clone();
+        if let Some((column, wide)) = self.resizing {
+            widths.insert(column.key().to_string(), wide);
+        }
+        widths
+    }
+
+    /// A heading's edge dragged to `wide` points (at 100%): drawn at once, kept a few times a
+    /// second meanwhile and at its end, so a drag let go anywhere is kept.
+    pub(crate) fn resize_column(&mut self, column: Column, wide: f32, cx: &mut Context<Self>) {
+        let wide = wide.clamp(NARROWEST, WIDEST).round();
+        self.resizing = Some((column, wide));
+        let due = self
+            .resize_kept
+            .is_none_or(|at| at.elapsed() >= std::time::Duration::from_millis(200));
+        if due {
+            self.resize_kept = Some(std::time::Instant::now());
+            self.keep_width(column, wide);
+        }
+        cx.notify();
+    }
+
+    /// The drag let go over the header: its last width kept.
+    pub(crate) fn finish_resize(&mut self, cx: &mut Context<Self>) {
+        if let Some((column, wide)) = self.resizing {
+            self.keep_width(column, wide);
+            self.read();
+        }
+        self.resizing = None;
+        self.resize_kept = None;
+        cx.notify();
+    }
+
+    /// A double-click on a heading's edge: the column as wide as the longest thing it shows
+    /// among the rows listed (and its heading), within what a column may be.
+    pub(crate) fn fit_column(&mut self, column: Column, cx: &mut Context<Self>) {
+        let longest = self
+            .shown
+            .iter()
+            .filter_map(|&r| self.rows.get(r))
+            .map(|row| words(column, row, &self.whens).chars().count())
+            .chain([column.title().chars().count() + 2])
+            .max()
+            .unwrap_or(0);
+        // About the width of a letter of the list's text, and the cell's margins.
+        let wide = longest as f32 * crate::native::TEXT * 0.58 + 18.0;
+        self.resizing = None;
+        self.keep_width(column, wide.clamp(NARROWEST, WIDEST).round());
+        self.read();
+        cx.notify();
+    }
+
+    fn keep_width(&self, column: Column, wide: f32) {
+        self.backend.keep_look(|settings| {
+            settings
+                .column_widths
+                .insert(column.key().to_string(), wide);
+        });
+    }
+
     /// A heading dropped on another's: the column takes that one's place
     /// (after it when dropped further right, before it further left), kept
     /// in the settings as the order of every column, hidden ones too.
@@ -285,20 +421,21 @@ fn spoken(
 /// One row's cells.
 fn row_cells(
     row: &Entry,
-    names: &std::collections::HashMap<dm_core::Id, String>,
-    whens: &format::Whens,
+    view: &Downloads,
     columns: &[Column],
     kind: Option<dm_core::Category>,
     theme: Theme,
     screen: &Screen,
+    widths: &Widths,
 ) -> Vec<AnyElement> {
+    let (names, whens) = (&view.shown_names, &view.whens);
     columns
         .iter()
         .map(|&column| match column {
             Column::Name => {
                 let (picture, colour) = kind_picture(kind);
                 let name = shown_name(row, names);
-                cell(column)
+                cell(column, widths)
                     .gap_2()
                     .child(
                         gpui::svg()
@@ -333,7 +470,7 @@ fn row_cells(
                     .into_any_element()
             }
             // Reference A's Q: a mark for a download in a queue.
-            Column::Queue => cell(column)
+            Column::Queue => cell(column, widths)
                 .justify_center()
                 .when(!row.queue.is_empty(), |c| {
                     c.child(div().size(px(8.0)).rounded_full().bg(theme.selection))
@@ -350,7 +487,7 @@ fn row_cells(
                     Some(raw) => format!("{said}\n{raw}"),
                     None => said.clone(),
                 };
-                cell(column)
+                cell(column, widths)
                     .id(("status", row.id))
                     .flex_col()
                     .items_start()
@@ -384,7 +521,7 @@ fn row_cells(
             _ => {
                 let said = words(column, row, whens);
                 let numeric = numeric(column);
-                cell(column)
+                cell(column, widths)
                     .when(!numeric, |c| c.text_color(theme.muted))
                     .child(screen.label(SharedString::from(said)))
                     .into_any_element()
@@ -461,6 +598,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
             this.laid_out(range.clone(), cx);
             let categories = this.drawn.categories();
             let columns = columns(this);
+            let widths = this.widths();
             let list = cx.entity().downgrade();
             // Whether a chosen row is finished, asked once, the first time a
             // chosen row that is not needs to know: it carries the others.
@@ -553,13 +691,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                                 )
                         })
                         .children(row_cells(
-                            row,
-                            &this.shown_names,
-                            &this.whens,
-                            &columns,
-                            kind,
-                            theme,
-                            &screen,
+                            row, this, &columns, kind, theme, &screen, &widths,
                         ))
                 })
                 .collect()

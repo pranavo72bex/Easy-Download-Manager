@@ -1196,11 +1196,78 @@ async fn read_within(
         .pointer("/videoDetails/lengthSeconds")
         .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
     let mut reading = reading_json(id, &title, duration, &formats, &chosen, staging);
+    // The video's captions, for Options' "carry subtitles" to put inside it (gaps row Y6).
+    let captions = captions_named(&player);
+    if !captions.is_empty() {
+        reading["requested_subtitles"] = Value::Object(captions);
+    }
     // The player script read, for a record of which one answered (the weekly check).
     if let Some(path) = &js_path {
         reading["player"] = json!(path);
     }
     Ok(reading.to_string())
+}
+
+/// The most caption tracks a reading names: a video can list dozens of languages.
+const CAPTIONS_MOST: usize = 8;
+
+/// The caption tracks the player names, as the fetch step takes them (`requested_subtitles`:
+/// each language's WebVTT address): those a person wrote, else the speech-recognised one, on
+/// YouTube's own address alone (gaps row Y6).
+fn captions_named(player: &Value) -> serde_json::Map<String, Value> {
+    let tracks: Vec<&Value> = player
+        .pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .collect();
+    let asr = |t: &&Value| t.get("kind").and_then(Value::as_str) == Some("asr");
+    let written: Vec<&Value> = tracks.iter().copied().filter(|t| !asr(t)).collect();
+    let chosen = if written.is_empty() {
+        tracks.into_iter().filter(asr).take(1).collect()
+    } else {
+        written
+    };
+    let mut named = serde_json::Map::new();
+    for track in chosen {
+        if named.len() >= CAPTIONS_MOST {
+            break;
+        }
+        let (Some(language), Some(base)) = (
+            track.get("languageCode").and_then(Value::as_str),
+            track.get("baseUrl").and_then(Value::as_str),
+        ) else {
+            continue;
+        };
+        let Ok(url) = caption_address(base, "vtt") else {
+            continue;
+        };
+        named
+            .entry(language.to_string())
+            .or_insert_with(|| json!({ "url": url, "ext": "vtt" }));
+    }
+    named
+}
+
+/// A caption track's address in `format` (`vtt`, `ttml`): on YouTube's own `https` address
+/// alone, its own `fmt` replaced; else why not.
+fn caption_address(base: &str, format: &str) -> Result<String, &'static str> {
+    let mut url = url::Url::parse(base)
+        .or_else(|_| url::Url::parse(&format!("https://www.youtube.com{base}")))
+        .map_err(|_| "the captions' address is not one")?;
+    if url.host_str() != Some("www.youtube.com") || url.scheme() != "https" {
+        return Err("the captions are not on YouTube");
+    }
+    let kept: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(k, _)| k != "fmt")
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    url.query_pairs_mut()
+        .clear()
+        .extend_pairs(kept)
+        .append_pair("fmt", format);
+    Ok(url.to_string())
 }
 
 /// The reading for a caption line: the track of `language` (the speech-recognised one where
@@ -1233,21 +1300,7 @@ fn caption_reading(
         .get("baseUrl")
         .and_then(Value::as_str)
         .ok_or_else(|| Error::Internal("the captions have no address".into()))?;
-    let mut url = url::Url::parse(base)
-        .or_else(|_| url::Url::parse(&format!("https://www.youtube.com{base}")))
-        .map_err(|_| Error::Internal("the captions' address is not one".into()))?;
-    if url.host_str() != Some("www.youtube.com") || url.scheme() != "https" {
-        return Err(Error::Internal("the captions are not on YouTube".into()));
-    }
-    let kept: Vec<(String, String)> = url
-        .query_pairs()
-        .filter(|(k, _)| k != "fmt")
-        .map(|(k, v)| (k.into_owned(), v.into_owned()))
-        .collect();
-    url.query_pairs_mut()
-        .clear()
-        .extend_pairs(kept)
-        .append_pair("fmt", "ttml");
+    let url = caption_address(base, "ttml").map_err(|why| Error::Internal(why.into()))?;
     let title = player
         .pointer("/videoDetails/title")
         .and_then(Value::as_str)
@@ -1541,6 +1594,37 @@ fn safe_title(title: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The captions a person wrote are named, on YouTube's own address as WebVTT; a
+    /// speech-recognised track only where there is none, and none from elsewhere (gaps row Y6).
+    #[test]
+    fn a_videos_written_captions_are_named_as_webvtt() {
+        let player = json!({"captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [
+            {"languageCode": "en", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&lang=en&fmt=srv3"},
+            {"languageCode": "en", "kind": "asr", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&lang=en&kind=asr"},
+            {"languageCode": "de", "baseUrl": "/api/timedtext?v=x&lang=de"},
+            {"languageCode": "fr", "baseUrl": "https://elsewhere.example/timedtext?lang=fr"}
+        ]}}});
+        let named = captions_named(&player);
+        let mut languages: Vec<&String> = named.keys().collect();
+        languages.sort();
+        assert_eq!(languages, ["de", "en"]);
+        let en = named["en"]["url"].as_str().unwrap();
+        assert!(
+            en.ends_with("&fmt=vtt") && !en.contains("srv3") && !en.contains("asr"),
+            "{en}"
+        );
+        assert_eq!(named["de"]["ext"], "vtt");
+        assert!(named["de"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://www.youtube.com/"));
+        let spoken = json!({"captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [
+            {"languageCode": "en", "kind": "asr", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&kind=asr"}
+        ]}}});
+        assert_eq!(captions_named(&spoken).len(), 1);
+        assert!(captions_named(&json!({})).is_empty());
+    }
 
     #[test]
     fn a_link_says_where_it_starts_in_each_of_youtubes_ways() {

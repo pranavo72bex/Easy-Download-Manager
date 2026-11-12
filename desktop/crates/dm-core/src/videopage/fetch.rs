@@ -652,6 +652,10 @@ async fn fetch_part(
 /// as they are left (`name.<language>.vtt`). One that cannot be had is
 /// passed over: subtitles are not worth the video.
 async fn subtitles(client: &reqwest::Client, read: &Read, produced: &Path, options: &Options) {
+    // Only where the video is to carry them: what is fetched is put inside it, then removed.
+    if !options.subtitles {
+        return;
+    }
     let Some(asked) = read.info.requested_subtitles.as_ref() else {
         return;
     };
@@ -1130,7 +1134,14 @@ mod coverage_tests {
         );
         let dir = tempfile::tempdir().unwrap();
         let produced = dir.path().join("Talk [x].mp4");
+        // With subtitles off, none is fetched: what is fetched is only to be put inside.
         subtitles(&crate::client(), &r, &produced, &options(dir.path())).await;
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+        let carrying = Options {
+            subtitles: true,
+            ..options(dir.path())
+        };
+        subtitles(&crate::client(), &r, &produced, &carrying).await;
         let mut names: Vec<String> = std::fs::read_dir(dir.path())
             .unwrap()
             .flatten()

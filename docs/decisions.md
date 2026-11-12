@@ -6770,7 +6770,8 @@ was the cost.
   server opens that many connections. Ranges after the first are asked for from the file's end
   backwards, so the probe's answer can run on through those refused.
 - **Measured** (`tests/limits.rs`): 32 MiB at 4 MiB/s a connection, two at once, a request a
-  second with a burst of two, each answer 100 ms late: under 0.6 of one connection's 8 s.
+  second with a burst of two, each answer 100 ms late: about 0.6 of one connection's 8 s alone,
+  up to 0.65 beside a whole workspace's tests; the test holds it under 0.7 (2026-11-12).
 
 ## 2026-11-12: The shown speed's first whole interval is its figure (gaps row 196)
 
@@ -6856,3 +6857,21 @@ was the cost.
   both windows) drives the GPUI list's Home, End, page keys and Shift runs, from a keyboard place
   of its own (`Downloads::cursor`) beside the click's anchor; the keys are window-wide bindings,
   which a text field's own (in its context) come before, as ↑ and ↓ already were.
+- **U4**: a heading's right edge (6 points) is dragged to set its column's width, kept in
+  `Settings::column_widths` (points at 100%, by key) a few times a second during the drag and at
+  its end; a double-click fits it to the longest words the listed rows show there (letters times
+  an average letter's width: GPUI is not asked to measure each). The name keeps taking the rest;
+  a Status a person sized no longer grows.
+- **S1** (part): the port's own thread answers `downloads.pause`, `.resume` and `.cancel` by id
+  (`control_api::answer`, as `--headless` does); the window learns of the change as of any change
+  to the queue.
+
+## 2026-11-12: YouTube's captions in the video (gaps row Y6, part)
+
+- The reading names `requested_subtitles` from the player's caption tracks (the fetch step and the
+  muxers already took them): the written ones, else one speech-recognised track, at most 8, each
+  as WebVTT (`fmt=vtt`) on `https://www.youtube.com` alone (`caption_address`, shared with the
+  caption line's TTML). **Dropped: every track and every translation**: a video lists dozens, each
+  a request, for languages nobody asked for.
+- The fetch step fetches them only with `Options::subtitles` on: what it fetched was put inside
+  and then removed whatever the switch said.
