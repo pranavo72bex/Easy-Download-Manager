@@ -7088,3 +7088,14 @@ or built:
   computer, against the security stance (the control port listens on the loopback alone). The
   browser extension on the phone's own browser, where there is one, sends to a dm on the same
   device; a link sent another way (mail, a chat) is pasted or dropped.
+
+## 2026-11-13: BitTorrent's library, a recorded exception (gaps row P3)
+
+Taken at the maintainer's word of 2026-11-12, the row's recommendation: the vendored `librqbit`
+(`desktop/vendor/librqbit`, with its SHA-1 wrapper since gaps row P7) is a recorded exception to
+"no third-party package that is a feature": a library compiled into dm, never a program it runs or
+fetches, and patched in dm's tree (`dm:` marks, `desktop/vendor/README.md`). Writing BEP 3, 5, 9,
+10, 11, 29 and the stream encryption of dm's own is months of work for no gain a person sees. It is
+to be kept behind one crate of its own (`dm-torrent`, with gaps row A6) so it can be replaced piece
+by piece, and brought to upstream 9.1.0 (a bencode recursion limit, a bounds fix, a listener panic)
+as upstream source plus one patch; both are the row's remaining work.
