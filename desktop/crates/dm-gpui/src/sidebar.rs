@@ -22,16 +22,17 @@ use crate::zoom::px;
 /// The side panel's width, in points.
 pub const WIDTH: f32 = 200.0;
 
-/// A place's picture and its colour beside its name, as Finder's and Mail's sidebars have one:
-/// each kind its row's own (`kind_picture`), and a picture of what the others hold.
-fn picture(place: &Place) -> (&'static str, gpui::Rgba) {
+/// A place's picture beside its name, as Finder's and Mail's sidebars have one: each kind its
+/// row's own (`kind_picture`), and a picture of what the others hold. All drawn in one colour,
+/// the system's accent, as a source list's are (the maintainer, 2026-11-12: "monocolor").
+fn picture(place: &Place) -> &'static str {
     match place {
-        Place::All => ("icons/place-all.svg", gpui::rgb(0x2b6cc4)),
-        Place::Kind(kind) => crate::list::kind_picture(Some(*kind)),
-        Place::Custom(_) => ("icons/place-folder.svg", gpui::rgb(0x5b8bd0)),
-        Place::Unfinished => ("icons/place-unfinished.svg", gpui::rgb(0xd9822b)),
-        Place::Finished => ("icons/place-finished.svg", gpui::rgb(0x3d8b37)),
-        Place::Queue(_) => ("icons/place-queue.svg", gpui::rgb(0x7f8c8d)),
+        Place::All => "icons/place-all.svg",
+        Place::Kind(kind) => crate::list::kind_picture(Some(*kind)).0,
+        Place::Custom(_) => "icons/place-folder.svg",
+        Place::Unfinished => "icons/place-unfinished.svg",
+        Place::Finished => "icons/place-finished.svg",
+        Place::Queue(_) => "icons/place-queue.svg",
     }
 }
 
@@ -100,7 +101,7 @@ pub fn sidebar(
                 .map(|(i, (heading, place, label))| {
                     let count = view.places.count(&place, &view.rows, &categories);
                     let chosen = place == view.place;
-                    let (icon, colour) = picture(&place);
+                    let icon = picture(&place);
                     let heading = heading.map(|h| {
                         div()
                             // A source list's section heading: small,
@@ -150,7 +151,7 @@ pub fn sidebar(
                                             .text_color(if chosen {
                                                 theme.on_selection
                                             } else {
-                                                colour
+                                                theme.accent
                                             }),
                                     )
                                     .child(screen.label(label)),
