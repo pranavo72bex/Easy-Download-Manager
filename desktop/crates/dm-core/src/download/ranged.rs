@@ -997,13 +997,18 @@ pub(super) async fn fetch_segment(
     // Only a capped stream is asked again slice by slice; without a cap the
     // ledger is not read here at all (it is a file, opened and read). Nor is
     // range 0 under the probe's answer where that was asked for the file's
-    // first part only: the rest of the range is asked for on, as a slice's is.
+    // first part only, or a range read on into by an answer that may end
+    // inside it (that first part, read on past range 0's end where the server
+    // limits this download): the rest of the range is asked for on, as a
+    // slice's is.
     let first_part = matches!(
         &answer,
-        Some(Answer::Probe(First {
-            brings: Some(_),
-            ..
-        }))
+        Some(
+            Answer::Probe(First {
+                brings: Some(_),
+                ..
+            }) | Answer::Carried(_)
+        )
     );
     let sliced = resumable && (job.chunk.is_some() || first_part);
     let mut answer = answer;
@@ -1169,6 +1174,9 @@ pub(super) async fn attempt_segment(
     let is_probe_body = probe.is_some();
     // Where the probe's answer stops short of the file's end: asked for its first part only.
     let probe_brings = probe.as_ref().and_then(|first| first.brings);
+    // Where an answer read on from the range before ends: inside this range where it is the
+    // probe's first part, read on past range 0's end.
+    let carried_reach = carried.as_ref().map(|carried| carried.reach);
 
     /* Where this request stops. Without a cap, at the range's end, as ever, or
      * where the server limits this download, past it over the ranges after it
@@ -1180,8 +1188,11 @@ pub(super) async fn attempt_segment(
     let asked_end = match job.chunk.filter(|_| resumable) {
         Some(cap) => end.min(from.saturating_add(cap.max(MIN_CHUNK)) - 1),
         None if probe.is_none() && !carried_on => reach_from(job, index, end).await,
-        // The probe's first part ends where it ends, and the range is asked for on from there.
-        None => probe_brings.map_or(end, |brings| brings.min(end)),
+        // The probe's first part ends where it ends, and so does an answer read on from the
+        // range before: the range is asked for on from there.
+        None => probe_brings
+            .or(carried_reach)
+            .map_or(end, |brings| brings.min(end)),
     };
     // The last byte the answer brings: what was asked; the probe's to where it
     // said it stops, or else to the file's end; one read on, as far as its
