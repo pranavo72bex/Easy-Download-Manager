@@ -192,7 +192,7 @@ fn main() {
 
     let platform: Arc<dyn Platform> =
         Arc::new(dm_desktop_base::desktop::Desktop { window: EguiWindow });
-    let wake = {
+    let wake: Arc<dyn Fn(dm_desktop_base::boot::Wake) + Send + Sync> = {
         let repaint = Arc::clone(&repaint_early);
         Arc::new(move |wake: dm_desktop_base::boot::Wake| {
             if let Some(ctx) = repaint.get() {
@@ -216,13 +216,22 @@ fn main() {
         control,
         assistants_only,
         started_with,
-    } = match dm_desktop_base::boot::start(&args, &handed, platform, wake) {
+        login_item,
+    } = match dm_desktop_base::boot::start(&args, &handed, platform, Arc::clone(&wake)) {
         Ok(booted) => booted,
         Err(why) => {
             eprintln!("{why}");
             std::process::exit(1);
         }
     };
+    // The login item, put in step on a thread of its own (gaps row S16).
+    // At once rather than once the window is made: a login launch makes
+    // this window only when it is first asked for, and the item must follow
+    // the setting all the same. A refusal waits in the banner for the
+    // window's first frame.
+    if let Some(item) = login_item {
+        item.follow(&backend, wake);
+    }
     // Read once: Mica is the window's from its making, so a change waits
     // for the next start.
     let mica = dm_desktop::chrome::use_mica(started_with.mica);

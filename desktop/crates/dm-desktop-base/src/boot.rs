@@ -87,6 +87,55 @@ pub struct Booted {
     pub assistants_only: bool,
     /// The settings dm started with.
     pub started_with: dm_shell::Settings,
+    /// The login item, to be put in step with the setting once the window
+    /// is up (`LoginItem::follow`); `None` where dm leaves it be (a home of
+    /// its own, or one turned off in Task Manager).
+    pub login_item: Option<LoginItem>,
+}
+
+/// The login item, left to be put in step with the saved setting after the
+/// window is shown, on a thread of its own (gaps row S16): it asks the system
+/// (a launch agent written, the registry, an autostart file), and done before
+/// the window it held the first frame back on every launch.
+#[must_use = "the login item follows the setting only once `follow` is called"]
+#[derive(Debug)]
+pub struct LoginItem(());
+
+impl LoginItem {
+    /// Puts the login item in step with the setting in force, off the
+    /// caller's thread. What the system refuses is said in the window's
+    /// banner, in the words it was said in at launch before, and `wake`
+    /// has the window read it at once.
+    pub fn follow(self, backend: &Backend, wake: Arc<dyn Fn(Wake) + Send + Sync>) {
+        let job = {
+            let backend = backend.clone();
+            let wake = Arc::clone(&wake);
+            move || follow_login_item(&backend, wake.as_ref())
+        };
+        // A thread that cannot be made: done here instead, as before.
+        if std::thread::Builder::new()
+            .name("dm-login-item".into())
+            .spawn(job)
+            .is_err()
+        {
+            follow_login_item(backend, wake.as_ref());
+        }
+    }
+}
+
+/// The login item in step with the setting, and a refusal left for the
+/// banner.
+fn follow_login_item(backend: &Backend, wake: &(dyn Fn(Wake) + Send + Sync)) {
+    if let Err(why) = backend.login_item_follows_setting() {
+        backend.note(login_item_refused(&why));
+        wake(Wake::Now);
+    }
+}
+
+/// What dm says when the system will not put the login item as the setting
+/// says.
+fn login_item_refused(why: &str) -> String {
+    format!("could not change start-on-login: {why}; start on login is not in force")
 }
 
 /// Starts dm for `args`, carrying out `handed` (the launch's own links and
@@ -143,14 +192,18 @@ pub fn start(
     // test's fresh home would otherwise put a login item on the computer
     // running it. Turning the setting on in Options still registers one.
     let own_home = std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty());
+    // Only whether it was turned off outside dm is asked here (a read of the
+    // registry on Windows, nothing elsewhere), since the setting must say so
+    // before the window reads it; the item itself is put in step after the
+    // window is shown (`LoginItem`).
     let at_launch = (!own_home).then(|| {
         crate::autostart::at_launch(
             saved.start_on_login,
             crate::login::login_item_turned_off_outside(),
         )
     });
-    match at_launch {
-        None => {}
+    let login_item = match at_launch {
+        None => None,
         Some(crate::autostart::AtLaunch::TurnedOffOutside) => {
             saved.start_on_login = false;
             notices.push(match saved.save() {
@@ -162,15 +215,11 @@ pub fn start(
                      but the setting could not be saved: {e}"
                 ),
             });
+            None
         }
-        Some(crate::autostart::AtLaunch::Follow(wanted)) => {
-            if let Err(why) = platform.set_login_item(wanted) {
-                notices.push(format!(
-                    "could not change start-on-login: {why}; start on login is not in force"
-                ));
-            }
-        }
-    }
+        // The setting, as it is when the item is put in step.
+        Some(crate::autostart::AtLaunch::Follow(_)) => Some(LoginItem(())),
+    };
 
     // Anything a browser handed over while the app was closed is waiting in
     // the inbox; anything that was mid-flight came back queued.
@@ -254,5 +303,9 @@ pub fn start(
         control,
         assistants_only,
         started_with,
+        login_item,
     })
 }
+
+#[cfg(test)]
+mod tests;
