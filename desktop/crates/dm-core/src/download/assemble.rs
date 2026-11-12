@@ -521,14 +521,22 @@ pub(super) async fn assemble(
             .map(|&i| (range_path(&job.parts, i), segments[i].span()))
             .collect();
         drop(segments);
-        for (path, span) in &ranges {
-            fs::OpenOptions::new()
-                .write(true)
-                .open(path)
-                .await?
-                .set_len(*span)
-                .await?;
-        }
+        // Every cut in one blocking task: opened and cut on the async side, each range took two
+        // hops to the thread pool, and splitting multiplies the ranges (gaps row S5).
+        let cut = ranges.clone();
+        // Not a heavy job's turn: cutting a file is quick, and waits behind no copy.
+        tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            for (path, span) in &cut {
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(path)?
+                    .set_len(*span)?;
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| Error::Internal(format!("the ranges could not be cut to size: {e}")))??;
+        crate::finish_trace::mark("ranges held to their spans");
         let parts: Vec<PathBuf> = ranges.into_iter().map(|(path, _)| path).collect();
         return finish(&name, info.content_type.as_deref(), &parts, options).await;
     }

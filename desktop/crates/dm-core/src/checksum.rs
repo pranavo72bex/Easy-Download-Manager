@@ -472,11 +472,13 @@ mod tests {
         }
     }
 
-    /// A Cancel stops the digest of a 2 GiB file within a second, where the digest ran to the
-    /// file's end (gaps row 185); a pause does not stop it. The file is sparse: nothing of it is
-    /// on the disk.
+    /// A Cancel stops the digest of a 2 GiB file, where the digest ran to the file's end (gaps row
+    /// 185); a pause does not stop it. The file is sparse: nothing of it is on the disk. Stopped
+    /// is told by the answer, Cancelled where a whole digest would give its value; the bound in
+    /// time is only against a digest that never ends (a second failed under the load of the whole
+    /// workspace's run, as gaps row S19's did).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn a_cancel_stops_the_digest_of_a_large_file_within_a_second() {
+    async fn a_cancel_stops_the_digest_of_a_large_file() {
         use std::time::{Duration, Instant};
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("big.bin");
@@ -498,9 +500,9 @@ mod tests {
         );
         control.cancel();
         let asked = Instant::now();
-        let outcome = tokio::time::timeout(Duration::from_secs(1), digesting)
+        let outcome = tokio::time::timeout(Duration::from_secs(30), digesting)
             .await
-            .expect("the digest went on for a second after the cancel")
+            .expect("the digest went on for 30 s after the cancel")
             .unwrap();
         assert!(
             matches!(outcome, Err(Error::Cancelled)),
