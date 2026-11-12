@@ -532,6 +532,13 @@ fn row_cells(
         .map(|(place, &column)| match column {
             Column::Name => {
                 let (picture, colour) = kind_picture(kind);
+                // On a chosen row the picture takes the row's words' colour: its own read 1.02
+                // to 1 on macOS's selection (gaps row U22).
+                let colour = if theme.is_chosen() {
+                    theme.text
+                } else {
+                    colour
+                };
                 let name = shown_name(row, names);
                 let named = cell(column, widths)
                     .gap_2()

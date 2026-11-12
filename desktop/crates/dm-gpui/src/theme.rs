@@ -66,6 +66,12 @@ impl Theme {
         }
     }
 
+    /// Whether these are a chosen row's colours (`chosen`): there the selection is drawn in the
+    /// words' own colour, which no system's palette does (it would hide what is chosen).
+    pub fn is_chosen(&self) -> bool {
+        self.selection == self.on_selection && self.text == self.on_selection
+    }
+
     /// The colours for the system's appearance, as this system draws them.
     /// Under Windows' High Contrast, its own colours, whatever the look
     /// (contract B45: "on every look (light, dark, high contrast)").
@@ -102,8 +108,9 @@ fn macos(dark: bool) -> Theme {
             selection: rgb(0x0a5fd8),
             on_selection: rgb(0xffffff),
             menu: rgb(0x2c2c2c),
-            // NSColor.systemRed, dark.
-            warning: rgb(0xff453a),
+            // NSColor.systemRed, dark, as macOS draws it with Increase contrast: the plain one
+            // read 4.0 to 1 on a dialog (gaps row U22).
+            warning: rgb(0xff6961),
             // Measured on macOS's own dialog, dark: a push button is
             // white at 8% over the window, with no edge; a text field
             // nearly black; the window #2e2c2b (tinted by the
@@ -121,20 +128,24 @@ fn macos(dark: bool) -> Theme {
         Theme {
             background: rgb(0xffffff),
             text: rgba(0x000000d9),
-            muted: rgba(0x00000080),
+            // Darker than labelColor's secondary (50%), which read 3.8 to 1 on a dialog; WCAG's
+            // 4.5 on every surface (gaps row U22).
+            muted: rgba(0x00000099),
             stripe: rgba(0x0000000a),
             separator: rgba(0x0000001a),
             sidebar: rgb(0xf0f0f0),
             selection: rgb(0x0064e1),
             on_selection: rgb(0xffffff),
             menu: rgb(0xf6f6f6),
-            warning: rgb(0xff3b30),
+            // NSColor.systemRed as Increase contrast draws it: the plain one read 3.0 to 1.
+            warning: rgb(0xd70015),
             control: rgb(0xffffff),
             control_border: rgba(0x00000026),
             field: rgb(0xffffff),
             window: rgb(0xececec),
             accent: rgb(0x007aff),
-            success: rgb(0x34c759),
+            // Darker than NSColor.systemGreen (1.9 to 1 on a dialog, gaps row U22).
+            success: rgb(0x1d7a34),
             on_accent: rgb(0xffffff),
         }
     }
@@ -258,7 +269,8 @@ fn gnome(dark: bool) -> Theme {
             window: rgb(0xfafafb),
             accent: rgb(0x3584e4),
             on_accent: rgb(0xffffff),
-            success: rgb(0x1b8553),
+            // Darker than the GNOME palette's (3.9 to 1 on the side panel, gaps row U22).
+            success: rgb(0x17733a),
         }
     }
 }
@@ -313,14 +325,29 @@ mod tests {
         use dm_desktop_base::contrast::Palette;
         all.push(("High Contrast Black", true, high_contrast(&Palette::BLACK)));
         all.push(("High Contrast White", false, high_contrast(&Palette::WHITE)));
+        let mut faint = Vec::new();
         for (system, dark, theme) in all {
             let at = format!("{system}, dark {dark}");
             assert!(contrast(theme.text, theme.background) >= 7.0, "{at}: text");
             assert!(contrast(theme.text, theme.sidebar) >= 7.0, "{at}: sidebar");
-            assert!(
-                contrast(theme.muted, theme.background) >= 3.0,
-                "{at}: muted"
-            );
+            // Muted and warning words at WCAG's 4.5 to 1 on every surface they are drawn on,
+            // not 3 (gaps row U22): they are small (11 points) and say what matters.
+            for (surface, back) in [
+                ("list", theme.background),
+                ("side panel", theme.sidebar),
+                ("dialog", theme.window),
+            ] {
+                for (what, fore) in [
+                    ("muted", theme.muted),
+                    ("warning", theme.warning),
+                    ("success", theme.success),
+                ] {
+                    let ratio = contrast(fore, back);
+                    if ratio < 4.5 {
+                        faint.push(format!("{at}: {what} on the {surface}: {ratio:.2}"));
+                    }
+                }
+            }
             assert!(
                 contrast(theme.on_selection, theme.selection) >= 3.0,
                 "{at}: a chosen row"
@@ -329,6 +356,13 @@ mod tests {
                 contrast(theme.on_accent, theme.accent) >= 3.0,
                 "{at}: default button"
             );
+        }
+        assert!(faint.is_empty(), "too faint: {faint:#?}");
+        // No system's own colours pass for a chosen row's, which the list's pictures follow.
+        for dark in [false, true] {
+            for theme in [windows(dark), gnome(dark), macos(dark)] {
+                assert!(!theme.is_chosen() && theme.chosen().is_chosen());
+            }
         }
     }
 }
