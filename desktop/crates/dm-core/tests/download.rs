@@ -38,7 +38,7 @@ struct Server {
     /// A name to offer. Not a misbehaviour, so not a `Mode`.
     disposition: Option<&'static str>,
     hits: Arc<AtomicUsize>,
-    /// Every range asked for, as (first, last).
+    /// Every range asked for, as (first, last): the probe's answer is not among them.
     asked: Arc<std::sync::Mutex<Vec<(usize, usize)>>>,
 }
 
@@ -133,7 +133,11 @@ async fn handler(State(s): State<Server>, headers: HeaderMap) -> Response {
             .unwrap();
     };
 
-    if !open_ended {
+    /* The probe asks with no `If-Range`: it is how dm learns the validator every range then asks
+     * under. On several connections it names its end (the file's first part), so it is told from
+     * a range by that and not by being open-ended. */
+    let probe = open_ended || !headers.contains_key("if-range");
+    if !probe {
         s.asked.lock().unwrap().push((a, b));
     }
 
@@ -2039,4 +2043,193 @@ async fn a_forms_answer_is_fetched_by_sending_the_form_again() {
     let dir = tempdir();
     let plain = options(dir.path());
     assert!(dm_core::download(&client(), &url, &plain).await.is_err());
+}
+
+/* ------------------------------------------- the first request (gaps row S9) */
+
+/// Every request a server of the file was asked, in the order asked: its `Range` (empty for
+/// none) and how many bytes of its answer the server handed on to be sent.
+type Sent = Arc<std::sync::Mutex<Vec<(String, Arc<AtomicUsize>)>>>;
+
+/// A server of `data` under one ETag that honours ranges, naming the total in `Content-Range`
+/// only where `total` says so, and counting the bytes of each answer as it hands them on, 16 KiB
+/// at a time: of an answer a connection let go of early, only what was handed on is counted.
+async fn serve_handing_on(data: Arc<Vec<u8>>, total: bool) -> (String, Sent) {
+    let sent: Sent = Arc::default();
+    let log = Arc::clone(&sent);
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |headers: HeaderMap| {
+            let (data, log) = (Arc::clone(&data), Arc::clone(&log));
+            async move {
+                use futures_util::StreamExt;
+                let size = data.len();
+                let range = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+                let asked = range
+                    .strip_prefix("bytes=")
+                    .and_then(|v| v.split_once('-'))
+                    .and_then(|(a, b)| {
+                        let a: usize = a.parse().ok()?;
+                        Some((a, b.parse::<usize>().unwrap_or(size - 1).min(size - 1)))
+                    });
+                let counted = Arc::new(AtomicUsize::new(0));
+                log.lock().unwrap().push((range, Arc::clone(&counted)));
+                let (from, to) = asked.unwrap_or((0, size - 1));
+                let chunks: Vec<bytes::Bytes> = data[from..=to]
+                    .chunks(16 * 1024)
+                    .map(bytes::Bytes::copy_from_slice)
+                    .collect();
+                let stream = futures_util::stream::iter(chunks).map(move |chunk| {
+                    counted.fetch_add(chunk.len(), Ordering::SeqCst);
+                    Ok::<_, std::io::Error>(chunk)
+                });
+                let mut answer = Response::builder()
+                    .header("etag", "\"one\"")
+                    .header("accept-ranges", "bytes")
+                    .header("content-length", to + 1 - from);
+                if asked.is_some() {
+                    let of = if total { size.to_string() } else { "*".into() };
+                    answer = answer
+                        .status(StatusCode::PARTIAL_CONTENT)
+                        .header("content-range", format!("bytes {from}-{to}/{of}"));
+                }
+                answer.body(Body::from_stream(stream)).unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    (format!("http://{addr}/f.bin"), sent)
+}
+
+/// The ranges asked for, in order, and every byte handed on in all.
+fn sent_of(sent: &Sent) -> (Vec<String>, usize) {
+    let sent = sent.lock().unwrap();
+    let asked = sent.iter().map(|(range, _)| range.clone()).collect();
+    let bytes = sent.iter().map(|(_, n)| n.load(Ordering::SeqCst)).sum();
+    (asked, bytes)
+}
+
+/// On several connections the first request asks for the file's first 8 MiB only, and range 0's
+/// connection, its range longer, asks for the rest of it on from there: the server hands on the
+/// file once, with the few hundred bytes about each seam asked for again, and nothing more.
+/// Asked for `bytes=0-`, the first answer went on past range 0's end until dm let go of it:
+/// megabytes on a fast link (gaps row S9). No try is spent on the answer ending where it was
+/// asked to.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_first_request_asks_for_the_files_first_part_and_range_0_fetches_nothing_past_its_end()
+{
+    // Two ranges of 12 MiB.
+    const SIZE: usize = 24 * MB;
+    let data = Arc::new(bytes(SIZE));
+    let (url, sent) = serve_handing_on(Arc::clone(&data), true).await;
+    let dir = tempdir();
+    let two = dm_core::Options {
+        connections: 2,
+        ..options(dir.path())
+    };
+    let (tx, mut rx) = tokio::sync::mpsc::channel(4096);
+    let said = tokio::spawn(async move {
+        let mut retried = Vec::new();
+        while let Some(update) = rx.recv().await {
+            if let dm_core::Update::Retrying { why, .. } = update {
+                retried.push(why);
+            }
+        }
+        retried
+    });
+    let done = dm_core::download_reporting(&client(), &url, &two, Some(tx))
+        .await
+        .expect("the download failed");
+    assert!(
+        std::fs::read(&done.path).unwrap() == *data,
+        "not the file served"
+    );
+    let retried = said.await.unwrap();
+    assert!(retried.is_empty(), "a try was spent: {retried:?}");
+
+    let (asked, handed_on) = sent_of(&sent);
+    assert_eq!(
+        asked.first().map(String::as_str),
+        Some("bytes=0-8388607"),
+        "{asked:?}"
+    );
+    // Range 0 goes on from the first part's end, on a request of its own.
+    assert!(
+        asked.iter().any(|r| r.starts_with("bytes=8388608-")),
+        "range 0 was not asked for on from the first part: {asked:?}"
+    );
+    // Nothing from byte 0 again.
+    assert_eq!(
+        asked.iter().filter(|r| r.starts_with("bytes=0-")).count(),
+        1,
+        "{asked:?}"
+    );
+    // The seams asked for again (1 KiB each) and each range's lead bytes (64): far under the
+    // 64 KiB allowed here, where an answer sent on past its range's end is megabytes.
+    assert!(
+        handed_on < SIZE + 64 * 1024,
+        "{} bytes handed on past the file's {SIZE}: {asked:?}",
+        handed_on - SIZE
+    );
+}
+
+/// On one connection range 0 is the whole file: the first request asks for all of it, and the
+/// file comes in that one answer, as it always has, with no request more for range 0.
+#[tokio::test]
+async fn on_one_connection_the_first_request_asks_for_the_whole_file() {
+    const SIZE: usize = 3 * MB;
+    let data = Arc::new(bytes(SIZE));
+    let (url, sent) = serve_handing_on(Arc::clone(&data), true).await;
+    let dir = tempdir();
+    let one = dm_core::Options {
+        connections: 1,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &one)
+        .await
+        .expect("the download failed");
+    assert!(
+        std::fs::read(&done.path).unwrap() == *data,
+        "not the file served"
+    );
+    let (asked, handed_on) = sent_of(&sent);
+    assert_eq!(
+        asked.first().map(String::as_str),
+        Some("bytes=0-"),
+        "{asked:?}"
+    );
+    // Only the file's last bytes may be asked for again, to be compared.
+    assert!(
+        asked.iter().skip(1).all(|r| !r.starts_with("bytes=0-")),
+        "{asked:?}"
+    );
+    assert!(handed_on < SIZE + 4 * 1024, "{asked:?}");
+}
+
+/// A server that names no total in its `Content-Range` gives a first part no plan can be made
+/// on, and the whole file is asked for in its place, as before the first request was bounded:
+/// read as the file, the first part would have been the file cut short.
+#[tokio::test]
+async fn a_first_part_with_no_total_is_asked_for_again_as_the_whole_file() {
+    const SIZE: usize = 3 * MB;
+    let data = Arc::new(bytes(SIZE));
+    let (url, sent) = serve_handing_on(Arc::clone(&data), false).await;
+    let dir = tempdir();
+    let done = download(&client(), &url, &options(dir.path()))
+        .await
+        .expect("the download failed");
+    assert!(
+        std::fs::read(&done.path).unwrap() == *data,
+        "not the file served"
+    );
+    let (asked, _) = sent_of(&sent);
+    assert_eq!(
+        asked.iter().take(2).map(String::as_str).collect::<Vec<_>>(),
+        ["bytes=0-8388607", "bytes=0-"],
+        "{asked:?}"
+    );
 }

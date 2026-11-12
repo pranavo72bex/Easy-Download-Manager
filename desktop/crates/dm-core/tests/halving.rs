@@ -60,7 +60,9 @@ async fn server(
             async move {
                 let total = data.len();
                 let range = closed(&headers, total);
-                if let Some(range) = range {
+                // Not the probe's, which asks with no `If-Range` (it learns the validator): on
+                // several connections it names its end too, the file's first part.
+                if let Some(range) = range.filter(|_| headers.contains_key("if-range")) {
                     seen.lock().unwrap().push(range);
                 }
                 let (a, b) = range.unwrap_or((0, total - 1));

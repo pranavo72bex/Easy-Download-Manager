@@ -1007,6 +1007,15 @@ async fn fetch_reporting(
             });
         }
     };
+    /* On several connections the first request asks for the file's first part only
+     * (`probe::FIRST_ASK`): where range 0 is longer, the answer ends inside it and range 0's
+     * connection asks for the rest of its range on. An answer running to the file's end went on
+     * past range 0's end until dm let go of it, megabytes sent for nothing on a fast link (gaps
+     * row S9). On one connection range 0 is the whole file, and the first answer runs to its end
+     * as ever. Nor under a cap (`Job::chunk`): the answer is not read there, and a server that
+     * caps each request is not asked for more than its cap in one. */
+    let capped = HINTS.try_with(|hints| hints.chunk).ok().flatten().is_some();
+    let first_ask = (options.connections > 1 && !capped).then_some(crate::probe::FIRST_ASK);
     let probed = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {
         or_stop(
             &options.control,
@@ -1015,6 +1024,7 @@ async fn fetch_reporting(
                 url,
                 options.referrer.as_deref(),
                 options.sign_in.as_ref(),
+                first_ask,
             ),
         )
     })
@@ -1037,8 +1047,12 @@ async fn fetch_reporting(
             };
         }
         other => {
-            let ProbeWithBody { probe, response } = other?;
-            (probe, Some(response))
+            let ProbeWithBody {
+                probe,
+                response,
+                brings,
+            } = other?;
+            (probe, Some(ranged::First { response, brings }))
         }
     };
 

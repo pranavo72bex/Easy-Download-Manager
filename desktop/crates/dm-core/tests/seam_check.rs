@@ -157,7 +157,8 @@ async fn honest_ranges_pass_the_second_look_and_stay_on_several_connections() {
     );
 }
 
-/// A server of `pattern(size)` that records every closed range it is asked for.
+/// A server of `pattern(size)` that records every closed range it is asked for but the probe's,
+/// which asks with no `If-Range` (it is how dm learns the validator).
 async fn serve_recording(size: usize) -> (String, Arc<std::sync::Mutex<Vec<(usize, usize)>>>) {
     let asked = Arc::new(std::sync::Mutex::new(Vec::new()));
     let (body, seen) = (Arc::new(pattern(size)), asked.clone());
@@ -174,7 +175,9 @@ async fn serve_recording(size: usize) -> (String, Arc<std::sync::Mutex<Vec<(usiz
                     let a = a.parse::<usize>().unwrap_or(0);
                     match b.parse::<usize>() {
                         Ok(b) => {
-                            seen.lock().unwrap().push((a, b));
+                            if headers.contains_key("if-range") {
+                                seen.lock().unwrap().push((a, b));
+                            }
                             (a, b.min(total - 1))
                         }
                         Err(_) => (a, total - 1),

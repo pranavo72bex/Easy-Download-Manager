@@ -48,7 +48,9 @@ pub async fn probe(
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Probe, Error> {
-    let ProbeWithBody { probe, response } = probe_get(client, url, referrer, sign_in).await?;
+    let ProbeWithBody {
+        probe, response, ..
+    } = probe_get(client, url, referrer, sign_in, None).await?;
     if response.content_length().is_some_and(|n| n <= REUSE_BELOW) {
         let _ = tokio::time::timeout(REUSE_WITHIN, response.bytes()).await;
     }
@@ -61,7 +63,27 @@ pub struct ProbeWithBody {
     pub probe: Probe,
     /// The answer, its body not yet read.
     pub response: reqwest::Response,
+    /// The last byte the body brings, where the first request asked for less
+    /// than the whole file and the file goes on past it; `None` where the body
+    /// runs to the file's end (or the server would not say where it stops).
+    pub brings: Option<u64>,
 }
+
+/// How much of the file the first request asks for where the download will be
+/// fetched on several connections. A file whose range 0 is longer (over 64 MiB
+/// on eight connections) has the first answer end inside range 0, and the
+/// connection that read it asks for the rest of the range: nothing past range
+/// 0's end is sent only to be dropped. Where range 0 is shorter the answer is
+/// read to range 0's end and let go of, as an answer running to the file's end
+/// was, but no more than this is ever sent for it.
+///
+/// Not as short as a range can be (`plan::MIN_SEGMENT`): every part asked for
+/// apart is one request more, and a server that takes few requests a second
+/// refuses the one that comes soon after dm's first wave of them, and nothing
+/// was fetched on that connection for half a second (`tests/limits.rs`, a
+/// mirror taking two connections and a request a second). Asked once eight
+/// mebibytes have come, that request comes seconds later on such a server.
+pub(crate) const FIRST_ASK: u64 = 8 * 1024 * 1024;
 
 /// Learns a URL's length, name and whether it can be resumed, keeping the
 /// body streaming so the caller can read it as the download's first piece.
@@ -71,21 +93,32 @@ pub struct ProbeWithBody {
 /// that learned about the file is the one that fetches its first piece —
 /// no round trip wasted. A 200 (ranges not supported) delivers the whole
 /// file on one connection.
+///
+/// With `first`, it asks for that many bytes at most (`bytes=0-N`): a file
+/// fetched on several connections has range 0 end long before the file does,
+/// and an answer running to the file's end was sent on past range 0 until dm
+/// let go of it. The length still comes from `Content-Range`. A 206 that
+/// names no total, or comes encoded, says nothing a plan can be made on, and
+/// its body is no more than `first` bytes of a file of unknown length: the
+/// whole file is asked for instead, as without `first`.
 pub async fn probe_get(
     client: &reqwest::Client,
     url: &str,
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
+    first: Option<u64>,
 ) -> Result<ProbeWithBody, Error> {
     // A form's answer: sent once, as the browser sent it, with no range and
     // none of the second tries below, each of which would send it again.
     let posted = sign_in.and_then(|s| s.post_for(url)).is_some();
-    let ask_as = |agent: &str, ranged: bool| {
+    let bounded = first.filter(|&n| n > 0 && !posted);
+    let wanted = bounded.map_or_else(|| WHOLE.to_owned(), |n| format!("bytes=0-{}", n - 1));
+    let ask_as = |agent: &str, range: Option<&str>| {
         let mut request = crate::download::with_form(client, url, sign_in)
             .header(reqwest::header::USER_AGENT, agent)
             .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
-        if ranged && !posted {
-            request = request.header(reqwest::header::RANGE, "bytes=0-");
+        if let Some(range) = range.filter(|_| !posted) {
+            request = request.header(reqwest::header::RANGE, range);
         }
         let cookies = crate::cookies::header_with(sign_in, url);
         request =
@@ -104,7 +137,7 @@ pub async fn probe_get(
         request = crate::cookies::add_headers(request, sign_in, url);
         crate::auth::send(client, request, url)
     };
-    let ask = |agent: &str| ask_as(agent, true);
+    let ask = |agent: &str| ask_as(agent, Some(wanted.as_str()));
     let mut res = ask(crate::agent_for(url)).await?;
     if !posted
         && res.status() == reqwest::StatusCode::FORBIDDEN
@@ -176,7 +209,7 @@ pub async fn probe_get(
     // reference A asks first. Taken only if the plain request succeeds; the
     // ranged answer's error is what is said otherwise.
     if !posted && res.status().is_server_error() {
-        if let Ok(plain) = ask_as(crate::agent_for(url), false).await {
+        if let Ok(plain) = ask_as(crate::agent_for(url), None).await {
             if plain.status().is_success() {
                 res = plain;
             }
@@ -193,6 +226,27 @@ pub async fn probe_get(
     if !empty && (status.is_client_error() || status.is_server_error()) {
         return Err(Error::from_response(res).await);
     }
+
+    /* Asked for the first part only, and answered with a part that names no
+     * total or comes encoded: no plan can be made on it, and read as the file
+     * it would be the file cut short. Asked again for the whole, as an
+     * unbounded probe asks, and that answer is the one read or refused. */
+    let mut brings = None;
+    if bounded.is_some() && status == reqwest::StatusCode::PARTIAL_CONTENT {
+        match first_part(res.headers()) {
+            Some((last, total)) => {
+                brings = (last.saturating_add(1) < total).then_some(last);
+            }
+            None => {
+                let whole = ask_as(crate::agent_for(url), Some(WHOLE)).await?;
+                if !whole.status().is_success() {
+                    return Err(Error::from_response(whole).await);
+                }
+                res = whole;
+            }
+        }
+    }
+    let status = res.status();
 
     let headers = res.headers().clone();
     let final_url = keep_login(url, res.url());
@@ -224,6 +278,8 @@ pub async fn probe_get(
         // A form's answer is fetched whole, by sending the form again.
         (size, resumable && !posted)
     };
+    // Only a part of a file whose plan can go on past it.
+    let brings = brings.filter(|_| resumable && size.is_some());
 
     let validator =
         header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
@@ -250,7 +306,34 @@ pub async fn probe_get(
             content_type,
         },
         response: res,
+        brings,
     })
+}
+
+/// The `Range` that asks for the whole file from its first byte.
+const WHOLE: &str = "bytes=0-";
+
+/// The last byte and the file's length a first answer's `Content-Range` names,
+/// where it starts at byte 0, names a total and comes unencoded; `None`
+/// otherwise.
+fn first_part(headers: &reqwest::header::HeaderMap) -> Option<(u64, u64)> {
+    if crate::decode::coding_of(headers).is_some() {
+        return None;
+    }
+    let said = headers
+        .get(reqwest::header::CONTENT_RANGE)?
+        .to_str()
+        .ok()?
+        .trim()
+        .strip_prefix("bytes ")?;
+    let (span, total) = said.split_once('/')?;
+    let (from, last) = span.split_once('-')?;
+    let (from, last) = (
+        from.trim().parse::<u64>().ok()?,
+        last.trim().parse::<u64>().ok()?,
+    );
+    let total = total.trim().parse::<u64>().ok()?;
+    (from == 0 && last < total).then_some((last, total))
 }
 
 /// The largest probe answer read to its end so its connection is kept for
@@ -724,5 +807,35 @@ mod tests {
         assert_eq!(sanitize(&once), once);
         let cut_on_a_dot = format!("{}.{}", "a".repeat(199), "b".repeat(40));
         assert_eq!(sanitize(&cut_on_a_dot), "a".repeat(199));
+    }
+
+    /// A first part is planned on only where it starts at byte 0, names the file's length and
+    /// comes unencoded; anything else is asked for again as the whole file.
+    #[test]
+    fn a_first_part_is_read_from_a_content_range_that_names_a_total() {
+        let headers = |pairs: &[(&'static str, &'static str)]| {
+            let mut map = reqwest::header::HeaderMap::new();
+            for (name, value) in pairs {
+                map.insert(*name, reqwest::header::HeaderValue::from_static(value));
+            }
+            map
+        };
+        let part = |range: &'static str| first_part(&headers(&[("content-range", range)]));
+        assert_eq!(
+            part("bytes 0-1048575/536870912"),
+            Some((1_048_575, 536_870_912))
+        );
+        assert_eq!(part(" bytes 0 - 99 / 100 "), Some((99, 100)), "spaces");
+        assert_eq!(part("0-99/100"), None, "no `bytes ` before it");
+        assert_eq!(part("bytes 0-1048575/*"), None, "no total");
+        assert_eq!(part("bytes 512-1048575/9000000"), None, "not from byte 0");
+        assert_eq!(part("bytes 0-200/100"), None, "past the total it names");
+        assert_eq!(part("bytes */100"), None);
+        assert_eq!(first_part(&headers(&[])), None);
+        let encoded = headers(&[
+            ("content-range", "bytes 0-99/100"),
+            ("content-encoding", "gzip"),
+        ]);
+        assert_eq!(first_part(&encoded), None, "encoded");
     }
 }
