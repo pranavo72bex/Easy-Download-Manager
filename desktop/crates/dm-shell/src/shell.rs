@@ -381,6 +381,23 @@ pub fn opened_by_system(home: &Path, opened: &[String]) -> usize {
     handed.downloads.len()
 }
 
+/// The start of the inbox file that asks the running dm to try a failed
+/// download again: its row's id follows.
+pub const RETRY_PREFIX: &str = "retry-";
+
+/// Asks the running dm to try row `id` again, through its inbox: a
+/// notification's Retry, whose click is heard on a thread that has no queue
+/// to ask (gaps row U15).
+pub fn ask_running_to_retry(home: &Path, id: u64) {
+    let _ = std::fs::create_dir_all(host::inbox(home));
+    let _ = std::fs::write(host::inbox(home).join(format!("{RETRY_PREFIX}{id}")), b"");
+}
+
+/// The row a file in the inbox asks to be tried again, by its name.
+pub fn retry_asked(name: &str) -> Option<u64> {
+    name.strip_prefix(RETRY_PREFIX)?.parse().ok()
+}
+
 /// `--new-download`, left in the inbox for the window to take up: the one
 /// running, or the one this launch starts.
 pub fn leave_new_download(home: &Path, orders: &Orders) {
@@ -1186,6 +1203,17 @@ pub async fn watch_inbox(
             .map(|entries| entries.flatten().map(|e| e.path()).collect())
             .unwrap_or_default();
         for path in waiting {
+            // A notification's Retry (`ask_running_to_retry`), taken once.
+            if let Some(id) = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(retry_asked)
+            {
+                if std::fs::remove_file(&path).is_ok() {
+                    queue.retry(id).await;
+                }
+                continue;
+            }
             if path.extension().and_then(|e| e.to_str()) != Some("json") {
                 continue;
             }

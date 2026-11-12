@@ -27,7 +27,16 @@ pub fn claim() {
 /// too while the program's main run loop runs, which GPUI's does (gaps row
 /// U15: before, a click on macOS only brought dm forward).
 pub fn say(note: Note) {
-    let Note { title, body, path } = note;
+    let Note {
+        title,
+        body,
+        path,
+        retry,
+    } = note;
+    if let (None, Some(id)) = (&path, retry) {
+        say_failed(title, body, id);
+        return;
+    }
     let Some(path) = path else {
         std::thread::spawn(move || {
             let _ = notify_rust::Notification::new()
@@ -98,4 +107,29 @@ fn buttons() -> Vec<(&'static str, &'static str)> {
     } else {
         vec![("default", t("Open")), ("folder", t("Open folder"))]
     }
+}
+
+/// A failed download's notification, with a Retry button that tries the
+/// row again through the running dm's inbox (`shell::ask_running_to_retry`):
+/// the click is heard on a thread of its own, which has no queue to ask
+/// (gaps row U15). Waited on as a finished file's is, within the same few.
+fn say_failed(title: String, body: String, id: u64) {
+    let words = dm_desktop_base::i18n::t("Retry");
+    std::thread::spawn(move || {
+        let mut notification = notify_rust::Notification::new();
+        notification
+            .appname("dm")
+            .summary(&title)
+            .body(&body)
+            .action("retry", words);
+        let Ok(handle) = notification.show() else {
+            return;
+        };
+        let _ = handle.wait_for_response(|response: &notify_rust::NotificationResponse| {
+            if matches!(response, notify_rust::NotificationResponse::Action(key) if key == "retry")
+            {
+                dm_shell::shell::ask_running_to_retry(&dm_shell::settings::home(), id);
+            }
+        });
+    });
 }

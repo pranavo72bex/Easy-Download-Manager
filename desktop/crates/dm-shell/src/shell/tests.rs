@@ -675,3 +675,21 @@ fn a_long_path_goes_to_the_shell_in_a_form_it_takes() {
     assert_eq!(plain(r"C:\a"), r"C:\a");
     assert_eq!(SHELL_PATH_MOST, 260);
 }
+
+/// A notification's Retry is a file in the inbox named for the row, which
+/// the inbox reads back as that row (gaps row U15).
+#[test]
+fn a_notifications_retry_is_asked_through_the_inbox() {
+    let home = tempfile::tempdir().unwrap();
+    ask_running_to_retry(home.path(), 42);
+    let names: Vec<String> = std::fs::read_dir(host::inbox(home.path()))
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, ["retry-42"]);
+    assert_eq!(retry_asked("retry-42"), Some(42));
+    assert_eq!(retry_asked("retry-"), None);
+    assert_eq!(retry_asked("retry-x"), None);
+    assert_eq!(retry_asked("show"), None);
+}

@@ -24,6 +24,11 @@ pub trait Platform: Send + Sync {
     fn notify_file(&self, title: &str, body: &str, _path: &str) {
         self.notify(title, body);
     }
+    /// Announces a failed download, with a Retry that tries row `_id`
+    /// again where the system draws buttons on a notification.
+    fn notify_failure(&self, title: &str, body: &str, _id: u64) {
+        self.notify(title, body);
+    }
     /// The clipboard's text, for the opt-in link watcher.
     fn clipboard(&self) -> Option<String>;
     /// Shows a finished file in the file manager.

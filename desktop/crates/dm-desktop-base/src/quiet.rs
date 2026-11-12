@@ -123,6 +123,9 @@ pub struct Note {
     pub body: String,
     /// The finished file a click opens, when there is one.
     pub path: Option<String>,
+    /// The failed download its Retry button tries again, when there is one
+    /// (gaps row U15).
+    pub retry: Option<u64>,
 }
 
 static HELD: Mutex<Hold<Note>> = Mutex::new(Hold {

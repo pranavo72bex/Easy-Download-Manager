@@ -23,11 +23,11 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use windows::core::{h, IInspectable, Ref, HSTRING};
+use windows::core::{h, IInspectable, Interface, Ref, HSTRING};
 use windows::Data::Xml::Dom::XmlDocument;
 use windows::Foundation::TypedEventHandler;
 use windows::UI::Notifications::{
-    ToastDismissedEventArgs, ToastNotification, ToastNotificationManager,
+    ToastActivatedEventArgs, ToastDismissedEventArgs, ToastNotification, ToastNotificationManager,
 };
 
 /// The program the toasts say they come from.
@@ -80,7 +80,26 @@ pub fn show<F>(title: &str, body: &str, on_click: Option<F>) -> windows::core::R
 where
     F: Fn() + Send + 'static,
 {
-    post(title, body, on_click, None)
+    post(
+        title,
+        body,
+        None,
+        on_click.map(|f| move |_: &str| f()),
+        None,
+    )
+}
+
+/// The key a toast's button answers with: [`show_file`]'s Open folder.
+pub const FOLDER: &str = "folder";
+
+/// As [`show`], for a finished file: a button with `button`'s words under
+/// it, and `on_click` told what was clicked, [`FOLDER`] for the button and
+/// nothing for the toast itself (gaps row U15).
+pub fn show_file<F>(title: &str, body: &str, button: &str, on_click: F) -> windows::core::Result<()>
+where
+    F: Fn(&str) + Send + 'static,
+{
+    post(title, body, Some(button), Some(on_click), None)
 }
 
 /// As [`show`], into the Action Center without a banner and in `group`, so
@@ -96,7 +115,13 @@ pub fn show_unseen<F>(
 where
     F: Fn() + Send + 'static,
 {
-    post(title, body, on_click, Some(group))
+    post(
+        title,
+        body,
+        None,
+        on_click.map(|f| move |_: &str| f()),
+        Some(group),
+    )
 }
 
 /// Takes the toasts of `group` out of the Action Center.
@@ -109,13 +134,14 @@ pub fn remove_group(group: &str) -> windows::core::Result<()> {
 fn post<F>(
     title: &str,
     body: &str,
+    button: Option<&str>,
     on_click: Option<F>,
     unseen: Option<&str>,
 ) -> windows::core::Result<()>
 where
-    F: Fn() + Send + 'static,
+    F: Fn(&str) + Send + 'static,
 {
-    let toast = template(title, body)?;
+    let toast = template(title, body, button)?;
     if let Some(group) = unseen {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -131,10 +157,17 @@ where
     let slot: Slot = Arc::new(Mutex::new(None));
     let clicked = Arc::clone(&slot);
     let activated = toast.Activated(&TypedEventHandler::new(
-        move |_: Ref<ToastNotification>, _: Ref<IInspectable>| {
+        move |_: Ref<ToastNotification>, args: Ref<IInspectable>| {
             if let Some(heard) = take(&clicked) {
                 heard.let_go();
-                on_click();
+                // A button's `arguments`; empty for the toast itself.
+                let what = args
+                    .ok()
+                    .and_then(|args| args.cast::<ToastActivatedEventArgs>())
+                    .and_then(|args| args.Arguments())
+                    .map(|said| said.to_string())
+                    .unwrap_or_default();
+                on_click(&what);
             }
             Ok(())
         },
@@ -187,7 +220,11 @@ where
 
 /// The toast's XML, made as a document rather than as text, so a file's
 /// name is never read as markup.
-fn template(title: &str, body: &str) -> windows::core::Result<ToastNotification> {
+fn template(
+    title: &str,
+    body: &str,
+    button: Option<&str>,
+) -> windows::core::Result<ToastNotification> {
     let doc = XmlDocument::new()?;
     let toast = doc.CreateElement(h!("toast"))?;
     toast.SetAttribute(h!("duration"), h!("short"))?;
@@ -202,6 +239,14 @@ fn template(title: &str, body: &str) -> windows::core::Result<ToastNotification>
     }
     visual.AppendChild(&binding)?;
     toast.AppendChild(&visual)?;
+    if let Some(words) = button {
+        let actions = doc.CreateElement(h!("actions"))?;
+        let action = doc.CreateElement(h!("action"))?;
+        action.SetAttribute(h!("content"), &HSTRING::from(words))?;
+        action.SetAttribute(h!("arguments"), &HSTRING::from(FOLDER))?;
+        actions.AppendChild(&action)?;
+        toast.AppendChild(&actions)?;
+    }
     let audio = doc.CreateElement(h!("audio"))?;
     audio.SetAttribute(h!("silent"), h!("true"))?;
     toast.AppendChild(&audio)?;

@@ -7,7 +7,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 - macOS: dm's Dock icon shows a bar of how far the downloads are and a badge of how many run, and its menu opens the download folder.
 - Linux: the launcher in the dock or panel shows how far the downloads are and how many run, where the desktop shows a launcher's progress (Ubuntu Dock, Dash to Dock, KDE's task manager, Plank).
-- A finished download's notification opens the file when clicked on macOS too, and offers Open folder; on Linux its buttons are in dm's language.
+- A finished download's notification opens the file when clicked on macOS too, and offers Open folder everywhere, Windows included; on Linux its buttons are in dm's language.
+- A failed download's notification has a Retry button that tries it again.
 - Windows: a finished download can be dragged from the window into an Explorer folder, a mail or a chat.
 - Windows 11: Options › General's "Use the Mica backdrop" is back, in the new window: the desktop shows faintly through the window's frame from dm's next start.
 - Windows: Open, Show in folder, Open with and Delete file work on a file whose path is longer than 260 characters.

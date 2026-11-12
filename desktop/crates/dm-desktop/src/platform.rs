@@ -113,7 +113,9 @@ pub(super) const DRAG_ICON: &[u8] = include_bytes!("../icons/32x32.png");
 /// Says a toast: one whose click opens a finished file, or a plain one.
 #[cfg(not(windows))]
 fn say(note: dm_desktop::quiet::Note) {
-    let dm_desktop::quiet::Note { title, body, path } = note;
+    let dm_desktop::quiet::Note {
+        title, body, path, ..
+    } = note;
     let Some(path) = path else {
         std::thread::spawn(move || {
             let _ = notify_rust::Notification::new()

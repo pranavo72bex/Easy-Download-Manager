@@ -105,13 +105,14 @@ impl Downloads {
                 if read.failed.contains(&row.id) {
                     failed = true;
                     // Told as a finish is, with why in plain words.
-                    self.backend.platform.notify(
+                    self.backend.platform.notify_failure(
                         t("Download failed"),
                         &format!(
                             "{} — {}",
                             dm_shell::app::names::name_of(row),
                             dm_desktop_base::rows::status_of(row)
                         ),
+                        row.id,
                     );
                 }
                 if read.finished.contains(&row.id) {

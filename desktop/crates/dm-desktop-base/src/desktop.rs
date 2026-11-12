@@ -134,6 +134,7 @@ impl<W: WindowServices> Platform for Desktop<W> {
             title: title.to_string(),
             body: body.to_string(),
             path: None,
+            retry: None,
         };
         if let Some(note) = crate::quiet::offer(note) {
             self.say(note);
@@ -156,6 +157,21 @@ impl<W: WindowServices> Platform for Desktop<W> {
             title: title.to_string(),
             body: body.to_string(),
             path: Some(path.to_string()),
+            retry: None,
+        };
+        if let Some(note) = crate::quiet::offer(note) {
+            self.say(note);
+        }
+    }
+
+    /// As `notify`, with a Retry button where the system draws one: Linux's
+    /// servers, macOS's centre and Windows' toasts (gaps row U15).
+    fn notify_failure(&self, title: &str, body: &str, id: u64) {
+        let note = Note {
+            title: title.to_string(),
+            body: body.to_string(),
+            path: None,
+            retry: Some(id),
         };
         if let Some(note) = crate::quiet::offer(note) {
             self.say(note);
@@ -307,15 +323,44 @@ fn file_chooser_portal() -> bool {
 /// three handles for every toast (gaps row 156).
 #[cfg(windows)]
 fn say_on_windows(note: Note) {
-    let Note { title, body, path } = note;
+    let Note {
+        title,
+        body,
+        path,
+        retry,
+    } = note;
+    // In the window's language, which is this thread's.
+    let button = crate::i18n::t("Open folder");
+    let retry_words = crate::i18n::t("Retry");
     // On a thread of its own, as before: the session's first toast starts
     // Windows' runtime, which takes a moment the window should not wait.
     std::thread::spawn(move || {
-        let open = path.filter(|p| !p.is_empty()).map(|path| {
-            move || {
-                let _ = shell::open_file(&path);
+        match path.filter(|p| !p.is_empty()) {
+            // A click opens the file, its Open folder shows it in Explorer
+            // (gaps row U15).
+            Some(path) => {
+                let _ = crate::toast::show_file(&title, &body, button, move |what| {
+                    let _ = if what == crate::toast::FOLDER {
+                        shell::reveal_in_folder(&path)
+                    } else {
+                        shell::open_file(&path)
+                    };
+                });
             }
-        });
-        let _ = crate::toast::show(&title, &body, open);
+            None => match retry {
+                // Its Retry tries the row again, through the running dm's
+                // inbox; a click on the toast itself brings dm forward.
+                Some(id) => {
+                    let _ = crate::toast::show_file(&title, &body, retry_words, move |what| {
+                        if what == crate::toast::FOLDER {
+                            shell::ask_running_to_retry(&dm_shell::settings::home(), id);
+                        }
+                    });
+                }
+                None => {
+                    let _ = crate::toast::show(&title, &body, None::<fn()>);
+                }
+            },
+        }
     });
 }
