@@ -364,13 +364,24 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
             eprintln!("dm: could not hand {} to the running dm: {e}", request.url);
         }
     }
-    let _ = std::fs::create_dir_all(host::inbox(home));
     if orders.start_queue {
-        let _ = std::fs::write(host::inbox(home).join("start-queue"), b"");
+        let _ = leave(home, "start-queue", b"");
     }
     leave_when_done(home, orders);
     leave_new_download(home, orders);
-    let _ = std::fs::write(host::inbox(home).join("show"), b"");
+    // Last, and rung: the requests filed above are found with it.
+    let _ = leave(home, "show", b"");
+}
+
+/// Leaves `name` in the running dm's inbox, saying `said`, and rings its bell (`host::ring`):
+/// the watcher looks at once, where it would otherwise find it at its next look, seconds away
+/// (gaps row S18). Every one of dm's own writers goes through here.
+pub fn leave(home: &Path, name: &str, said: &[u8]) -> std::io::Result<()> {
+    let dir = host::inbox(home);
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join(name), said)?;
+    host::ring(home);
+    Ok(())
 }
 
 /// What the system opened with this dm (macOS: a `magnet:` link clicked
@@ -394,8 +405,7 @@ pub const RETRY_PREFIX: &str = "retry-";
 /// notification's Retry, whose click is heard on a thread that has no queue
 /// to ask (gaps row U15).
 pub fn ask_running_to_retry(home: &Path, id: u64) {
-    let _ = std::fs::create_dir_all(host::inbox(home));
-    let _ = std::fs::write(host::inbox(home).join(format!("{RETRY_PREFIX}{id}")), b"");
+    let _ = leave(home, &format!("{RETRY_PREFIX}{id}"), b"");
 }
 
 /// The row a file in the inbox asks to be tried again, by its name.
@@ -407,8 +417,7 @@ pub fn retry_asked(name: &str) -> Option<u64> {
 /// running, or the one this launch starts.
 pub fn leave_new_download(home: &Path, orders: &Orders) {
     if orders.new_download {
-        let _ = std::fs::create_dir_all(host::inbox(home));
-        let _ = std::fs::write(host::inbox(home).join(NEW_DOWNLOAD_FILE), b"");
+        let _ = leave(home, NEW_DOWNLOAD_FILE, b"");
     }
 }
 
@@ -416,8 +425,7 @@ pub fn leave_new_download(home: &Path, orders: &Orders) {
 /// running, or the one this launch starts.
 pub fn leave_when_done(home: &Path, orders: &Orders) {
     if let Some(word) = &orders.when_done {
-        let _ = std::fs::create_dir_all(host::inbox(home));
-        let _ = std::fs::write(host::inbox(home).join(WHEN_DONE_FILE), word);
+        let _ = leave(home, WHEN_DONE_FILE, word.as_bytes());
     }
 }
 
@@ -923,9 +931,7 @@ pub fn ask_running_to_quit(home: &Path) -> std::io::Result<bool> {
     if !crate::instance::running(home)? {
         return Ok(false);
     }
-    let dir = host::inbox(home);
-    std::fs::create_dir_all(&dir)?;
-    std::fs::write(dir.join(QUIT), b"")?;
+    leave(home, QUIT, b"")?;
     Ok(true)
 }
 
@@ -1086,8 +1092,13 @@ pub async fn take_from_browser(
     Taken::Added(queue.add_with(&url, with).await)
 }
 
-/// How often the inbox is looked at with no bell rung.
+/// How often the inbox is looked at where dm could open no bell.
 const INBOX_POLL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// How often it is looked at anyway with a bell: every writer rings it (`leave`, `host::deposit`'s
+/// callers), so this is for a file left by hand or by an older dm (gaps row S18: twice a second
+/// for the life of the process before).
+const INBOX_POLL_RUNG: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The doorbell a browser hand-off rings (`host::ring`): a loopback socket
 /// whose port is written down in the inbox for the host to find. `None`
@@ -1123,7 +1134,7 @@ async fn wait_for_inbox(bell: Option<&tokio::net::UdpSocket>) {
     tokio::time::sleep(BELL_FLOOR).await;
     let mut buf = [0u8; 16];
     tokio::select! {
-        _ = tokio::time::sleep(INBOX_POLL - BELL_FLOOR) => {}
+        _ = tokio::time::sleep(INBOX_POLL_RUNG - BELL_FLOOR) => {}
         _ = bell.recv(&mut buf) => {
             while bell.try_recv(&mut buf).is_ok() {}
         }

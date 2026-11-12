@@ -54,6 +54,18 @@ CASES = [
 failures = []
 
 
+
+def ring(home):
+    """Rings dm's inbox bell, as dm's own writers do: it looks at once, not at its next look,
+    seconds away (gaps row S18)."""
+    import socket
+    try:
+        port = int((pathlib.Path(home) / "inbox" / "bell").read_text().strip())
+    except (OSError, ValueError):
+        return
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.sendto(b"", ("127.0.0.1", port))
+
 def check(name, ok, detail=""):
     print(f"  {'ok  ' if ok else 'FAIL'}  {name}" + ("" if ok else f"  ({detail})"))
     if not ok:
@@ -114,6 +126,7 @@ def main():
             tmp = inbox / f".case{n}.tmp"
             tmp.write_text(json.dumps(request))
             tmp.rename(inbox / f"case{n}.json")
+            ring(home)
             # One at a time, so each row is known by its order.
             time.sleep(1.5)
         started = time.time()

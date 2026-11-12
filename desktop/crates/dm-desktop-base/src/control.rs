@@ -68,6 +68,10 @@ const MAX_CONNECTIONS: usize = 16;
 const MAX_WAITING: usize = 16;
 /// How long a connection has to present the token.
 const AUTH_WITHIN: Duration = Duration::from_secs(5);
+
+/// How long the closing thread sleeps while no connection waits: it is woken
+/// as one comes, so this only bounds how long it outlives the port.
+const IDLE_LOOK: Duration = Duration::from_secs(60);
 const ANSWER_WITHIN: Duration = Duration::from_secs(60);
 
 /// Set as dm quits: a request still waiting is told so, not left to time
@@ -157,6 +161,14 @@ impl Waiting {
         self.list.retain(|(each, _, _)| *each != id);
     }
 
+    /// How long until the oldest waiting connection's time is up; none while
+    /// none waits.
+    fn next_due(&self) -> Option<Duration> {
+        self.list
+            .front()
+            .map(|(_, came, _)| (*came + AUTH_WITHIN).saturating_duration_since(Instant::now()))
+    }
+
     /// Closes every connection that has waited past `AUTH_WITHIN`, however
     /// slowly it is still sending.
     fn expire(&mut self) {
@@ -196,13 +208,20 @@ pub fn listen_reading(
     let wake = Arc::new(wake);
     let open = Arc::new(AtomicUsize::new(0));
     let waiting = Arc::new(Mutex::new(Waiting::default()));
+    // Rung as a connection is taken in: the thread that closes those that
+    // wait too long sleeps until the oldest one's time is up, or for good
+    // while none waits, rather than looking four times a second for the
+    // life of dm (gaps row S18).
+    let arrived = Arc::new(std::sync::Condvar::new());
     {
         let waiting = Arc::downgrade(&waiting);
+        let arrived = Arc::clone(&arrived);
         std::thread::spawn(move || {
-            while let Some(waiting) = waiting.upgrade() {
-                dm_core::lock(&waiting).expire();
-                drop(waiting);
-                std::thread::sleep(Duration::from_millis(250));
+            while let Some(held) = waiting.upgrade() {
+                let mut list = dm_core::lock(&held);
+                list.expire();
+                let due = list.next_due().unwrap_or(IDLE_LOOK);
+                let _ = arrived.wait_timeout(list, due);
             }
         });
     }
@@ -211,6 +230,7 @@ pub fn listen_reading(
             let Some(id) = dm_core::lock(&waiting).admit(&stream) else {
                 continue;
             };
+            arrived.notify_one();
             let (token, to_window, wake, open, waiting, reads) = (
                 token.clone(),
                 to_window.clone(),
