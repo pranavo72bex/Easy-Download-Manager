@@ -7074,3 +7074,17 @@ looked droppable is kept, with its reason.
   second local address only (gaps row 47); not removed for that.
 - **`mica`** (Options › General, Windows 11): the GPUI window draws it since gaps row G11, opt-in
   because an old GPU driver can draw a see-through window black.
+
+## 2026-11-13: Toolbar icon sets and a phone's links declined (gaps row F15)
+
+Taken at the maintainer's word of 2026-11-12, the row's recommendation being each declined in words
+or built:
+
+- **Icon sets of a person's own**: declined. The toolbar has three looks (icons and words, icons,
+  words) drawn from dm's own icons in the system's colours; a set of a person's own is a file format,
+  a loader and a look per system to keep, for what the three looks already give.
+- **Sending a link from a phone**: declined for now. It needs dm to listen on the network beyond
+  the loopback, and a pairing to keep it to the person's own phone: a new way in from outside the
+  computer, against the security stance (the control port listens on the loopback alone). The
+  browser extension on the phone's own browser, where there is one, sends to a dm on the same
+  device; a link sent another way (mail, a chat) is pasted or dropped.
