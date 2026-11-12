@@ -450,6 +450,64 @@ fn entries_that_leave_the_folder_or_repeat_fail_the_whole_archive_before_any_wri
 }
 
 #[test]
+fn a_file_and_a_folder_of_one_name_in_any_case_are_refused_before_any_write() {
+    // On a disk that ignores case these would fail only once the first was written, after
+    // the folder was made; they are judged with the rest instead.
+    let cases: [&[(&str, Kind)]; 3] = [
+        &[("a", Kind::Data), ("A", Kind::Dir)],
+        &[("A", Kind::Dir), ("a", Kind::Data)],
+        &[("a", Kind::Data), ("A/b", Kind::Empty)],
+    ];
+    for entries in cases {
+        let bytes = seven(&[copy_folder(&[b"x"])], entries, None);
+        let dir = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            run(dir.path(), "c.7z", &bytes),
+            Err(Error::Duplicate(_))
+        ));
+        assert!(!dir.path().join("c").exists(), "nothing is made");
+    }
+    // A folder named twice, in two cases, is still one folder.
+    let fine = seven(
+        &[copy_folder(&[b"x"])],
+        &[("d", Kind::Dir), ("D", Kind::Dir), ("d/f", Kind::Data)],
+        None,
+    );
+    let dir = tempfile::tempdir().unwrap();
+    assert_eq!(run(dir.path(), "f.7z", &fine).unwrap().files, 1);
+}
+
+#[test]
+fn a_header_listing_more_folders_or_packed_streams_than_entries_allowed_is_refused() {
+    // A packed list of files can unpack to 64 MiB of three-byte folders, millions of them;
+    // past the entries allowed it is refused before they are held in memory.
+    let limit = 10usize;
+    let mut folders = vec![0x01, 0x04, 0x07, 0x0B];
+    number(&mut folders, limit as u64 + 1);
+    folders.push(0x00);
+    for _ in 0..=limit {
+        folders.extend_from_slice(&[0x01, 0x01, 0x00]);
+    }
+    let mut packed = vec![0x01, 0x04, 0x06, 0x00];
+    number(&mut packed, limit as u64 * 4 + 1);
+    let dir = tempfile::tempdir().unwrap();
+    for (name, mut h) in [("folders", folders), ("packed", packed)] {
+        h.resize(h.len() + 200, 0);
+        let path = dir.path().join(format!("{name}.7z"));
+        std::fs::write(&path, wrap(Vec::new(), &h)).unwrap();
+        assert!(
+            matches!(read_archive(&path, limit), Err(Error::TooBig(_))),
+            "{name}"
+        );
+        // Within the limit the same lists are only read as far as they go.
+        assert!(!matches!(
+            read_archive(&path, limit * 4 + 1),
+            Err(Error::TooBig(_))
+        ));
+    }
+}
+
+#[test]
 fn links_and_special_files_by_their_attributes_are_refused() {
     // A Unix link (mode 0120777 in the high half), a device, and a Windows reparse point.
     for attr in [

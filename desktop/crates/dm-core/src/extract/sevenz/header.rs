@@ -27,6 +27,10 @@ pub(super) const HEADER_MOST: u64 = 64 << 20;
 /// The most coders, or streams between them, one folder may have.
 const CODERS_MOST: u64 = 64;
 
+/// The most packed streams one folder may read (a BCJ2 folder reads four), so the packed
+/// streams listed may be at most this many times the entries allowed.
+const PACKED_PER_FOLDER: usize = 4;
+
 // The header's property numbers, as the format names them.
 const END: u8 = 0x00;
 const HEADER: u8 = 0x01;
@@ -349,9 +353,14 @@ struct Streams {
     substreams: Option<Vec<Vec<StreamSize>>>,
 }
 
-fn pack_info(c: &mut Cursor, s: &mut Streams) -> Result<(), Error> {
+fn pack_info(c: &mut Cursor, s: &mut Streams, max_entries: usize) -> Result<(), Error> {
     s.pack_pos = c.number()?;
     let n = c.count()?;
+    // Each folder holds at least one file, so packed streams past the entries allowed are a
+    // header made to fill memory (a list of 64 MiB packs into a few KB), not an archive.
+    if n > max_entries.saturating_mul(PACKED_PER_FOLDER) {
+        return Err(Error::TooBig("too many entries"));
+    }
     loop {
         match c.byte()? {
             END => return Ok(()),
@@ -367,11 +376,15 @@ fn pack_info(c: &mut Cursor, s: &mut Streams) -> Result<(), Error> {
     }
 }
 
-fn unpack_info(c: &mut Cursor, s: &mut Streams) -> Result<(), Error> {
+fn unpack_info(c: &mut Cursor, s: &mut Streams, max_entries: usize) -> Result<(), Error> {
     if c.byte()? != FOLDER {
         return Err(damaged("its folders"));
     }
     let n = c.count()?;
+    // As for packed streams: more folders than entries allowed only fill memory.
+    if n > max_entries {
+        return Err(Error::TooBig("too many entries"));
+    }
     if c.byte()? != 0 {
         return Err(damaged("folders kept elsewhere"));
     }
@@ -477,8 +490,8 @@ fn streams_info(c: &mut Cursor, max_entries: usize) -> Result<Streams, Error> {
     loop {
         match c.byte()? {
             END => return Ok(s),
-            PACK_INFO => pack_info(c, &mut s)?,
-            UNPACK_INFO => unpack_info(c, &mut s)?,
+            PACK_INFO => pack_info(c, &mut s, max_entries)?,
+            UNPACK_INFO => unpack_info(c, &mut s, max_entries)?,
             SUBSTREAMS_INFO => substreams_info(c, &mut s, max_entries)?,
             _ => return Err(damaged("its streams")),
         }

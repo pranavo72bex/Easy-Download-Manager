@@ -142,6 +142,22 @@ fn plain_mode(mode: Option<u32>) -> bool {
     matches!(mode.map_or(0, |m| m & 0o170000), 0 | 0o100000 | 0o040000)
 }
 
+/// The first entry, of `paths`, that would sit inside an entry that is a file: `seen` holds
+/// each entry's path in lower case and whether it is a folder. Without this a file `a` and a
+/// file `a/b` would pass the first pass and fail only once `a` was written.
+fn inside_a_file<'a>(
+    paths: impl IntoIterator<Item = &'a Path>,
+    seen: &std::collections::HashMap<String, bool>,
+) -> Option<String> {
+    paths.into_iter().find_map(|path| {
+        path.ancestors()
+            .skip(1)
+            .filter(|a| !a.as_os_str().is_empty())
+            .any(|a| seen.get(&a.to_string_lossy().to_lowercase()) == Some(&false))
+            .then(|| path.display().to_string())
+    })
+}
+
 /// A path inside the archive that stays inside the folder: relative, with
 /// no `..`, no drive, no stream suffix, no empty or NUL-bearing part, under
 /// either slash; and on Windows no device name or trailing dot or space.

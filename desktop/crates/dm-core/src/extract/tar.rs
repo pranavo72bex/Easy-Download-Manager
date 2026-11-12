@@ -10,7 +10,7 @@
 //!
 //! A tar has no index, so it is read twice: once to judge, once to write.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -215,7 +215,7 @@ pub(super) fn extract_into(
 ) -> Result<Extracted, Error> {
     // First pass: every entry judged before anything is written.
     let mut plan: Vec<(PathBuf, bool, u64)> = Vec::new();
-    let (mut total, mut seen) = (0u64, HashSet::new());
+    let (mut total, mut seen) = (0u64, HashMap::new());
     walk(&mut *open(archive)?, |name, size, kind, reader| {
         let shown: String = name.chars().take(120).collect();
         let dir = match kind {
@@ -224,11 +224,14 @@ pub(super) fn extract_into(
             _ => return Err(Error::Special(shown)),
         };
         let path = safe_path(name).ok_or_else(|| Error::Escapes(shown.clone()))?;
-        if !seen.insert(path.to_string_lossy().to_lowercase()) {
-            // A folder named twice is the same folder.
-            if !dir {
-                return Err(Error::Duplicate(shown));
-            }
+        // A folder named twice is the same folder; any other repeat, in any case, is refused
+        // here, a file and a folder of one name included, before anything is written.
+        let key = path.to_string_lossy().to_lowercase();
+        if seen
+            .insert(key, dir)
+            .is_some_and(|was_dir| !(was_dir && dir))
+        {
+            return Err(Error::Duplicate(shown));
         }
         if plan.len() >= limits.max_entries {
             return Err(Error::TooBig("too many entries"));
@@ -240,20 +243,12 @@ pub(super) fn extract_into(
         plan.push((path, dir, size));
         take(reader, size, &mut std::io::sink())
     })?;
+    if let Some(shown) = super::inside_a_file(plan.iter().map(|(p, _, _)| p.as_path()), &seen) {
+        return Err(Error::Duplicate(shown));
+    }
     let stored = fs::metadata(archive)?.len();
     if total > limits.ratio_floor && total / stored.max(1) > limits.max_ratio {
         return Err(Error::TooBig("it compresses far beyond anything real"));
-    }
-    let dirs: HashSet<&Path> = plan
-        .iter()
-        .filter(|(_, dir, _)| *dir)
-        .map(|(p, _, _)| p.as_path())
-        .collect();
-    if plan
-        .iter()
-        .any(|(p, dir, _)| !dir && dirs.contains(p.as_path()))
-    {
-        return Err(Error::Duplicate("a file is also a folder".into()));
     }
 
     fs::create_dir(folder)?;
@@ -427,6 +422,31 @@ mod tests {
             ),
             Err(Error::Unreadable(_))
         ));
+    }
+
+    #[test]
+    fn a_file_and_a_folder_of_one_name_in_any_case_are_refused_before_any_write() {
+        // A file `a` and a folder `A`, or a file `a` and a file under it, would fail only once
+        // the first was written; they are judged with the rest instead.
+        for entries in [
+            vec![("a", b'0', b"x".as_slice()), ("A/", b'5', b"".as_slice())],
+            vec![("A/", b'5', b"".as_slice()), ("a", b'0', b"x".as_slice())],
+            vec![("a", b'0', b"x".as_slice()), ("A/b", b'0', b"y".as_slice())],
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            assert!(
+                matches!(
+                    unpack(dir.path(), "c.tar", &tar(&entries)),
+                    Err(Error::Duplicate(_))
+                ),
+                "{entries:?}"
+            );
+            assert!(!dir.path().join("out").exists(), "nothing written");
+        }
+        // A folder named twice, in two cases, is still one folder.
+        let dir = tempfile::tempdir().unwrap();
+        let fine = tar(&[("d/", b'5', b""), ("D/", b'5', b""), ("d/f", b'0', b"z")]);
+        assert_eq!(unpack(dir.path(), "f.tar", &fine).unwrap().files, 1);
     }
 
     #[test]

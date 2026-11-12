@@ -16,7 +16,7 @@
 mod header;
 mod lzma;
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -108,7 +108,7 @@ pub(super) fn extract_into(
 
     // First pass: every entry judged before anything is written.
     let mut plan: Vec<Planned> = Vec::with_capacity(parsed.entries.len());
-    let (mut total, mut seen) = (0u64, HashSet::new());
+    let (mut total, mut seen) = (0u64, HashMap::new());
     for entry in &parsed.entries {
         let shown: String = entry.name.chars().take(120).collect();
         let path = safe_path(&entry.name).ok_or_else(|| Error::Escapes(shown.clone()))?;
@@ -124,8 +124,13 @@ pub(super) fn extract_into(
                 None => return Err(header::damaged("a stream with no folder")),
             }
         }
-        if !seen.insert(path.to_string_lossy().to_lowercase()) && !entry.dir {
-            // A folder named twice is the same folder; a file named twice is refused.
+        // A folder named twice is the same folder; any other repeat, in any case, is refused
+        // here, a file and a folder of one name included, before anything is written.
+        let key = path.to_string_lossy().to_lowercase();
+        if seen
+            .insert(key, entry.dir)
+            .is_some_and(|was_dir| !(was_dir && entry.dir))
+        {
             return Err(Error::Duplicate(shown));
         }
         let size = entry.stream.map_or(0, |s| s.size);
@@ -139,20 +144,12 @@ pub(super) fn extract_into(
             stream: entry.stream,
         });
     }
+    if let Some(shown) = super::inside_a_file(plan.iter().map(|p| p.path.as_path()), &seen) {
+        return Err(Error::Duplicate(shown));
+    }
     let stored = fs::metadata(archive)?.len();
     if total > limits.ratio_floor && total / stored.max(1) > limits.max_ratio {
         return Err(Error::TooBig("it compresses far beyond anything real"));
-    }
-    let dirs: HashSet<&Path> = plan
-        .iter()
-        .filter(|p| p.dir)
-        .map(|p| p.path.as_path())
-        .collect();
-    if plan
-        .iter()
-        .any(|p| !p.dir && dirs.contains(p.path.as_path()))
-    {
-        return Err(Error::Duplicate("a file is also a folder".into()));
     }
 
     fs::create_dir(folder)?;
