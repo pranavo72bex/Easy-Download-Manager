@@ -69,7 +69,11 @@ fn answer_inside(
                     .iter()
                     .map(|url| (url.clone(), asked.with.clone()))
                     .collect();
-                view.session.add(&view.backend, items).outcome()?
+                let added = view.session.add(&view.backend, items).outcome();
+                // Read at once, as the egui window reads after an add: a batch's next step
+                // (`ui.inspect`, a second add of the same address) sees the rows added.
+                view.read();
+                added?
             };
             Ok(json!({ "added": added, "already_listed": asked.listed }))
         }
@@ -342,6 +346,14 @@ impl Probe<'_, '_> {
 
 impl WindowProbe for Probe<'_, '_> {
     fn may_step(&mut self) -> Result<(), String> {
+        // A click or a key on a window parked in the tray would act on what no one sees, as
+        // the egui window refused it.
+        if self.view.hidden {
+            return Err(
+                "dm's window is hidden in the tray: launch dm again, or choose Show in the tray, first"
+                    .into(),
+            );
+        }
         Ok(())
     }
 

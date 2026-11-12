@@ -126,7 +126,7 @@ fn a_row_dragged_onto_another_takes_its_place() {
         h.rows().iter().map(dm_shell::app::names::name_of).collect()
     };
     assert_eq!(names(&mut h), ["file.zip", "other.pdf", "deep.pdf"]);
-    h.drag("deep.pdf", "file.zip");
+    h.drag_words("deep.pdf", "file.zip");
     h.until("deep.pdf first", |h| {
         h.rows()
             .first()

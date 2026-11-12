@@ -125,7 +125,7 @@ pub struct Details {
     says: Option<SharedString>,
     /// Answered: a second Return in the same moment adds nothing.
     done: bool,
-    focus: FocusHandle,
+    pub(crate) focus: FocusHandle,
     screen: Screen,
 }
 

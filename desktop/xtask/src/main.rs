@@ -161,7 +161,7 @@ const BUDGETS: &[(&str, &str, &str)] = &[
     ),
     (
         "500 rows draw within a 100 ms frame",
-        "desktop/crates/dm-desktop/tests/window/layout.rs",
+        "desktop/crates/dm-gpui/src/window_tests/layout.rs",
         "five_hundred_rows_draw_inside_a_frame_budget",
     ),
     (

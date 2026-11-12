@@ -134,7 +134,7 @@ The parts that are easy to get wrong, and how they were checked here:
 
 ```sh
 # The window's controls do what they claim, against a real queue.
-cd desktop && cargo test -p dm-desktop --test window
+cd desktop && cargo test -p dm-gpui window_tests
 
 # The packaged app, driven: lock, hand-off, proxy, schedule, --hidden.
 DM_BINARY=desktop/target/release/bundle/dm.app/Contents/MacOS/dm-gpui python3 scripts/app-check.py
