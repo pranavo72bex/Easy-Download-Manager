@@ -8,6 +8,7 @@
 
 mod around;
 mod asks;
+mod bars;
 mod choices;
 mod commands;
 mod dialogs;
