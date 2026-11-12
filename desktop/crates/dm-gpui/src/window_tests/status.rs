@@ -46,3 +46,20 @@ fn download_details_says_the_size_beside_the_room_left() {
             .any(|t| t.starts_with("256.0 KB · ") && t.ends_with(" free"))
     });
 }
+
+/// The bars above the list stand one at a time, with how many more wait; "+N more" shows them
+/// all (gaps row U26).
+#[test]
+fn the_bars_above_the_list_stand_one_at_a_time() {
+    let world = world();
+    let mut h = world.harness();
+    h.until_shown("Add dm to your browser:");
+    h.view(|view| view.problems.push("the disk said no".into()));
+    h.until_shown("The disk said no");
+    assert!(!h.shows("Add dm to your browser:"), "two bars stacked");
+    assert!(h.shows("+1 more"));
+    h.click("+1 more");
+    h.until_shown("Add dm to your browser:");
+    assert!(h.shows("The disk said no"));
+    assert!(!h.shows("+1 more"));
+}

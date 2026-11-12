@@ -951,5 +951,6 @@
   "Save as HTML": "Opslaan als HTML",
   "Don't download": "Niet downloaden",
   "When this download is done": "Als deze download klaar is",
-  "{} \u00b7 {} free": "{} · {} vrij"
+  "{} \u00b7 {} free": "{} · {} vrij",
+  "+{} more||+{} more": "+{} meer||+{} meer"
 }

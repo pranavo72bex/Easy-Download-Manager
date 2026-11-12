@@ -2258,6 +2258,75 @@ impl Render for Downloads {
         let update_bar = self.update_bar(theme, &screen, cx);
         let holding = self.holder(cx).is_some();
         let browser_bar = self.browser_bar(theme, &screen, cx);
+        // In the order they matter: what the person just did (a link awaited from the
+        // browser, one copied), dm's update, a download stalled for room, problems, failures,
+        // and the way to add dm to a browser last (gaps row U26).
+        let mut bars: Vec<gpui::AnyElement> = Vec::new();
+        bars.extend(
+            self.awaiting_bar(theme, &screen, cx)
+                .map(IntoElement::into_any_element),
+        );
+        bars.extend(
+            self.clipboard_bar(theme, &screen, cx)
+                .map(IntoElement::into_any_element),
+        );
+        bars.extend(update_bar.map(IntoElement::into_any_element));
+        bars.extend(
+            self.stalled_bar(theme, &screen, cx)
+                .map(IntoElement::into_any_element),
+        );
+        // Problems from outside the list, each until dismissed.
+        bars.extend(self.problems.iter().enumerate().map(|(i, problem)| {
+            gpui::div()
+                .flex()
+                .items_center()
+                .gap(crate::zoom::px(crate::native::LABEL_GAP))
+                .px(crate::zoom::px(12.0))
+                .py(crate::zoom::px(6.0))
+                .border_b_1()
+                .border_color(theme.separator)
+                .child(
+                    gpui::div()
+                        .flex_1()
+                        .text_color(theme.warning)
+                        .child(screen.label(dm_desktop_base::format::as_shown(problem))),
+                )
+                .child(
+                    crate::native::button(
+                        ("dismiss", i),
+                        dm_desktop_base::i18n::t("Dismiss").into(),
+                        false,
+                        theme,
+                        &screen,
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if i < this.problems.len() {
+                            this.problems.remove(i);
+                        }
+                        cx.notify();
+                    })),
+                )
+                .into_any_element()
+        }));
+        bars.extend(
+            self.failed_bar(theme, &screen, cx)
+                .map(IntoElement::into_any_element),
+        );
+        bars.extend(browser_bar.map(IntoElement::into_any_element));
+        if bars.len() <= 1 {
+            // Asked for all, they stand together until one or none is left.
+            self.bars.all = false;
+        }
+        let more_bars = if self.bars.all {
+            0
+        } else {
+            bars.len().saturating_sub(1)
+        };
+        let shown_bars: Vec<gpui::AnyElement> = if self.bars.all {
+            bars
+        } else {
+            bars.into_iter().take(1).collect()
+        };
         let empty = self.shown.is_empty();
         div()
             .id("downloads")
@@ -2441,51 +2510,32 @@ impl Render for Downloads {
                             .flex_1()
                             .min_w_0()
                             .bg(theme.background)
-                            // dm's update, downloaded and checked: Install
-                            // now, or Later.
-                            .children(update_bar)
-                            // A download paused for want of room; those that
-                            // did not finish; the way to add dm to a browser.
-                            .children(self.stalled_bar(theme, &screen, cx))
-                            .children(self.failed_bar(theme, &screen, cx))
-                            .children(browser_bar)
-                            // A link copied, offered.
-                            .children(self.clipboard_bar(theme, &screen, cx))
-                            // While a fresh link is awaited from the
-                            // browser: what to do, and a way out.
-                            .children(self.awaiting_bar(theme, &screen, cx))
-                            // Problems from outside the list, each until
-                            // dismissed, above it.
-                            .children(self.problems.iter().enumerate().map(|(i, problem)| {
-                                gpui::div()
-                                    .flex()
-                                    .items_center()
-                                    .gap(crate::zoom::px(crate::native::LABEL_GAP))
-                                    .px(crate::zoom::px(12.0))
-                                    .py(crate::zoom::px(6.0))
-                                    .border_b_1()
-                                    .border_color(theme.separator)
-                                    .child(gpui::div().flex_1().text_color(theme.warning).child(
-                                        screen.label(dm_desktop_base::format::as_shown(problem)),
-                                    ))
-                                    .child(
-                                        crate::native::button(
-                                            ("dismiss", i),
-                                            dm_desktop_base::i18n::t("Dismiss").into(),
-                                            false,
-                                            theme,
-                                            &screen,
-                                        )
-                                        .on_click(
-                                            cx.listener(move |this, _, _, cx| {
-                                                if i < this.problems.len() {
-                                                    this.problems.remove(i);
-                                                }
-                                                cx.notify();
-                                            }),
-                                        ),
-                                    )
-                            }))
+                            // The bars above the list, one at a time with how many more
+                            // wait (gaps row U26): stacked, a failure, the browser's bar and a
+                            // problem or two took 135 points of a 500-point window.
+                            .children(shown_bars)
+                            .when(more_bars > 0, |d| {
+                                d.child(
+                                    div()
+                                        .id("more-bars")
+                                        .px(crate::zoom::px(12.0))
+                                        .py(crate::zoom::px(2.0))
+                                        .border_b_1()
+                                        .border_color(theme.separator)
+                                        .text_size(crate::zoom::px(crate::native::SMALL_TEXT))
+                                        .text_color(theme.selection)
+                                        .cursor_pointer()
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.bars.all = true;
+                                            cx.notify();
+                                        }))
+                                        .child(screen.label(dm_desktop_base::i18n::tn(
+                                            "+{} more||+{} more",
+                                            more_bars as u64,
+                                            &[&more_bars],
+                                        ))),
+                                )
+                            })
                             // The headings and the rows scroll sideways
                             // together where the window is narrower than
                             // the columns, as a macOS list does: at 120% in

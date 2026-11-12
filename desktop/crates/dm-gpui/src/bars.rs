@@ -43,6 +43,8 @@ fn bar(theme: Theme) -> gpui::Div {
 /// browser's extension has been heard from (looked at every few seconds).
 #[derive(Default)]
 pub struct Bars {
+    /// "+N more" was clicked: every bar shown, until one or none is left (gaps row U26).
+    pub(crate) all: bool,
     /// The failures hidden: the bar stays away until another fails.
     failed_hidden: BTreeSet<Id>,
     /// When the add-to-browser bar was last looked into, and whether it shows.
@@ -218,10 +220,18 @@ impl Downloads {
                     .on_click(cx.listener(move |view, _, _, _| view.open_path(page)))
             });
         Some(
+            // On one line (gaps row U26): its "Not now" went to a second.
             bar(theme)
+                .flex_nowrap()
+                .overflow_hidden()
                 .child(
                     div()
                         .id("add-to-browser")
+                        .flex_shrink(1.0)
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .child(screen.label(t("Add dm to your browser:")))
                         .tooltip(|window, cx| {

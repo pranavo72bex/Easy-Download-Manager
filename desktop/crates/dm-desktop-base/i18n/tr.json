@@ -951,5 +951,6 @@
   "Save as HTML": "HTML olarak kaydet",
   "Don't download": "İndirme",
   "When this download is done": "Bu indirme bittiğinde",
-  "{} \u00b7 {} free": "{} · {} boş"
+  "{} \u00b7 {} free": "{} · {} boş",
+  "+{} more||+{} more": "+{} daha"
 }

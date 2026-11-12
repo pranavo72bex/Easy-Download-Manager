@@ -951,5 +951,6 @@
   "Save as HTML": "Salva come HTML",
   "Don't download": "Non scaricare",
   "When this download is done": "Al termine di questo download",
-  "{} \u00b7 {} free": "{} · {} liberi"
+  "{} \u00b7 {} free": "{} · {} liberi",
+  "+{} more||+{} more": "+{} altro||+{} altri"
 }
