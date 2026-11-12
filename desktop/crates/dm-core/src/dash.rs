@@ -14,9 +14,10 @@
 //! `mkvmux`). Nothing is run; the manifest is outside input and every access
 //! is checked.
 //!
-//! Not read, and said so rather than saved wrong: a live manifest
-//! (`type="dynamic"`), one that changes period part-way, and one whose
-//! pieces are encrypted by a rights system (`ContentProtection`).
+//! A manifest of several periods has them joined where each period's
+//! picture and sound are alike (`periods`); a live one (`type="dynamic"`) is
+//! read afresh as it grows (`periods::live`). Not read, and said so rather
+//! than saved wrong: pieces encrypted by a rights system (`ContentProtection`).
 
 // Reads outside input: an index out of range here is a crash a server could
 // cause, so every access is checked.
@@ -84,6 +85,21 @@ pub struct Track {
     /// Set where the track is one file whose own index (`sidx`) says where its
     /// pieces lie: a part of it is then cut by that index, not by the list.
     pub indexed: Option<Indexed>,
+    /// Where each later period begins, in a track joined from several periods
+    /// of a manifest; empty for one period.
+    pub seams: Vec<Seam>,
+}
+
+/// Where a later period begins in a track joined from several (`pieces[at..]`
+/// are its pieces), with the initialisation piece that period lists. That
+/// piece is not in `pieces`: the first period's stands for it, once the
+/// download has found the two alike (`download::dash`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Seam {
+    /// The index in `pieces` of the period's first piece.
+    pub at: usize,
+    /// The period's own initialisation piece.
+    pub init: Piece,
 }
 
 /// Where the first boxes and the index of a one-file track are, where the
@@ -106,6 +122,9 @@ pub struct Plan {
     /// Whether a taller picture than the one taken for the best was listed copy-protected, and
     /// passed over: the row says so (`download::NOTES`, gaps row Y19).
     pub protected_above: bool,
+    /// How many of the manifest's periods are not in the plan, as their picture or sound is
+    /// not like the rest's (an advert in another format): the row says so (gaps row Y18).
+    pub left_out: usize,
 }
 
 impl Plan {
@@ -287,6 +306,8 @@ struct Context<'a> {
     set: &'a Node,
     rep: &'a Node,
     duration: Option<f64>,
+    /// Set for a live manifest: how much of the period has been made so far.
+    live: Option<periods::Clock>,
 }
 
 impl Context<'_> {
@@ -356,8 +377,9 @@ fn byte_range(text: &str) -> Option<(u64, u64)> {
     (a <= b).then_some((a, b))
 }
 
-/// The pieces of one representation, initialisation first.
-fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
+/// The pieces of one representation, initialisation first, and whether there
+/// is one to lead with.
+fn pieces_of(c: &Context) -> Result<(Vec<Piece>, bool), Error> {
     let id = c.rep.attr("id").unwrap_or_default();
     let bandwidth = c.rep.num("bandwidth").unwrap_or(0);
     let unreadable =
@@ -416,7 +438,12 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
         if let Some(timeline) = timeline {
             let mut time = 0u64;
             let mut number = start;
-            for (n, s) in timeline.children("S").enumerate() {
+            // Times in the timeline are the media's, which begins at this offset into it.
+            let offset = attr("presentationTimeOffset")
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(0) as f64;
+            let entries: Vec<&Node> = timeline.children("S").collect();
+            for (n, s) in entries.iter().enumerate() {
                 if let Some(t0) = s.num("t") {
                     time = t0;
                 } else if n == 0 {
@@ -426,17 +453,42 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                     .num("d")
                     .filter(|d| *d > 0)
                     .ok_or_else(|| unreadable("timeline"))?;
-                let repeats = match s.attr("r").and_then(|r| r.trim().parse::<i64>().ok()) {
-                    Some(r) if r >= 0 => r as u64,
-                    // A negative repeat runs to the period's end.
+                let count = match s.attr("r").and_then(|r| r.trim().parse::<i64>().ok()) {
+                    Some(r) if r >= 0 => r as u64 + 1,
+                    // A negative repeat runs to the next entry's start; the last one to the
+                    // period's end, or in a live stream to what has been made so far (whole
+                    // pieces only: the one being made is not there yet).
                     Some(_) => {
-                        let total =
-                            c.duration.ok_or_else(|| unreadable("timeline"))? * timescale as f64;
-                        (((total - time as f64) / d as f64).ceil() as i64 - 1).max(0) as u64
+                        let next = entries.get(n + 1).and_then(|e| e.num("t"));
+                        let (end, whole_only) = match (next, c.live) {
+                            (Some(next), _) => (next as f64, false),
+                            (None, Some(clock)) => (
+                                offset
+                                    + clock.elapsed.ok_or_else(|| unreadable("timeline"))?
+                                        * timescale as f64,
+                                true,
+                            ),
+                            (None, None) => (
+                                offset
+                                    + c.duration.ok_or_else(|| unreadable("timeline"))?
+                                        * timescale as f64,
+                                false,
+                            ),
+                        };
+                        let pieces = (end - time as f64) / d as f64;
+                        let pieces = if whole_only {
+                            pieces.floor()
+                        } else {
+                            pieces.ceil().max(1.0)
+                        };
+                        if !pieces.is_finite() || pieces > MOST_PIECES as f64 {
+                            return Err(unreadable("timeline (far too many pieces)"));
+                        }
+                        pieces.max(0.0) as u64
                     }
-                    None => 0,
+                    None => 1,
                 };
-                for _ in 0..=repeats {
+                for _ in 0..count {
                     if pieces.len() >= MOST_PIECES {
                         return Err(unreadable("timeline (far too many pieces)"));
                     }
@@ -450,19 +502,37 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                 .and_then(|v| v.parse::<f64>().ok())
                 .filter(|d| *d > 0.0)
                 .ok_or_else(|| unreadable("segment duration"))?;
-            let seconds = c.duration.ok_or_else(|| unreadable("duration"))?;
-            let count = (seconds * timescale as f64 / d).ceil();
-            if !(count.is_finite() && count > 0.0 && count <= MOST_PIECES as f64) {
+            // Numbered pieces of one length: all of the period's, or in a live stream the
+            // ones the clock says are whole, within the window the server keeps.
+            let (first, count) = match c.live {
+                Some(clock) => {
+                    let elapsed = clock
+                        .elapsed
+                        .ok_or_else(|| unreadable("live start (availabilityStartTime)"))?;
+                    periods::live_window(elapsed, d / timescale as f64, clock.depth)
+                }
+                None => {
+                    let seconds = c.duration.ok_or_else(|| unreadable("duration"))?;
+                    let count = (seconds * timescale as f64 / d).ceil();
+                    if !(count.is_finite() && count > 0.0) {
+                        return Err(unreadable("segment count"));
+                    }
+                    (0, count as u64)
+                }
+            };
+            if count > MOST_PIECES as u64 {
                 return Err(unreadable("segment count"));
             }
-            for n in 0..count as u64 {
+            for n in first..first + count {
                 pieces.push(at(start + n, n * d as u64, d as u64)?);
             }
         }
-        return Ok(pieces);
+        let init = attr("initialization").is_some();
+        return Ok((pieces, init));
     }
 
     if let Some(list) = c.inherited("SegmentList") {
+        let has_init = list.child("Initialization").is_some();
         if let Some(init) = list.child("Initialization") {
             if let Some(src) = init.attr("sourceURL") {
                 pieces.push(Piece {
@@ -509,18 +579,19 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                 millis: each,
             });
         }
-        return Ok(pieces);
+        return Ok((pieces, has_init));
     }
 
     // One file: a fragmented MP4 whose index sits in `indexRange` is still
     // fetched whole, its fragments and index in the order they lie.
     if c.rep.child("BaseURL").is_some() || c.inherited("SegmentBase").is_some() {
-        return Ok(vec![Piece {
+        let whole = Piece {
             url: c.base.clone(),
             range: None,
             lock: None,
             millis: 0,
-        }]);
+        };
+        return Ok((vec![whole], false));
     }
     Err(unreadable("segment addressing"))
 }
@@ -623,34 +694,23 @@ struct Candidate {
     track: Track,
     /// A main-role (or role-less) sound is preferred over a commentary.
     main: bool,
+    /// What a later period's track must say alike to be joined after this
+    /// one: its medium, container, codec, picture size and sound rate. `None`
+    /// where it is not joined to another period at all: a WebM, whose times
+    /// each period starts again, or a track with no initialisation piece.
+    shape: Option<String>,
+    /// Whether `track.pieces` leads with its initialisation piece.
+    init: bool,
 }
 
-/// Every representation of the first period, readable or not.
-fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
-    if root.attr("type") == Some("dynamic") {
-        return Err(Error::Internal(
-            "this DASH stream is live, which dm does not record".into(),
-        ));
-    }
-    let periods: Vec<&Node> = root.children("Period").collect();
-    if periods.len() > 1 {
-        return Err(Error::Internal(
-            "this stream changes period part-way through, which dm does not join".into(),
-        ));
-    }
-    let period = periods
-        .first()
-        .copied()
-        .ok_or_else(|| Error::Internal("that manifest lists nothing to download".into()))?;
-    let duration = period
-        .attr("duration")
-        .and_then(iso_seconds)
-        .or_else(|| root.attr("mediaPresentationDuration").and_then(iso_seconds));
+/// Every representation of one period, readable or not.
+fn candidates(root: &Node, period: &periods::PeriodAt, url: &str) -> Result<Vec<Candidate>, Error> {
     let top = base_of(url, root)?;
-    let period_base = base_of(&top, period)?;
+    let node = period.node;
+    let period_base = base_of(&top, node)?;
 
     let mut out = Vec::new();
-    for set in period.children("AdaptationSet") {
+    for set in node.children("AdaptationSet") {
         if set.child("ContentProtection").is_some() {
             // Copy protection, not scrambling that is handed to any player.
             continue;
@@ -666,10 +726,11 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
             let c = Context {
                 base: base_of(&set_base, rep)?,
                 mpd: root,
-                period,
+                period: node,
                 set,
                 rep,
-                duration,
+                duration: period.duration,
+                live: period.clock,
             };
             let _ = c.mpd;
             let Some(medium) = medium_of(&c) else {
@@ -680,10 +741,20 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
             if !(mime.is_empty() || mime.ends_with("mp4") || webm) {
                 continue; // subtitles, thumbnails
             }
-            let pieces = pieces_of(&c)?;
+            let (pieces, init) = pieces_of(&c)?;
             if pieces.is_empty() {
                 continue;
             }
+            let said = |name: &str| rep.attr(name).or_else(|| set.attr(name)).unwrap_or("");
+            let shape = (init && !webm).then(|| {
+                format!(
+                    "{medium:?} {mime} {} {}x{} {}",
+                    said("codecs"),
+                    said("width"),
+                    said("height"),
+                    said("audioSamplingRate")
+                )
+            });
             out.push(Candidate {
                 track: Track {
                     medium,
@@ -697,13 +768,16 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
                     webm,
                     indexed: indexed_of(&c),
                     pieces,
+                    seams: Vec::new(),
                 },
                 main,
+                shape,
+                init,
             });
         }
     }
     if out.is_empty() {
-        let protected = period
+        let protected = node
             .children("AdaptationSet")
             .any(|s| s.child("ContentProtection").is_some());
         return Err(Error::Internal(
@@ -711,7 +785,7 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
             if protected {
                 crate::stream::PROTECTED
             } else {
-                "that manifest lists no picture or sound dm can fetch"
+                NOTHING_FETCHABLE
             }
             .into(),
         ));
@@ -719,39 +793,59 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
     Ok(out)
 }
 
+/// What a manifest of nothing dm can fetch is refused with.
+const NOTHING_FETCHABLE: &str = "that manifest lists no picture or sound dm can fetch";
+
 /// The picture to take at `quality`: the tallest at or below a height (the
 /// shortest above it when nothing is that small), the tallest for best.
 /// `container` ("webm") prefers that container among equals; otherwise MP4.
-fn pick_video(mut videos: Vec<Track>, quality: Quality, container: Option<&str>) -> Option<Track> {
+fn pick_video(
+    mut videos: Vec<Candidate>,
+    quality: Quality,
+    container: Option<&str>,
+) -> Option<Candidate> {
     let want_webm = container == Some("webm");
     if let Quality::UpTo(limit) = quality {
-        let under: Vec<Track> = videos
-            .iter()
-            .filter(|t| t.height <= limit)
-            .cloned()
-            .collect();
-        if !under.is_empty() {
-            videos = under;
+        if videos.iter().any(|c| c.track.height <= limit) {
+            videos.retain(|c| c.track.height <= limit);
         } else {
-            let lowest = videos.iter().map(|t| t.height).min()?;
-            videos.retain(|t| t.height == lowest);
+            let lowest = videos.iter().map(|c| c.track.height).min()?;
+            videos.retain(|c| c.track.height == lowest);
         }
     }
     videos
         .into_iter()
-        .max_by_key(|t| (t.height, t.webm == want_webm, t.bandwidth))
+        .max_by_key(|c| (c.track.height, c.track.webm == want_webm, c.track.bandwidth))
 }
 
 /// The sound to take: a main track's, in the picture's container where
 /// there is one, the best bandwidth.
-fn pick_audio(audios: Vec<Candidate>, with_webm: bool) -> Option<Track> {
+fn pick_audio(audios: Vec<Candidate>, with_webm: bool) -> Option<Candidate> {
     audios
         .into_iter()
         .max_by_key(|c| (c.main, c.track.webm == with_webm, c.track.bandwidth))
-        .map(|c| c.track)
 }
 
-/// What to fetch from a manifest's text, served at `url`.
+/// The picture and the sound to take of one period's representations.
+fn choose(
+    all: Vec<Candidate>,
+    quality: Quality,
+    container: Option<&str>,
+) -> (Option<Candidate>, Option<Candidate>) {
+    let (videos, audios): (Vec<Candidate>, Vec<Candidate>) = all
+        .into_iter()
+        .partition(|c| c.track.medium == Medium::Video);
+    let video = if quality == Quality::Audio {
+        None
+    } else {
+        pick_video(videos, quality, container)
+    };
+    let audio = pick_audio(audios, video.as_ref().is_some_and(|v| v.track.webm));
+    (video, audio)
+}
+
+/// What to fetch from a manifest's text, served at `url`. A manifest of
+/// several periods has the longest run of alike ones joined (`periods`).
 pub fn plan(
     text: &str,
     url: &str,
@@ -759,25 +853,15 @@ pub fn plan(
     container: Option<&str>,
 ) -> Result<Plan, Error> {
     let root = parse(text)?;
-    let all = candidates(&root, url)?;
-    let (videos, audios): (Vec<Candidate>, Vec<Candidate>) = all
-        .into_iter()
-        .partition(|c| c.track.medium == Medium::Video);
-    let video = if quality == Quality::Audio {
-        None
-    } else {
-        pick_video(
-            videos.into_iter().map(|c| c.track).collect(),
-            quality,
-            container,
-        )
-    };
-    let audio = pick_audio(audios, video.as_ref().is_some_and(|v| v.webm));
-    if video.is_none() && audio.is_none() {
+    if root.attr("type") == Some("dynamic") {
+        // A live manifest is read afresh as it grows (`live`), not planned whole.
         return Err(Error::Internal(
-            "that manifest lists no picture or sound dm can fetch".into(),
+            "this DASH stream is live, so it is recorded as it goes rather than planned whole"
+                .into(),
         ));
     }
+    let listed = periods::periods_of(&root, None);
+    let (video, audio, left_out) = periods::joined(&root, &listed, url, quality, container)?;
     let protected_above = quality == Quality::Best
         && video
             .as_ref()
@@ -786,6 +870,7 @@ pub fn plan(
         video,
         audio,
         protected_above,
+        left_out,
     })
 }
 
@@ -810,6 +895,10 @@ fn protected_tallest(root: &Node) -> u32 {
         .max()
         .unwrap_or(0)
 }
+
+mod periods;
+pub(crate) use periods::heaviest;
+pub use periods::{is_live, keep_periods, live, Live, LivePeriod, LiveTrack};
 
 #[cfg(test)]
 mod tests;

@@ -942,5 +942,6 @@
  "Applications": "应用程序",
  "dm settings": "dm 设置",
  "Download lists": "下载列表",
- "Delete the file?": "删除该文件？"
+ "Delete the file?": "删除该文件？",
+ "{} parts of the stream in another format, such as an advert, were left out": "已略去 {} 段其他格式的内容（如广告）"
 }

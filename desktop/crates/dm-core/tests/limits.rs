@@ -625,6 +625,19 @@ async fn a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_on
 /// there to fetch from (gaps row S9).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_first_answer_read_on_into_the_ranges_after_ends_inside_one_without_a_retry() {
+    // Whether the first answer is read on as far as the fourth range depends on when the other
+    // connections take the ranges between: tried until it is, each try held to no retry.
+    for _ in 0..5 {
+        if read_on_into_the_fourth_range().await {
+            return;
+        }
+    }
+    panic!("in five tries the first answer was never read on into the fourth range");
+}
+
+/// One download of [`a_first_answer_read_on_into_the_ranges_after_ends_inside_one_without_a_retry`]:
+/// whether the first answer was read on into the fourth range.
+async fn read_on_into_the_fourth_range() -> bool {
     // Eight ranges of 2.5 MiB: the first answer's 8 MiB end inside the fourth.
     let mirror = Arc::new(Mirror {
         data: body(20 * 1024 * 1024),
@@ -662,17 +675,17 @@ async fn a_first_answer_read_on_into_the_ranges_after_ends_inside_one_without_a_
     let log = mirror.log.lock().unwrap().clone();
     let first = log.first().and_then(|asked| asked.range.clone());
     assert_eq!(first.as_deref(), Some("bytes=0-8388607"), "{log:?}");
-    // Read on past range 0's end into the fourth range, which goes on from the first answer's end.
-    assert!(
-        log.iter().any(|asked| asked
-            .range
-            .as_deref()
-            .is_some_and(|r| r.starts_with("bytes=8388608-"))),
-        "{log:?}"
-    );
     let cut_short = said.await.unwrap();
     assert!(
         cut_short.is_empty(),
         "the first answer's end was taken as a dropped connection: {cut_short:?}\n{log:?}"
     );
+    // Read on past range 0's end into the fourth range, which goes on from the first answer's
+    // end; or, where another connection took a range first, read on less far.
+    log.iter().any(|asked| {
+        asked
+            .range
+            .as_deref()
+            .is_some_and(|r| r.starts_with("bytes=8388608-"))
+    })
 }

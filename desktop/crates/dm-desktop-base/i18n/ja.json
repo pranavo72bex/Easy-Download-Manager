@@ -942,5 +942,6 @@
  "Applications": "アプリケーション",
  "dm settings": "dm の設定",
  "Download lists": "ダウンロードリスト",
- "Delete the file?": "ファイルを削除しますか？"
+ "Delete the file?": "ファイルを削除しますか？",
+ "{} parts of the stream in another format, such as an advert, were left out": "広告など別の形式の部分 {} 件を除外しました"
 }

@@ -559,9 +559,14 @@ of them.
       and sound are chosen by the quality and container asked for, each fetched
       piece by piece (a byte range a server does not honour is an error, not
       the whole file written in as one piece), resumed from the pieces already
-      whole, and joined by dm's own muxer (`mp4mux`, `mkvmux`). A live manifest,
-      one that changes period part-way, and one under a rights system
-      (`ContentProtection`) are refused by name. Pinned by the parser's unit
+      whole, and joined by dm's own muxer (`mp4mux`, `mkvmux`). A manifest of
+      several periods has its alike periods (codec, size, sound rate, and first
+      boxes checked alike when fetched) joined in order into one file, a period
+      in another format (an advert) left out and the row saying so; a live
+      manifest (`type="dynamic"`) is read again every `minimumUpdatePeriod` and
+      recorded until it turns static or the person stops it (`dash/periods.rs`,
+      `download/dash_live.rs`, gaps row Y18). One under a rights system
+      (`ContentProtection`) is refused by name. Pinned by the parser's unit
       tests and by a download of a picture cut by byte ranges and a sound,
       served with ranges, joined into one MP4 (`download/dash.rs` tests). An HLS
       master that keeps its sound in a playlist of its own is fetched and

@@ -942,5 +942,6 @@
  "Applications": "Uygulamalar",
  "dm settings": "dm ayarları",
  "Download lists": "İndirme listeleri",
- "Delete the file?": "Dosya silinsin mi?"
+ "Delete the file?": "Dosya silinsin mi?",
+ "{} parts of the stream in another format, such as an advert, were left out": "Reklam gibi başka biçimdeki {} yayın bölümü atlandı"
 }

@@ -942,5 +942,6 @@
  "Applications": "Programme",
  "dm settings": "dm-Einstellungen",
  "Download lists": "Download-Listen",
- "Delete the file?": "Die Datei löschen?"
+ "Delete the file?": "Die Datei löschen?",
+ "{} parts of the stream in another format, such as an advert, were left out": "{} Teile des Streams in einem anderen Format, etwa Werbung, wurden ausgelassen"
 }

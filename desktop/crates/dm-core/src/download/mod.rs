@@ -35,6 +35,7 @@ use crate::Error;
 
 mod assemble;
 mod dash;
+mod dash_live;
 mod files;
 mod hls;
 mod http;
@@ -743,10 +744,11 @@ pub async fn download(
 
 /// Every note a download may put on its row ([`Update::Note`]), so the window has each in
 /// every language; a note with a number says it as `{}`.
-pub const NOTES: [&str; 3] = [
+pub const NOTES: [&str; 4] = [
     "higher qualities are copy-protected, so the best one that is not was taken",
     "{} pieces of the live stream were gone before dm could fetch them",
     "checked against the checksum file published beside it",
+    "{} parts of the stream in another format, such as an advert, were left out",
 ];
 
 /// The note of a file checked against a checksum file found beside it ([`NOTES`], gaps row F5).
@@ -781,8 +783,8 @@ pub enum Update {
     Validator(String),
     /// Something the download wants its row to say beside its state, in English as one of
     /// [`NOTES`] says it (the window says it in the person's language): higher qualities passed
-    /// over as protected, a live stream's pieces gone before they were fetched (gaps rows Y19,
-    /// Y23).
+    /// over as protected, a live stream's pieces gone before they were fetched, parts of a stream
+    /// in another format left out (gaps rows Y19, Y23, Y18).
     Note(String),
     /// A range failed and is about to be tried again: attempt `attempt`
     /// (the first try is 1) of `of`, 0 being "keep trying". Over once bytes

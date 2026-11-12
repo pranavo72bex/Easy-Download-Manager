@@ -21,12 +21,25 @@ pub(super) async fn download_dash(
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
     let (text, landed) = hls::fetch_playlist(client, url, options).await?;
-    let plan = dash::plan(
+    // A live stream is recorded as it goes, its manifest read again and again.
+    if dash::is_live(&text) {
+        return super::dash_live::record(client, url, &landed, text, options, report).await;
+    }
+    let mut plan = dash::plan(
         &text,
         &landed,
         options.quality,
         options.container.as_deref(),
     )?;
+    // Periods unlike the rest (an advert in another format) are left out, and the row says how
+    // many (gaps row Y18).
+    let left_out = plan.left_out + check_seams(client, &mut plan, options).await?;
+    if left_out > 0 {
+        if let Some(tx) = &report {
+            let said = crate::download::NOTES[3].replace("{}", &left_out.to_string());
+            let _ = tx.send(Update::Note(said)).await;
+        }
+    }
 
     // The best taken was below a quality passed over as copy-protected: the row says so.
     if plan.protected_above {
@@ -51,6 +64,85 @@ pub(super) async fn download_dash(
         client, &tracks, &filename, extension, webm, &signature, options, report,
     )
     .await
+}
+
+/// A plan joined from several periods, checked before its pieces are fetched:
+/// each period's initialisation piece is fetched, and the periods are joined
+/// only where theirs are alike (the same tracks, timescales and sample
+/// descriptions, `mp4mux::init_shape`), or the pieces after one would be read
+/// with another's set-up. Where they are not, every track is cut to the
+/// longest group of alike periods (by playing time; the earliest among
+/// equals). Returns how many periods were cut off.
+async fn check_seams(
+    client: &reqwest::Client,
+    plan: &mut dash::Plan,
+    options: &Options,
+) -> Result<usize, Error> {
+    let joined: Vec<&Track> = plan
+        .video
+        .iter()
+        .chain(plan.audio.iter())
+        .filter(|t| !t.seams.is_empty())
+        .collect();
+    let Some(reference) = joined.first().copied() else {
+        return Ok(0);
+    };
+    let periods = reference.seams.len() + 1;
+    // `keys[k]`: what period k's initialisation pieces say, track by track; `None` (alike to
+    // nothing) where one cannot be read.
+    let mut keys: Vec<Option<Option<Vec<Vec<u8>>>>> = vec![Some(Some(Vec::new())); periods];
+    for track in &joined {
+        let inits = track
+            .pieces
+            .first()
+            .into_iter()
+            .chain(track.seams.iter().map(|s| &s.init));
+        for (k, init) in inits.enumerate() {
+            let body = retry::run_up_to(&options.control, options.tries(), || {
+                hls::fetch_segment_range(client, &init.url, init.range, options)
+            })
+            .await?;
+            match (keys.get_mut(k), crate::mp4mux::init_shape(&body)) {
+                (Some(Some(Some(key))), Some(shape)) => key.push(shape),
+                (Some(slot), None) => *slot = Some(None),
+                _ => {}
+            }
+        }
+    }
+    // Each period's playing time, from the first joined track's pieces (or how many it has).
+    let starts: Vec<usize> = std::iter::once(1)
+        .chain(reference.seams.iter().map(|s| s.at))
+        .chain(std::iter::once(reference.pieces.len()))
+        .collect();
+    let weights: Vec<f64> = (0..periods)
+        .map(|k| {
+            let pieces = match (starts.get(k), starts.get(k + 1)) {
+                (Some(&from), Some(&to)) => reference.pieces.get(from..to).unwrap_or_default(),
+                _ => &[],
+            };
+            let millis: u64 = pieces.iter().map(|p| p.millis).sum();
+            if millis > 0 {
+                millis as f64
+            } else {
+                pieces.len() as f64
+            }
+        })
+        .collect();
+    let keep = dash::heaviest(&keys, &weights);
+    if keep.len() == periods {
+        return Ok(0);
+    }
+    let cut = |track: &mut Option<Track>| -> Result<(), Error> {
+        if let Some(t) = track.as_mut().filter(|t| !t.seams.is_empty()) {
+            *t = dash::keep_periods(t, &keep).ok_or_else(|| {
+                Error::Internal("a manifest's periods could not be joined".into())
+            })?;
+        }
+        Ok(())
+    };
+    cut(&mut plan.video)?;
+    cut(&mut plan.audio)?;
+    Ok(periods - keep.len())
 }
 
 /// An HLS picture and sound kept in playlists of their own (plain
@@ -78,6 +170,7 @@ pub(super) async fn download_pair(
         height: 0,
         webm: false,
         indexed: None,
+        seams: Vec::new(),
         pieces: s
             .parts
             .iter()
@@ -154,6 +247,7 @@ pub(super) async fn download_media_pair(
         height: 0,
         webm: query_of(url, "mime").is_some_and(|m| m.contains("webm")),
         indexed: None,
+        seams: Vec::new(),
         pieces: pieces_of(url, total, PIECE),
     };
     let (picture_size, sound_size) = tokio::try_join!(
@@ -618,7 +712,7 @@ async fn fetch_piece(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
 
     /// A manifest's size: exact from every piece's bytes, else about, from the bitrate and the
@@ -640,6 +734,7 @@ mod tests {
             webm: false,
             pieces,
             indexed: None,
+            seams: Vec::new(),
         };
         let ranged = track(vec![
             piece(Some((0, 999)), 0),
@@ -657,7 +752,7 @@ mod tests {
     use axum::response::Response;
     use axum::routing::get;
 
-    fn options(dir: &Path) -> Options {
+    pub(in crate::download) fn options(dir: &Path) -> Options {
         Options {
             connections: 4,
             control: Control::new(),
@@ -706,6 +801,47 @@ mod tests {
         }
         starts.push(data.len());
         starts
+    }
+
+    /// A fragmented file (`mp4mux::tests::fragmented`) cut as a DASH server serves it: its
+    /// first boxes, then each fragment (`moof` and `mdat`) as a piece of its own.
+    pub(in crate::download) fn cut_into_pieces(file: &[u8]) -> (Vec<u8>, Vec<Vec<u8>>) {
+        let starts = box_starts(file);
+        let init = file[..starts[2]].to_vec();
+        // ftyp, moov, then a moof and an mdat for each fragment, then the end.
+        let count = (starts.len() - 3) / 2;
+        let pieces = (0..count)
+            .map(|f| file[starts[2 + 2 * f]..starts[4 + 2 * f]].to_vec())
+            .collect();
+        (init, pieces)
+    }
+
+    /// Serves each of `files` (an address's path and its bytes) on 127.0.0.1, counting the
+    /// requests for each path; gives back the server's address (`http://127.0.0.1:port`).
+    pub(in crate::download) async fn serve_files(
+        files: Vec<(String, Vec<u8>)>,
+        asked: Arc<std::sync::Mutex<Vec<String>>>,
+    ) -> String {
+        let mut app = axum::Router::new();
+        for (path, body) in files {
+            app = app.route(
+                &path,
+                get(move || async move { Response::new(Body::from(body)) }),
+            );
+        }
+        let app = app.layer(axum::middleware::from_fn(
+            move |request: axum::extract::Request, next: axum::middleware::Next| {
+                let asked = asked.clone();
+                async move {
+                    asked.lock().unwrap().push(request.uri().path().to_string());
+                    next.run(request).await
+                }
+            },
+        ));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("http://{addr}")
     }
 
     /// Serves `body`, answering a byte range the way a CDN does.
@@ -1433,5 +1569,89 @@ mod tests {
         assert_eq!(done.path.file_name().unwrap(), "show.mkv");
         let data = std::fs::read(&done.path).unwrap();
         assert!(data.windows(15).any(|w| w == b"V_MPEG4/ISO/AVC"));
+    }
+
+    /// The samples of the one track in the MP4 at `path`, as bytes, and their lengths.
+    pub(in crate::download) fn samples_in(path: &Path) -> (Vec<Vec<u8>>, Vec<u32>) {
+        let data = std::fs::read(path).unwrap();
+        let tracks = crate::mp4mux::tracks_in_file(path).unwrap();
+        assert_eq!(tracks.len(), 1, "one track");
+        let bytes = tracks[0]
+            .samples
+            .iter()
+            .map(|s| data[s.offset as usize..(s.offset + u64::from(s.size)) as usize].to_vec())
+            .collect();
+        let lengths = tracks[0].samples.iter().map(|s| s.duration).collect();
+        (bytes, lengths)
+    }
+
+    /// A stand-in for a stream in three periods: a programme's two halves, each with first
+    /// boxes of its own at an address of its own, and an advert between them in another format
+    /// (its sample description differs) though the manifest names the same codec. The file
+    /// plays both halves' samples in order, one after the other, and the advert is left out
+    /// with a note (gaps row Y18).
+    #[tokio::test]
+    async fn the_alike_periods_of_a_stream_play_through_in_order_in_one_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let (video, samples) = fragmented(dir.path(), "v.mp4", 4);
+        let (init, pieces) = cut_into_pieces(&std::fs::read(video).unwrap());
+        assert_eq!(pieces.len(), 4);
+        let mut advert_init = init.clone();
+        let at = advert_init.windows(4).position(|w| w == b"test").unwrap();
+        advert_init[at..at + 4].copy_from_slice(b"tesu");
+        let period = |id: &str, seconds: &str| {
+            format!(
+                r#"<Period id="{id}" duration="{seconds}"><AdaptationSet mimeType="video/mp4" codecs="avc1.64001f">
+                <SegmentTemplate timescale="10" duration="1" startNumber="1" initialization="{id}/init.mp4" media="{id}/$Number$.m4s"/>
+                <Representation id="v" bandwidth="9" height="360"/></AdaptationSet></Period>"#
+            )
+        };
+        let mpd = format!(
+            r#"<MPD type="static" mediaPresentationDuration="PT0.5S">{}{}{}</MPD>"#,
+            period("one", "PT0.2S"),
+            period("ad", "PT0.1S"),
+            period("two", "PT0.2S")
+        );
+        let files = vec![
+            ("/show/stream.mpd".to_string(), mpd.into_bytes()),
+            ("/show/one/init.mp4".to_string(), init.clone()),
+            ("/show/one/1.m4s".to_string(), pieces[0].clone()),
+            ("/show/one/2.m4s".to_string(), pieces[1].clone()),
+            ("/show/ad/init.mp4".to_string(), advert_init),
+            ("/show/ad/1.m4s".to_string(), pieces[0].clone()),
+            ("/show/two/init.mp4".to_string(), init),
+            ("/show/two/1.m4s".to_string(), pieces[2].clone()),
+            ("/show/two/2.m4s".to_string(), pieces[3].clone()),
+        ];
+        let asked = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let base = serve_files(files, asked.clone()).await;
+        let options = options(dir.path());
+        let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+        let done = crate::download::download_reporting(
+            &crate::reqwest_defaults(),
+            &format!("{base}/show/stream.mpd"),
+            &options,
+            Some(tx),
+        )
+        .await
+        .unwrap();
+        let (got, lengths) = samples_in(&done.path);
+        assert_eq!(got, samples, "both halves' samples, in order");
+        assert_eq!(
+            lengths,
+            vec![3000; 12],
+            "each period plays on from the last"
+        );
+        let mut notes = Vec::new();
+        while let Ok(update) = rx.try_recv() {
+            if let Update::Note(note) = update {
+                notes.push(note);
+            }
+        }
+        assert_eq!(notes, [crate::download::NOTES[3].replace("{}", "1")]);
+        // The advert's first boxes were looked at, its pieces never fetched.
+        let asked = asked.lock().unwrap().clone();
+        assert!(asked.contains(&"/show/ad/init.mp4".to_string()));
+        assert!(!asked.contains(&"/show/ad/1.m4s".to_string()));
     }
 }

@@ -195,6 +195,23 @@ pub fn tags_of(path: &Path) -> Tags {
     }
 }
 
+/// What a fragmented stream's initialisation piece says that a later one must
+/// say alike for the pieces after both to be read as one track: each track's
+/// id, timescale and sample description (codec and its set-up), as one key.
+/// `None` where it has no index dm can read.
+pub(crate) fn init_shape(data: &[u8]) -> Option<Vec<u8>> {
+    let (_, moov, _) = boxes(data).find(|(kind, _, _)| kind == b"moov")?;
+    let tracks = tracks_of(moov, 0).ok()?;
+    let mut key = Vec::new();
+    for track in tracks {
+        key.extend_from_slice(&track.id.to_be_bytes());
+        key.extend_from_slice(&track.timescale.to_be_bytes());
+        key.extend_from_slice(&(track.stsd.len() as u64).to_be_bytes());
+        key.extend_from_slice(&track.stsd);
+    }
+    (!key.is_empty()).then_some(key)
+}
+
 /// Joins `inputs`' tracks into one MP4 at `out`. Returns its length.
 pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
     join_with_text(inputs, &[], out)
