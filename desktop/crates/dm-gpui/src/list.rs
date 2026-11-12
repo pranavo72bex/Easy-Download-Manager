@@ -93,6 +93,7 @@ fn countdown_question(view: &Downloads) -> Option<crate::question::Asked> {
         named: None,
         detail: None,
         toggle: None,
+        ticked: false,
         // Cancel, the default, rightmost: Return and Escape both stop it.
         buttons: vec![t("Cancel").into(), t("Now").into()],
         default: 0,
@@ -116,6 +117,7 @@ fn exit_question(view: &Downloads) -> crate::question::Asked {
         named: None,
         detail: None,
         toggle: None,
+        ticked: false,
         buttons: vec![ask.keep.into(), ask.exit.into()],
         default: if ask.finished { EXIT } else { 0 },
         escape: 0,
@@ -1050,6 +1052,7 @@ impl Downloads {
             named: None,
             detail: None,
             toggle: None,
+            ticked: false,
             // Keep waiting beside Start now, the default, rightmost.
             buttons: vec![ask.start.into(), ask.wait.into()],
             default: 0,
@@ -1113,6 +1116,7 @@ impl Downloads {
             named: None,
             detail: None,
             toggle: None,
+            ticked: false,
             buttons: vec![
                 dm_desktop_base::i18n::t("Leave them to the browser").into(),
                 dm_desktop_base::i18n::t("Keep handing them over").into(),
@@ -1972,12 +1976,15 @@ impl Downloads {
                 named: Some(ask.named.into()),
                 detail: None,
                 toggle: ask.toggle.map(Into::into),
+                ticked,
                 buttons: vec![ask.keep.into(), ask.go.into()],
                 default: 0,
                 escape: 0,
             }
         };
-        let asked = words(false);
+        // Delete file starts with its file ticked to go too, as the egui window's did; Remove
+        // never does.
+        let asked = words(deleting_files && count_files > 0);
         let view = cx.entity().downgrade();
         let answer: crate::question::Answer = Box::new(move |button, delete, cx| {
             if button == 1 {

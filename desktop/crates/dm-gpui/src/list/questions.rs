@@ -39,6 +39,7 @@ impl Downloads {
             named: Some(named.into()),
             detail: None,
             toggle: None,
+            ticked: false,
             buttons: vec![t("Keep downloading").into(), t("Yes, cancel").into()],
             default: 0,
             escape: 0,
@@ -130,6 +131,7 @@ impl Downloads {
             named: None,
             detail: None,
             toggle: Some(t("Remember my choice").into()),
+            ticked: false,
             buttons: choices.iter().map(|(w, _)| (*w).into()).collect(),
             default: 0,
             escape: choices.len() - 1,
@@ -229,6 +231,7 @@ impl Downloads {
             named: None,
             detail: ask.detail.map(Into::into),
             toggle: None,
+            ticked: false,
             buttons: ask.buttons.into_iter().map(Into::into).collect(),
             // Escape keeps the default, which changes nothing.
             default: 0,
