@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- An MP3 dm makes from a video carries the video's title, channel and page, as a music player or library reads them; so does a YouTube M4A.
 - Extract here and Extract to unpack a `.tar`, `.tar.gz` or `.tgz`, as they do a ZIP, under the same rules: nothing outside the new folder, no links, nothing written unless every entry is safe.
 - A YouTube live stream can be recorded: dm takes YouTube's own live playlist and records it from now until it ends or is stopped, where it refused a live stream before.
 - Quicker to reconnect: a server's name is looked up once a minute, not again for every connection dm opens to it.

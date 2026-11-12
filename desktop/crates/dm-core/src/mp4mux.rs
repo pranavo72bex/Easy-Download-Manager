@@ -126,6 +126,69 @@ pub struct Tags {
     pub source: String,
 }
 
+/// The words an MP4 or M4A says of itself (`moov/udta/meta/ilst`), as [`join_cut_tagged`]
+/// writes them; empty where it says none or is not one. Only its top-level boxes' headers and
+/// its `moov` are read, not its media.
+pub fn tags_of(path: &Path) -> Tags {
+    fn moov_of(path: &Path) -> Option<Vec<u8>> {
+        use std::io::{Read as _, Seek as _, SeekFrom};
+        let mut file = File::open(path).ok()?;
+        let length = file.metadata().ok()?.len();
+        let mut at = 0u64;
+        while at + 8 <= length {
+            let mut head = [0u8; 16];
+            file.seek(SeekFrom::Start(at)).ok()?;
+            file.read_exact(&mut head[..8]).ok()?;
+            let mut size = u64::from(u32::from_be_bytes(head[..4].try_into().ok()?));
+            let mut header = 8;
+            if size == 1 {
+                file.read_exact(&mut head[8..16]).ok()?;
+                size = u64::from_be_bytes(head[8..16].try_into().ok()?);
+                header = 16;
+            } else if size == 0 {
+                size = length - at;
+            }
+            if size < header || at + size > length {
+                return None;
+            }
+            if &head[4..8] == b"moov" {
+                // A moov is an index: a few megabytes at most for a long film.
+                if size > 64 << 20 {
+                    return None;
+                }
+                let mut moov = vec![0u8; usize::try_from(size - header).ok()?];
+                file.read_exact(&mut moov).ok()?;
+                return Some(moov);
+            }
+            at += size;
+        }
+        None
+    }
+    let Some(moov) = moov_of(path) else {
+        return Tags::default();
+    };
+    let ilst = read::child(&moov, b"udta")
+        .and_then(|udta| read::child(udta, b"meta"))
+        .and_then(|meta| meta.get(4..))
+        .and_then(|meta| read::child(meta, b"ilst"));
+    let Some(ilst) = ilst else {
+        return Tags::default();
+    };
+    let said = |key: &[u8; 4]| {
+        read::child(ilst, key)
+            .and_then(|item| read::child(item, b"data"))
+            .and_then(|data| data.get(8..))
+            .map(|text| String::from_utf8_lossy(text).into_owned())
+            .unwrap_or_default()
+    };
+    Tags {
+        title: said(b"\xa9nam"),
+        artist: said(b"\xa9ART"),
+        date: said(b"\xa9day"),
+        source: said(b"\xa9cmt"),
+    }
+}
+
 /// Joins `inputs`' tracks into one MP4 at `out`. Returns its length.
 pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
     join_with_text(inputs, &[], out)
@@ -522,6 +585,14 @@ pub(crate) mod tests {
             "an empty word is left out"
         );
         assert_eq!(read_back(&out).len(), 2, "the tracks are as they were");
+        // And read back as they were written (gaps row Y25, for an MP3 made from it).
+        assert_eq!(
+            tags_of(&out),
+            Tags {
+                date: String::new(),
+                ..tags.clone()
+            }
+        );
         let plain_out = dir.path().join("plain.mp4");
         join_cut(&[video, audio], &[], &plain_out, None, None).unwrap();
         let data = std::fs::read(&plain_out).unwrap();

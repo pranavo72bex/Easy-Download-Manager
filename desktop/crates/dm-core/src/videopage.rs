@@ -175,12 +175,24 @@ async fn finish_dm_tagged(
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
-    if !texts.is_empty() && ["mp4", "m4v", "webm", "mkv"].contains(&kind.as_str()) {
+    // An MP4 or M4A of one stream is written again with the video's words in it too (its title
+    // and channel, gaps rows Y11 and Y25), as a joined one is.
+    let tagged =
+        tags != crate::mp4mux::Tags::default() && ["mp4", "m4v", "m4a"].contains(&kind.as_str());
+    if (!texts.is_empty() && ["mp4", "m4v", "webm", "mkv"].contains(&kind.as_str())) || tagged {
         let with = produced.with_extension(format!("dm-subtitles.{kind}"));
         let written = if kind == "webm" || kind == "mkv" {
             crate::mkvmux::join_with_text_async(vec![produced.clone()], texts, with.clone()).await
         } else {
-            crate::mp4mux::join_with_text_async(vec![produced.clone()], texts, with.clone()).await
+            crate::mp4mux::join_cut_tagged_async(
+                vec![produced.clone()],
+                texts,
+                with.clone(),
+                None,
+                None,
+                tags,
+            )
+            .await
         };
         if written.is_ok() {
             let _ = tokio::fs::rename(&with, &produced).await;

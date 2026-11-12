@@ -56,7 +56,8 @@ pub fn convert(source: &std::path::Path, target: &std::path::Path) -> Result<u64
     if pcm.samples.is_empty() {
         return Err("the file has no sound to save as MP3".into());
     }
-    let bytes = encode_all(&pcm.samples, pcm.channels, pcm.rate)?;
+    let mut bytes = id3(&crate::mp4mux::tags_of(source));
+    bytes.extend(encode_all(&pcm.samples, pcm.channels, pcm.rate)?);
     crate::write_atomic(target, &bytes)
         .map_err(|e| format!("the MP3 could not be written: {e}"))?;
     Ok(bytes.len() as u64)
@@ -133,6 +134,52 @@ pub fn encode_all(samples: &[i16], channels: usize, rate: u32) -> Result<Vec<u8>
         out.extend(piece?);
     }
     Ok(out)
+}
+
+/// An ID3v2.4 header with `tags`' words (title `TIT2`, artist `TPE1`, date `TDRC`, and where it
+/// came from `WOAS`), as every player reads one before an MP3's frames (gaps row Y25); nothing
+/// where there are no words.
+pub fn id3(tags: &crate::mp4mux::Tags) -> Vec<u8> {
+    // A size in seven bits a byte, as ID3v2.4 writes every size.
+    fn synchsafe(n: usize) -> [u8; 4] {
+        let n = n as u32;
+        [
+            ((n >> 21) & 0x7f) as u8,
+            ((n >> 14) & 0x7f) as u8,
+            ((n >> 7) & 0x7f) as u8,
+            (n & 0x7f) as u8,
+        ]
+    }
+    let mut frames = Vec::new();
+    let mut frame = |id: &[u8; 4], body: Vec<u8>| {
+        frames.extend_from_slice(id);
+        frames.extend_from_slice(&synchsafe(body.len()));
+        frames.extend_from_slice(&[0, 0]);
+        frames.extend(body);
+    };
+    for (id, words) in [
+        (b"TIT2", &tags.title),
+        (b"TPE1", &tags.artist),
+        (b"TDRC", &tags.date),
+    ] {
+        let words = words.trim();
+        if !words.is_empty() {
+            // Text in UTF-8 (encoding 3).
+            frame(id, [&[3u8][..], words.as_bytes()].concat());
+        }
+    }
+    let source = tags.source.trim();
+    if source.starts_with("https://") || source.starts_with("http://") {
+        frame(b"WOAS", source.as_bytes().to_vec());
+    }
+    if frames.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::with_capacity(10 + frames.len());
+    out.extend_from_slice(b"ID3\x04\x00\x00");
+    out.extend_from_slice(&synchsafe(frames.len()));
+    out.extend(frames);
+    out
 }
 
 /// [`convert`], off the async runtime, with a turn at the computer's heavy work (`heavy`, gaps
@@ -814,6 +861,29 @@ impl Bits {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An MP3 made from a video carries its title, artist and page in an ID3v2.4 header;
+    /// with no words, none (gaps row Y25).
+    #[test]
+    fn an_mp3_carries_its_words_in_an_id3_header() {
+        let tags = crate::mp4mux::Tags {
+            title: "Me at the zoo".into(),
+            artist: "jawed".into(),
+            date: String::new(),
+            source: "https://www.youtube.com/watch?v=jNQXAC9IVRw".into(),
+        };
+        let header = id3(&tags);
+        assert_eq!(&header[..5], b"ID3\x04\x00");
+        let size = header[6..10]
+            .iter()
+            .fold(0usize, |n, &b| (n << 7) | usize::from(b));
+        assert_eq!(size, header.len() - 10);
+        let text = String::from_utf8_lossy(&header);
+        assert!(text.contains("TIT2") && text.contains("Me at the zoo"));
+        assert!(text.contains("TPE1") && text.contains("jawed"));
+        assert!(text.contains("WOAS") && !text.contains("TDRC"));
+        assert!(id3(&crate::mp4mux::Tags::default()).is_empty());
+    }
 
     /// Two seconds of a tone in each channel (440 Hz left, 1 kHz right).
     fn tones(rate: u32) -> Vec<i16> {
