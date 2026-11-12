@@ -6875,3 +6875,21 @@ was the cost.
   a request, for languages nobody asked for.
 - The fetch step fetches them only with `Options::subtitles` on: what it fetched was put inside
   and then removed whatever the switch said.
+
+## 2026-11-12: Small engine costs and two small features (gaps rows S7, S8, S10, S17, F3, F5)
+
+- **S7**: `or_stop` polls its work once before making a timer (`now_or_never`): a chunk the
+  limiter lets through at once, or with no limit, costs no timer entry; work still to come is
+  waited on in quarter seconds, the work first (`biased`).
+- **S8**: closed as done by row 177 (`retry::Together`: the first byte any connection gets sends
+  every waiting one at once; `errors.rs`'s turns test).
+- **S10**: the scheduler's fallback look is once a second (`runner::LOOK_EVERY`), not every 50 ms;
+  what changes the queue kicks it already (an add, a download's end, a resume, an edit). What
+  nothing announces, a schedule's window opening or a retrying row lending its place, is seen
+  within a second. **Dropped (for now): counters of running and queued rows**: the passes over
+  the rows are each cheap and only run when woken.
+- **S17**: a fresh link from the browser is given off the window's thread (`later`), as Update
+  download link's OK already was.
+- **F3**: `--quiet` before links asks nothing for them (`Request::quiet`, read by
+  `handoff::next`). `docs/parity.md` names the switches the code reads.
+- **F5** (part): SHA-1 and CRC-32 by length or by name, with crates the build already had.

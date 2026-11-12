@@ -5,6 +5,9 @@
 
 use super::*;
 
+/// How often the scheduler looks at the queue when nothing has woken it.
+const LOOK_EVERY: Duration = Duration::from_secs(1);
+
 impl Queue {
     /// Wakes a scheduler that is waiting for its next tick.
     pub(super) fn kick(&self) {
@@ -43,10 +46,14 @@ impl Queue {
             if !self.busy().await {
                 break;
             }
-            // Polled, and woken early by an add (`kick`): a download added
-            // while others run waited up to a tick for its first byte.
+            // Woken by what changes the queue (`kick`: an add, a download
+            // ending, a resume, an edit), and looked at once a second besides
+            // for what nothing announces: a schedule's window opening, a
+            // retrying row lending its place. Looked at every 50 ms, a queue
+            // of 10,000 rows was passed over twenty times a second while one
+            // download ran (gaps row S10).
             tokio::select! {
-                _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+                _ = tokio::time::sleep(LOOK_EVERY) => {}
                 _ = self.inner.kick.notified() => {}
             }
         }

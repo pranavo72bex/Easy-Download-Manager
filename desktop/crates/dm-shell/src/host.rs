@@ -44,6 +44,10 @@ pub struct Request {
     /// `--later`: into the main queue, not started.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub later: bool,
+    /// `--quiet`: started with nothing asked, whatever Options says about showing Download
+    /// details first (gaps row F3).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub quiet: bool,
     /// The quality picked in the browser's video panel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality: Option<String>,

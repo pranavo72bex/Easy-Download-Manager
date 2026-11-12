@@ -128,15 +128,19 @@ impl Hands {
         // theirs. A part typed on the panel's "Part" line opens Download
         // details whatever they say, its ends filled in (contract row B59):
         // added at once, it was the whole video.
-        let (caught, part) = dm_core::lock(&backend.handed)
-            .front()
-            .map_or((false, false), |r| {
-                (
-                    r.caught,
-                    !(r.from.trim().is_empty() && r.to.trim().is_empty()),
-                )
-            });
+        let (caught, part, quiet) =
+            dm_core::lock(&backend.handed)
+                .front()
+                .map_or((false, false, false), |r| {
+                    (
+                        r.caught,
+                        !(r.from.trim().is_empty() && r.to.trim().is_empty()),
+                        r.quiet,
+                    )
+                });
+        // `--quiet` on the command line asks nothing (gaps row F3).
         let ask = asking != Asking::Nobody
+            && !quiet
             && (part
                 || if caught {
                     settings.ask_caught_downloads

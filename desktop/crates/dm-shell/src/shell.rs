@@ -174,19 +174,22 @@ fn local_torrent(arg: &str) -> Option<String> {
 /// and `--start-queue`:
 ///
 /// ```text
-/// dm-desktop [--save-to FOLDER] [--name NAME] [--later] LINK … [--start-queue]
+/// dm [--quiet] [--save-to FOLDER] [--name NAME] [--later] LINK … [--start-queue]
 /// ```
 ///
 /// `--save-to` and `--name` say where and as what the next link is saved,
-/// `--later` adds it to the main queue without starting it, and
+/// `--later` adds it to the main queue without starting it, `--quiet` has
+/// every link after it added with nothing asked (no Download details), and
 /// `--start-queue` starts the main queue. A bare link (a `.desktop` entry's
 /// `%u`, a shell) is a download with no options. Anything else is left to
 /// the flags read elsewhere (`--hidden`, `--control`) or ignored.
 pub fn orders(args: &[String]) -> Orders {
     let mut orders = Orders::default();
     let mut next = host::Request::default();
+    let mut quiet = false;
     let mut i = 0;
     while let Some(arg) = args.get(i) {
+        next.quiet = quiet;
         match arg.as_str() {
             "--save-to" => {
                 // Made full here, against this command's own folder: the
@@ -208,6 +211,8 @@ pub fn orders(args: &[String]) -> Orders {
                 i += 1;
             }
             "--later" => next.later = true,
+            // Every link after it: no dialog, whatever Options says.
+            "--quiet" => quiet = true,
             "--start-queue" => orders.start_queue = true,
             "--new-download" => orders.new_download = true,
             "--when-done" => {

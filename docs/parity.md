@@ -316,8 +316,8 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Toolbar acts on the selection: Resume, Stop, Stop all, Delete | PASS | `the_toolbar_acts_on_the_selected_row` |
 | Delete only for complete or stopped downloads, asking first — the same question from the Delete key, the toolbar and the menus, for a finished row too | PASS | `delete_waits_for_a_download_to_stop`, `the_toolbar_acts_on_the_selected_row`, `the_delete_key_asks_and_the_limiter_takes_enter` |
 | Properties edit the username and password, kept out of the address box | PASS | `properties_keep_the_login_out_of_the_address_box` |
-| dm's command line: `/d URL /p folder /f name /a`, `/s` | PASS | `scripts/app-check.py` against the real binary; `dm-shell` command-line tests |
-| Category tree: Everything with its kinds, In progress (running, queued, held by the schedule; not failed or stopped), Done, queues | PASS | `the_category_tree_filters_the_one_list` |
+| dm's command line: `LINK`, `--save-to FOLDER`, `--name NAME`, `--later`, `--quiet` (ask nothing), `--start-queue` (reference A's `/d`, `/p`, `/f`, `/a`, `/n`, `/s`) | PASS | `scripts/app-check.py` against the real binary; `dm-shell` command-line tests (`quiet_asks_nothing_for_the_links_after_it`) |
+| Category tree: Everything with its kinds, Unfinished (every download not finished, failed and stopped ones too, so it and Finished add up to Everything; gaps row U1), Finished, queues | PASS | `the_category_tree_filters_the_one_list` |
 | Sorting by column heading, and back | PASS | `clicking_a_heading_sorts_and_clicking_again_reverses` |
 | Properties: note, Update download link | PASS | `properties_change_the_description_and_refresh_an_expired_address`; `rows.rs` |
 | Redownload, Move/Rename, move up/down, stop a queue | PASS | `dm-core/tests/rows.rs` |

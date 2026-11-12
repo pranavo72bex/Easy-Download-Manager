@@ -368,17 +368,28 @@ pub(super) async fn first_segment_is(
 /// A request's answer, or the stop asked for meanwhile. A server that takes
 /// the connection and never answers holds a request until the read timeout,
 /// which is a setting and can be ten minutes; a pause does not wait for it.
+///
+/// Work that is done at once (a chunk let through by a limiter with room, or by none) is taken
+/// without a timer: each connection asks it for every chunk, thousands a second over a fast
+/// link, and each made and dropped a timer entry for a wait that never ran out (gaps row S7).
+/// Work still to finish is waited on in quarter seconds, the work looked at first.
 pub(crate) async fn or_stop<T>(
     control: &Control,
     work: impl std::future::Future<Output = Result<T, Error>>,
 ) -> Result<T, Error> {
+    use futures_util::FutureExt as _;
     tokio::pin!(work);
+    control.check()?;
+    if let Some(done) = (&mut work).now_or_never() {
+        return done;
+    }
     loop {
-        control.check()?;
         tokio::select! {
+            biased;
             done = &mut work => return done,
             () = tokio::time::sleep(Duration::from_millis(250)) => {}
         }
+        control.check()?;
     }
 }
 

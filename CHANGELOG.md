@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The command line takes `--quiet`: every link after it starts with nothing asked, whatever Options says about showing Download details.
+- A file can be checked against a SHA-1 (40 digits) or CRC-32 (8 digits) digest, beside MD5, SHA-256 and SHA-512.
+- Lighter while downloading: no timer is made for each piece of a file that arrives, and the queue looks itself over once a second when nothing has changed, where it looked twenty times a second (it still starts the next download the moment one ends).
+- A fresh link taken from the browser for a download that was still running no longer holds the window while that download stops.
 - A YouTube video carries its subtitles when Options' subtitles are on: the captions a person wrote (or, with none, the spoken ones) go inside the MP4 or WebM, where they were never asked for. With subtitles off none is fetched.
 - GPUI window: a column is made wider or narrower by dragging its heading's right edge, and a double-click there fits it to what it shows; the widths are kept.
 - A script pausing, resuming or cancelling downloads over the control port no longer wakes the window, as asking for the list already did not.

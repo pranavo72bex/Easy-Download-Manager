@@ -551,6 +551,23 @@ fn options_apply_to_the_link_after_them() {
     assert!(got.start_queue);
 }
 
+/// `--quiet` has every link after it added with nothing asked; links before it ask as Options
+/// says (gaps row F3).
+#[test]
+fn quiet_asks_nothing_for_the_links_after_it() {
+    let got = orders(&argv(&[
+        "https://a.example/1.bin",
+        "--quiet",
+        "https://a.example/2.bin",
+        "--later",
+        "https://a.example/3.bin",
+    ]));
+    let quiet: Vec<bool> = got.downloads.iter().map(|d| d.quiet).collect();
+    assert_eq!(quiet, [false, true, true]);
+    assert!(got.downloads[2].later);
+    assert!(unrecognised(&argv(&["--quiet", "https://a.example/1.bin"])).is_empty());
+}
+
 #[test]
 fn options_with_no_link_after_them_do_nothing() {
     assert_eq!(

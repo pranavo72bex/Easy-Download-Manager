@@ -257,7 +257,7 @@ impl Downloads {
         let me = cx.entity().downgrade();
         match route {
             Route::Nothing | Route::Again => {}
-            Route::FreshLink { id, url } => self.take_fresh_link(id, &url),
+            Route::FreshLink { id, url } => self.take_fresh_link(id, url, cx),
             Route::AskLinks(request) => {
                 self.handed_open = true;
                 crate::links::open(me, request, cx);
@@ -288,25 +288,23 @@ impl Downloads {
 
     /// The download caught in the browser becomes row `id`'s link, and the
     /// row goes on from where it stopped.
-    fn take_fresh_link(&mut self, id: dm_core::Id, url: &str) {
+    /// Off the window's thread, as Update download link's OK is: a row still running is stopped
+    /// first and that is waited for, up to five seconds (gaps row S17).
+    fn take_fresh_link(&mut self, id: dm_core::Id, url: String, cx: &mut Context<Self>) {
         self.session.hands.stop_awaiting_link();
-        let failed = self
-            .rows
-            .iter()
-            .find(|r| r.id == id)
-            .is_some_and(|r| matches!(r.state, dm_core::State::Failed(_)));
-        match self.backend.set_url(id, url) {
-            Ok(()) => {
-                if failed {
-                    self.backend.retry(id);
+        self.later(
+            move |backend| dm_desktop_base::row_edits::update_link(backend, id, &url),
+            |view, taken, _| {
+                match taken {
+                    Ok(()) => view.say(
+                        t("The new link was taken from the browser; the download goes on.").into(),
+                    ),
+                    Err(e) => view.say(e),
                 }
-                self.say(
-                    t("The new link was taken from the browser; the download goes on.").into(),
-                );
-            }
-            Err(e) => self.say(e),
-        }
-        self.read();
+                view.read();
+            },
+            cx,
+        );
     }
 
     /// When done's countdown: shown while it runs, its action carried out

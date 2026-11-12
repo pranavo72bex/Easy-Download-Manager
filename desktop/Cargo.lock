@@ -2212,6 +2212,7 @@ dependencies = [
  "cbc 0.2.1",
  "chacha20poly1305",
  "chrono",
+ "crc32fast",
  "dirs 7.0.0",
  "flate2",
  "futures-util",

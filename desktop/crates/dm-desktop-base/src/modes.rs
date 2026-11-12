@@ -26,6 +26,7 @@ follows them:
   --save-to FOLDER   save the next link into FOLDER
   --name NAME        save the next link as NAME
   --later            add the next link to the queue without starting it
+  --quiet            ask nothing (no Download details) for every link after it
   --start-queue      start the main queue
   --new-download     open Add URL (what the taskbar's jump list does)
   --when-done WHAT   once the downloads are done: nothing, exit, sleep,

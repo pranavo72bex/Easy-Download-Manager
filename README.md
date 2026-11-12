@@ -293,6 +293,7 @@ dm-desktop list                # what is downloading, one line each  (--json too
 dm-desktop status 3            # one download, by the number `list` gives
 dm-desktop pause 3 4           # or: resume, cancel
 dm-desktop --later https://example.com/a.iso     # add a link (starts dm if needed)
+dm-desktop --quiet https://example.com/a.iso     # start it with nothing asked
 ```
 
 It exits 0 when done, 1 when dm refused or a number was not acted on, 2 for

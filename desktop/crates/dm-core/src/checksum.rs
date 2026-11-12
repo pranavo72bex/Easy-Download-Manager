@@ -25,8 +25,13 @@ use crate::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Algorithm {
+    /// CRC-32, as a file host or an old release page gives one (8 hex digits): it tells a
+    /// damaged file, not a forged one.
+    Crc32,
     /// MD5 (128 bits).
     Md5,
+    /// SHA-1 (160 bits), as many release pages still give one.
+    Sha1,
     /// SHA-256.
     Sha256,
     /// SHA-512.
@@ -38,7 +43,9 @@ impl Algorithm {
     /// unambiguous. People paste a hash far more often than they name one.
     pub fn from_digest_length(hex: &str) -> Option<Algorithm> {
         match hex.trim().len() {
+            8 => Some(Algorithm::Crc32),
             32 => Some(Algorithm::Md5),
+            40 => Some(Algorithm::Sha1),
             64 => Some(Algorithm::Sha256),
             128 => Some(Algorithm::Sha512),
             _ => None,
@@ -49,7 +56,9 @@ impl Algorithm {
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
+            Algorithm::Crc32 => "crc32",
             Algorithm::Md5 => "md5",
+            Algorithm::Sha1 => "sha1",
             Algorithm::Sha256 => "sha256",
             Algorithm::Sha512 => "sha512",
         }
@@ -88,7 +97,9 @@ impl Checksum {
         // or the check would pass on a digest that could never match.
         let by_length = Algorithm::from_digest_length(&digest)?;
         let algorithm = match name.as_deref() {
+            Some("crc32") | Some("crc") => Algorithm::Crc32,
             Some("md5") => Algorithm::Md5,
+            Some("sha1") | Some("sha-1") => Algorithm::Sha1,
             Some("sha256") | Some("sha-256") => Algorithm::Sha256,
             Some("sha512") | Some("sha-512") => Algorithm::Sha512,
             Some(_) => return None,
@@ -146,7 +157,20 @@ fn digest_blocking(path: &Path, algorithm: Algorithm, control: &Control) -> Resu
     }
 
     Ok(match algorithm {
+        Algorithm::Crc32 => {
+            let mut crc = crc32fast::Hasher::new();
+            loop {
+                crate::heavy::stopped(control)?;
+                let read = file.read(&mut buffer)?;
+                if read == 0 {
+                    break;
+                }
+                crc.update(buffer.get(..read).unwrap_or_default());
+            }
+            format!("{:08x}", crc.finalize())
+        }
         Algorithm::Md5 => run!(Md5::new()),
+        Algorithm::Sha1 => run!(sha1::Sha1::new()),
         Algorithm::Sha256 => run!(Sha256::new()),
         Algorithm::Sha512 => run!(Sha512::new()),
     })
@@ -173,6 +197,29 @@ pub(crate) async fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A 40-digit digest is SHA-1 and an 8-digit one CRC-32, each checked as such (gaps row F5).
+    #[tokio::test]
+    async fn sha1_and_crc32_are_known_by_their_length_and_checked() {
+        assert_eq!(
+            Checksum::parse(&"b".repeat(40)).unwrap().algorithm,
+            Algorithm::Sha1
+        );
+        assert_eq!(
+            Checksum::parse("CRC32:CBF43926").unwrap().algorithm,
+            Algorithm::Crc32
+        );
+        assert_eq!(Checksum::parse(&format!("sha1:{}", "c".repeat(64))), None);
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("f");
+        std::fs::write(&file, b"123456789").unwrap();
+        // The standard check values of "123456789".
+        assert_eq!(digest(&file, Algorithm::Crc32).await.unwrap(), "cbf43926");
+        assert_eq!(
+            digest(&file, Algorithm::Sha1).await.unwrap(),
+            "f7c3bc1d808e04732adf679965ccc34ca7ae3441"
+        );
+    }
 
     #[test]
     fn a_bare_digest_is_recognised_by_its_length() {
