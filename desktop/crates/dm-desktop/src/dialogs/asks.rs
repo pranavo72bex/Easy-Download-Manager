@@ -29,11 +29,12 @@ pub(super) fn name_ask(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let (mut yes, mut no) = (false, false);
-    window(ctx, "Name sent by the server").show(ctx, |ui| {
-        ui.label(tf(
-            "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?",
-            &[&address_name, &server_name],
-        ));
+    // What it says is dm's (`dm_desktop_base::asks`), as every window's.
+    let ask = dm_desktop_base::asks::name_sent(&address_name, &server_name);
+    window(ctx, ask.title_english).show(ctx, |ui| {
+        for line in &ask.lines {
+            ui.label(line);
+        }
         ui.add_space(8.0);
         footer(ui, |ui| {
             yes = primary(ui, "Yes").clicked() || enter_free(ui);
@@ -59,10 +60,11 @@ pub(super) fn page_ask(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let (mut yes, mut no) = (false, false);
-    window(ctx, "Web page instead of the file").show(ctx, |ui| {
-        ui.label(t(
-            "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?",
-        ));
+    let ask = dm_desktop_base::asks::page_for_file();
+    window(ctx, ask.title_english).show(ctx, |ui| {
+        for line in &ask.lines {
+            ui.label(line);
+        }
         ui.add_space(8.0);
         footer(ui, |ui| {
             yes = primary(ui, "Yes").clicked() || enter_free(ui);
@@ -85,11 +87,16 @@ pub(super) fn not_found(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let mut ok = false;
-    window(ctx, "The file doesn't exist").show(ctx, |ui| {
-        ui.label(t("The requested file doesn't exist."));
-        ui.add_space(6.0);
-        ui.label(t("Details:"));
-        ui.monospace("HTTP/1.1 404 Not Found");
+    let ask = dm_desktop_base::asks::not_found();
+    window(ctx, ask.title_english).show(ctx, |ui| {
+        if let [said, details] = ask.lines.as_slice() {
+            ui.label(said);
+            ui.add_space(6.0);
+            ui.label(details);
+        }
+        if let Some(detail) = ask.detail {
+            ui.monospace(detail);
+        }
         ui.add_space(8.0);
         footer(ui, |ui| {
             ok = primary(ui, "OK").clicked() || enter_free(ui);

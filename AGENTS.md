@@ -16,6 +16,7 @@ then `docs/parity.md`, then `docs/decisions.md`.
 | `docs/decisions.md` | Decisions not obvious from the code, and why |
 | `docs/scorecard.md` | Generated counts: behaviours, zoo, fuzzing, budgets |
 | `docs/testing.md` | Every check, what it proves and how to run it, in Docker too |
+| `bench/README.md` | Reference A's frozen benchmark: the floor for dm's speed, memory and CPU on every system |
 
 The loop: write down what dm should do; build it so that it runs through a
 registry command; test it in the window, in the real binary, or in a real
@@ -28,19 +29,25 @@ extension that hands it the browser's downloads.
 
 - `desktop/` is the product. `crates/dm-core` is the engine (probe, plan,
   ranged fetch, resume, assembly, queue, HLS, DASH, Metalink, BitTorrent,
-  video-page handling). `crates/dm-shell` is everything around the window that is not
+  video-page handling), and on macOS the allocator the GPUI window runs with
+  (`memory`: large blocks go back to the system when freed). `crates/dm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
   startup and the inbox, and the application layer (`dm_shell::app`: the
   queue's verbs, the commands, what happened between reads and the typed
   events, schedules, hand-offs, the control port's rules, and every request
   to a server that is not a download), so another window toolkit can drive
-  the same app (`docs/architecture/`). `crates/dm-desktop` is the window, drawn in Rust
-  with egui, no web view, plus the
-  tray, login item and notifications. `cargo packager` there builds the
-  installers. The Tauri web-view window it replaced is in git history.
-  Inside `dm-desktop`, `src/app/` is the window's state and behaviour,
-  `src/dialogs/` is one file per dialog, and `main.rs` is split into
-  `platform`, `tray`, `window`, `hidden`, `signals` and `login`.
+  the same app (`docs/architecture/`). `crates/dm-desktop-base` is what the
+  desktop program does that is not drawing, with no window toolkit: `Desktop`
+  (the application's `Platform`), the login item, the control port, MCP, the
+  command line, the words (`i18n`, its catalogs in `dm-desktop-base/i18n`) and
+  numbers (`format`), and the system's services. `crates/dm-desktop` is the
+  window, drawn in Rust with egui, no web view, plus the tray; it re-exports
+  each of the base crate's modules at its old path. `cargo packager` there
+  builds the installers. The Tauri web-view window it replaced is in git
+  history. Inside `dm-desktop`, `src/app/` is the window's state and
+  behaviour, `src/dialogs/` is one file per dialog, and `main.rs` is split
+  into `platform` (what its crates do for `Desktop`, and dragging out),
+  `tray`, `window`, `hidden`, `opened` and `dock`.
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
   by both sides.
@@ -88,6 +95,13 @@ make devices            # which platforms this machine can build, and why not
 make test | analyze | format | qa | qa-docker   # tests; what CI refuses; the contract, whole
 ```
 
+All of it that needs no window, in one command (formatting, lints, licences and the tests of
+both workspaces; each step runs, and the failures are listed at the end):
+
+```sh
+cd desktop && cargo xtask check
+```
+
 Underneath:
 
 ```sh
@@ -99,9 +113,10 @@ cd desktop && cargo clippy --workspace --all-targets -- -D warnings
 cd desktop && cargo fmt --check
 python3 scripts/app-check.py               # drives the built binary (DM_BINARY= for a packaged one)
 cd desktop && cargo test -p dm-desktop --test window   # the window, through its accessibility tree
-DM_SHOTS=docs cargo test -p dm-desktop --test window shots   # the README's pictures, rendered
+python3 scripts/readme-shots.py           # the README's pictures, of the GPUI window (macOS)
 ./target/debug/dm-desktop --control 0      # drive the running window: see control.rs
 ./target/debug/dm-desktop --headless --control 0   # no window, for scripts and agents
+./target/debug/dm-gpui --control 0         # the GPUI window, the one shipped on macOS and Windows (gaps.md G9); --headless too
 ./target/debug/dm-desktop mcp              # MCP tools for an AI client, relayed to a running dm
 ./target/debug/dm-desktop list | status N | pause N | resume N | cancel N   # the command line, against a running dm
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home
@@ -113,10 +128,13 @@ sh scripts/linux-gui-check.sh              # real mouse and keys on the window a
 sh scripts/linux-kde-close-check.sh        # closing the window under KDE's compositor (KWin), in a container
 python3 scripts/chrome-check.py            # Chrome for Testing, handing off to a real dm
 python3 scripts/firefox-check.py native    # a real Firefox, when one is installed
+node bench/bench.mjs && node bench/compare.mjs   # dm against reference A's frozen floor, every parameter (bench/README.md)
 ```
 
 `cargo` lives in `~/.cargo/bin`, which a fresh shell may not have on `PATH`.
-There is no Node, npm or JavaScript test suite; do not add one.
+There is no npm or JavaScript test suite; do not add one. The benchmark
+(`bench/`) is plain Node with no packages, because its server is part of
+the frozen standard that reference A was measured against.
 
 ### On Windows (learnt the hard way, 2026-11-04)
 
@@ -180,3 +198,68 @@ There is no Node, npm or JavaScript test suite; do not add one.
    shipped code.
 9. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.
+
+## Rules for performance and platform work
+
+These come from the maintainer's optimization spec of 2026-11-11. Where dm
+stands against each rule is in `docs/optimization-audit.md`, and what is
+still missing is in `docs/gaps.md`, rows 180 to 192.
+
+1. The engine never imports GPUI or any other window toolkit. `dm-core`,
+   `dm-shell`, `dm-desktop-base` and `dm-protocol` stay free of them, and
+   `cargo xtask layers` refuses a change that breaks this.
+2. Render functions and event handlers never block. This rules out the file
+   system, the network, `Backend` calls that `block_on` the engine, a
+   synchronous file dialog, and a lock held across slow work. What takes
+   time runs on the runtime or a worker, and its answer comes back to the
+   window.
+3. One download's progress never rebuilds the whole window's state. Read
+   what changed and redraw only what shows it. A wake that changed nothing
+   on screen draws nothing.
+4. Queues of progress or telemetry are bounded or coalesced (latest value
+   per download). Lifecycle events are the exception: they are kept and
+   never dropped.
+5. Shared crates hold no platform behaviour without a reason. Platform code
+   sits behind `dm_shell::app::platform::Platform`, or in a module of its
+   own whose small API is the same on every system.
+6. Before adding an abstraction, find the one that already does the job
+   (`docs/architecture/MODULE_BOUNDARIES.md`) and weigh using it. Two of
+   anything is a cost each later change pays.
+7. No `unsafe` without a `// SAFETY:` comment that states its invariants
+   (clippy enforces the comment), and no new unsafe block without a
+   reviewer's reading. Prefer a safe crate that already does it.
+8. No new dependency without saying, in the commit, why the ones already in
+   `Cargo.lock` cannot do it, and what it adds to the build time and the
+   binary.
+9. Every task spawned has an owner that can cancel it, and a plan for when
+   dm quits. A task that is simply dropped with the runtime does not count
+   as stopped.
+10. Every optimization comes with its measurement before and after: the
+    benchmark (`bench/`), `scripts/ui-bench.py`, `scripts/memory-check.py`
+    or a profile. A change justified by reasoning alone is not an
+    optimization.
+11. What a person sees and does is kept unless the maintainer has approved
+    the change (rule 0 above).
+12. Engine or infrastructure work changes nothing in the window's design,
+    layout or wording.
+13. Public APIs are narrow and say their invariants. `missing_docs` is on in
+    every crate.
+14. A bug found gets a regression test first (rule 1 above).
+15. Compiling for a system is not supporting it. A platform claim needs a
+    run on that system: a check, `human-qa.py`, or a person's run recorded
+    in `docs/gaps.md`.
+
+An optimization goes in this order. Read the architecture and the
+dependencies it touches. Find the hot path by measuring, and take a baseline
+with the same command you will run afterwards. State a hypothesis, then make
+the smallest change that tests it. Run the unit and integration tests, then
+the same benchmark (medians of three or more runs), and look for side effects
+on memory, CPU and binary size. Build and test on every system the change
+touches. Its row in `docs/gaps.md` and an entry in `docs/decisions.md` then
+say:
+
+- the problem, and the evidence for it
+- the files and modules changed, and any effect on the architecture
+- the numbers before and after, and the commands that produced them
+- the systems it was tested on
+- what it costs, what it does not fix, and whether it needs more profiling

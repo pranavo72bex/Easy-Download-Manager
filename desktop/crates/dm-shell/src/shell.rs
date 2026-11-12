@@ -14,7 +14,12 @@ use std::path::{Path, PathBuf};
 use dm_core::{Checksum, Id, Queue};
 
 use crate::host;
+
+// Opening a file and showing it in its folder, one file for each system.
+mod opener;
 use crate::settings::{self, Settings};
+#[cfg(all(test, unix, not(target_os = "macos")))]
+use opener::linux_open_in;
 
 /// The name of the native messaging manifest, which is also how Firefox
 /// identifies itself when it launches this binary as a host.
@@ -97,9 +102,30 @@ fn is_host_manifest(arg: &str) -> bool {
         && path.file_name().is_some_and(|name| name == HOST_MANIFEST)
 }
 
-/// This process's arguments, less its own name.
+/// This process's arguments, less its own name, as a protocol launch is taken
+/// ([`one_link_launch`]).
 pub fn args() -> Vec<String> {
-    std::env::args().skip(1).collect()
+    one_link_launch(std::env::args().skip(1).collect())
+}
+
+/// A launch whose first word is a `magnet:` link is the system handing dm that
+/// one link (the `magnet:` handler is registered as `"<dm>" "%1"`): every word
+/// after it is part of the link, never an option. On Windows a link holding a
+/// `"` and spaces, passed on unescaped by the program that opened it, was split
+/// into words that dm read as `--quiet`, `--save-to FOLDER` and another link, so
+/// a file of a page's choosing was saved into a folder of its choosing with
+/// nothing asked (security audit, 2026-11-12).
+pub fn one_link_launch(args: Vec<String>) -> Vec<String> {
+    match args.first() {
+        Some(first)
+            if first
+                .get(..7)
+                .is_some_and(|s| s.eq_ignore_ascii_case("magnet:")) =>
+        {
+            vec![args.join(" ")]
+        }
+        _ => args,
+    }
 }
 
 /// Whether this launch was the login item's, which opens nothing.
@@ -174,19 +200,22 @@ fn local_torrent(arg: &str) -> Option<String> {
 /// and `--start-queue`:
 ///
 /// ```text
-/// dm-desktop [--save-to FOLDER] [--name NAME] [--later] LINK … [--start-queue]
+/// dm [--quiet] [--save-to FOLDER] [--name NAME] [--later] LINK … [--start-queue]
 /// ```
 ///
 /// `--save-to` and `--name` say where and as what the next link is saved,
-/// `--later` adds it to the main queue without starting it, and
+/// `--later` adds it to the main queue without starting it, `--quiet` has
+/// every link after it added with nothing asked (no Download details), and
 /// `--start-queue` starts the main queue. A bare link (a `.desktop` entry's
 /// `%u`, a shell) is a download with no options. Anything else is left to
 /// the flags read elsewhere (`--hidden`, `--control`) or ignored.
 pub fn orders(args: &[String]) -> Orders {
     let mut orders = Orders::default();
     let mut next = host::Request::default();
+    let mut quiet = false;
     let mut i = 0;
     while let Some(arg) = args.get(i) {
+        next.quiet = quiet;
         match arg.as_str() {
             "--save-to" => {
                 // Made full here, against this command's own folder: the
@@ -208,6 +237,8 @@ pub fn orders(args: &[String]) -> Orders {
                 i += 1;
             }
             "--later" => next.later = true,
+            // Every link after it: no dialog, whatever Options says.
+            "--quiet" => quiet = true,
             "--start-queue" => orders.start_queue = true,
             "--new-download" => orders.new_download = true,
             "--when-done" => {
@@ -333,13 +364,24 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
             eprintln!("dm: could not hand {} to the running dm: {e}", request.url);
         }
     }
-    let _ = std::fs::create_dir_all(host::inbox(home));
     if orders.start_queue {
-        let _ = std::fs::write(host::inbox(home).join("start-queue"), b"");
+        let _ = leave(home, "start-queue", b"");
     }
     leave_when_done(home, orders);
     leave_new_download(home, orders);
-    let _ = std::fs::write(host::inbox(home).join("show"), b"");
+    // Last, and rung: the requests filed above are found with it.
+    let _ = leave(home, "show", b"");
+}
+
+/// Leaves `name` in the running dm's inbox, saying `said`, and rings its bell (`host::ring`):
+/// the watcher looks at once, where it would otherwise find it at its next look, seconds away
+/// (gaps row S18). Every one of dm's own writers goes through here.
+pub fn leave(home: &Path, name: &str, said: &[u8]) -> std::io::Result<()> {
+    let dir = host::inbox(home);
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join(name), said)?;
+    host::ring(home);
+    Ok(())
 }
 
 /// What the system opened with this dm (macOS: a `magnet:` link clicked
@@ -355,12 +397,27 @@ pub fn opened_by_system(home: &Path, opened: &[String]) -> usize {
     handed.downloads.len()
 }
 
+/// The start of the inbox file that asks the running dm to try a failed
+/// download again: its row's id follows.
+pub const RETRY_PREFIX: &str = "retry-";
+
+/// Asks the running dm to try row `id` again, through its inbox: a
+/// notification's Retry, whose click is heard on a thread that has no queue
+/// to ask (gaps row U15).
+pub fn ask_running_to_retry(home: &Path, id: u64) {
+    let _ = leave(home, &format!("{RETRY_PREFIX}{id}"), b"");
+}
+
+/// The row a file in the inbox asks to be tried again, by its name.
+pub fn retry_asked(name: &str) -> Option<u64> {
+    name.strip_prefix(RETRY_PREFIX)?.parse().ok()
+}
+
 /// `--new-download`, left in the inbox for the window to take up: the one
 /// running, or the one this launch starts.
 pub fn leave_new_download(home: &Path, orders: &Orders) {
     if orders.new_download {
-        let _ = std::fs::create_dir_all(host::inbox(home));
-        let _ = std::fs::write(host::inbox(home).join(NEW_DOWNLOAD_FILE), b"");
+        let _ = leave(home, NEW_DOWNLOAD_FILE, b"");
     }
 }
 
@@ -368,8 +425,7 @@ pub fn leave_new_download(home: &Path, orders: &Orders) {
 /// running, or the one this launch starts.
 pub fn leave_when_done(home: &Path, orders: &Orders) {
     if let Some(word) = &orders.when_done {
-        let _ = std::fs::create_dir_all(host::inbox(home));
-        let _ = std::fs::write(host::inbox(home).join(WHEN_DONE_FILE), word);
+        let _ = leave(home, WHEN_DONE_FILE, word.as_bytes());
     }
 }
 
@@ -414,10 +470,7 @@ pub struct Started {
 /// downloads back and applies the settings to it, and adds what `orders`
 /// names.
 pub async fn start(orders: &Orders) -> Started {
-    // Video tools (QuickJS), fetched into dm's own folder when needed.
-    dm_core::tools::set_folder(settings::home().join("tools"));
     let (mut saved, unreadable) = Settings::load();
-    dm_core::tools::allow_fetching(saved.fetch_tools);
     let mut notices: Vec<String> = unreadable.into_iter().collect();
 
     let client = match dm_core::client_with_timeout(&saved.proxy, saved.read_timeout()) {
@@ -596,7 +649,6 @@ pub async fn apply(
     queue.set_recheck_every(settings.recheck_every());
     queue.set_queue_limits(settings.queue_limit_map());
     queue.set_queue_starts(settings.queue_start_list());
-    dm_core::tools::allow_fetching(settings.fetch_tools);
     Ok(problems)
 }
 
@@ -761,6 +813,49 @@ pub fn checksum(text: &str) -> Result<Option<Checksum>, String> {
         .ok_or_else(|| "that is not a checksum dm recognises".into())
 }
 
+/// Windows' longest path that its shell (Explorer, the Recycle Bin, a
+/// program started with a file) takes: `MAX_PATH`, its end included. dm's
+/// own reading and writing goes past it by itself (Rust's `std::fs` adds
+/// `\\?\`), but GPUI's manifest, which dm cannot replace, does not declare
+/// `longPathAware`, and the shell would not take such a path either way.
+pub const SHELL_PATH_MOST: usize = 260;
+
+/// `path` as Windows' shell can take it: as it is when it is short enough,
+/// else its 8.3 short form (`C:\DOWNLO~1\...`), which names the same file
+/// in fewer letters (gaps row 191). As it is wherever no short form is to
+/// be had (a volume with 8.3 names turned off), and on every other system.
+pub fn for_shell(path: &str) -> String {
+    if path.encode_utf16().count() < SHELL_PATH_MOST {
+        return path.to_string();
+    }
+    opener::short_form(&verbatim(path))
+        .map(|short| plain(&short))
+        .unwrap_or_else(|| path.to_string())
+}
+
+/// `path` in Windows' verbatim form, which the system's calls take past
+/// `MAX_PATH`: `\\?\C:\...`, or `\\?\UNC\server\share\...` for a share.
+pub fn verbatim(path: &str) -> String {
+    if path.starts_with(r"\\?\") {
+        path.to_string()
+    } else if let Some(share) = path.strip_prefix(r"\\") {
+        format!(r"\\?\UNC\{share}")
+    } else {
+        format!(r"\\?\{path}")
+    }
+}
+
+/// `path` with its verbatim prefix taken off, as the shell reads paths.
+pub fn plain(path: &str) -> String {
+    if let Some(share) = path.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{share}")
+    } else if let Some(rest) = path.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        path.to_string()
+    }
+}
+
 /// Opens the finished file's folder, with the file selected where the OS can.
 ///
 /// A finished download the user cannot get to is a download half-delivered;
@@ -770,190 +865,7 @@ pub fn reveal_in_folder(path: &str) -> Result<(), String> {
     if !p.exists() {
         return Err("that file is no longer where dm saved it".into());
     }
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut c = std::process::Command::new("open");
-        c.arg("-R").arg(p);
-        c
-    };
-    #[cfg(target_os = "windows")]
-    let mut command = {
-        // Passed as it is, quoted by hand: Explorer reads `/select,` and
-        // the path as one argument, and Rust's own quoting of a path with
-        // spaces wraps the whole of it, which Explorer does not undo.
-        use std::os::windows::process::CommandExt;
-        let mut c = std::process::Command::new("explorer");
-        c.raw_arg(format!("/select,\"{path}\""));
-        c
-    };
-    // No portable "select the file", so the containing folder is opened.
-    #[cfg(all(unix, not(target_os = "macos")))]
-    return linux_open(p.parent().unwrap_or(p));
-    #[cfg(not(all(unix, not(target_os = "macos"))))]
-    command.spawn().map(|_| ()).map_err(|e| e.to_string())
-}
-
-/// The programs a Linux desktop opens things with, in the order tried:
-/// the freedesktop one, then GNOME's, KDE's and Xfce's own, which a
-/// minimal install can have without `xdg-utils`.
-#[cfg(all(unix, not(target_os = "macos")))]
-const LINUX_OPENERS: [&[&str]; 5] = [
-    &["xdg-open"],
-    &["gio", "open"],
-    &["kde-open"],
-    &["kde-open5"],
-    &["exo-open"],
-];
-
-/// Opens a file or folder on Linux with the first opener that is there.
-///
-/// `xdg-open` comes with `xdg-utils`, which the packages now require, but
-/// a desktop that lacks it (a minimal install, a container) still has its
-/// own. Started from an AppImage, the AppImage's private library path is
-/// not passed on: an opener loading its libraries from there fails in ways
-/// nobody would trace to dm.
-#[cfg(all(unix, not(target_os = "macos")))]
-fn linux_open(target: &Path) -> Result<(), String> {
-    linux_open_in(target, None)
-}
-
-/// How long an opener is given to fail before it is taken to be opening.
-///
-/// `xdg-open` with nothing to hand the file to ("no method available")
-/// exits at once with 3 or 4; one that found a program has handed over or
-/// is running it within a few hundred milliseconds. Waited for in place,
-/// since the answer is the button's: only an opener still running after
-/// this holds the window this long.
-#[cfg(all(unix, not(target_os = "macos")))]
-const OPENER_VERDICT: std::time::Duration = std::time::Duration::from_millis(1500);
-
-/// The same, looking for the openers along `path` where one is given.
-///
-/// Each opener's exit is waited for (`OPENER_VERDICT`): `xdg-open` that
-/// starts and then fails was taken as success, and the file simply did not
-/// open. A failing opener passes to the next; when every one there failed,
-/// what each said is the error.
-#[cfg(all(unix, not(target_os = "macos")))]
-fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Result<(), String> {
-    let in_appimage = std::env::var_os("APPIMAGE").is_some();
-    let mut failures: Vec<String> = Vec::new();
-    for opener in LINUX_OPENERS {
-        let Some((program, args)) = opener.split_first() else {
-            continue;
-        };
-        let mut command = std::process::Command::new(program);
-        command.args(args.iter()).arg(target);
-        if let Some(path) = path {
-            command.env("PATH", path);
-        }
-        if in_appimage {
-            command
-                .env_remove("LD_LIBRARY_PATH")
-                .env_remove("LD_PRELOAD");
-        }
-        // Its error goes to a file, not a pipe: an opener that runs the
-        // program in the foreground passes its stderr on, and a pipe whose
-        // reader has gone would kill that program at its first warning.
-        let said = OpenerSays::new();
-        command.stdin(std::process::Stdio::null());
-        if let Some(file) = said.as_ref().and_then(|s| s.stdio()) {
-            command.stderr(file);
-        }
-        let mut child = match command.spawn() {
-            Ok(child) => child,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(e.to_string()),
-        };
-        let deadline = std::time::Instant::now() + OPENER_VERDICT;
-        let status = loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break Some(status),
-                Ok(None) if std::time::Instant::now() < deadline => {
-                    std::thread::sleep(std::time::Duration::from_millis(20));
-                }
-                // Still running: it found something to open the file with.
-                // Reaped when it ends, so it leaves no zombie behind.
-                Ok(None) | Err(_) => {
-                    std::thread::spawn(move || child.wait());
-                    break None;
-                }
-            }
-        };
-        match status {
-            None => return Ok(()),
-            Some(status) if status.success() => return Ok(()),
-            Some(status) => {
-                let words = said.map(|s| s.read()).unwrap_or_default();
-                let name = opener.join(" ");
-                failures.push(if words.is_empty() {
-                    match status.code() {
-                        Some(code) => format!("{name} failed (exit {code})"),
-                        None => format!("{name} failed"),
-                    }
-                } else {
-                    format!("{name}: {words}")
-                });
-            }
-        }
-    }
-    if !failures.is_empty() {
-        return Err(format!(
-            "this computer could not open {}: {}",
-            target.display(),
-            failures.join("; ")
-        ));
-    }
-    Err("nothing on this computer opens files: install xdg-utils \
-         (`sudo apt install xdg-utils`, `sudo dnf install xdg-utils` or \
-         `sudo pacman -S xdg-utils`)"
-        .into())
-}
-
-/// A file an opener's stderr goes to, removed when read or dropped.
-#[cfg(all(unix, not(target_os = "macos")))]
-struct OpenerSays(PathBuf);
-
-#[cfg(all(unix, not(target_os = "macos")))]
-impl OpenerSays {
-    fn new() -> Option<Self> {
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        let name = format!(
-            "dm-opener-{}-{}.txt",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        );
-        let path = std::env::temp_dir().join(name);
-        std::fs::File::create(&path).ok()?;
-        Some(Self(path))
-    }
-
-    fn stdio(&self) -> Option<std::process::Stdio> {
-        std::fs::OpenOptions::new()
-            .append(true)
-            .open(&self.0)
-            .ok()
-            .map(std::process::Stdio::from)
-    }
-
-    /// Its last few lines, which is where an opener says why.
-    fn read(self) -> String {
-        let text = std::fs::read_to_string(&self.0).unwrap_or_default();
-        let lines: Vec<&str> = text
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty())
-            .collect();
-        let tail = lines.len().saturating_sub(3);
-        lines.get(tail..).unwrap_or_default().join(" ")
-    }
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-impl Drop for OpenerSays {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
-    }
+    opener::reveal(p, path)
 }
 
 /// Opens a finished file with whatever the system opens it with.
@@ -964,26 +876,7 @@ pub fn open_file(path: &str) -> Result<(), String> {
     if !is_link && !p.exists() {
         return Err("that file is no longer where dm saved it".into());
     }
-    #[cfg(target_os = "macos")]
-    let mut command = std::process::Command::new("open");
-    // Explorer opens a file with its program, and an address in the
-    // browser. Not `cmd /C start`: cmd reads `&`, `^` and `%` in a name a
-    // server chose, so a file called `a&calc` ran calc.
-    #[cfg(target_os = "windows")]
-    let mut command = std::process::Command::new("explorer");
-    // Quoted by hand, as for `/select`: Explorer splits its command line on
-    // commas, and Rust quotes only a path with a space in it.
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        command.raw_arg(format!("\"{path}\""));
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    return linux_open(p);
-    #[cfg(target_os = "macos")]
-    command.arg(p);
-    #[cfg(not(all(unix, not(target_os = "macos"))))]
-    command.spawn().map(|_| ()).map_err(|e| e.to_string())
+    opener::open(p, path)
 }
 
 /// The program and arguments that open `path` with `app`: on macOS through
@@ -1013,6 +906,14 @@ pub fn open_with(path: &str, app: &Path) -> Result<(), String> {
     if !app.exists() {
         return Err(format!("{} is not there", app.display()));
     }
+    // A program on Windows is handed a long path's short form, which every
+    // program reads, where one written before long paths would not open it.
+    let shell_path = for_shell(path);
+    let p = if cfg!(windows) {
+        Path::new(&shell_path)
+    } else {
+        p
+    };
     let (program, args) = open_with_command(p, app, cfg!(target_os = "macos"));
     std::process::Command::new(program)
         .args(args)
@@ -1030,9 +931,7 @@ pub fn ask_running_to_quit(home: &Path) -> std::io::Result<bool> {
     if !crate::instance::running(home)? {
         return Ok(false);
     }
-    let dir = host::inbox(home);
-    std::fs::create_dir_all(&dir)?;
-    std::fs::write(dir.join(QUIT), b"")?;
+    leave(home, QUIT, b"")?;
     Ok(true)
 }
 
@@ -1077,6 +976,17 @@ pub async fn watch_inbox(
             .map(|entries| entries.flatten().map(|e| e.path()).collect())
             .unwrap_or_default();
         for path in waiting {
+            // A notification's Retry (`ask_running_to_retry`), taken once.
+            if let Some(id) = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(retry_asked)
+            {
+                if std::fs::remove_file(&path).is_ok() {
+                    queue.retry(id).await;
+                }
+                continue;
+            }
             if path.extension().and_then(|e| e.to_str()) != Some("json") {
                 continue;
             }
@@ -1182,8 +1092,13 @@ pub async fn take_from_browser(
     Taken::Added(queue.add_with(&url, with).await)
 }
 
-/// How often the inbox is looked at with no bell rung.
+/// How often the inbox is looked at where dm could open no bell.
 const INBOX_POLL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// How often it is looked at anyway with a bell: every writer rings it (`leave`, `host::deposit`'s
+/// callers), so this is for a file left by hand or by an older dm (gaps row S18: twice a second
+/// for the life of the process before).
+const INBOX_POLL_RUNG: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The doorbell a browser hand-off rings (`host::ring`): a loopback socket
 /// whose port is written down in the inbox for the host to find. `None`
@@ -1219,7 +1134,7 @@ async fn wait_for_inbox(bell: Option<&tokio::net::UdpSocket>) {
     tokio::time::sleep(BELL_FLOOR).await;
     let mut buf = [0u8; 16];
     tokio::select! {
-        _ = tokio::time::sleep(INBOX_POLL - BELL_FLOOR) => {}
+        _ = tokio::time::sleep(INBOX_POLL_RUNG - BELL_FLOOR) => {}
         _ = bell.recv(&mut buf) => {
             while bell.try_recv(&mut buf).is_ok() {}
         }

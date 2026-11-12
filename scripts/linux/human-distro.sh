@@ -23,6 +23,8 @@
 # Streamed in, not mounted, for the reason linux-check.sh gives.
 set -e
 cd "$(dirname "$0")/../.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 browser=$1 distro=$2
 case "$browser" in
   chromium) dist=dist/chrome ;;
@@ -52,10 +54,10 @@ stream() { { git ls-files -z --cached --others --exclude-standard; find $dist -t
 
 echo "== dm, built in the Debian image"
 docker build -q ${platform:+--platform $platform} -t dm-linux-check$suffix scripts/linux >/dev/null
-stream | docker run --rm -i ${platform:+--platform $platform} -v dm-linux-target$suffix:/target \
+stream | docker run --rm -i ${platform:+--platform $platform} -e DM_BINARY="/target/debug/$binary" -v dm-linux-target$suffix:/target \
   -v "$HOME/.cargo/registry":/usr/local/cargo/registry dm-linux-check$suffix sh -c '
     set -e; mkdir -p /work && cd /work && tar -xf -
-    cd desktop && cargo build -q -p dm-desktop'
+    cd desktop && cargo build -q -p "$(basename "$DM_BINARY")"'
 
 echo "== $browser on $distro"
 base=
@@ -69,7 +71,7 @@ status=0
 # The cache option and its value are two words, split on purpose.
 # shellcheck disable=SC2046
 stream | docker run --rm -i ${platform:+--platform $platform} \
-  -e DM_LIVE_PAGE="${DM_LIVE_PAGE:-}" -e DM_SLOW="$slow" -e DM_EDGE_CHROME_CHECK="${DM_EDGE_CHROME_CHECK:-1}" \
+  -e DM_LINUX_BINARY="$binary" -e DM_LIVE_PAGE="${DM_LIVE_PAGE:-}" -e DM_SLOW="$slow" -e DM_EDGE_CHROME_CHECK="${DM_EDGE_CHROME_CHECK:-1}" \
   -v dm-linux-target$suffix:/target:ro -v "$volume":/shots \
   $([ "$browser" = firefox ] && echo -v dm-firefox-cache:/root/.cache/dm-firefox) \
   "$image" sh -c "set -e; mkdir -p /work && cd /work && tar -xf - && sh scripts/linux/human-session.sh $browser" \

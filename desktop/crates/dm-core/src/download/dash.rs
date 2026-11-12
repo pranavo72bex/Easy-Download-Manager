@@ -28,6 +28,14 @@ pub(super) async fn download_dash(
         options.container.as_deref(),
     )?;
 
+    // The best taken was below a quality passed over as copy-protected: the row says so.
+    if plan.protected_above {
+        if let Some(tx) = &report {
+            let _ = tx
+                .send(Update::Note(crate::download::NOTES[0].into()))
+                .await;
+        }
+    }
     let tracks: Vec<&Track> = plan.video.iter().chain(plan.audio.iter()).collect();
     // WebM where it was asked for and every track is one; else an MP4,
     // which takes a WebM picture or sound too. Sound alone is an `.m4a`.
@@ -322,7 +330,17 @@ async fn join_tracks(
     let joined = options.parts_dir.join(format!("joined.{extension}"));
     if !fs::metadata(&joined).await.is_ok_and(|m| m.len() > 0) {
         let downloaded = Arc::new(AtomicU64::new(0));
-        let meter = report.map(|tx| watch(Arc::clone(&downloaded), None, tx));
+        // The size where the manifest gives every piece's bytes; else about, from each track's
+        // bitrate and playing time (gaps row Y22).
+        let (exact, about) = size_of_tracks(tracks);
+        let meter = report.map(|tx| {
+            crate::download::ranged::watch_estimating(
+                Arc::clone(&downloaded),
+                exact,
+                about.map(|bytes| Arc::new(AtomicU64::new(bytes))),
+                tx,
+            )
+        });
         let fetched = fetch_tracks(client, tracks, options, &downloaded).await;
         if let Some((handle, finished)) = meter {
             let _ = finished.send(());
@@ -395,6 +413,31 @@ async fn join_mp4(files: Vec<PathBuf>, out: PathBuf, options: &Options) -> Resul
     }
 }
 
+/// The tracks' size: exact where every piece names its bytes, else about, from each track's
+/// bitrate and the pieces' playing time; `(None, None)` where neither is said.
+fn size_of_tracks(tracks: &[&crate::dash::Track]) -> (Option<u64>, Option<u64>) {
+    let ranged = tracks
+        .iter()
+        .all(|t| t.pieces.iter().all(|p| p.range.is_some()));
+    if ranged {
+        let bytes = tracks
+            .iter()
+            .flat_map(|t| &t.pieces)
+            .filter_map(|p| p.range)
+            .map(|(first, last)| last.saturating_sub(first) + 1)
+            .sum::<u64>();
+        return ((bytes > 0).then_some(bytes), None);
+    }
+    let about: u64 = tracks
+        .iter()
+        .map(|t| {
+            let millis: u64 = t.pieces.iter().map(|p| p.millis).sum();
+            t.bandwidth / 8 * millis / 1000
+        })
+        .sum();
+    (None, (about > 0).then_some(about))
+}
+
 /// Every piece of each track, then each track gathered into a file of its
 /// own. The tracks are fetched at the same time (a picture and a sound do not
 /// wait for one another), and the pieces of a track on as many connections as
@@ -406,14 +449,41 @@ async fn fetch_tracks(
     options: &Options,
     downloaded: &AtomicU64,
 ) -> Result<Vec<PathBuf>, Error> {
+    // A track that is one whole file (no range, no key) is cut into ranged pieces first, as a
+    // picture and sound fetched apart are: held whole in memory, it was refused past 512 MiB and
+    // fetched again from its start after a stop (gaps row Y17). Where the server will not say
+    // its length by a range, it is fetched whole, as before.
+    let mut cut: Vec<Track> = Vec::with_capacity(tracks.len());
+    for track in tracks {
+        cut.push(whole_file_in_pieces(client, track, options).await);
+    }
     let mut first = 0usize;
     let mut work = Vec::new();
-    for (n, track) in tracks.iter().enumerate() {
+    for (n, track) in cut.iter().enumerate() {
         work.push(fetch_track(client, track, n, first, options, downloaded));
         first += track.pieces.len();
     }
     futures_util::future::try_join_all(work).await
 }
+
+/// `track` as ranged pieces of [`ONE_FILE_PIECE`] where it is one whole file a server serves
+/// by ranges; as it was otherwise. A part of one (`options.span`) is the index's to cut.
+async fn whole_file_in_pieces(client: &reqwest::Client, track: &Track, options: &Options) -> Track {
+    let whole = match track.pieces.as_slice() {
+        [only] if only.range.is_none() && only.lock.is_none() && options.span.is_none() => only,
+        _ => return track.clone(),
+    };
+    match total_of(client, &whole.url, options).await {
+        Ok(total) => Track {
+            pieces: pieces_of(&whole.url, total, ONE_FILE_PIECE),
+            ..track.clone()
+        },
+        Err(_) => track.clone(),
+    }
+}
+
+/// The size of one request of a one-file track: as a picture and sound fetched apart.
+const ONE_FILE_PIECE: u64 = 8 * 1024 * 1024;
 
 /// One track: its pieces (numbered from `first`), gathered into `track{n}`.
 async fn fetch_track(
@@ -481,7 +551,7 @@ async fn fetch_track(
         .map(|i| part_path(&options.parts_dir, i))
         .collect();
     let partial = options.parts_dir.join(format!("track{n}.partial"));
-    join_parts(&parts, &partial).await?;
+    join_parts(&parts, &partial, &options.control).await?;
     fs::rename(&partial, &gathered).await?;
     Ok(gathered)
 }
@@ -519,6 +589,37 @@ async fn fetch_piece(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A manifest's size: exact from every piece's bytes, else about, from the bitrate and the
+    /// playing time (gaps row Y22).
+    #[test]
+    fn a_manifests_size_is_exact_from_its_ranges_else_about() {
+        use crate::dash::{Medium, Piece, Track};
+        let piece = |range, millis| Piece {
+            url: "https://cdn.example/v".into(),
+            range,
+            lock: None,
+            millis,
+        };
+        let track = |pieces| Track {
+            medium: Medium::Video,
+            id: "v".into(),
+            bandwidth: 8_000_000,
+            height: 720,
+            webm: false,
+            pieces,
+            indexed: None,
+        };
+        let ranged = track(vec![
+            piece(Some((0, 999)), 0),
+            piece(Some((1000, 2999)), 2000),
+        ]);
+        assert_eq!(size_of_tracks(&[&ranged]), (Some(3000), None));
+        let timed = track(vec![piece(None, 2000), piece(None, 2000)]);
+        assert_eq!(size_of_tracks(&[&timed]), (None, Some(4_000_000)));
+        let silent = track(vec![piece(None, 0)]);
+        assert_eq!(size_of_tracks(&[&silent]), (None, None));
+    }
     use crate::mp4mux::tests::{fragmented, plain};
     use axum::body::Body;
     use axum::http::{header, HeaderMap, StatusCode};

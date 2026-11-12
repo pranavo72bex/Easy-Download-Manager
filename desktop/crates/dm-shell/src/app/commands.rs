@@ -534,7 +534,7 @@ pub fn applies(
         // A finished ZIP that is still on disk.
         Command::ExtractHere | Command::ExtractTo => {
             one && chosen[0].state == State::Completed
-                && dm_core::extract::is_zip(&chosen[0].path)
+                && dm_core::extract::is_archive(&chosen[0].path)
                 && !looks.gone(chosen[0])
         }
         Command::OpenFile | Command::OpenWith => {
@@ -579,6 +579,26 @@ pub enum Ran {
     QueueStarted(usize),
     /// Stop Queue: how many downloads in the queue stopped.
     QueueStopped(usize),
+}
+
+/// Whether [`verb`] carries `command` out (and answers `Some`): what the
+/// window hands off its thread, since on ten thousand chosen rows it is
+/// ten thousand changes to the queue (gaps row 183).
+pub fn is_verb(command: Command) -> bool {
+    matches!(
+        command,
+        Command::DownloadNow
+            | Command::StopDownload
+            | Command::Redownload
+            | Command::RemoveFromQueue
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::ResumeAll
+            | Command::StopAll
+            | Command::DeleteCompleted
+            | Command::StartQueue
+            | Command::StopQueue
+    )
 }
 
 /// Carries out `command` where it is the application's alone, on the rows
@@ -653,6 +673,77 @@ pub fn when_done(command: Command) -> Option<WhenDone> {
         _ => return None,
     })
 }
+
+/// The toolbar's buttons, in their default order: each command and the
+/// English word under its picture.
+pub const TOOLBAR: [(Command, &str); 11] = [
+    (Command::AddUrl, "Add URL"),
+    (Command::DownloadNow, "Resume"),
+    (Command::StopDownload, "Stop"),
+    (Command::StopAll, "Stop All"),
+    (Command::Remove, "Delete"),
+    (Command::DeleteCompleted, "Delete Completed"),
+    (Command::Options, "Options"),
+    (Command::Scheduler, "Scheduler"),
+    (Command::StartQueue, "Start Queue"),
+    (Command::StopQueue, "Stop Queue"),
+    (Command::SiteFiles, "Grabber"),
+];
+
+/// The toolbar's buttons in the order a person chose (by command id), with
+/// any not named after them in the default order. Unknown ids are skipped,
+/// and one named twice (a hand-edited settings file) is drawn once.
+pub fn toolbar_in(order: &[String]) -> Vec<(Command, &'static str)> {
+    let mut buttons: Vec<(Command, &'static str)> = Vec::new();
+    for id in order {
+        if let Some(button) = TOOLBAR.iter().find(|(c, _)| c.id() == id) {
+            if !buttons.iter().any(|(c, _)| *c == button.0) {
+                buttons.push(*button);
+            }
+        }
+    }
+    for button in TOOLBAR {
+        if !buttons.iter().any(|(c, _)| *c == button.0) {
+            buttons.push(button);
+        }
+    }
+    buttons
+}
+
+/// The buttons the toolbar shows: [`toolbar_in`] the settings' order, less
+/// those the person hid.
+pub fn toolbar_shown(settings: &Settings) -> Vec<(Command, &'static str)> {
+    toolbar_in(&settings.toolbar_order)
+        .into_iter()
+        .filter(|(c, _)| !settings.toolbar_hidden.iter().any(|h| h == c.id()))
+        .collect()
+}
+
+/// The command that chooses `wanted`, as the Downloads menu does: what an
+/// order from the command line (`dm --when-done`) runs. [`when_done`] the
+/// other way.
+pub fn when_done_command(wanted: WhenDone) -> Command {
+    match wanted {
+        WhenDone::Nothing => Command::WhenDoneNothing,
+        WhenDone::Quit => Command::WhenDoneQuit,
+        WhenDone::Sleep => Command::WhenDoneSleep,
+        WhenDone::Hibernate => Command::WhenDoneHibernate,
+        WhenDone::ShutDown => Command::WhenDoneShutDown,
+    }
+}
+
+/// The limit Limit speed turns back on at, as dm starts: the one in force,
+/// else the one last turned off (kept in the settings, so it survives a
+/// restart), else [`DEFAULT_LIMIT`]. [`limited`] keeps it from then on.
+pub fn remembered_limit(settings: &Settings) -> u64 {
+    [settings.speed_limit, settings.last_speed_limit]
+        .into_iter()
+        .find(|kb| *kb > 0)
+        .unwrap_or(DEFAULT_LIMIT)
+}
+
+/// The limit, in KB/s, Limit speed turns on at when none was ever set.
+pub const DEFAULT_LIMIT: u64 = 512;
 
 /// The settings a speed command asks for, from those in force (`now`):
 /// Limit speed (`SpeedLimiterToggle`) turns the limit off, or back on at the
@@ -761,6 +852,23 @@ pub enum Key {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What the window hands off its thread is what `verb` carries out:
+    /// a command left out would still be waited for, one put in by
+    /// mistake would answer nothing.
+    #[test]
+    fn is_verb_names_exactly_what_verb_carries_out() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, dir.path());
+        for command in Command::ALL {
+            assert_eq!(
+                verb(*command, &backend, &[], dm_core::MAIN_QUEUE).is_some(),
+                is_verb(*command),
+                "{command:?}"
+            );
+        }
+    }
 
     #[test]
     fn every_command_has_its_own_name_and_label() {
@@ -1015,5 +1123,59 @@ mod tests {
         for presentations in [Command::AddUrl, Command::Properties, Command::SortByName] {
             assert_eq!(verb(presentations, &backend, &[row(a)], ""), None);
         }
+    }
+
+    #[test]
+    fn limit_speed_comes_back_at_the_limit_in_force_else_the_last_one_else_512() {
+        let mut settings = Settings {
+            speed_limit: 300,
+            last_speed_limit: 80,
+            ..Settings::default()
+        };
+        assert_eq!(remembered_limit(&settings), 300);
+        settings.speed_limit = 0;
+        assert_eq!(remembered_limit(&settings), 80);
+        settings.last_speed_limit = 0;
+        assert_eq!(remembered_limit(&settings), DEFAULT_LIMIT);
+    }
+
+    #[test]
+    fn each_when_done_has_its_command_and_back() {
+        for w in WhenDone::ALL {
+            assert_eq!(when_done(when_done_command(w)), Some(w), "{w:?}");
+        }
+    }
+
+    #[test]
+    fn the_toolbar_keeps_a_persons_order_and_hides_what_they_hid() {
+        let order: Vec<String> = [
+            Command::Options.id(),
+            "no.such.command",
+            Command::Options.id(),
+            Command::AddUrl.id(),
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let buttons = toolbar_in(&order);
+        assert_eq!(buttons.len(), TOOLBAR.len(), "each once, none lost");
+        assert_eq!(
+            buttons[0].0,
+            Command::Options,
+            "the person's first is first"
+        );
+        assert_eq!(buttons[1].0, Command::AddUrl);
+        assert_eq!(
+            buttons[2].0,
+            Command::DownloadNow,
+            "then the rest as they come"
+        );
+        let settings = Settings {
+            toolbar_hidden: vec![Command::Scheduler.id().to_string()],
+            ..Settings::default()
+        };
+        let shown = toolbar_shown(&settings);
+        assert!(!shown.iter().any(|(c, _)| *c == Command::Scheduler));
+        assert_eq!(shown.len(), TOOLBAR.len() - 1);
     }
 }

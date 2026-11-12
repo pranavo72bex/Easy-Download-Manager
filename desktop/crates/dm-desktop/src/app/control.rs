@@ -68,118 +68,12 @@ impl DmApp {
         params: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
         use serde_json::json;
+        // The window's view and its commands, as the contract says them
+        // (`dm_desktop_base::probe::view`).
+        if let Some(answer) = self.view_call(method, params) {
+            return answer;
+        }
         match method {
-            "commands.list" => Ok(json!(Command::ALL
-                .iter()
-                .map(|c| json!({ "id": c.id(), "label": c.label(), "enabled": self.enabled(*c) }))
-                .collect::<Vec<_>>())),
-            "command.run" => {
-                let id = params.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                let command =
-                    Command::from_id(id).ok_or_else(|| format!("no command is called {id}"))?;
-                // Opening a downloaded file is a person's click in the
-                // window (`control_api::person_only`).
-                if let Some(why) = dm_shell::app::control_api::person_only(command.id()) {
-                    return Err(why);
-                }
-                if !self.enabled(command) {
-                    return Err(format!("{id} has nothing to act on"));
-                }
-                // A script cannot answer "Exit while downloading?": asked
-                // over this connection, dm quits.
-                if command == Command::Quit {
-                    self.quit_asked = true;
-                    return Ok(json!({ "ran": id, "said": self.said.english() }));
-                }
-                self.run(command);
-                Ok(json!({ "ran": id, "said": self.said.english() }))
-            }
-            "ui.select" => {
-                let ids: Vec<Id> = params
-                    .get("ids")
-                    .and_then(|v| v.as_array())
-                    .map(|a| a.iter().filter_map(|v| v.as_u64()).collect())
-                    .unwrap_or_default();
-                self.selected = ids
-                    .into_iter()
-                    .filter(|id| self.row(*id).is_some())
-                    .collect();
-                Ok(json!({ "selected": self.selected }))
-            }
-            "ui.place" => {
-                let place = params.get("place").and_then(|v| v.as_str()).unwrap_or("");
-                self.place = match place {
-                    "all" => Place::All,
-                    "unfinished" => Place::Unfinished,
-                    "finished" => Place::Finished,
-                    other => {
-                        if let Some(name) = other.strip_prefix("queue:") {
-                            // A place nothing is filed under showed an empty
-                            // list as if it were a queue.
-                            if !self.backend.queues().iter().any(|q| q == name) {
-                                return Err(format!("no queue is called {name}"));
-                            }
-                            Place::Queue(name.to_string())
-                        } else if let Some(name) = other.strip_prefix("custom:") {
-                            if !self
-                                .applied
-                                .custom_categories
-                                .iter()
-                                .any(|c| c.name == name)
-                            {
-                                return Err(format!("no category is called {name}"));
-                            }
-                            Place::Custom(name.to_string())
-                        } else if let Some(word) = other.strip_prefix("kind:") {
-                            let kind = Category::ALL
-                                .into_iter()
-                                .find(|c| category_word(*c) == word)
-                                .ok_or_else(|| format!("no category is called {word}"))?;
-                            Place::Kind(kind)
-                        } else {
-                            return Err(format!("no place is called {other}"));
-                        }
-                    }
-                };
-                Ok(json!({ "place": place }))
-            }
-            "ui.inspect" => {
-                // Each row under the name the window shows it by, the one it
-                // will be saved as (the control protocol said
-                // the name a second copy would not get).
-                let mut categories = self.applied.categories();
-                let before = self.earlier_of_the_same_name();
-                let rows: Vec<_> = self
-                    .visible_shared()
-                    .iter()
-                    .map(|r| {
-                        json!({
-                            "id": r.id,
-                            "name": self.name_it_will_get_after(r, &mut categories, Some(before.get(&r.id).copied().unwrap_or(0))),
-                            "status": status_in_english(r),
-                            "queue": r.queue,
-                            "description": r.description,
-                            "url": format::shown_url(&r.url),
-                            "rect": self.row_rects.get(&r.id).map(|b| json!([b.min.x, b.min.y, b.max.x, b.max.y])),
-                        })
-                    })
-                    .collect();
-                Ok(json!({
-                    "place": format!("{:?}", self.place),
-                    "selected": self.selected,
-                    "sort": self.sort.map(|(c, up)| json!({ "column": c.english(), "ascending": up })),
-                    "categories": self.show_categories,
-                    "toolbar": self.show_toolbar,
-                    "dark": self.dark,
-                    // Whether the window is parked in the tray and not
-                    // drawing; false for a window the compositor shows.
-                    "hidden": self.hidden,
-                    "said": self.said.english(),
-                    "problems": self.problems,
-                    "dialogs": self.dialogs.open_names(),
-                    "rows": rows,
-                }))
-            }
             // UI-free methods answered by the application
             // (`dm_shell::app::control_api::answer`).
             "queue.list" | "downloads.pause" | "downloads.resume" | "downloads.cancel" => {
@@ -214,5 +108,111 @@ impl DmApp {
             }),
             other => Err(format!("no method is called {other}")),
         }
+    }
+}
+
+impl DmApp {
+    /// `ui.select`: the rows chosen, of those asked for that are listed.
+    pub(super) fn select_ids(&mut self, ids: Vec<Id>) -> Result<Vec<Id>, String> {
+        self.selected = ids
+            .into_iter()
+            .filter(|id| self.row(*id).is_some())
+            .collect();
+        Ok(self.selected.iter().copied().collect())
+    }
+
+    /// `ui.place`: the place a word names.
+    pub(super) fn place_named(&mut self, place: &str) -> Result<(), String> {
+        let customs: Vec<String> = self
+            .applied
+            .custom_categories
+            .iter()
+            .map(|c| c.name.clone())
+            .collect();
+        self.place = Place::from_word(place, &self.backend.queues(), &customs)?;
+        Ok(())
+    }
+
+    /// `ui.inspect`: the view, and each row under the name the window shows
+    /// it by, the one it will be saved as (the control protocol said the
+    /// name a second copy would not get).
+    pub(super) fn inspected(&self) -> dm_desktop_base::probe::Inspect {
+        use dm_desktop_base::probe;
+        let mut categories = self.applied.categories();
+        let before = self.earlier_of_the_same_name();
+        let rows = self
+            .visible_shared()
+            .iter()
+            .map(|r| probe::InspectRow {
+                id: r.id,
+                name: self.name_it_will_get_after(
+                    r,
+                    &mut categories,
+                    Some(before.get(&r.id).copied().unwrap_or(0)),
+                ),
+                status: status_in_english(r),
+                queue: r.queue.clone(),
+                description: r.description.clone(),
+                url: format::shown_url(&r.url),
+                rect: self
+                    .row_rects
+                    .get(&r.id)
+                    .map(|b| [b.min.x, b.min.y, b.max.x, b.max.y]),
+            })
+            .collect();
+        probe::Inspect {
+            place: format!("{:?}", self.place),
+            selected: self.selected.iter().copied().collect(),
+            sort: self.sort.map(|(c, up)| probe::Sort {
+                column: c.english().to_string(),
+                ascending: up,
+            }),
+            categories: self.show_categories,
+            toolbar: self.show_toolbar,
+            dark: self.dark,
+            // Whether the window is parked in the tray and not
+            // drawing; false for a window the compositor shows.
+            hidden: self.hidden,
+            said: self.said.english(),
+            problems: self.problems.clone(),
+            dialogs: self.dialogs.open_names(),
+            rows,
+        }
+    }
+
+    /// `commands.list`: every command, and whether it applies now.
+    pub(super) fn command_states(&self) -> Vec<dm_desktop_base::probe::CommandState> {
+        Command::ALL
+            .iter()
+            .map(|c| dm_desktop_base::probe::CommandState {
+                id: c.id(),
+                label: c.label(),
+                enabled: self.enabled(*c),
+            })
+            .collect()
+    }
+
+    /// `command.run`: a command by its stable name.
+    pub(super) fn run_named(&mut self, id: &str) -> Result<dm_desktop_base::probe::Ran, String> {
+        let command = Command::from_id(id).ok_or_else(|| format!("no command is called {id}"))?;
+        // Opening a downloaded file is a person's click in the
+        // window (`control_api::person_only`).
+        if let Some(why) = dm_shell::app::control_api::person_only(command.id()) {
+            return Err(why);
+        }
+        if !self.enabled(command) {
+            return Err(format!("{id} has nothing to act on"));
+        }
+        // A script cannot answer "Exit while downloading?": asked
+        // over this connection, dm quits.
+        if command == Command::Quit {
+            self.quit_asked = true;
+        } else {
+            self.run(command);
+        }
+        Ok(dm_desktop_base::probe::Ran {
+            ran: id.to_string(),
+            said: self.said.english(),
+        })
     }
 }

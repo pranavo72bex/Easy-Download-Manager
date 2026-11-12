@@ -297,9 +297,25 @@ struct Source {
 /// Shared state for one download.
 struct Job {
     segments: Mutex<Vec<Segment>>,
-    /// Set when a finished range's last bytes, asked for again, were other
-    /// bytes than the ones on disk: the connections did not get one file.
+    /// Set when the bytes either side of a seam, or at the file's end, asked
+    /// for again were other bytes than the ones on disk: the connections did
+    /// not get one file (`assemble::check_seams`).
     disagreed: std::sync::atomic::AtomicBool,
+    /// Which seams have been asked for again, by the range that starts at the seam: each is
+    /// asked once, by whichever of its two ranges is whole second.
+    seams_checked: Vec<std::sync::atomic::AtomicBool>,
+    /// Whether the file's last bytes have been asked for again.
+    end_checked: std::sync::atomic::AtomicBool,
+    /// The staged file, held open from its making until the finished file is placed or the
+    /// download stops (`ranged::release_staged`). macOS writes out what a file still holds in
+    /// memory when its last open handle is closed, before the close returns: in the end of a
+    /// fast download, the range whose handle happened to close last held its connection 140 to
+    /// 160 ms, and every other range opening the file waited with it (`bench` fast, 512 MiB,
+    /// 2026-11-11). Held here, no range's close is the last one, and the one that is happens off
+    /// the runtime's threads once nothing waits on it.
+    holding: std::sync::Mutex<Option<std::fs::File>>,
+    /// The syncs a stop began, waited for before the download returns (`files::Stopping`).
+    stopping: Arc<files::Stopping>,
     /// For each range after the first, the bytes just before it (up to 64)
     /// fetched as an overlap with the range before. `None` until fetched;
     /// compared at assembly against the same bytes on disk, which is the only
@@ -351,9 +367,23 @@ struct Job {
     /// the job — which is what lets streams, which have no job, use the same
     /// sampler instead of a second copy of it.
     downloaded: Arc<AtomicU64>,
-    /// How many requests are bringing bytes in now: counted from a request's first byte to its
-    /// end, so the connections added past [`OPENED_AT_ONCE`] are judged once they are flowing.
-    flowing: AtomicUsize,
+    /// What the connections share: how many requests are bringing bytes in now, counted from a
+    /// request's first byte to its end, so the connections added past [`OPENED_AT_ONCE`] are
+    /// judged once they are flowing; and, while none is, their turns at asking a server they
+    /// have all lost, ended for all of them by the first byte one gets (`retry::Together`).
+    together: retry::Together,
+    /// Told whenever a range's attempt ends or a range is given up for others to take, so a
+    /// connection waiting for something worth halving looks again at once (`SPLIT_LOOK`).
+    moved: tokio::sync::Notify,
+    /// How long this download's requests have waited for their first byte, in microseconds,
+    /// averaged as they come: what a halving's new request can expect to wait (`SPLIT_WORTH`).
+    first_byte_us: AtomicU64,
+    /// When a range last came whole: the ranges still under way take up its share for a moment,
+    /// and none is judged for halving until they have (`SPLIT_SETTLE`).
+    last_ended: std::sync::Mutex<Option<tokio::time::Instant>>,
+    /// What the server has shown of a limit on the requests it serves at once or takes a second,
+    /// and how the connections keep to it (`ranged::limits`).
+    limits: Limits,
 }
 
 /// The most connections a download opens at once, whatever more it is allowed. Past these, one
@@ -383,6 +413,71 @@ struct Live {
     /// reconnect, it was a sixteenth of each request on a server that cuts connections every
     /// megabyte or so (gaps row 167).
     trusted: bool,
+    /// The last byte its attempt's answer brings, past the range's end where the request asked
+    /// on over the ranges after it, or the answer is the probe's (`ranged::limits`).
+    reach: u64,
+    /// How its attempt is going, for whether halving it is worth a request (`Going::time_left`).
+    going: Going,
+}
+
+/// How a range's current attempt is going: when it asked, the pace its bytes came at over the
+/// last [`PACE_WINDOW`], and when its latest bytes came. Kept beside `Live::reserved` and set under
+/// the same lock, once an attempt and once a chunk, so the pace a split is judged by costs no lock
+/// of its own.
+#[derive(Debug, Default, Clone, Copy)]
+struct Going {
+    /// When the attempt asked for its bytes.
+    since: Option<tokio::time::Instant>,
+    /// Where the window being measured began: when, and what the range held then.
+    window: Option<(tokio::time::Instant, u64)>,
+    /// Bytes a second over the last whole window. Over the last one, not since the attempt
+    /// began: a connection that shared the line with seven others is judged by the pace it has
+    /// once they are done, not by the one it had among them.
+    pace: Option<f64>,
+    /// When its latest bytes came.
+    latest: Option<tokio::time::Instant>,
+}
+
+impl Going {
+    /// Counts bytes that came at `arrived`, the range then holding `held`: a window is closed and
+    /// its pace taken once it is [`PACE_WINDOW`] long. Whether these were the attempt's first.
+    fn came(&mut self, arrived: tokio::time::Instant, held: u64) -> bool {
+        self.latest = Some(arrived);
+        let Some((opened, had)) = self.window else {
+            // From the first bytes on: what came with them came before the window opened.
+            self.window = Some((arrived, held));
+            return true;
+        };
+        let lasted = arrived.saturating_duration_since(opened);
+        if lasted >= PACE_WINDOW {
+            self.pace = Some(held.saturating_sub(had) as f64 / lasted.as_secs_f64());
+            self.window = Some((arrived, held));
+        }
+        false
+    }
+}
+
+impl Live {
+    /// The bytes it still has to fetch.
+    fn left(&self) -> u64 {
+        (self.end - self.start)
+            .saturating_add(1)
+            .saturating_sub(self.reserved)
+    }
+
+    /// How long its own connection would take to fetch what it has left at the pace of its last
+    /// window: endless where the attempt has waited [`STUCK_AFTER`] for an answer or for its next
+    /// bytes, `None` where it is too soon to tell (an answer still on its way, or no window yet).
+    fn time_left(&self, now: tokio::time::Instant) -> Option<f64> {
+        let quiet = |since: Option<tokio::time::Instant>| {
+            since.is_some_and(|at| now.saturating_duration_since(at) >= STUCK_AFTER)
+        };
+        if quiet(self.going.latest.or(self.going.since)) {
+            return Some(f64::INFINITY);
+        }
+        let pace = self.going.pace?;
+        Some(self.left() as f64 / pace)
+    }
 }
 
 /// The least free space a download of no known length may leave. Such a body
@@ -407,6 +502,37 @@ const MAX_RANGES: usize = 256;
 /// first (`HELP_AFTER`).
 const MIN_SPLIT: u64 = 16 * 1024;
 
+/// The least time a range must have left at its own pace for a connection with nothing to do to
+/// halve it, or twice what a request waited for its first byte in this download, if more. Below
+/// that the new request saves less than it costs: it waits for its answer while the range's own
+/// connection carries on, and the halving drops that connection's answer short, so whatever the
+/// server had sent past the new end comes again. Halved however soon it would end, the end of a
+/// fast file was a cascade: nine halvings of its last range in 5 ms, 38 to 60 requests for 8
+/// ranges, and 4 to 9% of 512 MiB fetched twice (`bench` fast, macOS, 2026-11-11; gaps rows 171
+/// and 177).
+const SPLIT_WORTH: Duration = Duration::from_millis(100);
+
+/// How long a range may wait for its answer, or go without bytes, before it counts as stuck and
+/// is halved however little it has left: a request the server has not answered in that time is
+/// not to be waited on, where one answered a few milliseconds late (a busy server) is.
+const STUCK_AFTER: Duration = Duration::from_secs(1);
+
+/// The window a range's pace is measured over (`Going::pace`).
+const PACE_WINDOW: Duration = Duration::from_millis(20);
+
+/// How long after a range comes whole the others are first judged for halving: what it was
+/// fetching goes to them, on a link or a server they share, and they are judged at the pace they
+/// have once they have it. Judged at once by the connection just freed, a fast file's last ranges
+/// looked three to four times slower than they were and were halved for nothing; judged 40 ms
+/// after its own range alone, while the ranges beside it were still ending, one in two fast runs
+/// still halved one (`bench` fast, macOS, 2026-11-11).
+const SPLIT_SETTLE: Duration = Duration::from_millis(40);
+
+/// How soon a connection that found nothing worth halving looks again, unless a range ends first:
+/// a range just asked for is judged once its bytes have come for a window, and one can slow down
+/// or stop, and is then worth helping after all.
+const SPLIT_LOOK: Duration = Duration::from_millis(25);
+
 impl Job {
     /// The one file every range of this download is written into, each at
     /// its own offset; renamed into place when whole.
@@ -422,6 +548,26 @@ impl Job {
         } else {
             (self.staged(), start)
         }
+    }
+
+    /// Counts how long a request waited for its first byte into the average.
+    fn note_first_byte(&self, waited: Duration) {
+        let sample = u64::try_from(waited.as_micros()).unwrap_or(u64::MAX).max(1);
+        let _ = self
+            .first_byte_us
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |was| {
+                Some(if was == 0 {
+                    sample
+                } else {
+                    (was.saturating_mul(3).saturating_add(sample)) / 4
+                })
+            });
+    }
+
+    /// The least time left at a range's own pace that is worth a new request for its back half.
+    fn split_worth(&self) -> Duration {
+        let waited = Duration::from_micros(self.first_byte_us.load(Ordering::Relaxed));
+        SPLIT_WORTH.max(waited.saturating_mul(2))
     }
 
     /// How much of range `index` is on disk, as its ledger last said.
@@ -593,6 +739,13 @@ pub async fn download(
     Ok(finished)
 }
 
+/// Every note a download may put on its row ([`Update::Note`]), so the window has each in
+/// every language; a note with a number says it as `{}`.
+pub const NOTES: [&str; 2] = [
+    "higher qualities are copy-protected, so the best one that is not was taken",
+    "{} pieces of the live stream were gone before dm could fetch them",
+];
+
 /// What the engine tells a caller while a download is in flight.
 ///
 /// The name is sent as well as the byte counts because it is learned by the
@@ -620,6 +773,11 @@ pub enum Update {
     Files(Vec<crate::torrent::TorrentFile>),
     /// The server's ETag or Last-Modified for the file being fetched.
     Validator(String),
+    /// Something the download wants its row to say beside its state, in English as one of
+    /// [`NOTES`] says it (the window says it in the person's language): higher qualities passed
+    /// over as protected, a live stream's pieces gone before they were fetched (gaps rows Y19,
+    /// Y23).
+    Note(String),
     /// A range failed and is about to be tried again: attempt `attempt`
     /// (the first try is 1) of `of`, 0 being "keep trying". Over once bytes
     /// arrive again.
@@ -821,9 +979,12 @@ async fn fetch_reporting(
     }
 
     // A site with a limit of its own is fetched on that many connections,
-    // whatever the setting says; decided once, here, for every path below.
+    // whatever the setting says; decided once, here, for every path below. So is a server found
+    // in this run of dm to serve no more at once (`agents::remember_ceiling`).
     let options = &Options {
-        connections: options.connections_for(url),
+        connections: options
+            .connections_for(url)
+            .min(crate::agents::ceiling_for(url).unwrap_or(usize::MAX)),
         ..options.clone()
     };
 
@@ -989,7 +1150,12 @@ async fn fetch_reporting(
      * names. */
     if metalink::is_metalink(url, info.content_type.as_deref()) {
         first_response = None;
-        let listed = fetch_metalink(client, &info.final_url, options).await?;
+        let mut listed = fetch_metalink(client, &info.final_url, options).await?;
+        // A public mirror list's mirrors inside are passed over, as a redirect there would be
+        // refused (`redirects::named_inside`, security audit 2026-11-12).
+        listed
+            .mirrors
+            .retain(|mirror| !crate::redirects::named_inside(&info.final_url, mirror));
         let (mirrors, agreed) =
             or_stop(&options.control, agreeing_mirrors(client, &listed)).await?;
 
@@ -1019,6 +1185,13 @@ async fn fetch_reporting(
     fs::create_dir_all(&options.parts_dir).await?;
     fs::create_dir_all(&options.dest_dir).await?;
 
+    // Where the address led on to another server, that one's limit as found in this run of dm.
+    let options = &Options {
+        connections: options
+            .connections
+            .min(crate::agents::ceiling_for(&info.final_url).unwrap_or(usize::MAX)),
+        ..options.clone()
+    };
     let segments = planned_segments(&info, options).await?;
     let planned = segments.len();
     // Room for the ranges splitting may add, where the length is known and
@@ -1040,6 +1213,12 @@ async fn fetch_reporting(
 
     let job = Arc::new(Job {
         disagreed: std::sync::atomic::AtomicBool::new(false),
+        seams_checked: (0..capacity)
+            .map(|_| std::sync::atomic::AtomicBool::new(false))
+            .collect(),
+        end_checked: std::sync::atomic::AtomicBool::new(false),
+        holding: std::sync::Mutex::new(None),
+        stopping: Arc::default(),
         segments: Mutex::new(segments),
         limiter: options.limiter.clone(),
         sources,
@@ -1053,6 +1232,8 @@ async fn fetch_reporting(
                     reserved: 0,
                     taken: false,
                     trusted: false,
+                    reach: 0,
+                    going: Going::default(),
                 }))
             })
             .collect(),
@@ -1064,7 +1245,13 @@ async fn fetch_reporting(
         chunk: HINTS.try_with(|hints| hints.chunk).ok().flatten(),
         headers: stream_headers(),
         downloaded: Arc::new(AtomicU64::new(0)),
-        flowing: AtomicUsize::new(0),
+        // Spread over the connections asked for: those of a small file, fewer, still ask no
+        // more than once a round each.
+        together: retry::Together::new(options.connections.clamp(1, plan::MAX_CONNECTIONS)),
+        moved: tokio::sync::Notify::new(),
+        first_byte_us: AtomicU64::new(0),
+        last_ended: std::sync::Mutex::new(None),
+        limits: Limits::default(),
         control: options.control.clone(),
         // The ranges go straight to where the probe landed: past a redirect
         // to another host they carry what the hop carried, the page's origin.
@@ -1133,11 +1320,20 @@ async fn fetch_reporting(
         first_response,
     )
     .await;
+    crate::finish_trace::mark("run returned");
+    // The next file from a server that turned requests away opens no more than it served at once.
+    if job.limits.limited() && job.sources.len() == 1 {
+        crate::agents::remember_ceiling(&job.sources[0].url, job.together.most());
+    }
 
     if let Some((handle, finished)) = reporter {
         // Ask for a closing sample, then wait for it to be sent.
         let _ = finished.send(());
         let _ = handle.await;
+    }
+    // Not assembled: whatever comes next removes the parts, makes them again or leaves them.
+    if outcome.is_err() || job.disagreed.load(std::sync::atomic::Ordering::SeqCst) {
+        release_staged(&job, true).await;
     }
     /* A server that stopped serving ranges to several connections serves
      * one: the file again on a single connection, from the start. The parts
@@ -1173,7 +1369,8 @@ async fn fetch_reporting(
                 .send(Update::Retrying {
                     attempt: 1,
                     of: 1,
-                    why: "the pieces fetched over several connections did not agree when                           checked again, so the file is fetched again over one"
+                    why: "the pieces fetched over several connections did not agree when \
+                          checked again, so the file is fetched again over one"
                         .into(),
                     wait: std::time::Duration::ZERO,
                 })
@@ -1195,7 +1392,11 @@ async fn fetch_reporting(
         checksum,
         ..options.clone()
     };
-    let assembled = assemble(client, &job, &info, options).await;
+    crate::finish_trace::mark("reported");
+    let assembled = assemble(&job, &info, options).await;
+    crate::finish_trace::mark("assembled");
+    // Placed, or never to be: the staged file is let go of, in the background once it is placed.
+    release_staged(&job, assembled.is_err()).await;
     /* Bytes that differ across a seam when asked for a second time: the
      * connections did not all get the same file, or a server answers ranges
      * with other bytes. The parts are gone (`assemble` removed them); the
@@ -1286,6 +1487,71 @@ mod tests {
                 || panic!("asked")
             ));
         }
+    }
+
+    /// A range of 1 MiB from `start`, `held` of it fetched, its attempt asked at `asked`.
+    fn live(held: u64, asked: tokio::time::Instant) -> super::Live {
+        super::Live {
+            start: 0,
+            end: 1024 * 1024 - 1,
+            reserved: held,
+            taken: true,
+            trusted: true,
+            reach: 0,
+            going: super::Going {
+                since: Some(asked),
+                ..Default::default()
+            },
+        }
+    }
+
+    #[test]
+    fn a_range_is_judged_at_the_pace_of_its_last_window() {
+        use std::time::Duration;
+        let t0 = tokio::time::Instant::now();
+        let ms = |n: u64| t0 + Duration::from_millis(n);
+        let mut l = live(0, t0);
+        // Asked, nothing yet: too soon to tell.
+        assert_eq!(l.time_left(ms(5)), None);
+        // 64 KiB every 10 ms: the first bytes open the window, the next close it once it is
+        // 20 ms long.
+        for (at, held) in [(10, 64), (20, 128), (30, 192)] {
+            l.reserved = held * 1024;
+            let first = l.going.came(ms(at), l.reserved);
+            assert_eq!(first, at == 10);
+        }
+        // 128 KiB over the 20 ms window: 6.5 MB/s, with 832 KiB left.
+        let left = l.time_left(ms(31)).expect("a whole window was measured");
+        assert!((left - 832.0 / 128.0 * 0.020).abs() < 1e-9, "{left}");
+        // A connection that shared the line and then had it to itself: judged by the new pace.
+        for (at, held) in [(40, 448), (50, 704)] {
+            l.reserved = held * 1024;
+            l.going.came(ms(at), l.reserved);
+        }
+        let left = l.time_left(ms(51)).expect("judged");
+        assert!((left - 320.0 / 512.0 * 0.020).abs() < 1e-9, "{left}");
+    }
+
+    #[test]
+    fn a_range_that_waited_a_second_for_its_answer_or_its_next_bytes_is_stuck() {
+        use std::time::Duration;
+        let t0 = tokio::time::Instant::now();
+        let later = |d: Duration| t0 + d;
+        // No answer: too soon to tell, then stuck.
+        let l = live(0, t0);
+        assert_eq!(l.time_left(later(Duration::from_millis(900))), None);
+        assert_eq!(l.time_left(later(super::STUCK_AFTER)), Some(f64::INFINITY));
+        // Bytes, then none for a second: stuck, whatever its pace was.
+        let mut l = live(0, t0);
+        l.going.came(later(Duration::from_millis(10)), 1000);
+        l.going.came(later(Duration::from_millis(40)), 900_000);
+        assert!(l
+            .time_left(later(Duration::from_millis(41)))
+            .is_some_and(f64::is_finite));
+        assert_eq!(
+            l.time_left(later(Duration::from_millis(40) + super::STUCK_AFTER)),
+            Some(f64::INFINITY)
+        );
     }
 
     #[test]
@@ -1446,9 +1712,45 @@ mod tests {
         std::fs::write(&parts[2], b"5678").unwrap();
 
         let into = options.dest_dir.join("f.bin");
-        let outcome = join_parts(&parts, &into).await;
+        let outcome = join_parts(&parts, &into, &options.control).await;
         assert!(outcome.is_err(), "a missing part was skipped");
         assert!(!into.exists(), "a short file was left under the name");
+    }
+
+    /// A Cancel stops the join of a file's parts part-way, within a second, and leaves no file
+    /// under the name (gaps row 185). The parts are sparse: only what the join wrote before it
+    /// stopped is on the disk.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_cancel_stops_a_join_part_way() {
+        use std::time::Duration;
+        let dir = tempfile::tempdir().unwrap();
+        let options = options_in(dir.path());
+        std::fs::create_dir_all(&options.parts_dir).unwrap();
+        std::fs::create_dir_all(&options.dest_dir).unwrap();
+        let parts: Vec<PathBuf> = (0..8).map(|i| part_path(&options.parts_dir, i)).collect();
+        for part in &parts {
+            std::fs::File::create(part)
+                .unwrap()
+                .set_len(256 << 20)
+                .unwrap();
+        }
+        let into = options.dest_dir.join("f.bin");
+        let joining = {
+            let (parts, into, control) = (parts.clone(), into.clone(), options.control.clone());
+            tokio::spawn(async move { join_parts(&parts, &into, &control).await })
+        };
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(
+            !joining.is_finished(),
+            "the join was over before it could be cancelled"
+        );
+        options.control.cancel();
+        let outcome = tokio::time::timeout(Duration::from_secs(1), joining)
+            .await
+            .expect("the join went on for a second after the cancel")
+            .unwrap();
+        assert!(matches!(outcome, Err(Error::Cancelled)), "{outcome:?}");
+        assert!(!into.exists(), "a part-joined file was left under the name");
     }
 
     #[test]

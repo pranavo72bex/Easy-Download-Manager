@@ -4,8 +4,9 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Driving the window as a person does: see what is drawn, click a word,
-//! type, press a key. Behind `ui.texts`, `ui.click`, `ui.type` and `ui.key`
-//! of the control protocol, and so behind the AI client's tools.
+//! type, press a key. The egui window's answer to the control port's
+//! contract (`dm_desktop_base::probe::WindowProbe`): `ui.texts`, `ui.click`,
+//! `ui.type`, `ui.key` and the rest, and so the AI client's tools.
 //!
 //! What is on screen is read from the frame's own text shapes, back to
 //! front, so a click lands on the word a person would see on top. Clicks,
@@ -14,7 +15,7 @@
 //! does.
 
 use super::*;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 /// How many steps may wait for frames before more are refused.
 pub const MAX_WAITING_STEPS: usize = 64;
@@ -33,23 +34,7 @@ pub struct ScreenText {
     pub viewport: egui::ViewportId,
 }
 
-/// Words a script or an AI client may not click: they run a downloaded file,
-/// which on Windows may be a program, and that stays a person's click.
-fn is_run_a_file(text: &str) -> bool {
-    use crate::commands::Command;
-    let text = text.trim().to_lowercase();
-    [Command::OpenFile, Command::OpenWith, Command::Preview]
-        .iter()
-        .flat_map(|c| [c.label(), crate::i18n::t(c.label())])
-        .chain(
-            ["Open", "Open with…", "Preview"]
-                .into_iter()
-                .flat_map(|e| [e, crate::i18n::t(e)]),
-        )
-        .any(|label| {
-            label.trim().trim_end_matches('…').to_lowercase() == text.trim_end_matches('…')
-        })
-}
+use dm_desktop_base::probe::{self, is_run_a_file, WindowProbe};
 
 impl DmApp {
     /// Whether a control client acted a moment ago. What runs a downloaded
@@ -58,8 +43,7 @@ impl DmApp {
     /// on a row opens it, once Options says so), so the refusal is made
     /// where the file would be run, not only where the click is aimed.
     pub(super) fn by_script(&self) -> bool {
-        self.scripted_at
-            .is_some_and(|at| at.elapsed() < Duration::from_secs(3))
+        self.scripted_at.by_script()
     }
 
     /// Why a downloaded file may not be run now: a control client acted a moment ago
@@ -68,8 +52,7 @@ impl DmApp {
     /// on a focused button (Tab, then Enter) reaches it where a scripted click on its word is
     /// refused (security review of 2026-11-07, gaps row 159 f).
     pub(crate) fn run_refused(&self) -> Option<&'static str> {
-        self.by_script()
-            .then_some("Opening a file is done by a person, not by a script")
+        self.scripted_at.run_refused()
     }
 
     /// Reads the words drawn this frame. Run at the end of the frame, and
@@ -166,7 +149,7 @@ impl DmApp {
         // The moment an event is given to the window is the script's, not
         // the moment it was asked for.
         if !events.is_empty() {
-            self.scripted_at = Some(Instant::now());
+            self.scripted_at.acted();
         }
         // A dialog's own window takes its input when it is drawn, a moment
         // later in this frame (`dialogs::apart::feed`).
@@ -189,239 +172,286 @@ impl DmApp {
         params: &Value,
         ctx: Option<&egui::Context>,
     ) -> Option<Result<Value, String>> {
+        probe::input(&mut Probe { app: self, ctx }, method, params)
+    }
+
+    /// Answers the requests that read or set the view and run commands
+    /// (`probe::view`), which a `batch` reaches too.
+    pub(super) fn view_call(
+        &mut self,
+        method: &str,
+        params: &Value,
+    ) -> Option<Result<Value, String>> {
+        probe::view(
+            &mut Probe {
+                app: self,
+                ctx: None,
+            },
+            method,
+            params,
+        )
+    }
+}
+
+/// The egui window as the control port's [`WindowProbe`]: the app, and the
+/// frame's context where there is one (none headless, and in some tests).
+struct Probe<'a> {
+    app: &'a mut DmApp,
+    ctx: Option<&'a egui::Context>,
+}
+
+impl Probe<'_> {
+    fn wake(&self) {
+        if let Some(ctx) = self.ctx {
+            ctx.request_repaint();
+        }
+    }
+}
+
+fn rect_of(r: egui::Rect) -> probe::Rect {
+    [r.min.x, r.min.y, r.max.x, r.max.y]
+}
+
+impl WindowProbe for Probe<'_> {
+    fn may_step(&mut self) -> Result<(), String> {
         // Steps wait for frames: a window that draws none (parked in the
         // tray) would let a client queue them without end.
-        if matches!(method, "ui.click" | "ui.type" | "ui.key" | "ui.scroll") {
-            if self.hidden {
-                return Some(Err(
-                    "dm's window is hidden in the tray: launch dm again, or choose Show in the tray, first"
-                        .into(),
-                ));
-            }
-            if self.synthetic.len() > MAX_WAITING_STEPS {
-                return Some(Err(
-                    "too many steps are waiting: let the window catch up".into()
-                ));
-            }
-            // Only what was taken counts as a script's moment.
-            self.scripted_at = Some(Instant::now());
+        if self.app.hidden {
+            return Err(
+                "dm's window is hidden in the tray: launch dm again, or choose Show in the tray, first"
+                    .into(),
+            );
         }
-        let wake = || {
-            if let Some(ctx) = ctx {
-                ctx.request_repaint();
-            }
+        if self.app.synthetic.len() > MAX_WAITING_STEPS {
+            return Err("too many steps are waiting: let the window catch up".into());
+        }
+        // Only what was taken counts as a script's moment.
+        self.app.scripted_at.acted();
+        Ok(())
+    }
+
+    fn has_window(&self) -> bool {
+        self.ctx.is_some()
+    }
+
+    fn texts(&mut self) -> Result<probe::Texts, String> {
+        Ok(probe::Texts::new(
+            self.app
+                .screen
+                .iter()
+                .rev()
+                .map(|t| probe::Text {
+                    text: t.text.clone(),
+                    rect: rect_of(t.rect),
+                    window: if t.viewport == egui::ViewportId::ROOT {
+                        probe::Window::Main
+                    } else {
+                        probe::Window::Dialog
+                    },
+                })
+                .collect(),
+        ))
+    }
+
+    fn click(&mut self, click: probe::Click) -> Result<probe::Clicked, String> {
+        let probe::Click {
+            text: wanted,
+            nth,
+            button,
+            double,
+        } = click;
+        let target = self.app.find_text(&wanted, nth).cloned().ok_or_else(|| {
+            let near: Vec<&str> = self
+                .app
+                .screen
+                .iter()
+                .rev()
+                .map(|t| t.text.as_str())
+                .take(40)
+                .collect();
+            format!("nothing on screen says {wanted:?}; some of what does: {near:?}")
+        })?;
+        if is_run_a_file(&target.text) {
+            return Err(format!("{} is done by a person", target.text));
+        }
+        let pos = target.rect.center();
+        let button = match button {
+            probe::Button::Secondary => egui::PointerButton::Secondary,
+            probe::Button::Primary => egui::PointerButton::Primary,
         };
-        Some(match method {
-            "ui.texts" => {
-                let texts: Vec<Value> = self
-                    .screen
-                    .iter()
-                    .rev()
-                    .map(|t| {
-                        json!({ "text": t.text, "rect": [t.rect.min.x, t.rect.min.y, t.rect.max.x, t.rect.max.y], "window": if t.viewport == egui::ViewportId::ROOT { "main" } else { "dialog" } })
-                    })
-                    .collect();
-                Ok(json!({ "texts": texts, "note": "nearest the front first" }))
-            }
-            "ui.click" => (|| {
-                let wanted = params
-                    .get("text")
-                    .and_then(Value::as_str)
-                    .filter(|t| !t.is_empty())
-                    .ok_or("give `text`: the words on the button, tab or menu to click")?;
-                if is_run_a_file(wanted) {
-                    return Err(format!(
-                        "{wanted} runs a downloaded file: it is done in the window by a person, not over this connection"
-                    ));
-                }
-                let nth = params.get("nth").and_then(Value::as_u64).unwrap_or(0) as usize;
-                let target = self.find_text(wanted, nth).cloned().ok_or_else(|| {
-                    let near: Vec<&str> = self
-                        .screen
-                        .iter()
-                        .rev()
-                        .map(|t| t.text.as_str())
-                        .take(40)
-                        .collect();
-                    format!("nothing on screen says {wanted:?}; some of what does: {near:?}")
-                })?;
-                if is_run_a_file(&target.text) {
-                    return Err(format!("{} is done by a person", target.text));
-                }
-                let pos = target.rect.center();
-                let button = match params.get("button").and_then(Value::as_str) {
-                    Some("right") | Some("secondary") => egui::PointerButton::Secondary,
-                    _ => egui::PointerButton::Primary,
-                };
-                let double = params
-                    .get("double")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-                // Each step finds the word where it is drawn when the step
-                // reaches a frame, not where it was when asked: a dialog
-                // that had just opened was still settling, and one closing
-                // still showed a title that read the same, so a click aimed
-                // at the frame before landed beside its button.
-                let at = |pressed: Option<bool>| Step::Pointer {
-                    text: wanted.to_string(),
-                    nth,
-                    button,
-                    pressed,
-                };
-                self.synthetic.push_back((Instant::now(), at(None)));
-                step(&mut self.synthetic, Vec::new());
-                // The press and the release a frame apart, as a pointer's
-                // are: in one frame, a button in a dialog took the press and
-                // not the release (the QA lost Start now and OK, three runs
-                // of four). A release that comes late is still a click: the
-                // window sets egui's click-duration limit high (`theme`),
-                // since a slow frame on a busy computer once came past it.
-                for _ in 0..if double { 2 } else { 1 } {
-                    self.synthetic.push_back((Instant::now(), at(Some(true))));
-                    self.synthetic.push_back((Instant::now(), at(Some(false))));
-                }
-                step(&mut self.synthetic, Vec::new());
-                wake();
-                Ok(json!({ "clicked": target.text, "at": [pos.x, pos.y] }))
-            })(),
-            "ui.scroll" => {
-                (|| {
-                    let wanted = params
-                    .get("text")
-                    .and_then(Value::as_str)
-                    .filter(|t| !t.is_empty())
-                    .ok_or("give `text`: words on screen to hold the pointer over, in what scrolls")?;
-                    // Lines turned down (negative: up), as a wheel is, a line being a
-                    // few rows of text.
-                    let lines = params.get("lines").and_then(Value::as_f64).unwrap_or(3.0) as f32;
-                    self.find_text(wanted, 0)
-                        .ok_or_else(|| format!("nothing on screen says {wanted:?}"))?;
-                    self.synthetic.push_back((
-                        Instant::now(),
-                        Step::Pointer {
-                            text: wanted.to_string(),
-                            nth: 0,
-                            button: egui::PointerButton::Primary,
-                            pressed: None,
-                        },
-                    ));
-                    step(
-                        &mut self.synthetic,
-                        vec![egui::Event::MouseWheel {
-                            unit: egui::MouseWheelUnit::Point,
-                            delta: egui::vec2(0.0, -lines * 40.0),
-                            phase: egui::TouchPhase::Move,
-                            source: egui::MouseWheelSource::Wheel,
-                            modifiers: egui::Modifiers::NONE,
-                        }],
-                    );
-                    wake();
-                    Ok(json!({ "scrolled": wanted, "lines": lines }))
-                })()
-            }
-            "ui.type" => (|| {
-                let text = params
-                    .get("text")
-                    .and_then(Value::as_str)
-                    .ok_or("give `text`: what to type into the field that has focus")?;
-                step(
-                    &mut self.synthetic,
-                    vec![egui::Event::Text(text.to_string())],
-                );
-                wake();
-                Ok(json!({ "typed": text.chars().count() }))
-            })(),
-            "ui.key" => (|| {
-                let name = params
-                    .get("key")
-                    .and_then(Value::as_str)
-                    .ok_or("give `key`: Escape, Enter, Tab, Delete, ArrowDown, A…")?;
-                let key =
-                    egui::Key::from_name(name).ok_or_else(|| format!("no key is called {name}"))?;
-                let has = |m: &str| {
-                    params
-                        .get("modifiers")
-                        .and_then(Value::as_array)
-                        .is_some_and(|a| {
-                            a.iter()
-                                .any(|v| v.as_str().is_some_and(|s| s.eq_ignore_ascii_case(m)))
-                        })
-                };
-                let modifiers = egui::Modifiers {
-                    alt: has("alt"),
-                    ctrl: has("ctrl"),
-                    shift: has("shift"),
-                    mac_cmd: has("cmd"),
-                    command: has("ctrl") && !cfg!(target_os = "macos") || has("cmd"),
-                };
-                let event = |pressed| egui::Event::Key {
-                    key,
-                    physical_key: Some(key),
-                    pressed,
-                    repeat: false,
-                    modifiers,
-                };
-                step(&mut self.synthetic, vec![event(true)]);
-                step(&mut self.synthetic, vec![event(false)]);
-                wake();
-                Ok(json!({ "pressed": name }))
-            })(),
-            // What a screen reader is given of each window (macOS; gaps row 160).
-            "ui.accessibility" => crate::a11y_tree::windows(),
-            "ui.windows" => {
-                let (main, dialogs) = crate::dialogs::apart::placement();
-                let rect =
-                    |r: Option<egui::Rect>| r.map(|r| json!([r.min.x, r.min.y, r.max.x, r.max.y]));
-                Ok(json!({
-                    // Points on the screen are this many pixels each.
-                    "pixels_per_point": ctx.map(|c| c.pixels_per_point()),
-                    "main": rect(main),
-                    "dialogs": dialogs
-                        .iter()
-                        .map(|(_, w)| json!({ "title": w.title, "outer": rect(w.outer), "inner": rect(w.inner) }))
-                        .collect::<Vec<_>>(),
-                }))
-            }
-            // Where the main window is, as a person puts it: in the tray (the
-            // close button's "tray"), minimized, or shown and in front. For
-            // checks of the window's slower wakes while it draws nothing.
-            "ui.window" => (|| {
-                let ctx = ctx.ok_or("there is no window")?;
-                match params.get("to").and_then(Value::as_str) {
-                    Some("tray") => self.hide_asked = true,
-                    Some("minimized") => {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true))
-                    }
-                    Some("shown") => self.show_asked = true,
-                    _ => return Err("give `to`: tray, minimized or shown".into()),
-                }
-                ctx.request_repaint();
-                Ok(json!({ "to": params["to"] }))
-            })(),
-            "ui.move_window" => (|| {
-                let ctx = ctx.ok_or("there is no window to move")?;
-                let title = params
-                    .get("title")
-                    .and_then(Value::as_str)
-                    .ok_or("give `title`: the dialog's title, or part of it")?
-                    .to_lowercase();
-                let at = |key: &str| {
-                    params
-                        .get(key)
-                        .and_then(Value::as_f64)
-                        .ok_or("give `x` and `y`: where its top-left corner goes, in screen points")
-                };
-                let to = egui::pos2(at("x")? as f32, at("y")? as f32);
-                let (_, dialogs) = crate::dialogs::apart::placement();
-                let (window, found) = dialogs
-                    .into_iter()
-                    .find(|(_, w)| w.title.to_lowercase().contains(&title))
-                    .ok_or("no dialog window with that title is open")?;
-                ctx.send_viewport_cmd_to(window, egui::ViewportCommand::OuterPosition(to));
-                Ok(json!({ "moved": found.title, "to": [to.x, to.y] }))
-            })(),
-            _ => return None,
+        // Each step finds the word where it is drawn when the step
+        // reaches a frame, not where it was when asked: a dialog
+        // that had just opened was still settling, and one closing
+        // still showed a title that read the same, so a click aimed
+        // at the frame before landed beside its button.
+        let at = |pressed: Option<bool>| Step::Pointer {
+            text: wanted.clone(),
+            nth,
+            button,
+            pressed,
+        };
+        let synthetic = &mut self.app.synthetic;
+        synthetic.push_back((Instant::now(), at(None)));
+        step(synthetic, Vec::new());
+        // The press and the release a frame apart, as a pointer's
+        // are: in one frame, a button in a dialog took the press and
+        // not the release (the QA lost Start now and OK, three runs
+        // of four). A release that comes late is still a click: the
+        // window sets egui's click-duration limit high (`theme`),
+        // since a slow frame on a busy computer once came past it.
+        for _ in 0..if double { 2 } else { 1 } {
+            synthetic.push_back((Instant::now(), at(Some(true))));
+            synthetic.push_back((Instant::now(), at(Some(false))));
+        }
+        step(synthetic, Vec::new());
+        self.wake();
+        Ok(probe::Clicked {
+            clicked: target.text,
+            at: [pos.x, pos.y],
         })
+    }
+
+    fn scroll(&mut self, scroll: probe::Scroll) -> Result<probe::Scrolled, String> {
+        let probe::Scroll {
+            text: wanted,
+            lines,
+            sideways,
+        } = scroll;
+        self.app
+            .find_text(&wanted, 0)
+            .ok_or_else(|| format!("nothing on screen says {wanted:?}"))?;
+        self.app.synthetic.push_back((
+            Instant::now(),
+            Step::Pointer {
+                text: wanted.clone(),
+                nth: 0,
+                button: egui::PointerButton::Primary,
+                pressed: None,
+            },
+        ));
+        // Lines turned down (negative: up), as a wheel is, a line being a
+        // few rows of text.
+        step(
+            &mut self.app.synthetic,
+            vec![egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(-sideways * 40.0, -lines * 40.0),
+                phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Wheel,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        );
+        self.wake();
+        Ok(probe::Scrolled {
+            scrolled: wanted,
+            lines,
+        })
+    }
+
+    fn type_text(&mut self, text: &str) -> Result<usize, String> {
+        step(
+            &mut self.app.synthetic,
+            vec![egui::Event::Text(text.to_string())],
+        );
+        self.wake();
+        Ok(text.chars().count())
+    }
+
+    fn key(&mut self, press: probe::KeyPress) -> Result<(), String> {
+        let name = press.key;
+        let key = egui::Key::from_name(&name).ok_or_else(|| format!("no key is called {name}"))?;
+        let m = press.modifiers;
+        let modifiers = egui::Modifiers {
+            alt: m.alt,
+            ctrl: m.ctrl,
+            shift: m.shift,
+            mac_cmd: m.cmd,
+            command: m.ctrl && !cfg!(target_os = "macos") || m.cmd,
+        };
+        let event = |pressed| egui::Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed,
+            repeat: false,
+            modifiers,
+        };
+        step(&mut self.app.synthetic, vec![event(true)]);
+        step(&mut self.app.synthetic, vec![event(false)]);
+        self.wake();
+        Ok(())
+    }
+
+    // What a screen reader is given of each window (macOS; gaps row 160).
+    fn accessibility(&mut self) -> Result<Value, String> {
+        crate::a11y_tree::windows()
+    }
+
+    fn windows(&mut self) -> Result<probe::Windows, String> {
+        let (main, dialogs) = crate::dialogs::apart::placement();
+        Ok(probe::Windows {
+            // Points on the screen are this many pixels each.
+            pixels_per_point: self.ctx.map(|c| c.pixels_per_point()),
+            main: main.map(rect_of),
+            dialogs: dialogs
+                .iter()
+                .map(|(_, w)| probe::DialogWindow {
+                    title: w.title.clone(),
+                    outer: w.outer.map(rect_of),
+                    inner: w.inner.map(rect_of),
+                })
+                .collect(),
+        })
+    }
+
+    // Where the main window is, as a person puts it: in the tray (the
+    // close button's "tray"), minimized, or shown and in front. For
+    // checks of the window's slower wakes while it draws nothing.
+    fn window_to(&mut self, to: probe::WindowTo) -> Result<(), String> {
+        let ctx = self.ctx.ok_or("there is no window")?;
+        match to {
+            probe::WindowTo::Tray => self.app.hide_asked = true,
+            probe::WindowTo::Minimized => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true))
+            }
+            probe::WindowTo::Shown => self.app.show_asked = true,
+        }
+        ctx.request_repaint();
+        Ok(())
+    }
+
+    fn move_window(&mut self, to: probe::MoveWindow) -> Result<probe::Moved, String> {
+        let ctx = self.ctx.ok_or("there is no window to move")?;
+        let at = egui::pos2(to.to[0], to.to[1]);
+        let (_, dialogs) = crate::dialogs::apart::placement();
+        let (window, found) = dialogs
+            .into_iter()
+            .find(|(_, w)| w.title.to_lowercase().contains(&to.title))
+            .ok_or("no dialog window with that title is open")?;
+        ctx.send_viewport_cmd_to(window, egui::ViewportCommand::OuterPosition(at));
+        Ok(probe::Moved {
+            moved: found.title,
+            to: to.to,
+        })
+    }
+
+    fn select(&mut self, ids: Vec<u64>) -> Result<Vec<u64>, String> {
+        self.app.select_ids(ids)
+    }
+
+    fn place(&mut self, place: &str) -> Result<(), String> {
+        self.app.place_named(place)
+    }
+
+    fn inspect(&mut self) -> Result<probe::Inspect, String> {
+        Ok(self.app.inspected())
+    }
+
+    fn commands(&mut self) -> Vec<probe::CommandState> {
+        self.app.command_states()
+    }
+
+    fn run_command(&mut self, id: &str) -> Result<probe::Ran, String> {
+        self.app.run_named(id)
     }
 }
 

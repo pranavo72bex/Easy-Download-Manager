@@ -324,9 +324,122 @@ pub fn screenshot_path(home: &std::path::Path, params: &Value) -> std::path::Pat
     home.join("screenshots").join(format!("{name}.png"))
 }
 
+/// How long after a control client clicked, typed or pressed a key what is
+/// done is taken for the script's, not a person's.
+pub const SCRIPT_ACTS_FOR: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// When a control client last acted on the window. What runs a downloaded
+/// file, and the commands dm runs when a download finishes, are refused for
+/// a moment after: words on a button are no proof of what it does, so the
+/// refusal is made where the file would be run, not only where the click is
+/// aimed (security review of 2026-11-07, gaps row 159 f).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ScriptGuard(Option<std::time::Instant>);
+
+/// When a control client last acted on any window, for what no window holds itself: a download
+/// added or moved into a folder of a script's typing (`folder_refused`, gaps row 199).
+static LAST_ACTED: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// Why a download may not be put in `folder` now, or `None`: while a script drives the window
+/// ([`SCRIPT_ACTS_FOR`] after it last acted), a folder typed into Add URL, Properties, Save to or
+/// Move/Rename is held to the download folder or below it, as the port's own `downloads.add` is
+/// (`add_asked`) and Options' folders are (`Settings::keep_places_of`): a script that typed
+/// `~/Library/LaunchAgents` there put a file of a page's choosing where it runs at login
+/// (security audit of 2026-11-12, gaps row 199).
+pub fn folder_refused(folder: &std::path::Path, download_dir: &std::path::Path) -> Option<String> {
+    let acting = dm_core::lock(&LAST_ACTED).is_some_and(|at| at.elapsed() < SCRIPT_ACTS_FOR);
+    folder_refused_while(acting, folder, download_dir)
+}
+
+/// [`folder_refused`], with whether a script is acting said outright.
+fn folder_refused_while(
+    acting: bool,
+    folder: &std::path::Path,
+    download_dir: &std::path::Path,
+) -> Option<String> {
+    // Each as the disk has it, links followed (on macOS `/tmp` is `/private/tmp`), so one
+    // folder written two ways is one folder; `..` refused outright.
+    let below = !folder
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+        && (folder.starts_with(download_dir) || real(folder).starts_with(real(download_dir)));
+    (acting && !below).then(|| {
+        format!(
+            "a script was driving the window a moment ago, so a download goes into the download folder ({}) or below it; choose the folder yourself",
+            download_dir.display()
+        )
+    })
+}
+
+/// `path` with its nearest folder that is there resolved as the disk has it (links followed),
+/// and the rest, not made yet, after it.
+fn real(path: &std::path::Path) -> std::path::PathBuf {
+    let mut there = path;
+    let mut rest = Vec::new();
+    loop {
+        if let Ok(resolved) = std::fs::canonicalize(there) {
+            return rest.iter().rev().fold(resolved, |p, part| p.join(part));
+        }
+        match (there.parent(), there.file_name()) {
+            (Some(parent), Some(name)) => {
+                rest.push(name.to_os_string());
+                there = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
+}
+
+impl ScriptGuard {
+    /// A control client acted now.
+    pub fn acted(&mut self) {
+        let now = std::time::Instant::now();
+        self.0 = Some(now);
+        *dm_core::lock(&LAST_ACTED) = Some(now);
+    }
+
+    /// Whether a control client acted a moment ago ([`SCRIPT_ACTS_FOR`]).
+    pub fn by_script(&self) -> bool {
+        self.0.is_some_and(|at| at.elapsed() < SCRIPT_ACTS_FOR)
+    }
+
+    /// Why a downloaded file may not be run now, or `None` when a person's
+    /// click may run it.
+    pub fn run_refused(&self) -> Option<&'static str> {
+        self.by_script()
+            .then_some("Opening a file is done by a person, not by a script")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// While a script acts, a folder outside the download folder is refused, `..` included; a
+    /// folder below it, or any folder with no script acting, is not (gaps row 199).
+    #[test]
+    fn a_scripts_folder_is_held_to_the_download_folder() {
+        let downloads = std::path::Path::new("/home/me/Downloads");
+        let away = std::path::Path::new("/home/me/.config/autostart");
+        assert!(folder_refused_while(true, away, downloads).is_some());
+        assert!(
+            folder_refused_while(true, &downloads.join("../.config/autostart"), downloads)
+                .is_some()
+        );
+        assert!(folder_refused_while(true, &downloads.join("films"), downloads).is_none());
+        assert!(folder_refused_while(false, away, downloads).is_none());
+        // One folder written through a link and without it is one folder.
+        let dir = tempfile::tempdir().unwrap();
+        let real_downloads = dir.path().join("downloads");
+        std::fs::create_dir_all(&real_downloads).unwrap();
+        #[cfg(unix)]
+        {
+            let linked = dir.path().join("linked");
+            std::os::unix::fs::symlink(dir.path(), &linked).unwrap();
+            let through = linked.join("downloads").join("Videos");
+            assert!(folder_refused_while(true, &through, &real_downloads).is_none());
+        }
+    }
 
     /// `url` with a login in it, set through its parts rather than written
     /// out: a login spelled in the source reads to a secret scanner as a leak.
@@ -518,5 +631,22 @@ mod tests {
         assert!(answer(&backend, &[], "downloads.pause", &json!({"ids": []})).is_some());
         assert_eq!(answer(&backend, &[], "ui.inspect", &Value::Null), None);
         assert_eq!(answer(&backend, &[], "command.run", &Value::Null), None);
+    }
+
+    #[test]
+    fn a_file_is_not_run_for_a_moment_after_a_script_acted() {
+        let mut guard = ScriptGuard::default();
+        assert!(
+            !guard.by_script() && guard.run_refused().is_none(),
+            "no script yet"
+        );
+        guard.acted();
+        assert!(guard.by_script());
+        assert_eq!(
+            guard.run_refused(),
+            Some("Opening a file is done by a person, not by a script")
+        );
+        let long_ago = ScriptGuard(std::time::Instant::now().checked_sub(SCRIPT_ACTS_FOR));
+        assert!(!long_ago.by_script(), "a moment is {SCRIPT_ACTS_FOR:?}");
     }
 }

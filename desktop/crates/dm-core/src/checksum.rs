@@ -17,16 +17,21 @@ use std::path::Path;
 
 use md5::Md5;
 use sha2::{Digest, Sha256, Sha512};
-use tokio::io::AsyncReadExt;
 
+use crate::control::Control;
 use crate::Error;
 
 /// A hash a download can be checked against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Algorithm {
+    /// CRC-32, as a file host or an old release page gives one (8 hex digits): it tells a
+    /// damaged file, not a forged one.
+    Crc32,
     /// MD5 (128 bits).
     Md5,
+    /// SHA-1 (160 bits), as many release pages still give one.
+    Sha1,
     /// SHA-256.
     Sha256,
     /// SHA-512.
@@ -38,7 +43,9 @@ impl Algorithm {
     /// unambiguous. People paste a hash far more often than they name one.
     pub fn from_digest_length(hex: &str) -> Option<Algorithm> {
         match hex.trim().len() {
+            8 => Some(Algorithm::Crc32),
             32 => Some(Algorithm::Md5),
+            40 => Some(Algorithm::Sha1),
             64 => Some(Algorithm::Sha256),
             128 => Some(Algorithm::Sha512),
             _ => None,
@@ -49,7 +56,9 @@ impl Algorithm {
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
+            Algorithm::Crc32 => "crc32",
             Algorithm::Md5 => "md5",
+            Algorithm::Sha1 => "sha1",
             Algorithm::Sha256 => "sha256",
             Algorithm::Sha512 => "sha512",
         }
@@ -88,7 +97,9 @@ impl Checksum {
         // or the check would pass on a digest that could never match.
         let by_length = Algorithm::from_digest_length(&digest)?;
         let algorithm = match name.as_deref() {
+            Some("crc32") | Some("crc") => Algorithm::Crc32,
             Some("md5") => Algorithm::Md5,
+            Some("sha1") | Some("sha-1") => Algorithm::Sha1,
             Some("sha256") | Some("sha-256") => Algorithm::Sha256,
             Some("sha512") | Some("sha-512") => Algorithm::Sha512,
             Some(_) => return None,
@@ -107,7 +118,25 @@ impl Checksum {
 
 /// Hashes a file. Streamed, because these are the large files by definition.
 pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> {
-    let mut file = tokio::fs::File::open(path).await?;
+    digest_until(path, algorithm, &Control::new()).await
+}
+
+/// [`digest`], stopped at the next piece once the download `control` belongs to is cancelled
+/// (gaps row 185): on the blocking pool with the computer's other heavy work, a few at a time
+/// (`heavy`), not on the runtime's threads between reads, where a 4 GB file kept a worker busy
+/// for every second it took and a Cancel waited for the whole file.
+pub(crate) async fn digest_until(
+    path: &Path,
+    algorithm: Algorithm,
+    control: &Control,
+) -> Result<String, Error> {
+    let (path, control) = (path.to_path_buf(), control.clone());
+    crate::heavy::run(move || digest_blocking(&path, algorithm, &control)).await?
+}
+
+fn digest_blocking(path: &Path, algorithm: Algorithm, control: &Control) -> Result<String, Error> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
     let mut buffer = vec![0u8; 256 * 1024];
 
     // One expansion per algorithm: the three hashers are different types,
@@ -116,7 +145,8 @@ pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> 
         ($hasher:expr) => {{
             let mut hasher = $hasher;
             loop {
-                let read = file.read(&mut buffer).await?;
+                crate::heavy::stopped(control)?;
+                let read = file.read(&mut buffer)?;
                 if read == 0 {
                     break;
                 }
@@ -127,15 +157,33 @@ pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> 
     }
 
     Ok(match algorithm {
+        Algorithm::Crc32 => {
+            let mut crc = crc32fast::Hasher::new();
+            loop {
+                crate::heavy::stopped(control)?;
+                let read = file.read(&mut buffer)?;
+                if read == 0 {
+                    break;
+                }
+                crc.update(buffer.get(..read).unwrap_or_default());
+            }
+            format!("{:08x}", crc.finalize())
+        }
         Algorithm::Md5 => run!(Md5::new()),
+        Algorithm::Sha1 => run!(sha1::Sha1::new()),
         Algorithm::Sha256 => run!(Sha256::new()),
         Algorithm::Sha512 => run!(Sha512::new()),
     })
 }
 
-/// Checks a finished file against what was published.
-pub async fn verify(path: &Path, checksum: &Checksum) -> Result<(), Error> {
-    let got = digest(path, checksum.algorithm).await?;
+/// Checks a finished file against what was published, stopped once the download `control`
+/// belongs to is cancelled ([`digest_until`]).
+pub(crate) async fn verify(
+    path: &Path,
+    checksum: &Checksum,
+    control: &Control,
+) -> Result<(), Error> {
+    let got = digest_until(path, checksum.algorithm, control).await?;
     if got.eq_ignore_ascii_case(&checksum.expected) {
         return Ok(());
     }
@@ -149,6 +197,29 @@ pub async fn verify(path: &Path, checksum: &Checksum) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A 40-digit digest is SHA-1 and an 8-digit one CRC-32, each checked as such (gaps row F5).
+    #[tokio::test]
+    async fn sha1_and_crc32_are_known_by_their_length_and_checked() {
+        assert_eq!(
+            Checksum::parse(&"b".repeat(40)).unwrap().algorithm,
+            Algorithm::Sha1
+        );
+        assert_eq!(
+            Checksum::parse("CRC32:CBF43926").unwrap().algorithm,
+            Algorithm::Crc32
+        );
+        assert_eq!(Checksum::parse(&format!("sha1:{}", "c".repeat(64))), None);
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("f");
+        std::fs::write(&file, b"123456789").unwrap();
+        // The standard check values of "123456789".
+        assert_eq!(digest(&file, Algorithm::Crc32).await.unwrap(), "cbf43926");
+        assert_eq!(
+            digest(&file, Algorithm::Sha1).await.unwrap(),
+            "f7c3bc1d808e04732adf679965ccc34ca7ae3441"
+        );
+    }
 
     #[test]
     fn a_bare_digest_is_recognised_by_its_length() {
@@ -196,6 +267,43 @@ mod tests {
         }
     }
 
+    /// A Cancel stops the digest of a 2 GiB file within a second, where the digest ran to the
+    /// file's end (gaps row 185); a pause does not stop it. The file is sparse: nothing of it is
+    /// on the disk.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_cancel_stops_the_digest_of_a_large_file_within_a_second() {
+        use std::time::{Duration, Instant};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.bin");
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(2 << 30)
+            .unwrap();
+        let control = Control::new();
+        let digesting = {
+            let (path, control) = (path.clone(), control.clone());
+            tokio::spawn(async move { digest_until(&path, Algorithm::Sha256, &control).await })
+        };
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        control.pause();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !digesting.is_finished(),
+            "the digest ended under a pause, or before it could be cancelled"
+        );
+        control.cancel();
+        let asked = Instant::now();
+        let outcome = tokio::time::timeout(Duration::from_secs(1), digesting)
+            .await
+            .expect("the digest went on for a second after the cancel")
+            .unwrap();
+        assert!(
+            matches!(outcome, Err(Error::Cancelled)),
+            "{outcome:?} after {:?}",
+            asked.elapsed()
+        );
+    }
+
     #[tokio::test]
     async fn a_file_hashes_to_the_published_value() {
         let dir = tempfile::tempdir().unwrap();
@@ -210,7 +318,7 @@ mod tests {
             "900150983cd24fb0d6963f7d28e17f72"
         );
 
-        verify(&path, &Checksum::parse(expected).unwrap())
+        verify(&path, &Checksum::parse(expected).unwrap(), &Control::new())
             .await
             .expect("a correct digest was rejected");
     }
@@ -222,7 +330,7 @@ mod tests {
         tokio::fs::write(&path, b"abc").await.unwrap();
 
         let wrong = Checksum::parse(&"0".repeat(64)).unwrap();
-        let err = verify(&path, &wrong).await.unwrap_err();
+        let err = verify(&path, &wrong, &Control::new()).await.unwrap_err();
         let text = err.to_string();
         assert!(
             text.contains("ba7816bf"),

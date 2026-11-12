@@ -7,9 +7,24 @@
 # rather than the place the logic hides.
 [workspace]
 resolver = "2"
-members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop", "xtask"]
+members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop-base", "crates/dm-desktop", "crates/dm-gpui", "xtask"]
 # A patched copy, used through [patch.crates-io], not a member.
-exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/eframe"]
+exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/eframe", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
+
+# The lints every dm crate keeps, in one place rather than pasted into each crate's root
+# (gaps row A1); each crate's `[lints] workspace = true` takes them. Clippy refuses warnings in
+# CI (`cargo clippy -- -D warnings`), so these hold.
+[workspace.lints.rust]
+# Every public item says what it is for (gaps row 27).
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+# From Google's Rust style guide: an `unsafe` block says why it is sound (`// SAFETY:`, on every
+# platform, Windows included), a string is built with `format!` rather than `+`, and a loop is a
+# loop rather than `for_each`.
+undocumented_unsafe_blocks = "warn"
+string_add = "warn"
+needless_for_each = "warn"
 
 [profile.release]
 opt-level = "z"
@@ -43,9 +58,21 @@ opt-level = 3
 [profile.release.package.egui]
 opt-level = 3
 
+# The release build with its symbols and line tables kept, for a profiler
+# (docs/testing.md, Profiling): `cargo build --profile profiling -p dm-gpui`.
+# The same code as the release (line tables do not change it: stripped, it was
+# within 1.2 KB of the release binary on macOS), built about a fifth slower.
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
+split-debuginfo = "packed"
+strip = false
+
 # Crates built with a change of dm's own (desktop/vendor/README.md).
 [patch.crates-io]
 winit = { path = "vendor/winit" }
 egui-winit = { path = "vendor/egui-winit" }
 eframe = { path = "vendor/eframe" }
 librqbit = { path = "vendor/librqbit" }
+gpui-pre-linux = { path = "vendor/gpui-pre-linux" }
+gpui-pre-windows = { path = "vendor/gpui-pre-windows" }

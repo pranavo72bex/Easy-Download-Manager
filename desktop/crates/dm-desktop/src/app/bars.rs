@@ -326,25 +326,10 @@ impl DmApp {
         ui.separator();
     }
 
-    /// What the tray's tooltip says while downloads run: how many and how
-    /// fast, as the status bar says it; `None` when nothing is downloading.
-    /// It said only "downloads keep running here".
+    /// What the tray's tooltip says while downloads run, `None` when nothing
+    /// is downloading (`dm_desktop_base::tray`, both windows).
     pub fn tray_activity(&self) -> Option<String> {
-        let running: Vec<&Entry> = self
-            .rows
-            .iter()
-            .map(|r| &**r)
-            .filter(|r| r.state == State::Running && !fetched_all(r))
-            .collect();
-        if running.is_empty() {
-            return None;
-        }
-        let rate: f64 = running.iter().map(|r| r.progress.speed).sum();
-        Some(crate::i18n::tn(
-            "{} downloading at {}||{} downloading at {}",
-            running.len() as u64,
-            &[&running.len(), &format::rate(rate)],
-        ))
+        dm_desktop_base::tray::activity(&self.rows)
     }
 
     pub(super) fn status_bar(&mut self, ui: &mut egui::Ui) {
@@ -382,14 +367,7 @@ impl DmApp {
                 .any(|r| r.state == State::Paused && r.paused_by_schedule);
         let showing = fresh && !stale && !self.said.is_empty() && !self.said.is_limiter();
         // Undo, for the few seconds after downloads were taken off the list.
-        let undo_live = match &self.undo_remove {
-            Some((at, _)) if at.elapsed() < UNDO_FOR => true,
-            Some(_) => {
-                self.undo_remove = None;
-                false
-            }
-            None => false,
-        };
+        let undo_live = self.undo_remove.live();
         let mut undo_asked = false;
         ui.horizontal(|ui| {
             // Each "· …" part starts with its own space: the usual gap as

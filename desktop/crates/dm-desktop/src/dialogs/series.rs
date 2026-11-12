@@ -146,23 +146,9 @@ pub(super) fn series(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// The key a file's kind is remembered under in `last_folders`.
-pub(super) fn kind_key(name: &str) -> &'static str {
-    dm_core::by_name(name)
-        .unwrap_or(dm_core::Category::Other)
-        .folder()
-}
-
-/// Why a series cannot be made, in the language in force.
-pub(super) fn series_error(e: dm_shell::lists::SeriesError) -> &'static str {
-    use dm_shell::lists::SeriesError;
-    match e {
-        SeriesError::Star => t("The address needs exactly one * to fill in."),
-        SeriesError::Backwards => t("The range runs backwards."),
-        SeriesError::TooMany => t("Ten thousand addresses is more than a batch."),
-        SeriesError::Ends => t("From and To must both be numbers, or both letters of one case."),
-    }
-}
+/// Why a series cannot be made, in the language in force
+/// (`dm_desktop_base::project`, both windows).
+pub(super) use dm_desktop_base::project::series_error;
 
 pub(super) fn d_says(series: &mut Option<Series>, e: String) {
     if let Some(d) = series.as_mut() {
@@ -211,29 +197,6 @@ pub(super) fn pick_list(
 #[cfg(test)]
 mod series_words_tests {
     use super::*;
-    use dm_shell::lists::{series, SeriesError};
-
-    #[test]
-    fn each_reason_a_series_cannot_be_made_is_said() {
-        let said = |e| series_error(e).to_string();
-        let all = [
-            SeriesError::Star,
-            SeriesError::Backwards,
-            SeriesError::TooMany,
-            SeriesError::Ends,
-        ]
-        .map(said);
-        // Four reasons, four sentences.
-        let distinct: std::collections::HashSet<_> = all.iter().collect();
-        assert_eq!(distinct.len(), 4);
-        assert!(all.iter().all(|s| s.ends_with('.')));
-        // As the series reads them.
-        let reason = |t: &str, f: &str, to: &str| series(t, f, to, 0).err().map(said);
-        assert_eq!(reason("h/*", "1", "20000"), Some(all[2].clone()));
-        assert_eq!(reason("h/*", "1", "b"), Some(all[3].clone()));
-        assert_eq!(reason("h/*", "9", "1"), Some(all[1].clone()));
-        assert_eq!(reason("h/x", "1", "2"), Some(all[0].clone()));
-    }
 
     #[test]
     fn what_a_start_says_goes_to_the_open_series_alone() {

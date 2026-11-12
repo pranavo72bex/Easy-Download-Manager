@@ -8,27 +8,9 @@ use super::*;
 mod tabs;
 use tabs::*;
 
-/// The settings in force now, with only the settings Options changed taken
-/// from its draft: each top-level setting the draft holds differently from
-/// when the dialog opened. Whatever else changed meanwhile stands.
-pub fn changed_only(
-    opened: &Settings,
-    draft: &Settings,
-    now: &Settings,
-) -> Result<Settings, String> {
-    let object = |s: &Settings| match serde_json::to_value(s) {
-        Ok(serde_json::Value::Object(map)) => Ok(map),
-        _ => Err("the settings could not be read to save them".to_string()),
-    };
-    let (opened, draft, mut merged) = (object(opened)?, object(draft)?, object(now)?);
-    for (key, value) in draft {
-        if opened.get(&key) != Some(&value) {
-            merged.insert(key, value);
-        }
-    }
-    serde_json::from_value(serde_json::Value::Object(merged))
-        .map_err(|e| format!("the settings could not be saved: {e}"))
-}
+/// Only what Options changed, over what is in force (`dm_desktop_base::options`,
+/// both windows).
+pub use dm_desktop_base::options::changed_only;
 
 pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
     if app.dialogs.options.is_none() {
@@ -212,137 +194,37 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
         app.dialogs.options = None;
         return;
     }
+    // The lists typed read in, held to the rules, and only what Options
+    // changed kept over what is in force (`dm_desktop_base::options::ok`,
+    // both windows).
     if ok {
-        // Split on ';' too: "xlsx;" was kept as a type.
-        let words = |text: &str| -> Vec<String> {
-            text.split(|c: char| c.is_whitespace() || c == ',' || c == ';')
-                .map(|w| w.trim().trim_start_matches('.').to_ascii_lowercase())
-                .filter(|w| !w.is_empty())
-                .collect()
+        let typed = dm_desktop_base::options::Typed {
+            types: d.types.clone(),
+            skip: d.skip.clone(),
+            once: d.once.clone(),
+            bypass: d.bypass.clone(),
+            custom: d.custom.clone(),
         };
-        let mut wanted = d.draft.clone();
-        wanted.catch.extensions = words(&d.types);
-        wanted.catch.skip_hosts = sites(&words(&d.skip));
-        wanted.catch.once_hosts = sites(&words(&d.once));
-        wanted.proxy.bypass = words(&d.bypass);
-        // A sign-in's host as the rules read it: an address pasted whole
-        // matched nothing.
-        for login in &mut wanted.site_logins {
-            if let Some(host) = sites(&[login.host.trim().to_string()]).pop() {
-                login.host = host;
-            }
-        }
-        wanted.custom_categories = d
-            .custom
-            .iter()
-            .filter(|[name, ..]| !name.trim().is_empty())
-            .map(|[name, types, only]| dm_core::Custom {
-                name: name.trim().to_string(),
-                extensions: words(types),
-                sites: sites(&words(only)),
-            })
-            .collect();
-        // A category's name is its folder: one that is not one folder
-        // would be saved and then sort nothing, without a word.
-        // Only those this edit made or renamed: one an older dm saved is
-        // left out as the settings load, and must not fail every OK after.
-        // Held to every computer's rules, since settings travel; one saved
-        // before that works here keeps working. The built-in kinds' folders
-        // (Options › Folders) likewise, where this edit renamed one; empty
-        // leaves that kind unsorted.
-        // A proxy turned on with nowhere to connect to was taken, and every
-        // download then went out directly without a word.
-        {
-            use dm_core::ProxyKind as Kind;
-            let p = &wanted.proxy;
-            if p.enabled && p.kind != Kind::System {
-                let host = p.host.trim();
-                let why = if host.is_empty() {
-                    Some(
-                        t("Enter the proxy's host, or untick \"Connect through a proxy\".")
-                            .to_string(),
-                    )
-                } else if host.contains("://")
-                    || host
-                        .chars()
-                        .any(|c| c.is_whitespace() || "/@?#".contains(c))
-                {
-                    Some(tf(
-                        "\"{}\" isn't a valid proxy host. Enter a name like proxy.example.com; the port goes in its own field.",
-                        &[&host],
-                    ))
-                } else if p.port == 0 {
-                    Some(t("A proxy needs a port from 1 to 65535.").to_string())
-                } else {
-                    None
-                };
-                if let Some(why) = why {
-                    d.says = why;
-                    d.tab = Tab::Advanced;
-                    d.to_proxy = true;
-                    return;
+        match dm_desktop_base::options::ok(&d.opened, &d.draft, &typed, &app.applied) {
+            Err(refused) => {
+                d.says = refused.says;
+                if let Some(tab) = refused.tab {
+                    d.tab = tab;
                 }
+                d.to_proxy |= refused.to_proxy;
             }
-        }
-        let new_custom = wanted
-            .custom_categories
-            .iter()
-            .map(|c| c.name.clone())
-            .filter(|name| !d.opened.custom_categories.iter().any(|o| o.name == *name));
-        let renamed_kinds = wanted
-            .category_folders
-            .iter()
-            .enumerate()
-            .filter(|(i, name)| {
-                !name.trim().is_empty()
-                    && d.opened.category_folders.get(*i).map(|o| o.trim()) != Some(name.trim())
-            })
-            .map(|(_, name)| name.trim().to_string());
-        if let Some(bad) = new_custom
-            .chain(renamed_kinds)
-            .find(|name| !portable_folder(name))
-        {
-            d.says = tf(
-                "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.",
-                &[&bad],
-            );
-            d.tab = Tab::SaveTo;
-            return;
-        }
-        let applied = changed_only(&d.opened, &wanted, &app.applied)
-            .and_then(|wanted| app.apply_settings(wanted));
-        match applied {
-            Ok(()) => app.dialogs.options = None,
-            Err(e) => {
-                // Left open with what was typed, and why it was not taken:
-                // reopening it on what is in force threw every edit away to
-                // say what was wrong with one. OK compares against what it
-                // opened on, so another try changes only what was changed.
-                if let Some(d) = app.dialogs.options.as_mut() {
-                    d.says = e;
+            // Left open with what was typed, and why it was not taken:
+            // reopening it on what is in force threw every edit away to say
+            // what was wrong with one. OK compares against what it opened
+            // on, so another try changes only what was changed.
+            Ok(wanted) => match app.apply_settings(wanted) {
+                Ok(()) => app.dialogs.options = None,
+                Err(e) => {
+                    if let Some(d) = app.dialogs.options.as_mut() {
+                        d.says = e;
+                    }
                 }
-            }
+            },
         }
-    }
-}
-
-#[cfg(test)]
-mod changed_only_tests {
-    use super::*;
-
-    #[test]
-    fn options_writes_only_what_it_changed() {
-        let opened = Settings::default();
-        // Options changed the connections.
-        let mut draft = opened.clone();
-        draft.connections = 4;
-        // Meanwhile View › Language and the Scheduler changed others.
-        let mut now = opened.clone();
-        now.language = "de".into();
-        now.schedule.enabled = true;
-        let wanted = changed_only(&opened, &draft, &now).unwrap();
-        assert_eq!(wanted.connections, 4, "Options' own change");
-        assert_eq!(wanted.language, "de", "the language picked meanwhile");
-        assert!(wanted.schedule.enabled, "the schedule set meanwhile");
     }
 }

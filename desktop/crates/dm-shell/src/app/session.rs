@@ -9,7 +9,7 @@
 //! only reacts (forgets a row's dialogs, says what could not be done).
 
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dm_core::{Entry, Id, State};
@@ -49,6 +49,49 @@ pub struct Session {
     /// The typed events of each read, for any number of subscribers
     /// (`events::Events::subscribe`).
     pub events: super::events::Events,
+    /// Rows being added off the presentation's thread (`Self::adding`).
+    adds: Arc<Mutex<Adds>>,
+}
+
+/// How many addings run off the presentation's thread, and the ids of rows
+/// added by those done, not yet marked as the presentation's own.
+#[derive(Debug, Default)]
+struct Adds {
+    running: usize,
+    added: Vec<Id>,
+}
+
+/// Rows being added off the presentation's thread (Import's errand), begun
+/// with [`Session::adding`] on that thread. Until [`Adding::added`] says
+/// their ids, the new rows a read finds are held unjudged rather than taken
+/// for rows started elsewhere (a browser's); dropped without saying, its
+/// rows are then judged as any new row.
+#[derive(Debug)]
+pub struct Adding {
+    adds: Arc<Mutex<Adds>>,
+    open: bool,
+}
+
+impl Adding {
+    /// The rows this adding added: the presentation's own from the next
+    /// read on.
+    pub fn added(mut self, ids: &[Id]) {
+        let mut adds = dm_core::lock(&self.adds);
+        // In one step with the end of the adding: a read sees either both
+        // or neither.
+        adds.added.extend_from_slice(ids);
+        adds.running = adds.running.saturating_sub(1);
+        self.open = false;
+    }
+}
+
+impl Drop for Adding {
+    fn drop(&mut self) {
+        if self.open {
+            let mut adds = dm_core::lock(&self.adds);
+            adds.running = adds.running.saturating_sub(1);
+        }
+    }
 }
 
 /// What the queue running dry did with When done.
@@ -92,8 +135,20 @@ impl Session {
     /// (Options › Downloads). Call `changes::take` before, never after, so a
     /// change made during the read is still owed one.
     pub fn read(&mut self, backend: &Backend, settings: &Settings) -> Read {
+        // Asked before the queue is read: an adding begins only on this
+        // thread (`Self::adding` takes the session), so none begins between,
+        // and a row of one in the read is either held or among the ids it
+        // said. Asked after, an adding that ended between could have said
+        // ids the read has not got yet.
+        let hold_new = {
+            let mut adds = dm_core::lock(&self.adds);
+            for id in adds.added.drain(..) {
+                self.detector.own(id);
+            }
+            adds.running > 0
+        };
         let snapshot = backend.snapshot();
-        let detected = self.detector.read(&snapshot.rows);
+        let detected = self.detector.read_holding(&snapshot.rows, hold_new);
         self.events.publish(&snapshot.rows);
         let mut problems = Vec::new();
         let command = settings.on_complete.trim();
@@ -119,6 +174,38 @@ impl Session {
     /// A row the presentation added itself: not "started elsewhere".
     pub fn own(&mut self, id: Id) {
         self.detector.own(id);
+    }
+
+    /// Rows about to be added off this thread (Import, on the window's
+    /// errand): the reads made meanwhile hold the new rows they find until
+    /// the adding says which are its own ([`Adding::added`]), so none of
+    /// them is taken for a row started elsewhere (gaps row 183).
+    pub fn adding(&mut self) -> Adding {
+        dm_core::lock(&self.adds).running += 1;
+        Adding {
+            adds: Arc::clone(&self.adds),
+            open: true,
+        }
+    }
+
+    /// Adds each address with its options (`Backend::add_each`, the queue
+    /// written once), each row added marked as this presentation's own.
+    pub fn add(&mut self, backend: &Backend, items: Vec<(String, dm_core::AddOptions)>) -> Added {
+        let asked: Vec<(String, bool)> = items.iter().map(|(u, w)| (u.clone(), w.later)).collect();
+        let mut done = Added::default();
+        for ((url, later), outcome) in asked.into_iter().zip(backend.add_each(items)) {
+            match outcome {
+                Ok(id) => {
+                    self.own(id);
+                    done.rows.push((id, url, later));
+                }
+                Err(e) => {
+                    done.failed += 1;
+                    done.error = Some(e);
+                }
+            }
+        }
+        done
     }
 
     /// Each row's state at the read before the latest (When done's dry-queue
@@ -324,6 +411,45 @@ pub fn when_done_asked(home: &std::path::Path) -> Option<WhenDone> {
     WhenDone::ALL.into_iter().find(|w| w.word() == word.trim())
 }
 
+/// Whether another dm asked for a new download (`dm --new-download`, the
+/// jump list's Add URL), left in the inbox under `home`: taken, so Add URL
+/// opens once.
+pub fn new_download_asked(home: &std::path::Path) -> bool {
+    std::fs::remove_file(crate::host::inbox(home).join(crate::shell::NEW_DOWNLOAD_FILE)).is_ok()
+}
+
+/// What [`Session::add`] came to.
+#[derive(Debug, Default)]
+pub struct Added {
+    /// Each row added: its id, the address and whether it was added for
+    /// later, in the order asked.
+    pub rows: Vec<(Id, String, bool)>,
+    /// How many were not added.
+    pub failed: usize,
+    /// Why the last of those was not.
+    pub error: Option<String>,
+}
+
+impl Added {
+    /// How many were added; the error when none was and one was refused.
+    /// Some added and some not is still how many: the presentation says the
+    /// rest ([`Self::partly`]).
+    pub fn outcome(&self) -> Result<usize, String> {
+        match (&self.error, self.rows.len()) {
+            (Some(e), 0) => Err(e.clone()),
+            (_, n) => Ok(n),
+        }
+    }
+
+    /// How many were refused, and why the last was, when others went in.
+    pub fn partly(&self) -> Option<(usize, &str)> {
+        match &self.error {
+            Some(e) if !self.rows.is_empty() => Some((self.failed, e.as_str())),
+            _ => None,
+        }
+    }
+}
+
 /// What carrying out a When done action that came due leads to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Carried {
@@ -455,6 +581,17 @@ mod when_done_tests {
         std::fs::write(&file, "dance").unwrap();
         assert_eq!(when_done_asked(home.path()), None, "unknown word");
         assert!(!file.exists(), "dropped");
+    }
+
+    #[test]
+    fn a_new_download_another_dm_asked_for_is_taken_once() {
+        let home = tempfile::tempdir().unwrap();
+        assert!(!new_download_asked(home.path()), "nothing asked");
+        let inbox = crate::host::inbox(home.path());
+        std::fs::create_dir_all(&inbox).unwrap();
+        std::fs::write(inbox.join(crate::shell::NEW_DOWNLOAD_FILE), "").unwrap();
+        assert!(new_download_asked(home.path()));
+        assert!(!new_download_asked(home.path()), "taken");
     }
 }
 
@@ -616,6 +753,108 @@ mod no_window_tests {
             );
             assert_eq!(got.last(), Some(&DownloadEvent::Removed(id)), "{got:?}");
         }
+    }
+
+    /// Rows the presentation added are its own (not "started elsewhere"),
+    /// and a refused address is counted without losing the rest.
+    #[test]
+    fn adding_marks_the_rows_as_this_presentations_and_counts_what_was_refused() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        let settings = backend.settings();
+        let mut session = Session::default();
+        session.read(&backend, &settings);
+        let now = dm_core::AddOptions::default();
+        let added = session.add(
+            &backend,
+            vec![
+                ("http://127.0.0.1:9/a.bin".into(), now.clone()),
+                ("not an address".into(), now.clone()),
+            ],
+        );
+        assert_eq!(added.rows.len(), 1);
+        assert_eq!(added.rows[0].1, "http://127.0.0.1:9/a.bin");
+        assert_eq!(added.outcome(), Ok(1));
+        assert!(matches!(added.partly(), Some((1, _))), "{added:?}");
+        let read = session.read(&backend, &settings);
+        assert!(read.detected.started_elsewhere.is_empty(), "its own");
+        let none = session.add(&backend, vec![("not an address".into(), now)]);
+        assert!(none.outcome().is_err() && none.partly().is_none());
+    }
+
+    /// Rows added off the window's thread (Import's errand) are its own
+    /// once the adding says so, though reads were made while they were
+    /// added; a browser's hand-off added meanwhile is still told as started
+    /// elsewhere, at the first read after (gaps row 183).
+    #[test]
+    fn rows_added_off_the_thread_are_its_own_and_a_hand_off_beside_them_is_not() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let backend = crate::app::backend::testing::backend(&runtime, state.path());
+        // A server that never answers: the downloads stay running or waiting.
+        let addr = runtime.block_on(async {
+            let app = axum::Router::new().fallback(|| async {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+                ""
+            });
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            addr
+        });
+        let settings = backend.settings();
+        let mut session = Session::default();
+        session.read(&backend, &settings);
+        let adding = session.adding();
+        let list: String = (0..3)
+            .map(|i| format!("http://{addr}/list{i}.bin\n"))
+            .collect();
+        let errand = {
+            let backend = backend.clone();
+            std::thread::spawn(move || crate::app::import::import(&backend, &[], &list, false))
+        };
+        let imported = errand.join().unwrap();
+        assert_eq!(imported.added, 3);
+        // A browser's hand-off, added while the list is: not the window's.
+        let handed = backend
+            .add_with(
+                &format!("http://{addr}/handed.bin"),
+                dm_core::AddOptions::default(),
+            )
+            .unwrap();
+        let during = session.read(&backend, &settings);
+        assert!(
+            during.detected.started_elsewhere.is_empty(),
+            "held while added"
+        );
+        adding.added(&imported.new);
+        let after = session.read(&backend, &settings);
+        assert_eq!(after.detected.started_elsewhere, vec![handed]);
+        assert!(session
+            .read(&backend, &settings)
+            .detected
+            .started_elsewhere
+            .is_empty());
+        // An adding that ends without saying (its errand panicked) leaves
+        // its rows to be judged as any new row.
+        let lost = session.adding();
+        let stray = backend
+            .add_with(
+                &format!("http://{addr}/stray.bin"),
+                dm_core::AddOptions::default(),
+            )
+            .unwrap();
+        assert!(session
+            .read(&backend, &settings)
+            .detected
+            .started_elsewhere
+            .is_empty());
+        drop(lost);
+        assert_eq!(
+            session.read(&backend, &settings).detected.started_elsewhere,
+            vec![stray]
+        );
     }
 
     #[test]

@@ -147,6 +147,76 @@ impl Dup {
     }
 }
 
+/// The options that download a row's address again over its finished file
+/// (Add URL's "Replace the old file"): the same folder and name, the old
+/// file replaced once the new one is whole. `None` when the row is not
+/// finished or its file is gone (a numbered copy is the way then).
+pub fn replacing(row: &Entry) -> Option<dm_core::AddOptions> {
+    if row.state != State::Completed || row.path.is_empty() {
+        return None;
+    }
+    let path = std::path::Path::new(&row.path);
+    if !path.exists() {
+        return None;
+    }
+    Some(dm_core::AddOptions {
+        replaces: Some(row.path.clone()),
+        save_dir: Some(path.parent()?.to_string_lossy().into_owned()),
+        save_name: Some(path.file_name()?.to_string_lossy().into_owned()),
+        ..Default::default()
+    })
+}
+
+/// A running row that has every byte of a file of known length: it is
+/// joining its parts, not fetching.
+pub fn fetched_all(row: &Entry) -> bool {
+    row.progress
+        .total
+        .is_some_and(|total| total > 0 && row.progress.downloaded >= total)
+}
+
+/// Whether a row was added for later and waits for its queue: stopped, in
+/// a queue, nothing fetched and not held by the schedule.
+pub fn waits_for_its_queue(row: &Entry) -> bool {
+    row.state == State::Paused
+        && !row.paused_by_schedule
+        && !row.queue.is_empty()
+        && row.progress.downloaded == 0
+}
+
+/// What the status bar counts.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Tally {
+    /// Rows running and still fetching.
+    pub running: usize,
+    /// Rows running with every byte, joining their parts.
+    pub finishing: usize,
+    /// The fetching rows' speeds, together, in bytes a second.
+    pub rate: f64,
+    /// Rows added for later, waiting for Start queue.
+    pub later: usize,
+}
+
+/// The status bar's counts over `rows`. A row with every byte is only
+/// putting its file together: counted as finishing, not as downloading at
+/// 0 B/s.
+pub fn tally(rows: &[Arc<Entry>]) -> Tally {
+    let mut tally = Tally::default();
+    for row in rows {
+        if row.state == State::Running {
+            if fetched_all(row) {
+                tally.finishing += 1;
+            } else {
+                tally.running += 1;
+                tally.rate += row.progress.speed;
+            }
+        } else if waits_for_its_queue(row) {
+            tally.later += 1;
+        }
+    }
+    tally
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,5 +307,58 @@ mod tests {
             assert_eq!(Dup::from_word(dup.word()), Some(dup));
         }
         assert_eq!(Dup::from_word("ask"), None);
+    }
+
+    #[test]
+    fn only_a_finished_row_whose_file_is_there_can_be_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("old.zip");
+        std::fs::write(&file, b"old").unwrap();
+        let path = file.display().to_string();
+        let done = row(1, "http://e.com/old.zip", State::Completed, &path);
+        let with = replacing(&done).unwrap();
+        assert_eq!(with.replaces.as_deref(), Some(path.as_str()));
+        assert_eq!(
+            with.save_dir.as_deref(),
+            Some(&*dir.path().to_string_lossy())
+        );
+        assert_eq!(with.save_name.as_deref(), Some("old.zip"));
+        assert!(replacing(&row(2, "http://e.com/old.zip", State::Running, &path)).is_none());
+        std::fs::remove_file(&file).unwrap();
+        assert!(replacing(&done).is_none(), "its file is gone");
+    }
+
+    #[test]
+    fn the_status_bar_counts_fetching_finishing_and_waiting_rows() {
+        let with = |id: Id, state: State, downloaded: u64, total: Option<u64>, speed: f64| {
+            Arc::new(
+                serde_json::from_value::<Entry>(serde_json::json!({
+                    "id": id,
+                    "url": "http://e.com/f",
+                    "state": serde_json::to_value(state).unwrap(),
+                    "progress": {"downloaded": downloaded, "total": total, "speed": speed, "eta": null},
+                    "filename": "f",
+                    "queue": "Main queue",
+                }))
+                .unwrap(),
+            )
+        };
+        let rows = vec![
+            with(1, State::Running, 10, Some(100), 1000.0),
+            with(2, State::Running, 5, None, 500.0),
+            with(3, State::Running, 100, Some(100), 0.0),
+            with(4, State::Paused, 0, None, 0.0),
+            with(5, State::Paused, 40, Some(100), 0.0),
+            with(6, State::Completed, 100, Some(100), 0.0),
+        ];
+        assert_eq!(
+            tally(&rows),
+            Tally {
+                running: 2,
+                finishing: 1,
+                rate: 1500.0,
+                later: 1
+            }
+        );
     }
 }

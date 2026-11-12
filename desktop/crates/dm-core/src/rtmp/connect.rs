@@ -42,8 +42,18 @@ async fn open_with(
 }
 
 /// TLS as a stream server is checked: the public roots, no client
-/// certificate. Shared with `rtsps://` (`rtsp::bridge`).
+/// certificate. Shared with `rtsps://` (`rtsp::bridge`) and every HTTP client
+/// (`http_client::with_tls`). Made once: the roots were read into a store again
+/// for every client built, a one-off request's included (gaps row S14).
 pub(crate) fn tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Error> {
+    static MADE: std::sync::OnceLock<Result<Arc<tokio_rustls::rustls::ClientConfig>, String>> =
+        std::sync::OnceLock::new();
+    MADE.get_or_init(|| make_tls_config().map_err(|e| e.to_string()))
+        .clone()
+        .map_err(Error::Internal)
+}
+
+fn make_tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Error> {
     let mut roots = tokio_rustls::rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     // The provider named: two are compiled in (through other crates), and

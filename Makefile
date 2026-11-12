@@ -39,6 +39,9 @@ SHELL := /bin/sh
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 UNAME := $(shell uname -s)
+# The window dm ships, on every system: GPUI (docs/gaps.md G9). The egui
+# window is built only by the targets that compare the two (app-egui).
+WINDOW := dm-gpui
 VERSION := $(shell sed -n 's/.*"version": "\([^"]*\)".*/\1/p' extension/manifest.json | head -1)
 
 # Where the client goes. Override for a system-wide install:
@@ -50,11 +53,11 @@ BINDIR := $(PREFIX)/bin
 # but has no icon and no place in the Applications folder.
 APPDIR ?= /Applications
 
-BINARY := desktop/target/release/dm-desktop
+BINARY := desktop/target/release/$(WINDOW)
 # The building computer's paths taken out of release builds (scripts/release-flags.sh).
 RELEASE_FLAGS := $(shell sh scripts/release-flags.sh)
 # The version the client says it is, for the installers' names.
-APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
+APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/$(WINDOW)/Cargo.toml | head -1)
 # Where `make build` puts what it made, one folder a platform.
 BUILD := build
 # Arguments for the client: make run ARGS="--hidden"
@@ -97,7 +100,7 @@ DIM  := $(shell test -t 1 && tput dim 2>/dev/null)
 OFF  := $(shell test -t 1 && tput sgr0 2>/dev/null)
 
 .PHONY: help install client extension register unregister uninstall test doctor app clean \
-        run run-release build build-macos build-linux build-windows build-extension \
+        run run-release build build-macos build-linux build-windows build-extension app-egui \
         devices analyze format qa qa-docker
 
 help:
@@ -145,12 +148,14 @@ doctor:
 	  fi; \
 	done; \
 	if [ "$(UNAME)" = "Linux" ]; then \
-	  if pkg-config --exists gtk+-3.0 2>/dev/null; then \
-	    printf '  %-8s %s\n' gtk3 "$$(pkg-config --modversion gtk+-3.0)"; \
-	  else \
-	    printf '  %-8s $(BOLD)missing$(OFF) — the tray will not link without it\n' gtk3; \
-	    missing=1; \
-	  fi; \
+	  for lib in xkbcommon-x11 fontconfig freetype2 xcb wayland-client vulkan; do \
+	    if pkg-config --exists $$lib 2>/dev/null; then \
+	      printf '  %-8s %s\n' $$lib "$$(pkg-config --modversion $$lib)"; \
+	    else \
+	      printf '  %-8s $(BOLD)missing$(OFF) — the window (GPUI) builds against it\n' $$lib; \
+	      missing=1; \
+	    fi; \
+	  done; \
 	fi; \
 	echo; \
 	echo "$(BOLD)what is installed$(OFF)"; \
@@ -173,8 +178,8 @@ doctor:
 	  echo; \
 	  echo "Install what is missing above, then run make install again."; \
 	  if [ "$(UNAME)" = "Linux" ]; then \
-	    echo "  Arch:   sudo pacman -S rustup gtk3"; \
-	    echo "  Debian: sudo apt install libgtk-3-dev"; \
+	    echo "  Arch:   sudo pacman -S rustup fontconfig freetype2 libxkbcommon-x11 libxcb wayland vulkan-icd-loader"; \
+	    echo "  Debian: sudo apt install libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev"; \
 	    echo "          and rustup from https://rustup.rs"; \
 	  else \
 	    echo "  rustup: https://rustup.rs"; \
@@ -186,7 +191,7 @@ doctor:
 
 $(BINARY):
 	@echo "$(BOLD)building the client$(OFF) — a few minutes the first time"
-	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo build --release -p dm-desktop
+	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo build --release -p $(WINDOW)
 
 client: doctor $(BINARY)
 	@install -d "$(BINDIR)"
@@ -211,7 +216,7 @@ endif
 app:
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release
+	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW)
 	@echo
 	@echo "built desktop/target/release/bundle/"
 ifeq ($(UNAME),Darwin)
@@ -220,6 +225,16 @@ ifeq ($(UNAME),Darwin)
 	@echo "installed $(APPDIR)/dm.app"
 	@echo "$(DIM)unsigned, so the first launch is right-click → Open$(OFF)"
 endif
+
+# The macOS bundle with the egui window, which dm shipped on macOS until the
+# GPUI window held the contract (docs/gaps.md G9), for comparing the two;
+# built into the same place as `make app`'s, not installed.
+app-egui:
+	@command -v cargo-packager >/dev/null 2>&1 || { \
+	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
+	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p dm-desktop
+	@echo
+	@echo "built desktop/target/release/bundle/"
 
 # -------------------------------------------------------------- extension
 
@@ -248,7 +263,7 @@ extension:
 # refuses such a path rather than write a manifest that cannot work).
 # EXT_ID adds a store build's id; the unpacked Chrome build and Firefox's
 # need none.
-REGISTRAR = $(firstword $(wildcard $(BINDIR)/dm $(APPDIR)/dm.app/Contents/MacOS/dm-desktop) $(BINARY))
+REGISTRAR = $(firstword $(wildcard $(BINDIR)/dm $(APPDIR)/dm.app/Contents/MacOS/dm-gpui $(APPDIR)/dm.app/Contents/MacOS/dm-desktop) $(BINARY))
 
 register:
 	@test -x "$(REGISTRAR)" || { \
@@ -302,10 +317,10 @@ endif
 # Like `flutter run`: build what changed and start the real program, its
 # window and all, from this checkout. Quit it as usual; ARGS go to dm.
 run:
-	@cd desktop && cargo run -p dm-desktop -- $(ARGS)
+	@cd desktop && cargo run -p $(WINDOW) -- $(ARGS)
 
 run-release:
-	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo run --release -p dm-desktop -- $(ARGS)
+	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo run --release -p $(WINDOW) -- $(ARGS)
 
 # Like `flutter build` with no platform named: everything this computer can
 # build, each into build/<platform>/, and a list of what was made. A platform
@@ -337,7 +352,7 @@ endif
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
-	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats app,dmg
+	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW) --formats app,dmg
 	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
 	@cp -R desktop/target/release/bundle/dm.app $(BUILD)/macos/
 	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/
@@ -349,12 +364,12 @@ ifeq ($(UNAME),Linux)
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF): .deb, AppImage and .rpm"
-	@cd desktop/crates/dm-desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release --formats deb,appimage
+	@cd desktop/crates/$(WINDOW) && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW) --formats deb,appimage
 	@sh scripts/linux/nfpm.sh $(BINARY) $(APP_VERSION) desktop/target/release/bundle
 	@for f in desktop/target/release/bundle/*.deb desktop/target/release/bundle/*.AppImage \
 	          desktop/target/release/bundle/*.rpm; do \
 	  [ -e "$$f" ] || continue; n=$$(basename "$$f"); \
-	  case "$$n" in dm-desktop_*) n="dm_$${n#dm-desktop_}" ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
+	  case "$$n" in $(WINDOW)_*) n="dm_$${n#$(WINDOW)_}" ;; dm-desktop_*) continue ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
 else
 	@test "$(HAVE_DOCKER)" = yes || { echo "Linux packages are built on Linux, or here with Docker running"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF) ($(if $(LINUX_ARCH),$(LINUX_ARCH),this machine's architecture)), in Docker: .deb, $(if $(LINUX_ARCH),,AppImage and ).rpm"
@@ -403,7 +418,7 @@ format:
 
 # The behaviour contract, every row, in sight (docs/behaviour-contract.md).
 qa:
-	@cd desktop && cargo build -p dm-desktop
+	@cd desktop && cargo build -p $(WINDOW)
 	@test -f $(STAGED)/chrome/manifest.json || sh scripts/package.sh
 	@python3 scripts/human-qa.py
 

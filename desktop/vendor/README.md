@@ -102,3 +102,71 @@ alone for Add URL's OK and Cancel, inside the dialog's window; on Windows
 Add URL, Options, the Scheduler, the Speed limiter and About, each inside its own window
 (5 of 5 on 2026-11-08; with the copy as published, none of Add URL's). MIT OR Apache-2.0,
 as published.
+
+## gpui-pre-linux 0.3.12
+
+Licence Apache-2.0 (its `LICENSE-APACHE`); the version the GPUI window
+(`crates/dm-gpui`, pinned `gpui-pre` 0.3.12) is built with on Linux. The
+published package's `Cargo.lock` and `.cargo_vcs_info.json` are left out.
+
+`src/linux/x11/window.rs` (searched for `dm:`): AccessKit is told where an X11
+window stands on the screen when its adapter starts and each time the window
+moves or is resized (`X11WindowStatePtr::dm_a11y_bounds`, called from
+`set_bounds` and `a11y_init`; `a11y_update_window_bounds` now calls it too).
+Upstream defines that update but nothing calls it, so AT-SPI gave every
+control its place inside the window as if the window stood at the screen's
+top-left corner: a screen reader's pointer and a click at a control's place
+missed it (`scripts/linux-gui-check.sh` with `DM_WINDOW=gpui` clicked Add URL
+at (8, 39) and opened nothing, 2026-11-11). Wayland does not tell a program
+where its window is, so the Wayland window is unchanged.
+
+The same file's `set_bounds`: where a configure event resizes the window, its place is asked of
+the X server (`TranslateCoordinates`) rather than kept as it was. Upstream keeps the old place,
+since such an event's own often counts from the window manager's frame; openbox, keeping a
+resized window on the screen, moved it 13 points up, and the menu titles' places (for a screen
+reader, and a click aimed from them) and the window's own `bounds()` stayed 13 points low.
+
+Links dropped on a window (`src/linux/x11/client.rs`, `SelectionNotify`, and
+`src/linux/wayland/client.rs`, the data device's drop): a file's address
+becomes its path, as upstream; any other line of the drop (a link dragged
+from a browser, as `text/uri-list` or, on X11, as text) is handed on as the
+dropped "path" it says, which dm reads as a link
+(`dm_shell::app::links::links_at`). Upstream kept file addresses alone, so a
+link dragged from Firefox onto the window did nothing. Checked with real
+drags: `scripts/linux-drag-check.sh` (X11) and
+`scripts/linux-wayland-drag-check.sh`. On X11 the drop's data is read whole,
+in pieces (upstream read its first 4 KiB), and the drop's place is in the
+window's points (upstream left it in pixels, twice as far on a 2x screen).
+
+Files dragged out of a window (`src/linux/x11/drag_out.rs`, new, and `dm:`
+lines in `src/linux/x11/window.rs` and `client.rs`): upstream hands an
+element's drag to the system once it leaves the window
+(`PlatformWindow::start_external_drag`) on macOS and Wayland, and on X11
+declines it. Here X11 starts it too: the press's grab on the window's
+connection is let go of, and a connection of its own, on a thread, speaks
+XDND as the drag's source (the egui window's `dm-desktop` `xdnd.rs`, moved
+here), handing the files over as `text/uri-list`; when it is over it sends
+the window `_DM_DRAG_ENDED`, which ends GPUI's drag as the other systems'
+end does. On Wayland (`src/linux/wayland/client.rs`) the drag offers a copy
+only, where upstream offered a move as well: a file manager taking a move
+would carry the download away from where dm saved it. Owed to the Linux
+pass: `scripts/linux-drag-check.sh` and `scripts/linux-wayland-drag-check.sh`
+dragging out of the GPUI window (docs/gaps.md G10).
+
+## gpui-pre-windows 0.3.12
+
+Licence Apache-2.0 (its `LICENSE-APACHE`); the version the GPUI window
+(`crates/dm-gpui`, pinned `gpui-pre` 0.3.12) is built with on Windows. The
+published package's `Cargo.lock` and `.cargo_vcs_info.json` are left out.
+
+Files dragged out of the window (`src/drag_out.rs`, and `dm:` lines in
+`gpui_windows.rs`, `window.rs`, `events.rs`): upstream offers GPUI's
+`start_external_drag` on macOS and Wayland only, so a finished download could
+not be dragged from the Windows window into Explorer, a mail or a chat (dm's
+gaps row G10). The window now takes it: the files become shell items, the
+items a data object as Explorer's own (`BHID_DataObject`), and the shell's
+`SHDoDragDrop` makes the drag with its own drop source, copy or link, never
+move. That call holds a modal loop until the drop lands, so it is made from a
+message posted to the window (`WM_DM_DRAG_OUT`), outside any update of GPUI's,
+and GPUI is then told the drag is over (`FileDropEvent::Ended`), as the X11
+copy does.

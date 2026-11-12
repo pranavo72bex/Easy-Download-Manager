@@ -12,7 +12,7 @@
 # Nothing Windows is installed: the messense/cargo-xwin image carries clang,
 # lld and Microsoft's CRT and SDK headers (fetched by xwin on first use, then
 # kept in a volume), which is what the C inside the TLS stack needs; Rust is
-# brought up to the current stable in a volume too. It finds what does not
+# the version rust-toolchain.toml pins, kept in a volume too. It finds what does not
 # compile on Windows. Running dm there needs Windows itself,
 # which is CI's job (.github/workflows).
 #
@@ -33,6 +33,6 @@ git ls-files -z --cached --others --exclude-standard \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
       -e CARGO_TARGET_DIR=/target \
       messense/cargo-xwin sh -c "mkdir -p /work && cd /work && tar -xf - && cd desktop \
-        && rustup -q toolchain install stable --profile minimal -c clippy -t x86_64-pc-windows-msvc \
-        && rustup -q default stable \
+        && rustup -q toolchain install \
+        && rustup -q target add x86_64-pc-windows-msvc \
         && cargo xwin $job --workspace --all-targets --target x86_64-pc-windows-msvc $flags"

@@ -61,6 +61,7 @@ pub(crate) fn home() -> &'static std::path::Path {
         // the home through this function.
         unsafe { std::env::set_var("DM_HOME", dir.path()) };
         // And no secrets left in the person's own store by a throw-away home.
+        // SAFETY: as `DM_HOME` above, set once before any test reads it.
         unsafe { std::env::set_var("DM_NO_SECRET_STORE", "1") };
         // Sizes and dates as the language writes them, on any machine.
         dm_desktop::region::pin(None);
@@ -339,12 +340,12 @@ pub(crate) fn world() -> World {
                         .unwrap()
                 }),
             );
-        // A video that sends its first 64 KiB and then nothing.
+        // A video that sends its first 128 KiB and then nothing.
         let app = app.route(
             "/half.mp4",
             axum::routing::get(|| async {
                 let first = futures_util::stream::iter([Ok::<Vec<u8>, std::io::Error>(
-                    vec![9u8; 64 * 1024],
+                    vec![9u8; 128 * 1024],
                 )]);
                 let never = futures_util::stream::pending();
                 Response::builder()
@@ -357,38 +358,18 @@ pub(crate) fn world() -> World {
         );
         // 8 MiB served in ranges, each sending its first 64 KiB and then
         // nothing: a download with several connections that stays under way.
-        let app = app.route(
-            "/ranges-stall.bin",
-            axum::routing::get(|headers: axum::http::HeaderMap| async move {
-                const SIZE: u64 = 8 << 20;
-                let (start, end) = headers
-                    .get("range")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.strip_prefix("bytes="))
-                    .and_then(|v| v.split_once('-'))
-                    .and_then(|(a, b)| {
-                        let a = a.parse::<u64>().ok()?;
-                        let b = b.parse::<u64>().unwrap_or(SIZE - 1).min(SIZE - 1);
-                        Some((a, b))
-                    })
-                    .unwrap_or((0, SIZE - 1));
-                let length = end - start + 1;
-                let first = futures_util::stream::iter([Ok::<Vec<u8>, std::io::Error>(
-                    vec![5u8; length.min(64 * 1024) as usize],
-                )]);
-                let never = futures_util::stream::pending();
-                Response::builder()
-                    .status(206)
-                    .header("accept-ranges", "bytes")
-                    .header("etag", "\"ranges\"")
-                    .header("content-range", format!("bytes {start}-{end}/{SIZE}"))
-                    .header("content-length", length.to_string())
-                    .body(Body::from_stream(futures_util::StreamExt::chain(
-                        first, never,
-                    )))
-                    .unwrap()
-            }),
-        );
+        // And the same sending nothing at all: its pieces wait for good.
+        let app = app
+            .route(
+                "/ranges-stall.bin",
+                axum::routing::get(|headers: axum::http::HeaderMap| {
+                    ranges_stall(64 * 1024, headers)
+                }),
+            )
+            .route(
+                "/ranges-silent.bin",
+                axum::routing::get(|headers: axum::http::HeaderMap| ranges_stall(0, headers)),
+            );
         // A connection that ends after a thousand bytes of a million, every
         // time, with no ranges to resume from: retried, then failed.
         let app = app.route(
@@ -522,6 +503,12 @@ impl World {
             // were written; a new install has both on (`new_installs_sort_by_kind_and_start_at_login`).
             categorize: false,
             start_on_login: false,
+            // And the hint that Details shows a download's progress taken as
+            // given: it is saved the first time a download runs, and saved
+            // from every test that starts one it wrote the shared settings
+            // file under a test reading back its own (gaps row 174).
+            // `a_started_download_says_once_where_its_progress_is` asks.
+            hinted_details: true,
             ..Settings::default()
         }
     }
@@ -533,6 +520,16 @@ impl World {
             settings.options(self.dir.path().join("parts"), dm_core::Limiter::unlimited()),
             settings.concurrency,
         );
+        // The schedules and limits as a launch puts them on the queue
+        // (`shell::start`). Before, they reached it only when something saved
+        // the settings, and a test of a closed schedule passed because the
+        // Details hint, saved as its download started, applied them.
+        queue.set_schedule(settings.schedule.clone());
+        queue.set_queue_schedules(settings.queue_schedules.clone());
+        queue.set_allowance(settings.allowance());
+        queue.set_recheck_every(settings.recheck_every());
+        queue.set_queue_limits(settings.queue_limit_map());
+        queue.set_queue_starts(settings.queue_start_list());
         let backend = Backend::new(
             self.runtime.handle().clone(),
             queue,
@@ -853,4 +850,38 @@ pub(crate) fn add_named(harness: &mut Harness<'_, DmApp>, world: &World, name: &
             },
         )
         .unwrap();
+}
+
+/// 8 MiB served in ranges, each sending its first `first` bytes and then
+/// nothing.
+async fn ranges_stall(first: u64, headers: axum::http::HeaderMap) -> Response<Body> {
+    const SIZE: u64 = 8 << 20;
+    let (start, end) = headers
+        .get("range")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("bytes="))
+        .and_then(|v| v.split_once('-'))
+        .and_then(|(a, b)| {
+            let a = a.parse::<u64>().ok()?;
+            let b = b.parse::<u64>().unwrap_or(SIZE - 1).min(SIZE - 1);
+            Some((a, b))
+        })
+        .unwrap_or((0, SIZE - 1));
+    let length = end - start + 1;
+    let sent: Vec<Result<Vec<u8>, std::io::Error>> = match length.min(first) {
+        0 => Vec::new(),
+        n => vec![Ok(vec![5u8; n as usize])],
+    };
+    let never = futures_util::stream::pending();
+    Response::builder()
+        .status(206)
+        .header("accept-ranges", "bytes")
+        .header("etag", "\"ranges\"")
+        .header("content-range", format!("bytes {start}-{end}/{SIZE}"))
+        .header("content-length", length.to_string())
+        .body(Body::from_stream(futures_util::StreamExt::chain(
+            futures_util::stream::iter(sent),
+            never,
+        )))
+        .unwrap()
 }

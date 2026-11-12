@@ -3,6 +3,465 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-11: After a review: the top bar's drag areas, a window on its own display, one pass of tidying
+
+From a code review and a cleanup pass over the GPUI work of 2026-11-10:
+
+- On Windows the whole top bar was a drag area, which Windows' hit test put over the window's
+  buttons, the menus and the search box: only the bar's empty spaces move the window now
+  (`titlebar::drag_space`). The menus' titles are measured as drawn (their words are the
+  language's) rather than assumed 330 points wide, so the search box never covers them, and they
+  are a fixed list (`menus::WINDOW_MENUS`): the menus are built on a click, not on every frame,
+  which had looked for the When-done programs on the disk each frame (now looked for once a run,
+  `power::installed`).
+- The window's frame is kept with its display: macOS counts it from that display's corner, and a
+  window left on a second display came back on the first.
+- On Linux only the window's size and zoom are kept, not where it was: Wayland gives a program no
+  position, and X11's (GPUI's ConfigureNotify) is the drawing area's or counted from the desktop's
+  frame, which, asked for again, puts the frame there and the window a title bar lower at each
+  start (review, 2026-11-11). It opens in the middle of the main display, where the desktop may
+  place it otherwise.
+- Bringing dm's window forward (the Dock, a second launch, the port) brings a dialog open over it
+  forward after it, rather than burying it under the main window. `human-qa.py` still waits a
+  moment after asking for the window before opening Add URL: macOS brings the app forward on its
+  own time, and without the wait the GPUI window's B01, B25, B42 and B44 failed again (tried,
+  2026-11-11). The script selects the field before typing an address again, rather than looking
+  for any address on screen.
+- `make install`, `make qa` and the Makefile's `BINARY` build the window each system ships; a test
+  holds dm-gpui's version to dm-desktop's, which the release tools read.
+- The question window is as wide as its buttons at each system's measures. The menus are built by
+  name, not taken out of a list by position; the probe reads the screen once a click; the macOS
+  palette takes `dark` as the others do and its test uses `dm_desktop_base::contrast`; one PNG
+  writer for Windows' and X11's pictures; one helper for the links in dropped files.
+
+Not done, for later: one binary name for both windows (`dm`) so scripts need no per-system crate;
+a shared PNG writer and tray-icon decoder for both windows; the macOS pasteboard readers shared
+by both windows; Linux's `--hidden` window drawn once before it is put away (GPUI's X11 windows
+ignore `show: false`); a reused X connection.
+
+## 2026-11-10: Each system's own colours, and one way in for what is dropped
+
+At the maintainer's words of 2026-11-10 ("even Windows and Linux should look native on their
+platform"; "make the overall architecture scalable, maintainable and easy to follow"):
+
+- The GPUI window's palette is each system's own (`theme.rs`): macOS's AppKit colours as before,
+  Windows 11's Fluent ones (Mica's grey, the list on the layer above it, the default blue accent,
+  black text at 89%; in dark, the light-blue accent with black on it) and GNOME's libadwaita
+  ones on Linux. `on_accent` names what is drawn on the accent, which is not white everywhere.
+  A test holds every palette, light and dark, to readable contrast (text 7:1, the rest 3:1).
+- The dialogs' measures are each system's too (`native.rs`, `pick`): macOS's as measured on its
+  own dialog (13 pt text, 24 pt controls, 20 pt margins), Windows 11's WinUI ones (14 px text,
+  32 px controls, 24 px margins, 120 px buttons, 4 px corners, the default button first and
+  Cancel last) and GNOME's (14 px text, 34 px controls, 18 px margins, 6 px corners).
+- What is dropped on a window waits in one place for both windows, `dm_desktop_base::drops`, and
+  Windows' OLE drop target (a browser's link as well as files) moved there out of the egui crate,
+  with its tests: the GPUI window puts it on each of its windows on Windows, and its macOS drag
+  methods feed the same queue.
+- What is said when the system makes no tray icon is one sentence for both windows
+  (`dm_desktop_base::tray::unavailable`): the GPUI window said the toolkit's error alone.
+- `human-qa.py` brings dm's window in front before Add URL, as a person does: behind the browser,
+  the egui window drew no frames, and its clicks waited for one (B10 and B63 failed so).
+
+## 2026-11-10: On macOS dm ships the GPUI window (G9 for macOS)
+
+D5 recommended switching the default window once release packages held 64 of 64 on all three
+systems. The maintainer's later words of 2026-11-10 ("first migrate on macos, all steps, then we
+will move for linux"; "complete the migration") take every step on macOS first, so on macOS the
+GPUI window is now the one built and shipped: `make app`, `make build-macos` and `make run` build
+dm-gpui there (`WINDOW` in the Makefile), the release workflow's macOS job packages and
+smoke-tests it (`matrix.crate`), and `human-qa.py` and `app-check.py` drive it by default. It
+was proved first from its own release .dmg: `smoke.py`, and `human-qa.py` 64 of 64. Linux and
+Windows keep the egui window until theirs hold the contract in GPUI, and egui is removed only
+then, in a change of its own. Nothing reaches `main` before the full gate (Windows' and Linux's
+runs included). An installed dm's browser registrations and login item name the old binary,
+`dm.app/Contents/MacOS/dm-desktop`; the new one re-points both at its first start (the browsers'
+manifests as they go stale, `register::ensure_if_claimed`; a login item whose program is gone,
+`autostart::takes_over`). `make app-egui` still builds the egui bundle for comparing.
+
+## 2026-11-10: The GPUI window on Windows and Linux: its title bar, the tray, the port
+
+At the maintainer's word of 2026-11-10 ("make coding part of migration of windows and linux
+here"), the GPUI window's system-specific code is written here for all three, and run on each
+system's own computer: `syswindow.rs` (was `appkit.rs`) does what GPUI cannot ask of a window, each
+system its own way. Windows: put away into the tray with `ShowWindow(SW_HIDE)` and shown again (it
+was only minimized), moved with `SetWindowPos` for `ui.move_window`, pictured with `PrintWindow`
+for `ui.screenshot` (a PNG). Linux on X11: unmapped into the tray and mapped back, moved and pictured (`GetImage`) through a
+connection of dm's own to the X server (`x11rb`; each request waited on, since one left in the
+buffer as the connection closed was lost); on Wayland minimized, and the port says it can neither
+place nor picture the window. GPUI's X11 windows are shown however they were asked to open, so a
+login launch's window is put away after its first frame. GPUI's X11 and Wayland windows do not say
+their title back, so every dm window opens through `screen::open_window`, which keeps its title as
+its name for the port. The top
+bar is the title bar on macOS and Windows (with Windows' own buttons); on Linux the desktop draws
+its title bar (server-side decorations) and the top bar is the row under it, as a code editor's is
+with the system's title bar, since a program drawing its own on Linux must draw its frame, shadow
+and resize edges too. The tray shows dm's own icon on Windows and Linux (the template picture is
+macOS's). Checked here: macOS's build, tests and `human-qa.py`; Windows by `windows-check.sh
+clippy` (Docker, the whole workspace); Linux in `linux-check.sh`'s Debian container: clippy, and
+the GPUI binary under Xvfb with no GPU passing `smoke.py` and `app-check.py` in full. Running them
+with a person, and Windows at all, is for those systems' own computers.
+
+## 2026-11-10: The GPUI window's menus are in its top bar, on every system, beside the search box
+
+At the maintainer's words of 2026-11-10 ("make the search bar and options like Tasks File
+Downloads View Help to top bar like in vs code", "in windows too", "in linux too"), the GPUI
+window's top bar holds, as a code editor's title bar does, the sidebar's button, the egui
+window's five menus by title (Tasks, File, Downloads, View, Help; Exit last in Tasks, Options in
+Downloads, About in Help, as in the egui window), and the search box, centred on the window where
+the menus leave room. A title opens its menu as the system draws one (an `NSMenu` on macOS,
+Windows' own, a drawn one on Linux: gpui-component's `NativeMenu`), with the menu bar's items and
+ticks (`menus::window_menus`). On macOS the system's menu bar keeps them too, with dm's app menu,
+Edit and Window. On Windows the bar is the title bar and ends with the window's buttons, whose
+clicks the system takes (`WindowControlArea`, so Snap layouts work). B25's GPUI pictures were
+drawn again for it. The port opens a title's menu as it reads one (and a dialog's words of the
+same name, Options' Downloads tab, still go to the dialog).
+
+## 2026-11-10: dm brings no font: the system's interface font, and its monospaced one
+
+At the maintainer's word ("use system fonts or os fonts, no need to provide fonts explicitly"):
+the GPUI window draws every word in the system's interface font (`.SystemUIFont`: San Francisco,
+Segoe UI, the Linux desktop's) and its monospaced text (a digest, links) in the system's own,
+gpui-component's choice for each (Menlo, Consolas, DejaVu Sans Mono, else the next installed),
+where it named Menlo, which only macOS has.
+
+## 2026-11-10: Add URL's address selected as the field is asked to take the keyboard
+
+In the egui window, Add URL offers a link on the clipboard selected, so what is typed replaces
+it. It was selected once the field had the keyboard, a frame after it asked; a window behind
+another, drawn only as input arrives, took the first keys in that same frame, beside the link
+(`human-qa.py`'s B63 and its walk failed so, 2026-11-10). It is selected as the field asks for
+the keyboard now (`select_on_focus_asked`); a person's typing is not selected again once it has
+begun. `human-qa.py` types an address again only after two seconds without it on screen.
+
+## 2026-11-10: The GPUI window comes back where and as large as it was left
+
+The egui window keeps its frame across launches (eframe's `persist_window`); the GPUI window
+opened in the middle at 900 by 600 every time, which a Mac program does not. It keeps its frame
+in `window.json` in dm's home as it quits (a `DM_HOME` run its own, so a test or a check starts as
+a fresh install does) and opens there next time, unless that frame's title bar is on no display
+now (one unplugged since) or it is smaller than the window's least size: then in the middle.
+Zoomed comes back zoomed; full screen comes back as the window it was in, not as a Space of its
+own at launch. Driven: zoomed, quit, started again on the same home, the same frame.
+
+## 2026-11-10: The GPUI window's View menu is the egui window's, in the menu bar's own items
+
+The egui window's View menu holds controls a menu bar cannot: a checkbox with move-up and
+move-down arrows beside each column and each toolbar button, and a zoom with a percentage. The
+GPUI window has the same choices as the system's menu items: View › Columns ticks each column
+shown (the file name always stays), Customize toolbar the style (Icons and text, Small buttons,
+Text only, now drawn as chosen; `dm_desktop_base::toolbar`, moved out of the egui crate) and each
+button shown, Language each language with the one in force ticked, and Sort by the sort in force.
+A column is moved as a macOS table's are, by dragging its heading onto another (after it from the
+left, before it from the right), and a toolbar button the same way. View › Text size is not in the
+GPUI window: GPUI has no zoom, and every size there is in points (gaps row G7).
+
+## 2026-11-10: `--headless` is a loop of its own in dm-desktop-base, with no GPUI
+
+The GPUI binary had no `--headless`, which `smoke.py` (the release workflow), `app-check.py`,
+the site checks and a server need. GPUI has a headless platform, but dm's list view cannot exist
+without a window (its text field, its window's wake loop), and a GPUI application on macOS is
+still an application. So `dm-gpui --headless` starts no GPUI at all: `dm_desktop_base::headless`
+runs the application's rules (`dm_shell::app`) in a loop of its own, woken by the engine and the
+control port and once a second by its clock, as the egui binary's headless mode runs `DmApp` with
+no window. It settles what a window would ask as egui's does: hand-offs go straight in
+(`Asking::Nobody`), Exit when done is at once, Resume on held rows waits and says so, Exit over
+the port ends dm, `ui.screenshot` is refused, `ui.texts` is empty. Two differences, both for a
+script's sake: a step (`ui.click`, `ui.type`, `ui.key`, `ui.scroll`) is refused at once, saying
+there is no window, where egui's queued it for frames that never came; and `command.run` of a
+command that needs a window (a dialog, the clipboard) is refused, naming it, where egui's opened
+the dialog unseen. With nobody to see it, the weekly update check is not made and the clipboard
+is not watched. `app-check.py` (98 of 98) and `smoke.py` pass with dm-gpui, and
+`dm-gpui/tests/quit.rs` signals it headless as `dm-desktop/tests/quit.rs` does.
+
+## 2026-11-10: The GPUI window carries out When done, and its menus tick as the egui window's
+
+Downloads › When done's choices did nothing in the GPUI window: the command reached no branch
+and fell through. Fixed, and the menus now say what is in force, as the egui window's do: When
+done's choice ticked (and greyed where the computer cannot do it), Limit speed ticked while a
+limit holds and the preset it is, View's Categories, Toolbar and Drop target ticked while shown.
+The menu bar is built again when any of them, or the queues, change. An item that opens a dialog
+ends with "…", as the egui window's and macOS's own menus say it (found by `app-check.py` looking
+for "Add numbered series…"). The port lists a menu it opened as the egui window shows one, and
+Escape closes it. The window forgets `control.port` as it quits (it was left naming a port nobody
+answered: nothing after GPUI's run is reached on macOS).
+
+## 2026-11-10: The GPUI window's menu bar has macOS's own Edit and Window menus
+
+As the plan's "Native feel and speed" asks of the menus on macOS ("the standard app, Edit and
+Window menus and their usual shortcuts"), the GPUI window's menu bar has Edit (Undo, Redo, Cut,
+Copy, Paste: the text fields' own actions, given as the system's, so its services and dictation
+reach them) after File, and Window (Minimize ⌘M, Zoom, Bring All to Front) before Help. The list's
+Select all stays in File, as in the egui window. Their words are in every catalog; Redo, Window,
+Minimize, Zoom and Bring All to Front are new there, in each system's own words for them.
+
+## 2026-11-10: GPUI takes links dropped from a browser through its window's own drag methods
+
+GPUI's macOS window registers for dragged files alone, so a link dragged from a browser (an
+address, not a file) never reached it. As the egui window does with winit's, `drops.rs` gives
+GPUI's window class (`GPUIWindow`) dm's own `draggingEntered:`, `draggingUpdated:` and
+`performDragOperation:`: a drag that carries a link and no files is taken (its URL, else its text,
+read for links) and the window woken as at any change; every other drag goes on to GPUI's own
+method unchanged, files included, which reach the window as `ExternalPaths` and are read for the
+links they hold (`dm_shell::app::links::links_at`: a `.torrent` is itself the download). Each
+class is given dm's methods once: given twice, a method would keep dm's own as GPUI's and call
+itself. The floating drop target (View › Drop target) is a small always-on-top window of its own
+(`droptarget.rs`): it takes drops the same way, shows how far the downloads are along its foot and
+how fast on hover, moves when dragged, brings the window back on a double-click, and has Show dm and
+Hide the drop target on its right-click menu, as the egui window's card has. The GPUI app is
+bundled beside the egui window's (`make app-gpui`, `desktop/target/release/bundle-gpui/`), with the
+same name, id, icons and the types it opens, until GPUI is the window dm ships (Phase E).
+
+## 2026-11-10: `human-qa.py` drives the GPUI window as a person does, through the same port
+
+The control port answers every `ui.*` method in the GPUI window as it does in the egui window,
+so `human-qa.py` runs against either (`DM_BINARY`): `ui.inspect` names the dialogs open (by the
+dialog's name: a progress window is "Download progress" whatever its title says), the status
+line, the problems, and each row by the name the list shows and its status in English;
+`ui.texts` holds only the words in view (a click aimed at words scrolled out of a page's view
+landed on whatever was there) and what fields hold (not a password's); `ui.scroll` turns the
+wheel of the window the words are in; `ui.screenshot` is the system's own picture of the window
+(`screencapture -l`) and `ui.move_window` moves it as a drag by its title bar would (AppKit,
+`appkit.rs`). The system's menu bar and its pop-ups are modal and cannot be clicked by the port,
+so the port walks them as a person does: a click on a menu's title, where no words on screen are
+exactly those, opens it and holds its items; a click on a submenu holds its items; a click on an
+item runs its action in the main window. A click on a pop-up holds its choices, and a click on
+one picks it. The first full run against the GPUI window held 54 of 64 rows; the failures were the
+port's (the menus, the rows' words, the dialogs' names) and three of the window's (Delete
+Completed said nothing; Options did not hold the window, which B42 asks of it; Resume did not
+open the progress window as the egui window's does), all put right. B25's pictures are the GPUI
+window's own: they are kept under `docs/behaviour-baseline/gpui/`, beside the egui window's, until
+GPUI is the window dm ships (D3, D5).
+
+## 2026-11-10: The GPUI window's tray is a status item; its close buttons do what Cancel does
+
+GPUI has no tray, so the GPUI window takes D4's fallback, `tray-icon`, as the egui window does:
+the status item in the menu bar with the egui window's menu (Show dm, Start Queue, Stop All, the
+speed limiter ticked while a limit is in force, Speed with its presets and Settings… (B52), the
+Scheduler, Exit dm) and its tooltip (`dm_desktop_base::tray`, both windows). Its picture is a
+template image drawn by dm (an arrow into a tray), as the system's own status items are, so it
+takes the menu bar's colour; the egui window's coloured icon was not. The close button follows
+Options › "When I close the window": into the tray (the window put away with `orderOut:`, not
+closed, so it comes back as it was), Exit, or asked once ("Keep running in the tray?", a sheet);
+with no tray it ends dm, asked first while downloads run. The window comes back from the tray,
+from the Dock icon, from a second launch and from the browser's button (the inbox's `show`,
+which the GPUI window had ignored); a login launch starts in the tray, with no window shown.
+File › Close (⌘W), as every macOS program has it, does what the close button does.
+
+Every GPUI dialog's close button now does what its Cancel does (B42), through one hook
+(`native::close_is_cancel`). It had simply closed the window: Download details or Download links
+closed that way left the hand-off unanswered, and every later hand-off waited behind it, and
+"Download complete" lost its "Don't show this window again" tick. ⌘W in a dialog does the same.
+
+## 2026-11-10: GPUI's Options is macOS's settings layout over the shared rules; a sidebar button
+
+Options' rules are `dm_desktop_base::options` for both windows: its six pages (B43) and what
+each page's Restore defaults puts back, the lists typed as words, and OK, which reads the lists
+into the draft, refuses a proxy with nowhere to connect to (on Advanced, at its proxy) and a
+category made or renamed that cannot be a folder on every computer (on Folders), and keeps only
+what Options changed over what is in force. The GPUI window draws the pages as macOS's settings
+are: the pages as a tab view's segments at the top, the settings in sections under bold headings,
+each check box with what it does under it, the system's pop-ups and fields, one size for every
+page with the page scrolling. Its Theme offers the computer's look, Light and Dark, and forces
+the application's appearance for the last two (`set_window_appearance`); `classic` is the egui
+window's own look and is drawn as the computer's. Text size is the egui window's zoom; a macOS
+program follows the system's text, so the GPUI page has none. Mica, who opens magnet links and
+Dial Up / VPN are Windows' and are drawn there by the egui window until the Windows work is done
+on a Windows computer. The clipboard is watched as the egui window watches it ("Offer to download
+links I copy": the bar above the list; "Take a copied link at once").
+
+The maintainer, 2026-11-10, looking at the GPUI window: "no option to close side pannel here".
+The categories could be hidden only from View › Categories. The title bar now has the system's
+sidebar button just past the traffic lights, where Finder, Mail and Notes put it, and ⌃⌘S (macOS's
+own keys for Show and Hide Sidebar) does the same.
+
+## 2026-11-10: The GPUI window keeps the script guard; its own actions are registered once
+
+The GPUI window had no script guard: a control client could double-click a finished row (with
+Options' double-click set to Open) or click Install now, and the file ran. As the egui window
+does (security review of 2026-11-07, gaps row 159 f), each click, key, typing and scroll the
+control port gives the GPUI window marks the moment (`ScriptGuard::acted`), and File › Open,
+Open with… and Preview, Download complete's Open and Open with…, Properties' Open and Install
+now refuse for a moment after, saying why. The probe's refusal of a click on an Open word stays
+as well. Help's pages, Hide, Hide Others and Show All are application actions registered once
+at start: the menu bar is built again whenever the queues change, and each build had added
+another handler for Hide (so a Help page would have opened once a build).
+
+## 2026-11-10: The row dialogs' rules are one module; GPUI's take the system's ways of a field
+
+What OK does in Update download link, Move to queue, Move/Rename and File properties (a fresh
+address and the retry of a download that failed for want of it; the queue picked or named, in
+dm's own name; each file moved, then renamed, and a name already taken said; a torrent's files
+and priorities, the note, the address with its sign-in, and the retry with a sign-in given) is
+`dm_desktop_base::row_edits`, which both windows call, so they cannot differ. In the GPUI
+window each is a window of its own, as Add URL is, and keeps the system's ways where the egui
+window had none: Move/Rename opens with the name without its ending chosen, as Finder's rename
+does (typing replaces the name and keeps the kind); Move to queue opens with the keyboard in
+"Or a new queue"; the finished file's SHA-256 is text that can be selected and copied, as the
+system's labels can be (`gpui-base`'s `SelectableText`, the base gpui-component itself pins at
+the same version, added as a window crate in `cargo xtask layers`), not a field one can type
+in. These follow the maintainer's word on native feel (2026-11-10); no contract row names them.
+The window's double-click on a row does what Options › General says (B46), as the egui
+window's. Dropped: the digest in a text field whose typing was undone (it took a Tab stop
+between Note and Check against, so Tab put the keyboard where nothing could be typed).
+
+## 2026-11-10: The GPUI window's top bar holds the search box, as a code editor's title bar does
+
+The maintainer, 2026-11-10, looking at the GPUI window: "search is missing and also top bar is
+missing. take reference from vscode and make similar way." The GPUI window's top row is a title
+bar of its own (`dm-gpui/src/titlebar.rs`): the system's traffic lights at its left and, centred
+on the window, the search box that narrows the list as one types (name, address or note, the
+egui window's top-row box and its words), its magnifier at the left as the editor's command
+centre and the system's search fields draw it, "N shown" and a clear mark once it holds words;
+⌘F puts the keyboard in it with its words chosen, Return finds the first row it leaves, Escape
+clears it and gives the keyboard back to the list, Find next and previous go round the rows it
+leaves (`dm_desktop_base::find`, both windows). The toolbar is a row of its own under it, no
+longer in the title bar. Dropped: the toolbar in the title bar beside the traffic lights (the
+unified style of Finder), which left the search nowhere and the window no top bar.
+
+## 2026-11-10: The ways dm runs without a window are one module for both windows
+
+`dm_desktop_base::modes::without_window` runs the browser's host, the warm page reader,
+`--version`, `--help` (its text byte for byte as before), the command-line client, MCP,
+`--register` and `--unregister`, and refuses a typo, for both windows' `main`; macOS's "open with"
+Apple events (`dm_desktop_base::opened`) likewise. The GPUI window had none of them, so a browser
+could hand it nothing (`--native-host` opened a window). Notifications stay each window's own, as
+the decision on `Desktop` below says (notify-rust is a window crate's): the GPUI window's notifier
+is `dm-gpui/src/notify.rs`, and it claims dm's bundle id for them after gpui-component has started
+its own notification centre, since claiming it first made macOS look for a bundle a bare binary
+does not have, and dm stopped at launch.
+
+## 2026-11-10: GPUI dialogs take AppKit's measures and macOS's order of buttons
+
+The maintainer, 2026-11-10, looking at the GPUI dialogs: "margin padding is also off. fix it on
+macos too". Every GPUI dialog and sheet is built from one set of measures (`dm-gpui/src/native.rs`),
+AppKit's regular controls: 13-point system text, 11 for what is said under a control and an
+alert's informative text; a text field, a push button and a pop-up all 22 points tall; 20 points
+from the window's edges, 8 between rows and from a label to its control, 12 between buttons. A
+form is laid out as macOS lays one: the labels right-aligned in a column of their own, every
+control, check box and warning in a second. A row of buttons is in macOS's order: the default
+rightmost, the button Escape presses beside it, any other action at the leading side (Download
+details: Add for later to a queue at the left; Cancel, then Start now, at the right; a question's
+Yes / No reads No, Yes). The main window takes the same sizes: rows and the side panel's places at
+13 points, rows 24 points tall; toolbar labels, column headings, section headings and the status
+bar at 11. The words are unchanged. B02 and B42 list buttons in the egui window's order; their rows
+change for the GPUI window on macOS when it becomes the default (D5), in that commit, naming this
+word, as for the sheets. Dropped: gpui-component's own sizes (32-point fields, 14-point text),
+which read as a web page's form beside the system's pop-ups. The measures were taken from the
+system's own dialog on this Mac (`display dialog` with a text field, measured pixel by pixel):
+push buttons and fields 24 points tall, OK and Cancel 80 points wide, 12 between them, 20 from the
+window's edges, corners of 5 points, a dark dialog's background #2e2c2b (tinted by the wallpaper)
+and its push button white at 8% with no edge, the default button #007aff.
+
+A question is asked as a sheet on dm's main window only, once that window is in front
+(`Downloads::sheet`): GPUI begins a sheet on whichever window AppKit calls main, so "Already in the
+list", asked as Add URL closed, went with Add URL, and a question raised while dm was in the
+background (a 404 while the person is in the browser) was never shown, and every later question
+waited behind it. A question waits, in order, and is asked when the main window is activated, as
+a Mac program's alert waits for its person to come back.
+
+## 2026-11-10: GPUI pickers open the system's menu; dialogs fit what they hold; loops use their own window
+
+Under the maintainer's native word of 2026-11-10. A picker in a GPUI dialog (Download details'
+Category, Delete file after and queue; Add URL's Recent) is a pop-up button whose click opens the
+system's own menu, the chosen item ticked: gpui-component's `NativeMenu`, an `NSMenu` on macOS and
+Windows' own menu there, drawn by GPUI on Linux (`dm-gpui/src/popup.rs`). Dropped: a list drawn by
+GPUI inside the window, which a person on a Mac meets as a web page's menu, clipped at the window's
+edge. The cost: the system's menu is modal, so while one is open the control port waits, as the
+app does; `human-qa.py` needs a way to choose in a pop-up without opening it before it drives
+these rows. A dialog's window is as tall as what it holds (`fit.rs`: laid out at its own height,
+the window resized on the next frame), as the system's dialogs grow when a warning or a sign-in's
+fields appear; a fixed height put Download details' buttons past its bottom edge once the name's
+clash was shown. A task that updates the main view from its window (the wake loop) runs in that
+window by the async context (`AsyncWindowContext::update`), never by `WeakEntity::update_in`:
+GPUI runs that in whichever window last drew the entity, and Download details draws the main
+view's rows for the name's clash; when it closed, the entity had no window, `update_in` failed and
+the loop ended, so the main window stopped reading the queue. Quit is an action of the
+application's (`menus::Quit`, heard from any window in front), the list's commands (`menus::Run`)
+the main window's, as on a Mac Quit reaches the application from any window while a list's
+commands belong to its window; and Exit closes every dialog before it ends dm, since AppKit holds
+`terminate:` while a sheet is up.
+
+## 2026-11-10: On macOS the GPUI window asks its questions as sheets
+
+At the maintainer's word of 2026-11-10 ("focus on native improvements … it should feel native to
+users"). A question (Remove, Delete file, Cancel download, the server's name, a page for a file, a
+404, Exit while downloading) is asked on macOS as a sheet on the dm window: GPUI's
+`WindowKind::Dialog` is NSWindow's `beginSheet`, which is how macOS's own programs ask, holds that
+window until answered, and comes back with it when it is brought forward. The dialogs that are
+work rather than a question (Add URL, Download details, Options, the Scheduler, Properties) stay
+windows of their own, movable anywhere, as B42 says. B42's row and `human-qa.py`'s B42 checks are
+changed for the GPUI window's questions on macOS when it becomes the default (D5), in that commit,
+naming this word; until then the egui window, the one shipped, keeps B42 as written. Dropped:
+questions as windows of their own on macOS too (B42 as it reads), which a person on a Mac meets as
+a stray panel they can lose behind the window.
+
+## 2026-11-10: The GPUI work is proved on macOS first; D1 go for macOS
+
+The maintainer, 2026-11-10: "or we can skip the linux for now", then "focus on macos". The GPUI
+shell's Phase B checks and its slices are built and checked on macOS; the Windows and Linux runs
+are deferred, not dropped: owed before a phase merges into `main` (`docs/gaps.md`). The code is
+still written for all three systems, so deferring their runs defers checking, not rewriting.
+Then: "first migrate on macos, all steps, then we will move for linux. windows part will be handled
+on windows so no need to do here." Taken as D1 (go) for macOS, Phase B's check 1 having passed
+there, with D2 the recommended pin (`gpui-pre` and `gpui-pre-platform` 0.3.12); Phases C to E run
+on macOS first, Linux after, and Windows on a Windows computer.
+
+## 2026-11-10: The GPUI window is built native to each system, and measured
+
+The maintainer, 2026-11-10, mid-migration: "while migrating focus on native improvements and
+optimization too. it should feel native to users." So the GPUI slices are not a pixel copy of
+the egui window: menus in macOS's menu bar, the systems' own title bars, fonts, text input,
+scrolling, choosers and accessibility, where GPUI or the system offers them
+(`docs/migration/GPUI_MIGRATION_PLAN.md`, "Native feel and speed"). The features stay as they
+are. A contract row or B25 picture a native way changes is updated in the same commit, naming
+this word, as an approved change (CLAUDE.md). Speed is judged on numbers against G5's egui
+baseline, a slice slower on any of them not done. Dropped: matching egui first and making it
+native after (every slice would be drawn twice).
+
+## 2026-11-10: G3 leaves `apply_settings`, the sounds and the dialogs' drafts in the window
+
+At the maintainer's word of 2026-11-09 (take the recommended option). Of the list in
+`docs/migration/CURRENT_UI_ARCHITECTURE.md` 4.2, three stay where they are, each for a reason a
+second window would share: settings coordination is already the application's
+(`Backend::set_settings_from`, with the script rule `Settings::keep_programs_of`), and what is
+left of `DmApp::apply_settings` is the window's (its sentences for a kept program, the language
+it draws in, re-placing its rows, its own timers); notifications and sounds are which words and
+which sound, the presentation's by the row's own wording ("wording, sounds and which dialog opens
+stay in the window"); and a dialog's draft (Download all links' list and ticks, Properties' edits)
+is view state, its rules moved (`links::looks_like_page` and the rest, `rules::replacing`). The
+rows' verbs a dialog calls (`backend.pause`, `retry`, `resume`) are the application's API already.
+Every other entry moved, one rule per type or function, each with a dm-shell test.
+
+## 2026-11-10: `Desktop` is the base crate's, and the window supplies what its crates do
+
+At the maintainer's word of 2026-11-09 (take the recommended option). The survey counted egui
+in `platform.rs`'s `Desktop` but not the crates `cargo xtask layers` lists as GUI beside it:
+`arboard` (the clipboard), `rfd` (the file choosers) and `notify-rust` (notifications away from
+Windows). Rather than let the toolkit-free crate use them, `dm_desktop_base::desktop::Desktop<W>`
+is the application's `Platform` from everything else (the login item, with `login.rs` moved too;
+the Trash; notifications held while the person is busy; the sounds; opening and showing files;
+When done; Windows' own toasts; Linux's file-manager and portal look-ups), and takes those four
+from a `WindowServices` the window implements (dm-desktop's `EguiWindow`). A GPUI window
+supplies its own (its clipboard and path prompts; a notifier). `drag_out` stays in dm-desktop,
+needing the window's handle. Dropped: allowing those crates in `dm-desktop-base` (a crate
+"without a toolkit" pulling in a toolkit's file dialogs), and leaving `Desktop` in the binary
+(a second window would copy 300 lines of system calls).
+
+## 2026-11-10: G2's code moves are gated per batch; `dm-desktop-base` is the toolkit-free crate
+
+At the maintainer's word of 2026-11-09 (take the recommended option). G2 moves the desktop
+program's modules that draw nothing into `desktop/crates/dm-desktop-base`, which `cargo xtask
+layers` forbids every window crate; `dm_desktop` keeps each at its old path with a `pub use`, so
+no caller, test or script changes. Each batch of the survey in `docs/gaps.md` is a commit (the
+first, `quiet`, came with the crate; a batch's manifests share lines, so a commit per module
+would be hand-split and its middle states never built), held to the gate's steps 1 and 2 (fmt, clippy, `cargo test --workspace`; `scripts/windows-check.sh clippy`); the two
+visible QA runs (`human-qa.py` and `linux-human-qa.sh`, about 20 minutes each) are run once per
+batch of the survey in `docs/gaps.md` (the first after G1 and batch 1), since a move with a
+re-export changes no code path and a QA run per module would cost a day for the same evidence.
+A row that fails sends the batch back module by module. The gate's step 2 is
+`scripts/windows-check.sh`: a plain `cargo check --target x86_64-pc-windows-msvc` stops at
+`ring`'s C without the Windows headers that container carries.
+
 ## 2026-11-10: A file a range where the download folder is on another disk
 
 At the maintainer's word of 2026-11-10 (gaps row 166), asked whether dm may stage a download as
@@ -5039,6 +5498,23 @@ YouTube in the video's own language (the language is not known before the answer
 twice costs a request and a bot check), or a setting for the preferred language (no one has
 asked; the person's own language is a later choice for the quality list, not this fix).
 
+## 2026-11-09: The window moves to GPUI, in phases, after an audit (branch `gpui-migration`)
+
+At the maintainer's word of 2026-11-09 (the "egui → GPUI Migration" specification), the
+egui presentation is to be replaced by GPUI, keeping `dm_shell::app` and dm-core and every row
+of the behaviour contract. Phase 0, the audit, is in `docs/migration/` (no source changed).
+Taken from it: the seam is finished first under the egui window (Phase A: about 7,100 lines
+of dm-desktop that never touch egui moved to a toolkit-free crate, about 2,500 lines of
+application rules still in `DmApp` moved into `dm_shell::app`, the control port's `ui.*`
+answers made a toolkit-free contract, egui's performance measured), then a GPUI shell is
+built as a go/no-go spike judged first on screen readers in every dialog window (Phase B).
+Proposed pin `gpui-pre =0.3.12` with `gpui-component =0.9.1` (one maintainer publishes both;
+`gpui-ce` 0.3.0 is the fallback), confirmed only by that shell. Not taken: starting with
+GPUI views over `DmApp` as it is, which would copy its application rules into a second
+window, and replacing the control port's `ui.*` answers, which `human-qa.py` and MCP read.
+New B25 pictures, any contract row GPUI cannot hold as written, the go/no-go and the switch
+of the default window are the maintainer's to approve (`GPUI_MIGRATION_PLAN.md`, D1 to D5).
+
 ## 2026-11-10: The bottom line: faster than reference A in every benchmark, and easier to use
 
 The maintainer set the standard every change is judged by: dm's engine must be faster than
@@ -5049,3 +5525,1499 @@ benchmark" means every case of the side-by-side harness (`bench.mjs`) and any ad
 with `idle` judged by CPU and memory at rest. Being easier to use does not override
 `docs/behaviour-contract.md`: a row proposes the change, and the maintainer approves it in
 words before it is made.
+
+## 2026-11-11: Every GPUI window that saves a program goes through the guard
+
+Security review of 2026-11-11: the GPUI Scheduler's OK saved with `backend.set_settings`, past
+`Backend::set_settings_from` and its script rule (`Settings::keep_programs_of`). A control-port
+or MCP client could open the Scheduler (`command.run scheduler`), type a program into "Run this
+program when they are done" and click OK, and dm ran it as the person when the hours ended; the
+egui Scheduler and GPUI Options refused the same. The Scheduler now saves through
+`Downloads::apply_settings`, as Options does, so a script's program is kept as it was and the
+window says so. The other direct `set_settings` callers in `dm-gpui` each start from the
+settings in force and change no program. A test in `dm-gpui` (`main.rs`) fails where a source
+file both names a program field (`.run_when_done`, `.on_complete`, `.proxy.script`,
+`.queue_schedules`) and calls `.set_settings(`.
+
+## 2026-11-11: The GPUI window on Windows
+
+At the maintainer's word of 2026-11-11 ("complete the windows part"; macOS was done and Linux is
+carried on the Mac), the GPUI window was built, run and checked on a Windows computer. Taken on
+the way, each the recommended option of `docs/migration/GPUI_MIGRATION_PLAN.md`:
+
+- **The program's own description.** `dm-gpui/build.rs` gives `dm-gpui.exe` dm's icon and its
+  version, as the egui crate's does, and no manifest: GPUI links its own into every program built
+  on it (per-monitor DPI v2, as `dm.manifest` asks, plus asInvoker, the system's common controls
+  and the segment heap), and a second `RT_MANIFEST` is a duplicate resource the linker refuses. A
+  release opens no console (`windows_subsystem`), as the egui binary's does.
+- **What GPUI's Windows windows do not say.** Their title (`get_title` is the platform default,
+  empty): `screen::open_window` keeps each window's opening title and `screen::set_title` its
+  later ones, which the control port reads (`ui.windows`, `ui.move_window`; a progress window's
+  title starts with how far it is, B46). Their frame: GPUI's bounds are the client area, so the
+  port reports and places the frame as it is seen (`DWMWA_EXTENDED_FRAME_BOUNDS`: the window
+  without the borders Windows keeps invisible around it for resizing, 7 pixels a side at 100 %),
+  where a person sees the window. `GetWindowRect`, which `human-qa.py` reads of Windows itself
+  (B42) and the egui window reported, is those 7 pixels wider, within the checks' 16. A dialog
+  pictured from the screen at the reported frame then holds nothing of what lies behind it, and
+  a picture (`ui.screenshot`) is cut to the same frame.
+- **Windows' own look.** The window's buttons in the system's caption glyphs (Segoe Fluent
+  Icons, Segoe MDL2 Assets on Windows 10), restore while maximized; Windows' High Contrast
+  palette over any look, as the egui window draws it (B45). Options gains what the egui window
+  showed only on Windows: who opens magnet links and `.torrent` files (Browser) and Dial Up /
+  VPN (Advanced, B43). The jump list and the taskbar button's progress, as the egui window's.
+- **A greyed control lets the page scroll** (`native::enabled`: `block_mouse_except_scroll`, not
+  `occlude`). Occluded whole, a greyed field under the pointer swallowed the wheel and stopped
+  Options' Advanced page short of its end, on every system.
+- **Screen readers (Phase B check 1) on Windows: pass.** UI Automation reaches every dialog's
+  buttons in its own window (`windows-a11y-check.py`, 5 of 5), and still does after 50 dialog
+  windows opened and closed. Options' pages are tabs to a screen reader in the GPUI window, so
+  the check takes a page's tab as it takes a button.
+- **No GPU.** GPUI draws through Direct3D 11 on the first adapter that makes a device, and DXGI
+  lists Windows' own software adapter (WARP, "Microsoft Basic Render Driver") last, so a
+  computer or a virtual machine with no GPU still draws; read from `gpui-pre-windows`'s
+  `directx_devices.rs`, not run here (this computer has a GPU). CI's Windows runner has none,
+  so its installer check is the run.
+- **The installer replaces the egui window's program.** Installed over a dm whose window was
+  egui's, `dm-desktop.exe` in the same folder is ended and deleted first, so the login item and
+  the browsers' registrations, which start a program that is then gone, follow `dm-gpui.exe` at
+  its first start (`autostart::takes_over`, `register::ensure_this_copy`).
+- **A hand-off is acted on at once.** The GPUI window coalesces the queue's changes over a
+  quarter of a second; a wake to act on now (a browser's hand-off) that came in that quarter
+  waited it out, so behind a running download the click's first request came 160 to 650 ms
+  later than in the egui window, whose `Now` cuts the wait short. It does here too. Download
+  details also begins its early row and asks the server about the file before its window is
+  made, not from inside the window's building (a new Direct3D or Metal surface first).
+- **Found by a review of these changes (five reviewers, each finding put to a skeptic):** the GPUI
+  window put the chosen language in force only when Options was saved, so it started in English
+  on every system (now at startup, before the window, menus, tray and jump list are made, held by
+  a test); a greyed control took clicks, because GPUI lets an element block only what was made
+  before it, and the block was on the control's own wrapper (now a layer over the control, which
+  lets the wheel through); a High Contrast theme changed while dm runs was drawn only when a window
+  next drew for another reason (now every window is drawn again when the palette changes, at the
+  next wake); and the docs and scripts that still named `dm-desktop.exe` for Windows.
+- **`cargo packager -p`.** Run without it in a crate's folder, cargo-packager makes every
+  workspace package that has its metadata, so the egui window's installer was made too and,
+  renamed to `dm_…`, the two took one name. CI and the Makefile name the package now.
+- **Not taken:** a release `dm-gpui.exe` from Docker (`scripts/windows-build.sh`, `cargo xwin`):
+  GPUI compiles its Direct3D shaders for a release with the Windows SDK's `fxc.exe`, and only
+  when the build runs on Windows, so the cross-build stays the egui window's portable zip; CI
+  and a Windows computer build the GPUI window's packages.
+
+## 2026-11-11: Reference A's benchmark is frozen in the repository as the floor of every parameter
+
+The maintainer asked on 2026-11-11 for reference A's benchmark to be added to the repository. They
+wanted it there so that work on other systems can make dm as fast. They said it never changes,
+because it is the bottom line and a standard, and that every parameter goes in. What was decided:
+
+- **Where.** `bench/` holds the harness (`bench.mjs`), the judge (`compare.mjs`), the frozen
+  `reference-a-baseline.json` and a README written for whoever picks the work up, a person or an
+  AI agent. The harness is `D:\compare\release-0.9.0\bench.mjs` with its server, data and
+  scenarios unchanged. Reference A is named only in the git-ignored `bench/local.json`, and its
+  results say `refa`.
+- **What is frozen.** All 84 of reference A's runs in the 46 result files of 2026-11-09 and
+  2026-11-10 are in the file, each with every parameter, along with the machine, both apps'
+  settings and the harness's parameters. The runs fall into four groups: `standard` (8
+  connections; dm's home on the SSD, both apps saving to the hard disk), `connections16`,
+  `allSsd` and `allSsdConnections16`. For each group and scenario, a floor is reference A's
+  **best** value of each parameter in any whole run. That is the strictest bar it has set, and a
+  run slowed by the harness (the `spawnSync` of 2026-11-09, the window helper left running) can
+  only have made a floor easier. The fastest run's request pattern and timeline are kept for each
+  standard scenario, as a record of how reference A goes about it.
+- **Every parameter is judged**, which widens the bottom line of 2026-11-10 ("faster in every
+  case; CPU and memory at rest"). dm's median must be lower than the floor in time from the
+  address and from the first request, the time to the first request, the finish after the last
+  byte, bytes fetched twice, peak working set, private bytes, CPU and recovery after the outage.
+  A tie fails, except at a floor of 0. Counts (requests, connections, bytes served) are recorded
+  and shown, not judged: more connections is neither better nor worse in itself.
+- **Other systems.** The capped scenarios are bound by the server's caps, not the computer, so
+  their floors apply as they are, as do memory and CPU. `fast` (and, on the baseline laptop,
+  `big40`) is bound by the computer, so its time floors are scaled by the `ceiling` scenario:
+  floor × min(1, ceiling there / ceiling on the laptop). On a faster computer the floor gets
+  stricter, and it is never looser than here. The ceiling is a reference client of the harness's
+  own (`ceiling-client.mjs`: a process of its own, 8 ranges, 4 MiB buffered writes). It was
+  measured on the same laptop on 2026-11-11, 6 runs, best 2.601 s for 512 MiB.
+- **Frozen by its digest.** `desktop/xtask/src/baseline.rs` (`the_reference_a_baseline_never_changes`,
+  in `cargo test --workspace`) and `compare.mjs` both pin the file's SHA-256. A new measurement
+  of reference A goes into a new file beside it.
+- **Not taken.** Re-measuring reference A now: the maintainer asked for the benchmark that exists
+  to be the fixed standard, and a new measurement would be a file of its own. A median floor:
+  dm could pass it while reference A has done better. curl as the ceiling: Windows' own wrote
+  512 MiB in 21.6 s and Git's is a debug build, where reference A took 3.7 s, so it measured the
+  tool. Scaling the capped scenarios too: their floors are near the ideal, and the outage's fixed
+  15 s would have made one impossible.
+- **Changed from the copy in `D:\compare`.** File names carry the run's key, so a second run no
+  longer saves `x (1).bin` and reads as not whole. dm is sampled by its process id, so an
+  installed dm left running is not counted. The sampler runs on macOS (`ps`) and Linux (`/proc`)
+  as well as Windows. `big40` is a scenario again (its parameters taken from its result file),
+  `ceiling` is new, and every result file carries the system, the binary and the folders.
+- **Node, as it was.** `AGENTS.md` keeps out a JavaScript test suite. The benchmark stays plain
+  Node with no packages and no `npm` because its server, write sizes and timers are part of the
+  standard reference A was measured against: a server in another language would pace bytes
+  differently and make the floors meaningless.
+
+`compare.mjs` on the laptop's runs of 2026-11-10, dm's release build of that day: dm is better
+end to end in `fast`, `per_conn`, `flaky` and `outage`, and worse in 22 parameters, which are
+gaps rows 171 and 175 to 177. `batch` has no floor (row 172), and `inet` is never one.
+
+## 2026-11-11: Windows' GPUI window opens smaller
+
+At the maintainer's words of 2026-11-11 ("on windows UI looks super big", "fonts size is good. i
+mean default windows size is big", "make sure it did not break on mac os because on mac it is
+perfect"): on Windows the main window's first size is 840 by 520 points (as wide as its toolbar's buttons need) (900 by 600 before, two
+thirds of a 1366 by 768 laptop's screen and most of its height), and the tallest dialogs open
+smaller: Options 620 by 520 (680 by 600, nearly the screen's height), the Grabber 600 by 480,
+Download links 680 by 480; their pages scroll as they did. Each is `native::pick(macos, windows,
+gnome)` with only the Windows value changed, so macOS and Linux open as before, and the text and
+every control keep their sizes. A window put somewhere else or resized still comes back as it
+was left (`frame.rs`). On Windows a dialog has no minimize button (`screen::open_window`: not
+the main window, whose title bar dm draws, nor the drop target), as Windows' own dialogs have
+none. B25's Windows picture of the empty window (`docs/behaviour-baseline/gpui/windows/`) was
+drawn again at the new size with `human-qa.py --save-baseline` and looked at, at those words.
+
+## 2026-11-11: Linux ships the GPUI window, under the commands it had
+
+At the maintainer's word of 2026-11-11 ("only focus on linux part"; Windows is done on a Windows
+computer) and the recommended option at the font question ("remove after Windows"): Linux's
+packages carry the GPUI window, as macOS's have since 2026-11-10, and the egui window, its fonts
+(Inter, Selawik, the Fluent icon font) and its vendored patches are removed in a change of their
+own once Windows holds the contract in GPUI (G9). The GPUI window uses the system's fonts only.
+
+- **The installed command stays.** The .deb installs `dm-gpui` and a two-line `/usr/bin/dm-desktop`
+  that runs it (`desktop/packaging/dm-desktop`, through the deb's `files`): the README's commands,
+  an autostart entry and a browser's native-host manifest written by an earlier dm name
+  `/usr/bin/dm-desktop`, and an upgrade that removed it would have stopped a login launch until
+  dm was opened by hand. cargo-packager can neither rename a binary nor make a link; a copy of the
+  binary would have doubled the package. The .rpm and Arch package install it as `/usr/bin/dm`,
+  as before. dm writes its registrations again for the binary it runs as at each start.
+- **Dependencies follow the binary:** it links xcb, xkbcommon(-x11) and FreeType, and opens
+  Vulkan, else GL through EGL (Mesa's llvmpipe draws with no GPU), and Wayland's client
+  libraries; X11's Xcursor, Xi and libGL, winit's and glow's, are no longer needed.
+- **A question is a floating window on Linux, not GPUI's `Dialog`.** GPUI's X11 and Wayland
+  windows make a `Dialog` the child of whichever window has the keyboard and close it with that
+  window; a question asked as Add URL closed went with it, unanswered. `Floating` keeps it over
+  that window without closing with it; macOS and Windows keep `Dialog`. A question whose window
+  goes unanswered is answered as Escape answers it, so the questions after it are still asked.
+  And a waiting question opens at once on Linux, as the egui window asks there, not once the
+  main window is in front: a window manager hands the keys to whichever window it likes as a
+  dialog closes, and "Already in the list" waited unseen. macOS and Windows keep their rule
+  (the system gives the main window the keys back, and there a question is a `Dialog` owned by
+  the window in front). On Linux an open question holds the main window's clicks and keys as
+  Options does (`holder`), not what the tray, `--when-done` or the control port asks.
+- **The main window is in gpui-component's `Root`,** as every dialog's is: on Linux its drawn
+  menus (the top bar's) live in the overlay `Root` holds; without it a click on a menu's title
+  opened nothing. The list keeps the keyboard inside it, so commands reach it as before.
+- **A patched `gpui-pre-linux` 0.3.12** (`desktop/vendor/README.md`): GPUI tells AccessKit where
+  an X11 window stands as it starts and as it moves. Upstream defines the call and makes it
+  nowhere, so a screen reader placed every control as if the window stood at (0, 0).
+- **Dialogs on X11 are placed where they asked to be** (`syswindow::place`: the position and
+  static gravity in `WM_NORMAL_HINTS`, then a move), since GPUI shows a window before dm can
+  place it and gives no position; the main window stays where the desktop places it.
+- Tried and dropped: setting the X11 app id from dm's build closure (GPUI already sets it from
+  `WindowOptions::app_id` before it shows the window); a per-window scale for View › Text size
+  (deferred: macOS's slice, not Linux's).
+
+## 2026-11-11: The window tests' unguarded settings writers, found by tracing every save
+
+Gaps row 174: `window::options::site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue`
+sometimes read back `read_timeout` 30 from the shared settings file just after saving 10. To find
+every writer rather than guess, `Settings::save_to` was instrumented for one run (not committed):
+each save logged its test thread's name, whether that thread held `support::settings_file()`, and
+its backtrace. One whole run of the window binary showed 38 tests saving without the guard:
+
+- **The Details hint (33 saves).** `DmApp::details_hint` marks the hint given and saves the whole
+  of `applied` the first time a download runs while the progress window is off, which the tests'
+  window is (`World::settings`). Every such test wrote the defaults (`read_timeout` 30 among them)
+  over whatever a guarded test had just saved. `World::settings` now has the hint given, as it
+  has the progress and complete windows off: most tests are about the list, not the hint.
+  `a_started_download_says_once_where_its_progress_is`, the hint's own test, turns it back on and
+  holds the guard; three tests building their own settings with downloads that run
+  (`a_fresh_link_is_taken_from_the_browser`, `a_cut_connection_is_said_plainly`,
+  `the_series_error_waits_for_both_ends_and_speaks_german`) have it given too.
+- **The rest take the guard:** Add URL's remembered addresses where a test drives the dialog itself
+  rather than through `add_url`, Download details' remembered folder, a sort clicked in a heading,
+  Options' OK, a script's settings applied, and three tests building their own settings whose
+  window gives the hint.
+
+- **The hint's save had been hiding a gap in the test window.** `World::app_with` built the queue
+  without the settings' schedules and limits, which a launch puts on it (`shell::start`), and
+  `control_cover::a_download_the_schedule_holds_is_not_resumed_over_the_port` passed only because
+  the hint's save applied its closed schedule. `app_with` now sets them as a launch does, and
+  `app_cover::a_hint_whose_mark_cannot_be_saved_says_why` turns the hint back on for its own check.
+
+After: three traced runs showed no save without the guard (1,193 saves, all held), and the window
+binary passed ten whole runs in a row. Taking the guard for the whole of every test was dropped:
+it would serialise the binary's 291 tests behind one lock.
+
+## 2026-11-11: The optimization spec, audited: what dm takes from it and what not
+
+The maintainer's spec of 2026-11-11 ("GPUI + Rust Optimization for Cross-Platform Desktop
+Applications") is audited requirement by requirement in `docs/optimization-audit.md`. What is not
+met became gaps rows 180 to 192, and the agent rules that AGENTS.md lacked were added there.
+Decided while auditing:
+
+- **The crates stay as they are.** The spec's layout (`ui`, `app-core`, `download-engine`,
+  `network`, `storage`, and so on) is an illustration. Every rule it serves already holds: the
+  engine and the application layer use no window toolkit (`cargo xtask layers`), and no
+  dependency cycle exists. Splitting `dm-core` into several crates would be churn with no
+  boundary gained.
+- **The window keeps its cadence.** The spec suggests publishing progress 5 to 10 times a second
+  to start with. dm reads a queue change after 250 ms of coalescing, and redraws progress once a
+  second while anything runs, as the egui window did. A faster cadence would change what people
+  see, and would cost the CPU that row 176 is trying to win back. What the spec does buy is
+  drawing only what changed (row 181), not a higher rate.
+- **Not applicable to dm:**
+  - Intel Macs, which are not built (README).
+  - Notarization, which has no free route ("Released unsigned, with the free signing there is", 2026-10-16).
+  - A GPU fallback on macOS, since every Mac on macOS 11 or later has Metal.
+  - Reduced motion, since dm has no animation.
+  - A narrower `dm-core` root. It exports 56 modules and items, each documented (`missing_docs`
+    is on). Cutting the list down is a refactor that no rule asks for.
+- **`panic = "abort"` is open again for the GPUI window.** It was turned down on 2026-11-06 for
+  the egui tray's `catch_unwind`, and `dm-gpui` has none. What is left to weigh is tokio's
+  isolation of a task's panic, against the size it saves. That weighing is row 189's, measured.
+- **The measurements in the audit's §9** were taken on this Mac while the other track built and
+  benchmarked the engine on the same computer, so they hold only as upper bounds. They come from
+  `scripts/ui-bench.py` and `stress-check.py window`, and the commands are in the audit's §9.
+  ui-bench's Find step waits for a Find next button that only the egui window has, so it
+  measures nothing on the GPUI window (row 187).
+
+## 2026-11-11: The GPUI window drags files out through GPUI's own platform drag, not the `drag` crate
+
+Gaps row G10 proposed the egui window's route for the GPUI window: the `drag` crate given the
+window's handle, started from a foreground task once GPUI's own drag of a row began, then GPUI's
+drag stopped. The pinned GPUI (gpui-pre 0.3.12) turned out to have the route itself: an element's
+drag can carry an `external_drag_payload`, which GPUI hands to the system as the pointer leaves
+the window (`PlatformWindow::start_external_drag`). On macOS that is AppKit's dragging session,
+which is not modal and offers a copy outside the program; on Wayland the data device. So:
+
+- **No `drag` crate in `dm-gpui`.** It would be a feature crate (the clean-room rule), and on
+  macOS a second drag beside GPUI's. GPUI's drag also draws the system's own icon for the file's
+  kind, and a drag that comes back into the window is GPUI's again.
+- **X11 is added to the vendored GPUI** (`desktop/vendor/gpui-pre-linux`, `x11/drag_out.rs`),
+  where upstream declines: the egui window's XDND source (`dm-desktop` `xdnd.rs`), moved behind
+  `start_external_drag`, on a connection and thread of its own, ending GPUI's drag with a client
+  message to the window when it is over. Winit's display is not involved, so the Xlib calls of
+  the egui version are gone.
+- **Wayland offers a copy only** (a `dm:` line in the vendored GPUI), as the egui window's winit
+  does and as macOS does outside the program: a file manager that takes a move would carry the
+  download away and its row would say the file is gone.
+- **The files are read as the drag leaves the window**, not as it begins, so a file deleted in
+  between is not offered; a row is draggable when it, or a chosen row it carries, is finished,
+  decided without asking the disk, since rows are drawn many times a second.
+- **Windows waits.** GPUI's Windows platform has no `start_external_drag`, so there a row's drag
+  stays inside the window. The choice (an OLE drag source of dm's own on `windows-sys`, as
+  `drops.rs` builds a drop target, or the `drag` crate the egui window already uses) is left to
+  the Windows laptop, where it can be run.
+
+## 2026-11-11: The window's scale is a slider of four stops (issue #32)
+
+A person on a 4K monitor said the window got smaller in 0.9.0 and asked for a way to enlarge
+it (GitHub issue #32). Why it is smaller: 0.9.0 still shipped the egui window on every system,
+and its commit 066657ed ("reference A's labels, pop-ups and compactness", the maintainer's word of
+2026-11-04) took its body text from 14 to 12 points, its controls and rows to 22 and its first
+window to 820 by 500. Display scaling is not the cause: the egui window followed the system's
+scale, and the GPUI window does too (GPUI links a PerMonitorV2 manifest into the Windows program,
+reads `GetDpiForWindow` and handles `WM_DPICHANGED`; its text is 13 points on macOS and 14 on
+Windows and Linux, rows 24, so its 100% is already larger than 0.9.0's egui window). The egui
+window kept a Text size (Small 0.85, Medium 1.0, Large 1.2 in Options; View › Text size and
+Ctrl/Cmd with + and − in steps of a tenth, kept in egui's memory); the GPUI window had none.
+
+The maintainer's words: "previously we had an option to make the UI large, small and medium; we
+keep it medium by default", then, the same day, "option of slider ... for scale ui to 60 80 100 or
+120 percent. i think slider will be better option". So:
+
+- **Four stops, 60, 80, 100 and 120 percent, 100 the default,** kept in `settings.json` as
+  `text_size` (a factor), so either window can read it. Any other number is read as the nearest
+  stop; the egui window's Small, Medium and Large as 80, 100 and 120; a percentage (80, "80%") as
+  itself. View › Text size › Larger and Smaller (and Ctrl/⌘ with + and −) step a stop, held at
+  60 and 120; Normal size (Ctrl/⌘ 0) is 100. The egui window keeps its own control.
+- **One scale for everything dm draws** (`dm-gpui` `zoom.rs`): every measure dm gives GPUI goes
+  through `zoom::px`, and gpui-component's rem follows through its theme's font size, so words,
+  rows, controls, paddings and pictures grow together, as egui's zoom scaled them. What the
+  system reports (a window's frame, the screen, the pointer) stays as it is. Tried and dropped:
+  sizes in rems with `Window::set_rem_size` (every one of ~375 measures rewritten, and
+  gpui-component's `Root` sets the rem itself each frame).
+- **Live, without a restart:** each dialog's window is resized by as much as the scale changed;
+  the main window keeps its size and its least size, the same on screen at every scale, as the
+  egui window's. The top bar is never shorter than the system's traffic lights need; they are
+  centred in it for the scale in force when the window opens (the system places them once).
+- **Options' slider is not a draft,** as the egui window's Text size was not: a stop is in force
+  when the slider is let go (resized under a drag, the window would move the slider from under
+  the pointer) and kept whatever OK or Cancel. Each stop's percentage under the track picks it
+  too, for the keyboard's and a script's click.
+- **The toolbar wraps** to a second row where its buttons do not fit, as the egui window's does,
+  rather than running past the right edge at 120%. Still open: the list has no sideways scroll,
+  so at 120% in a narrow window the columns after Status are out of sight until it is widened.
+
+
+## 2026-11-11: Links on the clipboard saves where Download links does (issue #32)
+
+The person who asked for the Text size asked next: "when we choose Add links from clipboard, is
+there an option to choose or create a new folder?" Links on the clipboard sent every link to its
+category's folder, with no choice. The maintainer pasted the issue as the request.
+
+- **One Save to for both dialogs**, not a second copy: what the choice means moved out of
+  `links_import.rs` into `dm-desktop-base` `save_to.rs` (`SaveTo`, `SaveChoice`, which
+  `LinksImport` now holds as `save`), and how a GPUI dialog draws it and takes its clicks into
+  `dm-gpui` `savefolder.rs` (the heading, the three choices, the categories' pop-up, the field,
+  Browse…). Same words as Download links, so no new translation was needed; a folder that cannot
+  be made is said with the existing "{} could not be written: {}" and the system's reason in
+  dm's words (`format::file_error`).
+- **The folder is made when the links are added**, Add for later's too (the engine made it only
+  as a download started, so a folder typed for later did not appear until then). A file in the
+  way, as the folder or above it, is said as a name taken on every system (macOS says "not a
+  directory" for one above it). The dialog stays open with the reason; nothing is added.
+- **A name typed alone is a folder in the download folder** (`full_folder(typed, Some(root))`),
+  where the queue refused it as not a full path: a person typing "Holiday" there means that.
+- **Typing in the field chooses Every file to this folder**, and choosing it puts the keyboard in
+  the field, in both dialogs: a typed folder left under "each to its category" was ignored.
+- **The system's panel can already make a folder**, so the vendored GPUI is not patched:
+  gpui-pre-macos 0.3.12 sets `NSOpenPanel` `canCreateDirectories` (platform.rs:888); on Linux
+  the XDG portal's `OpenFile` with `directory` is GTK's or KDE's folder chooser, both with a
+  new-folder button (the portal has no option for it); on Windows `IFileOpenDialog` with
+  `FOS_PICKFOLDERS` has New folder in its command bar. Read from the sources; no panel was opened
+  here (a panel waits for a person, and this terminal cannot move the pointer).
+- The egui window (dm-desktop) is not shipped on any system since 6ab92583, so its clipboard
+  dialog is left as it was; its Download links follows the moved fields only.
+
+## 2026-11-11: YouTube's panel waits for a list rather than hand the page over unasked (gaps row 178)
+
+`human-qa.py` on macOS failed B33 to B35 and B59 in two of four runs: once the first click on
+"Download video" handed the page to dm instead of listing the qualities, and once the player did
+not start when the check pressed play.
+
+- **Why the click handed over.** Reproduced on macOS by making dm's reading of the page slow (its
+  proxy set to a port that accepts and never answers; a scratch diagnostic, not committed): the
+  player's own list was on the panel 0.1 s after the click, and 10 s later the panel said "Sent
+  to dm" and "The dm app is reading this page for its video", the list gone, nothing chosen. The
+  click took any answer from the background with fewer than two lines as final, even with the
+  player's list on screen: none handed the page over for dm to read (and fetch whole), one handed
+  that one over. Two things made such answers: the background cut the app's reading short after
+  8 s whenever the page had shown a stream, and YouTube's player has fetched one by then (a single
+  itag 18 stream was in the tab's kept streams that day), so a slow reading (a debug build, a busy
+  machine, a cold player script) came back as that one stream; and a reading that ends with
+  nothing. The player's list was asked only once, so a click while the player was still loading,
+  or playing an advertisement, had no list to fall back on either.
+- **The reading is cut short only for a choice** (`decide::cut_reading_short`: two stream lines
+  or more). One stream is no choice, so the app's reading (at most 40 s, the panel saying
+  "Reading qualities…" and that it can take half a minute) is waited for.
+- **The click asks YouTube's player again** every half second, for up to 15 s, until it lists two
+  heights or more of the video on the page (`player_list`), and an app answer with fewer than two
+  lines, or a refusal, waits for that before handing over or giving the click back. Past the 15 s
+  what the app gave is used as before. A list the player gave stays when the app's answer has
+  less to offer. An older ask of the player still waiting is answered with
+  nothing when a newer one replaces it, rather than left unanswered for good.
+- **The check presses play as a person does** (`youtube-check.py` `press_play`): it waits a
+  moment for the page's own autoplay, then clicks the picture with the pointer, then the play
+  button, looking again after each, three times at most. One script click could land as autoplay
+  began, pausing it again.
+- Considered and not built: re-asking the app after a cut-short answer. The cut ask's host may be
+  gone with its port, so the second ask would start a new reading and could be cut again.
+- **Measured on macOS, 2026-11-11** (debug dm-gpui, Chrome for Testing in a visible window, other
+  work running on the machine): `youtube-check.py` 10 of 10 runs passed, 68 of 68 checks each, no
+  page refused by YouTube; two runs listed dm's reading with sizes, eight the player's own list
+  first. The slow-reading diagnostic, old extension against new on the same build: the old
+  handed the page over 10.1 s after the click; the new kept the player's two lines until the
+  19 s video ended, 12 s after the click, nothing handed over. `press_play` saw a player paused
+  by script play again in three of three cases: twice its first pointer click on the picture
+  started it (2.3 and 2.4 s), once a play the page started itself came first (1.8 s); in the ten
+  runs YouTube started the player itself every time, so it was not needed.
+
+## 2026-11-11: The download pages' check clicks a link where it rests, not where a scroll left it (gaps row 173)
+
+- **What was wrong.** `handover-check.py libreoffice` said "nothing started" because the click
+  never reached the link. With DevTools in the check's own browser: the click went to
+  `p.version_heading` (the heading above the buttons), not to `a.os_macos`. LibreOffice's menu bar
+  (`#nav-search-wrapper`, `position: sticky`) is 128 pixels tall once the page is scrolled and
+  191 near the top. The check scrolled the link to the middle of the window, which took the page
+  from 81 pixels down to 11, the bar grew back within a frame, and the link moved 63 pixels down
+  (its middle from 433 to 496) after it was measured. The check measured again half a second
+  later, but with another scroll, which moved it the same way again. So dm and the extension
+  were never asked: no download began in the browser at all.
+- **What the page does with a real click.** Its `download.js` cancels the link's own navigation,
+  opens the link in a new tab (`window.open(url, '_blank')`), where the browser downloads it, and
+  sends the page to `/donate/`. The extension caught the new tab's download and dm fetched it
+  from the mirror the 302 named.
+- **The fix is the check's.** `link()` scrolls once; then the click waits (up to 10 s) for the
+  link to be in the same place two measurements running, measured without a scroll, and to be
+  the topmost thing at its middle (`elementFromPoint`), and clicks there. Nothing changed in dm
+  or the extension: a person clicks what is on the screen, which is where the link rests.
+- The earlier tries in the row (the first link a click reaches, an instant scroll, waiting for
+  the link to hold still) are not in the history; if each still measured through the scroll
+  in `link()`, as the check did, the link would read the same wrong place every time.
+- **Measured on macOS, 2026-11-11** (debug dm-gpui, Chrome for Testing, other work running on the
+  machine): `handover-check.py libreoffice` passed twice (the 299 MB `.dmg` whole in dm, nothing
+  kept by the browser); the whole `handover-check.py` 68 of 68, all twelve pages OK.
+
+## 2026-11-11: The release profile measured for `dm-gpui`, and kept (gaps row 189)
+
+- **Measured** on this Mac (Apple M1, macOS 27.0.1, rustc 1.98.1, `aarch64-apple-darwin`, commit
+  `78ce2636`), each variant a full `cargo build --release -p dm-gpui` with 4 jobs, **with the other
+  track building and benchmarking on the same computer**, so times are upper bounds. Peak memory
+  is the largest process of the build (the LTO link). Runtime figures are `ui-bench.py --rows 100
+  --only start,idle,transfer`, three runs taken in turn across the variants (medians):
+
+  | Variant | Binary | Build | Peak memory | Warm start | Idle CPU | Resident | 512 MB, CPU s (window / `--headless`) |
+  |---|---|---|---|---|---|---|---|
+  | Current: `"z"`, fat LTO, 1 unit, strip | 19,952,080 | 353 s | 4.35 GB | 0.44 s | 0.15% | 112 MB | 0.63 / 0.56 |
+  | Thin LTO | 28,012,032 (+40%) | 287 s | 2.84 GB | 0.42 s | 0.10% | 113 MB | 0.66 / 0.53 |
+  | `panic = "abort"` | 15,827,120 (−21%) | 327 s | 4.17 GB | 0.56 s | 0.15% | 112 MB | 0.68 / 0.58 |
+  | GPUI's crates at 3 (`gpui-pre`, `-macos`, `-sum-tree`, `gpui-component`) | 22,141,776 (+11%) | 435 s | 5.88 GB | 0.42 s | 0.15% | 113 MB | 0.67 / 0.63 |
+  | Symbols kept apart (line tables, `split-debuginfo = "packed"`) | 19,953,296 once stripped | 423 s | 5.69 GB | — | — | — | — |
+
+  The 512 MB file came from the Python server at about 400 MB/s, the same for every variant
+  (1.2 to 1.3 s). The start with dm's binary evicted from the file cache varied from 0.4 to 1.8 s
+  within each variant, so it ranks none of them. At 10,000 rows (`--only idle,list`, two runs
+  each), GPUI's crates at 3 changed nothing measurable: one scroll 0.17 s against 0.16 to 0.17 s,
+  a sort by a heading 0.27 s against 0.26 to 0.28 s, the search box's filter 0.36 s against 0.30
+  to 0.34 s. Those times are dm's own work on each wake (rows 180 and 181), not GPUI's drawing.
+- **Kept as it is.** Thin LTO links faster and in less memory, but its binary is 40% larger, with
+  no gain at run time. GPUI at 3 costs 11% and a slower build, for nothing measurable. The
+  overrides for `egui` and `epaint` stay while the egui window is still built (G9).
+- **`panic = "abort"` not taken**, though it is the largest saving there is (4.1 MB, 21%) and
+  changes nothing measured at run time. dm's own code has no `unwrap`, `expect` or `panic`
+  (clippy denies them), but what it depends on decodes what servers send: images, audio, torrents,
+  HTTP. With unwinding, a panic there ends one task, and the other downloads and the window go on.
+  With abort, a server that sends something malformed would close dm and every download with it.
+  dm has no crash reporting (AGENTS.md rule 6), so nobody would learn why. Taking it needs a way
+  to say what happened first, and is left to the maintainer.
+- **Symbols kept apart cost nothing in the binary** (1.2 KB more once stripped: line tables do not
+  change the code), but 70 s more build and 1.3 GB more peak memory in the link. Fat LTO's link
+  already ran out of Docker's 7.6 GB on Linux (G8). So the release profile does not keep them yet:
+  a release with its dSYM, PDB and `.debug` needs the Linux link measured with them first (row
+  189, owed to the final Linux pass), and the release job must attach them apart from the
+  installers, which the update manifest lists.
+- **`[profile.profiling]`** is the release with line tables, symbols and a packed dSYM, for
+  `sample`, Instruments, samply, perf and WPA (docs/testing.md, Profiling).
+- **What the binary is made of** (`cargo bloat --release -p dm-gpui --crates`, symbols kept; `.text`
+  11.6 MiB of a 34.5 MiB unstripped file): `dm_core` 1.4 MiB (11.7%), `std` 1.3 MiB, `gpui` 1.3
+  MiB, unknown 887 KiB, `gpui_base` 646 KiB, `dm_shell` 520 KiB, `dm_gpui` 491 KiB, `librqbit` 390
+  KiB, `gpui_component` 364 KiB, `aws_lc_sys` 298 KiB, `image` 290 KiB, `tokio` 290 KiB, `rustls`
+  228 KiB, `dm_desktop_base` 162 KiB, `usvg` 152 KiB, `librqbit_dht` 147 KiB, `rustybuzz` 136 KiB,
+  `retina` 131 KiB, `reqwest` 129 KiB, `ring` 128 KiB; 283 more crates 1.3 MiB.
+- **Owed.** The same table on Linux (the final Linux pass) and on Windows (the Windows laptop).
+  The judged benchmark (`bench/bench.mjs fast per_conn`) was not run here: it is the other track's,
+  and it must be run again by that track after the merge. Nothing in the profile changed, so no
+  judged number can move because of this entry.
+
+## 2026-11-11: `cargo deny`, and what it refuses (gaps row 190)
+
+- `desktop/deny.toml` serves both workspaces (`desktop/`, and `browser/` through `--config`). It
+  allows the licences dm's 1,100-odd crates carry that are compatible with GPL-3.0-or-later, and
+  allows OFL-1.1 and the Ubuntu font licence for `epaint_default_fonts` only, the egui window's
+  fonts, until that window goes (G9). crates.io is the only source. Duplicates are warned about,
+  not refused (about 100, from upstream crates moving at different speeds). The advisories ignored
+  are `audit.toml`'s, each with its reason there.
+- **"Unmaintained" is refused only for crates dm depends on itself** (`unmaintained =
+  "workspace"`). The four found (`instant`, `rustls-pemfile`, `rustybuzz`, `ttf-parser`) come in
+  under the pinned GPUI (`gpui-pre` 0.3.12, `gpui-component` 0.9.1), where dm cannot replace them.
+  Refusing them would keep the check red until upstream moves. cargo audit still lists them weekly.
+- dm's own crates were marked `publish = false`, which they always were in fact: cargo-deny
+  counts a path dependency of a publishable crate as a wildcard version.
+- Checked with cargo-deny 0.20.2 on this Mac: `advisories ok, bans ok, licenses ok, sources ok` for
+  both workspaces.
+- **Not done**: `criterion` benches (the spec asks for them, run by hand, never gating CI). They
+  are a dev-dependency with a large tree, and were left for a session of their own (row 190).
+
+## 2026-11-11: The end of a download: a range halved only where it is worth a request, each seam asked for once, the staged file held open (gaps rows 171 and 177)
+
+The macOS benchmark (Apple M1, GPUI release build) had `fast` worse than reference A's floor in
+time from the first request (0.327 s against 0.268 scaled), and in bytes fetched twice (4 to 7%
+against 2.6), and `per_conn` tied it at 0.1%. The engine was traced for these runs (each request,
+first byte, cut, split, check and the finish, with the time the server saw them; not committed),
+which showed three causes, each changed:
+
+- **A 150 ms stall in every fast download.** macOS writes out what a file still holds in memory
+  when its last open handle is closed, before the close returns (a Python check: 512 MiB written by
+  eight threads, every close a few microseconds, the last 143 ms). Each range attempt opened the
+  staged file and closed it at its end, on a runtime thread, and whichever closed last in the end
+  game held its connection, and every range opening the file meanwhile, 140 to 160 ms. The job
+  now holds the staged file open from `preallocate` until the file is placed (`Job::holding`) and
+  lets it go on a blocking thread: waited for where the parts are removed or made again next
+  (Windows keeps a file being deleted while a handle is open, and a new one of its name cannot be
+  made), not waited for once the file is placed. The mark of where it came from and Completed come
+  within 5 ms of the last byte; the write-out happens after.
+- **Halving however soon a range would end.** A connection with nothing left halved the range with
+  the most bytes left, so the end of a fast file was a cascade (nine halvings of its last range in
+  5 ms; 38 to 60 requests for 8 ranges), and each halving stopped the range's own connection short
+  of the end it had asked for: what the server had sent past the new end, 2 to 8 MiB a time over
+  loopback's buffers, came again. A range is now halved only where its own connection would take
+  longer than `SPLIT_WORTH` (0.1 s), or twice what this download's requests waited for their first
+  byte, to fetch what it has left at its pace over its last 20 ms window (`Going`, kept under the
+  per-range lock the chunk loop already takes); and only once 40 ms have passed since a range last
+  came whole, so the ranges still going have taken up its share (`SPLIT_SETTLE`). A range whose
+  answer is still on its way is left be, until it has waited a second (`STUCK_AFTER`), when it
+  counts as stuck however little it has left, as does one that has gone a second without bytes. A
+  connection that finds nothing worth halving waits rather than ending (woken when a range ends or
+  is given up, otherwise every 25 ms), since a range can stall or slow later; it ends once no range
+  under way is long enough to halve.
+- **Checks that overlapped.** Each range's last 4 KiB was asked for again when it ended, and 2 KiB
+  either side of up to eight seams again one after another after the last byte: 66 KB of a 64 MiB
+  file, all of `per_conn`'s 0.1%, and eight round trips in every finish. Now a seam is asked for
+  once, 512 bytes a side, by whichever of its two ranges is whole second, as the download goes on
+  (`assemble::check_seams`), and the file's last 512 bytes once; nothing is asked after assembly
+  begins. A 200 under the validator is still another version of the file, and a difference restarts
+  the file on one connection with the row saying why, as before. The 64 bytes before each range
+  (`LEAD_BYTES`), compared at assembly, stay.
+
+And one tuned figure moved with them: `HELP_WORTH_SECS`, the share of a file left at which the
+helpers of a small file look for a range to halve, from 0.3 s to 0.2 s. With the range's own test
+deciding whether a connection is opened, it no longer guards against a useless one; at 0.3 s,
+`batch`'s 2 MiB files at 2 MiB/s a connection were seen with 0.29 to 0.34 s left and were helped
+or not as their bytes fell into the 80 ms watched, 0.32 s with help and 0.52 s without.
+
+Measured on the same machine, one build after the other (`bench.mjs`, three runs where the
+harness allows): `fast` 0.211 to 0.230 s from the address against 0.329 to 0.448 before, 0.6 to
+1.0% fetched twice against 3.3 to 6.0, 16 requests against 36 to 60; `per_conn` 0.0% against
+0.1; `flaky` 0.0 to 0.1% against 0.3 to 0.5; `batch` 2.9 to 3.2 s against 3.3 s, 2.2% against
+4.4; `big40` 0.05% against 0.15; `outage` 0.3% against 0.6, its time unchanged. `fast`'s
+`lastByteToDoneMs` (77 ms against a scaled floor of 68) is the harness's: dm says Completed 5 ms
+after the last byte, and the harness asks `queue.list` every 100 ms plus a round trip from the
+moment it hands the address over, so a download that ends about 150 ms in is seen at the third
+look, 80 to 95 ms later, every time.
+
+Tried and dropped:
+- A fixed half-second (the audit of 2026-11-11 suggested about that): `batch`'s helpers met ranges with
+  0.3 s left and would have halved none, and its files took the 0.52 s of two connections.
+- The pace since the attempt's first byte, and judging at once: a range that had shared the line
+  with seven others looked three to four times slower than it was once they were done, and was
+  halved for nothing; counting the first chunk in its window put a capped range above its cap.
+- Settling only after the connection's own range: the ranges beside it were still ending, and one
+  fast run in two still halved one, at 4 to 8 MiB fetched twice.
+- A kibibyte a side for the seams: the probe's answer runs past the first range's end by what the
+  server had in flight (4 to 18 KB at 1 MiB/s), and with 15 KB of checks one `per_conn` run in
+  four came to 0.05%, printed 0.1.
+- Not changed: the probe's `bytes=0-`, whose answer is the first range's and is dropped at that
+  range's end. What the server had in flight then, 2 to 8 MiB over macOS's loopback, is now nearly
+  all that `fast` fetches twice. A bounded first request would cost every download a round trip on
+  its first range to save it.
+
+## 2026-11-11 (evening): What is still fetched twice, the finish measured to the millisecond, a range's checks asked at once (gaps rows 171 and 177)
+
+The work of the afternoon (926b703c, the entry above) was cut off before its numbers were taken a
+second time. Measured again in the evening on the same Apple M1, now much busier (`auditd` at 63%
+of a core and the antivirus's two daemons at 15% each, beside another session's builds), six runs
+each of 926b703c and of the change below, the two builds alternated (`bench.mjs ceiling fast
+per_conn flaky`, three runs a build at a time, four times): nothing of the afternoon's change hurt,
+and it was kept whole. Medians, 926b703c then the change: `fast` 0.329 and 0.329 s from the
+address, 1.8 and 1.6% fetched twice; `per_conn` 8.084 and 8.088 s, 0.0% in all twelve; `flaky`
+8.075 and 8.066 s, 0.05 and 0.1%.
+
+**What is fetched twice now**, request by request (each run's `perRequest`: the bytes of every
+request against those of every other): in `fast`, the probe's answer, cut at the end of the first
+range with what the server had already sent past it, 4 MiB when dm reads quickly and 9 MiB when the
+computer is busy and the socket buffers fill; then 7 seams of 1 KiB, the file's last 512 bytes and
+64 bytes before each range, 8 KB in all. In `per_conn`, 10 to 16 KB of the probe's answer past the
+first range and the 8 KB of checks: 0.03%. In `flaky`, 25 to 41 KB each time a range is halved
+under its connection, about twice a run (26 times in twelve runs), and 10 KB of checks. No reconnect
+asked from a stale place (in those twelve runs each of the 426 requests after a cut asked from
+exactly where the cut left its range), no range was asked for twice at the end, and no halving
+overlapped its range beyond the 64 bytes asked on purpose. What remains is what was in flight when a connection was let go, which no
+request made after it can take back.
+
+**The finish, measured.** dm was traced (each range whole, each check asked and answered, assembly,
+the runner, Completed; with the server's own times; not committed) under a copy of the harness that
+looks every 5 ms rather than 100. From the last byte of the file to Completed: `fast` 5.7 to 7.3 ms,
+`per_conn` 14.2 to 17.6, `flaky` 6.6 to 9.5. Of `per_conn`'s, 11 to 14 ms were the checks of the range
+whole last, asked one after the other: it nearly always has two (a seam either side, or a seam and
+the file's end), and that server answers a new request 4 ms after it comes, so the second check
+waited out a round trip the first had already spent. They are now asked at once (`check_seams`,
+`join_all`), on whichever connections are free; the finished ranges leave theirs open, so no new
+one is made in the usual case. Assembly read the 64 bytes before each seam through an open, a seek
+and a read apiece, each a hop to the blocking pool; one blocking task now reads them all through
+one open, and the part of assembly before the file is placed went from 0.8 to 2.6 ms to 0.4 to 1.0.
+After: `fast` 4.4 to 5.9 ms, `per_conn` 8.9 to 12.1, `flaky` 6.2 to 7.8. On a real link the checks
+asked at once are a round trip less at the end of nearly every download.
+
+**Why the harness still sees 9 to 107 ms.** `bench.mjs` asks `queue.list` every 100 ms (each answer
+takes 1.2 ms, median of 40) from the moment it hands the address over, so what it reports is dm's
+finish plus the wait for its next look. Against `flaky`'s floor of 71 ms a median of three runs comes
+out over it about one time in three whatever dm does in those few milliseconds: two of the five
+medians taken this day did (73 and 76.5 ms). `fast`'s floor scales with the ceiling measured in the
+same run, 68.8 ms with a 0.225 s ceiling and 80.7 with 0.264, and its verdict follows where the look
+falls.
+
+**What holds `fast` here.** The same builds took 0.15 to 0.27 s in the computer's quieter minutes and
+0.86 to 1.7 s in its busier ones, with the reference client's own ceiling between 0.225 and 0.38 s;
+judged against a floor scaled by that ceiling, `fast`'s time was worse with one run's ceiling and
+better with another's though the medians were the same, 0.329 s. The bench's server is one thread:
+eight native readers that write nothing take 512 MiB from it in 128 to 172 ms, but dm's seven range
+requests besides the probe, sent within half a millisecond of each other, were taken up 2 to 37 ms
+after the probe while the server streamed its answer, and the range taken up last ended last.
+
+Tried and dropped:
+- Leaving the staged file to grow on macOS rather than making it full length first. Eight threads
+  writing a region of 64 MiB each front to back, as the ranges do, took 293 to 416 ms into a file set
+  to 512 MiB first and 155 to 200 ms into one left to grow; but dm's `fast` over eight pairs of runs,
+  the two builds alternated run by run, was 0.285 s with the file made full length and 0.272 s
+  without (medians), five pairs of eight faster with it. Not a gain anyone could measure, against a
+  branch for one system and a resume that would have had to make the file full length before its
+  check reads a range's end. Not kept.
+- Leaving the probe's answer unread until the other ranges' requests are answered, so a server of
+  one thread takes them up first: it tunes dm to the bench's server. A server with a thread or a
+  task per connection has no such queue, and on a real link the first range's connection would stop
+  for a round trip.
+- Asking the probe for a closed range (`bytes=0-N`) so nothing is cut: it would save `fast`'s 4 to 9
+  MiB, but every download's first range would then need a second request and a round trip of its
+  connection, and the probe is where the fallbacks for servers that refuse an agent or a referrer
+  live. Not done; `fast` is at 1.4 to 1.8% against the floor's 2.6.
+- Halving a range only where the download's rate fell when the last range ended (a limit shared by
+  every connection is not helped by one more): `flaky` would save its 25 to 41 KB a halving, but on a
+  shared link a connection slow for its own reasons would be left to end alone. Not done.
+- Writing each range through a duplicate of the handle the job holds on the staged file, to save an
+  open per attempt (0.2 to 1.6 ms between a range's answer and its first byte written): a duplicate
+  shares the file position, so two ranges seeking and writing at once would put bytes in each
+  other's places. Positional writes would not, but change the whole write path for that.
+- Removing the ledgers and the plan after Completed rather than before (0.8 to 2.8 ms of the
+  finish): a download of the same row started at once would have its new ledgers removed under it.
+
+## 2026-11-11 (night): CPU while a held-down download runs (gaps row 176)
+
+On macOS (Apple M1, GPUI release build) `per_conn` had used 1,860 ms against the floor's 1,281 and
+`flaky` 1,885 against 1,406, and a `sample` of the process showed no hot spot. Measured again by
+thread (`ps -M`), with the instructions and cycles the kernel counts for the process
+(`proc_pid_rusage`) beside its CPU time, and a symbolized release build under `sample`, with a
+copy of the bench's server driving one download at a time (not committed):
+
+- **The window drew for the harness.** `bench.mjs` asks `queue.list` every 100 ms, and each request
+  woke the window for a whole look: a read, the tick and a frame, ten frames a second while the
+  window was on screen, and after the first download "Download complete" was drawn with each of
+  them too (it was drawn again whenever the list was). GPUI draws nothing in a window it cannot
+  see, which is why the same build's main thread took 30 to 80 ms of a run in some runs and 260 to
+  990 in others: whether the window was covered.
+- **A running download was read once a second.** Progress raises no signal (`EVENT_FLOW.md`: it is
+  polled), and the GPUI window's clock was a second while a download ran, where the egui window and
+  that document say a quarter: a person saw the figures move in jumps.
+- **The engine wrote each piece a held-down server sends as a write of its own.** At 1 MiB/s a
+  connection the bench's server sends 16 to 20 KiB at a time, over the 16 KiB buffer, so about 450
+  pieces a second each went to a blocking thread and a `write`. With the window covered, the
+  engine took 1.85 to 2.03 G instructions for `per_conn`'s 64 MiB.
+
+What changed:
+
+1. `queue.list` is answered on the control port's own thread (`control::listen_reading`, the
+   reader in `dm-gpui/src/port.rs`), from a snapshot of its own with each finished row by its
+   file's size as the window's read gives it, and who may ask as the window says
+   (`control_api::refused`): the window is neither woken nor drawn for it, and the answer does not
+   wait behind a frame. Anything else a script asks is the window's, as before. First tried as an
+   answer on the window's thread that skipped the look and the frame (`Wake::Asked`); the port's
+   thread is simpler and cheaper again (3 % fewer instructions with the window on screen), and an
+   answer no longer waits while the window draws.
+2. The window reads and draws every quarter of a second while a download runs (`RUNNING`), a second
+   for When done's countdown and the clipboard, 30 seconds otherwise; its clock runs from its last
+   look, and a queue change's quarter-second wait ends no later than that.
+3. "Download complete" is drawn again only when what it lists changes.
+4. A range gathers 64 KiB before it writes (`WRITE_BUFFER`): the most a held-down server sends at a
+   time, which tokio's own copy of each write already grows to, so a download of eight connections
+   holds 384 KiB more. A fast server's pieces are larger than the buffer and pass as before. And
+   what came is written down within the ledger's quarter second even while the server says nothing
+   more (`attempt_segment`, `tests/quiet.rs`): held in the buffer, less than a buffer's worth sent
+   and then nothing stayed off the disk a preview reads, and past the ledger a crash goes back to,
+   for as long as the server was quiet (as up to 16 KiB had before). The window test of a preview
+   from what is on disk (`tests/window/downloads.rs`) now has its server send 128 KiB, two buffers,
+   where 64 KiB was four of the old.
+5. A piece of words the window draws records where it was laid out from the box around it
+   (`Screen::mark`, `on_children_prepainted`), not from a canvas of its own beside it: one element
+   fewer to lay out and paint for each, about a quarter of the main window's; 2.5 % fewer
+   instructions with the window on screen.
+
+Measured, `per_conn` with the window brought to the front (`ui.window shown`), the server polled
+every 100 ms, the two builds alternated: the old 2.46 to 2.88 G instructions and 600 to 1,060 ms,
+the new 1.18 to 1.39 G and 390 to 610 ms. The engine alone (`--headless`, interleaved): `per_conn`
+1.86 G instructions to 0.87, `flaky` 1.13 G to 0.99. The bench, the old and the new build
+alternated: in a quiet hour `per_conn` 1,550 ms to 1,000 and `flaky` 1,630 to 1,130 (medians of
+three, before changes 1's port thread and 5; the old build over its floors, the new under), and in a
+busier one 760 to 540 and 725 to 560 (of six). The whole bench on the new build
+(`bench/results/darwin-2026-11-11`): `cpuMs` better than the floor in every scenario (`per_conn`
+730, `flaky` 840, `fast` 440, `outage` 1,810, `big40` 2,695, `idle` 30), the time and what was
+fetched twice as before. The peak working set was 111 MiB against the old build's 118 to 120 in the
+alternated runs, and 133 to 142 in the whole run, as far from its floor as it was (row 175).
+
+**Why one run's CPU is not the next one's.** Counted per run, cycles over CPU time came to 1.1 to
+3.0 GHz and dm's time on the fast cores to 10 to 39 % of it, while the instructions moved by a few
+percent: the same work took up to two and a half times as long, by where the system ran dm's
+threads and how fast, and in the computer's quiet hours most. That is how the old build measured
+1,860 ms earlier in the day, 1,550 in the quiet hour and 760 in the busier one, and why builds were
+compared by instructions, alternated, never by one run's `cpuMs`.
+
+**The finish in that run.** `flaky`'s `lastByteToDoneMs` came out at 84 ms there (29, 84 and 85),
+over its floor of 71, and 83 to 87 in the run of `per_conn` and `flaky` before it. It is where the
+harness's look every 100 ms falls: with a copy of its server and its looks, both builds came out
+either 5 to 20 ms or 90 to 110 (the old: 98, 5, 99, 96, 109, 19; the new: 92, 94, 100, 10, 8, 106),
+the run finishing just before a look or just after it, and a `flaky` run is nearly the same length
+each time. Looked at every 5 ms, dm said Completed 6 to 12 ms after the server's last byte with the
+new build and 4 to 18 with the old.
+
+Tried and dropped:
+- Fewer of tokio's workers (`TOKIO_WORKER_THREADS` 2 and 4 against the 8 the M1 gets), alternated
+  over three rounds: 531, 568 and 572 M instructions, 535, 600 and 530 ms. Not a setting worth having.
+- GPUI and taffy built at opt-level 3, as egui and epaint are: the binary 0.99 MB larger
+  (19,901,696 bytes to 20,888,432) for 5 to 8 % fewer instructions with the window on screen. A
+  frame is GPUI's layout and prepaint of the whole tree (`sample`: 77 of 90 samples on the main
+  thread were `Window::draw`, half of it taffy's layout, dm's own `render` 3), which the level
+  barely moves. What would: drawing again only the parts that change (GPUI's cached views), which
+  the window's one view and its record of the words on screen do not allow as they are.
+- Not tried, written down: reading a slow connection's bytes in fewer, larger reads by pausing
+  between them. The bench's server sending 64 KiB pieces in place of 16 KiB took dm's engine from
+  0.83 to 0.88 G instructions to 0.56 to 0.66, so the share per piece is real; but every pause
+  would add to the finish after the last byte (row 177) and to the time a cut connection waits to
+  be asked again, and the kernel still wakes dm for each piece that arrives.
+
+## 2026-11-12: Memory on macOS: a download's large blocks go back to the system, and what any GPU window costs (gaps row 175)
+
+What the benchmark reads on macOS is the resident size `ps` gives (`rss`), every 400 ms;
+`peakWorkingSetMB` is its highest in a run. It counts the pages in dm's own page tables: its heap
+and stacks, its code, the system's data files it has read, the pages of the system libraries' data
+it has touched, and of GPU memory only what the CPU has written; not the libraries' code, which
+every program shares. `vmmap` lists more as resident than that: the window's drawables (two of its
+three 1800 by 1200, 8.4 MiB each, at rest) are drawn by the GPU and composited by WindowServer, and
+a bare window measured below is 83.1 MB with none drawn and 84.5 with three. A Metal buffer or
+texture counts only as the CPU writes it: in a test program a 32 MiB shared buffer counted nothing
+when made, 4 MiB once 4 MiB were written, and a texture as its rows were uploaded. It is not the physical
+footprint (`footprint`), which counts only what dm alone holds and was 49 MB at rest against
+107 MiB resident. dm-gpui (release, Apple M1, macOS 27, a home of its own, the window on screen) was
+taken apart with `vmmap`, `footprint` and `heap`, at rest and around downloads driven through the
+control port by a copy of the bench's server (not committed).
+
+**At rest**, 106 to 108 MiB, steady over two minutes; of what `vmmap` lists, beside the drawables:
+- the heap, 17.5 MiB: 11.5 MB in use (4.2 MB of it dm's and GPUI's own: GPUI's two arena chunks of
+  1 MiB, its scene, taffy's nodes, the keyboard layouts; the rest AppKit's menus and their SF
+  Symbols, CoreText, the Objective-C runtime) and 5.7 MB freed during the start and kept;
+- the system's data files dm has read, 14.3 MiB, clean pages: the SF Symbols catalogues (5 MiB,
+  pulled in by the menus' separators), LaunchServices' store (2.2), the system font (1.7), the
+  keyboard layouts (1.6), the appearance catalogues and ICU;
+- dm's own code, 8.2 MiB of its 17.3, clean;
+- GPUI's Metal buffers, 3.9 MiB listed: the frame's instance buffer (2 MiB) and the glyph atlas
+  (1 MiB), of which only what each frame writes and the glyphs uploaded count;
+- and the rest, the system frameworks' own data pages dm has touched: AppKit loads the same 1,140
+  images whatever a program links.
+
+**What any GPU window costs.** A 60-line Objective-C program that opens an `NSWindow` of the same
+size with a `CAMetalLayer`, with no menus, text or Rust, is 81 to 83 MiB resident: 81.1 with
+nothing drawn, 82.3 to 83.3 with one to three drawables drawn (four runs). Linked with every
+framework dm-gpui links it is the same (the same 1,140 images). So no GPU window on this computer
+comes near reference A's floor, measured on Windows (39.2 MiB at rest, 20.9 to 21.6 while
+downloading); dm's own share at rest is the 24 to 26 MiB above that program: its code (8.2 MiB),
+its heap beyond the program's (14 to 16 MiB of small-block regions against 8.7, the start's
+leftovers among them), the data files its menus and keyboard read (about 3), what GPUI writes of its
+Metal buffers, and the frameworks' pages its own calls touch.
+
+**While downloading it rose, and stayed.** 107.5 MiB at rest, 129.5 after one `fast` download
+(512 MiB), 134.7 after two `fast` and two `per_conn`, 134.4 ten seconds later; with no window
+(`--headless`) 21.7, 39.6 and 42.5. The heap then held 14.2 MB in use in 37.1 MiB resident,
+22.9 MiB freed and kept; headless 0.6 MB in use in 20.3 MiB, 17.4 MiB of it regions with nothing in
+them. macOS 27's allocator gives freed memory back only when the computer runs short: in a test
+program, 64 MiB freed in blocks of 64 KiB, 416 KiB, 1 MiB, 4 MiB or a mix stayed resident for as
+long as it was watched, and `malloc_zone_pressure_relief` released none of it (which is why the
+timer of 2026-10-27 "did not move" RSS). It came back once, when the computer was short of memory,
+as it was in one bench run where `per_conn` measured 98 MiB after three `fast` downloads, and in one
+`outage` run below. The blocks were a download's largest, each freed as its connection or range
+ends: halfway through a 3 GiB download from the local server, 7.7 MiB of them were alive, eight
+read buffers of 416 KiB (hyper grows each a step at a time from 8 KiB to 408), eight of tokio's
+copies of what is being written (up to 640 KiB) and eight write buffers of 64 KiB.
+
+**What changed.** `dm_core::memory::Allocator`, dm-gpui's global allocator on macOS, maps each block
+of 64 KiB or more on its own (`mmap`, tagged "App-Specific Tag 1" for `vmmap`) and unmaps it the
+moment it is freed. Smaller blocks stay with the system's allocator, so the many small ones cost
+no call to the system each. Windows and Linux keep the system's allocator: not measured there.
+
+**Measured**, the old build and the new alternated (`peakWorkingSetMB`, medians):
+- `node bench/bench.mjs idle fast per_conn`, three rounds of three: `idle` 107.0 and 107.1 (no
+  change); `fast` 131.7 MiB (123.9 to 134.9) to 119.2 (109.8 to 126.4); `per_conn`, after the
+  `fast` runs, 134.6 (132.2 to 136.0) to 120.8 (119.8 to 121.9).
+- `flaky` (three) and `outage` (one), three rounds, each from a fresh dm: `flaky` 120.8 (105.1 to
+  121.9) to 117.2 (110.3 to 119.7); `outage` 121.7 and 122.0 to 114.0 to 120.4 (the old build's
+  third, 62.6, came while the system was short of memory and took back pages of its own).
+- The driver: after two `fast` and two `per_conn` and ten seconds, 134.4 MiB to 116.3 (the heap
+  17.5 MiB resident, 0.9 of it empty regions, and 1.7 MiB of mapped blocks; footprint 79 MB to
+  59); headless, after the same four, 42.5 to 42.9 MiB to 25.4 to 28.0, and 38 to 40 at the peak of
+  a `fast` download to 34 to 35.
+- CPU: over three `flaky` downloads the whole process ran 7.12 G instructions with the old build
+  and 7.19 G with the new (medians of three, +1 %), with 8,970 page faults to 11,100 and 71,200
+  system calls to 73,000, the new buffers' fresh pages and their maps; `cpuMs` per run 620 to 600
+  (medians of nine). Headless, per download: `per_conn` 893 to 912 M instructions, `fast` 3.0 to
+  3.2 G (medians of six, in the runs' spread). Seconds as before.
+
+The whole bench on the new build afterwards, in one process as it runs (`bench/results`, quieter
+hour): `idle` 106.6 MiB, `fast` 114 to 117, `per_conn` 120, `flaky` 120, `outage` 120, `batch` 125
+to 127, `big40` 127 to 129, every other parameter as before; the build of the night before had
+133 to 142 in its whole run. What is left at rest is the window itself, which this does not touch;
+in a download, the Download complete window from the first one on (about 5 MiB beyond what the same
+download costs with no window: its own GPUI state and the code and data its first drawing reads),
+and dm's code and data files read for the first time.
+
+Tried and dropped:
+- `malloc_zone_pressure_relief`: releases nothing on macOS 27.
+- Linking fewer frameworks (`-dead_strip_dylibs`): AppKit loads them all anyway.
+- Two drawables in place of three: drawables are not counted in the resident size (the bare
+  window measures the same with one drawn or three), and GPUI's display link hands a drawable out a
+  frame ahead, so frames would wait for one.
+- Not listing the installed fonts at the start (gpui-component does, once, to check the theme's
+  font names; 3 MiB resident in a test program): skipping it means naming the theme's fonts
+  another way, which could change the window's text.
+
+- Starting GPUI's Metal buffers smaller (its 2 MiB instance buffer, each window's 1 MiB glyph
+  atlas) in a patched copy of `gpui-pre-apple`: they count only as far as the CPU writes them, and
+  a frame writes what it needs whatever the buffer's size, so it would change next to nothing.
+
+Not done, written down: tokio's file copies each write a second time (about 3.5 MiB at full speed
+on eight connections), which only writing without tokio's file would avoid; and the 5.7 MB the
+start frees and the heap keeps are small blocks, below what is mapped on its own.
+
+## 2026-11-12: After an outage, a download's connections take turns asking, and all come back with the first byte (gaps row 177)
+
+**What was measured.** `bench` outage (64 MiB at 8 MiB/s shared; at 30% every connection is cut
+and every request dropped unanswered for 15 s), the release build of a3a28292 on macOS (Apple M1):
+the first byte after the server returned came 195 to 216 ms late in seven runs. The eight
+connections are cut in the same instant, ask again at once, then 279, 665 and 1,052 ms later all
+together (each lane's `quick_nap` is the same for the same attempt), and from then on each on its
+lane, a quarter-second apart, about every two seconds. The attempts' own few milliseconds move
+that pattern a little, and in the bench they put the first request after the fifteen seconds
+about 0.2 s late every time. The other seven connections then came back on their lanes, the last
+1.75 s after the first: a copy of the bench's outage server that writes down every request, run
+beside it, saw them back at 210 to 1,961 ms, 200 to 1,954 and 34 to 1,790. 80 requests dropped.
+For an outage of any length the lanes leave seven gaps of 250 ms between asks and one of 250 to
+500, a wait of about 135 ms on average after a server returns.
+
+**What a request can and cannot do.** During the outage the bench's server reads each request
+and drops it; only one that reaches it after the outage is answered. So the wait after the server
+returns is the time to dm's next request: nothing can be held open at the server, and nothing
+tells dm when to send. With a request every 100 ms the wait is between 0 and 100 ms, 50 on
+average, and 0 (the floor) about one time in a hundred. Reference A's 0 is about six hundred
+requests a second (8,054 to 10,200 dropped in 15 s), and even so its four runs read 0, 1, 6 and
+16 ms.
+
+**What changed.** `retry::Together`, one for each download (`Job::together`, which also holds the
+count of requests bringing bytes in that `grow` reads):
+- A connection that failed for want of a connection, was asked again at once (as before) and
+  failed again, while no request of the download is bringing bytes in, waits for its turn rather
+  than its lane's time. Each connection's turns are a round apart, 0.8 s, and the download's are
+  the round shared among its connections, at least 100 ms apart: eight connections ask in turn
+  every 100 ms, ten requests a second for the download, evenly.
+- The first turn of an outage falls at a random point of its share (`getrandom`), so computers
+  or downloads that lost a server in the same instant do not ask it in the same instants, and the
+  wait after an outage does not hang on how long the outage lasted. Turns counted from the
+  outage's first instant would read a few milliseconds in the bench, fifteen seconds being a whole
+  number of tenths, while an outage a few milliseconds longer waits a tenth more: a reading of the
+  bench, not of dm, so not built.
+- From twenty seconds in, the round is a twenty-fifth of how long the failing has lasted, up to
+  2 s from fifty seconds on: a long outage is asked about four times a second, as the lanes asked.
+- The first byte any request of the download gets (`Together::bringing`, where `grow`'s count was
+  kept) sends every connection waiting its turn at once, and one whose attempt failed after that
+  byte came asks again at once.
+- Unchanged: a connection failing while others bring bytes in (a server turning one connection
+  away is not asked ten times a second), a wait the server or the person named, and FTP, HLS,
+  DASH and the probe, which have no `Together`.
+
+**Measured.** Alternated with a3a28292, four runs each: the first byte after the server returned
+216, 205, 199 and 204 ms against 58, 82, 37 and 15; the whole download medians 23.260 and 23.099 s,
+from the first request 23.240 and 23.083 (floor 23.312); requests dropped 80 against 157 and 158,
+112 to 122 in all against 183 to 189; `cpuMs` medians 1,315 and 1,290; peak working set 115.7 to
+116.6 MiB against 113.0 to 116.8. Three runs of each before that, not alternated: 196, 196 and 195
+against 28, 73 and 48 (`cpuMs` 690 to 740 against 1,360 to 1,400, the first three in a quieter
+minute; alternated, the same). Medians of the seven runs of each: 199 ms against 48. The
+committed build, three runs into `bench/results`: 92, 65 and 43 ms, 23.073 to 23.093 s, and
+`compare.mjs` better than the floor in every outage parameter but `peakWorkingSetMB` (row 175) and
+`recoveryAfterOutageMs` (65 against 0). In the copy of the server that writes down every request,
+the other seven connections came back within 2 or 3 ms of the first in three runs (35 to 37 ms,
+34 to 37, 90 to 92), where they had taken 1.75 s. `tests/errors.rs`
+`connections_that_lose_the_server_take_turns_and_come_back_together` fails with the turns switched
+off: the server went unasked for 1.05 s of its 2.5 s outage.
+
+Not done, written down:
+- One connection asking for all while the others wait: the same number of requests finds the
+  server no sooner, and one held in a twenty-second connect would hold every connection; with
+  turns each connection asks for itself.
+- Turns 50 ms apart: about 300 requests in the bench's fifteen seconds, for an average wait of
+  25 ms instead of 50.
+- Turns shared among the downloads from one server: each download takes its own, so two at once
+  from one server ask it twenty times a second.
+
+## 2026-11-12: The main window reads and draws what changed; quitting stops the downloads (gaps rows 180, 181, 182, 186)
+
+- **A read keeps what only figures changed.** The queue hands out a row's own `Arc` until it
+  changes it, so `Downloads::read` finds what changed by comparing pointers. Where only figures
+  moved (bytes, rate, time left; `placed_alike` compares the rest that names and places follow),
+  the names, places and choice are kept; they are worked out again where a row was added,
+  removed or changed otherwise, after Options, and every 2 s while anything changes, so a
+  waiting row's "name (1)" still follows its folder. Working everything out at every read was
+  most of the cost of a scroll at 10,000 rows (0.17 s, now 0.03 s). `SavedSizes` gives a
+  finished row the same copy while the queue's is the same, or a joined MP4's row (its size on
+  disk not the engine's count) looked changed at every read.
+- **The names' folder cache drops what expired, swept when it has doubled.** Emptied past 2,000
+  entries, it asked the disk for every one of 10,000 waiting rows at every read; swept at every
+  miss it would have been quadratic.
+- **A wake draws only where something shown may have changed** (`needs_drawing`): a change found
+  by the read, a request answered, something that moves with the clock (a running row, a retry,
+  When done, a sentence about to go, a file's days before the Trash), or a change beside the
+  rows (problems, the status bar's sentence, sheets, the menu, the choice). The tick's helpers
+  that change the window otherwise notify it themselves. Splitting the window into views of
+  their own, so a running row does not build the toolbar and sidebar again, is not done: it is
+  row 181's remaining part.
+- **Frames are counted on the port's own thread** (`ui.frames`): asked through the window, the
+  question would have drawn a frame itself.
+- **A file's "missing" is looked for off the window's thread**, for the rows on screen and those
+  chosen only, at most once a second and at once where the view moved or the window comes to the
+  front. Looking at every finished row was dropped: 10,000 `stat` calls a second while downloads
+  run, for rows nobody sees. Until a row has been looked at it reads as present, as a file just
+  finished is.
+- **The row at the top of the view is held** where rows come and go above it (`holding_top`), not
+  at the very top, where new rows are meant to be seen. Rows are keyed and handled by download id.
+- **Quitting stops and awaits the downloads** (`Queue::shut_down`, 2 s at most, then the rest
+  aborted). The rows go back to Queued, as a restart made of Running ones before. A restart still
+  fetches each part's last 64 KiB again (`RESUME_CHECK`), as after any pause: skipping it needs a
+  stop that syncs the part and marks its ledger, an engine change left to the engine's track.
+- **`ui-bench.py`'s paging under load is a dm of its own with 60 downloads** (10 at once, dm's
+  most), so the CPU figure with 20 stays comparable with the stored baseline.
+
+## 2026-11-12: Slow work off the window's thread; panels that do not hold it (gaps rows 183, 180)
+
+- **One errand thread, in the order asked** (`dm-shell` `app/errands.rs`, `Backend::later`). A
+  handler's slow work (a command on the chosen rows, Start and Stop Queue, Move/Rename, Update
+  download link's and Properties' OK, Delete's Trash, Export, the settings file after a drag) is
+  handed to it, and its answer comes back as a future the window awaits and applies on its own
+  thread (`list/later.rs`). One thread, not a pool or the runtime: two commands given one after
+  the other (Stop on 10,000 rows, then Move up) still happen in that order, as when the window
+  waited for each. The errand calls the same blocking `Backend` methods as before, so their
+  logic and words are unchanged; it is not the runtime's thread, so their `block_on` is allowed.
+- **A `command.run` answer waits for the errands it started**, held on the window's side and
+  sent when they are done, with the status bar's sentence then. A script that runs Stop and
+  reads the list finds every row stopped, as before; `ui.texts` on another connection is
+  answered meanwhile. Clicks (`ui.click`) are not held: they are a person's, who sees the result
+  come.
+- **Import still adds on the window's thread.** The rows it adds are marked the window's own
+  (`Session::own`) once their ids are known; added from an errand, a read in between would take
+  them for rows started elsewhere. Reading the file is quick; adding 10,000 rows is not, and is
+  what is left of row 183.
+- **The panels.** `rfd`'s sync panels run a modal loop on the window's thread for as long as
+  they are open. `rfd`'s async ones are, on macOS, a sheet on the window in front (and a sheet on
+  "Download complete", which closes as Open with… acts, would go with it); GPUI's prompt has no
+  filter and no starting folder. So on macOS dm begins the NSOpenPanel and NSSavePanel itself with
+  a completion handler (`services.rs`, `objc2-app-kit`, no `unsafe` needed): the same free
+  panel, filters (Download lists, dm settings, WAV, cookies.txt, Applications) and starting
+  folder as before. Elsewhere `rfd`'s async dialogs; checked on Linux and Windows in their passes.
+- **A drag of a column or toolbar button is the window's look alone** (`Backend::keep_look`): in
+  force at once, nothing applied to the queue, the file written by an errand that writes the
+  settings in force when it runs, so a change made in between is never written over by an older
+  copy.
+- **A row's provisional name is kept by address** (`names::provisional`, per thread, let go past
+  50,000). After Stop on 10,000 rows, a read named every row twice, each parsing its address:
+  most of the 90 to 140 ms the window's thread still spent per read once the errand had taken the
+  rest. It costs about 2 MB at 10,000 rows.
+- **Draw-time reads moved off the thread** (row 180's leftovers): the progress window's pieces and
+  resumability (on the runtime, beside the downloads, not behind the errands, every half second),
+  Download details' clash (a background task, again where the folder or name typed changed or a
+  second passed; Start now still asks it at the press), the add-to-browser bar's two files.
+
+## 2026-11-12: No lock of the queue's held across slow work, and the order they are taken in (gaps row 184)
+
+- **`store`, `options` and `client` are plain mutexes, read by copying out.** `store` was a
+  tokio mutex read as `if let Some(path) = store.lock().await.clone() { … }`: in edition 2021
+  the guard made in an `if let` lives to the end of its block, so `flush` held `store` across
+  the queue file's whole write, and every save meanwhile (a pause, a resume, a finished
+  download's) waited for it, as did the download limit's own write from the progress. A plain
+  mutex's guard cannot be held across an `.await` at all (clippy's `await_holding_lock`, which CI
+  refuses), so this cannot come back unseen. `options.limiter.rate().await` no longer waits
+  under the options' lock either.
+- **A save due while a write is under way goes into the next write** (`saving.try_lock()` in
+  `save`), made `SAVE_EVERY` after it as a save within `SAVE_EVERY` of a write always was. Before,
+  each such change waited out the write, then wrote the whole list itself, one after another on
+  a slow disk. `flush` still waits for the write under way, as a caller that asks for the list
+  on disk (quitting) needs. Measured by `dm-core/tests/locks.rs`, every write of the queue file
+  made to take 2 s (`Queue::slow_writes_by`, for tests): a change made during the write answered
+  in 4.05 s before this (the old code, given only that hook), and in under 100 ms after; a read of
+  the list under 10 ms, and two paced downloads further on in every half second of the write,
+  before and after (those two held already: the write reads the rows, then lets them go).
+- **The disk is not asked anything under `slots`.** A download that failed on a disk error has
+  its folders looked for (`out_of_room`, whose `create_dir_all` can take seconds on a drive just
+  taken out) before the lock is taken, off the runtime's threads; a cancelled run's finished file
+  is removed after the lock is let go; the queue restored at start looks for each old row's parts
+  folder before it locks the rows. The quota file and `recheck-at` beside the queue file are
+  read and written off the runtime's threads (the quota with each write of the queue file, in the
+  same blocking task).
+- **`note` is never called under a lock of the queue's**: `write_held` returns what went wrong,
+  said once `saving` is let go, and the cancelled run's note comes after `slots`.
+- **Kept, each with a comment saying why**: `saving` across the write (one write at a time, so an
+  older list is never written after a newer one); a download's `segments` across a halving's plan
+  write (`split_largest`: a range reads its end under that lock, and a split whose plan could not
+  be written gives the end back before letting go); QuickJS's fetch lock across the fetch (what
+  waits needs the same program and would fetch it again). **Reworked**: the proxy script's lock is
+  one per script and site (`pac.rs` `ASKING`), where one for all held every other site's first
+  request behind one slow script or server; assembly and the adoption of staged parts read the
+  disk from a copy of the plan, not under its lock.
+- **The order**, written above `Inner`: `saving`, then `slots`, then `order`; every other lock is a
+  leaf, taken last and let go before anything else is locked or awaited. A scan of every tokio
+  guard in `dm-core` finds none held across an `.await` but these.
+- **Not done: `slots` and `order` as plain mutexes**, which would make the compiler refuse a guard
+  held across an await there too. About sixty sites in the engine's busiest code, for code that
+  already lets them go before each await (the scan above); worth it only if a guard across an
+  await is ever found there again.
+
+## 2026-11-12: A busy wake of the window at 10,000 rows names only the rows in sight (gaps row 181)
+
+- **Found by profiling, not by reading.** macOS's `sample` on a `profiling` build (symbols kept),
+  10,000 waiting rows and 20 downloads queued at 1 MB/s (3 run at once), 20 s: about half the
+  window thread's busy samples were its reads (580 of 1,170). Of those, 180 were the names (every
+  2 s while anything changed, every waiting row was named again, each name a `lstat` of its
+  folder: 5,000 a second at 10,000 rows) and 157 were the queue names, asked of the engine at each
+  read and again at each tick's menu refresh (each a pass over every row under the queue's lock).
+  The change detector's hashing (about 56) and the list's pointer copies (about 70) were the rest.
+- **The queues are worked out from the rows where the list changed** (`queue_list`, the same
+  `queue_names` the engine uses, over the same rows in the same order), for Start and Stop Queue's
+  arrows, the menu bar and the side panel; the menu bar's queues after a command now follow at the
+  next read (a quarter of a second at most while anything runs), where they were asked at once.
+- **While only figures change, only the rows on screen and those chosen are named again**, every
+  2 s, and at the next read after the view moves. Every row is still named where the list itself
+  changed (a row added, removed, or changed in more than its figures), as before. What a person
+  sees is the same: a name is shown only for a row in sight, the filter and the sort read the
+  rows themselves, not the names shown. A row scrolled into sight shows the name of the last whole
+  read until the next read names it (at most a quarter of a second while downloads run; a name
+  waits only on a file of that name appearing in its folder meanwhile).
+- **Measured**: CPU with 20 downloads at 10,000 rows 17.8% (16.5 to 19.7) to 13.9% (13.5 to 13.9),
+  three runs each (`ui-bench.py --only busy`), against 12.8% at 100 rows: what a wake costs no
+  longer grows much with the list. Nothing else in `ui-bench.py --only idle,list` moved beyond its
+  spread.
+- **Left, and why**: the detector, `SavedSizes::apply` and When done's dry watch each still hash
+  every row at each read; making them follow only the rows whose pointer changed means a change to
+  `Session`'s API that the egui window shares (`before()` hands out the whole map), worth it once
+  a measurement of a 10,000-row history while downloading says so.
+
+## 2026-11-12: The computer's heavy work takes turns, and a Cancel stops a digest or a join (gaps row 185)
+
+- **Turns, not a pool of threads of their own** (`dm_core::heavy`): a digest of a finished file,
+  the join of its parts, an MP3 or a GIF made from a video, and a ZIP's extraction each take a
+  turn first: as many at once as half the cores, at least one, set apart from how many downloads
+  and connections run. The work still runs on tokio's blocking pool (an extraction on its thread
+  of its own, waiting there for its turn); work on the runtime waits for its turn on the runtime
+  (`Notify`), holding no thread, so queued digests never hold the threads every file write
+  needs. A pool of dm's own would have been a second set of threads doing what the blocking pool
+  does; a tokio `Semaphore` alone could not be waited on by the extraction's own thread.
+- **A digest is no longer worked on the runtime's threads between reads**: it reads and hashes
+  on the blocking pool, and looks at the download's control between pieces of 256 KiB. A join
+  copies a part 32 MiB at a time (`io::copy` of a `take`, so Linux keeps the kernel's own copy),
+  looking between. **Only a Cancel stops them**: by then every byte is here, and a join or digest
+  cut short by a pause would lose the joined file a resume needs; a pause lets them finish, as it
+  always did. Tests: a 2 GiB (sparse) file's digest ends within a second of a Cancel, a pause
+  before it did not end it (`checksum.rs`); a join of 8 parts of 256 MiB ends within a second of a
+  Cancel and leaves no file under the name (`download/mod.rs`).
+- **Not stopped part-way, on purpose**: one part copied to another drive by the system's own copy
+  (`std::fs::copy`: `fcopyfile`, `copy_file_range`, `CopyFileEx`) is one call; its speed across
+  drives was measured worth having (row 166), and a loop of dm's own in its place is unmeasured on
+  Windows. JavaScript's evaluation (Windows' engine, a thread of its own) takes no turn: it is
+  short, held to 2 to 3 s, and a video's start waits on it, so it must not queue behind a digest.
+- **The blocking pool keeps tokio's size** (512 threads, reaped after 10 s unused), said where the
+  runtime is made (`dm-desktop-base` `boot.rs`): every connection's writes go to it, each awaited
+  before its connection reads on, so it never holds more than there are connections, and the heavy
+  work no longer waits in it. A smaller pool would queue writes behind one another at the most
+  connections dm runs; nothing measured asks for one.
+- **A slow disk slows the download and does not grow memory**, as designed and now tested
+  (`dm-core/tests/slow_disk.rs`, with `slow_part_writes_to`, a test hook on every write of a part):
+  writes held to 1 MB/s, eight connections to a server that would send 50 MB/s; over 6 s the
+  download wrote 6.3 MB (1.03 MB/s) and the process grew 4.7 MB (most of it the test server's own
+  buffers), within the 10 MB allowed. The hook is one atomic load a write when no test sets it.
+
+## 2026-11-12: A frame's costs counted, in a debug build (gaps row 180)
+
+- **Counted where they are made, while a thread draws** (`dm-shell` `app/costs.rs`): the main
+  window's `render` and the rows' builder (`table::rows`, run as the list is laid out, after
+  `render`) mark the window's thread as drawing; `Backend::block_on` and `Backend::settings`
+  count themselves when the thread they run on is. Only in a debug build: in a release build the
+  marks and counts are empty functions, and `ui.frames` says `"drawing": null`.
+- **The disk is counted by a library preloaded into dm, not by dm** (`scripts/fs-count.c`, built by
+  `stress-check.py frame` with the system's `cc` and loaded with `DYLD_INSERT_LIBRARIES`, or
+  `LD_PRELOAD` on Linux). dm reaches the disk through hundreds of calls in its own code, the
+  standard library's and the system's (AppKit, fonts); wrapping its own would have missed the
+  rest. The library counts each thread's `stat`, `open`, `access`, `opendir`, `realpath`,
+  `getattrlist` and the like, and says the calling thread's count as `dm_fs_calls`, which the
+  debug build reads (`dlsym`) as a draw begins and ends. Without the library the disk is reported
+  as not counted, not as zero.
+- **What it found:** one call. When a finished row finished ("Last try") was written in the frame
+  through chrono's `Local`, which looks at `/etc/localtime` to see whether the zone changed, at
+  most once a second. The words are now kept as the queue is read (`format::Whens`), worked out
+  where a time is new or the day, the zone's offset or the language changed, and the frame looks
+  them up. Not a fixed offset worked out once: a time on the other side of a change to summer
+  time would have been an hour out.
+- **The bound:** no `block_on`, no file-system call, and the settings copied once a frame at most
+  (a frame drawn after no read copies them once, `Downloads::drawn`; one after a read uses the
+  read's). Measured on macOS (debug build, the other track running): 58 and 59 frames at 1,000
+  rows (500 finished, 10 running), and 23 at 10,000 (5,000 finished), each with 0 `block_on`, 0
+  settings copied and 0 file-system calls; before the change, 1 and 2 file-system calls over 50
+  and 61 frames.
+
+## 2026-11-12: Import adds off the window's thread; its rows still the window's own (gaps row 183)
+
+- **The rows an import adds are held, not judged, while it adds them.** The decision of the morning
+  kept Import on the window's thread because its rows are marked the window's own
+  (`Session::own`) once their ids are known, and a read in between would have taken them for rows
+  started elsewhere (a browser's hand-off). The ids cannot be known before the queue gives them
+  (`dm-core` is not changed here), so instead the read does not judge new rows while an import
+  runs: `Session::adding` (on the window's thread) counts one, the errand imports and says the ids
+  it was given (`Adding::added`, under the same lock as the count going down), and each read takes
+  those ids and the count before it reads the queue (`Detector::read_holding`). An adding begins
+  only on the window's thread, where the read is made, so none begins between the two: a row of an
+  import in the read is either held or among the ids said. Held rows are judged at the first read
+  with no import running, so a browser's hand-off added meanwhile is still told, late by the
+  import's length (0.5 s for 10,000 links), rather than an imported row taken for one. An errand
+  that panics drops its `Adding` and its rows are then judged as any new row.
+- **Reserving ids or marking before adding was not done:** both need the queue to hand out ids
+  before it adds, an engine change on the other track's ground.
+- **The rows imported are the ids the queue gave**, not the rows new since the import began, which
+  took a hand-off added meanwhile for the list's (and read the whole queue twice).
+- **The list is read, and what of it is listed already counted, on the errand too**, and counted
+  against a set of the listed addresses made once: going through every row for each link was
+  10,000 times 10,000 comparisons, and imported a second time a list of 10,000 held the window
+  more than a minute before it asked.
+- **`ui.choose {path}`**: the control port answers the next of dm's panels with a path (within 30 s,
+  then forgotten, so a stray one does not answer a person's panel later; refused to an assistant
+  over MCP). A script cannot reach the system's panel; Import is measured through it.
+- **Measured** (macOS, Apple M1, release, the other track benchmarking; `stress-check.py import`,
+  `ui.texts` asked every 20 ms on its own connection; the base build with `ui.choose` added before,
+  this one after): 10,000 links imported, worst answer 323 ms to 90 ms (71 in a second run), the
+  rows listed in 0.6 to 0.5 s and said with them (the sentence came 60 s late before, the window
+  busy); the same list again, asked in more than 60 s (the probe's wait ran out; the window
+  answered nothing meanwhile, worst 60,039 ms) to 356 to 378 ms, skipped in 0.9 to 1.0 s. The worst
+  answer through the second case is 278 to 312 ms, the question's window opening and closing
+  (265 ms with a list of 10 links): row 194.
+
+## 2026-11-12: A question's sheet slides with dm working on
+
+Gaps row 194: a question held the GPUI window's thread about 0.27 s as it opened and again as it
+closed. Measured before anything was changed (macOS, Apple M1, the release code with symbols): the
+window's own wake-up log showed GPUI's `open_window` for the question taking 288 ms, and the time
+after `remove_window` 270 ms, with the main run loop in `_NSMoveTimerRunLoopMode` for 263 ms of
+each; `sample` put that under `-[NSWindow _beginWindowBlockingModalSessionForSheet:]` →
+`-[NSSheetMoveHelper openSheet]` → `-[NSMoveHelper _doAnimation]`, the thread waiting, not
+working. AppKit slides a sheet in a run loop mode of its own, which is not one of the common
+modes, so the main dispatch queue (GPUI's foreground executor) is not served until the slide is
+over; GPUI begins the sheet inside its window's making and ends it in a task of the main queue.
+Nothing of dm's (settings, translations, the list, fonts, Metal set-up: 9 to 18 ms of the 288)
+was the cost.
+
+- **dm begins and ends the sheet** (`dm-gpui/src/sheets.rs`): the question is made as GPUI's
+  `Floating` window, unshown, given a `Dialog`'s level back, drawn once, and then
+  `beginSheet:completionHandler:` is called from a run loop timer of dm's own, where nothing of
+  GPUI's is under way; `endSheet:` the same way, and the GPUI window is removed once the sheet is
+  off. While a sheet slides, a repeating 4 ms timer in AppKit's mode runs one pass of the default
+  mode (`CFRunLoopRunInMode`), which serves the main queue: GPUI's tasks, frames and the control
+  port's answers run as between any two frames. One sheet moves at a time, in order. A slide
+  begun by that work (from inside GPUI) runs none of it, so GPUI is never entered while its `App`
+  is in use. Quitting while a sheet slides waits for it (AppKit dropped a `terminate:` asked
+  inside the slide, and dm ran on); quitting otherwise takes every sheet off at once, as before.
+  The mode's name is private: were it renamed, the timer would never run and a slide would hold
+  the window as it did, nothing worse.
+- **Measured** (other work running): "Already in the list" opened and closed ten times, `ui.texts`
+  every 20 ms worst 305 ms to 24 ms; `stress-check.py import` (10,000 rows) the same list again
+  299 ms to 34 ms, asked in 373 to 134 ms. The question now slides in drawn; before, its first
+  frame came after the slide.
+- **Dropped: the main dispatch queue served in the slide's mode for good**
+  (`CFRunLoopAddCommonMode`). It cannot be taken back, and every other AppKit slide (a window
+  zoomed from a menu item, inside GPUI's handling of it) would then run GPUI's tasks while its
+  `App` is borrowed, a panic. Nor does a run loop inside a task of the main queue serve that
+  queue, so the slide cannot simply be started from a GPUI task.
+- **Dropped: a shorter slide** (the parent window's `animationResizeTime:`, or no animation): it
+  changes how the sheet looks. **Dropped: a question window kept and reused**: the slide is the
+  cost, and a reused window slides as long.
+- Options, File properties, a progress window, Add URL and the Scheduler are windows of their own,
+  not sheets: measured, they held `ui.texts` 13 to 28 ms opening and closing, before and after.
+
+## 2026-11-12: A pause writes what has come, syncs, and marks it, so a resume does not check it again (gaps row 186)
+
+- **What a stop cost twice** (`dm-core/tests/shutdown.rs`, 20 downloads on 2 connections, stopped
+  part-way): 2,981,120 bytes, about 73 KiB a connection, of which 64 KiB was each part's end asked
+  for again at the resume and compared (`RESUME_CHECK`), a check that exists because a ledger can
+  outlive its bytes across a power cut; the rest what had come and was dropped as the range let go.
+- **A pause syncs and marks** (`stopped_synced`): flushed, then `sync_data` on the part's file,
+  then `done-NNNN.synced` holding how many bytes the sync covered. The next run trusts the range up
+  to it (`Live::trusted`, the same flag a range written by this run has). Only after the sync is it
+  written, so a crash or a power cut at any point leaves either no mark or a mark the disk honours;
+  a mark cut short reads as less or nothing. It is forgotten wherever a ledger is cut back (a
+  repair, a server that stopped serving ranges, a new range at that index) and goes with the parts
+  (it is a `done-` file to every sweep of them). A Cancel does not sync: its parts go.
+- **A pause first takes what has already come** (`draining`): what hyper and the system's buffers
+  hold is read without waiting (`now_or_never`), written and counted, up to 512 KiB a connection,
+  then the range stops. The limiter is not waited for on those bytes: they are here.
+- **Cost**: one `sync_data` per range at each pause, inside the grace a stop gives a connection
+  (1 s, then it is stopped and resumes as after a crash, with the check). The shutdown test still
+  ends in under 2 s with 40 ranges.
+- **Measured**: 0.78 to 1.47 MB fetched twice in five runs (19 to 36 KiB a connection), the
+  restart's own share 30 to 460 KB. What is left is counted by the test's server as it yields
+  pieces to the connection, including what never reached dm (its send buffer, and pieces yielded
+  before it sees the connection closed); the row's 16 KiB is not met as the test measures it.
+- **The sync waited for past the grace** (2026-11-12, after): a range still syncing when the grace
+  ran out was stopped, but its `sync_data` and its mark went on, on their blocking thread, after the
+  download had returned. A Delete at once then raced the mark into the folder it was removing, and
+  the folder stayed (`queue.rs` `deleting_a_row_removes_the_parts_where_it_began_after_the_folder_changed`,
+  failed once in a whole `cargo test --workspace` with the disk nearly full). The sync and the mark
+  now run together on one blocking thread, counted on the job (`files::Stopping`), and the run
+  waits for the count to be zero before it returns. **Dropped: retrying the folder's removal** in
+  Delete: it hides a write after the end rather than ending it.
+
+## 2026-11-12: A server that limits connections and requests is kept to (gaps row 197)
+
+- **Found**: on a local copy of a mirror run by nginx with `limit_conn` and `limit_req` (two at
+  once, a request a second, as Hetzner's mirrors answer) dm took 1.6 times as long as one
+  connection, and four times on Hetzner's own mirror. Each turned-away connection ended for good;
+  each range's next request was refused and waited out with backoff while nothing came; the
+  seams' checks took the request the server would have given a range; and a halving whose request
+  was refused left its back half to no one.
+- **Chosen** (`download/ranged/limits.rs`): once a request is turned away (429, 503, or left
+  unanswered) while others are served, no more connections work than the most the server has
+  served at once, the rest waiting for a place; requests are paced after a refusal (0.5 s, half
+  again each refusal of one that waited, at most 4 s; a `Retry-After` is kept to, at least
+  0.1 s); an answer that brings its range whole reads on into ranges nobody has, as far as it asked,
+  and asks that far; a halving's back half stays with the answer that would read into it; the
+  seams are checked one at a time once nothing else is asked for; and the next file from the same
+  server opens that many connections. Ranges after the first are asked for from the file's end
+  backwards, so the probe's answer can run on through those refused.
+- **Measured** (`tests/limits.rs`): 32 MiB at 4 MiB/s a connection, two at once, a request a
+  second with a burst of two, each answer 100 ms late: about 0.6 of one connection's 8 s alone,
+  up to 0.65 beside a whole workspace's tests; the test holds it under 0.7 (2026-11-12).
+
+## 2026-11-12: The shown speed's first whole interval is its figure (gaps row 196)
+
+- **Found**: `speed::the_shown_speed_keeps_to_the_limit_from_the_first_second` failed once under
+  load at 408 KB/s against a 500 KB/s limit, then 437, 458, 472: each gap 0.7 of the one before,
+  the meter's smoothing (`progress::Meter`, three tenths of each 250 ms sample) coming up from a
+  first interval whose start went on the request. The limiter held; what a person saw lagged.
+- **Chosen**: the first interval that brings bytes is shown, and the next whole interval replaces
+  it rather than being averaged with it; smoothing from then on, as before. Passes 20 runs of 20
+  beside four copies of the queue tests.
+- **Dropped: a wider margin in the test**: it would pass a figure a person reads as wrong.
+
+## 2026-11-12: One gate command, a pinned Rust, the lints in one place (gaps row A1)
+
+- **`cargo xtask check`** (`desktop/xtask/src/check.rs`) runs what needs no window, for both
+  workspaces: formatting, clippy (desktop, browser on the host and as WebAssembly), cargo-deny's
+  licences, bans and sources (advisories stay with `audit.yml`: they need the database fetched),
+  the tests (nextest where installed, then doctests; else `cargo test`, doctests included). Every
+  step runs and the failures are listed at the end. **Dropped: a Python or shell script**: dm
+  already has three languages in its gate; xtask is Rust and runs anywhere cargo does.
+- **`rust-toolchain.toml` at the repository root** pins 1.98.1 with clippy, rustfmt, llvm-tools
+  and the wasm32 target, so `browser/` is pinned as well; the workflows name the same version.
+  Raised by hand in a change of its own.
+- **`[workspace.lints]`** holds `missing_docs` and the three clippy lints that were pasted into
+  six crate roots. They now reach each crate's tests too, which found two gaps (an undocumented
+  `unsafe` in the window tests, no crate docs on dm-desktop's binary). The `not(test)` denials of
+  `unwrap`, `expect` and `panic` stay in each crate's root: `[lints]` cannot exempt tests, and
+  clippy's `allow-*-in-tests` reach `#[test]` functions only, not an integration test's helpers.
+- **`clippy.toml`**: the version clippy may suggest for, and `dbg!` refused.
+- **Retries**: none, except the egui window's tests that wait on real downloads and row 195's
+  test, each named in `.config/nextest.toml`; `ci-failed-tests.py` now runs on a passing run too,
+  so a retried test is named as flaky where everyone can read it.
+- **CI builds the shipped window**: `ci.yml`'s hand-off check and `store-check.yml` build and
+  start `dm-gpui`, with GPUI's Linux libraries installed.
+
+## 2026-11-12: Nothing fetched and run: the computer's own JavaScript engine alone (gaps rows P1, D1)
+
+- **Removed**: `dm-core/src/tools.rs` (QuickJS fetched from a pinned GitHub release where a
+  computer had no engine), the lookups of an installed `deno` or `qjs`, the command-line engine
+  path in `javascript.rs` and `pac.rs` (with the hardening prelude only it needed), the setting
+  `fetch_tools`, Options › Downloads' "Get the video tools when needed" with its hint, the row's
+  "Getting ready for videos (first time only)…", and those words in the 12 catalogs. A settings
+  file that still names `fetch_tools` reads as before: the field is ignored.
+- **In its place**: the computer's own engine only, as on Windows and macOS already. On Linux the
+  .deb depends on `libjavascriptcoregtk-4.1-0 | libjavascriptcoregtk-6.0-1`, the .rpm on
+  `libjavascriptcoregtk-4.1.so.0`, the Arch package on `webkit2gtk-4.1`, and the AppImage
+  carries the library (cargo-packager's `appimage.libs`). With no engine the reading says which
+  package to install (`javascript::NO_ENGINE`).
+- **Tests**: what a test needs of an engine it now gets from a stand-in host
+  (`javascript::set_host` naming a script that speaks the host's protocol), not a stand-in
+  QuickJS: `youtube_cover.rs`, and `proxy.rs` where a Linux has no engine.
+- **Owed on Linux** (row P1 stays until then): the AppImage started on a system without WebKitGTK
+  reads a YouTube video, and `out-of-box-check.py` on a minimal Debian with github.com blocked.
+- **D1**: PRIVACY.md and README.md say what dm does now: nothing fetched to run.
+
+## 2026-11-12: The window's small dead ends (gaps rows U1, U3, U7, U9)
+
+- **U1**: Unfinished is every row not Completed (`places.rs`), so it and Finished add up to All.
+  Before, it held running, queued and schedule-held rows only, and said 0 beside 29 stopped or
+  failed ones.
+- **U7**: the shared row words (`rows::status_in`) say until when: the limit's wait and the
+  schedule's next opening (`rows::set_hold_times`, set by the GPUI window and `--headless` at each
+  read), and a retry's next try (`rows::next_try`, which only the egui window used, now in the
+  words for every window and the control port). Two new phrases, put into the 12 catalogs by
+  hand from each language's words for the waiting states (row 5's native readers to look at them).
+- **U9**: the list answers Edit's own Undo, Copy and Paste actions (`gpui_base::input`), bound to
+  ⌘ or Ctrl with Z, C and V for the window: a text field binds those in its own context, which
+  GPUI puts first, so its text is cut and pasted as ever (as ⌘A and the arrows already were).
+  **Dropped: a Command each** (menus, the control port's names, every list of commands): Edit's
+  items already were the place a person looks for them.
+- **U3**: Status grows with the window (a share of the room, up to twice its 150 points), shows
+  its whole words (and a failure's raw words) on hover where they run long, and a name is drawn
+  as its stem cut with an ellipsis and its extension whole, still read as one label by the
+  control port and screen readers (`Screen::mark`). **Dropped: columns a person can widen**
+  (row U4): a larger change, left to its row.
+- **U5** (after): the menus grey what does not apply (`Ticks::off`, from `Downloads::commands_off`,
+  the rows chosen read once for every command; the menu bar is built again only when that set
+  changes), and a greyed toolbar button says why (`Downloads::why_off`: none chosen where one would
+  do, the ones chosen not ones it acts on, or nothing in the list for it).
+- **U8**: "Delete file after" in the GPUI row menu (the four times, the shared one ticked) and in
+  Properties (a pop-up OK keeps), for rows that have or will have a file; Never stops the countdown.
+- **U6** (part): the egui window's stepping (`selection::stepped`, moved to dm-desktop-base for
+  both windows) drives the GPUI list's Home, End, page keys and Shift runs, from a keyboard place
+  of its own (`Downloads::cursor`) beside the click's anchor; the keys are window-wide bindings,
+  which a text field's own (in its context) come before, as ↑ and ↓ already were.
+- **U4**: a heading's right edge (6 points) is dragged to set its column's width, kept in
+  `Settings::column_widths` (points at 100%, by key) a few times a second during the drag and at
+  its end; a double-click fits it to the longest words the listed rows show there (letters times
+  an average letter's width: GPUI is not asked to measure each). The name keeps taking the rest;
+  a Status a person sized no longer grows.
+- **S1** (part): the port's own thread answers `downloads.pause`, `.resume` and `.cancel` by id
+  (`control_api::answer`, as `--headless` does); the window learns of the change as of any change
+  to the queue.
+
+## 2026-11-12: YouTube's captions in the video (gaps row Y6, part)
+
+- The reading names `requested_subtitles` from the player's caption tracks (the fetch step and the
+  muxers already took them): the written ones, else one speech-recognised track, at most 8, each
+  as WebVTT (`fmt=vtt`) on `https://www.youtube.com` alone (`caption_address`, shared with the
+  caption line's TTML). **Dropped: every track and every translation**: a video lists dozens, each
+  a request, for languages nobody asked for.
+- The fetch step fetches them only with `Options::subtitles` on: what it fetched was put inside
+  and then removed whatever the switch said.
+
+## 2026-11-12: Small engine costs and two small features (gaps rows S7, S8, S10, S17, F3, F5)
+
+- **S7**: `or_stop` polls its work once before making a timer (`now_or_never`): a chunk the
+  limiter lets through at once, or with no limit, costs no timer entry; work still to come is
+  waited on in quarter seconds, the work first (`biased`).
+- **S8**: closed as done by row 177 (`retry::Together`: the first byte any connection gets sends
+  every waiting one at once; `errors.rs`'s turns test).
+- **S10**: the scheduler's fallback look is once a second (`runner::LOOK_EVERY`), not every 50 ms;
+  what changes the queue kicks it already (an add, a download's end, a resume, an edit). What
+  nothing announces, a schedule's window opening or a retrying row lending its place, is seen
+  within a second. **Dropped (for now): counters of running and queued rows**: the passes over
+  the rows are each cheap and only run when woken.
+- **S17**: a fresh link from the browser is given off the window's thread (`later`), as Update
+  download link's OK already was.
+- **F3**: `--quiet` before links asks nothing for them (`Request::quiet`, read by
+  `handoff::next`). `docs/parity.md` names the switches the code reads.
+- **F5** (part): SHA-1 and CRC-32 by length or by name, with crates the build already had.
+
+## 2026-11-12: AI assistants off by default; embedded YouTube players; TLS made once (gaps rows F7, Y12, S14)
+
+- **F7**, the recommended option taken (the maintainer's standing word to take it): `allow_mcp`
+  is off in a new install, as dm's rule has it that nothing listens unless turned on
+  (2026-11-01, above). A settings file that names the switch keeps its value; one written before
+  the switch existed now reads it as off. `dm mcp` with no dm to talk to says where to turn it on.
+  **Dropped: turned on by the first `dm mcp`**: a program an assistant starts would then turn on
+  what the person never did.
+- **Y12**: an embed, live, no-cookie or YouTube Music address is read as its video's watch page
+  (`page_data::watch_address`); the extension's player list takes the same forms, so a YouTube
+  player embedded in another site's page lists its qualities.
+- **S14** (part): `rtmp::tls_config` is made once (`OnceLock`); every client clones it. Idle
+  connections kept 10 s (`pool_idle_timeout`). **Not done: two idle a host**: eight connections a
+  file reused for the next file of a batch would then be made again.
+
+## 2026-11-12: Where `fast`'s 90 ms after the last byte goes (gaps row 177)
+
+- **A trace of the finish** (`dm-core/src/finish_trace.rs`): `DM_FINISH_TRACE=<file>` appends
+  each stage's name and wall-clock milliseconds (a range whole, its seams checked, the
+  connections ended, assembled, named, placed). Off, a stage costs one look at a value read once.
+  The benchmark's poll for the finished file is `BENCH_DONE_POLL_MS` (100 by default, as
+  reference A was measured).
+- **Found**: three `fast` runs, polled every 5 ms: 79 to 93 ms after the server's last write,
+  of which dm's own finish, from its last read to the file renamed into place, is 1 to 2 ms. The
+  ranges end over 46 to 63 ms, the last ones as what the server had already written drains from
+  its 1 MiB writes and the sockets' buffers. **Not done**: a harness that times the last byte as
+  dm received it (TCP does not say), or ranges cut to end closer together; both are row 177's.
+
+## 2026-11-12: A security audit, as Cloudflare's skill runs one (quick profile)
+
+- Four hunters, one a boundary (the browser hand-off, local IPC, a hostile server, programs run
+  and files touched), then a verifier that had not found it for every candidate, re-reading every
+  cited line; findings only with a boundary and a result. Report:
+  `docs/security-audit-2026-11-12.md`. Seven candidates, all confirmed (three medium, three low,
+  and the ZIP cap), all fixed with a test each; what is left is rows 199 to 201.
+- **The `magnet:` fix is at the launch, not in the registry**: `one_link_launch` makes a launch
+  whose first word is a `magnet:` link that link alone, for every reader of the arguments (the
+  options, `--control`, `--headless`, the modes). **Dropped (for now): registering
+  `"<dm>" --open "%1"`**: it changes the keys every installed dm wrote, for the same effect.
+- **Inside addresses are judged where a document names them** (`redirects::named_inside`), with
+  the judgement a redirect already had: from a public document to an inside address is refused;
+  inside to inside, or public to public, is not.
+- **A script's settings change keeps the folders** (`keep_places_of`), as it kept the programs;
+  an imported settings file does not, as a person moving dm brings their folders.
+- **Row 199**: one rule for every window and dialog, held where a folder reaches the queue
+  (`Backend::add_with`, `add_each`, `relocate`, `move_to`) rather than in each dialog: a folder
+  outside the download folder (or reaching out of it by `..`) is refused for `SCRIPT_ACTS_FOR`
+  after a control client last acted (`control_api::folder_refused`, a process-wide mark set by
+  `ScriptGuard::acted`).
+
+## 2026-11-12: A stream's size, about (gaps row Y22)
+
+- `hls.rs` said a bar that guessed a total would be a bar that lies. **Chosen instead**: a total
+  marked as an estimate (`Progress::estimated`, shown "≈ 120 MB" in the Size column), from what
+  the pieces so far came to times how many the playlist lists (from the second piece; surer with
+  each), or for DASH from each track's bitrate and playing time; exact (not marked) where the
+  manifest gives every piece's bytes. The meter takes a total that can change
+  (`Meter::set_total`, `ranged::watch_estimating`), so the time left follows it. A live
+  recording has no end, so no total.
+
+## 2026-11-12: Small rows: S15, Y19's extension half, Y23's cap
+
+- **S15**: `Entry::torrent_files` is an `Arc<Vec<_>>` (serde's `rc`), so a row copied on write
+  (`Arc::make_mut` in `Slot::entry_mut`, four times a second while it runs and a list read
+  earlier holds it) shares the file list; editing a file's choice or priority copies the list
+  alone. The queue file is written as before.
+- **Y19** (extension): `decide::protection` judges as `dm-core` does: any `ContentProtection`
+  scheme but the bare `mp4protection:2011` marker, and any key (`#EXT-X-KEY` or
+  `#EXT-X-SESSION-KEY`) with a format other than `identity` or an address that is not a web one.
+- **Y23**: HLS takes Connections per file at once (the setting's bounds hold it), not eight.
+- **Next for Y19 and Y23**: a note a running download puts on its row (`Update::Note`), for
+  "higher qualities are protected" and for live segments the playlist dropped before dm got them.
+- **The row's note** (`download::Update::Note`, `Entry::said`, `dm_core::NOTES`): a download
+  sends one of a fixed list of English notes (a number where its template has `{}`); the queue
+  keeps it on the row, finished or not, and the Status column says it after the state in the
+  person's language (`rows::note_in`). Used for Y19 (`dash::Plan::protected_above`) and Y23 (a
+  live playlist's sequence numbers that skip).
+- **S19**: a resolver of dm's own (`dm-core/src/dns.rs`, set in `http_client::builder_with`)
+  keeps each name's addresses for 60 s, at most 512 names, a failed lookup not kept; a miss
+  asks tokio's `lookup_host`. It is also where row 200 can judge the address a name gives.
+
+## 2026-11-12: Windows and Linux code written on the Mac (G10, G11, 191, U15, U16)
+
+The maintainer: "Make sure to implement coding part of all linux mac and windows". Each piece is
+compiled and linted for Windows by `scripts/windows-check.sh clippy` and for Linux by
+`scripts/linux-check.sh`, both in Docker; seeing it work there is owed to those computers.
+
+- **G10, the drag out on Windows**: not the `drag` crate (a third party's, and its own COM
+  objects) but the shell's: the files as shell items (`ILCreateFromPathW`,
+  `SHCreateShellItemArrayFromIDLists`), their data object as Explorer's (`BHID_DataObject`) and
+  `SHDoDragDrop` with the shell's own drop source, so no COM object of dm's is written. Its
+  modal loop runs from a message posted to the window (`WM_DM_DRAG_OUT`), outside GPUI's
+  updates, in a vendored `gpui-pre-windows` as `gpui-pre-linux` is for X11's.
+- **191, long paths**: `longPathAware` cannot be declared, because the manifest is GPUI's own
+  and `gpui-pre-platform`, `gpui-component` and `gpui-base` each turn it on; a second manifest
+  is a duplicate resource the linker refuses. So the shell is handed a path of 260 letters or
+  more as its 8.3 short form (`shell::for_shell`). Dropped: vendoring `gpui-pre` (the whole
+  core of GPUI) for one line of its manifest.
+- **G11, Mica**: the check moved toolkit-free (`dm_desktop_base::mica`); the frame (title bar,
+  toolbar, side panel, status bar) is drawn clear (`theme::frame`) and the list's column solid,
+  as the egui window kept the list solid.
+- **U16**: the Dock's bar is an `NSProgressIndicator` over the program's picture in the tile's
+  content view, dropped (the Dock's own picture again) when nothing sized runs; Linux's is
+  Unity's `LauncherEntry` signal, which the docks and panels that show a launcher's progress all
+  read, sent from a thread of its own. Both in whole hundredths. The window's title stays "dm"
+  for now: scripts and the control port find the main window by it.
+- **U15**: on macOS a notification is waited on in step, as on Linux (`notify-rust`'s
+  `wait_for_response`, which macOS answers while GPUI's main run loop runs), at most eight at
+  once.
+- **Row 202, closed (2026-11-12)**: not dm's. The test server let the probe's open-ended
+  request through uncounted, so dm saw three connections served at once and kept a third ranged
+  request out, which the server held. Counting every connection, as nginx's `limit_conn` does,
+  every run held exactly the first wave's four ranges and none twice; the test now asserts both.
+
+## 2026-11-12: The JavaScript host's sandbox (201) and names held to public addresses (200)
+
+- **201**: the host enters the system's wall after a first call has loaded the engine. macOS:
+  `sandbox_init` with a written profile (allow by default; deny network, process fork and exec,
+  file writes). The system's named "pure computation" profile was tried first: JavaScriptCore was
+  killed (SIGKILL) inside it. Linux: seccomp BPF written here (no crate), refusing with `EPERM`,
+  `clone3` with `ENOSYS` so the C library falls back to `clone`, whose `CLONE_THREAD` flag is
+  read; a kernel without seccomp is let be. Windows: low integrity and a one-process job;
+  Windows' own AppContainer was dropped, since it needs a profile registered for the program.
+- **200**: the resolver cannot know why a name is asked, so what judges an address
+  (`redirects::inward`) tells it: a public-looking name a public address leads to is held to
+  public addresses for ten minutes. The check and the connection read the same kept answer, so
+  the name cannot change between them.

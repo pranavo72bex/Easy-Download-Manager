@@ -44,6 +44,10 @@ pub struct Detector {
     last: HashMap<Id, State>,
     before: HashMap<Id, State>,
     own: HashSet<Id>,
+    /// New rows seen while rows were being added off the presentation's
+    /// thread (`Session::adding`), not judged yet: whether each is the
+    /// presentation's own is known only once that adding has said its ids.
+    held: HashSet<Id>,
     ready: bool,
 }
 
@@ -74,6 +78,16 @@ impl Detector {
 
     /// Compares `rows` with the last read, and remembers them for the next.
     pub fn read(&mut self, rows: &[Arc<Entry>]) -> Detected {
+        self.read_holding(rows, false)
+    }
+
+    /// [`Self::read`]; with `hold_new`, the rows new since the last read are
+    /// neither "started elsewhere" nor "added again" yet, but held, and
+    /// judged at the first read without it: rows were being added off the
+    /// presentation's thread, and which of them are its own is not known
+    /// until that is done (gaps row 183). A browser's hand-off among them is
+    /// told then, a little late, rather than an imported row taken for one.
+    pub fn read_holding(&mut self, rows: &[Arc<Entry>], hold_new: bool) -> Detected {
         let mut detected = Detected::default();
         for row in rows {
             if !matches!(row.state, State::Failed(_)) {
@@ -92,9 +106,23 @@ impl Detector {
                 detected.finished.push(row.id);
             }
         }
-        if self.ready {
-            let fresh =
-                |row: &&Arc<Entry>| !self.last.contains_key(&row.id) && !self.own.contains(&row.id);
+        if self.ready && hold_new {
+            let fresh = |row: &&Arc<Entry>| {
+                (!self.last.contains_key(&row.id) || self.held.contains(&row.id))
+                    && !self.own.contains(&row.id)
+            };
+            let new: Vec<Id> = rows.iter().filter(fresh).map(|row| row.id).collect();
+            self.held.extend(new);
+        } else if self.ready {
+            let fresh = |row: &&Arc<Entry>| {
+                (!self.last.contains_key(&row.id) || self.held.contains(&row.id))
+                    && !self.own.contains(&row.id)
+            };
+            // Known before: listed at the last read, and not held unjudged
+            // there unless it proved to be this presentation's own.
+            let known = |id: &Id| {
+                self.last.contains_key(id) && (!self.held.contains(id) || self.own.contains(id))
+            };
             detected.started_elsewhere = rows
                 .iter()
                 .filter(fresh)
@@ -109,14 +137,16 @@ impl Detector {
                     rows.iter().any(|other| {
                         other.id != row.id
                             && other.state != State::Cancelled
-                            && self.last.contains_key(&other.id)
+                            && known(&other.id)
                             && crate::lists::bare(&other.url) == address
                     })
                 })
                 .map(|row| row.id);
+            self.held.clear();
         }
         let ids: HashSet<Id> = rows.iter().map(|r| r.id).collect();
         self.own.retain(|id| ids.contains(id));
+        self.held.retain(|id| ids.contains(id));
         self.before = std::mem::replace(
             &mut self.last,
             rows.iter().map(|r| (r.id, r.state.clone())).collect(),
@@ -239,6 +269,38 @@ mod tests {
         assert!(detector.read(&failed).failed.is_empty());
         detector.read(&[row(1, "https://h.example/a", State::Queued)]);
         assert_eq!(detector.read(&failed).failed, vec![1]);
+    }
+
+    /// While rows are added off the presentation's thread, the new rows a
+    /// read finds are held, not judged: those the adding then says are its
+    /// own are neither started elsewhere nor added again, and the others are
+    /// told at the first read after it.
+    #[test]
+    fn new_rows_are_held_while_an_adding_runs_and_judged_once_its_ids_are_known() {
+        let mut detector = Detector::default();
+        detector.read(&[row(1, "https://h.example/a", State::Completed)]);
+        // Read while the list is added: an imported row (2, its address
+        // listed already), a browser's (3), both waiting.
+        let during = [
+            row(1, "https://h.example/a", State::Completed),
+            row(2, "https://h.example/a", State::Queued),
+            row(3, "https://h.example/c", State::Running),
+        ];
+        assert_eq!(detector.read_holding(&during, true), Detected::default());
+        assert_eq!(
+            detector.read_holding(&during, true),
+            Detected::default(),
+            "still held"
+        );
+        // The adding says row 2 was its own.
+        detector.own(2);
+        let detected = detector.read_holding(&during, false);
+        assert_eq!(detected.started_elsewhere, vec![3]);
+        assert_eq!(
+            detected.added_again, None,
+            "the import's row, not a hand-off"
+        );
+        assert_eq!(detector.read(&during), Detected::default(), "told once");
     }
 
     /// A new running row this presentation did not add was started elsewhere;

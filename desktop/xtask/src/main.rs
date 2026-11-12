@@ -19,7 +19,13 @@
 //!   licence header (`headers.rs`); `headers fix` writes the missing ones.
 //!
 //! Each is also a test, so `cargo test --workspace` runs them.
+//!
+//! - `check` runs everything that needs no window, both workspaces, in one command
+//!   (`check.rs`): formatting, lints, licences, the tests (and through them the checks above).
 
+#[cfg(test)]
+mod baseline;
+mod check;
 mod headers;
 
 use std::path::{Path, PathBuf};
@@ -27,6 +33,7 @@ use std::path::{Path, PathBuf};
 fn main() {
     let job = std::env::args().nth(1).unwrap_or_default();
     let result = match job.as_str() {
+        "check" => check::run(&root()),
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
         "privacy" => privacy().map(|()| "nothing phones home".to_string()),
@@ -40,7 +47,7 @@ fn main() {
             licence_headers().map(|()| "every source file carries its licence header".to_string())
         }
         _ => Err(
-            "usage: cargo xtask <scorecard|layers|privacy|parity|secrets|headers [fix]>"
+            "usage: cargo xtask <check|scorecard|layers|privacy|parity|secrets|headers [fix]>"
                 .to_string(),
         ),
     };
@@ -293,6 +300,11 @@ const GUI: &[&str] = &[
     "rfd",
     "notify-rust",
     "arboard",
+    // GPUI, under the names dm's manifests give it (docs/gaps.md G6).
+    "gpui",
+    "gpui_platform",
+    "gpui-component",
+    "gpui-base",
 ];
 const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 
@@ -302,7 +314,9 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
+        "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-desktop/Cargo.toml",
+        "desktop/crates/dm-gpui/Cargo.toml",
         "browser/Cargo.toml",
     ]
     .iter()
@@ -324,7 +338,20 @@ fn layers() -> Result<(), String> {
             "dm-core" => (&[], true, false),
             // Around the window but not the window.
             "dm-shell" => (&["dm-core", "dm-protocol"], true, false),
-            "dm-desktop" => (&["dm-core", "dm-protocol", "dm-shell"], false, false),
+            // What the desktop program does that is not drawing: any window
+            // may use it, so it uses none.
+            "dm-desktop-base" => (&["dm-core", "dm-protocol", "dm-shell"], true, false),
+            "dm-desktop" => (
+                &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
+                false,
+                false,
+            ),
+            // The GPUI window (docs/gaps.md G6): never the egui one.
+            "dm-gpui" => (
+                &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
+                false,
+                false,
+            ),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
             other => {
@@ -354,7 +381,9 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
+        "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-desktop/src",
+        "desktop/crates/dm-gpui/src",
         "browser/src",
     ] {
         for file in walk(&root.join(dir)) {
@@ -436,7 +465,9 @@ fn privacy() -> Result<(), String> {
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-protocol/src",
+        "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-desktop/src",
+        "desktop/crates/dm-gpui/src",
         "browser/src",
         "extension",
     ] {
@@ -684,6 +715,52 @@ mod tests {
         if let Err(why) = parity_evidence() {
             panic!("{why}");
         }
+    }
+
+    /// The app's and the extension's tables of YouTube's picture formats name the same formats
+    /// at the same heights (gaps row Y14): the panel's label and the download agree.
+    #[test]
+    fn the_youtube_format_tables_agree() {
+        use std::collections::BTreeMap;
+        let app =
+            std::fs::read_to_string(root().join("desktop/crates/dm-core/src/youtube/itags.rs"))
+                .unwrap();
+        let mut ours = BTreeMap::new();
+        for line in app.lines() {
+            let line = line.trim();
+            if let Some((itag, rest)) = line.split_once(" => video(") {
+                let height = rest.split(',').next().unwrap().trim();
+                ours.insert(
+                    itag.trim().parse::<u32>().unwrap(),
+                    height.parse::<u32>().unwrap(),
+                );
+            }
+        }
+        let extension =
+            std::fs::read_to_string(root().join("browser/src/decide/streams.rs")).unwrap();
+        let table = extension
+            .split("fn itag_height")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => return None").next())
+            .unwrap();
+        let mut theirs = BTreeMap::new();
+        for line in table.lines() {
+            let Some((itags, height)) = line.trim().split_once(" => ") else {
+                continue;
+            };
+            let Ok(height) = height.trim_end_matches(',').trim().parse::<u32>() else {
+                continue;
+            };
+            for itag in itags.split('|') {
+                if let Ok(itag) = itag.trim().parse::<u32>() {
+                    if height > 0 {
+                        theirs.insert(itag, height);
+                    }
+                }
+            }
+        }
+        assert!(!ours.is_empty() && !theirs.is_empty());
+        assert_eq!(ours, theirs, "the two tables of picture formats differ");
     }
 
     #[test]

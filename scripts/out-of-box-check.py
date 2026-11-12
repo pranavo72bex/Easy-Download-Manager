@@ -6,10 +6,10 @@
 
 """dm as a person meets it after installing it: nothing else on the computer.
 
-The real dm-desktop binary, headless, with a dm home of its own made for
-this run (no tools fetched before), told to see only the tools it fetches
-itself (DM_ONLY_FETCHED_TOOLS, so nothing installed on this computer is
-used) and given the PATH a browser or the Dock gives an app. Real
+The real dm binary (dm-gpui), headless, with a dm home of its own made for
+this run, and given the PATH a browser or the Dock gives an app. dm runs no
+program but itself: YouTube's checks are answered in the computer's own
+JavaScript engine. Real
 YouTube videos are handed to it through its inbox, as the browser's
 "Download video" panel hands them, at each kind of quality the panel
 offers. Each must finish as one file holding picture and sound at the
@@ -22,7 +22,7 @@ and that every sample the file points at is in it); it needs nothing
 installed. Needs the network; not run in CI.
 
     python3 scripts/out-of-box-check.py            # builds dm if needed
-    DM_BINARY=path/to/dm-desktop python3 scripts/out-of-box-check.py
+    DM_BINARY=path/to/dm-gpui python3 scripts/out-of-box-check.py
 """
 
 import json
@@ -39,7 +39,7 @@ import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get(
-    "DM_BINARY", ROOT / "desktop/target/release" / ("dm-desktop.exe" if sys.platform == "win32" else "dm-desktop")))
+    "DM_BINARY", ROOT / "desktop/target/release" / ("dm-gpui.exe" if sys.platform == "win32" else "dm-gpui")))
 
 # (what is asked, the quality word the panel sends, what must arrive)
 CASES = [
@@ -53,6 +53,18 @@ CASES = [
 
 failures = []
 
+
+
+def ring(home):
+    """Rings dm's inbox bell, as dm's own writers do: it looks at once, not at its next look,
+    seconds away (gaps row S18)."""
+    import socket
+    try:
+        port = int((pathlib.Path(home) / "inbox" / "bell").read_text().strip())
+    except (OSError, ValueError):
+        return
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.sendto(b"", ("127.0.0.1", port))
 
 def check(name, ok, detail=""):
     print(f"  {'ok  ' if ok else 'FAIL'}  {name}" + ("" if ok else f"  ({detail})"))
@@ -75,7 +87,7 @@ def main():
     sys.stdout.reconfigure(errors="replace")
     if not BINARY.exists():
         print("building dm…")
-        subprocess.run(["cargo", "build", "--release", "-p", "dm-desktop"], cwd=ROOT / "desktop", check=True)
+        subprocess.run(["cargo", "build", "--release", "-p", BINARY.stem], cwd=ROOT / "desktop", check=True)
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-fresh-"))
     out = home / "out"
     (home / "settings.json").write_text(json.dumps({
@@ -98,7 +110,7 @@ def main():
             "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
             "PATH": "/usr/bin:/bin",
         }
-    env.update({"DM_HOME": str(home), "DM_ONLY_FETCHED_TOOLS": "1"})
+    env.update({"DM_HOME": str(home)})
     app = subprocess.Popen([str(BINARY), "--headless"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -114,6 +126,7 @@ def main():
             tmp = inbox / f".case{n}.tmp"
             tmp.write_text(json.dumps(request))
             tmp.rename(inbox / f"case{n}.json")
+            ring(home)
             # One at a time, so each row is known by its order.
             time.sleep(1.5)
         started = time.time()
@@ -123,16 +136,9 @@ def main():
                 break
             time.sleep(3)
         listed = rows(home)
-        tools = sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else []
-        print(f"tools dm fetched for itself: {', '.join(tools) or 'none'}")
-        # dm's tools folder (dm-core's tools.rs): on Windows it stays empty, YouTube's checks
-        # being answered in Windows' own JavaScript engine (javascript.rs); elsewhere it holds
-        # QuickJS (qjs) and nothing else, until the system's own engine is used (gaps row 164).
-        if sys.platform == "win32":
-            check("dm fetched nothing: YouTube's checks ran in Windows' own engine", not tools, tools)
-        else:
-            check("dm fetched QuickJS, and nothing else", any(t.startswith("qjs") for t in tools)
-                  and all(t.startswith("qjs") for t in tools), tools)
+        # Nothing fetched to run (gaps row P1): dm keeps no tools folder at all.
+        check("dm fetched no program for itself", not (home / "tools").exists(),
+              sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else [])
         for n, (name, url, quality, (container, height)) in enumerate(CASES):
             print(name)
             row = listed[n] if n < len(listed) else None

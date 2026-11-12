@@ -163,6 +163,39 @@ pub fn looked_after(
         .collect()
 }
 
+/// The settings with each once-only date that is over put away, so its
+/// schedule goes back to its weekly window (left set, its queue would stay
+/// shut for good): the Main queue's and every queue's own. `None` when none
+/// is over. `today` is (year, month, day) and `minute` the minute of the
+/// day, by the computer's clock.
+pub fn spent_once_put_away(
+    settings: &crate::Settings,
+    today: (i32, u8, u8),
+    minute: u32,
+) -> Option<crate::Settings> {
+    let over = |s: &dm_core::Schedule| s.once_at.is_some() && s.once_over(today, minute);
+    let main = over(&settings.schedule);
+    let queues: Vec<&String> = settings
+        .queue_schedules
+        .iter()
+        .filter(|(_, s)| over(s))
+        .map(|(name, _)| name)
+        .collect();
+    if !main && queues.is_empty() {
+        return None;
+    }
+    let mut wanted = settings.clone();
+    if main {
+        wanted.schedule.once_at = None;
+    }
+    for name in queues {
+        if let Some(s) = wanted.queue_schedules.get_mut(name) {
+            s.once_at = None;
+        }
+    }
+    Some(wanted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,5 +376,49 @@ mod run_tests {
         watch.step(true);
         assert!(!watch.run_due(true, true));
         assert!(watch.run_due(true, false));
+    }
+}
+
+#[cfg(test)]
+mod spent_once_tests {
+    use super::*;
+
+    /// Overnight, 23:00 to 07:00, once only on the day `at` gives.
+    fn once(at: &str) -> dm_core::Schedule {
+        dm_core::Schedule {
+            enabled: true,
+            from: "23:00".into(),
+            to: "07:00".into(),
+            days: (0..=6).collect(),
+            once_at: Some(at.to_string()),
+            ..dm_core::Schedule::default()
+        }
+    }
+
+    #[test]
+    fn a_once_only_date_that_is_over_is_put_away_and_one_to_come_is_kept() {
+        let mut settings = crate::Settings {
+            schedule: once("2026-11-03 23:00"),
+            ..crate::Settings::default()
+        };
+        settings
+            .queue_schedules
+            .insert("Night".into(), once("2026-11-02 23:00"));
+        settings
+            .queue_schedules
+            .insert("Later".into(), once("2026-12-01 23:00"));
+        // 4 November, 06:59: the Main queue's night is not over; Night's is.
+        let wanted = spent_once_put_away(&settings, (2026, 11, 4), 6 * 60 + 59).unwrap();
+        assert!(wanted.schedule.once_at.is_some(), "not over yet");
+        assert_eq!(wanted.queue_schedules["Night"].once_at, None);
+        assert!(wanted.queue_schedules["Later"].once_at.is_some());
+        // 07:00: the Main queue's is over too.
+        let wanted = spent_once_put_away(&wanted, (2026, 11, 4), 7 * 60).unwrap();
+        assert_eq!(wanted.schedule.once_at, None);
+        assert!(wanted.queue_schedules["Later"].once_at.is_some());
+        assert!(
+            spent_once_put_away(&wanted, (2026, 11, 4), 8 * 60).is_none(),
+            "nothing left over"
+        );
     }
 }

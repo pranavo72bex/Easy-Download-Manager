@@ -79,7 +79,7 @@ impl Queue {
         if waiting.is_empty() {
             return None;
         }
-        let client = self.inner.client.lock().await.clone();
+        let client = crate::lock(&self.inner.client).clone();
         let sign_in = crate::cookies::SignIn::with_headers(url, &with.cookies, &with.headers);
         let referrer = Some(with.referrer.trim()).filter(|r| !r.is_empty());
         let probed = crate::probe::probe(&client, url, referrer, sign_in.as_ref())
@@ -246,7 +246,10 @@ impl Queue {
                     why = Some("The torrent's files are not known yet.");
                     return false;
                 }
-                for (file, on) in slot.entry_mut().torrent_files.iter_mut().zip(&wanted) {
+                for (file, on) in Arc::make_mut(&mut slot.entry_mut().torrent_files)
+                    .iter_mut()
+                    .zip(&wanted)
+                {
                     file.wanted = *on;
                 }
                 true
@@ -279,7 +282,10 @@ impl Queue {
                     why = Some("The torrent's files are not known yet.");
                     return false;
                 }
-                for (file, p) in slot.entry_mut().torrent_files.iter_mut().zip(&priorities) {
+                for (file, p) in Arc::make_mut(&mut slot.entry_mut().torrent_files)
+                    .iter_mut()
+                    .zip(&priorities)
+                {
                     file.priority = *p;
                 }
                 true
@@ -340,6 +346,7 @@ impl Queue {
                         total: None,
                         speed: 0.0,
                         eta: None,
+                        estimated: false,
                     };
                     slot.entry_mut().path = replacing.clone().unwrap_or_default();
                     slot.entry_mut().replaces = replacing;

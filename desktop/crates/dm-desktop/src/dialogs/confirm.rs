@@ -12,18 +12,6 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
     let Some(ids) = app.dialogs.confirm_remove.clone() else {
         return;
     };
-    // A cancelled row has nothing left to lose: its parts went with the
-    // cancel (it was warned about as unfinished).
-    let unfinished = ids
-        .iter()
-        .filter_map(|id| app.row(*id))
-        .any(|r| !matches!(r.state, State::Completed | State::Cancelled));
-    // Whether there is anything to throw away: a row added for later and
-    // never started has fetched nothing, which the warning said it would
-    // lose.
-    let fetched = ids.iter().filter_map(|id| app.row(*id)).any(|r| {
-        !matches!(r.state, State::Completed | State::Cancelled) && r.progress.downloaded > 0
-    });
     // The finished files still on disk that could go with their rows.
     let files: Vec<String> = ids
         .iter()
@@ -32,115 +20,44 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .map(|r| r.path.clone())
         .collect();
     let (mut yes, mut no) = (false, false);
-    // Not "unfinished" of a set with finished files in it.
-    let english = if app.dialogs.deleting_files {
-        "Delete file"
-    } else if unfinished && ids.len() == 1 {
-        "Remove an unfinished download"
-    } else if unfinished && files.is_empty() {
-        "Remove unfinished downloads"
-    } else {
-        "Remove from the list"
+    // What it says and offers is dm's (`dm_desktop_base::asks::remove`):
+    // every window asks it in the same words.
+    let named = match ids.as_slice() {
+        [only] => app
+            .row(*only)
+            .map(|row| app.name_it_will_get(row, &mut app.applied.categories())),
+        _ => None,
     };
-    app.dialogs.remove_title = english;
-    let title = match english {
-        "Remove an unfinished download" => t("Remove an unfinished download"),
-        "Remove unfinished downloads" => t("Remove unfinished downloads"),
-        "Delete file" => t("Delete file"),
-        _ => t("Remove from the list"),
-    };
-    Dialog::new(title)
+    let asked: Vec<&dm_core::Entry> = ids.iter().filter_map(|id| app.row(*id)).collect();
+    let ask = dm_desktop_base::asks::remove(
+        &asked,
+        files.len(),
+        app.dialogs.remove_files,
+        app.dialogs.deleting_files,
+        named,
+    );
+    app.dialogs.remove_title = ask.title_english;
+    Dialog::new(ask.title)
         .id(window_id("Delete unfinished downloads"))
         .collapsible(false)
         .resizable(false)
         .min_width(440.0)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            // Whole sentences, one for each number, since languages do not
-            // build them from the same pieces.
-            // Finished files beside unfinished rows: said apart, with what
-            // happens to the files; "have not fetched anything yet" was said
-            // of two finished files the box would delete.
-            let mixed = unfinished && !files.is_empty();
-            ui.label(match (unfinished, ids.len()) {
-                (true, _) if mixed => {
-                    t("Some downloads aren't finished. They lose what was downloaded.")
-                }
-                (true, 1) if !fetched => t("Nothing was downloaded yet. Remove it from the list?"),
-                (true, _) if !fetched => {
-                    t("Nothing was downloaded yet. Remove them from the list?")
-                }
-                (true, 1) => {
-                    t("This download isn't finished. Removing it discards what was downloaded.")
-                }
-                (true, _) => t(
-                    "Some downloads aren't finished. Removing them discards what was downloaded.",
-                ),
-                // What the box below says happens to the files, said here
-                // too: the sentence promised the file stayed while the box
-                // was deleting it.
-                (false, 1) if app.dialogs.remove_files => t("Its file is deleted too."),
-                (false, _) if app.dialogs.remove_files => t("Their files are deleted too."),
-                // No file on the disk (cancelled, or since deleted): none to
-                // stay anywhere.
-                (false, 1) if files.is_empty() => t("This removes it from the list."),
-                (false, _) if files.is_empty() => t("This removes them from the list."),
-                (false, 1) => t("Its file is kept."),
-                (false, _) => t("Their files are kept."),
-            });
-            if mixed {
-                // In its number: "the finished ones'" of one.
-                ui.label(match (app.dialogs.remove_files, files.len()) {
-                    (true, 1) => t("The finished file is deleted too."),
-                    (true, _) => t("The finished files are deleted too."),
-                    (false, 1) => t("The finished file is kept."),
-                    (false, _) => t("The finished files are kept."),
-                });
+            ui.label(ask.sentence);
+            if let Some(files) = ask.files_sentence {
+                ui.label(files);
             }
-            // Which one, by name: "this download" was all it said.
-            if let [only] = ids.as_slice() {
-                if let Some(row) = app.row(*only) {
-                    let named = app.name_it_will_get(row, &mut app.applied.categories());
-                    ui.strong(&*crate::bidi::visual(&named));
-                }
-            } else {
-                // And how many, where it is more than one: 507 went with
-                // no number said.
-                ui.strong(tf("Downloads: {}", &[&ids.len()]));
-            }
-            // The buttons say what the sentence asked, in its number, and
-            // Enter is the one that loses nothing.
-            let (go, keep) = match (unfinished, ids.len()) {
-                (true, 1) => (t("Yes, remove"), t("Keep it")),
-                (true, _) => (t("Yes, remove"), t("Keep them")),
-                (false, 1) => (t("Remove it"), t("Keep it")),
-                (false, _) => (t("Remove them"), t("Keep them")),
-            };
+            ui.strong(&*crate::bidi::visual(&ask.named));
             // A finished file can go with its row, if asked for; never by
             // default, and never by Enter.
-            let files = files.len();
-            let go = if files > 0 {
-                toggle_row(
-                    ui,
-                    &mut app.dialogs.remove_files,
-                    if files == 1 {
-                        t("Also delete the file")
-                    } else {
-                        t("Also delete the files")
-                    },
-                );
-                if app.dialogs.remove_files {
-                    t("Yes, delete")
-                } else {
-                    go
-                }
-            } else {
-                go
-            };
+            if let Some(toggle) = ask.toggle {
+                toggle_row(ui, &mut app.dialogs.remove_files, toggle);
+            }
             // The default first, on the left, as every dialog has it (here alone it was on the right).
             footer(ui, |ui| {
-                no = primary_worded(ui, keep).clicked() || enter_free(ui);
-                yes = ui.button(go).clicked();
+                no = primary_worded(ui, ask.keep).clicked() || enter_free(ui);
+                yes = ui.button(ask.go).clicked();
             });
         });
     if yes {
@@ -258,23 +175,15 @@ pub(super) fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
         .filter_map(|id| app.row(*id))
         .map(|r| app.name_it_will_get(r, &mut categories))
         .collect();
-    let why = app.held_because().unwrap_or_default();
-    window(ctx, "Start outside the schedule?").show(ctx, |ui| {
-        ui.label(if names.len() == 1 {
-            tf(
-                "{} waits for the schedule or the download limit.",
-                &[&names.join(", ")],
-            )
-        } else {
-            tf(
-                "{} downloads wait for the schedule or the download limit.",
-                &[&names.len()],
-            )
-        });
-        if !why.is_empty() {
+    // What it says is dm's (`dm_desktop_base::asks::outside`), as every
+    // window's.
+    let ask = dm_desktop_base::asks::outside(&names, app.held_because());
+    window(ctx, ask.title_english).show(ctx, |ui| {
+        ui.label(&ask.sentence);
+        if let Some(why) = &ask.why {
             ui.label(RichText::new(why).small().weak());
         }
-        ui.label(t("Start it now? Only your selection starts."));
+        ui.label(ask.question);
         footer(ui, |ui| {
             start = primary(ui, "Start now").clicked() || enter_free(ui);
             wait = ui.button(t("Keep waiting")).clicked();
@@ -303,44 +212,13 @@ pub(super) fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
     // Running and waiting counted apart: a queued row is not running, and
     // counting it as one told of downloads that were not.
     let (busy, waiting) = app.running_and_waiting();
-    let mut said = Vec::new();
-    // Finished meanwhile: the question changes, and dm still waits for the
-    // person's answer. It used to quit by itself in the first frame that
-    // counted nothing running, so a person reading the question, or
-    // reaching for "Keep downloading", saw dm vanish. Only Exit
-    // quits.
-    let finished = busy + waiting == 0;
-    if finished {
-        said.push(t("Nothing is downloading any more. Exit dm?").to_string());
-    }
-    if busy > 0 {
-        said.push(crate::i18n::tn(
-            "{} download is still running.||{} downloads are still running.",
-            busy as u64,
-            &[&busy],
-        ));
-    }
-    if waiting > 0 && busy > 0 {
-        said.push(crate::i18n::tn(
-            "{} more is waiting to start.||{} more are waiting to start.",
-            waiting as u64,
-            &[&waiting],
-        ));
-    } else if waiting > 0 {
-        said.push(crate::i18n::tn(
-            "{} download is waiting to start.||{} downloads are waiting to start.",
-            waiting as u64,
-            &[&waiting],
-        ));
-    }
-    if !finished {
-        // As plural as the count it speaks of.
-        said.push(crate::i18n::tn(
-            "Exiting pauses it. It picks up where it left off the next time you open dm.||Exiting pauses them. They pick up where they left off the next time you open dm.",
-            (busy + waiting) as u64,
-            &[],
-        ));
-    }
+    // What it says is dm's (`dm_desktop_base::asks::exit`), as every
+    // window's. Finished meanwhile: the question changes, and dm still waits
+    // for the person's answer. It used to quit by itself in the first frame
+    // that counted nothing running, so a person reading the question, or
+    // reaching for "Keep downloading", saw dm vanish. Only Exit quits.
+    let ask = dm_desktop_base::asks::exit(busy, waiting);
+    let finished = ask.finished;
     // Narrower on a screen that has not the room, as the other dialogs.
     let width = EXIT_WIDTH.min(super::room(ctx).width() - 48.0).max(220.0);
     window(ctx, "Exit dm?").show(ctx, |ui| {
@@ -356,7 +234,7 @@ pub(super) fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
                 ui.set_min_height(lines);
-                ui.add(egui::Label::new(said.join(" ")).wrap());
+                ui.add(egui::Label::new(&ask.sentence).wrap());
             },
         );
         footer(ui, |ui| {

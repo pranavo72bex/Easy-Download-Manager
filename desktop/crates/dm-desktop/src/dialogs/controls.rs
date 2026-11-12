@@ -545,16 +545,45 @@ pub(super) fn enter_free(ui: &egui::Ui) -> bool {
 /// keyboard, so what is typed replaces them: "500" typed into the limit's
 /// 0 made 0500.
 pub(super) fn select_on_focus(ui: &egui::Ui, field: &egui::Response, text: &str) {
+    select_on_focus_asked(ui, field, text, false);
+}
+
+/// [`select_on_focus`] for a field that `asked` for the keyboard this frame:
+/// its words selected now, before it has it, so the first keys typed
+/// replace them in whichever frame they arrive. Selected once it had the
+/// keyboard, a window behind another (drawn only as input came) took the
+/// first keys in the same frame, beside the words (B63, 2026-11-10).
+pub(super) fn select_on_focus_asked(
+    ui: &egui::Ui,
+    field: &egui::Response,
+    text: &str,
+    asked: bool,
+) {
     let key = field.id.with("dm-selected-on-focus");
-    let done = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
-    if field.has_focus() && !done {
+    let pending = field.id.with("dm-selected-before-focus");
+    let select = || {
         let mut state = egui::TextEdit::load_state(ui.ctx(), field.id).unwrap_or_default();
         state
             .cursor
             .set_char_range(Some(egui::text::CCursorRange::select_all_str(text)));
         state.store(ui.ctx(), field.id);
         ui.data_mut(|d| d.insert_temp(key, true));
-    } else if !field.has_focus() && done {
+    };
+    if asked {
+        select();
+        ui.data_mut(|d| d.insert_temp(pending, true));
+        return;
+    }
+    let done = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
+    let waiting = ui.data(|d| d.get_temp::<bool>(pending)).unwrap_or(false);
+    if field.has_focus() {
+        if waiting {
+            ui.data_mut(|d| d.remove::<bool>(pending));
+        }
+        if !done {
+            select();
+        }
+    } else if done && !waiting {
         ui.data_mut(|d| d.remove::<bool>(key));
     }
 }

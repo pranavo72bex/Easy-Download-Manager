@@ -21,21 +21,23 @@ impl Queue {
         if let Err(problem) = self.restore(&path).await {
             self.note(problem);
         }
-        *self.inner.store.lock().await = Some(path);
-        // What the download limit had used, from before this launch.
-        if let Some(store) = self.inner.store.lock().await.clone() {
-            if let Ok(text) = std::fs::read_to_string(store.with_file_name("quota")) {
-                crate::lock(&self.inner.quota).restore(&text);
-            }
+        *crate::lock(&self.inner.store) = Some(path.clone());
+        // What the download limit had used, and when the recheck queue last
+        // ran, from before this launch: read off the runtime's threads.
+        let recheck = self.recheck_file().await;
+        let (quota, last) = tokio::task::spawn_blocking(move || {
+            (
+                std::fs::read_to_string(path.with_file_name("quota")).ok(),
+                recheck.and_then(|at| std::fs::read_to_string(at).ok()),
+            )
+        })
+        .await
+        .unwrap_or_default();
+        if let Some(text) = quota {
+            crate::lock(&self.inner.quota).restore(&text);
         }
-        // When the recheck queue last ran, from before this launch.
-        if let Some(at) = self.recheck_file().await {
-            if let Some(last) = std::fs::read_to_string(&at)
-                .ok()
-                .and_then(|t| t.trim().parse::<u64>().ok())
-            {
-                crate::lock(&self.inner.recheck).1 = last;
-            }
+        if let Some(last) = last.and_then(|t| t.trim().parse::<u64>().ok()) {
+            crate::lock(&self.inner.recheck).1 = last;
         }
         self.save().await;
     }
@@ -82,7 +84,30 @@ impl Queue {
         };
 
         // Read before the rows are locked, in the order `start` takes them.
-        let parts_base = self.inner.options.lock().await.parts_dir.clone();
+        let parts_base = crate::lock(&self.inner.options).parts_dir.clone();
+        // Each row made ready before the rows are locked: the folder looked
+        // for below is the disk's, and nothing asks the disk under the lock
+        // every read of the list waits for (gaps row 184).
+        let entries = tokio::task::spawn_blocking(move || {
+            entries
+                .into_iter()
+                .map(|mut entry| {
+                    // A row staged by a dm from before rows recorded their
+                    // folder: its parts are under the folder in force now,
+                    // and are recorded there, so a later change of the
+                    // setting does not strand them.
+                    if entry.parts_dir.is_empty() {
+                        let staged = parts_base.join(entry.id.to_string());
+                        if staged.is_dir() {
+                            entry.parts_dir = staged.display().to_string();
+                        }
+                    }
+                    entry
+                })
+                .collect::<Vec<Entry>>()
+        })
+        .await
+        .map_err(|e| e.to_string())?;
         let mut slots = self.inner.slots.lock().await;
         let mut order = self.inner.order.lock().await;
         let mut highest = 0;
@@ -110,15 +135,6 @@ impl Queue {
             // not happening.
             entry.progress.speed = 0.0;
             entry.progress.eta = None;
-            // A row staged by a dm from before rows recorded their folder:
-            // its parts are under the folder in force now, and are recorded
-            // there, so a later change of the setting does not strand them.
-            if entry.parts_dir.is_empty() {
-                let staged = parts_base.join(entry.id.to_string());
-                if staged.is_dir() {
-                    entry.parts_dir = staged.display().to_string();
-                }
-            }
             order.push(entry.id);
             let own_limit = crate::limit::Limiter::new(entry.speed_limit.saturating_mul(1024));
             slots.insert(
@@ -160,19 +176,30 @@ impl Queue {
     /// 13 small files a second and took a minute to cancel 2 000 of them.
     /// [`Queue::flush`] writes what is waiting at once, for a program that
     /// is about to end.
+    ///
+    /// A change made while a write is under way goes into the next write,
+    /// made [`SAVE_EVERY`] after it as any change within that time is, rather
+    /// than into a write of its own queued behind it: on a slow disk each
+    /// change waited out the write before it, then made its own, one after
+    /// another (gaps row 184).
     pub(super) async fn save(&self) {
         let told = crate::lock(&self.inner.changed).clone();
         if let Some(tell) = told {
             tell();
         }
-        let Some(path) = self.inner.store.lock().await.clone() else {
+        let Some(path) = self.store_path() else {
             return;
         };
         let due =
             crate::lock(&self.inner.written).is_none_or(|at| at.elapsed() >= self.save_every());
         if due {
-            self.write_to(&path).await;
-            return;
+            if let Ok(saving) = self.inner.saving.try_lock() {
+                self.inner.unwritten.store(false, Ordering::SeqCst);
+                let problems = self.write_held(&path).await;
+                drop(saving);
+                self.note_each(problems);
+                return;
+            }
         }
         self.inner.unwritten.store(true, Ordering::SeqCst);
         if self.inner.trailing.swap(true, Ordering::SeqCst) {
@@ -209,44 +236,52 @@ impl Queue {
     /// for).
     pub async fn flush(&self) {
         if self.inner.unwritten.load(Ordering::SeqCst) {
-            if let Some(path) = self.inner.store.lock().await.clone() {
+            if let Some(path) = self.store_path() {
                 let saving = self.inner.saving.lock().await;
                 /* Asked again now that this is the one writing: two flushes
                  * (the one waiting out the write gap and one made by a
                  * caller) both saw a save owed, and each wrote the list, one
                  * after the other, for a single change. */
+                let mut problems = Vec::new();
                 if self.inner.unwritten.swap(false, Ordering::SeqCst) {
-                    self.write_held(&path).await;
+                    problems = self.write_held(&path).await;
                 }
                 drop(saving);
+                self.note_each(problems);
                 return;
             }
         }
         let _waited = self.inner.saving.lock().await;
     }
 
-    /// One write of the whole list: serialized and synced off the runtime's
+    /// One write of the whole list, by whoever holds `saving` and has
+    /// cleared what was owed: serialized and synced off the runtime's
     /// threads (a long list takes a tenth of a second or more), one at a
-    /// time so an older snapshot is never written after a newer one.
-    async fn write_to(&self, path: &std::path::Path) {
-        let _saving = self.inner.saving.lock().await;
-        self.inner.unwritten.store(false, Ordering::SeqCst);
-        self.write_held(path).await;
-    }
-
-    /// [`Self::write_to`] by whoever holds `saving` and has cleared what was
-    /// owed.
-    async fn write_held(&self, path: &std::path::Path) {
+    /// time so an older snapshot is never written after a newer one. What
+    /// the download limit has used is written beside it on the same trip.
+    /// Returns the problems met, for the caller to say once it has let go of
+    /// `saving` (`note` calls the change callback, which is never called
+    /// under a lock of the queue's).
+    async fn write_held(&self, path: &std::path::Path) -> Vec<String> {
         self.inner.saves.fetch_add(1, Ordering::Relaxed);
         // Shared, not copied: what changed since the last write is the rows
         // that are not the same allocation as then (`journal`).
         let rows = self.list_shared().await;
         let previous = crate::lock(&self.inner.saved).take();
+        let quota = crate::lock(&self.inner.quota).kept();
+        let slow = Duration::from_millis(self.inner.slow_writes_ms.load(Ordering::Relaxed));
         let began = std::time::Instant::now();
         let target = path.to_path_buf();
-        let wrote =
-            tokio::task::spawn_blocking(move || super::journal::write(&target, rows, previous))
-                .await;
+        let wrote = tokio::task::spawn_blocking(move || {
+            if !slow.is_zero() {
+                std::thread::sleep(slow);
+            }
+            let wrote = super::journal::write(&target, rows, previous);
+            let _ = crate::write_atomic_unsynced(&target.with_file_name("quota"), quota.as_bytes());
+            wrote
+        })
+        .await;
+        *crate::lock(&self.inner.quota_saved) = Some(std::time::Instant::now());
         self.inner.last_write_ms.store(
             began.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
             Ordering::Relaxed,
@@ -264,15 +299,33 @@ impl Queue {
             Ok(Err(e)) => Some(e.to_string()),
             Err(e) => Some(e.to_string()),
         };
+        let mut problems = Vec::new();
         if let Some(e) = failed {
-            self.note(format!(
+            problems.push(format!(
                 "the queue could not be written ({e}); changes since will not survive a restart"
             ));
         }
         if let Some(why) = crate::secretstore::take_note() {
-            self.note(why);
+            problems.push(why);
         }
-        self.save_quota(path);
+        problems
+    }
+
+    /// Each problem met, said ([`Self::note`]).
+    fn note_each(&self, problems: Vec<String>) {
+        for problem in problems {
+            self.note(problem);
+        }
+    }
+
+    /// Makes each write of the queue file take `by` longer, as a slow or
+    /// busy disk would; zero puts it back. For tests.
+    #[doc(hidden)]
+    pub fn slow_writes_by(&self, by: Duration) {
+        self.inner.slow_writes_ms.store(
+            by.as_millis().try_into().unwrap_or(u64::MAX),
+            Ordering::Relaxed,
+        );
     }
 
     /// The secrets saved beside the queue file, by row.
@@ -329,23 +382,25 @@ impl Queue {
     }
 
     /// Writes what the download limit has used beside the queue file, so a
-    /// restart does not hand the allowance back.
-    pub(super) fn save_quota(&self, queue_file: &std::path::Path) {
-        let kept = crate::lock(&self.inner.quota).kept();
-        *crate::lock(&self.inner.quota_saved) = Some(std::time::Instant::now());
-        let _ = crate::write_atomic_unsynced(&queue_file.with_file_name("quota"), kept.as_bytes());
-    }
-
-    /// The same, at most every ten seconds, from the progress of a transfer.
+    /// restart does not hand the allowance back: at most every ten seconds,
+    /// from the progress of a transfer, and off the runtime's threads, as
+    /// each write of the queue file also writes it (`write_held`).
     pub(super) async fn save_quota_now_and_then(&self) {
-        let due = crate::lock(&self.inner.quota_saved)
-            .is_none_or(|at| at.elapsed() >= Duration::from_secs(10));
-        if !due {
+        {
+            let mut saved = crate::lock(&self.inner.quota_saved);
+            if saved.is_some_and(|at| at.elapsed() < Duration::from_secs(10)) {
+                return;
+            }
+            *saved = Some(std::time::Instant::now());
+        }
+        let Some(path) = self.store_path() else {
             return;
-        }
-        if let Some(path) = self.inner.store.lock().await.clone() {
-            self.save_quota(&path);
-        }
+        };
+        let kept = crate::lock(&self.inner.quota).kept();
+        let _ = tokio::task::spawn_blocking(move || {
+            crate::write_atomic_unsynced(&path.with_file_name("quota"), kept.as_bytes())
+        })
+        .await;
     }
 
     /// Records something that went wrong and belongs to no row.

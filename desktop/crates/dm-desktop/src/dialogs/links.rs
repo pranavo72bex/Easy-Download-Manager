@@ -89,14 +89,8 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                     }
                 }
             });
+            d.untick_refused();
             let found = dm_core::lock(&d.found).clone();
-            for (url, on) in d.items.iter_mut() {
-                if found.get(url.as_str()).is_some_and(|f| f.failed.is_some())
-                    && d.refused.insert(url.clone())
-                {
-                    *on = false;
-                }
-            }
             let listed = d.visible();
             let mut edit_asked: Option<usize> = None;
             egui::ScrollArea::vertical()
@@ -219,34 +213,34 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             ui.label(RichText::new(t("Save to")).strong());
             if radio_flag(
                 ui,
-                d.save_to == SaveTo::ByCategory,
+                d.save.save_to == SaveTo::ByCategory,
                 t("Each file to the folder of its category"),
             )
             .clicked()
             {
-                d.save_to = SaveTo::ByCategory;
+                d.save.save_to = SaveTo::ByCategory;
             }
             ui.horizontal(|ui| {
                 if radio_flag(
                     ui,
-                    d.save_to == SaveTo::OneCategory,
+                    d.save.save_to == SaveTo::OneCategory,
                     t("Every file to this category"),
                 )
                 .clicked()
                 {
-                    d.save_to = SaveTo::OneCategory;
+                    d.save.save_to = SaveTo::OneCategory;
                 }
-                ui.add_enabled_ui(d.save_to == SaveTo::OneCategory, |ui| {
+                ui.add_enabled_ui(d.save.save_to == SaveTo::OneCategory, |ui| {
                     let shown = |word: &str| crate::i18n::name(&format::titled(word));
                     combo("links-category")
-                        .selected_text(shown(&d.category))
+                        .selected_text(shown(&d.save.category))
                         .show_ui(ui, |ui| {
                             for kind in dm_core::Category::ALL {
                                 let word = crate::app::category_word(kind);
-                                pick(ui, &mut d.category, word.clone(), shown(&word));
+                                pick(ui, &mut d.save.category, word.clone(), shown(&word));
                             }
                             for own in &customs {
-                                pick(ui, &mut d.category, own.clone(), own.clone());
+                                pick(ui, &mut d.save.category, own.clone(), own.clone());
                             }
                         });
                 });
@@ -254,22 +248,22 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 if radio_flag(
                     ui,
-                    d.save_to == SaveTo::OneFolder,
+                    d.save.save_to == SaveTo::OneFolder,
                     t("Every file to this folder"),
                 )
                 .clicked()
                 {
-                    d.save_to = SaveTo::OneFolder;
+                    d.save.save_to = SaveTo::OneFolder;
                 }
-                ui.add_enabled_ui(d.save_to == SaveTo::OneFolder, |ui| {
+                ui.add_enabled_ui(d.save.save_to == SaveTo::OneFolder, |ui| {
                     let wide = (ui.available_width() - 120.0).clamp(120.0, 320.0);
                     let name = t("Every file to this folder");
                     let typed =
-                        ui.add(egui::TextEdit::singleline(&mut d.folder).desired_width(wide));
+                        ui.add(egui::TextEdit::singleline(&mut d.save.folder).desired_width(wide));
                     typed.widget_info(|| {
                         egui::WidgetInfo::labeled(egui::Role::TextInput, true, name)
                     });
-                    browse(ui, &**platform, &mut d.folder);
+                    browse(ui, &**platform, &mut d.save.folder);
                 });
             });
             footer(ui, |ui| {
@@ -295,60 +289,15 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             });
         });
     if let Some(later) = chosen {
-        if d.save_to == SaveTo::OneFolder && d.folder.trim().is_empty() {
-            app.said = crate::i18n::Said::new("Choose the folder every file goes to.", &[]);
-            return;
-        }
-        let chosen = d.chosen();
-        let queue = if d.queue.trim().is_empty() {
-            MAIN_QUEUE.to_string()
-        } else {
-            d.queue.clone()
+        // What is added is dm's (`LinksImport::adds`), as every window's.
+        let (items, sizes) = match d.adds(later, &root, &categories) {
+            Ok(adds) => adds,
+            Err(words) => {
+                app.said = crate::i18n::Said::new(words, &[]);
+                return;
+            }
         };
-        let with = AddOptions {
-            later,
-            queue: if later { queue.clone() } else { String::new() },
-            referrer: d.page.clone(),
-            save_dir: d.save_dir(&root, &categories),
-            ..AddOptions::default()
-        };
-        // The sizes the servers already told, kept on the rows until each
-        // learns its own.
-        let sizes: std::collections::HashMap<String, u64> = dm_core::lock(&d.found)
-            .iter()
-            .filter_map(|(url, found)| found.size.map(|size| (url.clone(), size)))
-            .collect();
-        // Each link with what is its own: the page's sign-in for the links on
-        // its own server and no others, a name given with Edit, and its words
-        // on the page as its description where that is asked for.
-        let items: Vec<(String, AddOptions)> = chosen
-            .into_iter()
-            .map(|url| {
-                let signed = d
-                    .sign_in
-                    .as_ref()
-                    .is_some_and(|s| s.for_url(&url).is_some());
-                let own = AddOptions {
-                    cookies: if signed {
-                        d.cookies.clone()
-                    } else {
-                        String::new()
-                    },
-                    save_name: d
-                        .names
-                        .get(&url)
-                        .map(|n| n.trim().to_string())
-                        .filter(|n| !n.is_empty()),
-                    description: if d.use_texts {
-                        d.texts.get(&url).cloned().unwrap_or_default()
-                    } else {
-                        String::new()
-                    },
-                    ..with.clone()
-                };
-                (url, own)
-            })
-            .collect();
+        let queue = d.queue_or_main();
         app.dialogs.links = None;
         let added = app.add_items(items, &sizes);
         match added {

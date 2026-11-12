@@ -470,6 +470,54 @@ async fn a_live_picture_with_sound_apart_dm_cannot_join_is_recorded_as_the_pictu
     );
 }
 
+/// A live picture and sound that read as a pair dm joins but whose bytes
+/// cannot be joined (the picture is not a real transport stream): the
+/// picture is kept alone, as recorded, and the sound's file is gone.
+#[tokio::test]
+async fn a_live_pair_that_cannot_be_joined_keeps_the_picture() {
+    let mut site = Site::live(Live {
+        segments: 2,
+        ..Live::default()
+    });
+    site.files = Arc::new(HashMap::from([
+        (
+            "/master.m3u8".to_string(),
+            b"#EXTM3U\n\
+              #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"en\",DEFAULT=YES,URI=\"sound.m3u8\"\n\
+              #EXT-X-STREAM-INF:BANDWIDTH=1000,AUDIO=\"aud\"\n\
+              live.m3u8\n"
+                .to_vec(),
+        ),
+        ("/sound.m3u8".to_string(), media(&["a0.aac"], true)),
+        ("/a0.aac".to_string(), packed_sound(0)),
+    ]));
+    let addr = site.serve().await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/master.m3u8"),
+        &options(dir.path()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(std::fs::read(&done.path).unwrap(), segments(0..2));
+    assert!(
+        site.asked().iter().any(|(p, _)| p == "/a0.aac"),
+        "the sound was not recorded: {:?}",
+        site.asked()
+    );
+    let left: Vec<String> = std::fs::read_dir(dir.path().join("parts"))
+        .map(|listing| {
+            listing
+                .filter_map(Result::ok)
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|name| name.starts_with("live."))
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(left.is_empty(), "left behind: {left:?}");
+}
+
 /// Real H.264 picture segments in a transport stream, for a live stand-in.
 const PICTURES: [&[u8]; 3] = [
     include_bytes!("fixtures/media/hls/h264/seg0.ts"),
@@ -888,6 +936,75 @@ async fn a_live_recording_paused_before_anything_arrives_says_it_has_nothing() {
     let why = internal(download(&client(), &format!("http://{addr}/live.m3u8"), &opts).await);
     stop.await.unwrap();
     assert_eq!(why, "the live stream sent nothing to record");
+}
+
+/// A live playlist that moves past segments before dm fetched them: the
+/// ones still listed are recorded, and the row is told how many were gone.
+#[tokio::test]
+async fn live_segments_gone_before_they_were_fetched_are_told_on_the_row() {
+    async fn answer(
+        State(asks): State<Arc<AtomicUsize>>,
+        uri: Uri,
+        headers: HeaderMap,
+    ) -> Response {
+        let path = uri.path().to_string();
+        if path == "/gap.m3u8" {
+            // The first asks (the one that resolves it and the recording's
+            // first) list segments 0 and 1; the next lists 5 and 6, ended.
+            // A probe asks with a range and is not counted.
+            let ask = if headers.contains_key("range") {
+                asks.load(Ordering::SeqCst)
+            } else {
+                asks.fetch_add(1, Ordering::SeqCst)
+            };
+            let text = if ask < 2 {
+                "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
+                 #EXTINF:1.0,\nseg0.ts\n#EXTINF:1.0,\nseg1.ts\n"
+            } else {
+                "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:5\n\
+                 #EXTINF:1.0,\nseg5.ts\n#EXTINF:1.0,\nseg6.ts\n#EXT-X-ENDLIST\n"
+            };
+            return Response::builder()
+                .header("content-type", "application/vnd.apple.mpegurl")
+                .body(Body::from(text))
+                .unwrap();
+        }
+        match path
+            .strip_prefix("/seg")
+            .and_then(|rest| rest.strip_suffix(".ts"))
+            .and_then(|n| n.parse::<usize>().ok())
+        {
+            Some(n) => Response::new(Body::from(segment(n))),
+            None => status(StatusCode::NOT_FOUND),
+        }
+    }
+    let addr = common::serve(
+        axum::Router::new()
+            .fallback(answer)
+            .with_state(Arc::new(AtomicUsize::new(0))),
+    )
+    .await;
+    let dir = tempdir();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+    let done = download_reporting(
+        &client(),
+        &format!("http://{addr}/gap.m3u8"),
+        &options(dir.path()),
+        Some(tx),
+    )
+    .await
+    .unwrap();
+    let mut recorded = segments(0..2);
+    recorded.extend(segments(5..7));
+    assert_eq!(std::fs::read(&done.path).unwrap(), recorded);
+    let mut notes = Vec::new();
+    while let Ok(update) = rx.try_recv() {
+        if let Update::Note(note) = update {
+            notes.push(note);
+        }
+    }
+    let said = dm_core::NOTES[1].replace("{}", "3");
+    assert_eq!(notes, vec![said]);
 }
 
 #[tokio::test]

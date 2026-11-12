@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -78,10 +78,13 @@ jobs:
             libnss3 libgbm1 libxkbcommon0 libxkbcommon-x11-0 libxdamage1 libxfixes3 libxrandr2 \
             libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+          # What the GPUI window (dm-gpui, the window dm ships) builds against.
+          sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 
       - name: Build dm and the extension
         run: |
-          (cd desktop && cargo build -p dm-desktop)
+          (cd desktop && cargo build -p dm-gpui)
           sh scripts/package.sh
 
       - name: Load it and watch a hand-off

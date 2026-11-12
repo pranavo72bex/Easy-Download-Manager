@@ -7,39 +7,8 @@
 
 use super::*;
 
-pub(super) fn size_of(entry: &Entry) -> String {
-    shown_size(entry).map(format::bytes).unwrap_or_default()
-}
-
-/// The size the Size column shows: the file's, or what has arrived of one
-/// whose length the server did not say. The column sorts by it.
-pub fn shown_size(entry: &Entry) -> Option<u64> {
-    entry
-        .progress
-        .total
-        .or(Some(entry.progress.downloaded).filter(|n| *n > 0))
-}
-
-/// A finished row whose file is no longer where dm saved it.
-pub fn gone(entry: &Entry) -> bool {
-    SUPERSEDED.with(|s| dm_shell::app::rules::file_gone(entry, &s.borrow()))
-}
-
-thread_local! {
-    /// Finished rows whose path a row finished since also wrote: the
-    /// file there is that one's. A row whose file was deleted turned
-    /// "Complete" again when the same address was downloaded anew under
-    /// its old name.
-    pub(super) static SUPERSEDED: std::cell::RefCell<std::collections::HashSet<dm_core::Id>> =
-        std::cell::RefCell::new(std::collections::HashSet::new());
-}
-
-/// Which finished rows another, later one has taken the file of, as the
-/// rows now stand.
-pub fn set_superseded<R: std::borrow::Borrow<dm_core::Entry>>(rows: &[R]) {
-    let superseded = dm_shell::app::rules::superseded(rows);
-    SUPERSEDED.with(|s| *s.borrow_mut() = superseded);
-}
+pub(super) use dm_desktop_base::rows::size_of;
+pub use dm_desktop_base::rows::{gone, set_superseded, shown_size};
 
 /// Lays `add` out against the cell's right edge.
 /// Text with digits of one width, so numbers line up down a column and
@@ -135,13 +104,8 @@ pub(super) fn draw_glyph(ui: &mut egui::Ui, glyph: Glyph, colour: egui::Color32)
 }
 
 pub(super) fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: bool) {
-    let mut text = status_of(entry);
-    // A retry says when it tries again, so a wait is not taken for a stall.
-    if entry.state == State::Running {
-        if let Some(left) = crate::app::next_try(entry.id) {
-            text = format!("{text} · {}", tf("next try in {}", &[&format::span(left)]));
-        }
-    }
+    // A retry says when it tries again, in the words themselves (`rows::status_in`).
+    let text = status_of(entry);
     let tokens = crate::theme::Tokens::get(ui.ctx());
     // On the classic look's selected row every word is in the selection's
     // own colour: red, blue or a faded grey would not read on its fill.

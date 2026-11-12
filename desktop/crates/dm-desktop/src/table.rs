@@ -35,27 +35,13 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         // them: said above them, it read as a title over an empty table.
         header_only(app, ui);
         ui.add_space(40.0);
+        // The words are both windows' (`rows::empty_words`).
+        let (heading, line, next_step) =
+            dm_desktop_base::rows::empty_words(!app.rows.is_empty(), !app.filter.trim().is_empty());
         ui.vertical_centered(|ui| {
-            ui.label(
-                RichText::new(if app.rows.is_empty() {
-                    t("Nothing queued")
-                } else {
-                    t("Nothing here")
-                })
-                .size(16.0),
-            );
-            ui.label(
-                RichText::new(if app.rows.is_empty() {
-                    t("Add URL, paste a link, or send one from your browser.")
-                } else if !app.filter.trim().is_empty() {
-                    t("No download here matches the filter.")
-                } else {
-                    // Done and In progress are places, not categories.
-                    t("Nothing here yet.")
-                })
-                .weak(),
-            );
-            if app.rows.is_empty() {
+            ui.label(RichText::new(heading).size(16.0));
+            ui.label(RichText::new(line).weak());
+            if next_step {
                 // The next step as a button, not only words.
                 ui.add_space(8.0);
                 if crate::dialogs::primary(ui, "Add a download").clicked() {
@@ -518,7 +504,6 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
 mod cells;
 mod columns;
 mod menus;
-pub(crate) use menus::delete_after_times;
 mod selection;
 mod status;
 

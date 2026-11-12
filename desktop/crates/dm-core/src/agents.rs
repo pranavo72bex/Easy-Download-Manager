@@ -68,6 +68,30 @@ pub fn made_up_referer_refused(url: &str) -> bool {
     server_of(url).is_some_and(|host| lock(bare_hosts()).contains(&host))
 }
 
+fn ceilings() -> &'static std::sync::Mutex<std::collections::HashMap<String, usize>> {
+    static CEILINGS: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, usize>>,
+    > = std::sync::OnceLock::new();
+    CEILINGS.get_or_init(Default::default)
+}
+
+/// From now on, a download from `url`'s server opens no more than `connections`: it turned a
+/// download's requests away while it served that many (`download::Limits`). The next file from
+/// the same mirror then opens two connections where it would have opened eight and had six
+/// turned away, each of which counts against a server that also limits how often it takes a
+/// request. For this run of dm only: a server's limits change, and a person's setting stands.
+pub(crate) fn remember_ceiling(url: &str, connections: usize) {
+    if let Some(host) = server_of(url) {
+        lock(ceilings()).insert(host, connections.max(1));
+    }
+}
+
+/// The most connections `url`'s server was found to serve at once, where it was found to limit
+/// them ([`remember_ceiling`]).
+pub(crate) fn ceiling_for(url: &str) -> Option<usize> {
+    server_of(url).and_then(|host| lock(ceilings()).get(&host).copied())
+}
+
 /// The server a URL names, host and port: two servers on one host are two
 /// servers, each with its own answer about which agent it takes.
 pub(crate) fn server_of(url: &str) -> Option<String> {

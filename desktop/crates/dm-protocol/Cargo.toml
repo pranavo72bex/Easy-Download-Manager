@@ -3,6 +3,9 @@ name = "dm-protocol"
 version = "0.9.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
 description = "What the browser extension and the desktop app say to each other, written once for both"
 
 # Used by the native host in dm-shell and by the extension, which is built
@@ -17,3 +20,6 @@ proptest = "1"
 # Only to check that the key in extension/manifest.json still yields the id
 # named here, the way Chrome derives it.
 sha2 = "0.11.0"
+
+[lints]
+workspace = true

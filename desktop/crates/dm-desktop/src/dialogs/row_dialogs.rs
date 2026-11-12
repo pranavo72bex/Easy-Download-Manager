@@ -66,16 +66,11 @@ pub(super) fn update_link(app: &mut DmApp, ctx: &egui::Context) {
         app.await_link(row_id);
         return;
     }
+    // A download that failed for want of it goes on, from the parts it
+    // has (`row_edits::update_link`, both windows).
     if ok && open {
-        match app.backend.set_url(*id, address) {
-            Ok(()) => {
-                open = false;
-                // A download that failed for want of it goes on, from the
-                // parts it has.
-                if matches!(row.state, State::Failed(_)) {
-                    app.backend.retry(*id);
-                }
-            }
+        match dm_desktop_base::row_edits::update_link(&app.backend, *id, address) {
+            Ok(()) => open = false,
             Err(e) => *says = e,
         }
     }
@@ -116,13 +111,8 @@ pub(super) fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
             });
         });
     open &= !cancel;
-    let chosen = if new.trim().is_empty() {
-        queue.trim().to_string()
-    } else {
-        new.trim().to_string()
-    };
-    if ok && open && !chosen.is_empty() {
-        let named = crate::i18n::queue_named(&chosen);
+    let chosen = dm_desktop_base::row_edits::queue_chosen(queue, new);
+    if let (true, true, Some(named)) = (ok, open, chosen) {
         for id in ids.iter() {
             app.backend.set_queue(*id, &named);
         }
@@ -181,51 +171,10 @@ pub(super) fn rename(app: &mut DmApp, ctx: &egui::Context) {
         });
     });
     open &= !cancel;
+    // Moved first where the folder changed, then renamed in it
+    // (`MoveRename::carry`, both windows).
     if ok {
-        let d = d.clone();
-        let folder = std::path::PathBuf::from(d.folder.trim());
-        let mut said: Option<crate::i18n::Said> = None;
-        for (nth, id) in d.ids.iter().enumerate() {
-            let Some(row) = app.row(*id).cloned() else {
-                continue;
-            };
-            // Moved first where the folder changed, then renamed in it.
-            let here = std::path::Path::new(&row.path)
-                .parent()
-                .map(|p| p.to_path_buf());
-            if !d.folder.trim().is_empty() && here.as_deref() != Some(folder.as_path()) {
-                if let Err(e) = app.backend.move_to(*id, &folder) {
-                    said = Some(e.into());
-                    continue;
-                }
-            }
-            if d.ids.len() > 1 && !d.pattern.trim().is_empty() {
-                let asked = format::pattern_name(&d.pattern, nth + 1, &row.filename);
-                if let Err(e) = app.backend.rename(*id, &asked) {
-                    said = Some(e.into());
-                }
-            }
-            if d.ids.len() == 1 {
-                let asked = d.name.trim().to_string();
-                match app.backend.rename(*id, &asked) {
-                    Ok(()) => {
-                        app.refresh();
-                        // A name already taken in that folder is given a
-                        // number, as a download's is; said, rather than a
-                        // different name appearing without a word.
-                        if let Some(given) = app.row(*id).map(|r| r.filename.clone()) {
-                            if given != asked {
-                                said = Some(crate::i18n::Said::new(
-                                    "{} is taken in that folder, so it is called {}.",
-                                    &[&asked, &given],
-                                ));
-                            }
-                        }
-                    }
-                    Err(e) => said = Some(e.into()),
-                }
-            }
-        }
+        let said = d.carry(&app.backend);
         app.refresh();
         if let Some(said) = said {
             app.said = said;
@@ -296,25 +245,6 @@ pub(super) fn find(app: &mut DmApp, ctx: &egui::Context) {
     app.dialogs.find_open = open;
 }
 
-/// Whether a row's referrer is a web page. It can come from an imported list, so
-/// only an address the browser would open is handed to the system's opener: a
-/// file path there would open a local or network file instead.
-fn is_web_page(referrer: &str) -> bool {
-    let lower = referrer.trim_start().to_ascii_lowercase();
-    lower.starts_with("http://") || lower.starts_with("https://")
-}
-
-#[cfg(test)]
-mod web_page_tests {
-    use super::is_web_page;
-
-    #[test]
-    fn only_a_web_address_is_opened_as_the_page_a_row_came_from() {
-        assert!(is_web_page("https://site.example/page"));
-        assert!(is_web_page("HTTP://site.example/"));
-        assert!(!is_web_page(""));
-        assert!(!is_web_page("C:\\Windows\\System32\\calc.exe"));
-        assert!(!is_web_page("\\\\host\\share\\x.exe"));
-        assert!(!is_web_page("file:///etc/passwd"));
-    }
-}
+/// Whether a row's referrer is a web page, to open as the page it came from
+/// (`dm_desktop_base::row_edits`, both windows).
+use dm_desktop_base::row_edits::is_web_page;

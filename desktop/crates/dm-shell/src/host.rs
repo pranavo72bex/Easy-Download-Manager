@@ -44,6 +44,10 @@ pub struct Request {
     /// `--later`: into the main queue, not started.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub later: bool,
+    /// `--quiet`: started with nothing asked, whatever Options says about showing Download
+    /// details first (gaps row F3).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub quiet: bool,
     /// The quality picked in the browser's video panel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality: Option<String>,
@@ -175,6 +179,29 @@ pub fn ring(home: &Path) {
     if let Ok(socket) = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)) {
         let _ = socket.send_to(&[], (std::net::Ipv4Addr::LOCALHOST, port));
     }
+}
+
+/// A link a page named, as dm takes it from a page's "Download all links": a web address dm
+/// can download, with no login written into it, and not one inside this computer or its
+/// network where the page is out on the internet. The dialog asks each link's server for its
+/// name and size as it opens, so a public page listing a router's address with a login written
+/// into it had dm send that request, signed in, from the person's computer (security audit, 2026-11-12).
+/// `None` for a link not taken.
+pub fn page_link(page: &str, link: &str) -> Option<String> {
+    let link = link.trim();
+    let mut parsed = url::Url::parse(link).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https" | "ftp") || !dm_core::accepted(link) {
+        return None;
+    }
+    if dm_core::redirects::named_inside(page, link) {
+        return None;
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        let _ = parsed.set_username("");
+        let _ = parsed.set_password(None);
+        return Some(parsed.to_string());
+    }
+    Some(link.to_string())
 }
 
 /// Writes a request where the app will find it.
@@ -722,8 +749,7 @@ pub fn answer(
         })) => {
             let links: Vec<String> = urls
                 .into_iter()
-                .map(|u| u.trim().to_string())
-                .filter(|u| dm_core::accepted(u))
+                .filter_map(|u| page_link(&page, &u))
                 .take(2000)
                 .collect();
             if links.is_empty() {
@@ -1071,8 +1097,6 @@ pub fn warm_main(_home: &Path) {}
 
 /// Runs as the browser's native messaging host until the browser closes it.
 pub fn run(home: &Path) {
-    dm_core::tools::set_folder(home.join("tools"));
-    dm_core::tools::allow_fetching(saved(home).fetch_tools);
     let mut input = std::io::stdin();
     let mut output = std::io::stdout();
     let mut here = Here {

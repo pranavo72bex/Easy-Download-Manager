@@ -28,6 +28,94 @@ const SPEED_LIMIT_KB: (u64, u64) = (0, 1024 * 1024);
 const LIMIT_MB: u64 = 1024 * 1024 * 1024;
 const LIMIT_HOURS: u64 = 24 * 31;
 
+/// The window's scale (Options › General › Appearance's slider, View ›
+/// Larger and Smaller): four stops, 60, 80, 100 and 120 percent, 100 the
+/// default (the maintainer's word of 2026-11-11, docs/decisions.md).
+pub struct TextSizes {
+    /// The window as it is designed.
+    pub default: f32,
+    /// The stops, smallest first.
+    pub stops: [f32; 4],
+}
+
+/// The scales the window offers.
+pub const TEXT_SIZE: TextSizes = TextSizes {
+    default: 1.0,
+    stops: [0.6, 0.8, 1.0, 1.2],
+};
+
+/// The egui window's named text sizes, as a settings file may still say
+/// them, and the stop each is read as.
+const TEXT_SIZE_NAMES: [(&str, f32); 3] = [("small", 0.8), ("medium", 1.0), ("large", 1.2)];
+
+impl TextSizes {
+    /// The stop nearest to `size`; one that is no number is the default.
+    pub fn held(&self, size: f32) -> f32 {
+        if !size.is_finite() {
+            return self.default;
+        }
+        self.stops
+            .iter()
+            .copied()
+            .min_by(|a, b| (a - size).abs().total_cmp(&(b - size).abs()))
+            .unwrap_or(self.default)
+    }
+
+    /// The stop above (`up`) or below the one nearest to `size`, held at
+    /// the ends.
+    pub fn stepped(&self, size: f32, up: bool) -> f32 {
+        let at = self.index(size);
+        let next = if up {
+            (at + 1).min(self.stops.len() - 1)
+        } else {
+            at.saturating_sub(1)
+        };
+        self.stops.get(next).copied().unwrap_or(self.default)
+    }
+
+    /// Which stop `size` is nearest to.
+    pub fn index(&self, size: f32) -> usize {
+        let held = self.held(size);
+        self.stops
+            .iter()
+            .position(|s| (s - held).abs() < 0.001)
+            .unwrap_or(2)
+    }
+
+    /// `size` as the percentage shown beside the slider.
+    pub fn percent(&self, size: f32) -> u32 {
+        (self.held(size) * 100.0).round() as u32
+    }
+
+    /// A scale as a settings file says it: a number (a factor, 0.85 as the
+    /// egui window's Small was, or a percentage, 80), the egui window's
+    /// name for it (Small, Medium, Large), or a percentage in words ("80%").
+    /// Anything else is `None`.
+    pub fn read(&self, said: &serde_json::Value) -> Option<f32> {
+        let number = |n: f64| {
+            let n = n as f32;
+            // 60 to 120 is a percentage; a factor is never that large.
+            Some(self.held(if n > 10.0 { n / 100.0 } else { n }))
+        };
+        match said {
+            serde_json::Value::Number(n) => n.as_f64().and_then(number),
+            serde_json::Value::String(words) => {
+                let words = words.trim().to_ascii_lowercase();
+                if let Some((_, size)) = TEXT_SIZE_NAMES.iter().find(|(n, _)| *n == words) {
+                    return Some(*size);
+                }
+                words
+                    .trim_end_matches('%')
+                    .trim()
+                    .parse::<f64>()
+                    .ok()
+                    .and_then(number)
+            }
+            _ => None,
+        }
+    }
+}
+
 /// Everything a person sets in dm, as `settings.json` keeps it: the window's
 /// Options, the list's columns and sort, the side panel, and what the
 /// browser's extension is told. A field missing from the file takes its
@@ -151,9 +239,10 @@ pub struct Settings {
     pub allow_command_line: bool,
     /// Let an AI assistant use dm over MCP (`dm-desktop mcp`): its requests
     /// are answered only while this is on, and it opens the control port at
-    /// start as `allow_command_line` does. On unless turned off, also for a
-    /// settings file written before it existed.
-    #[serde(default = "default_true")]
+    /// start as `allow_command_line` does. Off in a new install, by dm's own
+    /// rule that nothing listens unless turned on (gaps row F7); a settings
+    /// file that already says either keeps it.
+    #[serde(default)]
     pub allow_mcp: bool,
     /// A folder dm reads every few seconds for links saved there: a `.url`,
     /// a `.webloc`, a text file of links or a `.torrent` is added, then
@@ -214,6 +303,13 @@ pub struct Settings {
     /// The window's look: "system" (the modern look, light or dark as the
     /// computer is), "light", "dark", or "classic" (a classic Windows look).
     pub theme: String,
+    /// How large the GPUI window draws everything, as a multiple of its
+    /// design (Options › General › Appearance's slider, View › Text size):
+    /// one of `TEXT_SIZE.stops`, 0.6 to 1.2, 1.0 the default; Ctrl (Cmd)
+    /// with + and − steps a stop. Kept here so it holds across launches and
+    /// either window can read it.
+    #[serde(default = "default_text_size", deserialize_with = "lenient::text_size")]
+    pub text_size: f32,
     /// What a double-click on a row does: "properties", "open" (a finished
     /// file; Properties for one not finished) or "folder" (its folder).
     pub double_click: String,
@@ -249,6 +345,9 @@ pub struct Settings {
     pub column_order: Vec<String>,
     /// The columns turned off, by key.
     pub columns_hidden: Vec<String>,
+    /// The widths a person gave columns by dragging a heading's edge, in points at 100%, by key;
+    /// a column not named has its own (gaps row U4).
+    pub column_widths: std::collections::BTreeMap<String, f32>,
     /// The column the list is sorted by, by its key, and which way; empty
     /// for the order downloads were added in. Kept so the list is sorted
     /// the same way at the next launch.
@@ -335,11 +434,6 @@ pub struct Settings {
     /// driver can draw black.
     #[serde(default)]
     pub mica: bool,
-    /// Fetch video tools (QuickJS) from their GitHub releases the first
-    /// time a video page needs them. Off, only tools the person installed
-    /// are used.
-    #[serde(default = "yes")]
-    pub fetch_tools: bool,
     /// Queues that start on their own each day at a time of their own.
     #[serde(default)]
     pub queue_starts: Vec<QueueStart>,
@@ -397,8 +491,8 @@ pub const RECENT_URLS: usize = 20;
 
 /// Ten: the last five half a minute apart, so a download rides out a
 /// couple of minutes without a network (`retry::backoff`).
-fn default_true() -> bool {
-    true
+fn default_text_size() -> f32 {
+    TEXT_SIZE.default
 }
 
 fn default_attempts() -> u32 {
@@ -515,6 +609,44 @@ impl Settings {
         }
         kept
     }
+
+    /// Puts back `mine`'s value of every setting that says where a download is written: the
+    /// download folder, the parts folder, sorting by kind and each kind's folder, and each
+    /// site's own folder. For a script driving the window: an assistant set the download folder
+    /// to `~/Library/LaunchAgents` or a Startup folder in Options, then added a download, which
+    /// the control port's rule (a download "into the download folder or below it") let through
+    /// against the new folder (security audit, 2026-11-12). Not for a settings file imported: a
+    /// person moving dm to another computer brings their folders. Says whether any was put back.
+    pub fn keep_places_of(&mut self, mine: &Settings) -> bool {
+        let folders = |s: &Settings| -> Vec<(String, String)> {
+            s.site_rules
+                .iter()
+                .map(|r| (r.host.clone(), r.folder.clone()))
+                .collect()
+        };
+        let changed = self.download_dir != mine.download_dir
+            || self.parts_dir != mine.parts_dir
+            || self.categorize != mine.categorize
+            || self.category_folders != mine.category_folders
+            || folders(self) != folders(mine);
+        if changed {
+            self.download_dir.clone_from(&mine.download_dir);
+            self.parts_dir.clone_from(&mine.parts_dir);
+            self.categorize = mine.categorize;
+            self.category_folders.clone_from(&mine.category_folders);
+            // A site's speed may be the script's; its folder is put back, and a site rule the
+            // person did not have writes nowhere of its own.
+            for rule in &mut self.site_rules {
+                rule.folder = mine
+                    .site_rules
+                    .iter()
+                    .find(|r| r.host == rule.host)
+                    .map(|r| r.folder.clone())
+                    .unwrap_or_default();
+            }
+        }
+        changed
+    }
 }
 
 /// Which settings that run something [`Settings::keep_programs_of`] changed back.
@@ -526,6 +658,9 @@ pub struct KeptPrograms {
     pub schedule: bool,
     /// The proxy script.
     pub proxy_script: bool,
+    /// Where downloads go: the download folder, the parts folder, the kinds' folders, sorting
+    /// into them, a site's own folder (a script's change alone, `keep_places_of`).
+    pub folders: bool,
 }
 
 /// One entry in Options › Sign-ins.
@@ -615,7 +750,6 @@ impl Default for Settings {
             drop_target: false,
             mica: false,
             offer_new_link: true,
-            fetch_tools: true,
             remux_ts: true,
             parts_dir: String::new(),
             on_complete: String::new(),
@@ -658,7 +792,7 @@ impl Default for Settings {
             start_while_asking: false,
             start_on_login: true,
             allow_command_line: false,
-            allow_mcp: true,
+            allow_mcp: false,
             watch_folder: String::new(),
             peer_blocklist: String::new(),
             torrent_share: false,
@@ -675,6 +809,7 @@ impl Default for Settings {
             ask_panel_downloads: true,
             ask_caught_downloads: true,
             theme: "system".into(),
+            text_size: TEXT_SIZE.default,
             double_click: "open".into(),
             on_close: "ask".into(),
             hinted_big: false,
@@ -685,6 +820,7 @@ impl Default for Settings {
             toolbar_style: "both".into(),
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
+            column_widths: std::collections::BTreeMap::new(),
             columns_hidden: Vec::new(),
             sort_column: String::new(),
             sort_ascending: true,
@@ -707,6 +843,7 @@ impl Settings {
         self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
         self.recent_urls.truncate(RECENT_URLS);
         self.retry_wait = self.retry_wait.min(3600);
+        self.text_size = TEXT_SIZE.held(self.text_size);
         // A day at most: a stream meant to run longer is stopped by hand.
         self.record_minutes = self.record_minutes.min(24 * 60);
         if !["ask", "tray", "exit"].contains(&self.on_close.as_str()) {
@@ -1436,6 +1573,15 @@ mod lenient {
         serde_json::from_value(Value::Object(fields))
             .ok()
             .map(|read| (read, dropped))
+    }
+
+    /// The window's scale as a number, a percentage or the egui window's
+    /// name for it (`TextSizes::read`); anything else is the default.
+    pub(super) fn text_size<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+        let said = serde_json::Value::deserialize(d)?;
+        Ok(super::TEXT_SIZE
+            .read(&said)
+            .unwrap_or(super::TEXT_SIZE.default))
     }
 
     pub(super) fn schedule<'de, D: Deserializer<'de>>(d: D) -> Result<dm_core::Schedule, D::Error> {

@@ -18,7 +18,12 @@
 # Streamed in, not mounted, for the reason linux-check.sh gives.
 set -e
 cd "$(dirname "$0")/.."
-version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
+# The window Linux ships (dm-gpui): nfpm.yaml names its libraries, not the
+# egui window's, so an egui .rpm would be checked against the wrong list.
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
+[ "$binary" = dm-gpui ] || { echo "the .rpm carries the GPUI window; DM_WINDOW=egui does not apply here"; exit 2; }
+version=$(sed -n 's/^version = "\(.*\)"/\1/p' "desktop/crates/$binary/Cargo.toml" | head -1)
 docker build -q -t dm-linux-check scripts/linux >/dev/null
 stream() { git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -; }
 
@@ -26,9 +31,9 @@ echo "== building dm $version and its .rpm"
 stream | docker run --rm -i -v dm-linux-target:/target \
   -v "$HOME/.cargo/registry":/usr/local/cargo/registry dm-linux-check sh -c "
     set -e; mkdir -p /work && cd /work && tar -xf -
-    cd desktop && cargo build -q --release -p dm-desktop && cd ..
+    cd desktop && cargo build -q --release -p $binary && cd ..
     rm -rf /target/rpm
-    NFPM_DIR=/target sh scripts/linux/nfpm.sh /target/release/dm-desktop $version /target/rpm"
+    NFPM_DIR=/target sh scripts/linux/nfpm.sh /target/release/$binary $version /target/rpm"
 
 # DM_RPM_DISTROS picks which, e.g. to retry one after a mirror failed.
 for distro in ${DM_RPM_DISTROS:-fedora:41 opensuse/leap:15.6}; do

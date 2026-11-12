@@ -37,32 +37,35 @@ sys.modules["chrome_check"] = cc
 spec.loader.exec_module(cc)
 
 
-def link(pattern):
-    """The first link whose address matches `pattern`, made visible and named by its place."""
+def link(pattern, scroll=True):
+    """The first link whose address matches `pattern`, made visible (unless `scroll` is off),
+    named by its place, and whether a click at that place reaches it."""
     return ("(() => { const re = new RegExp(%s, 'i'); const a = [...document.querySelectorAll('a[href]')]"
-            ".find(a => re.test(a.href)); if (!a) return null; a.scrollIntoView({block: 'center'});"
-            " const r = a.getBoundingClientRect(); return {href: a.href, x: r.left + r.width / 2,"
-            " y: r.top + r.height / 2, w: r.width, h: r.height}; })()") % json.dumps(pattern)
+            ".find(a => re.test(a.href)); if (!a) return null;%s"
+            " const r = a.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2;"
+            " return {href: a.href, x, y, w: r.width, h: r.height, hit: a.contains(document.elementFromPoint(x, y))};"
+            " })()") % (json.dumps(pattern), " a.scrollIntoView({block: 'center'});" if scroll else "")
 
 
-# What each page needs: its address and the link its Download button is, or None where
-# the page starts the download itself (a thank-you page, a countdown, a mirror's refresh).
+# What each page needs: its address and the address pattern of the link its Download button
+# is, or None where the page starts the download itself (a thank-you page, a countdown, a
+# mirror's refresh).
 SITES = {
-    "7-zip": {"url": "https://www.7-zip.org/download.html", "click": link(r"/a/7z[0-9]+(-x64)?\.exe$")},
-    "python": {"url": "https://www.python.org/downloads/macos/", "click": link(r"/ftp/python/[0-9.]+/python-[0-9.]+-macos11\.pkg$")},
-    "nodejs": {"url": "https://nodejs.org/en/download/prebuilt-installer", "click": link(r"nodejs\.org/dist/v[0-9.]+/node-v[0-9.]+\.pkg$")},
-    "github-release": {"url": "https://github.com/cli/cli/releases/latest", "click": link(r"/releases/download/v[0-9.]+/gh_[0-9.]+_macOS_arm64\.zip$")},
+    "7-zip": {"url": "https://www.7-zip.org/download.html", "click": r"/a/7z[0-9]+(-x64)?\.exe$"},
+    "python": {"url": "https://www.python.org/downloads/macos/", "click": r"/ftp/python/[0-9.]+/python-[0-9.]+-macos11\.pkg$"},
+    "nodejs": {"url": "https://nodejs.org/en/download/prebuilt-installer", "click": r"nodejs\.org/dist/v[0-9.]+/node-v[0-9.]+\.pkg$"},
+    "github-release": {"url": "https://github.com/cli/cli/releases/latest", "click": r"/releases/download/v[0-9.]+/gh_[0-9.]+_macOS_arm64\.zip$"},
     # GitHub draws "Download ZIP" only in the Code menu, which a person opens first.
     "github-zip": {"url": "https://github.com/octocat/Hello-World",
                    "open": "[...document.querySelectorAll('button')].find(b => /^\\s*Code\\s*$/.test(b.innerText || ''))",
-                   "click": link(r"/archive/refs/heads/master\.zip$")},
+                   "click": r"/archive/refs/heads/master\.zip$"},
     "sourceforge": {"url": "https://sourceforge.net/projects/sevenzip/files/latest/download", "click": None},
     "mozilla": {"url": "https://www.mozilla.org/en-US/firefox/download/thanks/", "click": None},
     "videolan": {"url": "https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-arm64.dmg", "click": None},
-    "audacity": {"url": "https://www.audacityteam.org/download/mac/", "click": link(r"\.dmg$")},
-    "gimp": {"url": "https://www.gimp.org/downloads/", "click": link(r"download\.gimp\.org/.*\.dmg$")},
+    "audacity": {"url": "https://www.audacityteam.org/download/mac/", "click": r"\.dmg$"},
+    "gimp": {"url": "https://www.gimp.org/downloads/", "click": r"download\.gimp\.org/.*\.dmg$"},
     "libreoffice": {"url": "https://www.libreoffice.org/download/download-libreoffice/",
-                    "click": link(r"download\.documentfoundation\.org/libreoffice/stable/[0-9.]+/mac/aarch64/.*\.dmg$")},
+                    "click": r"download\.documentfoundation\.org/libreoffice/stable/[0-9.]+/mac/aarch64/.*\.dmg$"},
     # Started by the page's script, through a redirect to Microsoft's CDN.
     "vscode": {"url": "https://code.visualstudio.com/docs/?dv=darwinarm64", "click": None},
 }
@@ -100,22 +103,41 @@ def one(base, name, site, engine_home, worker):
             cc.click_at(tab, button["x"], button["y"])
             time.sleep(1.5)
     if site["click"]:
-        target = cc.wait_for(lambda: tab.evaluate(site["click"]), 20)
+        target = cc.wait_for(lambda: tab.evaluate(link(site["click"])), 20)
         if not target:
             out["result"] = "its Download link was not found (the page changed, or a challenge)"
             out["body"] = (tab.evaluate("document.body ? document.body.innerText.slice(0, 160) : ''") or "")
             return out
         out["link"] = target["href"][:140]
-        time.sleep(0.5)
-        target = tab.evaluate(site["click"]) or target
+        # Scrolled once, then measured where it rests. A page can move under a scroll:
+        # LibreOffice's menu bar, which stays at the top and is made shorter once the page is
+        # scrolled, grows back by 63 pixels when the page is scrolled near its top, so the link
+        # was measured before it moved and the click landed on the heading above it, which
+        # does nothing (gaps row 173). A person clicks what they see, so the click waits for
+        # the link to be in the same place twice running with nothing drawn over it, measured
+        # without another scroll (which would move it again).
+        last = [None]
+
+        def resting():
+            now = tab.evaluate(link(site["click"], scroll=False))
+            before, last[0] = last[0], now
+            if now and before and now["hit"] and abs(now["x"] - before["x"]) < 1 and abs(now["y"] - before["y"]) < 1:
+                return now
+            return None
+
         if target["w"] > 0 and target["h"] > 0:
+            time.sleep(0.5)
+            target = cc.wait_for(resting, 10) or last[0] or target
+        if target["w"] > 0 and target["h"] > 0:
+            if not target.get("hit"):
+                out["covered"] = "the link was not the topmost thing at its middle"
             cc.click_at(tab, target["x"], target["y"])
         else:
             # Behind a menu that is closed (GitHub's Code button): a person opens the menu and
             # clicks the link, which is the link's own click.
             tab.call("Runtime.evaluate", userGesture=True, expression=(
                 "(() => { const re = new RegExp(%s, 'i'); [...document.querySelectorAll('a[href]')]"
-                ".find(a => re.test(a.href)).click(); })()") % json.dumps(target["href"]))
+                ".find(a => re.test(a.href)).click(); })()") % json.dumps(site["click"]))
 
     def new_row():
         rows = [r for r in cc.queue_rows(engine_home) if r["id"] not in before]

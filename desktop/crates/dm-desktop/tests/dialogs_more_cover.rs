@@ -395,7 +395,24 @@ fn a_handed_download_begun_while_asking_is_placed_not_added_again() {
         .early
         .expect("begun at once");
     settle_details(&mut harness);
-    click(&mut harness, "Start now");
+    // The file comes in while the dialog asks; the dialog must not take it
+    // for another file of that name (its warning grew the dialog under the
+    // click: gaps row 179). Clicked once the dialog stands still.
+    until_within(
+        &mut harness,
+        "the download begun at once to finish",
+        Duration::from_secs(30),
+        |app| {
+            app.rows()
+                .iter()
+                .any(|r| r.id == early && r.state == dm_core::State::Completed)
+        },
+    );
+    assert!(
+        !shown_containing(&harness, "in the folder already"),
+        "its own file was taken for another"
+    );
+    click_settled(&mut harness, "Start now");
     harness.state_mut().refresh();
     assert!(harness.state().dialogs.file_info.is_none());
     let rows = harness.state().rows();
@@ -551,7 +568,11 @@ fn a_pieces_line_says_what_came_where_no_size_is_known_or_that_it_waits() {
     let mut settings = world.settings();
     settings.connections = 4;
     let mut harness = world.harness_with(settings);
-    add_url(&mut harness, &world.url("ranges-stall.bin"), "Start now");
+    // A server that sends nothing: every piece waits for good. One that sends
+    // its first bytes and then goes quiet has them written down within a
+    // quarter second (`tests/quiet.rs` in dm-core), and its pieces stop
+    // waiting; they read as waiting only while the write buffer held them.
+    add_url(&mut harness, &world.url("ranges-silent.bin"), "Start now");
     until_within(
         &mut harness,
         "several pieces under way",
@@ -854,12 +875,12 @@ fn download_links_unticks_all_and_one_folder_must_be_named() {
     click(&mut harness, "Check all");
     click(&mut harness, "Every file to this category");
     assert_eq!(
-        harness.state().dialogs.links.as_ref().unwrap().save_to,
+        harness.state().dialogs.links.as_ref().unwrap().save.save_to,
         dm_desktop::dialogs::SaveTo::OneCategory
     );
     click(&mut harness, "Each file to the folder of its category");
     assert_eq!(
-        harness.state().dialogs.links.as_ref().unwrap().save_to,
+        harness.state().dialogs.links.as_ref().unwrap().save.save_to,
         dm_desktop::dialogs::SaveTo::ByCategory
     );
     harness
@@ -1293,6 +1314,7 @@ fn browse_says_when_there_is_no_folder_picker_and_takes_the_one_picked() {
         .links
         .as_ref()
         .unwrap()
+        .save
         .folder
         .is_empty());
     *world.fake.no_chooser.lock().unwrap() = false;
@@ -1301,7 +1323,7 @@ fn browse_says_when_there_is_no_folder_picker_and_takes_the_one_picked() {
     click(&mut harness, "Browse…");
     assert!(!shown(&harness, "No folder picker here: type the path."));
     assert_eq!(
-        harness.state().dialogs.links.as_ref().unwrap().folder,
+        harness.state().dialogs.links.as_ref().unwrap().save.folder,
         picked.display().to_string()
     );
 }

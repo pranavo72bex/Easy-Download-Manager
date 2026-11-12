@@ -1772,6 +1772,21 @@ fn a_site_capturing_is_paused_for_keeps_its_downloads_wherever_they_are_served_f
 }
 
 #[test]
+fn the_apps_reading_is_cut_short_only_for_a_choice_of_streams() {
+    // No stream, or one: the app's reading is waited for, so a click is not
+    // answered with a single line it would hand over unasked (gaps row 178).
+    assert!(!cut_reading_short(0));
+    assert!(!cut_reading_short(1));
+    // Two or more already make a list a person picks from.
+    assert!(cut_reading_short(2));
+    assert!(cut_reading_short(5));
+    // A click's wait for YouTube's own list is bounded, inside the panel's
+    // own patience for the app, and asked again often enough to feel prompt.
+    assert!(PLAYER_LIST_PATIENCE_MS < f64::from(FORMATS_PATIENCE_MS));
+    assert!(PLAYER_ASK_EVERY_MS > 0 && f64::from(PLAYER_ASK_EVERY_MS) < PLAYER_LIST_PATIENCE_MS);
+}
+
+#[test]
 fn youtubes_player_answers_for_watch_and_shorts_pages_alone() {
     assert_eq!(
         youtube_video_id("https://www.youtube.com/watch?v=jNQXAC9IVRw&t=3s").as_deref(),
@@ -1781,6 +1796,18 @@ fn youtubes_player_answers_for_watch_and_shorts_pages_alone() {
         youtube_video_id("https://m.youtube.com/shorts/abc-_123?x=1").as_deref(),
         Some("abc-_123")
     );
+    for embedded in [
+        "https://www.youtube.com/embed/jNQXAC9IVRw?autoplay=1",
+        "https://www.youtube-nocookie.com/embed/jNQXAC9IVRw",
+        "https://www.youtube.com/live/jNQXAC9IVRw",
+        "https://music.youtube.com/watch?v=jNQXAC9IVRw",
+    ] {
+        assert_eq!(
+            youtube_video_id(embedded).as_deref(),
+            Some("jNQXAC9IVRw"),
+            "{embedded}"
+        );
+    }
     assert_eq!(
         youtube_video_id("https://www.youtube.com/playlist?list=PL1"),
         None

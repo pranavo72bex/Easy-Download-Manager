@@ -11,16 +11,11 @@ impl DmApp {
     /// downloads should stay with the browser; a site already left there,
     /// or one asked about, is not asked about again.
     pub fn hand_off_cancelled(&mut self, site: &str) {
-        if self.applied.catch.skip_hosts.iter().any(|h| h == site) {
-            return;
-        }
-        let count = self
+        // The counting is the application's (`handoff::Cancels`).
+        if self
             .cancelled_hand_offs
-            .entry(site.to_string())
-            .or_insert(0);
-        *count += 1;
-        if *count >= 2 {
-            *count = 0;
+            .cancelled(site, &self.applied.catch.skip_hosts)
+        {
             self.dialogs.skip_offer = Some(site.to_string());
         }
     }
@@ -30,7 +25,7 @@ impl DmApp {
     pub fn refresh(&mut self) {
         // Before the list is read, so a change made while it is read is
         // still owed a read afterwards.
-        QUEUE_CHANGED.store(false, std::sync::atomic::Ordering::Release);
+        dm_shell::app::changes::take();
         self.take_when_done();
         self.take_new_download();
         // One read by the application (`dm_shell::app::session`): the rows,
@@ -174,35 +169,7 @@ impl DmApp {
     /// each path, and put in place of the bytes the engine counted, which
     /// for a stream remuxed into an MP4 were the joined stream's.
     pub(super) fn saved_sizes(&mut self) {
-        let saved = &mut self.saved;
-        saved.retain(|id, _| {
-            self.rows
-                .iter()
-                .any(|r| r.id == *id && r.state == State::Completed)
-        });
-        for row in &mut self.rows {
-            if row.state != State::Completed || row.path.is_empty() {
-                continue;
-            }
-            let known = saved.get(&row.id).filter(|(path, _)| *path == row.path);
-            let size = match known {
-                Some((_, size)) => *size,
-                None => match std::fs::metadata(&row.path) {
-                    Ok(meta) if meta.is_file() => {
-                        saved.insert(row.id, (row.path.clone(), meta.len()));
-                        meta.len()
-                    }
-                    _ => continue,
-                },
-            };
-            // Copied only where the figures differ: an unchanged row stays
-            // the queue's own, which is how the next read knows it.
-            if row.progress.total != Some(size) || row.progress.downloaded != size {
-                let row = Arc::make_mut(row);
-                row.progress.total = Some(size);
-                row.progress.downloaded = size;
-            }
-        }
+        self.saved.apply(&mut self.rows);
     }
 
     /// "When done": once everything that was downloading has settled,
@@ -295,30 +262,21 @@ impl DmApp {
     /// `--new-download`, left in the inbox by this launch or a later one:
     /// the window comes forward with Add URL open.
     pub fn take_new_download(&mut self) {
-        let file = dm_shell::host::inbox(&dm_shell::settings::home())
-            .join(dm_shell::shell::NEW_DOWNLOAD_FILE);
-        if std::fs::remove_file(&file).is_ok() && !self.headless {
+        if dm_shell::app::session::new_download_asked(&dm_shell::settings::home()) && !self.headless
+        {
             self.show_asked = true;
             self.run(Command::AddUrl);
         }
     }
 
     pub(super) fn take_when_done(&mut self) {
-        use crate::power::WhenDone;
         let Some(wanted) = dm_shell::app::session::when_done_asked(&dm_shell::settings::home())
         else {
             return;
         };
-        let command = match wanted {
-            WhenDone::Nothing => Command::WhenDoneNothing,
-            WhenDone::Quit => Command::WhenDoneQuit,
-            WhenDone::Sleep => Command::WhenDoneSleep,
-            WhenDone::Hibernate => Command::WhenDoneHibernate,
-            WhenDone::ShutDown => Command::WhenDoneShutDown,
-        };
         // As the menu greys them: only what this computer can do.
-        if matches!(wanted, WhenDone::Nothing | WhenDone::Quit) || crate::power::available(wanted) {
-            self.run(command);
+        if wanted.possible(crate::power::available) {
+            self.run(dm_shell::app::commands::when_done_command(wanted));
         } else {
             self.said = crate::i18n::Said::new(
                 "This computer has no way to do that when the downloads are done.",
@@ -411,7 +369,7 @@ impl DmApp {
     /// and watching the clipboard.
     pub fn logic(&mut self, ctx: &egui::Context) {
         let (read_now, look_again) = refresh_plan(
-            QUEUE_CHANGED.load(std::sync::atomic::Ordering::Acquire),
+            dm_shell::app::changes::pending(),
             self.refreshed.map(|at| at.elapsed()),
         );
         if read_now {
@@ -515,20 +473,16 @@ impl DmApp {
     pub(super) fn weekly_update(&mut self, ctx: &egui::Context) {
         // Due again a week after the last, however long dm has been running
         // in the tray: the time of the last check is what decides.
-        if self.applied.check_updates {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| d.as_secs());
-            if crate::update::due(self.applied.update_checked, now) {
-                self.weekly_pending = true;
-                crate::update::check(&self.backend, Arc::clone(&self.update), ctx.clone());
-                let mut wanted = self.applied.clone();
-                wanted.update_checked = now;
-                if let Err(e) = self.apply_settings(wanted) {
-                    self.said = e.into();
-                    // Not saved, but not asked again every frame either.
-                    self.applied.update_checked = now;
-                }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        if let Some(wanted) = dm_shell::app::update::weekly(&self.applied, now) {
+            self.weekly_pending = true;
+            crate::update::check(&self.backend, Arc::clone(&self.update), ctx.clone());
+            if let Err(e) = self.apply_settings(wanted) {
+                self.said = e.into();
+                // Not saved, but not asked again every frame either.
+                self.applied.update_checked = now;
             }
         }
         if self.weekly_pending && matches!(*dm_core::lock(&self.update), Update::Newer(..)) {
@@ -552,6 +506,8 @@ impl DmApp {
             Some("The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again")
         } else if kept.proxy_script {
             Some("The proxy script was not changed: a script was driving the window a moment ago; set it again")
+        } else if kept.folders {
+            Some("The folders downloads go to were not changed: a script was driving the window a moment ago; set them again")
         } else {
             None
         };
@@ -621,13 +577,8 @@ impl DmApp {
     /// A very big download that has started: said once, ever, that the
     /// Scheduler can run it at night. Not said again once it has been.
     pub fn big_download_hint(&mut self) {
-        const BIG: u64 = 5 << 30;
-        if self.applied.hinted_big
-            || self.headless
-            || !self
-                .rows
-                .iter()
-                .any(|r| r.state == State::Running && r.progress.total.is_some_and(|t| t >= BIG))
+        use dm_shell::app::hints::Hint;
+        if self.headless || !Hint::BigDownload.due(&self.applied, &self.rows, self.said.is_empty())
         {
             return;
         }
@@ -636,7 +587,7 @@ impl DmApp {
             &[],
         );
         let mut wanted = self.applied.clone();
-        wanted.hinted_big = true;
+        Hint::BigDownload.mark(&mut wanted);
         if let Err(e) = self.apply_settings(wanted) {
             self.said = e.into();
         }
@@ -647,12 +598,8 @@ impl DmApp {
     /// itself, and without the words a person has nothing to say it is there.
     /// Waits while something else is being said.
     pub fn details_hint(&mut self) {
-        if self.applied.hinted_details
-            || self.applied.show_progress
-            || self.headless
-            || !self.said.is_empty()
-            || !self.rows.iter().any(|r| r.state == State::Running)
-        {
+        use dm_shell::app::hints::Hint;
+        if self.headless || !Hint::Details.due(&self.applied, &self.rows, self.said.is_empty()) {
             return;
         }
         self.said = crate::i18n::Said::new(
@@ -660,7 +607,7 @@ impl DmApp {
             &[],
         );
         let mut wanted = self.applied.clone();
-        wanted.hinted_details = true;
+        Hint::Details.mark(&mut wanted);
         if let Err(e) = self.apply_settings(wanted) {
             self.said = e.into();
         }
@@ -672,27 +619,22 @@ impl DmApp {
     pub fn remove_finished_with_undo(&mut self, ids: &[Id]) {
         let rows = self.backend.finished_rows(ids);
         self.remove_now(ids);
-        if !rows.is_empty() {
+        let n = self.undo_remove.keep(rows);
+        if n > 0 {
             self.said = crate::i18n::Said::counting(
                 "Removed {} download from the list.||Removed {} downloads from the list.",
-                rows.len() as u64,
-                &[&rows.len()],
+                n as u64,
+                &[&n],
             );
-            self.undo_remove = Some((Instant::now(), rows));
         }
     }
 
     /// Puts back what was just taken off the list, if it is still in time.
     pub fn undo_remove(&mut self) {
-        let Some((at, rows)) = self.undo_remove.take() else {
+        let Some(ids) = self.undo_remove.put_back(&self.backend) else {
             return;
         };
-        if at.elapsed() >= UNDO_FOR || rows.is_empty() {
-            return;
-        }
-        let ids: Vec<Id> = rows.iter().map(|(_, e)| e.id).collect();
-        let n = rows.len();
-        self.backend.put_back(rows);
+        let n = ids.len();
         self.refresh();
         self.selected = ids.into_iter().collect();
         self.said = crate::i18n::Said::counting(
@@ -781,20 +723,7 @@ impl DmApp {
     /// Why held rows wait, and until when: the download limit's time left,
     /// or when the schedule next opens. `None` when nothing holds them.
     pub fn held_because(&self) -> Option<String> {
-        if let Some(wait) = self.backend.allowance_spent() {
-            return Some(tf(
-                "Held by the download limit; it goes on by itself in {}.",
-                &[&format::span(wait)],
-            ));
-        }
-        let schedule = &self.applied.schedule;
-        if schedule.enabled && !schedule.open() {
-            return Some(match opens_next(schedule) {
-                Some(at) => tf("Held by the schedule; it starts by itself at {}.", &[&at]),
-                None => t("Held by the schedule.").to_string(),
-            });
-        }
-        None
+        dm_desktop_base::held::held_because(&self.applied, self.backend.allowance_spent())
     }
 
     /// Adds downloads, as "Start now" and "Add for later" do.
@@ -821,207 +750,81 @@ impl DmApp {
         items: Vec<(String, dm_core::AddOptions)>,
         sizes: &HashMap<String, u64>,
     ) -> Result<usize, String> {
-        let mut added = 0;
-        let mut last_error = None;
         self.last_added.clear();
         let count = items.len();
-        let asked: Vec<(String, bool)> = items.iter().map(|(u, w)| (u.clone(), w.later)).collect();
-        for ((url, later), outcome) in asked.iter().zip(self.backend.add_each(items)) {
-            match outcome {
-                Ok(id) => {
-                    added += 1;
-                    self.last_added.push(id);
-                    self.session.own(id);
-                    if let Some(size) = sizes.get(url) {
-                        self.sizes_told.insert(id, *size);
-                    }
-                    if !later && self.applied.show_progress && count == 1 {
-                        self.dialogs.progress.insert(id);
-                    }
-                }
-                Err(e) => last_error = Some(e),
+        let added = self.session.add(&self.backend, items);
+        for (id, url, later) in &added.rows {
+            self.last_added.push(*id);
+            if let Some(size) = sizes.get(url) {
+                self.sizes_told.insert(*id, *size);
+            }
+            if !later && self.applied.show_progress && count == 1 {
+                self.dialogs.progress.insert(*id);
             }
         }
         self.refresh();
-        let failed = count.saturating_sub(added);
-        match (added, last_error) {
-            (0, Some(e)) => Err(e),
-            (_, Some(e)) => {
-                // The rest went in; the ones that did not are said, not lost.
-                self.problem(match failed {
-                    1 => format!("One of the links was not added: {e}"),
-                    n => format!("{n} of the links were not added: {e}"),
-                });
-                Ok(added)
-            }
-            _ => Ok(added),
+        if let Some((failed, e)) = added.partly() {
+            // The rest went in; the ones that did not are said, not lost.
+            self.problem(match failed {
+                1 => format!("One of the links was not added: {e}"),
+                n => format!("{n} of the links were not added: {e}"),
+            });
         }
+        added.outcome()
     }
 
     /* ---------------------------------------------------------- drawing */
 }
 
-/// A question a row raised, waiting for the dialogs to be free.
-pub(crate) enum Ask {
-    /// The server sent another name than the address's.
-    Name(crate::dialogs::NameAsk),
-    /// A web page answered for a file.
-    Page(Id),
-    /// A server said the file is not there.
-    NotFound(Id),
-}
-
 impl DmApp {
-    /// Looks at the rows as just read for what reference A asks about
-    /// (maintainer, 2026-11-01): a name the server sent that is not the
-    /// address's, a web page where a file was asked for, a 404. Only what is
-    /// new since the last read is asked about, and the first read only
-    /// notes what is there: rows of an earlier run are not asked about.
+    /// Looks at the rows as just read for the questions they raise
+    /// (`dm_shell::app::questions`), and asks the next.
     pub(super) fn watch_asks(&mut self) {
-        let first = !self.asks_primed;
-        self.asks_primed = true;
-        let mut seen = std::mem::take(&mut self.ask_seen);
-        // Several rows new at once are a batch (Download all links), which
-        // is not asked about names one by one.
-        let fresh = self
-            .rows
-            .iter()
-            .filter(|r| !seen.contains_key(&r.id))
-            .count();
-        for row in &self.rows {
-            let failed = match &row.state {
-                State::Failed(why) => Some(why.as_str()),
-                _ => None,
-            };
-            let before = seen.insert(row.id, (row.filename.clone(), failed.is_some()));
-            if first {
-                continue;
-            }
-            let was_unnamed = before.as_ref().is_none_or(|(name, _)| name.is_empty());
-            let chosen = row
-                .save_name
-                .as_deref()
-                .is_some_and(|name| !name.trim().is_empty());
-            // A download the browser handed over comes with the name the browser
-            // gives it (and has a page it came from): not asked about. Nor one a
-            // person has said yes to saving as an HTML page, which is named so.
-            let typed_in = row.referrer.is_empty() && !row.accept_page;
-            if was_unnamed && !row.filename.is_empty() && !chosen && typed_in && fresh < 2 {
-                let address_name = crate::format::provisional(&row.url);
-                if row.filename != address_name
-                    && without_copy_number(&row.filename) != address_name
-                {
-                    self.asks.push_back(Ask::Name(crate::dialogs::NameAsk {
-                        id: row.id,
-                        address_name,
-                        server_name: row.filename.clone(),
-                    }));
-                }
-            }
-            let newly_failed = before.as_ref().is_none_or(|(_, was)| !*was);
-            if let (true, Some(why)) = (newly_failed, failed) {
-                if why.contains("answered with a web page rather than the file") && !row.accept_page
-                {
-                    self.asks.push_back(Ask::Page(row.id));
-                } else if why.contains("answered 404") {
-                    self.asks.push_back(Ask::NotFound(row.id));
-                }
-            }
-        }
-        let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
-        seen.retain(|id, _| ids.contains(id));
-        self.ask_seen = seen;
+        self.asks.watch(&self.rows);
         self.promote_asks();
     }
 
     /// Opens the next waiting question, when no other is being asked: one at
     /// a time, in the order they came, and none for a row that is gone.
     pub(crate) fn promote_asks(&mut self) {
+        use dm_shell::app::questions::Question;
         if self.dialogs.asking() {
             return;
         }
-        while let Some(ask) = self.asks.pop_front() {
-            match ask {
-                Ask::Name(n) if self.row(n.id).is_some() => {
-                    self.dialogs.name_ask = Some(n);
-                    return;
-                }
-                Ask::Page(id) if self.row(id).is_some() => {
-                    self.dialogs.page_ask = Some(id);
-                    return;
-                }
-                Ask::NotFound(id) if self.row(id).is_some() => {
-                    self.dialogs.not_found = Some(id);
-                    return;
-                }
-                _ => {}
+        let rows = &self.rows;
+        match self.asks.next(|id| rows.iter().any(|r| r.id == id)) {
+            Some(Question::Name {
+                id,
+                address_name,
+                server_name,
+            }) => {
+                self.dialogs.name_ask = Some(crate::dialogs::NameAsk {
+                    id,
+                    address_name,
+                    server_name,
+                });
             }
+            Some(Question::Page(id)) => self.dialogs.page_ask = Some(id),
+            Some(Question::NotFound(id)) => self.dialogs.not_found = Some(id),
+            None => {}
         }
     }
 
     /// A person said no to the server's name: the file is given the
     /// address's, at once if it is finished, else as it finishes.
     pub(crate) fn use_address_name(&mut self, id: Id, name: &str) {
-        match self.row(id).map(|r| r.state.clone()) {
-            Some(State::Completed) => {
-                let _ = self.backend.rename(id, name);
-            }
-            Some(State::Failed(_) | State::Cancelled) | None => {}
-            Some(_) => {
-                self.pending_renames.insert(id, name.to_string());
-            }
+        let state = self.row(id).map(|r| r.state.clone());
+        if let Some(now) = self.pending_renames.ask(id, state.as_ref(), name) {
+            let _ = self.backend.rename(id, &now);
         }
     }
-
-    /// Renames what finished since a person said no to the server's name.
     pub(super) fn apply_pending_renames(&mut self) {
-        let ids: Vec<Id> = self.pending_renames.keys().copied().collect();
-        for id in ids {
-            match self.row(id).map(|r| r.state.clone()) {
-                Some(State::Completed) => {
-                    if let Some(name) = self.pending_renames.remove(&id) {
-                        let _ = self.backend.rename(id, &name);
-                    }
-                }
-                Some(State::Failed(_) | State::Cancelled) | None => {
-                    self.pending_renames.remove(&id);
-                }
-                Some(_) => {}
-            }
+        let rows = &self.rows;
+        let due = self
+            .pending_renames
+            .due(|id| rows.iter().find(|r| r.id == id).map(|r| r.state.clone()));
+        for (id, name) in due {
+            let _ = self.backend.rename(id, &name);
         }
-    }
-}
-
-/// `name` without the " (2)" dm puts before the extension to keep two copies
-/// of one file apart: that number is dm's, not something the server sent.
-fn without_copy_number(name: &str) -> String {
-    let (stem, ext) = match name.rfind('.') {
-        Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
-        _ => (name, ""),
-    };
-    if let Some(open) = stem.rfind(" (") {
-        if let Some(digits) = stem[open + 2..].strip_suffix(')') {
-            if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
-                return format!("{}{}", &stem[..open], ext);
-            }
-        }
-    }
-    name.to_string()
-}
-
-#[cfg(test)]
-mod copy_number_tests {
-    use super::without_copy_number;
-
-    #[test]
-    fn the_number_dm_adds_to_a_second_copy_is_not_the_servers() {
-        assert_eq!(without_copy_number("again (2).bin"), "again.bin");
-        assert_eq!(without_copy_number("again (12)"), "again");
-        assert_eq!(
-            without_copy_number("Report (final).pdf"),
-            "Report (final).pdf"
-        );
-        assert_eq!(without_copy_number("a.b (1).tar.gz"), "a.b (1).tar.gz");
-        assert_eq!(without_copy_number("plain.bin"), "plain.bin");
     }
 }

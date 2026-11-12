@@ -1,0 +1,185 @@
+[package]
+name = "dm-gpui"
+version = "0.9.0"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+description = "dm — the GPUI window (Phase B shell, docs/migration/GPUI_MIGRATION_PLAN.md)"
+publish = false
+
+# The GPUI window, beside the egui one until it holds every contract row
+# (docs/gaps.md G6 to G9). It uses dm-core, dm-shell and dm-desktop-base,
+# never dm-desktop. Pinned together: docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1.
+[[bin]]
+name = "dm-gpui"
+path = "src/main.rs"
+
+
+# The packages with the GPUI window (Phase D of
+# docs/migration/GPUI_MIGRATION_PLAN.md): the egui window's macOS app and
+# disk image and its Windows installer, their name, id, icons and the types
+# they open, with this binary in them (`make app`, `make app-egui` for the
+# egui window's).
+[package.metadata.packager]
+productName = "dm"
+identifier = "com.dm.desktop"
+description = "Multi-connection downloads that resume"
+longDescription = "dm splits a file across several connections, resumes what was interrupted, and takes over the downloads you start in a browser."
+category = "Utility"
+beforePackagingCommand = "cargo build --release -p dm-gpui"
+outDir = "../../target/release/bundle"
+binaries = [{ path = "dm-gpui", main = true }]
+icons = [
+  "../dm-desktop/icons/32x32.png",
+  "../dm-desktop/icons/128x128.png",
+  "../dm-desktop/icons/128x128@2x.png",
+  "../dm-desktop/icons/icon.icns",
+  "../dm-desktop/icons/icon.ico",
+]
+
+# The .deb, as the egui window's (`../dm-desktop/Cargo.toml` says why its
+# own launcher entry): the package is still `dm`, so it upgrades the egui
+# window's in place.
+[package.metadata.packager.deb]
+desktopTemplate = "../../packaging/deb.desktop"
+# `/usr/bin/dm-desktop` as before, running this window: the command the README
+# gives, and what a login item or a browser's host written by an earlier dm
+# names, until dm writes them again for this binary as it starts.
+# Its icon and a hidden launcher under the old name too: a login entry
+# and a magnet or .torrent default saved by an earlier dm name them, and
+# lost them with the upgrade (the new launcher is dm-gpui.desktop).
+files = { "../../packaging/dm-desktop" = "usr/bin/dm-desktop", "../dm-desktop/icons/128x128.png" = "usr/share/icons/hicolor/128x128/apps/dm-desktop.png", "../../packaging/dm-desktop.desktop" = "usr/share/applications/dm-desktop.desktop" }
+depends = [
+  # Linked: X11 through xcb, the keyboard's layout, the font rasteriser.
+  "libxcb1",
+  "libxkbcommon0",
+  "libxkbcommon-x11-0",
+  "libfreetype6",
+  "libfontconfig1",
+  # Opened as it starts: Vulkan where the computer has a driver for it, else
+  # GL through EGL (Mesa draws without a GPU); Wayland where the desktop is.
+  "libvulkan1",
+  "libegl1",
+  "libwayland-client0",
+  "libwayland-egl1",
+  # Open and Open folder go through xdg-open (dm-shell/src/shell.rs).
+  "xdg-utils",
+  # secret-tool: the saved logins, cookies and passwords go to the desktop's
+  # Secret Service through it (dm-core/src/secretstore.rs).
+  "libsecret-tools",
+  # WebKitGTK's JavaScriptCore: YouTube's checks and a proxy script run in it
+  # (dm-core/src/javascript.rs); nothing is fetched or run in its place
+  # (docs/gaps.md P1). The newer one where a system has only that.
+  "libjavascriptcoregtk-4.1-0 | libjavascriptcoregtk-6.0-1",
+]
+
+# The AppImage carries WebKitGTK's JavaScriptCore, as a system it runs on may
+# have none (docs/gaps.md P1); the library is found under /usr/lib* on the
+# machine that builds it, which installs it first (.github/workflows/desktop.yml).
+[package.metadata.packager.appimage]
+libs = ["libjavascriptcoregtk-4.1.so.0"]
+
+[package.metadata.packager.macos]
+minimumSystemVersion = "11.0"
+# Ad-hoc, as the egui window's bundle is (its Cargo.toml says why).
+signingIdentity = "-"
+infoPlistPath = "../dm-desktop/macos/Info.plist"
+
+# As the egui window's installer: its uninstaller tells the browsers dm is
+# going and removes its login item before the files go (`--unregister`; the
+# egui crate's Cargo.toml says why it is here). Installed over a dm whose
+# window was egui's, the old program (`dm-desktop.exe`, beside this one in
+# the same folder) is taken away first, so the login item and the browsers'
+# registrations that start it find it gone and follow this one at its first
+# start (`autostart::takes_over`, `register::ensure_this_copy`). Still
+# running, it is ended first, as the installer ends a running dm-gpui.exe
+# (its queue is written as it goes: contract B21), or it would hold the
+# single-instance lock and the file.
+[package.metadata.packager.nsis]
+preinstallSection = """
+Section "dmReplaceEguiWindow"
+  IfFileExists "$INSTDIR\\dm-desktop.exe" 0 dmNoEguiWindow
+    nsExec::Exec 'taskkill /F /IM dm-desktop.exe'
+    Pop $0
+    Sleep 500
+    Delete "$INSTDIR\\dm-desktop.exe"
+  dmNoEguiWindow:
+SectionEnd
+Section "un.dmUnregister"
+  ExecWait '"$INSTDIR\\${MAINBINARYNAME}.exe" --unregister'
+SectionEnd
+"""
+
+[dependencies]
+dm-core = { path = "../dm-core" }
+dm-protocol = { path = "../dm-protocol" }
+dm-shell = { path = "../dm-shell" }
+dm-desktop-base = { path = "../dm-desktop-base" }
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+# Text fields and the controls core GPUI does not have, built for the same
+# GPUI (it pins gpui-pre =0.3.12): docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1.
+gpui-component = "=0.9.1"
+# gpui-component's own base, for text a person can select and copy (a
+# digest) as the system's labels can be; the same version it pins.
+gpui-base = "=0.9.1"
+# The wake-ups from any thread to the window's own, and waiting for the
+# first of a wake and a second (both already in the tree through GPUI).
+async-channel = "2"
+futures-lite = "2"
+serde_json = "1"
+# The window's services to the desktop (services.rs): the clipboard, and
+# the system's own open and save panels for the application's choosers.
+arboard = "3"
+# The status item in the menu bar (the tray), as the egui window has it: GPUI
+# has none (D4's fallback).
+tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
+raw-window-handle = "0.6"
+rfd = "0.17"
+
+# The window's notifier (notify.rs). Not on Windows, where dm posts its
+# toasts itself (dm_desktop_base::toast).
+[target.'cfg(not(windows))'.dependencies]
+notify-rust = "4"
+
+# dm's own icon in a taskbar's tray, and Windows' window pictures, read and
+# written as PNGs (tray.rs, syswindow.rs).
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+png = "0.18"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "runtime_shaders"] }
+# What GPUI cannot ask of a window (appkit.rs): put away into the tray without
+# closing it, moved, pictured.
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation", "block2", "NSOpenPanel", "NSSavePanel", "NSPanel"] }
+# The open and save panels' completion handler (services.rs), as rfd and
+# GPUI give theirs.
+block2 = "0.6"
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["wayland", "x11"] }
+# The X server itself, for what GPUI cannot ask of an X11 window (syswindow.rs):
+# put away into the tray and back, moved, pictured. Already in the tree (GPUI's).
+x11rb = "0.13"
+[target.'cfg(windows)'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
+# What GPUI cannot ask of the window there (syswindow.rs): hidden into the
+# tray and shown again, moved, pictured; the picture saved as a PNG.
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_Xps",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+# A home of its own for each run of the real binary (tests/quit.rs).
+tempfile = "3"
+
+# The Windows program's icon and version (build.rs).
+[build-dependencies]
+embed-resource = "3"
+
+[lints]
+workspace = true

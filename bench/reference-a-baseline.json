@@ -1,0 +1,5664 @@
+{
+ "title": "Reference A's baseline: the bottom line for dm's speed, memory and CPU",
+ "frozen": "2026-11-11",
+ "never": "This file never changes. bench/compare.mjs and the xtask test `the_reference_a_baseline_never_changes` hold it to its SHA-256. A new measurement of reference A goes into a new file beside it, never into this one.",
+ "rule": [
+  "dm passes a scenario when every run's file is whole and, for every metric with a direction, dm's median over its runs is lower than reference A's floor (equal passes only where the floor is 0).",
+  "A floor is the best value reference A reached in any whole run of that scenario and group: the strictest bar it has set, so a run of reference A slowed by the harness can only have made a floor easier, never harder.",
+  "Metrics marked time, in the machine-bound scenarios (fast, big40), are scaled to the computer dm runs on by the ceiling: floor x min(1, ceiling there / ceiling here), each the best of its runs. A floor never gets looser than it is here.",
+  "Every other floor applies as it is, on every system: the capped scenarios are bound by the server's caps and not the computer, and memory and CPU are bars to come in under.",
+  "The default group is standard. A run with BENCH_DM_CONNECTIONS=16 is judged against connections16."
+ ],
+ "machine": {
+  "cpu": "Intel Core i5-6200U (2 cores, 4 threads)",
+  "memoryGB": 11.9,
+  "system": "Windows 11 Home (build 26100)",
+  "laptop": true,
+  "disks": {
+   "C:": "SSD, the system disk",
+   "D:": "SATA hard disk"
+  },
+  "note": "Both apps on the same computer, run one after the other, never at once; each repetition alternated which went first, 3 s apart."
+ },
+ "referenceA": {
+  "version": "6.43",
+  "installedMB": 25.1,
+  "signed": true,
+  "settings": "its own defaults: 8 connections, its temporary folder on C:, nothing else changed; for connections16 its connection number set to 16 in its Options",
+  "given": "by its own command line, silently (/d <address> /p <folder> /n), as a browser hands it a download; for batch each file queued (/a) then the queue started (/s)",
+  "windows": "its question boxes and download-finished boxes answered by the window helper (bench/refa-windows.ps1), never with a blocking call; in its final form only until the server saw the first request (so it takes no CPU from the download) and once after the file was whole",
+  "done": "the file at its full size in its folder, looked at every 100 ms, then its SHA-256 compared"
+ },
+ "dmThen": {
+  "version": "0.9.0 and the builds of 2026-11-10 after it (gaps rows 166 to 168), the egui window",
+  "given": "through its control port (downloads.add), its window shown, a home of its own (BENCH_DM_HOME), settings.json giving only the download folder (and connections for connections16)",
+  "done": "its row says completed (queue.list every 100 ms), then the SHA-256 of the file it names compared"
+ },
+ "groups": {
+  "standard": "8 connections (both apps' default); dm's home on C:, both apps saving to the hard disk D:; reference A's temporary parts on C: (its default)",
+  "connections16": "as standard, with both apps set to 16 connections",
+  "allSsd": "as standard, with everything on C: (the SSD)",
+  "allSsdConnections16": "as allSsd, with both apps set to 16 connections"
+ },
+ "harness": {
+  "file": "bench/bench.mjs (harness 1)",
+  "server": {
+   "where": "Node http server on 127.0.0.1, in the harness process, one path prefix and one log per run",
+   "headers": "Content-Type application/octet-stream, Accept-Ranges bytes, ETag \"<first 12 hex of the SHA-256>\", Last-Modified Mon, 01 Jan 2024 00:00:00 GMT, Content-Length",
+   "ranges": "bytes=a-b, bytes=a- and bytes=-n answered 206 with Content-Range; a start past the end 416",
+   "writes": "pieces of 1 MiB with no cap, 64 KiB under a cap; never less than 16 KiB (or what is left); a capped write waits 4 ms and tries again",
+   "perConnectionCap": "token bucket per connection, at most 128 KiB banked",
+   "totalCap": "token bucket shared by all connections of the run, at most 256 KiB banked",
+   "cuts": "flaky: each connection closed after a uniform random 0.25 to 3 MiB (xorshift32 seeded 0xC0FFEE per run)",
+   "outage": "outage: once 30% of the file is served, every connection is closed and every request in the next 15 s is closed as it arrives"
+  },
+  "data": "a 1 MiB xorshift32 block seeded with 1000 + 7 x file index + the length of the scenario name, repeated, each 4 KiB stamped with (MiB index XOR 0x9e3779b9), so a piece put in the wrong place changes the SHA-256",
+  "sampler": "every 400 ms: working set, private bytes and CPU time of each app process (Windows: Get-Process; Linux: /proc; macOS: ps); a peak is the highest sample from the address handed over to 400 ms after done; CPU the time at the last sample less the time at the last sample before the start",
+  "repetitions": {
+   "fast": 3,
+   "per_conn": 2,
+   "flaky": 2,
+   "outage": 1,
+   "batch": 2,
+   "big40": 2,
+   "idle": 1
+  },
+  "timeoutsSeconds": {
+   "fast": 300,
+   "per_conn": 240,
+   "flaky": 300,
+   "outage": 300,
+   "batch": 300,
+   "big40": 300
+  }
+ },
+ "scenarios": {
+  "idle": {
+   "label": "window up, nothing to do, 20 s",
+   "params": {
+    "seconds": 20
+   },
+   "judged": [
+    "peakWorkingSetMB",
+    "peakPrivateMB",
+    "cpuMs"
+   ],
+   "bound": "none",
+   "scaleByCeiling": null,
+   "idealSeconds": null
+  },
+  "fast": {
+   "label": "512 MiB, local server, no limit",
+   "params": {
+    "size": 536870912
+   },
+   "bound": "machine (disk, memory, CPU)",
+   "scaleByCeiling": "fast",
+   "idealSeconds": null
+  },
+  "per_conn": {
+   "label": "64 MiB, each connection 1 MiB/s",
+   "params": {
+    "size": 67108864,
+    "perConn": 1048576
+   },
+   "bound": "server's caps",
+   "scaleByCeiling": null,
+   "idealSeconds": 8,
+   "ideal": "64 MiB over 8 connections of 1 MiB/s (more connections can do better)"
+  },
+  "flaky": {
+   "label": "64 MiB at 8 MiB/s, every connection cut after 0.25-3 MiB",
+   "params": {
+    "size": 67108864,
+    "total": 8388608,
+    "cut": [
+     262144,
+     3145728
+    ]
+   },
+   "bound": "server's caps",
+   "scaleByCeiling": null,
+   "idealSeconds": 8,
+   "ideal": "64 MiB at 8 MiB/s"
+  },
+  "outage": {
+   "label": "64 MiB at 8 MiB/s, all connections fail for 15 s at 30%",
+   "params": {
+    "size": 67108864,
+    "total": 8388608,
+    "outage": {
+     "at": 0.3,
+     "ms": 15000
+    }
+   },
+   "bound": "server's caps",
+   "scaleByCeiling": null,
+   "idealSeconds": 23,
+   "ideal": "64 MiB at 8 MiB/s plus the 15 s outage"
+  },
+  "batch": {
+   "label": "24 files of 2 MiB, each connection 2 MiB/s, all added at once",
+   "params": {
+    "size": 2097152,
+    "files": 24,
+    "perConn": 2097152
+   },
+   "bound": "server's caps",
+   "scaleByCeiling": null,
+   "idealSeconds": null,
+   "ideal": "48 MiB at 2 MiB/s a connection: 3 s with 8 connections at once, less with more"
+  },
+  "big40": {
+   "label": "512 MiB at 40 MiB/s in all",
+   "params": {
+    "size": 536870912,
+    "total": 41943040
+   },
+   "bound": "machine on the baseline computer (Windows' timer, about 15.6 ms, holds the harness's paced server near 19 MiB/s, below its 40 MiB/s cap); the cap elsewhere",
+   "scaleByCeiling": "big40",
+   "idealSeconds": 12.8,
+   "ideal": "512 MiB at 40 MiB/s"
+  }
+ },
+ "metrics": [
+  {
+   "key": "seconds",
+   "unit": "s",
+   "lower": true,
+   "time": true,
+   "what": "from the moment the address is handed to the app to the file whole on disk"
+  },
+  {
+   "key": "transferSeconds",
+   "unit": "s",
+   "lower": true,
+   "time": true,
+   "what": "from the first request at the server to the file whole on disk (the engine alone)"
+  },
+  {
+   "key": "firstRequestMs",
+   "unit": "ms",
+   "lower": true,
+   "time": false,
+   "what": "from the address handed over to the first request at the server"
+  },
+  {
+   "key": "lastByteToDoneMs",
+   "unit": "ms",
+   "lower": true,
+   "time": true,
+   "what": "from the last byte sent to the file whole on disk (the finish: assembling, moving, checking)"
+  },
+  {
+   "key": "refetchedPct",
+   "unit": "%",
+   "lower": true,
+   "time": false,
+   "what": "bytes served beyond the file size, as a share of it (fetched twice)"
+  },
+  {
+   "key": "peakWorkingSetMB",
+   "unit": "MiB",
+   "lower": true,
+   "time": false,
+   "what": "peak working set (resident memory) while downloading, sampled every 400 ms"
+  },
+  {
+   "key": "peakPrivateMB",
+   "unit": "MiB",
+   "lower": true,
+   "time": false,
+   "what": "peak private bytes (anonymous memory on Linux; not sampled on macOS)"
+  },
+  {
+   "key": "cpuMs",
+   "unit": "ms",
+   "lower": true,
+   "time": false,
+   "what": "CPU time used from the address handed over to the file whole"
+  },
+  {
+   "key": "recoveryAfterOutageMs",
+   "unit": "ms",
+   "lower": true,
+   "time": false,
+   "what": "from the outage ending to the next byte served (outage only)"
+  },
+  {
+   "key": "mbps",
+   "unit": "MiB/s",
+   "lower": false,
+   "info": true,
+   "what": "size / seconds (derived; judged through seconds)"
+  },
+  {
+   "key": "requests",
+   "unit": "",
+   "info": true,
+   "what": "requests the server saw"
+  },
+  {
+   "key": "connections",
+   "unit": "",
+   "info": true,
+   "what": "TCP connections the server saw"
+  },
+  {
+   "key": "maxParallelConnections",
+   "unit": "",
+   "info": true,
+   "what": "most connections sending at once"
+  },
+  {
+   "key": "maxParallelFiles",
+   "unit": "",
+   "info": true,
+   "what": "most files being sent at once (batch)"
+  },
+  {
+   "key": "servedMB",
+   "unit": "MiB",
+   "info": true,
+   "what": "bytes the server sent"
+  },
+  {
+   "key": "outageDroppedRequests",
+   "unit": "",
+   "info": true,
+   "what": "requests dropped during the outage (how hard the app retried)"
+  }
+ ],
+ "ceiling": {
+  "client": "bench/ceiling-client.mjs (8 ranges at once, each into a file of its own through a 4 MiB buffered stream)",
+  "connections": 8,
+  "measuredUtc": [
+   "2026-11-11T03:05:00.470Z",
+   "2026-11-11T03:08:16.535Z"
+  ],
+  "writtenTo": "the hard disk D:, the download folder of the standard group",
+  "results": {
+   "fast": {
+    "seconds": [
+     13.676,
+     3.305,
+     5.073,
+     2.601,
+     4.036,
+     2.628
+    ],
+    "best": 2.601,
+    "median": 3.67
+   },
+   "per_conn": {
+    "seconds": [
+     8.054,
+     8.041,
+     8.036,
+     8.025,
+     8.049,
+     8.032
+    ],
+    "best": 8.025,
+    "median": 8.038
+   },
+   "flaky": {
+    "seconds": [
+     8.319,
+     8.025,
+     8.097,
+     8.006,
+     7.991,
+     8.026
+    ],
+    "best": 7.991,
+    "median": 8.026
+   },
+   "big40": {
+    "seconds": [
+     28.56,
+     27.738,
+     27.904,
+     27.106,
+     26.878,
+     28.365
+    ],
+    "best": 26.878,
+    "median": 27.821
+   }
+  }
+ },
+ "floors": {
+  "standard": {
+   "idle": {
+    "runs": 1,
+    "wholeRuns": 1,
+    "sources": [
+     "idle"
+    ],
+    "floor": {
+     "peakWorkingSetMB": {
+      "best": 39.2,
+      "median": 39.2,
+      "worst": 39.2,
+      "n": 1
+     },
+     "peakPrivateMB": {
+      "best": 12.3,
+      "median": 12.3,
+      "worst": 12.3,
+      "n": 1
+     },
+     "cpuMs": {
+      "best": 234,
+      "median": 234,
+      "worst": 234,
+      "n": 1
+     }
+    }
+   },
+   "fast": {
+    "runs": 39,
+    "wholeRuns": 39,
+    "sources": [
+     "fast-ab-committed",
+     "fast-ab-speed",
+     "fast-fix1",
+     "fast-fix2",
+     "fast-fix3",
+     "fast-inorder",
+     "fast-mirror",
+     "fast-open",
+     "fast-probe",
+     "fast-range-all",
+     "fast-range",
+     "fast-range2",
+     "fast-ssdparts-hddfile",
+     "fast-staged",
+     "fast-verify",
+     "fast-watch",
+     "fast"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 3.682,
+      "median": 5.143,
+      "worst": 11.728,
+      "n": 39
+     },
+     "transferSeconds": {
+      "best": 3.138,
+      "median": 3.718,
+      "worst": 8.09,
+      "n": 39
+     },
+     "firstRequestMs": {
+      "best": 486,
+      "median": 849,
+      "worst": 4500,
+      "n": 39
+     },
+     "lastByteToDoneMs": {
+      "best": 795,
+      "median": 928,
+      "worst": 5011,
+      "n": 39
+     },
+     "refetchedPct": {
+      "best": 2.6,
+      "median": 2.8,
+      "worst": 3.2,
+      "n": 39
+     },
+     "peakWorkingSetMB": {
+      "best": 20.9,
+      "median": 36.3,
+      "worst": 47.5,
+      "n": 39
+     },
+     "peakPrivateMB": {
+      "best": 10.7,
+      "median": 17.3,
+      "worst": 19.4,
+      "n": 39
+     },
+     "cpuMs": {
+      "best": 2953,
+      "median": 3328,
+      "worst": 4094,
+      "n": 39
+     },
+     "mbps": {
+      "median": 99.55,
+      "min": 43.66,
+      "max": 139.05,
+      "n": 39
+     },
+     "requests": {
+      "median": 9,
+      "min": 9,
+      "max": 15,
+      "n": 39
+     },
+     "connections": {
+      "median": 9,
+      "min": 9,
+      "max": 15,
+      "n": 39
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 8,
+      "max": 8,
+      "n": 39
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 39
+     },
+     "servedMB": {
+      "median": 526.2,
+      "min": 525.2,
+      "max": 528.2,
+      "n": 39
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 39
+     }
+    },
+    "fastestRun": {
+     "source": "fast-range-all",
+     "rep": 2,
+     "seconds": 3.682,
+     "requestPattern": {
+      "columns": [
+       "ms after the first request",
+       "bytes sent on it",
+       "Range header",
+       "dropped"
+      ],
+      "rows": [
+       [
+        0,
+        3145728,
+        null,
+        ""
+       ],
+       [
+        58,
+        101711872,
+        "bytes=236120-536870911",
+        ""
+       ],
+       [
+        82,
+        101711872,
+        "bytes=268565290-536870911",
+        ""
+       ],
+       [
+        84,
+        101711872,
+        "bytes=402718100-536870911",
+        ""
+       ],
+       [
+        126,
+        101711872,
+        "bytes=134517599-268565353",
+        ""
+       ],
+       [
+        1193,
+        35680537,
+        "bytes=232884817-268565353",
+        ""
+       ],
+       [
+        1199,
+        35668949,
+        "bytes=98848714-134517662",
+        ""
+       ],
+       [
+        1205,
+        35633753,
+        "bytes=501237159-536870911",
+        ""
+       ],
+       [
+        1208,
+        35622136,
+        "bytes=367096028-402718163",
+        ""
+       ]
+      ]
+     },
+     "timeline": {
+      "columns": [
+       "ms after the first request",
+       "bytes served"
+      ],
+      "rows": [
+       [
+        81,
+        6291456
+       ],
+       [
+        582,
+        124780544
+       ],
+       [
+        1083,
+        244318208
+       ],
+       [
+        1585,
+        378535936
+       ],
+       [
+        2086,
+        497025024
+       ],
+       [
+        2588,
+        552598591
+       ],
+       [
+        3090,
+        552598591
+       ],
+       [
+        3591,
+        552598591
+       ],
+       [
+        4093,
+        552598591
+       ],
+       [
+        4594,
+        552598591
+       ],
+       [
+        5099,
+        552598591
+       ],
+       [
+        5604,
+        552598591
+       ]
+      ]
+     }
+    }
+   },
+   "per_conn": {
+    "runs": 8,
+    "wholeRuns": 8,
+    "sources": [
+     "per_conn-inorder",
+     "per_conn-mirror",
+     "per_conn-range-all",
+     "per_conn"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 9.446,
+      "median": 9.99,
+      "worst": 13.318,
+      "n": 8
+     },
+     "transferSeconds": {
+      "best": 8.942,
+      "median": 9.182,
+      "worst": 9.776,
+      "n": 8
+     },
+     "firstRequestMs": {
+      "best": 504,
+      "median": 750,
+      "worst": 3542,
+      "n": 8
+     },
+     "lastByteToDoneMs": {
+      "best": 159,
+      "median": 190.5,
+      "worst": 455,
+      "n": 8
+     },
+     "refetchedPct": {
+      "best": 0.1,
+      "median": 0.3,
+      "worst": 0.7,
+      "n": 8
+     },
+     "peakWorkingSetMB": {
+      "best": 21.1,
+      "median": 32.05,
+      "worst": 41.1,
+      "n": 8
+     },
+     "peakPrivateMB": {
+      "best": 10.7,
+      "median": 11.95,
+      "worst": 13.7,
+      "n": 8
+     },
+     "cpuMs": {
+      "best": 1281,
+      "median": 1586,
+      "worst": 2000,
+      "n": 8
+     },
+     "mbps": {
+      "median": 6.41,
+      "min": 4.81,
+      "max": 6.78,
+      "n": 8
+     },
+     "requests": {
+      "median": 9,
+      "min": 9,
+      "max": 9,
+      "n": 8
+     },
+     "connections": {
+      "median": 9,
+      "min": 9,
+      "max": 9,
+      "n": 8
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 8,
+      "max": 8,
+      "n": 8
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 8
+     },
+     "servedMB": {
+      "median": 64.2,
+      "min": 64.1,
+      "max": 64.5,
+      "n": 8
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 8
+     }
+    },
+    "fastestRun": {
+     "source": "per_conn-inorder",
+     "rep": 1,
+     "seconds": 9.446,
+     "requestPattern": {
+      "columns": [
+       "ms after the first request",
+       "bytes sent on it",
+       "Range header",
+       "dropped"
+      ],
+      "rows": [
+       [
+        0,
+        243269,
+        null,
+        ""
+       ],
+       [
+        41,
+        9027190,
+        "bytes=236130-67108863",
+        ""
+       ],
+       [
+        77,
+        8924430,
+        "bytes=33681933-67108863",
+        ""
+       ],
+       [
+        79,
+        8922333,
+        "bytes=50395398-67108863",
+        ""
+       ],
+       [
+        258,
+        8833204,
+        "bytes=17059170-33681996",
+        ""
+       ],
+       [
+        1106,
+        7870520,
+        "bytes=25811477-33681996",
+        ""
+       ],
+       [
+        1109,
+        7856364,
+        "bytes=9202870-17059233",
+        ""
+       ],
+       [
+        1114,
+        7821436,
+        "bytes=59287428-67108863",
+        ""
+       ],
+       [
+        1118,
+        7820451,
+        "bytes=42575011-50395461",
+        ""
+       ]
+      ]
+     },
+     "timeline": {
+      "columns": [
+       "ms after the first request",
+       "bytes served"
+      ],
+      "rows": [
+       [
+        59,
+        80739
+       ],
+       [
+        577,
+        2087712
+       ],
+       [
+        1083,
+        4308597
+       ],
+       [
+        1587,
+        8408526
+       ],
+       [
+        2103,
+        12744387
+       ],
+       [
+        2606,
+        16963859
+       ],
+       [
+        3110,
+        21187522
+       ],
+       [
+        3626,
+        25457323
+       ],
+       [
+        4129,
+        29605491
+       ],
+       [
+        4630,
+        33824961
+       ],
+       [
+        5146,
+        38141947
+       ],
+       [
+        5648,
+        42473616
+       ],
+       [
+        6164,
+        46633315
+       ],
+       [
+        6682,
+        51009024
+       ],
+       [
+        7185,
+        55319719
+       ],
+       [
+        7695,
+        59624124
+       ],
+       [
+        8209,
+        63847787
+       ],
+       [
+        8713,
+        67319197
+       ],
+       [
+        9249,
+        67319197
+       ],
+       [
+        9767,
+        67319197
+       ],
+       [
+        10282,
+        67319197
+       ],
+       [
+        10983,
+        67319197
+       ],
+       [
+        11528,
+        67319197
+       ],
+       [
+        12059,
+        67319197
+       ],
+       [
+        12565,
+        67319197
+       ],
+       [
+        13066,
+        67319197
+       ],
+       [
+        13579,
+        67319197
+       ]
+      ]
+     }
+    }
+   },
+   "flaky": {
+    "runs": 14,
+    "wholeRuns": 13,
+    "sources": [
+     "flaky-fix1",
+     "flaky-fix2",
+     "flaky-fix3",
+     "flaky-inorder",
+     "flaky-mirror",
+     "flaky-range-all",
+     "flaky"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 8.762,
+      "median": 9.167,
+      "worst": 16.987,
+      "n": 13
+     },
+     "transferSeconds": {
+      "best": 8.236,
+      "median": 8.415,
+      "worst": 16.454,
+      "n": 13
+     },
+     "firstRequestMs": {
+      "best": 506,
+      "median": 611,
+      "worst": 3462,
+      "n": 13
+     },
+     "lastByteToDoneMs": {
+      "best": 71,
+      "median": 237,
+      "worst": 360,
+      "n": 13
+     },
+     "refetchedPct": {
+      "best": 0.8,
+      "median": 1.5,
+      "worst": 99.4,
+      "n": 13
+     },
+     "peakWorkingSetMB": {
+      "best": 21.1,
+      "median": 36.5,
+      "worst": 42.2,
+      "n": 13
+     },
+     "peakPrivateMB": {
+      "best": 10.6,
+      "median": 11.8,
+      "worst": 16.7,
+      "n": 13
+     },
+     "cpuMs": {
+      "best": 1406,
+      "median": 1766,
+      "worst": 3078,
+      "n": 13
+     },
+     "mbps": {
+      "median": 6.98,
+      "min": 3.77,
+      "max": 7.3,
+      "n": 13
+     },
+     "requests": {
+      "median": 66,
+      "min": 58,
+      "max": 106,
+      "n": 13
+     },
+     "connections": {
+      "median": 66,
+      "min": 58,
+      "max": 106,
+      "n": 13
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 7,
+      "max": 8,
+      "n": 13
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 13
+     },
+     "servedMB": {
+      "median": 64.9,
+      "min": 64.5,
+      "max": 127.6,
+      "n": 13
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 13
+     }
+    },
+    "fastestRun": {
+     "source": "flaky-range-all",
+     "rep": 2,
+     "seconds": 8.762,
+     "requestPattern": {
+      "columns": [
+       "ms after the first request",
+       "bytes sent on it",
+       "Range header",
+       "dropped"
+      ],
+      "rows": [
+       [
+        0,
+        378011,
+        null,
+        ""
+       ],
+       [
+        34,
+        1591088,
+        "bytes=236130-67108863",
+        ""
+       ],
+       [
+        60,
+        1812730,
+        "bytes=33684273-67108863",
+        ""
+       ],
+       [
+        62,
+        2730854,
+        "bytes=50396568-67108863",
+        ""
+       ],
+       [
+        102,
+        1988515,
+        "bytes=17077097-33684336",
+        ""
+       ],
+       [
+        306,
+        498810,
+        "bytes=35496939-50396631",
+        ""
+       ],
+       [
+        373,
+        2438527,
+        "bytes=35995685-50396631",
+        ""
+       ],
+       [
+        509,
+        272840,
+        "bytes=1827154-17077160",
+        ""
+       ],
+       [
+        841,
+        554671,
+        "bytes=53127358-67108863",
+        ""
+       ],
+       [
+        1078,
+        1551035,
+        "bytes=19065548-35995812",
+        ""
+       ],
+       [
+        1387,
+        1244847,
+        "bytes=38434148-67108863",
+        ""
+       ],
+       [
+        1412,
+        2459520,
+        "bytes=2099930-19065675",
+        ""
+       ],
+       [
+        1470,
+        1168951,
+        "bytes=53681965-67108863",
+        ""
+       ],
+       [
+        1644,
+        1466892,
+        "bytes=20616519-38434275",
+        ""
+       ],
+       [
+        1847,
+        965646,
+        "bytes=22083347-38434275",
+        ""
+       ],
+       [
+        1969,
+        2728827,
+        "bytes=39678931-53682092",
+        ""
+       ],
+       [
+        2269,
+        2938787,
+        "bytes=4559386-53682092",
+        ""
+       ],
+       [
+        2390,
+        266117,
+        "bytes=54850852-67108863",
+        ""
+       ],
+       [
+        2447,
+        1703384,
+        "bytes=55116905-67108863",
+        ""
+       ],
+       [
+        2547,
+        419054,
+        "bytes=23048929-67108863",
+        ""
+       ],
+       [
+        2608,
+        2798819,
+        "bytes=23467919-39679058",
+        ""
+       ],
+       [
+        2930,
+        1174020,
+        "bytes=42407694-67108863",
+        ""
+       ],
+       [
+        3271,
+        510734,
+        "bytes=7498109-55117032",
+        ""
+       ],
+       [
+        3473,
+        2582199,
+        "bytes=56820225-67108863",
+        ""
+       ],
+       [
+        3802,
+        1006443,
+        "bytes=26266674-67108863",
+        ""
+       ],
+       [
+        3927,
+        2854816,
+        "bytes=27273053-42407821",
+        ""
+       ],
+       [
+        4078,
+        753451,
+        "bytes=43581650-67108863",
+        ""
+       ],
+       [
+        4177,
+        2546731,
+        "bytes=44335037-67108863",
+        ""
+       ],
+       [
+        4215,
+        566522,
+        "bytes=8008779-56820352",
+        ""
+       ],
+       [
+        4542,
+        373160,
+        "bytes=59402360-67108863",
+        ""
+       ],
+       [
+        4598,
+        440214,
+        "bytes=59775456-67108863",
+        ""
+       ],
+       [
+        4918,
+        695018,
+        "bytes=30127805-67108863",
+        ""
+       ],
+       [
+        5212,
+        1487458,
+        "bytes=46881704-67108863",
+        ""
+       ],
+       [
+        5281,
+        2431917,
+        "bytes=8575237-30127932",
+        ""
+       ],
+       [
+        5338,
+        2712004,
+        "bytes=60215606-67108863",
+        ""
+       ],
+       [
+        5415,
+        2225729,
+        "bytes=30822759-67108863",
+        ""
+       ],
+       [
+        5699,
+        646887,
+        "bytes=33048424-46881831",
+        ""
+       ],
+       [
+        5854,
+        468817,
+        "bytes=48369098-67108863",
+        ""
+       ],
+       [
+        6155,
+        19923,
+        "bytes=11007090-60215733",
+        ""
+       ],
+       [
+        6481,
+        0,
+        "bytes=62927546-67108863",
+        ""
+       ],
+       [
+        6535,
+        2892346,
+        "bytes=14052054-17077160",
+        ""
+       ],
+       [
+        6901,
+        132825,
+        "bytes=16944336-17077160",
+        ""
+       ],
+       [
+        6930,
+        703333,
+        "bytes=11027013-14052117",
+        ""
+       ],
+       [
+        6950,
+        2090628,
+        "bytes=65018236-67108863",
+        ""
+       ],
+       [
+        7221,
+        474450,
+        "bytes=12668697-14052117",
+        ""
+       ],
+       [
+        7319,
+        909035,
+        "bytes=13143083-14052117",
+        ""
+       ],
+       [
+        7443,
+        1045378,
+        "bytes=63972922-65018299",
+        ""
+       ],
+       [
+        7570,
+        884998,
+        "bytes=49598824-67108863",
+        ""
+       ],
+       [
+        7678,
+        669381,
+        "bytes=62927610-63972985",
+        ""
+       ],
+       [
+        7700,
+        272764,
+        "bytes=11730346-12668760",
+        ""
+       ],
+       [
+        7720,
+        517473,
+        "bytes=48837915-49598887",
+        ""
+       ],
+       [
+        7806,
+        332575,
+        "bytes=12211297-12668760",
+        ""
+       ],
+       [
+        7819,
+        0,
+        "bytes=63597197-63972985",
+        ""
+       ],
+       [
+        7824,
+        327863,
+        "bytes=49271025-49598887",
+        ""
+       ],
+       [
+        7828,
+        216988,
+        "bytes=12451773-12668760",
+        ""
+       ],
+       [
+        7833,
+        187927,
+        "bytes=63785059-63972985",
+        ""
+       ],
+       [
+        7926,
+        208315,
+        "bytes=12003046-12211360",
+        ""
+       ],
+       [
+        7937,
+        325583,
+        "bytes=63466021-67108863",
+        ""
+       ]
+      ]
+     },
+     "timeline": {
+      "columns": [
+       "ms after the first request",
+       "bytes served"
+      ],
+      "rows": [
+       [
+        7,
+        262144
+       ],
+       [
+        511,
+        4523556
+       ],
+       [
+        1013,
+        8751415
+       ],
+       [
+        1530,
+        13085179
+       ],
+       [
+        2031,
+        17281369
+       ],
+       [
+        2547,
+        21610827
+       ],
+       [
+        3049,
+        25827475
+       ],
+       [
+        3551,
+        30037508
+       ],
+       [
+        4054,
+        34249090
+       ],
+       [
+        4555,
+        38463864
+       ],
+       [
+        5056,
+        42658168
+       ],
+       [
+        5557,
+        46867152
+       ],
+       [
+        6059,
+        51064602
+       ],
+       [
+        6575,
+        55398367
+       ],
+       [
+        7077,
+        59612594
+       ],
+       [
+        7578,
+        63821053
+       ],
+       [
+        8080,
+        67665830
+       ],
+       [
+        8582,
+        67665830
+       ],
+       [
+        9082,
+        67665830
+       ],
+       [
+        9583,
+        67665830
+       ],
+       [
+        10084,
+        67665830
+       ],
+       [
+        10593,
+        67665830
+       ],
+       [
+        11095,
+        67665830
+       ]
+      ]
+     }
+    }
+   },
+   "outage": {
+    "runs": 4,
+    "wholeRuns": 4,
+    "sources": [
+     "outage-inorder",
+     "outage-mirror",
+     "outage-range-all",
+     "outage"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 23.822,
+      "median": 25.378,
+      "worst": 27.051,
+      "n": 4
+     },
+     "transferSeconds": {
+      "best": 23.312,
+      "median": 23.369,
+      "worst": 23.428,
+      "n": 4
+     },
+     "firstRequestMs": {
+      "best": 495,
+      "median": 2008,
+      "worst": 3641,
+      "n": 4
+     },
+     "lastByteToDoneMs": {
+      "best": 218,
+      "median": 330,
+      "worst": 395,
+      "n": 4
+     },
+     "refetchedPct": {
+      "best": 0.8,
+      "median": 1.2,
+      "worst": 1.7,
+      "n": 4
+     },
+     "peakWorkingSetMB": {
+      "best": 21.6,
+      "median": 34.95,
+      "worst": 41.7,
+      "n": 4
+     },
+     "peakPrivateMB": {
+      "best": 11.6,
+      "median": 13.35,
+      "worst": 16.4,
+      "n": 4
+     },
+     "cpuMs": {
+      "best": 14203,
+      "median": 14679.5,
+      "worst": 15797,
+      "n": 4
+     },
+     "recoveryAfterOutageMs": {
+      "best": 0,
+      "median": 3.5,
+      "worst": 16,
+      "n": 4
+     },
+     "mbps": {
+      "median": 2.53,
+      "min": 2.37,
+      "max": 2.69,
+      "n": 4
+     },
+     "requests": {
+      "median": 9173.5,
+      "min": 8124,
+      "max": 10262,
+      "n": 4
+     },
+     "connections": {
+      "median": 9173.5,
+      "min": 8124,
+      "max": 10262,
+      "n": 4
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 8,
+      "max": 9,
+      "n": 4
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 4
+     },
+     "servedMB": {
+      "median": 64.75,
+      "min": 64.5,
+      "max": 65.1,
+      "n": 4
+     },
+     "outageDroppedRequests": {
+      "median": 9112,
+      "min": 8054,
+      "max": 10200,
+      "n": 4
+     }
+    },
+    "fastestRun": {
+     "source": "outage-range-all",
+     "rep": 1,
+     "seconds": 23.822,
+     "requestPattern": {
+      "columns": [
+       "ms after the first request",
+       "bytes sent on it",
+       "Range header",
+       "dropped"
+      ],
+      "rows": [
+       [
+        0,
+        387973,
+        null,
+        ""
+       ],
+       [
+        34,
+        567279,
+        "bytes=236130-67108863",
+        ""
+       ],
+       [
+        97,
+        256900,
+        "bytes=33684273-67108863",
+        ""
+       ],
+       [
+        102,
+        14618198,
+        "bytes=50396568-67108863",
+        ""
+       ],
+       [
+        149,
+        28312,
+        "bytes=17077097-33684336",
+        ""
+       ],
+       [
+        1863,
+        25166,
+        "bytes=25394840-33684336",
+        ""
+       ],
+       [
+        1865,
+        4237296,
+        "bytes=42168870-50396631",
+        ""
+       ],
+       [
+        1868,
+        25166,
+        "bytes=8940252-17077160",
+        ""
+       ],
+       [
+        1872,
+        0,
+        "bytes=29539556-33684336",
+        ""
+       ],
+       [
+        2423,
+        0,
+        "bytes=803345-8940315",
+        "dropped"
+       ],
+       [
+        2424,
+        0,
+        "bytes=33941109-42168933",
+        "dropped"
+       ],
+       [
+        2499,
+        0,
+        "bytes=17105345-42168933",
+        "dropped"
+       ],
+       [
+        2503,
+        0,
+        "bytes=65014702-67108863",
+        "dropped"
+       ],
+       [
+        2504,
+        0,
+        "bytes=25419942-42168933",
+        "dropped"
+       ],
+       [
+        2504,
+        0,
+        "bytes=8965354-42168933",
+        "dropped"
+       ],
+       [
+        2506,
+        0,
+        "bytes=803345-42168933",
+        "dropped"
+       ],
+       [
+        2506,
+        0,
+        "bytes=33941109-42168933",
+        "dropped"
+       ],
+       [
+        2511,
+        0,
+        "bytes=17105345-42168933",
+        "dropped"
+       ],
+       [
+        2512,
+        0,
+        "bytes=65014702-67108863",
+        "dropped"
+       ],
+       [
+        2513,
+        0,
+        "bytes=25419942-42168933",
+        "dropped"
+       ],
+       [
+        2516,
+        0,
+        "bytes=803345-42168933",
+        "dropped"
+       ],
+       [
+        2516,
+        0,
+        "bytes=33941109-42168933",
+        "dropped"
+       ],
+       [
+        2533,
+        0,
+        "bytes=8965354-67108863",
+        "dropped"
+       ],
+       [
+        2533,
+        0,
+        "bytes=17105345-67108863",
+        "dropped"
+       ],
+       [
+        2538,
+        0,
+        "bytes=65014702-67108863",
+        "dropped"
+       ],
+       [
+        2539,
+        0,
+        "bytes=25419942-67108863",
+        "dropped"
+       ],
+       [
+        2540,
+        0,
+        "bytes=46340566-67108863",
+        "dropped"
+       ],
+       [
+        2542,
+        0,
+        "bytes=803345-67108863",
+        "dropped"
+       ],
+       [
+        2543,
+        0,
+        "bytes=33941109-67108863",
+        "dropped"
+       ],
+       [
+        2544,
+        0,
+        "bytes=65014702-67108863",
+        "dropped"
+       ],
+       [
+        2546,
+        0,
+        "bytes=17105345-67108863",
+        "dropped"
+       ],
+       [
+        2547,
+        0,
+        "bytes=8965354-67108863",
+        "dropped"
+       ],
+       [
+        2547,
+        0,
+        "bytes=25419942-67108863",
+        "dropped"
+       ],
+       [
+        2548,
+        0,
+        "bytes=46340566-67108863",
+        "dropped"
+       ],
+       [
+        2548,
+        0,
+        "bytes=803345-67108863",
+        "dropped"
+       ],
+       [
+        2548,
+        0,
+        "bytes=33941109-67108863",
+        "dropped"
+       ],
+       [
+        2549,
+        0,
+        "bytes=17105345-67108863",
+        "dropped"
+       ],
+       [
+        2551,
+        0,
+        "bytes=65014702-67108863",
+        "dropped"
+       ],
+       [
+        2558,
+        0,
+        "bytes=803345-67108863",
+        "dropped"
+       ],
+       [
+        2558,
+        0,
+        "bytes=33941109-67108863",
+        "dropped"
+       ],
+       [
+        2561,
+        0,
+        "bytes=25419942-67108863",
+        "dropped"
+       ],
+       [
+        2561,
+        0,
+        "bytes=46340566-67108863",
+        "dropped"
+       ],
+       [
+        2561,
+        0,
+        "bytes=8965354-67108863",
+        "dropped"
+       ],
+       [
+        2562,
+        0,
+        "bytes=17105345-67108863",
+        "dropped"
+       ],
+       [
+        2563,
+        0,
+        "bytes=65014702-67108863",
+        "dropped"
+       ],
+       [
+        2563,
+        0,
+        "bytes=803345-67108863",
+        "dropped"
+       ],
+       [
+        2563,
+        0,
+        "bytes=33941109-67108863",
+        "dropped"
+       ],
+       [
+        2565,
+        0,
+        "bytes=25419942-67108863",
+        "dropped"
+       ],
+       [
+        2566,
+        0,
+        "bytes=17105345-67108863",
+        "dropped"
+       ],
+       [
+        2573,
+        0,
+        "bytes=46340566-67108863",
+        "dropped"
+       ],
+       [
+        2574,
+        0,
+        "bytes=8965354-67108863",
+        "dropped"
+       ],
+       [
+        2577,
+        0,
+        "bytes=803345-67108863",
+        "dropped"
+       ],
+       [
+        2578,
+        0,
+        "bytes=33941109-67108863",
+        "dropped"
+       ],
+       [
+        2578,
+        0,
+        "bytes=65014702-67108863",
+        "dropped"
+       ],
+       [
+        2579,
+        0,
+        "bytes=25419942-67108863",
+        "dropped"
+       ],
+       [
+        2579,
+        0,
+        "bytes=17105345-67108863",
+        "dropped"
+       ],
+       [
+        2581,
+        0,
+        "bytes=46340566-67108863",
+        "dropped"
+       ],
+       [
+        2581,
+        0,
+        "bytes=8965354-67108863",
+        "dropped"
+       ],
+       [
+        2583,
+        0,
+        "bytes=803345-67108863",
+        "dropped"
+       ],
+       [
+        2583,
+        0,
+        "bytes=33941109-67108863",
+        "dropped"
+       ]
+      ]
+     },
+     "timeline": {
+      "columns": [
+       "ms after the first request",
+       "bytes served"
+      ],
+      "rows": [
+       [
+        241,
+        2274360
+       ],
+       [
+        743,
+        6485441
+       ],
+       [
+        1245,
+        10691280
+       ],
+       [
+        1761,
+        14902361
+       ],
+       [
+        2262,
+        19230883
+       ],
+       [
+        2763,
+        20146290
+       ],
+       [
+        3263,
+        20146290
+       ],
+       [
+        3765,
+        20146290
+       ],
+       [
+        4265,
+        20146290
+       ],
+       [
+        4765,
+        20146290
+       ],
+       [
+        5265,
+        20146290
+       ],
+       [
+        5766,
+        20146290
+       ],
+       [
+        6272,
+        20146290
+       ],
+       [
+        6774,
+        20146290
+       ],
+       [
+        7277,
+        20146290
+       ],
+       [
+        7779,
+        20146290
+       ],
+       [
+        8280,
+        20146290
+       ],
+       [
+        8781,
+        20146290
+       ],
+       [
+        9281,
+        20146290
+       ],
+       [
+        9781,
+        20146290
+       ],
+       [
+        10281,
+        20146290
+       ],
+       [
+        10781,
+        20146290
+       ],
+       [
+        11282,
+        20146290
+       ],
+       [
+        11780,
+        20146290
+       ],
+       [
+        12280,
+        20146290
+       ],
+       [
+        12787,
+        20146290
+       ],
+       [
+        13289,
+        20146290
+       ],
+       [
+        13792,
+        20146290
+       ],
+       [
+        14293,
+        20146290
+       ],
+       [
+        14794,
+        20146290
+       ],
+       [
+        15299,
+        20146290
+       ],
+       [
+        15804,
+        20146290
+       ],
+       [
+        16304,
+        20146290
+       ],
+       [
+        16806,
+        20146290
+       ],
+       [
+        17307,
+        20146290
+       ],
+       [
+        17823,
+        24169676
+       ],
+       [
+        18323,
+        28367125
+       ],
+       [
+        18826,
+        32589741
+       ],
+       [
+        19327,
+        36789288
+       ],
+       [
+        19829,
+        41002466
+       ],
+       [
+        20331,
+        45214596
+       ],
+       [
+        20832,
+        49399463
+       ],
+       [
+        21336,
+        53651438
+       ],
+       [
+        21837,
+        57852034
+       ],
+       [
+        22340,
+        62068358
+       ],
+       [
+        22842,
+        66274196
+       ],
+       [
+        23359,
+        67852303
+       ],
+       [
+        23860,
+        67852303
+       ],
+       [
+        24376,
+        67852303
+       ],
+       [
+        24877,
+        67852303
+       ],
+       [
+        25394,
+        67852303
+       ],
+       [
+        25897,
+        67852303
+       ]
+      ]
+     }
+    }
+   },
+   "batch": {
+    "runs": 2,
+    "wholeRuns": 0,
+    "sources": [
+     "batch-range-batch"
+    ],
+    "floor": null,
+    "why": "reference A finished no run with every file whole (see the runs)"
+   },
+   "big40": {
+    "runs": 2,
+    "wholeRuns": 2,
+    "sources": [
+     "big40-inorder"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 31.785,
+      "median": 32.33,
+      "worst": 32.875,
+      "n": 2
+     },
+     "transferSeconds": {
+      "best": 28.337,
+      "median": 28.806,
+      "worst": 29.274,
+      "n": 2
+     },
+     "firstRequestMs": {
+      "best": 3448,
+      "median": 3524.5,
+      "worst": 3601,
+      "n": 2
+     },
+     "lastByteToDoneMs": {
+      "best": 1060,
+      "median": 1351.5,
+      "worst": 1643,
+      "n": 2
+     },
+     "refetchedPct": {
+      "best": 1.7,
+      "median": 1.9,
+      "worst": 2.1,
+      "n": 2
+     },
+     "peakWorkingSetMB": {
+      "best": 39.6,
+      "median": 39.9,
+      "worst": 40.2,
+      "n": 2
+     },
+     "peakPrivateMB": {
+      "best": 17.1,
+      "median": 17.45,
+      "worst": 17.8,
+      "n": 2
+     },
+     "cpuMs": {
+      "best": 5359,
+      "median": 6031,
+      "worst": 6703,
+      "n": 2
+     },
+     "mbps": {
+      "median": 15.84,
+      "min": 15.57,
+      "max": 16.11,
+      "n": 2
+     },
+     "requests": {
+      "median": 102,
+      "min": 102,
+      "max": 102,
+      "n": 2
+     },
+     "connections": {
+      "median": 102,
+      "min": 102,
+      "max": 102,
+      "n": 2
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 8,
+      "max": 8,
+      "n": 2
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 2
+     },
+     "servedMB": {
+      "median": 521.6,
+      "min": 520.5,
+      "max": 522.7,
+      "n": 2
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 2
+     }
+    },
+    "fastestRun": {
+     "source": "big40-inorder",
+     "rep": 1,
+     "seconds": 31.785,
+     "requestPattern": {
+      "columns": [
+       "ms after the first request",
+       "bytes sent on it",
+       "Range header",
+       "dropped"
+      ],
+      "rows": [
+       [
+        0,
+        429916,
+        null,
+        ""
+       ],
+       [
+        50,
+        14800638,
+        "bytes=236120-536870911",
+        ""
+       ],
+       [
+        80,
+        1916272,
+        "bytes=268565290-536870911",
+        ""
+       ],
+       [
+        85,
+        760217,
+        "bytes=402718100-536870911",
+        ""
+       ],
+       [
+        109,
+        72063377,
+        "bytes=134517599-268565353",
+        ""
+       ],
+       [
+        1199,
+        390594,
+        "bytes=335868449-402718163",
+        ""
+       ],
+       [
+        1206,
+        41943,
+        "bytes=470067135-536870911",
+        ""
+       ],
+       [
+        1206,
+        62052350,
+        "bytes=206513004-268565353",
+        ""
+       ],
+       [
+        1211,
+        60523810,
+        "bytes=73993853-134517662",
+        ""
+       ],
+       [
+        4412,
+        96993,
+        "bytes=269060742-335868512",
+        ""
+       ],
+       [
+        4429,
+        395837,
+        "bytes=470109078-536870911",
+        ""
+       ],
+       [
+        4457,
+        33903080,
+        "bytes=403305302-470067198",
+        ""
+       ],
+       [
+        4480,
+        419430,
+        "bytes=336259043-402718163",
+        ""
+       ],
+       [
+        4503,
+        125829,
+        "bytes=206554947-268565353",
+        ""
+       ],
+       [
+        4510,
+        789053,
+        "bytes=436707189-470067198",
+        ""
+       ],
+       [
+        7728,
+        621281,
+        "bytes=15036758-73993916",
+        ""
+       ],
+       [
+        7755,
+        859832,
+        "bytes=270481562-335868512",
+        ""
+       ],
+       [
+        7790,
+        411566,
+        "bytes=336678473-402718163",
+        ""
+       ],
+       [
+        7813,
+        280494,
+        "bytes=403347245-436707252",
+        ""
+       ],
+       [
+        7822,
+        909639,
+        "bytes=503543501-536870911",
+        ""
+       ],
+       [
+        9593,
+        2275409,
+        "bytes=15658039-73993916",
+        ""
+       ],
+       [
+        9615,
+        435159,
+        "bytes=337090039-402718163",
+        ""
+       ],
+       [
+        9646,
+        1019740,
+        "bytes=437496242-470067198",
+        ""
+       ],
+       [
+        9668,
+        1266155,
+        "bytes=470504915-503543564",
+        ""
+       ],
+       [
+        9691,
+        167772,
+        "bytes=271013714-335868512",
+        ""
+       ],
+       [
+        9700,
+        3426237,
+        "bytes=369956723-402718163",
+        ""
+       ],
+       [
+        12871,
+        1032847,
+        "bytes=337525198-369956786",
+        ""
+       ],
+       [
+        12907,
+        393216,
+        "bytes=271341394-335868512",
+        ""
+       ],
+       [
+        12932,
+        3038248,
+        "bytes=504453140-536870911",
+        ""
+       ],
+       [
+        12979,
+        262144,
+        "bytes=470816866-503543564",
+        ""
+       ],
+       [
+        12991,
+        32205098,
+        "bytes=303663415-335868512",
+        ""
+       ],
+       [
+        14859,
+        31928869,
+        "bytes=271734610-303663478",
+        ""
+       ],
+       [
+        14906,
+        393216,
+        "bytes=507491388-536870911",
+        ""
+       ],
+       [
+        14928,
+        31772495,
+        "bytes=471771070-503543564",
+        ""
+       ],
+       [
+        14953,
+        2778737,
+        "bytes=45352024-73993916",
+        ""
+       ],
+       [
+        16638,
+        471859,
+        "bytes=507884604-536870911",
+        ""
+       ],
+       [
+        16675,
+        41943,
+        "bytes=438515982-470067198",
+        ""
+       ],
+       [
+        16711,
+        304087,
+        "bytes=45656111-73993916",
+        ""
+       ],
+       [
+        16726,
+        222822,
+        "bytes=338426973-369956786",
+        ""
+       ],
+       [
+        16740,
+        369623,
+        "bytes=354197687-369956786",
+        ""
+       ],
+       [
+        18396,
+        15956703,
+        "bytes=438557925-470067198",
+        ""
+       ],
+       [
+        18420,
+        28514449,
+        "bytes=508356463-536870911",
+        ""
+       ],
+       [
+        18447,
+        765460,
+        "bytes=354567310-369956786",
+        ""
+       ],
+       [
+        18506,
+        262144,
+        "bytes=17540232-45352087",
+        ""
+       ],
+       [
+        18518,
+        15705242,
+        "bytes=338492509-354197750",
+        ""
+       ],
+       [
+        18541,
+        697303,
+        "bytes=454376863-470067198",
+        ""
+       ],
+       [
+        20062,
+        346030,
+        "bytes=355332770-369956786",
+        ""
+       ],
+       [
+        20090,
+        327680,
+        "bytes=17933448-45352087",
+        ""
+       ],
+       [
+        20118,
+        393216,
+        "bytes=373382960-402718163",
+        ""
+       ],
+       [
+        20143,
+        14661701,
+        "bytes=388056463-402718163",
+        ""
+       ],
+       [
+        20938,
+        4475790,
+        "bytes=355678800-369956786",
+        ""
+       ],
+       [
+        20970,
+        346030,
+        "bytes=18261128-45352087",
+        ""
+       ],
+       [
+        20992,
+        131072,
+        "bytes=339459820-354197750",
+        ""
+       ],
+       [
+        21004,
+        304087,
+        "bytes=439837187-454376926",
+        ""
+       ],
+       [
+        21012,
+        304087,
+        "bytes=373776176-388056526",
+        ""
+       ],
+       [
+        21037,
+        8519679,
+        "bytes=455074166-470067198",
+        ""
+       ],
+       [
+        21061,
+        13498698,
+        "bytes=31853390-45352087",
+        ""
+       ],
+       [
+        21828,
+        435159,
+        "bytes=18607158-31853453",
+        ""
+       ],
+       [
+        21866,
+        1449656,
+        "bytes=374080263-388056526",
+        ""
+       ],
+       [
+        21892,
+        262144,
+        "bytes=339908086-354197750",
+        ""
+       ]
+      ]
+     },
+     "timeline": {
+      "columns": [
+       "ms after the first request",
+       "bytes served"
+      ],
+      "rows": [
+       [
+        63,
+        739246
+       ],
+       [
+        578,
+        12255229
+       ],
+       [
+        1082,
+        22914002
+       ],
+       [
+        1584,
+        33321117
+       ],
+       [
+        2088,
+        42703250
+       ],
+       [
+        2605,
+        52455006
+       ],
+       [
+        3106,
+        62238219
+       ],
+       [
+        3622,
+        71919196
+       ],
+       [
+        4124,
+        81398322
+       ],
+       [
+        4641,
+        93213149
+       ],
+       [
+        5147,
+        103486571
+       ],
+       [
+        5662,
+        113489985
+       ],
+       [
+        6164,
+        122633567
+       ],
+       [
+        6666,
+        132262115
+       ],
+       [
+        7168,
+        141709784
+       ],
+       [
+        7671,
+        151202017
+       ],
+       [
+        8189,
+        162877908
+       ],
+       [
+        8692,
+        172713550
+       ],
+       [
+        9209,
+        182496763
+       ],
+       [
+        9726,
+        194062554
+       ],
+       [
+        10242,
+        203229729
+       ],
+       [
+        10758,
+        212957892
+       ],
+       [
+        11275,
+        222578576
+       ],
+       [
+        11781,
+        233132492
+       ],
+       [
+        12282,
+        242669290
+       ],
+       [
+        12799,
+        252489203
+       ],
+       [
+        13299,
+        263667021
+       ],
+       [
+        13803,
+        273085854
+       ],
+       [
+        14320,
+        282711781
+       ],
+       [
+        14836,
+        292434701
+       ],
+       [
+        15338,
+        303123021
+       ],
+       [
+        15843,
+        312709626
+       ],
+       [
+        16345,
+        322474489
+       ],
+       [
+        16847,
+        333325272
+       ],
+       [
+        17363,
+        342869934
+       ],
+       [
+        17869,
+        352737033
+       ],
+       [
+        18384,
+        361880615
+       ],
+       [
+        18888,
+        373024354
+       ],
+       [
+        19389,
+        382443187
+       ],
+       [
+        19891,
+        391783377
+       ],
+       [
+        20393,
+        402747286
+       ],
+       [
+        20895,
+        412124176
+       ],
+       [
+        21398,
+        423252187
+       ],
+       [
+        21901,
+        433381430
+       ],
+       [
+        22403,
+        443487080
+       ],
+       [
+        22923,
+        454146050
+       ],
+       [
+        23435,
+        463551776
+       ],
+       [
+        23939,
+        474711244
+       ],
+       [
+        24442,
+        484567857
+       ],
+       [
+        24944,
+        494699721
+       ],
+       [
+        25447,
+        505106837
+       ],
+       [
+        25951,
+        515883070
+       ],
+       [
+        26453,
+        526909073
+       ],
+       [
+        26956,
+        537587316
+       ],
+       [
+        27459,
+        545774126
+       ],
+       [
+        27975,
+        545774126
+       ],
+       [
+        28478,
+        545774126
+       ],
+       [
+        28982,
+        545774126
+       ],
+       [
+        29485,
+        545774126
+       ],
+       [
+        29988,
+        545774126
+       ],
+       [
+        30492,
+        545774126
+       ],
+       [
+        30994,
+        545774126
+       ],
+       [
+        31498,
+        545774126
+       ],
+       [
+        31999,
+        545774126
+       ]
+      ]
+     }
+    }
+   }
+  },
+  "connections16": {
+   "fast": {
+    "runs": 2,
+    "wholeRuns": 2,
+    "sources": [
+     "fast-c16-ssdparts-hddfile"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 8.468,
+      "median": 8.541,
+      "worst": 8.615,
+      "n": 2
+     },
+     "transferSeconds": {
+      "best": 5.019,
+      "median": 5.088,
+      "worst": 5.157,
+      "n": 2
+     },
+     "firstRequestMs": {
+      "best": 3449,
+      "median": 3453.5,
+      "worst": 3458,
+      "n": 2
+     },
+     "lastByteToDoneMs": {
+      "best": 2204,
+      "median": 2356,
+      "worst": 2508,
+      "n": 2
+     },
+     "refetchedPct": {
+      "best": 3,
+      "median": 3.05,
+      "worst": 3.1,
+      "n": 2
+     },
+     "peakWorkingSetMB": {
+      "best": 47.3,
+      "median": 47.3,
+      "worst": 47.3,
+      "n": 2
+     },
+     "peakPrivateMB": {
+      "best": 19.9,
+      "median": 19.9,
+      "worst": 19.9,
+      "n": 2
+     },
+     "cpuMs": {
+      "best": 3578,
+      "median": 3711,
+      "worst": 3844,
+      "n": 2
+     },
+     "mbps": {
+      "median": 59.945,
+      "min": 59.43,
+      "max": 60.46,
+      "n": 2
+     },
+     "requests": {
+      "median": 9,
+      "min": 9,
+      "max": 9,
+      "n": 2
+     },
+     "connections": {
+      "median": 9,
+      "min": 9,
+      "max": 9,
+      "n": 2
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 8,
+      "max": 8,
+      "n": 2
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 2
+     },
+     "servedMB": {
+      "median": 527.65,
+      "min": 527.3,
+      "max": 528,
+      "n": 2
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 2
+     }
+    }
+   },
+   "per_conn": {
+    "runs": 4,
+    "wholeRuns": 4,
+    "sources": [
+     "per_conn-c16",
+     "per_conn-c16fix"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 7.142,
+      "median": 8.657,
+      "worst": 10.331,
+      "n": 4
+     },
+     "transferSeconds": {
+      "best": 6.528,
+      "median": 6.697,
+      "worst": 6.907,
+      "n": 4
+     },
+     "firstRequestMs": {
+      "best": 491,
+      "median": 2021.5,
+      "worst": 3424,
+      "n": 4
+     },
+     "lastByteToDoneMs": {
+      "best": 237,
+      "median": 291,
+      "worst": 309,
+      "n": 4
+     },
+     "refetchedPct": {
+      "best": 0.4,
+      "median": 0.6,
+      "worst": 1.3,
+      "n": 4
+     },
+     "peakWorkingSetMB": {
+      "best": 37.6,
+      "median": 40,
+      "worst": 42.4,
+      "n": 4
+     },
+     "peakPrivateMB": {
+      "best": 11.4,
+      "median": 13.6,
+      "worst": 14.4,
+      "n": 4
+     },
+     "cpuMs": {
+      "best": 1266,
+      "median": 1500,
+      "worst": 1656,
+      "n": 4
+     },
+     "mbps": {
+      "median": 7.56,
+      "min": 6.19,
+      "max": 8.96,
+      "n": 4
+     },
+     "requests": {
+      "median": 17,
+      "min": 17,
+      "max": 17,
+      "n": 4
+     },
+     "connections": {
+      "median": 17,
+      "min": 17,
+      "max": 17,
+      "n": 4
+     },
+     "maxParallelConnections": {
+      "median": 16,
+      "min": 16,
+      "max": 16,
+      "n": 4
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 4
+     },
+     "servedMB": {
+      "median": 64.35,
+      "min": 64.3,
+      "max": 64.8,
+      "n": 4
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 4
+     }
+    }
+   },
+   "flaky": {
+    "runs": 4,
+    "wholeRuns": 4,
+    "sources": [
+     "flaky-c16",
+     "flaky-c16fix"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 8.753,
+      "median": 10.213,
+      "worst": 11.787,
+      "n": 4
+     },
+     "transferSeconds": {
+      "best": 8.2,
+      "median": 8.261,
+      "worst": 8.401,
+      "n": 4
+     },
+     "firstRequestMs": {
+      "best": 498,
+      "median": 1957,
+      "worst": 3432,
+      "n": 4
+     },
+     "lastByteToDoneMs": {
+      "best": 171,
+      "median": 204,
+      "worst": 251,
+      "n": 4
+     },
+     "refetchedPct": {
+      "best": 0.7,
+      "median": 1.05,
+      "worst": 2.2,
+      "n": 4
+     },
+     "peakWorkingSetMB": {
+      "best": 37.5,
+      "median": 41.7,
+      "worst": 43.7,
+      "n": 4
+     },
+     "peakPrivateMB": {
+      "best": 11.4,
+      "median": 14.6,
+      "worst": 16.8,
+      "n": 4
+     },
+     "cpuMs": {
+      "best": 1594,
+      "median": 1797,
+      "worst": 2125,
+      "n": 4
+     },
+     "mbps": {
+      "median": 6.39,
+      "min": 5.43,
+      "max": 7.31,
+      "n": 4
+     },
+     "requests": {
+      "median": 57.5,
+      "min": 49,
+      "max": 73,
+      "n": 4
+     },
+     "connections": {
+      "median": 57.5,
+      "min": 49,
+      "max": 73,
+      "n": 4
+     },
+     "maxParallelConnections": {
+      "median": 6,
+      "min": 4,
+      "max": 8,
+      "n": 4
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 4
+     },
+     "servedMB": {
+      "median": 64.7,
+      "min": 64.5,
+      "max": 65.4,
+      "n": 4
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 4
+     }
+    }
+   }
+  },
+  "allSsd": {
+   "fast": {
+    "runs": 2,
+    "wholeRuns": 2,
+    "sources": [
+     "fast-allssd"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 8.222,
+      "median": 8.31,
+      "worst": 8.398,
+      "n": 2
+     },
+     "transferSeconds": {
+      "best": 4.78,
+      "median": 4.87,
+      "worst": 4.959,
+      "n": 2
+     },
+     "firstRequestMs": {
+      "best": 3439,
+      "median": 3440.5,
+      "worst": 3442,
+      "n": 2
+     },
+     "lastByteToDoneMs": {
+      "best": 1483,
+      "median": 1724,
+      "worst": 1965,
+      "n": 2
+     },
+     "refetchedPct": {
+      "best": 2.7,
+      "median": 2.8,
+      "worst": 2.9,
+      "n": 2
+     },
+     "peakWorkingSetMB": {
+      "best": 41.1,
+      "median": 44.05,
+      "worst": 47,
+      "n": 2
+     },
+     "peakPrivateMB": {
+      "best": 13.8,
+      "median": 16.6,
+      "worst": 19.4,
+      "n": 2
+     },
+     "cpuMs": {
+      "best": 3766,
+      "median": 3797,
+      "worst": 3828,
+      "n": 2
+     },
+     "mbps": {
+      "median": 61.62,
+      "min": 60.97,
+      "max": 62.27,
+      "n": 2
+     },
+     "requests": {
+      "median": 10.5,
+      "min": 9,
+      "max": 12,
+      "n": 2
+     },
+     "connections": {
+      "median": 10.5,
+      "min": 9,
+      "max": 12,
+      "n": 2
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 8,
+      "max": 8,
+      "n": 2
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 2
+     },
+     "servedMB": {
+      "median": 526.25,
+      "min": 525.9,
+      "max": 526.6,
+      "n": 2
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 2
+     }
+    }
+   }
+  },
+  "allSsdConnections16": {
+   "fast": {
+    "runs": 2,
+    "wholeRuns": 2,
+    "sources": [
+     "fast-c16-allssd"
+    ],
+    "floor": {
+     "seconds": {
+      "best": 7.647,
+      "median": 7.685,
+      "worst": 7.723,
+      "n": 2
+     },
+     "transferSeconds": {
+      "best": 4.218,
+      "median": 4.26,
+      "worst": 4.301,
+      "n": 2
+     },
+     "firstRequestMs": {
+      "best": 3422,
+      "median": 3425.5,
+      "worst": 3429,
+      "n": 2
+     },
+     "lastByteToDoneMs": {
+      "best": 1154,
+      "median": 1336,
+      "worst": 1518,
+      "n": 2
+     },
+     "refetchedPct": {
+      "best": 2.9,
+      "median": 3.05,
+      "worst": 3.2,
+      "n": 2
+     },
+     "peakWorkingSetMB": {
+      "best": 47.3,
+      "median": 47.3,
+      "worst": 47.3,
+      "n": 2
+     },
+     "peakPrivateMB": {
+      "best": 19.9,
+      "median": 20.1,
+      "worst": 20.3,
+      "n": 2
+     },
+     "cpuMs": {
+      "best": 3375,
+      "median": 3539,
+      "worst": 3703,
+      "n": 2
+     },
+     "mbps": {
+      "median": 66.625,
+      "min": 66.3,
+      "max": 66.95,
+      "n": 2
+     },
+     "requests": {
+      "median": 9,
+      "min": 9,
+      "max": 9,
+      "n": 2
+     },
+     "connections": {
+      "median": 9,
+      "min": 9,
+      "max": 9,
+      "n": 2
+     },
+     "maxParallelConnections": {
+      "median": 8,
+      "min": 8,
+      "max": 8,
+      "n": 2
+     },
+     "maxParallelFiles": {
+      "median": 1,
+      "min": 1,
+      "max": 1,
+      "n": 2
+     },
+     "servedMB": {
+      "median": 527.4,
+      "min": 526.6,
+      "max": 528.2,
+      "n": 2
+     },
+     "outageDroppedRequests": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 2
+     }
+    }
+   }
+  }
+ },
+ "notMeasured": {
+  "batch": "Reference A finished 3 and 4 of the 24 files within the 300 s allowed when its queue was filled and started from its command line; that says more about how the harness starts its queue than about reference A (gaps row 172). No floor: dm's batch is judged against its ideal until a run of reference A given the files as a person gives them is frozen in a file of its own.",
+  "inet": "Public files over the internet: never a floor, the network is not the same twice."
+ },
+ "runs": [
+  {
+   "scenario": "batch",
+   "group": "standard",
+   "source": "batch-range-batch",
+   "finishedUtc": "2026-11-10T13:57Z",
+   "rep": 1,
+   "ok": false,
+   "seconds": null,
+   "transferSeconds": null,
+   "mbps": null,
+   "firstRequestMs": 3359,
+   "lastByteToDoneMs": null,
+   "filesWhole": 3,
+   "files": 24,
+   "servedMB": 6.8,
+   "refetchedPct": -85.9,
+   "requests": 15,
+   "connections": 15,
+   "maxParallelConnections": 12,
+   "maxParallelFiles": 3,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26,
+   "peakPrivateMB": 14.5,
+   "cpuMs": 4125
+  },
+  {
+   "scenario": "batch",
+   "group": "standard",
+   "source": "batch-range-batch",
+   "finishedUtc": "2026-11-10T13:57Z",
+   "rep": 2,
+   "ok": false,
+   "seconds": null,
+   "transferSeconds": null,
+   "mbps": null,
+   "firstRequestMs": 3308,
+   "lastByteToDoneMs": null,
+   "filesWhole": 4,
+   "files": 24,
+   "servedMB": 8.9,
+   "refetchedPct": -81.6,
+   "requests": 20,
+   "connections": 20,
+   "maxParallelConnections": 16,
+   "maxParallelFiles": 4,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 27,
+   "peakPrivateMB": 16.1,
+   "cpuMs": 4016
+  },
+  {
+   "scenario": "big40",
+   "group": "standard",
+   "source": "big40-inorder",
+   "finishedUtc": "2026-11-10T08:42Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 31.785,
+   "transferSeconds": 28.337,
+   "mbps": 16.11,
+   "firstRequestMs": 3448,
+   "lastByteToDoneMs": 1060,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 520.5,
+   "refetchedPct": 1.7,
+   "requests": 102,
+   "connections": 102,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 40.2,
+   "peakPrivateMB": 17.8,
+   "cpuMs": 6703
+  },
+  {
+   "scenario": "big40",
+   "group": "standard",
+   "source": "big40-inorder",
+   "finishedUtc": "2026-11-10T08:42Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 32.875,
+   "transferSeconds": 29.274,
+   "mbps": 15.57,
+   "firstRequestMs": 3601,
+   "lastByteToDoneMs": 1643,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 522.7,
+   "refetchedPct": 2.1,
+   "requests": 102,
+   "connections": 102,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 39.6,
+   "peakPrivateMB": 17.1,
+   "cpuMs": 5359
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ab-committed",
+   "finishedUtc": "2026-11-10T09:04Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 7.13,
+   "transferSeconds": 3.718,
+   "mbps": 71.81,
+   "firstRequestMs": 3412,
+   "lastByteToDoneMs": 845,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.4,
+   "refetchedPct": 3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 39.7,
+   "peakPrivateMB": 17.2,
+   "cpuMs": 3219
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ab-committed",
+   "finishedUtc": "2026-11-10T09:04Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 7.357,
+   "transferSeconds": 3.944,
+   "mbps": 69.59,
+   "firstRequestMs": 3413,
+   "lastByteToDoneMs": 1018,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.3,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 39.8,
+   "peakPrivateMB": 17.3,
+   "cpuMs": 3344
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ab-committed",
+   "finishedUtc": "2026-11-10T09:04Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 7.332,
+   "transferSeconds": 3.82,
+   "mbps": 69.83,
+   "firstRequestMs": 3512,
+   "lastByteToDoneMs": 916,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.9,
+   "refetchedPct": 2.9,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 39.8,
+   "peakPrivateMB": 17.3,
+   "cpuMs": 3359
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ab-speed",
+   "finishedUtc": "2026-11-10T09:06Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 7.101,
+   "transferSeconds": 3.654,
+   "mbps": 72.1,
+   "firstRequestMs": 3447,
+   "lastByteToDoneMs": 897,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.9,
+   "refetchedPct": 2.7,
+   "requests": 10,
+   "connections": 10,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 34.3,
+   "peakPrivateMB": 11.6,
+   "cpuMs": 3547
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ab-speed",
+   "finishedUtc": "2026-11-10T09:06Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 7.452,
+   "transferSeconds": 3.943,
+   "mbps": 68.71,
+   "firstRequestMs": 3509,
+   "lastByteToDoneMs": 1047,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.1,
+   "refetchedPct": 2.9,
+   "requests": 12,
+   "connections": 12,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 40,
+   "peakPrivateMB": 17.8,
+   "cpuMs": 3281
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ab-speed",
+   "finishedUtc": "2026-11-10T09:06Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 7.221,
+   "transferSeconds": 3.662,
+   "mbps": 70.9,
+   "firstRequestMs": 3559,
+   "lastByteToDoneMs": 914,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.7,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 39.9,
+   "peakPrivateMB": 17.4,
+   "cpuMs": 3125
+  },
+  {
+   "scenario": "fast",
+   "group": "allSsd",
+   "source": "fast-allssd",
+   "finishedUtc": "2026-11-09T16:46Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 8.398,
+   "transferSeconds": 4.959,
+   "mbps": 60.97,
+   "firstRequestMs": 3439,
+   "lastByteToDoneMs": 1965,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.9,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47,
+   "peakPrivateMB": 19.4,
+   "cpuMs": 3766
+  },
+  {
+   "scenario": "fast",
+   "group": "allSsd",
+   "source": "fast-allssd",
+   "finishedUtc": "2026-11-09T16:46Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 8.222,
+   "transferSeconds": 4.78,
+   "mbps": 62.27,
+   "firstRequestMs": 3442,
+   "lastByteToDoneMs": 1483,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.6,
+   "refetchedPct": 2.9,
+   "requests": 12,
+   "connections": 12,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41.1,
+   "peakPrivateMB": 13.8,
+   "cpuMs": 3828
+  },
+  {
+   "scenario": "fast",
+   "group": "allSsdConnections16",
+   "source": "fast-c16-allssd",
+   "finishedUtc": "2026-11-09T17:07Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 7.723,
+   "transferSeconds": 4.301,
+   "mbps": 66.3,
+   "firstRequestMs": 3422,
+   "lastByteToDoneMs": 1518,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.6,
+   "refetchedPct": 2.9,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47.3,
+   "peakPrivateMB": 20.3,
+   "cpuMs": 3703
+  },
+  {
+   "scenario": "fast",
+   "group": "allSsdConnections16",
+   "source": "fast-c16-allssd",
+   "finishedUtc": "2026-11-09T17:07Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 7.647,
+   "transferSeconds": 4.218,
+   "mbps": 66.95,
+   "firstRequestMs": 3429,
+   "lastByteToDoneMs": 1154,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 528.2,
+   "refetchedPct": 3.2,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47.3,
+   "peakPrivateMB": 19.9,
+   "cpuMs": 3375
+  },
+  {
+   "scenario": "fast",
+   "group": "connections16",
+   "source": "fast-c16-ssdparts-hddfile",
+   "finishedUtc": "2026-11-09T17:09Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 8.615,
+   "transferSeconds": 5.157,
+   "mbps": 59.43,
+   "firstRequestMs": 3458,
+   "lastByteToDoneMs": 2508,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 528,
+   "refetchedPct": 3.1,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47.3,
+   "peakPrivateMB": 19.9,
+   "cpuMs": 3844
+  },
+  {
+   "scenario": "fast",
+   "group": "connections16",
+   "source": "fast-c16-ssdparts-hddfile",
+   "finishedUtc": "2026-11-09T17:09Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 8.468,
+   "transferSeconds": 5.019,
+   "mbps": 60.46,
+   "firstRequestMs": 3449,
+   "lastByteToDoneMs": 2204,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.3,
+   "refetchedPct": 3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47.3,
+   "peakPrivateMB": 19.9,
+   "cpuMs": 3578
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-fix1",
+   "finishedUtc": "2026-11-10T01:14Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 6.003,
+   "transferSeconds": 4.544,
+   "mbps": 85.29,
+   "firstRequestMs": 1459,
+   "lastByteToDoneMs": 1036,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.8,
+   "refetchedPct": 2.7,
+   "requests": 15,
+   "connections": 15,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42.1,
+   "peakPrivateMB": 17.1,
+   "cpuMs": 3938
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-fix1",
+   "finishedUtc": "2026-11-10T01:14Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 4.009,
+   "transferSeconds": 3.462,
+   "mbps": 127.71,
+   "firstRequestMs": 547,
+   "lastByteToDoneMs": 928,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42,
+   "peakPrivateMB": 16,
+   "cpuMs": 3359
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-fix2",
+   "finishedUtc": "2026-11-10T01:39Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 4.018,
+   "transferSeconds": 3.448,
+   "mbps": 127.43,
+   "firstRequestMs": 570,
+   "lastByteToDoneMs": 944,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.7,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42.1,
+   "peakPrivateMB": 16.7,
+   "cpuMs": 3344
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-fix2",
+   "finishedUtc": "2026-11-10T01:39Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 4.595,
+   "transferSeconds": 4.055,
+   "mbps": 111.43,
+   "firstRequestMs": 540,
+   "lastByteToDoneMs": 1251,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.7,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36.6,
+   "peakPrivateMB": 10.7,
+   "cpuMs": 3516
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-fix3",
+   "finishedUtc": "2026-11-10T02:16Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 7.925,
+   "transferSeconds": 4.406,
+   "mbps": 64.61,
+   "firstRequestMs": 3519,
+   "lastByteToDoneMs": 1164,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.8,
+   "refetchedPct": 2.9,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42.5,
+   "peakPrivateMB": 17,
+   "cpuMs": 3703
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-fix3",
+   "finishedUtc": "2026-11-10T02:16Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 4.104,
+   "transferSeconds": 3.505,
+   "mbps": 124.76,
+   "firstRequestMs": 599,
+   "lastByteToDoneMs": 900,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.4,
+   "refetchedPct": 2.6,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42.5,
+   "peakPrivateMB": 17,
+   "cpuMs": 3297
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-inorder",
+   "finishedUtc": "2026-11-10T08:34Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 4.662,
+   "transferSeconds": 3.981,
+   "mbps": 109.82,
+   "firstRequestMs": 681,
+   "lastByteToDoneMs": 1355,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.7,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36.2,
+   "peakPrivateMB": 17.2,
+   "cpuMs": 3000
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-inorder",
+   "finishedUtc": "2026-11-10T08:34Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 4.678,
+   "transferSeconds": 3.981,
+   "mbps": 109.45,
+   "firstRequestMs": 697,
+   "lastByteToDoneMs": 1328,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 528.2,
+   "refetchedPct": 3.2,
+   "requests": 13,
+   "connections": 13,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36.3,
+   "peakPrivateMB": 17.2,
+   "cpuMs": 3422
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-mirror",
+   "finishedUtc": "2026-11-10T07:11Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 4.151,
+   "transferSeconds": 3.432,
+   "mbps": 123.34,
+   "firstRequestMs": 719,
+   "lastByteToDoneMs": 926,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.3,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 35.7,
+   "peakPrivateMB": 16.3,
+   "cpuMs": 3094
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-mirror",
+   "finishedUtc": "2026-11-10T07:11Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 4.244,
+   "transferSeconds": 3.692,
+   "mbps": 120.64,
+   "firstRequestMs": 552,
+   "lastByteToDoneMs": 880,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.4,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36,
+   "peakPrivateMB": 16.3,
+   "cpuMs": 3219
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-open",
+   "finishedUtc": "2026-11-10T07:52Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 4.949,
+   "transferSeconds": 4.1,
+   "mbps": 103.46,
+   "firstRequestMs": 849,
+   "lastByteToDoneMs": 909,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.2,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36.9,
+   "peakPrivateMB": 17.2,
+   "cpuMs": 3734
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-probe",
+   "finishedUtc": "2026-11-10T05:36Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 8.063,
+   "transferSeconds": 3.563,
+   "mbps": 63.5,
+   "firstRequestMs": 4500,
+   "lastByteToDoneMs": 904,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.9,
+   "refetchedPct": 3.1,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 35.9,
+   "peakPrivateMB": 16.6,
+   "cpuMs": 3516
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range-all",
+   "finishedUtc": "2026-11-10T13:18Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 4.202,
+   "transferSeconds": 3.689,
+   "mbps": 121.85,
+   "firstRequestMs": 513,
+   "lastByteToDoneMs": 1089,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527,
+   "refetchedPct": 2.9,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 20.9,
+   "peakPrivateMB": 11.8,
+   "cpuMs": 3250
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range-all",
+   "finishedUtc": "2026-11-10T13:18Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 3.682,
+   "transferSeconds": 3.138,
+   "mbps": 139.05,
+   "firstRequestMs": 544,
+   "lastByteToDoneMs": 795,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527,
+   "refetchedPct": 2.9,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.9,
+   "peakPrivateMB": 17.9,
+   "cpuMs": 3109
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range-all",
+   "finishedUtc": "2026-11-10T13:18Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 6.03,
+   "transferSeconds": 4.884,
+   "mbps": 84.91,
+   "firstRequestMs": 1146,
+   "lastByteToDoneMs": 897,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.2,
+   "refetchedPct": 2.6,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.9,
+   "peakPrivateMB": 17.9,
+   "cpuMs": 3156
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range",
+   "finishedUtc": "2026-11-10T13:10Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 5.564,
+   "transferSeconds": 4.221,
+   "mbps": 92.02,
+   "firstRequestMs": 1343,
+   "lastByteToDoneMs": 928,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.1,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 25.4,
+   "peakPrivateMB": 17.4,
+   "cpuMs": 3953
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range",
+   "finishedUtc": "2026-11-10T13:10Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 3.888,
+   "transferSeconds": 3.4,
+   "mbps": 131.69,
+   "firstRequestMs": 488,
+   "lastByteToDoneMs": 829,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.3,
+   "refetchedPct": 2.6,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.5,
+   "peakPrivateMB": 17.4,
+   "cpuMs": 3219
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range",
+   "finishedUtc": "2026-11-10T13:10Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 4.011,
+   "transferSeconds": 3.503,
+   "mbps": 127.65,
+   "firstRequestMs": 508,
+   "lastByteToDoneMs": 927,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.3,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.6,
+   "peakPrivateMB": 17.4,
+   "cpuMs": 2953
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range2",
+   "finishedUtc": "2026-11-10T13:14Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 3.899,
+   "transferSeconds": 3.413,
+   "mbps": 131.32,
+   "firstRequestMs": 486,
+   "lastByteToDoneMs": 947,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.2,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.9,
+   "peakPrivateMB": 17.9,
+   "cpuMs": 3031
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range2",
+   "finishedUtc": "2026-11-10T13:14Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 3.891,
+   "transferSeconds": 3.381,
+   "mbps": 131.59,
+   "firstRequestMs": 510,
+   "lastByteToDoneMs": 902,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.7,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.9,
+   "peakPrivateMB": 17.9,
+   "cpuMs": 3109
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-range2",
+   "finishedUtc": "2026-11-10T13:14Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 3.956,
+   "transferSeconds": 3.446,
+   "mbps": 129.42,
+   "firstRequestMs": 510,
+   "lastByteToDoneMs": 895,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.9,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.9,
+   "peakPrivateMB": 17.9,
+   "cpuMs": 2969
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ssdparts-hddfile",
+   "finishedUtc": "2026-11-09T16:45Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 9.86,
+   "transferSeconds": 6.353,
+   "mbps": 51.93,
+   "firstRequestMs": 3507,
+   "lastByteToDoneMs": 3555,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.3,
+   "refetchedPct": 3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47.5,
+   "peakPrivateMB": 19.3,
+   "cpuMs": 3719
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-ssdparts-hddfile",
+   "finishedUtc": "2026-11-09T16:45Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 9.223,
+   "transferSeconds": 5.674,
+   "mbps": 55.51,
+   "firstRequestMs": 3549,
+   "lastByteToDoneMs": 2746,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.8,
+   "refetchedPct": 2.9,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 46.9,
+   "peakPrivateMB": 19.3,
+   "cpuMs": 3703
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-staged",
+   "finishedUtc": "2026-11-10T13:12Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 4.76,
+   "transferSeconds": 4.203,
+   "mbps": 107.56,
+   "firstRequestMs": 557,
+   "lastByteToDoneMs": 1629,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.6,
+   "refetchedPct": 3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.7,
+   "peakPrivateMB": 17.4,
+   "cpuMs": 3063
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-staged",
+   "finishedUtc": "2026-11-10T13:12Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 4.201,
+   "transferSeconds": 3.65,
+   "mbps": 121.88,
+   "firstRequestMs": 551,
+   "lastByteToDoneMs": 879,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.8,
+   "refetchedPct": 2.9,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.7,
+   "peakPrivateMB": 17.8,
+   "cpuMs": 2984
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-staged",
+   "finishedUtc": "2026-11-10T13:12Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 4.076,
+   "transferSeconds": 3.476,
+   "mbps": 125.61,
+   "firstRequestMs": 600,
+   "lastByteToDoneMs": 967,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.7,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 26.8,
+   "peakPrivateMB": 17.8,
+   "cpuMs": 3063
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-verify",
+   "finishedUtc": "2026-11-10T08:50Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 7.05,
+   "transferSeconds": 3.652,
+   "mbps": 72.62,
+   "firstRequestMs": 3398,
+   "lastByteToDoneMs": 817,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 526.2,
+   "refetchedPct": 2.8,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 34.2,
+   "peakPrivateMB": 11.5,
+   "cpuMs": 3453
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-verify",
+   "finishedUtc": "2026-11-10T08:50Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 7.397,
+   "transferSeconds": 3.777,
+   "mbps": 69.22,
+   "firstRequestMs": 3620,
+   "lastByteToDoneMs": 1032,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.5,
+   "refetchedPct": 3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 39.7,
+   "peakPrivateMB": 17.2,
+   "cpuMs": 3188
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-verify",
+   "finishedUtc": "2026-11-10T08:50Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 7.12,
+   "transferSeconds": 3.605,
+   "mbps": 71.91,
+   "firstRequestMs": 3515,
+   "lastByteToDoneMs": 912,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.8,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 33.6,
+   "peakPrivateMB": 11,
+   "cpuMs": 3328
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast-watch",
+   "finishedUtc": "2026-11-10T02:24Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 5.143,
+   "transferSeconds": 4.584,
+   "mbps": 99.55,
+   "firstRequestMs": 559,
+   "lastByteToDoneMs": 1436,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.7,
+   "refetchedPct": 3.1,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42.1,
+   "peakPrivateMB": 16.6,
+   "cpuMs": 3578
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast",
+   "finishedUtc": "2026-11-09T16:13Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 11.722,
+   "transferSeconds": 7.863,
+   "mbps": 43.68,
+   "firstRequestMs": 3859,
+   "lastByteToDoneMs": 5011,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.6,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47.2,
+   "peakPrivateMB": 19.4,
+   "cpuMs": 3953
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast",
+   "finishedUtc": "2026-11-09T16:13Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 11.728,
+   "transferSeconds": 8.09,
+   "mbps": 43.66,
+   "firstRequestMs": 3638,
+   "lastByteToDoneMs": 4916,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 527.4,
+   "refetchedPct": 3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47.1,
+   "peakPrivateMB": 19,
+   "cpuMs": 3766
+  },
+  {
+   "scenario": "fast",
+   "group": "standard",
+   "source": "fast",
+   "finishedUtc": "2026-11-09T16:13Z",
+   "rep": 3,
+   "ok": true,
+   "seconds": 10.676,
+   "transferSeconds": 7.222,
+   "mbps": 47.96,
+   "firstRequestMs": 3454,
+   "lastByteToDoneMs": 4522,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 525.9,
+   "refetchedPct": 2.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 47,
+   "peakPrivateMB": 19.1,
+   "cpuMs": 4094
+  },
+  {
+   "scenario": "flaky",
+   "group": "connections16",
+   "source": "flaky-c16",
+   "finishedUtc": "2026-11-09T17:11Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 11.787,
+   "transferSeconds": 8.401,
+   "mbps": 5.43,
+   "firstRequestMs": 3386,
+   "lastByteToDoneMs": 251,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 65.4,
+   "refetchedPct": 2.2,
+   "requests": 62,
+   "connections": 62,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41.9,
+   "peakPrivateMB": 14.4,
+   "cpuMs": 1938
+  },
+  {
+   "scenario": "flaky",
+   "group": "connections16",
+   "source": "flaky-c16",
+   "finishedUtc": "2026-11-09T17:11Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 11.632,
+   "transferSeconds": 8.2,
+   "mbps": 5.5,
+   "firstRequestMs": 3432,
+   "lastByteToDoneMs": 171,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.5,
+   "refetchedPct": 0.7,
+   "requests": 49,
+   "connections": 49,
+   "maxParallelConnections": 4,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41.5,
+   "peakPrivateMB": 14.8,
+   "cpuMs": 2125
+  },
+  {
+   "scenario": "flaky",
+   "group": "connections16",
+   "source": "flaky-c16fix",
+   "finishedUtc": "2026-11-10T02:46Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 8.753,
+   "transferSeconds": 8.255,
+   "mbps": 7.31,
+   "firstRequestMs": 498,
+   "lastByteToDoneMs": 209,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.6,
+   "refetchedPct": 0.9,
+   "requests": 53,
+   "connections": 53,
+   "maxParallelConnections": 4,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 37.5,
+   "peakPrivateMB": 11.4,
+   "cpuMs": 1594
+  },
+  {
+   "scenario": "flaky",
+   "group": "connections16",
+   "source": "flaky-c16fix",
+   "finishedUtc": "2026-11-10T02:46Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 8.794,
+   "transferSeconds": 8.266,
+   "mbps": 7.28,
+   "firstRequestMs": 528,
+   "lastByteToDoneMs": 199,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.8,
+   "refetchedPct": 1.2,
+   "requests": 73,
+   "connections": 73,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 43.7,
+   "peakPrivateMB": 16.8,
+   "cpuMs": 1656
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-fix1",
+   "finishedUtc": "2026-11-10T01:15Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 9.515,
+   "transferSeconds": 8.654,
+   "mbps": 6.73,
+   "firstRequestMs": 861,
+   "lastByteToDoneMs": 237,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 65,
+   "refetchedPct": 1.5,
+   "requests": 66,
+   "connections": 66,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36,
+   "peakPrivateMB": 10.6,
+   "cpuMs": 1750
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-fix1",
+   "finishedUtc": "2026-11-10T01:15Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 9.167,
+   "transferSeconds": 8.549,
+   "mbps": 6.98,
+   "firstRequestMs": 618,
+   "lastByteToDoneMs": 322,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 66.1,
+   "refetchedPct": 3.2,
+   "requests": 64,
+   "connections": 64,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 37.1,
+   "peakPrivateMB": 11.1,
+   "cpuMs": 1750
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-fix2",
+   "finishedUtc": "2026-11-10T01:40Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 10.013,
+   "transferSeconds": 8.989,
+   "mbps": 6.39,
+   "firstRequestMs": 1024,
+   "lastByteToDoneMs": 223,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 65.9,
+   "refetchedPct": 2.9,
+   "requests": 65,
+   "connections": 65,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42.2,
+   "peakPrivateMB": 16.7,
+   "cpuMs": 1766
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-fix2",
+   "finishedUtc": "2026-11-10T01:40Z",
+   "rep": 2,
+   "ok": false,
+   "seconds": 8.857,
+   "transferSeconds": 8.327,
+   "mbps": 7.23,
+   "firstRequestMs": 530,
+   "lastByteToDoneMs": 251,
+   "filesWhole": 0,
+   "files": 1,
+   "servedMB": 64.9,
+   "refetchedPct": 1.3,
+   "requests": 72,
+   "connections": 72,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36.2,
+   "peakPrivateMB": 10.7,
+   "cpuMs": 2141
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-fix3",
+   "finishedUtc": "2026-11-10T02:17Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 8.903,
+   "transferSeconds": 8.335,
+   "mbps": 7.19,
+   "firstRequestMs": 568,
+   "lastByteToDoneMs": 247,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.9,
+   "refetchedPct": 1.4,
+   "requests": 72,
+   "connections": 72,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 37.5,
+   "peakPrivateMB": 11.1,
+   "cpuMs": 2172
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-fix3",
+   "finishedUtc": "2026-11-10T02:17Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 8.78,
+   "transferSeconds": 8.273,
+   "mbps": 7.29,
+   "firstRequestMs": 507,
+   "lastByteToDoneMs": 203,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.8,
+   "refetchedPct": 1.3,
+   "requests": 67,
+   "connections": 67,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 37.5,
+   "peakPrivateMB": 11.3,
+   "cpuMs": 1594
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-inorder",
+   "finishedUtc": "2026-11-10T08:35Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 9.556,
+   "transferSeconds": 8.669,
+   "mbps": 6.7,
+   "firstRequestMs": 887,
+   "lastByteToDoneMs": 252,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.7,
+   "refetchedPct": 1.1,
+   "requests": 60,
+   "connections": 60,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 31,
+   "peakPrivateMB": 11.8,
+   "cpuMs": 2141
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-inorder",
+   "finishedUtc": "2026-11-10T08:35Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 16.987,
+   "transferSeconds": 16.454,
+   "mbps": 3.77,
+   "firstRequestMs": 533,
+   "lastByteToDoneMs": 71,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 127.6,
+   "refetchedPct": 99.4,
+   "requests": 106,
+   "connections": 106,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 30.4,
+   "peakPrivateMB": 11.3,
+   "cpuMs": 3078
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-mirror",
+   "finishedUtc": "2026-11-10T07:12Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 9.026,
+   "transferSeconds": 8.415,
+   "mbps": 7.09,
+   "firstRequestMs": 611,
+   "lastByteToDoneMs": 247,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 65.5,
+   "refetchedPct": 2.4,
+   "requests": 67,
+   "connections": 67,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 30.1,
+   "peakPrivateMB": 10.9,
+   "cpuMs": 2063
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-mirror",
+   "finishedUtc": "2026-11-10T07:12Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 8.811,
+   "transferSeconds": 8.29,
+   "mbps": 7.26,
+   "firstRequestMs": 521,
+   "lastByteToDoneMs": 199,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.9,
+   "refetchedPct": 1.4,
+   "requests": 65,
+   "connections": 65,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 36.5,
+   "peakPrivateMB": 16.7,
+   "cpuMs": 1656
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-range-all",
+   "finishedUtc": "2026-11-10T13:20Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 8.821,
+   "transferSeconds": 8.315,
+   "mbps": 7.26,
+   "firstRequestMs": 506,
+   "lastByteToDoneMs": 253,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.7,
+   "refetchedPct": 1.1,
+   "requests": 63,
+   "connections": 63,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 21.1,
+   "peakPrivateMB": 12.5,
+   "cpuMs": 1406
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky-range-all",
+   "finishedUtc": "2026-11-10T13:20Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 8.762,
+   "transferSeconds": 8.236,
+   "mbps": 7.3,
+   "firstRequestMs": 526,
+   "lastByteToDoneMs": 187,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.5,
+   "refetchedPct": 0.8,
+   "requests": 58,
+   "connections": 58,
+   "maxParallelConnections": 7,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 21.1,
+   "peakPrivateMB": 12.7,
+   "cpuMs": 1672
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky",
+   "finishedUtc": "2026-11-09T16:15Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 11.798,
+   "transferSeconds": 8.391,
+   "mbps": 5.42,
+   "firstRequestMs": 3407,
+   "lastByteToDoneMs": 236,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 65.2,
+   "refetchedPct": 1.9,
+   "requests": 72,
+   "connections": 72,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41.1,
+   "peakPrivateMB": 13.1,
+   "cpuMs": 2469
+  },
+  {
+   "scenario": "flaky",
+   "group": "standard",
+   "source": "flaky",
+   "finishedUtc": "2026-11-09T16:15Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 11.916,
+   "transferSeconds": 8.454,
+   "mbps": 5.37,
+   "firstRequestMs": 3462,
+   "lastByteToDoneMs": 360,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.9,
+   "refetchedPct": 1.5,
+   "requests": 66,
+   "connections": 66,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41.2,
+   "peakPrivateMB": 13.7,
+   "cpuMs": 2281
+  },
+  {
+   "scenario": "outage",
+   "group": "standard",
+   "source": "outage-inorder",
+   "finishedUtc": "2026-11-10T08:37Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 26.873,
+   "transferSeconds": 23.428,
+   "mbps": 2.38,
+   "firstRequestMs": 3445,
+   "lastByteToDoneMs": 395,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.5,
+   "refetchedPct": 0.8,
+   "requests": 10262,
+   "connections": 10262,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": 16,
+   "outageDroppedRequests": 10200,
+   "outageAtMs": 2373,
+   "peakWorkingSetMB": 33.7,
+   "peakPrivateMB": 11.6,
+   "cpuMs": 15031
+  },
+  {
+   "scenario": "outage",
+   "group": "standard",
+   "source": "outage-mirror",
+   "finishedUtc": "2026-11-10T07:15Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 23.883,
+   "transferSeconds": 23.312,
+   "mbps": 2.68,
+   "firstRequestMs": 571,
+   "lastByteToDoneMs": 218,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 65.1,
+   "refetchedPct": 1.7,
+   "requests": 8537,
+   "connections": 8537,
+   "maxParallelConnections": 9,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": 0,
+   "outageDroppedRequests": 8481,
+   "outageAtMs": 2377,
+   "peakWorkingSetMB": 36.2,
+   "peakPrivateMB": 16.4,
+   "cpuMs": 14203
+  },
+  {
+   "scenario": "outage",
+   "group": "standard",
+   "source": "outage-range-all",
+   "finishedUtc": "2026-11-10T13:21Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 23.822,
+   "transferSeconds": 23.327,
+   "mbps": 2.69,
+   "firstRequestMs": 495,
+   "lastByteToDoneMs": 298,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.7,
+   "refetchedPct": 1.1,
+   "requests": 9810,
+   "connections": 9810,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": 1,
+   "outageDroppedRequests": 9743,
+   "outageAtMs": 2372,
+   "peakWorkingSetMB": 21.6,
+   "peakPrivateMB": 12.7,
+   "cpuMs": 15797
+  },
+  {
+   "scenario": "outage",
+   "group": "standard",
+   "source": "outage",
+   "finishedUtc": "2026-11-09T16:16Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 27.051,
+   "transferSeconds": 23.41,
+   "mbps": 2.37,
+   "firstRequestMs": 3641,
+   "lastByteToDoneMs": 362,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.8,
+   "refetchedPct": 1.3,
+   "requests": 8124,
+   "connections": 8124,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": 6,
+   "outageDroppedRequests": 8054,
+   "outageAtMs": 2379,
+   "peakWorkingSetMB": 41.7,
+   "peakPrivateMB": 14,
+   "cpuMs": 14328
+  },
+  {
+   "scenario": "per_conn",
+   "group": "connections16",
+   "source": "per_conn-c16",
+   "finishedUtc": "2026-11-09T17:10Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 10.331,
+   "transferSeconds": 6.907,
+   "mbps": 6.19,
+   "firstRequestMs": 3424,
+   "lastByteToDoneMs": 309,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.8,
+   "refetchedPct": 1.3,
+   "requests": 17,
+   "connections": 17,
+   "maxParallelConnections": 16,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 42.4,
+   "peakPrivateMB": 14.4,
+   "cpuMs": 1266
+  },
+  {
+   "scenario": "per_conn",
+   "group": "connections16",
+   "source": "per_conn-c16",
+   "finishedUtc": "2026-11-09T17:10Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 9.948,
+   "transferSeconds": 6.528,
+   "mbps": 6.43,
+   "firstRequestMs": 3420,
+   "lastByteToDoneMs": 237,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.3,
+   "refetchedPct": 0.4,
+   "requests": 17,
+   "connections": 17,
+   "maxParallelConnections": 16,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41.9,
+   "peakPrivateMB": 14.4,
+   "cpuMs": 1609
+  },
+  {
+   "scenario": "per_conn",
+   "group": "connections16",
+   "source": "per_conn-c16fix",
+   "finishedUtc": "2026-11-10T02:45Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 7.365,
+   "transferSeconds": 6.742,
+   "mbps": 8.69,
+   "firstRequestMs": 623,
+   "lastByteToDoneMs": 277,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.3,
+   "refetchedPct": 0.5,
+   "requests": 17,
+   "connections": 17,
+   "maxParallelConnections": 16,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 38.1,
+   "peakPrivateMB": 11.4,
+   "cpuMs": 1656
+  },
+  {
+   "scenario": "per_conn",
+   "group": "connections16",
+   "source": "per_conn-c16fix",
+   "finishedUtc": "2026-11-10T02:45Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 7.142,
+   "transferSeconds": 6.651,
+   "mbps": 8.96,
+   "firstRequestMs": 491,
+   "lastByteToDoneMs": 305,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.4,
+   "refetchedPct": 0.7,
+   "requests": 17,
+   "connections": 17,
+   "maxParallelConnections": 16,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 37.6,
+   "peakPrivateMB": 12.8,
+   "cpuMs": 1391
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn-inorder",
+   "finishedUtc": "2026-11-10T08:36Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 9.446,
+   "transferSeconds": 8.942,
+   "mbps": 6.78,
+   "firstRequestMs": 504,
+   "lastByteToDoneMs": 260,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.2,
+   "refetchedPct": 0.3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 33.6,
+   "peakPrivateMB": 11.9,
+   "cpuMs": 1578
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn-inorder",
+   "finishedUtc": "2026-11-10T08:36Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 12.692,
+   "transferSeconds": 9.196,
+   "mbps": 5.04,
+   "firstRequestMs": 3496,
+   "lastByteToDoneMs": 160,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.3,
+   "refetchedPct": 0.5,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 34,
+   "peakPrivateMB": 11.7,
+   "cpuMs": 1438
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn-mirror",
+   "finishedUtc": "2026-11-10T07:13Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 9.741,
+   "transferSeconds": 9.22,
+   "mbps": 6.57,
+   "firstRequestMs": 521,
+   "lastByteToDoneMs": 192,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.1,
+   "refetchedPct": 0.1,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 30.4,
+   "peakPrivateMB": 10.7,
+   "cpuMs": 1453
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn-mirror",
+   "finishedUtc": "2026-11-10T07:13Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 9.782,
+   "transferSeconds": 9.168,
+   "mbps": 6.54,
+   "firstRequestMs": 614,
+   "lastByteToDoneMs": 223,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.2,
+   "refetchedPct": 0.3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 30.5,
+   "peakPrivateMB": 11.3,
+   "cpuMs": 1281
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn-range-all",
+   "finishedUtc": "2026-11-10T13:19Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 9.505,
+   "transferSeconds": 8.953,
+   "mbps": 6.73,
+   "firstRequestMs": 552,
+   "lastByteToDoneMs": 173,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.1,
+   "refetchedPct": 0.2,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 21.1,
+   "peakPrivateMB": 12.5,
+   "cpuMs": 1594
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn-range-all",
+   "finishedUtc": "2026-11-10T13:19Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 10.198,
+   "transferSeconds": 9.312,
+   "mbps": 6.28,
+   "firstRequestMs": 886,
+   "lastByteToDoneMs": 159,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.2,
+   "refetchedPct": 0.3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 21.5,
+   "peakPrivateMB": 12,
+   "cpuMs": 2000
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn",
+   "finishedUtc": "2026-11-09T16:14Z",
+   "rep": 1,
+   "ok": true,
+   "seconds": 13.318,
+   "transferSeconds": 9.776,
+   "mbps": 4.81,
+   "firstRequestMs": 3542,
+   "lastByteToDoneMs": 455,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.5,
+   "refetchedPct": 0.7,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41,
+   "peakPrivateMB": 13.7,
+   "cpuMs": 1672
+  },
+  {
+   "scenario": "per_conn",
+   "group": "standard",
+   "source": "per_conn",
+   "finishedUtc": "2026-11-09T16:14Z",
+   "rep": 2,
+   "ok": true,
+   "seconds": 12.523,
+   "transferSeconds": 9.136,
+   "mbps": 5.11,
+   "firstRequestMs": 3387,
+   "lastByteToDoneMs": 189,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 64.2,
+   "refetchedPct": 0.3,
+   "requests": 9,
+   "connections": 9,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "peakWorkingSetMB": 41.1,
+   "peakPrivateMB": 13.4,
+   "cpuMs": 1781
+  },
+  {
+   "scenario": "idle",
+   "group": "standard",
+   "source": "idle",
+   "finishedUtc": "2026-11-09T16:10Z",
+   "rep": 1,
+   "ok": true,
+   "peakWorkingSetMB": 39.2,
+   "peakPrivateMB": 12.3,
+   "cpuMs": 234
+  }
+ ]
+}

@@ -57,7 +57,7 @@ def profile():
     ]))
     return d
 
-BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-desktop")
+BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
 LINK = "https://downloads.example.com/files/dragged.zip"
 NOTES = "notes-for-the-drag.txt"
 PAGE = f"""<!doctype html><title>links</title>

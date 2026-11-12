@@ -200,7 +200,7 @@ fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
     until(&mut harness, "the first bytes to arrive", |app| {
         app.rows()
             .iter()
-            .any(|r| r.progress.downloaded >= 64 * 1024)
+            .any(|r| r.progress.downloaded >= 128 * 1024)
     });
     select(&mut harness, "half.mp4");
     assert!(!harness.state().enabled(Command::OpenFile), "not finished");
@@ -222,7 +222,8 @@ fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
     let preview = opened().unwrap();
     let bytes = std::fs::read(&preview).unwrap();
     // From the start, all of it but what is still in the engine's write
-    // buffer (the staged file is as long as the whole, zeros past that).
+    // buffer, 64 KiB at most (the staged file is as long as the whole, zeros
+    // past that).
     assert!(bytes.len() >= 32 * 1024, "{} bytes", bytes.len());
     assert!(bytes[..32 * 1024].iter().all(|b| *b == 9));
 
@@ -1287,6 +1288,8 @@ fn a_drop_with_no_link_says_how_to_add_one() {
 /// fresh one goes on from the parts already fetched.
 #[test]
 fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
+    // Its window gives the Details hint, which is saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1100.0, 720.0))
@@ -1339,6 +1342,8 @@ fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
 /// another folder, and there it finishes, its parts carried over.
 #[test]
 fn an_unreachable_folder_pauses_and_another_folder_finishes_it() {
+    // Its window gives the Details hint, which is saved.
+    let _file = settings_file();
     let world = world();
     let blocker = world.dir.path().join("not-a-drive");
     std::fs::write(&blocker, b"a file where the folder should be").unwrap();
@@ -1402,6 +1407,8 @@ fn a_cut_connection_is_said_plainly() {
                 show_progress: false,
                 show_complete: false,
                 language: "en".into(),
+                // The Details hint, saved when given, is not this test's.
+                hinted_details: true,
                 ..Settings::default()
             }),
         );
@@ -1437,6 +1444,8 @@ fn a_cut_connection_is_said_plainly() {
 /// attempt it is on.
 #[test]
 fn a_retry_says_its_attempt() {
+    // Its window gives the Details hint, which is saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1100.0, 720.0))
@@ -1460,7 +1469,10 @@ fn a_retry_says_its_attempt() {
     until(&mut harness, "the row to say it retries", |app| {
         app.rows()
             .first()
-            .is_some_and(|r| dm_desktop::app::status_of(r) == "Connection dropped (retry 2 of 5)")
+            // With when it tries next, in the words themselves (gaps row U7).
+            .is_some_and(|r| {
+                dm_desktop::app::status_of(r).starts_with("Connection dropped (retry 2 of 5)")
+            })
     });
     // It says when it tries again, not only that it will.
     let mut said = false;
@@ -1615,6 +1627,8 @@ fn retry_uses_a_sign_in_saved_since_it_failed() {
 /// file address in Add URL; only a drop took it.
 #[test]
 fn add_url_takes_a_torrent_on_this_computer() {
+    // Add URL saves its addresses.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let file = world.dir.path().join("a set.torrent");
@@ -2242,7 +2256,11 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
 fn a_started_download_says_once_where_its_progress_is() {
     let _file = settings_file();
     let world = world();
-    let mut harness = world.harness();
+    // The one test the hint is for: the others' window has it given.
+    let mut harness = world.harness_with(Settings {
+        hinted_details: false,
+        ..world.settings()
+    });
     harness.state_mut().applied.show_progress = true;
     add_url(&mut harness, &world.url("stalled.bin"), "Start now");
     until(&mut harness, "it to run", |app| app.downloading() == 1);

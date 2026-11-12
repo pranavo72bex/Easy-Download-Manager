@@ -7,7 +7,7 @@
 """dm's memory and threads at rest, against a budget (gaps row 137).
 
     python scripts/memory-check.py            # the release build
-    DM_BINARY=path\\to\\dm-desktop.exe python scripts/memory-check.py
+    DM_BINARY=path\\to\\dm-gpui.exe python scripts/memory-check.py
 
 Starts dm with a home of its own (nothing of the person's is read or written),
 waits for its window to settle, then samples it for a while and prints the
@@ -17,7 +17,13 @@ average working set or the private bytes go over the budget
 process through PowerShell's Get-Process; on macOS the working set is the
 resident size (`ps`), the private bytes the physical footprint (`footprint`),
 and the handles the open files (`lsof`).
+
+What produced the numbers (the commit, rustc, the target, the profile, the GPU and the
+display scale: `provenance.py`) is printed with them, and with `DM_MEMORY_JSON=FILE` the
+samples and it are written there as JSON (gaps row 188).
 """
+import importlib.util
+import json
 import os
 import pathlib
 import statistics
@@ -28,8 +34,8 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or (
-    "D:/dm-target/release/dm-desktop.exe" if sys.platform == "win32"
-    else ROOT / "desktop/target/release/dm-desktop"))
+    "D:/dm-target/release/dm-gpui.exe" if sys.platform == "win32"
+    else ROOT / "desktop/target/release/dm-gpui"))
 # A third more than measured at rest: on macOS on 2026-11-06 (112 MB resident, 75 MB
 # footprint, 37 MB of which the window's drawing surfaces), on Windows 11 on
 # 2026-11-07 (working set 64 to 76 MB, private bytes 30.5 to 30.7 MB, 25 or 26
@@ -39,6 +45,9 @@ WORKING_BUDGET_MB = float(os.environ.get("DM_MEMORY_BUDGET_MB", "150" if sys.pla
 PRIVATE_BUDGET_MB = float(os.environ.get("DM_PRIVATE_BUDGET_MB", "100" if sys.platform == "darwin" else "40"))
 SETTLE_S = float(os.environ.get("DM_MEMORY_SETTLE_S", "15"))
 SAMPLES = int(os.environ.get("DM_MEMORY_SAMPLES", "20"))
+_spec = importlib.util.spec_from_file_location("provenance", ROOT / "scripts" / "provenance.py")
+prov = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(prov)
 
 
 def sample(pid):
@@ -78,7 +87,7 @@ def main():
     if sys.platform not in ("win32", "darwin"):
         sys.exit("memory-check.py reads the process on Windows and macOS only")
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build --release -p dm-desktop")
+        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build --release -p {BINARY.stem}")
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-memory-", dir=os.environ.get("DM_MEMORY_TMP")))
     env = dict(os.environ, DM_HOME=str(home), DM_NO_SECRET_STORE="1")
     dm = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -106,6 +115,14 @@ def main():
     print(f"  private      {statistics.mean(private):6.1f} MB average, {max(private):6.1f} MB peak")
     print(f"  threads      {min(threads)} to {max(threads)}")
     print(f"  handles      {min(handles)} to {max(handles)}")
+    made_by = prov.provenance(BINARY, {"rows": 0, "settle_s": SETTLE_S, "samples": len(rows)})
+    print(f"  made by      {prov.line(made_by)}")
+    if os.environ.get("DM_MEMORY_JSON"):
+        pathlib.Path(os.environ["DM_MEMORY_JSON"]).write_text(json.dumps({
+            "provenance": made_by,
+            "budget_mb": {"working": WORKING_BUDGET_MB, "private": PRIVATE_BUDGET_MB},
+            "samples": [dict(zip(("working_mb", "private_mb", "threads", "handles"), r)) for r in rows],
+        }, indent=1))
     over = []
     if statistics.mean(working) > WORKING_BUDGET_MB:
         over.append(f"working set {statistics.mean(working):.1f} MB over {WORKING_BUDGET_MB:.0f} MB")

@@ -116,11 +116,27 @@ pub(super) async fn download_stream(
     let parts: Vec<PathBuf> = if fs::metadata(&gathered).await.is_ok() {
         vec![gathered]
     } else {
-        // No total: a playlist states none, and a bar that guessed one would
-        // be a bar that lies.
+        // A playlist states no size: the row shows one about, from the pieces fetched so far
+        // and how many there are, marked as such (gaps row Y22), rather than none at all.
         let downloaded = Arc::new(AtomicU64::new(0));
-        let meter = report.map(|tx| watch(Arc::clone(&downloaded), None, tx));
-        let outcome = fetch_segments(client, &listed, key.as_deref(), options, &downloaded).await;
+        let estimate = Arc::new(AtomicU64::new(0));
+        let meter = report.map(|tx| {
+            crate::download::ranged::watch_estimating(
+                Arc::clone(&downloaded),
+                None,
+                Some(Arc::clone(&estimate)),
+                tx,
+            )
+        });
+        let outcome = fetch_segments(
+            client,
+            &listed,
+            key.as_deref(),
+            options,
+            &downloaded,
+            Some(&estimate),
+        )
+        .await;
         if let Some((handle, finished)) = meter {
             let _ = finished.send(());
             let _ = handle.await;
@@ -184,11 +200,22 @@ pub(super) async fn record_live(
         .clone()
         .map(|tx| watch(Arc::clone(&downloaded), None, tx));
     let mut filename = String::new();
+    // Pieces of the picture the row has been told were missed.
+    let mut told: u64 = 0;
     let ended = loop {
-        let round = match picture
+        let round = picture
             .round(client, named_from, options.quality, options, &downloaded)
-            .await
-        {
+            .await;
+        // Pieces the playlist moved past before dm fetched them: the recording has a gap
+        // there, which the row says (gaps row Y23).
+        if picture.missed > told {
+            told = picture.missed;
+            if let Some(tx) = &report {
+                let said = crate::download::NOTES[1].replace("{}", &told.to_string());
+                let _ = tx.send(Update::Note(said)).await;
+            }
+        }
+        let round = match round {
             Ok(round) => round,
             Err(e) => break Err(e),
         };
@@ -331,6 +358,8 @@ struct LiveTrack {
     keys: std::collections::HashMap<String, Vec<u8>>,
     /// Rounds in a row the playlist did not answer.
     misses: u32,
+    /// Segments the playlist moved past before they were fetched.
+    missed: u64,
     /// Asked for no more: its playlist ended, or stopped answering.
     done: bool,
     /// The name its first playlist gave the recording.
@@ -348,6 +377,7 @@ impl LiveTrack {
             init_written: false,
             keys: std::collections::HashMap::new(),
             misses: 0,
+            missed: 0,
             done: false,
             named: None,
         })
@@ -419,6 +449,12 @@ impl LiveTrack {
             if part.init {
                 self.init_written = true;
             } else {
+                if let Some(last) = self
+                    .written
+                    .filter(|last| part.sequence > last.saturating_add(1))
+                {
+                    self.missed += part.sequence - last - 1;
+                }
                 self.written = Some(part.sequence);
             }
         }
@@ -536,17 +572,28 @@ pub(super) async fn first_segment_is(
 /// A request's answer, or the stop asked for meanwhile. A server that takes
 /// the connection and never answers holds a request until the read timeout,
 /// which is a setting and can be ten minutes; a pause does not wait for it.
+///
+/// Work that is done at once (a chunk let through by a limiter with room, or by none) is taken
+/// without a timer: each connection asks it for every chunk, thousands a second over a fast
+/// link, and each made and dropped a timer entry for a wait that never ran out (gaps row S7).
+/// Work still to finish is waited on in quarter seconds, the work looked at first.
 pub(crate) async fn or_stop<T>(
     control: &Control,
     work: impl std::future::Future<Output = Result<T, Error>>,
 ) -> Result<T, Error> {
+    use futures_util::FutureExt as _;
     tokio::pin!(work);
+    control.check()?;
+    if let Some(done) = (&mut work).now_or_never() {
+        return done;
+    }
     loop {
-        control.check()?;
         tokio::select! {
+            biased;
             done = &mut work => return done,
             () = tokio::time::sleep(Duration::from_millis(250)) => {}
         }
+        control.check()?;
     }
 }
 
@@ -651,7 +698,7 @@ pub(super) async fn remux_ts(
      * had are fetched again. Already gathered (a resume), it is used as is. */
     if parts != [joined.clone()] {
         let partial = options.parts_dir.join(format!("{GATHERED}.partial"));
-        let gathered = join_parts(parts, &partial).await;
+        let gathered = join_parts(parts, &partial, &options.control).await;
         if gathered.is_err() {
             let _ = fs::remove_file(&partial).await;
             return None;
@@ -890,8 +937,8 @@ pub(super) async fn keep_only_parts_of(parts_dir: &Path, rendition: &str) -> Res
 ///
 /// A segment is a few seconds of video, so one at a time a stream spends
 /// most of its time waiting a round trip per segment rather than carrying
-/// bytes (on a distant server the link sat idle between them). Up to
-/// [`SEGMENTS_AT_ONCE`] are under way together, each into its own part named
+/// bytes (on a distant server the link sat idle between them). As many are under way together
+/// as Connections per file says (that setting's own bounds hold it), each into its own part named
 /// by its index, so arrival order does not matter: the parts are joined by
 /// index afterwards, as before. The first failure is the stream's, and the
 /// segments still under way are dropped with it.
@@ -901,10 +948,12 @@ pub(super) async fn fetch_segments(
     key: Option<&[u8]>,
     options: &Options,
     downloaded: &AtomicU64,
+    estimate: Option<&AtomicU64>,
 ) -> Result<(), Error> {
     // Workers taking the next unfetched index, rather than a stream of
     // futures: each worker is one plain future, which keeps this `Send`.
     let next = AtomicUsize::new(0);
+    let done = AtomicUsize::new(0);
     let worker = || async {
         loop {
             let index = next.fetch_add(1, Ordering::Relaxed);
@@ -912,15 +961,22 @@ pub(super) async fn fetch_segments(
                 return Ok::<(), Error>(());
             };
             fetch_one_segment(client, listed, key, options, downloaded, index, part).await?;
+            // The stream's size, about: what its pieces so far came to, as many times over as
+            // it has pieces (gaps row Y22). Surer with each piece; from the second.
+            let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if let Some(estimate) = estimate.filter(|_| finished >= 2) {
+                let so_far = downloaded.load(Ordering::Relaxed);
+                let pieces = listed.parts.len() as u64;
+                estimate.store(so_far / finished as u64 * pieces, Ordering::Relaxed);
+            }
         }
     };
-    let at_once = options.connections.clamp(1, SEGMENTS_AT_ONCE);
+    // Connections per file, as a file's ranges take them: a fixed eight held a stream there
+    // whatever the setting said (gaps row Y23).
+    let at_once = options.connections.max(1);
     futures_util::future::try_join_all((0..at_once).map(|_| worker())).await?;
     Ok(())
 }
-
-/// The most segments of one stream fetched at once.
-const SEGMENTS_AT_ONCE: usize = 8;
 
 async fn fetch_one_segment(
     client: &reqwest::Client,

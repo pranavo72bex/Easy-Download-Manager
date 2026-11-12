@@ -3,37 +3,31 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-// dm, with its window drawn in Rust.
-//
-// The same program as the Tauri one — the same startup, browser host, lock,
-// inbox and queue, all from dm-shell — with egui in place of a web view.
-// What lives here is only what a real desktop has and a test must not
-// touch: the tray, the login item, notifications, the clipboard.
+//! dm, with its window drawn in egui (the window before GPUI's).
+//!
+//! The same startup, browser host, lock, inbox and queue as the GPUI window, all from dm-shell.
+//! What lives here is only what a real desktop has and a test must not touch: the tray, the
+//! login item, notifications, the clipboard.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 
 use dm_desktop::app::DmApp;
-use dm_desktop::backend::{Backend, Platform};
-use dm_shell::{host, instance, settings, shell};
+use dm_desktop::backend::Platform;
+use dm_shell::{settings, shell};
 
 #[cfg(target_os = "macos")]
 mod dock;
-#[cfg(target_os = "macos")]
-mod opened;
 
 mod hidden;
-mod login;
 mod platform;
-mod signals;
 mod tray;
 mod window;
 
+use dm_desktop_base::signals::*;
 use hidden::*;
-use login::*;
 use platform::*;
-use signals::*;
 use tray::*;
 use window::*;
 
@@ -132,64 +126,6 @@ fn window_icon() -> Option<egui::IconData> {
     })
 }
 
-/// On Windows a release build is a GUI program with no console, so what
-/// `--register` and `--unregister` print went nowhere when run from cmd or
-/// PowerShell. Attached to the console of whatever started it,
-/// `println!` reaches the terminal; with none (started from Explorer)
-/// nothing changes.
-fn attach_console() {
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
-        // SAFETY: no pointers; it fails harmlessly when there is no parent
-        // console or one is already attached.
-        unsafe {
-            AttachConsole(ATTACH_PARENT_PROCESS);
-        }
-    }
-}
-
-/// What `dm-desktop --help` prints.
-const USAGE: &str = "\
-dm — a download manager
-
-Usage:
-  dm-desktop [options] [LINK ...]
-
-Each link (http, https, ftp, magnet, or a .torrent file) is downloaded by the
-dm already running, or by one started for it. Options apply to the link that
-follows them:
-  --save-to FOLDER   save the next link into FOLDER
-  --name NAME        save the next link as NAME
-  --later            add the next link to the queue without starting it
-  --start-queue      start the main queue
-  --new-download     open Add URL (what the taskbar's jump list does)
-  --when-done WHAT   once the downloads are done: nothing, exit, sleep,
-                     hibernate or shutdown (for this session)
-
-Other commands:
-  --hidden           start in the tray, with no window
-  --headless         run with no window at all
-  --register [ID]    connect dm to the installed browsers (ID: an extension id)
-  --unregister       disconnect dm from the browsers and remove its login item
-  mcp                serve dm's commands to an AI client (Model Context Protocol)
-  list [--json]      what dm is downloading (dm must run with --control 0)
-  status ID          one download
-  pause|resume|cancel ID…   act on downloads by their numbers from `list`
-  --version          print dm's version
-  --help             print this
-
-Examples:
-  dm-desktop https://example.com/file.zip
-  dm-desktop --save-to ~/Videos --name talk.mp4 https://example.com/v.mp4
-  dm-desktop --later https://example.com/a.iso --later https://example.com/b.iso
-  dm-desktop --start-queue --when-done shutdown
-
-Portable: an empty file named \"portable\" beside the program keeps dm's
-settings and list in a \"dm-data\" folder beside it, and leaves the
-browsers and the login items to an installed dm.
-";
-
 fn main() {
     // dm started as the JavaScript engine's host (dm-core's javascript.rs):
     // one program on stdin, its answer on stdout, nothing else touched or
@@ -209,115 +145,26 @@ fn main() {
     settings::enter_portable();
     let args = shell::args();
 
-    // The browser's host asking for a page to be read behind the panel's
-    // list, in a process that outlives it: one page on stdin, nothing shown.
-    if args.len() == 1 && args.first().map(String::as_str) == Some(host::WARM_FLAG) {
-        host::warm_main(&settings::home());
-        return;
-    }
-
-    // Launched by a browser rather than a person: framed JSON on stdin and
-    // stdout, no window, nothing else printed.
-    if shell::browser_launch(&args) {
-        // For an extension dm knows, or not at all: the browser's own check
-        // (its manifest names the extensions) is the one that counts, and
-        // this holds where something else started dm in a browser's name.
-        if !shell::launcher_known(&args) {
-            eprintln!("dm: not started for an extension dm knows ({})", args[0]);
+    // Every way dm runs with no window (`dm_desktop_base::modes`), as every
+    // window's `main` runs them.
+    if let Some(code) = dm_desktop_base::modes::without_window(&args) {
+        if code == 0 {
             return;
         }
-        host::run(&settings::home());
-        return;
-    }
-
-    // `--version`: the version, and nothing else. Without it, `dm --version`
-    // opened the window (found checking an installed AppImage, 0.2.0).
-    if matches!(args.first().map(String::as_str), Some("--version" | "-V")) {
-        println!("dm {}", env!("CARGO_PKG_VERSION"));
-        return;
-    }
-
-    // `--help`: how to use dm from a command line, and nothing else. It
-    // opened the window.
-    if matches!(
-        args.first().map(String::as_str),
-        Some("--help" | "-h" | "/?")
-    ) {
-        attach_console();
-        print!("{USAGE}");
-        return;
-    }
-
-    // `list`, `status`, `pause`, `resume`, `cancel`: a client of the running
-    // dm's control protocol, like `mcp`. Takes no lock.
-    if args.first().is_some_and(|a| dm_desktop::cli::is_command(a)) {
-        attach_console();
-        std::process::exit(dm_desktop::cli::main(&args, &settings::home()));
-    }
-
-    // `mcp`: a Model Context Protocol server on stdin and stdout, relaying
-    // to the running dm's control protocol. Takes no lock: it is a client.
-    if args.first().map(String::as_str) == Some("mcp") {
-        std::process::exit(dm_desktop::mcp::main(&args[1..], &settings::home()));
-    }
-
-    // `--register [id…]` / `--unregister`: the browsers' host manifests,
-    // written or removed, and nothing else. No window, no lock.
-    if matches!(
-        args.first().map(String::as_str),
-        Some("--register" | "--unregister")
-    ) {
-        attach_console();
-    }
-    if args.first().map(String::as_str) == Some("--unregister") {
-        remove_login_item();
-        unregister_the_rest();
-    }
-    if let Some(code) = dm_shell::register::from_args(&args) {
         std::process::exit(code);
-    }
-
-    // A word that is no link, file or option is a typo, not a request to
-    // open the window: say so and stop (`dm lst` used to open dm silently).
-    let strays = shell::unrecognised(&args);
-    if !strays.is_empty() {
-        attach_console();
-        for word in &strays {
-            eprintln!("dm: {word:?} is not a link, a file or a command (see --help)");
-        }
-        std::process::exit(2);
     }
 
     let handed = shell::orders(&args);
 
-    // One dm at a time. The lock is held for the life of this process by
-    // living to the end of `main`.
+    // One dm at a time (`dm_desktop_base::boot`, as every window starts
+    // dm). The lock is held for the life of this process by living to the
+    // end of `main`.
     let headless = args.iter().any(|a| a == "--headless");
-    let _running = match instance::claim(&settings::home()) {
-        Ok(Some(lock)) => lock,
-        // Registered first: this launch ends at the hand-off, and a browser
-        // installed while dm ran was never told where dm is. The
-        // running dm, asked to show itself, checks again and says what
-        // fails in its window.
-        Ok(None) => {
-            if let Some(why) = shell::hand_off(
-                &settings::home(),
-                &handed,
-                dm_shell::register::ensure_if_claimed,
-            ) {
-                eprintln!("dm: your browsers could not be told where dm is: {why}");
-            }
-            return;
-        }
-        // Not taken for a running dm, which it used to be: dm exited without
-        // a word, every time. Nor started without it: a second dm started
-        // the same way would write the same queue. Said, where a person
-        // launching from the Dock will see it too.
-        Err(e) => {
-            let why = format!(
-                "dm cannot tell whether another dm is running, so it has not started: {e}. \
-                 Remove that file, or make it yours, and start dm again."
-            );
+    let _running = match dm_desktop_base::boot::claim(&handed) {
+        dm_desktop_base::boot::Claimed::Running(lock) => lock,
+        dm_desktop_base::boot::Claimed::HandedOff => return,
+        // Said, where a person launching from the Dock will see it too.
+        dm_desktop_base::boot::Claimed::Refused(why) => {
             eprintln!("dm: {why}");
             if !headless {
                 let _ = rfd::MessageDialog::new()
@@ -329,189 +176,57 @@ fn main() {
             std::process::exit(1);
         }
     };
-    // `--when-done`, for the window this launch starts to take up.
-    shell::leave_when_done(&settings::home(), &handed);
-    shell::leave_new_download(&settings::home(), &handed);
     // A magnet link or a .torrent file the system opens with dm arrives as an
     // Apple event, not a command line: handed to the window as one.
     #[cfg(target_os = "macos")]
-    opened::listen(|words| {
+    dm_desktop_base::opened::listen(|words| {
         shell::opened_by_system(&settings::home(), &words);
     });
 
-    // Made before the signals are listened for, so one arriving during
-    // startup still reaches the window once there is one.
+    // Made before dm starts, so a signal or a change during startup still
+    // reaches the window once there is one.
     let repaint_early: Arc<std::sync::OnceLock<egui::Context>> = Arc::default();
-    let runtime = match tokio::runtime::Runtime::new() {
-        Ok(runtime) => runtime,
-        Err(e) => {
-            eprintln!("dm could not start: {e}");
-            std::process::exit(1);
-        }
-    };
-    on_signal(&runtime, {
-        let repaint = Arc::clone(&repaint_early);
-        move || {
-            if let Some(ctx) = repaint.get() {
-                ctx.request_repaint();
-            }
-        }
-    });
-    let shell::Started {
-        queue,
-        settings: mut saved,
-        mut notices,
-    } = runtime.block_on(shell::start(&handed));
-    let hidden = shell::launched_at_login(&args);
-    // Read once: Mica is the window's from its making, so a change waits
-    // for the next start.
-    let mica = dm_desktop::chrome::use_mica(saved.mica);
-    // `--control <port>`, or DM_CONTROL: the control protocol, for tests and
-    // agents to drive the running window. Off unless asked for.
-    let control: Option<u16> = args
-        .iter()
-        .position(|a| a == "--control")
-        .and_then(|i| args.get(i + 1))
-        .cloned()
-        .or_else(|| std::env::var("DM_CONTROL").ok())
-        .and_then(|p| p.parse().ok())
-        // Or the person's own setting (Options › General): the command line.
-        .or_else(|| (saved.allow_command_line || saved.allow_mcp).then_some(0));
-    // Open only because AI assistants are allowed (not asked for by
-    // `--control`, `DM_CONTROL` or the command-line setting): then the port
-    // answers assistants and nothing else, so the default does not hand the
-    // command line to people who never turned it on.
-    let assistants_only = !args.iter().any(|a| a == "--control")
-        && std::env::var_os("DM_CONTROL").is_none()
-        && !saved.allow_command_line;
 
     #[cfg(target_os = "macos")]
     let _ = notify_rust::set_application("com.dm.desktop");
 
-    let platform: Arc<dyn Platform> = Arc::new(Desktop);
-    // The login item follows the saved setting, so a reinstall lands in the
-    // state the person last chose. Said in the window, not fatal. One the
-    // person turned off in Task Manager stays off, and so does the setting.
-    // Not for a dm run on a home of its own (`DM_HOME`: a test, a script, a
-    // portable copy): starting at login is on for a new install, and every
-    // test's fresh home would otherwise put a login item on the computer
-    // running it. Turning the setting on in Options still registers one.
-    let own_home = std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty());
-    let at_launch = (!own_home).then(|| {
-        dm_desktop::autostart::at_launch(saved.start_on_login, login_item_turned_off_outside())
-    });
-    match at_launch {
-        None => {}
-        Some(dm_desktop::autostart::AtLaunch::TurnedOffOutside) => {
-            saved.start_on_login = false;
-            notices.push(match saved.save() {
-                Ok(()) => "start on login was turned off in Task Manager, so dm has turned it \
-                           off too; Options › General turns it back on"
-                    .to_string(),
-                Err(e) => format!(
-                    "start on login was turned off in Task Manager and dm leaves it off, \
-                     but the setting could not be saved: {e}"
-                ),
-            });
-        }
-        Some(dm_desktop::autostart::AtLaunch::Follow(wanted)) => {
-            if let Err(why) = platform.set_login_item(wanted) {
-                notices.push(format!(
-                    "could not change start-on-login: {why}; start on login is not in force"
-                ));
-            }
-        }
-    }
-
-    // Anything a browser handed over while the app was closed is waiting in
-    // the inbox; anything that was mid-flight came back queued.
-    let show_asked = Arc::new(AtomicBool::new(false));
-    let repaint = repaint_early;
-    // A change to the queue wakes the window, which then has no need to look
-    // every second for one while nothing moves.
-    {
-        let repaint = Arc::clone(&repaint);
-        // Within a quarter of a second, not at once: while downloads run the
-        // queue changes many times a second, and a repaint for each drew the
-        // window far more often than it is drawn anyway (10 downloads: 9.7 %
-        // of a core became 14.6 %). Requests within the quarter are one.
-        // The queue tells the application (`dm_shell::app::changes`), which
-        // marks the change and tells each presentation subscribed: this
-        // window's is the repaint.
-        dm_shell::app::changes::connect(&queue);
-        dm_shell::app::changes::subscribe(move || {
+    let platform: Arc<dyn Platform> =
+        Arc::new(dm_desktop_base::desktop::Desktop { window: EguiWindow });
+    let wake = {
+        let repaint = Arc::clone(&repaint_early);
+        Arc::new(move |wake: dm_desktop_base::boot::Wake| {
             if let Some(ctx) = repaint.get() {
-                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                match wake {
+                    // Requests within the quarter are one.
+                    dm_desktop_base::boot::Wake::Soon => {
+                        ctx.request_repaint_after(std::time::Duration::from_millis(250))
+                    }
+                    dm_desktop_base::boot::Wake::Now => ctx.request_repaint(),
+                }
             }
-        });
-    }
-    let handed: Arc<Mutex<std::collections::VecDeque<dm_shell::host::Request>>> = Arc::default();
-    {
-        let (watched, flag, repaint) =
-            (queue.clone(), Arc::clone(&show_asked), Arc::clone(&repaint));
-        let (asked, ask_flag, ask_repaint) = (
-            Arc::clone(&handed),
-            Arc::clone(&show_asked),
-            Arc::clone(&repaint),
-        );
-        let quit_repaint = Arc::clone(&repaint);
-        runtime.spawn(shell::watch_inbox(
-            watched,
-            move || {
-                flag.store(true, Ordering::Relaxed);
-                if let Some(ctx) = repaint.get() {
-                    ctx.request_repaint();
-                }
-            },
-            // A video from the panel: shown in the window's own dialog.
-            move |request| {
-                dm_core::lock(&asked).push_back(request);
-                ask_flag.store(true, Ordering::Relaxed);
-                if let Some(ctx) = ask_repaint.get() {
-                    ctx.request_repaint();
-                }
-            },
-            // `--unregister` of an uninstall: ended as a stop signal ends dm.
-            move || {
-                SIGNALLED.store(true, Ordering::SeqCst);
-                if let Some(ctx) = quit_repaint.get() {
-                    ctx.request_repaint();
-                }
-            },
-        ));
-        let queue = queue.clone();
-        runtime.spawn(async move { queue.run().await });
-    }
-
-    // The computer kept awake for as long as a download is running.
-    {
-        let (queue, handle) = (queue.clone(), runtime.handle().clone());
-        dm_desktop::awake::watch(move || {
-            handle
-                .block_on(queue.list())
-                .iter()
-                .any(|row| row.state == dm_core::State::Running)
-        });
-    }
-    let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
-    // A sleeping computer woken for the schedule, where the Scheduler says.
-    {
-        let settings = backend.settings_handle();
-        dm_desktop::wake::watch(move || {
-            let now = dm_core::lock(&settings).clone();
-            if !now.schedule.wake {
-                return None;
-            }
-            let starts: Vec<u32> = now
-                .queue_start_list()
-                .into_iter()
-                .map(|(_, at)| at)
-                .collect();
-            let (weekday, minute) = dm_core::weekday_now();
-            dm_core::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
-        });
-    }
-    backend.handed = handed;
+        })
+    };
+    // The engine's runtime lives to the end of `main` (`_runtime`, not `_`,
+    // which would drop it here).
+    let dm_desktop_base::boot::Booted {
+        runtime: _runtime,
+        backend,
+        show_asked,
+        hidden,
+        control,
+        assistants_only,
+        started_with,
+    } = match dm_desktop_base::boot::start(&args, &handed, platform, wake) {
+        Ok(booted) => booted,
+        Err(why) => {
+            eprintln!("{why}");
+            std::process::exit(1);
+        }
+    };
+    // Read once: Mica is the window's from its making, so a change waits
+    // for the next start.
+    let mica = dm_desktop::chrome::use_mica(started_with.mica);
+    let repaint = repaint_early;
 
     // `--headless`: the queue, the browser hand-off and the control
     // protocol, with no window — for a server, a script or an agent.
@@ -526,7 +241,7 @@ fn main() {
             app.logic(&ctx);
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
-        app.backend().flush();
+        app.backend().shut_down();
         dm_desktop::control::closing();
         dm_desktop::control::forget_port(&settings::home());
         return;
@@ -580,11 +295,7 @@ fn main() {
         dm_desktop::i18n::set(dm_desktop::i18n::chosen(&language));
         let built = start_tray(ctx.clone(), send);
         if let Err(why) = &built {
-            backend.note(format!(
-                "the tray icon could not be shown ({}); until it can, closing this window \
-                 quits dm rather than keeping it downloading in the background.",
-                why.lines().next().unwrap_or("").trim()
-            ));
+            backend.note(dm_desktop_base::tray::unavailable(why));
         }
         // An installed dm tells the browsers where it is, so the
         // extension works without a terminal. Not a development build

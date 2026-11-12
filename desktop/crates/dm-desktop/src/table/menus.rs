@@ -51,16 +51,8 @@ pub(super) fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
     menu_item(app, ui, Command::Properties, t("Properties"));
 }
 
-/// The times "Delete file after" offers, in seconds, in the language in
-/// force; `None` keeps the file.
-pub fn delete_after_times() -> [(&'static str, Option<u64>); 4] {
-    [
-        (t("Never"), None),
-        (t("10 minutes"), Some(600)),
-        (t("1 hour"), Some(3600)),
-        (t("1 day"), Some(86_400)),
-    ]
-}
+/// The times "Delete file after" offers: dm's, as every window offers them.
+pub use dm_desktop_base::file_info::delete_after_times;
 
 /// "Delete file after ▸": the file goes to the Trash, and its row with it,
 /// that long after it finished. For rows that are not failed or cancelled,

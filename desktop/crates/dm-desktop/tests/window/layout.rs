@@ -259,6 +259,8 @@ fn the_series_error_waits_for_both_ends_and_speaks_german() {
         show_progress: false,
         show_complete: false,
         language: "de".into(),
+        // The Details hint, saved when given, is not this test's.
+        hinted_details: true,
         ..Settings::default()
     });
     let mut harness = Harness::builder()
@@ -1213,6 +1215,8 @@ fn a_list_with_room_for_one_row_stays_where_it_was_scrolled() {
 #[test]
 fn the_queue_columns_heading_is_named_and_sorts() {
     use egui::accesskit::Role;
+    // A sort is saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Add for later");

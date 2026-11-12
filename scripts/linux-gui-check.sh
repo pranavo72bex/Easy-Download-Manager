@@ -8,6 +8,7 @@
 #
 #   sh scripts/linux-gui-check.sh
 #   DM_ORCA=1 sh scripts/linux-gui-check.sh    # with Orca, a real screen reader
+#   DM_WINDOW=egui sh scripts/linux-gui-check.sh  # the egui window, not the GPUI one
 #
 # Builds the client in the Debian image linux-check.sh uses, then runs
 # scripts/linux/gui.py under Xvfb with a window manager (openbox), a
@@ -18,11 +19,14 @@
 # Streamed in, not mounted, for the reason linux-check.sh gives.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 docker build -t dm-linux-check scripts/linux
 git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
   | exec docker run --rm -i \
       -e DM_ORCA="${DM_ORCA:-}" \
+      -e DM_BINARY="/target/debug/$binary" \
       -v dm-linux-target:/target \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
       dm-linux-check sh -c '
@@ -33,7 +37,7 @@ git ls-files -z --cached --others --exclude-standard \
           python3-gi gir1.2-gtk-3.0 \
           at-spi2-core python3-pyatspi libglib2.0-bin orca speech-dispatcher \
           haskell-status-notifier-item-utils >/dev/null
-        cd desktop && cargo build -q -p dm-desktop && cd ..
+        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
         export DISPLAY=:77
         Xvfb :77 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1

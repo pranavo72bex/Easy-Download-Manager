@@ -39,12 +39,12 @@ every download stays with the browser.
   <img alt="The dm window: a menu bar with a search box, a toolbar of Add URL, Resume, Stop and the rest, a category tree, and the downloads as a table with Name, Size, Status, Time left, Speed and Date" src="screenshot.png">
 </picture>
 
-<sub>The window, light or dark as the computer is (Options › General › Look
-also offers the classic look): one file finished and sorted under Archives,
-one in flight, one the server refused, one waiting in the Main queue. Rendered offscreen from the real window against a queue the
-engine really was serving — the sizes and states are its, not a mock-up's.
-`DM_SHOTS=docs cargo test -p dm-desktop --test window shots` (from
-`desktop/`) takes them again.</sub>
+<sub>The GPUI window on macOS, light or dark as Options › General ›
+Theme says: one file finished, one in flight, one waiting for the Main
+queue, one whose link no longer works. Pictured by the system from the real
+window, against a queue the engine really was serving from a server on
+127.0.0.1 — the sizes, speeds and states are its, not a mock-up's.
+`python3 scripts/readme-shots.py` takes them again.</sub>
 
 ### How the window is built and held
 
@@ -60,6 +60,13 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
 - **An application layer under the window** (`dm_shell::app`,
   `docs/architecture/`): what the window shows comes from it, and what a
   person asks for is done by it; the window draws and asks.
+- **The window's thread does not wait on slow work.** What a handler asks
+  for that can take long (a command on thousands of rows, a file moved to
+  another disk, the Trash, Export) runs on one errand thread in the order
+  asked (`dm_shell::app::errands`, `Backend::later`), and its answer is
+  shown on the window's thread; the open and save panels are begun without
+  a modal loop. `scripts/stress-check.py handlers` holds the window to an
+  answer in under 100 ms throughout.
 - **Window tests that click every control by its name**
   (`desktop/crates/dm-desktop/tests/window.rs` and `tests/window/`): every menu item, toolbar
   button and row-menu item is clicked through the accessibility tree and
@@ -182,7 +189,7 @@ cd desktop
 cargo run -p dm-desktop       # the window
 cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
                               # swarm, and the window driven through its accessibility tree
-cd crates/dm-desktop && cargo packager --release   # a .dmg, .deb, AppImage or installer for this machine
+cd crates/dm-gpui && cargo packager --release -p dm-gpui   # a .dmg, .deb or AppImage (Windows: dm-desktop)
 ```
 
 The installers are not signed with a paid certificate, so the first launch
@@ -384,6 +391,7 @@ cd browser && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                          # build the WebAssembly, dist/chrome, dist/firefox, the zips
 python3 scripts/chrome-check.py                # Chrome for Testing, handing off to a real dm
 
+cd desktop && cargo xtask check                # all of the gate that needs no window, both workspaces
 cd desktop && cargo test --workspace           # engine, protocol, shell and window tests
 cd desktop && cargo clippy --workspace --all-targets -- -D warnings
 python3 scripts/app-check.py                   # drives the built binary: lock, hand-off, proxy, schedule
@@ -421,7 +429,8 @@ extension/
 desktop/
   crates/dm-core/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
-                          range workers, resume), http.rs, mirrors.rs, hls.rs (playlists and
+                          range workers, resume; ranged/limits.rs keeps to a server that
+                          limits connections or requests), http.rs, mirrors.rs, hls.rs (playlists and
                           live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (the staged file, or a file a range where the download folder is on another disk; names)
     queue/                several downloads, a limit, and the states between: mod.rs (the state),
                           runner.rs (what starts and when), actions.rs (pause, resume, cancel,
@@ -430,7 +439,8 @@ desktop/
     plan.rs               how a file is cut into ranges
     probe.rs              size, name, and whether it can be resumed
     progress.rs           smoothed rate and time remaining
-    retry.rs              what is worth another attempt, and when
+    retry.rs              what is worth another attempt, and when; a download's connections
+                          taking turns through an outage (Together)
     limit.rs              one speed ceiling, shared
     category.rs           sorting finished files by what they are
     schedule.rs           when the queue is allowed to run
@@ -451,13 +461,13 @@ desktop/
     javascript.rs         the computer's own JavaScript engine for that program: Windows' own
                           Chakra (chakra.dll; no JIT, no eval, memory and time capped), in a
                           process of its own, dm started as its host (--javascript-host);
-                          macOS's JavaScriptCore, and WebKitGTK's on Linux where installed (the
-                          same host, the JIT off); elsewhere an installed Deno, or QuickJS
+                          macOS's JavaScriptCore, and WebKitGTK's on Linux (the same host, the
+                          JIT off; the packages depend on it, the AppImage carries it); nothing
+                          else in its place
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
-    videopage.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old
-                          name), and the tools dm fetches and checks (QuickJS, where a system has
-                          no engine of its own and none installed)
+    videopage.rs          a video page's streams fetched and joined (the module keeps its old
+                          name)
     videopage/fetch.rs        a page's reading, its streams fetched by dm's engine
     videopage/choices.rs      the panel's list of qualities, from the page's own data
     videopage/page_data.rs    a YouTube watch page's own player data, read as that list

@@ -185,6 +185,70 @@ impl Queue {
         self.save().await;
     }
 
+    /// What a dm that is ending does: every running download stopped as a
+    /// pause stops it (what each connection holds written to its part
+    /// file, its ledger brought up to date), its task awaited up to
+    /// `within`, and the row put back in line, so the next start resumes it
+    /// from its parts as one that was running always has. Nothing starts
+    /// once this is called. The queue file is written last. Says how many
+    /// runs were still going at the deadline: those are aborted, and resume
+    /// from their ledgers as after a crash.
+    ///
+    /// Without it the runs went down with the runtime, mid-write, and the
+    /// next start trusted ledgers a run had not finished bringing up to
+    /// date (gaps row 186).
+    pub async fn shut_down(&self, within: std::time::Duration) -> usize {
+        let deadline = tokio::time::Instant::now() + within;
+        self.inner.closing.store(true, Ordering::SeqCst);
+        let stopped: Vec<Id> = {
+            let slots = self.inner.slots.lock().await;
+            slots
+                .iter()
+                .filter(|(_, slot)| slot.entry.state == State::Running)
+                .map(|(id, slot)| {
+                    // The control alone, not `hold`: the row is not paused
+                    // by anyone, and goes back in line below.
+                    slot.control.pause();
+                    *id
+                })
+                .collect()
+        };
+        // Each run ends at its next piece, or at its read timeout's check;
+        // looked at often, as the person is waiting for dm to go.
+        let left = loop {
+            let left = {
+                let slots = self.inner.slots.lock().await;
+                slots.values().filter(|slot| slot.still_stopping()).count()
+            };
+            if left == 0 || tokio::time::Instant::now() >= deadline {
+                break left;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        };
+        {
+            let mut slots = self.inner.slots.lock().await;
+            for slot in slots.values_mut() {
+                if slot.still_stopping() {
+                    if let Some(task) = &slot.task {
+                        task.abort();
+                    }
+                }
+            }
+            for id in &stopped {
+                if let Some(slot) = slots.get_mut(id) {
+                    if matches!(slot.entry.state, State::Paused | State::Running) {
+                        slot.entry_mut().state = State::Queued;
+                        slot.stopped_moving();
+                    }
+                }
+            }
+        }
+        self.inner.unwritten.store(true, Ordering::SeqCst);
+        self.save().await;
+        self.flush().await;
+        left
+    }
+
     /// Puts a paused download back in line. It resumes from what is staged.
     pub async fn resume(&self, id: Id) {
         let mut slots = self.inner.slots.lock().await;
@@ -315,6 +379,7 @@ impl Queue {
             total: slot.entry.progress.total,
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         drop(slots);
         self.kick();
@@ -437,7 +502,7 @@ impl Queue {
         // The folder the row recorded, read from the row just taken: looked
         // up afresh it is no longer there, and the setting's folder is not
         // where a row begun before a change staged its parts.
-        let default_parts = self.inner.options.lock().await.parts_dir.clone();
+        let default_parts = crate::lock(&self.inner.options).parts_dir.clone();
         for (id, slot) in taken {
             // A finished torrent still shared stops with its row (gaps row 147).
             if !slot.entry.path.is_empty() {

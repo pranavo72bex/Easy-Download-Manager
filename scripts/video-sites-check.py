@@ -93,6 +93,8 @@ sys.path.insert(0, str(HERE))
 import media_check  # noqa: E402
 
 EXE = ".exe" if sys.platform == "win32" else ""
+# The window dm ships, on every system: GPUI (docs/gaps.md G9).
+SHIPPED = "dm-gpui"
 # The script's own name to the sites it asks (APIs and reference copies), not a person's.
 AGENT = "dm-video-sites-check/1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
 MB = 1024 * 1024
@@ -103,10 +105,10 @@ def default_binary():
         return pathlib.Path(os.environ["DM_BINARY"])
     for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), "D:/dm-target" if sys.platform == "win32" else None,
                                 str(ROOT / "desktop" / "target")]):
-        candidate = pathlib.Path(target) / "debug" / f"dm-desktop{EXE}"
+        candidate = pathlib.Path(target) / "debug" / f"{SHIPPED}{EXE}"
         if candidate.exists():
             return candidate
-    return ROOT / "desktop" / "target" / "debug" / f"dm-desktop{EXE}"
+    return ROOT / "desktop" / "target" / "debug" / f"{SHIPPED}{EXE}"
 
 
 BINARY = default_binary()
@@ -1358,7 +1360,7 @@ def main():
     if unknown:
         sys.exit(f"no phase called {', '.join(sorted(unknown))}")
     if not BINARY.exists():
-        sys.exit(f"no dm binary at {BINARY}: cd desktop; cargo build -p dm-desktop (or set DM_BINARY)")
+        sys.exit(f"no dm binary at {BINARY}: cd desktop; cargo build -p {SHIPPED} (or set DM_BINARY)")
     base = os.environ.get("DM_VIDEO_WORK")
     if base:
         pathlib.Path(base).mkdir(parents=True, exist_ok=True)

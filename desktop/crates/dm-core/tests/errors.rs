@@ -566,6 +566,178 @@ async fn a_server_back_after_a_short_outage_is_reached_quickly() {
     }
 }
 
+/// A server that, while `down` says so, takes each request and drops it
+/// unanswered, and cuts every answer under way the moment it goes down: the
+/// `bench` outage. Each connection is served 64 KiB every 50 ms. Every request
+/// is noted, when it came and whether it was dropped.
+async fn dropping_server(
+    data: std::sync::Arc<Vec<u8>>,
+    down: tokio::sync::watch::Receiver<bool>,
+    asked: std::sync::Arc<std::sync::Mutex<Vec<(std::time::Instant, bool)>>>,
+    served: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+) -> std::net::SocketAddr {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let (data, mut down) = (data.clone(), down.clone());
+            let (asked, served) = (asked.clone(), served.clone());
+            tokio::spawn(async move {
+                let mut head = Vec::new();
+                let mut buf = [0u8; 2048];
+                while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match socket.read(&mut buf).await {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => head.extend_from_slice(&buf[..n]),
+                    }
+                }
+                let dropped = *down.borrow_and_update();
+                asked
+                    .lock()
+                    .unwrap()
+                    .push((std::time::Instant::now(), dropped));
+                if dropped {
+                    return;
+                }
+                let size = data.len();
+                let text = String::from_utf8_lossy(&head).to_ascii_lowercase();
+                let range = text
+                    .lines()
+                    .find_map(|l| l.strip_prefix("range: bytes="))
+                    .and_then(|r| r.trim().split_once('-'))
+                    .map(|(a, b)| {
+                        let a = a.parse::<usize>().unwrap_or(0);
+                        (a, b.parse::<usize>().unwrap_or(size - 1).min(size - 1))
+                    });
+                let (a, b) = range.unwrap_or((0, size - 1));
+                let status = if range.is_some() {
+                    format!("206 Partial Content\r\nContent-Range: bytes {a}-{b}/{size}")
+                } else {
+                    "200 OK".to_string()
+                };
+                let answer = format!(
+                    "HTTP/1.1 {status}\r\nAccept-Ranges: bytes\r\nContent-Length: {}\r\nETag: \"o\"\r\nConnection: close\r\n\r\n",
+                    b - a + 1
+                );
+                if socket.write_all(answer.as_bytes()).await.is_err() {
+                    return;
+                }
+                let mut at = a;
+                while at <= b {
+                    let end = (at + 65536).min(b + 1);
+                    tokio::select! {
+                        _ = down.wait_for(|d| *d) => return,
+                        wrote = socket.write_all(&data[at..end]) => if wrote.is_err() { return },
+                    }
+                    served.fetch_add(end - at, std::sync::atomic::Ordering::SeqCst);
+                    at = end;
+                    tokio::select! {
+                        _ = down.wait_for(|d| *d) => return,
+                        () = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
+                    }
+                }
+            });
+        }
+    });
+    addr
+}
+
+/// Eight connections that lose the server together take turns asking it, a
+/// tenth of a second apart, and the moment one of them gets a byte the other
+/// seven ask at once (gaps row 177). Before, each asked on its own lane, the
+/// eight in step for the first two seconds and then a quarter-second apart:
+/// after the bench's fifteen-second outage the first byte came 0.2 s late and
+/// the last connection 1.75 s after that.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn connections_that_lose_the_server_take_turns_and_come_back_together() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    const FILE: usize = 8 * 1024 * 1024;
+    const OUTAGE: Duration = Duration::from_millis(2500);
+    let data: Vec<u8> = (0..FILE).map(|i| (i * 31 % 251) as u8).collect();
+    let (down_tx, down) = tokio::sync::watch::channel(false);
+    let asked: Arc<Mutex<Vec<(Instant, bool)>>> = Arc::default();
+    let served = Arc::new(AtomicUsize::new(0));
+    let addr = dropping_server(
+        Arc::new(data.clone()),
+        down,
+        Arc::clone(&asked),
+        Arc::clone(&served),
+    )
+    .await;
+    let dir = tempdir();
+    let url = format!("http://{addr}/out.bin");
+    let opts = options(dir.path());
+    let running =
+        tokio::spawn(async move { dm_core::download(&dm_core::client(), &url, &opts).await });
+    // A quarter of the file in, on every connection: then the server goes.
+    while served.load(Ordering::SeqCst) < FILE / 4 {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    let cut_at = Instant::now();
+    down_tx.send_replace(true);
+    tokio::time::sleep(OUTAGE).await;
+    let back_at = Instant::now();
+    down_tx.send_replace(false);
+    let done = tokio::time::timeout(Duration::from_secs(30), running)
+        .await
+        .expect("the download did not end after the outage")
+        .expect("joined")
+        .expect("the download failed through the outage");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "bytes differ");
+
+    let asked = asked.lock().unwrap().clone();
+    let dropped: Vec<Instant> = asked.iter().filter(|(_, d)| *d).map(|(t, _)| *t).collect();
+    let after: Vec<Instant> = asked
+        .iter()
+        .filter(|(t, d)| !*d && *t >= back_at)
+        .map(|(t, _)| *t)
+        .collect();
+    let first_back = *after.first().expect("nothing asked after the outage");
+    // Asked evenly through the outage, up to the request that found it over.
+    let through: Vec<Instant> = dropped.iter().copied().chain([first_back]).collect();
+    let widest = through
+        .windows(2)
+        .map(|w| w[1] - w[0])
+        .max()
+        .unwrap_or_default();
+    // Ten turns a second leave 100 ms between asks. Allowed most of a
+    // second: on a computer busy with a whole test run, a turn's request has
+    // come 0.5 s late once (gaps row 195), and what is held to here is that
+    // no stretch of the outage goes unasked as the two seconds of the
+    // connections asking in step did.
+    assert!(
+        widest <= Duration::from_millis(900),
+        "the server was not asked for {widest:?} of the outage"
+    );
+    assert!(
+        first_back - back_at <= Duration::from_millis(500),
+        "the server was asked again {:?} after it came back",
+        first_back - back_at
+    );
+    // Not reference A's hundreds a second: the eight at once, then ten a second.
+    let most = 8 + (OUTAGE.as_millis() / 100) as usize + 12;
+    assert!(
+        dropped.len() <= most,
+        "{} requests dropped in {OUTAGE:?} (at most {most})",
+        dropped.len()
+    );
+    assert!(dropped.first().is_some_and(|t| *t >= cut_at));
+    // The other seven ask the moment the first gets its byte.
+    let with_it = after
+        .iter()
+        .filter(|t| **t - first_back <= Duration::from_millis(300))
+        .count();
+    assert!(
+        with_it >= 8,
+        "{with_it} of the eight connections back within 0.3 s of the first: {:?}",
+        after.iter().map(|t| *t - first_back).collect::<Vec<_>>()
+    );
+}
+
 /// A server that never returns causes the download to fail after the attempt
 /// limit, not to wait forever.
 #[tokio::test]

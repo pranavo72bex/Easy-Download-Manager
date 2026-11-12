@@ -436,12 +436,14 @@ fn walk(data: &Value, seen: &mut dyn FnMut(&str, &Value)) {
     }
 }
 
-/// The video's id in a watch, short, shorts, embed or live address.
+/// The video's id in a watch, short, shorts, embed or live address, on YouTube, its
+/// no-cookie host or YouTube Music.
 pub fn video_id(url: &str) -> Option<String> {
     let parsed = url::Url::parse(url.trim()).ok()?;
     let host = parsed.host_str()?.to_ascii_lowercase();
     let host = host.strip_prefix("www.").unwrap_or(&host);
     let host = host.strip_prefix("m.").unwrap_or(host);
+    let host = host.strip_prefix("music.").unwrap_or(host);
     let id = match host {
         "youtu.be" => parsed.path().trim_start_matches('/').to_string(),
         "youtube.com" | "youtube-nocookie.com" => {
@@ -1044,6 +1046,11 @@ async fn read_within(
         .map(|path| format!("{origin}{path}"))
         .collect();
     let fetch_script = || async {
+        // Fetched once a session for every video it plays (gaps row Y13): a playlist's videos
+        // share one player.
+        if let Some(kept) = js_urls.iter().find_map(|url| kept_script(url)) {
+            return Ok(kept);
+        }
         let mut failed = None;
         for url in &js_urls {
             let answer = async {
@@ -1056,7 +1063,10 @@ async fn read_within(
                 text_capped(Error::refused_or(script).await?, PAGE_MOST).await
             };
             match answer.await {
-                Ok(text) => return Ok(text),
+                Ok(text) => {
+                    keep_script(url, &text);
+                    return Ok(text);
+                }
                 Err(e) => failed = Some(e),
             }
         }
@@ -1114,7 +1124,36 @@ async fn read_within(
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        return Err(Error::Internal("a live stream".into()));
+        // Recorded from YouTube's own HLS playlist of it, where the player names one, by the
+        // engine's live recording (gaps row Y5); refused, as before, where it names none.
+        let live = player
+            .pointer("/streamingData/hlsManifestUrl")
+            .and_then(Value::as_str)
+            .filter(|u| u.starts_with("https://"));
+        let Some(live) = live else {
+            return Err(Error::Internal("a live stream".into()));
+        };
+        let title = player
+            .pointer("/videoDetails/title")
+            .and_then(Value::as_str)
+            .unwrap_or("live");
+        return Ok(json!({
+            "id": id,
+            "title": title,
+            "extractor": "youtube",
+            "extractor_key": "Youtube",
+            "webpage_url": format!("https://www.youtube.com/watch?v={id}"),
+            "is_live": true,
+            "url": live,
+            "protocol": "m3u8_native",
+            "ext": "mp4",
+            "filename": staging
+                .join(format!("{} [{id}].mp4", safe_title(title)))
+                .display()
+                .to_string(),
+            "read_by": "dm",
+        })
+        .to_string());
     }
     // The picture and the sound apart (`adaptiveFormats`), as a player
     // `bv+ba` takes them; the formats with both in one file only where
@@ -1151,7 +1190,7 @@ async fn read_within(
             Some(text) => text,
             None => fetch_script().await?,
         };
-        let solved = solve(&script, &formats, staging).await?;
+        let solved = solve(&script, &formats).await?;
         for format in &mut formats {
             format.url = Some(unlocked(format, &solved)?);
             format.cipher = None;
@@ -1196,11 +1235,85 @@ async fn read_within(
         .pointer("/videoDetails/lengthSeconds")
         .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
     let mut reading = reading_json(id, &title, duration, &formats, &chosen, staging);
+    // The channel, written into the joined file with the title (gaps row Y11).
+    if let Some(author) = player
+        .pointer("/videoDetails/author")
+        .and_then(Value::as_str)
+    {
+        reading["uploader"] = json!(author);
+    }
+    // The video's captions, for Options' "carry subtitles" to put inside it (gaps row Y6).
+    let captions = captions_named(&player);
+    if !captions.is_empty() {
+        reading["requested_subtitles"] = Value::Object(captions);
+    }
     // The player script read, for a record of which one answered (the weekly check).
     if let Some(path) = &js_path {
         reading["player"] = json!(path);
     }
     Ok(reading.to_string())
+}
+
+/// The most caption tracks a reading names: a video can list dozens of languages.
+const CAPTIONS_MOST: usize = 8;
+
+/// The caption tracks the player names, as the fetch step takes them (`requested_subtitles`:
+/// each language's WebVTT address): those a person wrote, else the speech-recognised one, on
+/// YouTube's own address alone (gaps row Y6).
+fn captions_named(player: &Value) -> serde_json::Map<String, Value> {
+    let tracks: Vec<&Value> = player
+        .pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .collect();
+    let asr = |t: &&Value| t.get("kind").and_then(Value::as_str) == Some("asr");
+    let written: Vec<&Value> = tracks.iter().copied().filter(|t| !asr(t)).collect();
+    let chosen = if written.is_empty() {
+        tracks.into_iter().filter(asr).take(1).collect()
+    } else {
+        written
+    };
+    let mut named = serde_json::Map::new();
+    for track in chosen {
+        if named.len() >= CAPTIONS_MOST {
+            break;
+        }
+        let (Some(language), Some(base)) = (
+            track.get("languageCode").and_then(Value::as_str),
+            track.get("baseUrl").and_then(Value::as_str),
+        ) else {
+            continue;
+        };
+        let Ok(url) = caption_address(base, "vtt") else {
+            continue;
+        };
+        named
+            .entry(language.to_string())
+            .or_insert_with(|| json!({ "url": url, "ext": "vtt" }));
+    }
+    named
+}
+
+/// A caption track's address in `format` (`vtt`, `ttml`): on YouTube's own `https` address
+/// alone, its own `fmt` replaced; else why not.
+fn caption_address(base: &str, format: &str) -> Result<String, &'static str> {
+    let mut url = url::Url::parse(base)
+        .or_else(|_| url::Url::parse(&format!("https://www.youtube.com{base}")))
+        .map_err(|_| "the captions' address is not one")?;
+    if url.host_str() != Some("www.youtube.com") || url.scheme() != "https" {
+        return Err("the captions are not on YouTube");
+    }
+    let kept: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(k, _)| k != "fmt")
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    url.query_pairs_mut()
+        .clear()
+        .extend_pairs(kept)
+        .append_pair("fmt", format);
+    Ok(url.to_string())
 }
 
 /// The reading for a caption line: the track of `language` (the speech-recognised one where
@@ -1233,21 +1346,7 @@ fn caption_reading(
         .get("baseUrl")
         .and_then(Value::as_str)
         .ok_or_else(|| Error::Internal("the captions have no address".into()))?;
-    let mut url = url::Url::parse(base)
-        .or_else(|_| url::Url::parse(&format!("https://www.youtube.com{base}")))
-        .map_err(|_| Error::Internal("the captions' address is not one".into()))?;
-    if url.host_str() != Some("www.youtube.com") || url.scheme() != "https" {
-        return Err(Error::Internal("the captions are not on YouTube".into()));
-    }
-    let kept: Vec<(String, String)> = url
-        .query_pairs()
-        .filter(|(k, _)| k != "fmt")
-        .map(|(k, v)| (k.into_owned(), v.into_owned()))
-        .collect();
-    url.query_pairs_mut()
-        .clear()
-        .extend_pairs(kept)
-        .append_pair("fmt", "ttml");
+    let url = caption_address(base, "ttml").map_err(|why| Error::Internal(why.into()))?;
     let title = player
         .pointer("/videoDetails/title")
         .and_then(Value::as_str)
@@ -1375,7 +1474,7 @@ fn plain_build(path: &str) -> Option<String> {
 /// Answers every `n` value and signature the formats carry, as reference A answers them: the
 /// player script cut down to what answers them (`player::program`), run in the computer's own
 /// JavaScript engine (`crate::javascript`).
-async fn solve(player_js: &str, formats: &[Format], staging: &Path) -> Result<Solved, Error> {
+async fn solve(player_js: &str, formats: &[Format]) -> Result<Solved, Error> {
     let mut ns = BTreeSet::new();
     let mut sigs = BTreeSet::new();
     let mut n_of = |address: &str| {
@@ -1406,7 +1505,7 @@ async fn solve(player_js: &str, formats: &[Format], staging: &Path) -> Result<So
     }
     let ns: Vec<&str> = ns.iter().map(String::as_str).collect();
     let sigs: Vec<&str> = sigs.iter().map(String::as_str).collect();
-    answer(player_js, &ns, &sigs, staging).await
+    answer(player_js, &ns, &sigs).await
 }
 
 /// What the player script `player_js` answers for `ns` (`n` values) and `sigs` (signatures),
@@ -1417,24 +1516,61 @@ pub async fn answers(
     player_js: &str,
     ns: &[&str],
     sigs: &[&str],
-    staging: &Path,
 ) -> Result<(HashMap<String, String>, HashMap<String, String>), Error> {
-    let solved = answer(player_js, ns, sigs, staging).await?;
+    let solved = answer(player_js, ns, sigs).await?;
     Ok((solved.n, solved.sig))
 }
 
+/// How many player scripts, and their cut programs, are kept: the one in use and the one
+/// before it, a few megabytes each.
+const PLAYERS_KEPT: usize = 2;
+
+/// Player scripts fetched this session, by their address, newest last (gaps row Y13).
+static SCRIPTS: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+
+/// The cut programs of player scripts this session, by the script's own hash, newest last.
+static PROGRAMS: std::sync::Mutex<Vec<(u64, String)>> = std::sync::Mutex::new(Vec::new());
+
+fn kept_script(url: &str) -> Option<String> {
+    crate::lock(&SCRIPTS)
+        .iter()
+        .find(|(kept, _)| kept == url)
+        .map(|(_, text)| text.clone())
+}
+
+fn keep_script(url: &str, text: &str) {
+    let mut kept = crate::lock(&SCRIPTS);
+    kept.retain(|(old, _)| old != url);
+    kept.push((url.to_string(), text.to_string()));
+    let over = kept.len().saturating_sub(PLAYERS_KEPT);
+    kept.drain(..over);
+}
+
+/// `player_js` cut down to what answers YouTube's checks (`player::program`), cut once a
+/// session for each player rather than for every video.
+fn cut_program(player_js: &str) -> Result<String, String> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    player_js.hash(&mut hasher);
+    let key = hasher.finish();
+    if let Some((_, program)) = crate::lock(&PROGRAMS).iter().find(|(k, _)| *k == key) {
+        return Ok(program.clone());
+    }
+    let program = player::program(player_js)?;
+    let mut kept = crate::lock(&PROGRAMS);
+    kept.push((key, program.clone()));
+    let over = kept.len().saturating_sub(PLAYERS_KEPT);
+    kept.drain(..over);
+    Ok(program)
+}
+
 /// [`answers`], as the reading takes them.
-async fn answer(
-    player_js: &str,
-    ns: &[&str],
-    sigs: &[&str],
-    staging: &Path,
-) -> Result<Solved, Error> {
+async fn answer(player_js: &str, ns: &[&str], sigs: &[&str]) -> Result<Solved, Error> {
     let unanswered =
         |why: String| Error::Internal(format!("YouTube's checks were not answered: {why}"));
-    let program = player::program(player_js).map_err(unanswered)?;
+    let program = cut_program(player_js).map_err(unanswered)?;
     let call = player::call(ns, sigs);
-    let output = crate::javascript::run(&program, &call, SOLVING, staging)
+    let output = crate::javascript::run(&program, &call, SOLVING)
         .await
         .map_err(unanswered)?;
     let answer: Value = serde_json::from_str(output.trim())
@@ -1547,6 +1683,37 @@ fn safe_title(title: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The captions a person wrote are named, on YouTube's own address as WebVTT; a
+    /// speech-recognised track only where there is none, and none from elsewhere (gaps row Y6).
+    #[test]
+    fn a_videos_written_captions_are_named_as_webvtt() {
+        let player = json!({"captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [
+            {"languageCode": "en", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&lang=en&fmt=srv3"},
+            {"languageCode": "en", "kind": "asr", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&lang=en&kind=asr"},
+            {"languageCode": "de", "baseUrl": "/api/timedtext?v=x&lang=de"},
+            {"languageCode": "fr", "baseUrl": "https://elsewhere.example/timedtext?lang=fr"}
+        ]}}});
+        let named = captions_named(&player);
+        let mut languages: Vec<&String> = named.keys().collect();
+        languages.sort();
+        assert_eq!(languages, ["de", "en"]);
+        let en = named["en"]["url"].as_str().unwrap();
+        assert!(
+            en.ends_with("&fmt=vtt") && !en.contains("srv3") && !en.contains("asr"),
+            "{en}"
+        );
+        assert_eq!(named["de"]["ext"], "vtt");
+        assert!(named["de"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://www.youtube.com/"));
+        let spoken = json!({"captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [
+            {"languageCode": "en", "kind": "asr", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&kind=asr"}
+        ]}}});
+        assert_eq!(captions_named(&spoken).len(), 1);
+        assert!(captions_named(&json!({})).is_empty());
+    }
 
     #[test]
     fn a_link_says_where_it_starts_in_each_of_youtubes_ways() {

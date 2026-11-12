@@ -161,8 +161,11 @@ and arriving, and the browser kept nothing:
 | audacityteam.org | a link to a GitHub release asset | whole |
 | gimp.org | a link to a mirror | arriving |
 | code.visualstudio.com (`?dv=`) | started by the page's script, redirect to Microsoft's CDN | arriving |
+| libreoffice.org | the page's script opens the link in a new tab and sends the page to its donate page; a redirect to a mirror | whole (2026-11-11, Chrome for Testing on macOS) |
 
-LibreOffice's link to `download.documentfoundation.org` was found but the check's click started no
-download in the browser either (the extension saw none), so it says nothing of dm; the same kind
-of address (a redirect to a mirror) works on VideoLAN and GIMP.
+LibreOffice failed until 2026-11-11 (gaps row 173) because the check's click missed the link: the
+page's menu bar grows back by 63 pixels when the page is scrolled near its top, after the check
+had measured where the link was, so the click landed on the heading above. The check now
+measures the link where it rests after one scroll. The whole check, 2026-11-11 on macOS: 68 of 68,
+all twelve pages handed to dm and arriving.
 

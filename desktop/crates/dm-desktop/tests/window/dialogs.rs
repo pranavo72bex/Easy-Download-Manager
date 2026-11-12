@@ -892,6 +892,8 @@ fn an_address_already_in_the_list_is_asked_about_before_it_is_added_again() {
 /// picked, here a .zip to Documents rather than Archives.
 #[test]
 fn download_details_category_picks_the_folder() {
+    // Download details saves the folder it last used.
+    let _file = settings_file();
     let world = world();
     // With sorting into kind folders off, as it is unless turned on: the
     // pick is still that kind's folder.
@@ -1283,6 +1285,8 @@ fn links_on_the_clipboard_can_start_now_or_be_cancelled() {
 /// where the file goes.
 #[test]
 fn browse_picks_the_folder_a_download_goes_to() {
+    // Add URL saves its addresses and Download details its folder.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let picked = world.dir.path().join("picked");
@@ -1453,6 +1457,8 @@ fn a_fresh_link_is_taken_from_the_browser() {
                 show_progress: false,
                 show_complete: false,
                 language: "en".into(),
+                // The Details hint, saved when given, is not this test's.
+                hinted_details: true,
                 ..Settings::default()
             }),
         );
@@ -1560,6 +1566,8 @@ fn download_details_can_replace_a_file_of_the_same_name() {
 /// no file at an address, before Start now rather than after.
 #[test]
 fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
+    // Add URL saves its addresses.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -2457,8 +2465,8 @@ fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
     {
         let d = harness.state_mut().dialogs.links.as_mut().unwrap();
         d.names.insert(world.url("other.pdf"), "renamed.pdf".into());
-        d.save_to = dm_desktop::dialogs::SaveTo::OneFolder;
-        d.folder.clone_from(&where_to);
+        d.save.save_to = dm_desktop::dialogs::SaveTo::OneFolder;
+        d.save.folder.clone_from(&where_to);
     }
     harness.run_steps(3);
     assert!(
@@ -2776,7 +2784,8 @@ fn a_torrents_file_is_given_a_priority_in_properties() {
             wanted: true,
             priority: dm_core::TorrentPriority::Normal,
         })
-        .collect();
+        .collect::<Vec<_>>()
+        .into();
     let stored = world.dir.path().join("torrent-queue.json");
     std::fs::write(&stored, serde_json::to_string(&vec![torrent]).unwrap()).unwrap();
     let mut harness = world.harness();

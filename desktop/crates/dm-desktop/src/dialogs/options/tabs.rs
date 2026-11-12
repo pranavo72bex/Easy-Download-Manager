@@ -912,9 +912,6 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     ui.add_space(8.0);
     ui.label(t("When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:"));
     field(ui, t("Command"), &mut s.on_complete, 320.0);
-    ui.add_space(8.0);
-    toggle_row(ui, &mut s.fetch_tools, t("Get the video tools when needed"));
-    ui.label(RichText::new(t("Downloaded from their official releases, checked, and kept up to date. Off: dm uses only tools you installed yourself.")).small().weak());
 }
 
 /// The Advanced page of Options: the settings the Connection and Proxy tabs

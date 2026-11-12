@@ -14,9 +14,10 @@ was removed on 2026-10-12 and is in git history.
 
 ## Core downloader
 - [x] A browser download whose signed address expired waits for a fresh one (`Entry::fresh_link`, saved with the row) and the browser's next hand-over of the same file, matched by name, exact size and family of servers, takes its place and resumes from the staged parts (`Queue::adopt_fresh_link`; `fresh_link.rs`)
-- [x] The seams between ranges are fetched again over fresh requests and compared (up to eight, 2 KiB a side); bytes that differ restart the file on one connection and the row says why (`download/assemble.rs`; `seam_check.rs`)
-- [x] After each segment of a multi-connection download completes, its last 4 KB are re-fetched and compared byte-for-byte with the staged file (ENG-D12, clean-room); a mismatch clears the staged file and restarts the download on one connection (`download/ranged.rs` `spot_check_segment`; covered by `seam_check.rs`)
-- [x] Each piece's lead re-reads 64 bytes across the seam (`ranged.rs` `LEAD_BYTES`; `seam_check.rs` `a_corrupt_seam_interior_is_caught_by_the_64_byte_overlap`); a cut connection or a short outage is retried at once (`tests/errors.rs` `a_dropped_connection_is_retried_and_the_file_still_arrives`, `a_server_back_after_a_short_outage_is_reached_quickly`)
+- [x] Every seam between ranges is fetched again over a fresh request and compared, 512 bytes a side, once, by whichever of its two ranges is whole second, while the download goes on, and the file's last 512 bytes once; so each range's end is looked at in the same request as the next range's start (ENG-D12, clean-room). A range's own checks, two at most, are asked at once, so the range whole last waits one round trip for them, not two. Bytes that differ, or the whole file answered under the validator, restart the file on one connection and the row says why (`download/assemble.rs` `check_seams`; `seam_check.rs`, `each_seam_is_asked_for_once_across_it_and_the_files_end_once`, `a_ranges_own_checks_are_asked_at_once`)
+- [x] A connection with nothing left halves only a range its own connection would take longer than a request is worth to finish (a tenth of a second, or twice the wait for a first byte), at its pace over its last 20 ms, judged 40 ms after a range ends; one about to end, or whose answer is on its way, is left be (`download/ranged.rs` `split_largest`; `tests/halving.rs`, `speed.rs`)
+- [x] A server that limits how many requests it serves at once and how often it takes one (nginx's `limit_conn` and `limit_req`, as Hetzner's mirrors answer) is kept to, once it turns a request away while it serves others: no more connections at work than it has served at once, the others waiting for a place rather than ending; a new request no sooner than its pace allows after a refusal that was not for want of a place; an answer that brings its range whole read on into the ranges after it that nobody has, so one request fetches several; a halving's back half fetched by the range it was cut from where the server refuses the halving's request; the seams checked once no range is asked for, one at a time; and the next file from the same server opens that many connections. The ranges after the first are asked for from the file's end backwards, so the probe's answer can run on through those a server turns away (`download/ranged/limits.rs`; `tests/limits.rs` `a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection`, `connections_a_server_turns_away_step_aside_at_once`; gaps row 197)
+- [x] Each piece's lead re-reads 64 bytes across the seam (`ranged.rs` `LEAD_BYTES`; `seam_check.rs` `a_corrupt_seam_interior_is_caught_by_the_64_byte_overlap`); a cut connection or a short outage is retried at once (`tests/errors.rs` `a_dropped_connection_is_retried_and_the_file_still_arrives`, `a_server_back_after_a_short_outage_is_reached_quickly`), and connections that have all lost the server take turns asking it and come back together (`connections_that_lose_the_server_take_turns_and_come_back_together`, `retry::Together`)
 - [x] The files of a ZIP listed from its end by range requests, without the archive (`zipinfo.rs`; `zip_contents.rs`); listed as a Contents section in Download details before the file is fetched, and in a finished ZIP's Properties (`dialogs/zip_list.rs`; `tests/window/zip.rs`; contract row B44)
 - [x] One file taken out of a ZIP on a server before the archive is downloaded: Download details › Contents › Take out fetches that file's own bytes by range requests, unpacks (stored or deflated), checks its CRC and saves it beside where the archive goes (`zipinfo::zip_take_one`; `tests/zip_contents.rs` `one_file_is_taken_out_of_a_remote_zip_without_fetching_the_archive`, `a_folder_a_damaged_file_or_a_server_without_ranges_takes_nothing_out`; window test `take_out_saves_one_file_of_a_zip_before_the_zip_is_fetched`; contract row B44)
 - [ ] A part (From/To) cut from an HLS stream, a DASH stream and a plain MP4 (`stream::cover`, `dash::cut`, `download/hls.rs`, `download/dash.rs`, `download/plain.rs`, `mp4mux/part.rs`; gaps row 45): written, not yet built or tested
@@ -217,6 +218,24 @@ and is not carried over.
       on 2026-10-11. It calls the queue directly, and `tests/window.rs` drives
       every control through its accessibility tree against a real queue on
       loopback
+- [x] The window's scale (issue #32, 2026-11-11): Options › General ›
+      Appearance's Text size slider with four stops, 60, 80, 100 (the
+      default) and 120 percent, the percentage beside it; View › Text size ›
+      Larger, Smaller, Normal size and Ctrl (⌘) with +, − and 0 step the same
+      stops. Everything the GPUI window draws goes through one scale
+      (`dm-gpui` `zoom.rs`), so words, rows, controls, pictures and every
+      dialog's window grow together, at once; kept in `settings.json`
+      (`text_size`), the egui window's Small, Medium and Large read as 80, 100
+      and 120. Contract row B66. Checked on macOS over the control port;
+      Linux and Windows owed
+- [x] Save to for links added together (issue #32, 2026-11-11): Links on
+      the clipboard and Download links share one Save to (`dm-desktop-base`
+      `save_to.rs`, drawn by `dm-gpui` `savefolder.rs`): each to its
+      category's folder, one category, or one folder typed or chosen with
+      Browse… (the system's folder panel, where a folder can be made); a
+      folder not there yet is made when the links are added, one that cannot
+      be is said and the dialog stays. Contract row B67. Checked on macOS over
+      the control port; Linux and Windows owed
 - [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `desktop/vendor/README.md`). Contract row B42.
 - [x] The window — menu bar (Program, File, Downloads, View, Help),
       toolbar, category tree with Everything, In progress, Done and Queues,
@@ -286,7 +305,11 @@ and is not carried over.
       winit's own connection with the press's serial —
       `scripts/linux-wayland-drag-check.sh` drags both ways under sway with a
       virtual pointer (4 of 4 first time). Unchecked: a physical drag by
-      hand on macOS and Windows, and a real browser under Wayland
+      hand on macOS and Windows, and a real browser under Wayland. The GPUI
+      window (2026-11-11, gaps G10): a finished row's drag is handed to the
+      system as it leaves the window, on macOS and Wayland by GPUI and on
+      X11 by an XDND source in the vendored GPUI; built and unit-tested, not
+      yet watched landing; not on Windows yet
 - [x] Start on login — on for a new install (Options › General turns it off; an older install keeps its choice), registers dm as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather
@@ -393,6 +416,19 @@ and is not carried over.
       chunk to discover there was no limit, which is every connection queueing
       behind every other on the hottest path in the engine. Reading the rate
       outside the lock: 1.6M calls across 8 tasks went from 0.08s to 0.01s
+- [x] No lock held across slow work — no lock of the queue's is held while
+      the disk or the network is waited for, except the one that keeps two
+      writes of the queue file in order, and the order they are taken in is
+      written above `Inner` (`dm-core/src/queue/mod.rs`). A write of the
+      queue file made to take 2 s holds back no read of the list, no
+      download's progress, and no change made meanwhile
+      (`dm-core/tests/locks.rs`, gaps row 184, 2026-11-12, macOS)
+- [x] Heavy work bounded and cancellable — digests, joins, MP3 and GIF making
+      and ZIP extraction take turns, half the cores at once (`dm_core::heavy`);
+      a Cancel stops a digest or a join of a 2 GB file within a second, and a
+      disk held to 1 MB/s slows the download without growing its memory
+      (`checksum.rs`, `download/mod.rs`, `tests/slow_disk.rs`; gaps row 185,
+      2026-11-12, macOS)
 
 ## Packaging
 - [ ] Linux — packages: .deb and AppImage (cargo-packager), .rpm (nfpm,
@@ -551,8 +587,9 @@ of them.
       script, whose checks dm answers itself as reference A does, the player
       cut down to what answers them (`youtube/player.rs`) and run in the
       computer's own JavaScript engine (`javascript.rs`: Windows' own Chakra,
-      macOS's JavaScriptCore, WebKitGTK's on Linux where installed, nothing
-      fetched; elsewhere an installed Deno or QuickJS), checked on the
+      macOS's JavaScriptCore, WebKitGTK's on Linux, which the packages depend
+      on and the AppImage carries; nothing fetched or run in its place, gaps
+      row P1), checked on the
       live player against the scripts it replaced, and on Windows with nothing
       installed (`out-of-box-check.py`: an ordinary video, 1080p, a 4K music
       video locked behind signatures at its best, 720p MP4, 480p WebM and its

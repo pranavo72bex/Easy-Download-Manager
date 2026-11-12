@@ -22,6 +22,10 @@ pub struct Progress {
     pub speed: f64,
     /// `None` when there is nothing to base one on.
     pub eta: Option<Duration>,
+    /// `total` is an estimate, not the server's word: a stream's size from the pieces fetched
+    /// so far and how many it has (gaps row Y22). Shown as "≈".
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub estimated: bool,
 }
 
 impl Progress {
@@ -45,6 +49,15 @@ pub struct Meter {
     last_bytes: u64,
     speed: f64,
     total: Option<u64>,
+    /// Whether `total` is an estimate (`set_total`).
+    estimated: bool,
+    /// How far the figure has come from its start: 0 before any byte moved, 1 after the first
+    /// interval that brought some, 2 from then on. That first interval is partial, its start
+    /// spent on the request before the first byte, so the next interval replaces its figure
+    /// rather than being averaged with it. Averaged, a slow start (a loaded computer's request
+    /// taking 150 ms of the first 250) showed four fifths of a 500 KB/s limit at one second and
+    /// took a second and a half more to come up to it (gaps row 196).
+    warm: u8,
 }
 
 /// How much of the new sample to believe. The rest is carried over, which is
@@ -59,7 +72,16 @@ impl Meter {
             last_bytes: started_at,
             speed: 0.0,
             total,
+            estimated: false,
+            warm: 0,
         }
+    }
+
+    /// The total from now on, and whether it is an estimate: a stream's grows surer as its
+    /// pieces come (gaps row Y22).
+    pub fn set_total(&mut self, total: Option<u64>, estimated: bool) {
+        self.total = total;
+        self.estimated = estimated && total.is_some();
     }
 
     /// Records where the count has reached, `elapsed` since the last sample.
@@ -72,11 +94,14 @@ impl Meter {
         if seconds > 0.0 {
             let moved = downloaded.saturating_sub(self.last_bytes) as f64;
             let instant = moved / seconds;
-            self.speed = if self.speed == 0.0 {
+            self.speed = if self.speed == 0.0 || self.warm == 1 {
                 instant
             } else {
                 self.speed * (1.0 - WEIGHT) + instant * WEIGHT
             };
+            if self.warm == 1 || (self.warm == 0 && moved > 0.0) {
+                self.warm += 1;
+            }
         }
         self.last_bytes = downloaded;
 
@@ -85,6 +110,7 @@ impl Meter {
             total: self.total,
             speed: self.speed,
             eta: self.eta(downloaded),
+            estimated: self.estimated,
         }
     }
 
@@ -114,6 +140,23 @@ mod tests {
         Duration::from_secs_f64(n)
     }
 
+    /// A stream's estimated size is carried and marked, and gives a time left (gaps row Y22).
+    #[test]
+    fn an_estimated_total_is_marked_and_gives_a_time_left() {
+        let mut m = Meter::new(None, 0);
+        assert_eq!(m.sample(100, secs(1.0)).eta, None);
+        m.set_total(Some(1000), true);
+        let p = m.sample(200, secs(1.0));
+        assert!(p.estimated);
+        assert_eq!(p.total, Some(1000));
+        assert!(p.eta.is_some());
+        m.set_total(None, true);
+        assert!(
+            !m.sample(300, secs(1.0)).estimated,
+            "no total, nothing estimated"
+        );
+    }
+
     #[test]
     fn the_first_sample_is_the_rate_it_measured() {
         let mut m = Meter::new(Some(1000), 0);
@@ -125,11 +168,25 @@ mod tests {
     #[test]
     fn a_spike_moves_the_figure_without_becoming_it() {
         let mut m = Meter::new(Some(10_000), 0);
-        m.sample(100, secs(1.0)); // settled at 100/s
-        let p = m.sample(1100, secs(1.0)); // a 1000/s burst
+        m.sample(50, secs(1.0)); // the first interval, partial
+        m.sample(150, secs(1.0)); // settled at 100/s
+        let p = m.sample(1150, secs(1.0)); // a 1000/s burst
 
         assert!(p.speed > 100.0, "the rise should register");
         assert!(p.speed < 1000.0, "but not be believed whole");
+    }
+
+    #[test]
+    fn the_first_interval_that_brought_bytes_is_replaced_not_averaged() {
+        // Nothing in the first look; then an interval whose start went on the request.
+        let mut m = Meter::new(Some(10_000_000), 0);
+        assert_eq!(m.sample(0, secs(0.25)).speed, 0.0);
+        assert_eq!(m.sample(50_000, secs(0.25)).speed, 200_000.0);
+        // The first whole interval is the figure: 500 KB/s at once, not 290 KB/s.
+        assert_eq!(m.sample(175_000, secs(0.25)).speed, 500_000.0);
+        // And from then on it is smoothed.
+        let p = m.sample(425_000, secs(0.25)).speed;
+        assert!(p > 500_000.0 && p < 1_000_000.0, "{p}");
     }
 
     #[test]
@@ -182,6 +239,7 @@ mod tests {
             total: None,
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         assert_eq!(p.fraction(), None);
 
@@ -190,6 +248,7 @@ mod tests {
             total: Some(1000),
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         assert_eq!(known.fraction(), Some(0.25));
     }
@@ -203,6 +262,7 @@ mod tests {
             total: Some(1000),
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         assert_eq!(p.fraction(), Some(1.0));
     }

@@ -42,10 +42,64 @@ RECT = """(() => { const v = [...document.querySelectorAll('video')]
   return { x: r.left, y: r.top, w: r.width, h: r.height, paused: v.paused }; })()"""
 
 
+PLAY_AT = """(() => { const b = document.querySelector('.ytp-play-button');
+  if (!b) return null; const r = b.getBoundingClientRect();
+  return r.width > 0 ? [r.left + r.width / 2, r.top + r.height / 2] : null; })()"""
+
+
+def press_play(tab):
+    """Starts a paused player as a person does, and says whether it plays.
+
+    One press did not always start it (macOS, 2026-11-11): the page's own
+    autoplay can begin just as the press lands, which pauses it again, and a
+    press on a player still loading does nothing. A person waits a moment,
+    clicks the picture, then the play button, and looks again after each;
+    so does this, three times at most, with the pointer rather than a
+    script's click, so the press is one the autoplay policy honours."""
+    def plays():
+        return not (tab.evaluate(RECT) or {}).get("paused", True)
+
+    for attempt in range(3):
+        # The page may be starting it itself: given a moment first.
+        if cc.wait_for(plays, 2):
+            return True
+        rect = tab.evaluate(RECT)
+        if not rect:
+            return False
+        middle = (rect["x"] + rect["w"] / 2, rect["y"] + rect["h"] / 2)
+        if attempt == 0:
+            # The picture: YouTube's large play button sits there while it
+            # holds the video, and a click on the picture plays it.
+            cc.click_at(tab, *middle)
+        else:
+            # The controls show while the pointer is over the player; then
+            # the play button itself.
+            cc.mouse(tab, "mouseMoved", *middle)
+            time.sleep(0.4)
+            at = tab.evaluate(PLAY_AT)
+            if at:
+                cc.click_at(tab, *at)
+            else:
+                tab.evaluate("(document.querySelector('.ytp-play-button') || document.querySelector('video'))"
+                             ".click(), 1", gesture=True)
+        if cc.wait_for(plays, 6):
+            return True
+    return plays()
+
+
 def youtube(base, origin, engine_dl, engine_home, worker):
     tab = cc.open_tab(base, URL)
     tab.call("Runtime.enable")
-    cc.loaded(tab, "/watch")
+    # A page YouTube would not serve (Google's "unusual traffic" page, a
+    # consent page, no network) fails the YouTube checks, said as such, and
+    # the browser checks after this step still run: it ended the whole script
+    # here, and the rows checked on loopback after it (B31, B32) went
+    # unchecked with it (Linux, 2026-11-11).
+    try:
+        cc.loaded(tab, "/watch", seconds=40)
+    except RuntimeError as e:
+        cc.check("YouTube: the watch page loads", False, str(e)[:300])
+        return
     cc.check("YouTube: the page script loads",
              cc.wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 20))
 
@@ -63,9 +117,7 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     # the browser's autoplay policy holds it (Chromium on Linux does), the
     # person presses play first, and so does this.
     if rect.get("paused"):
-        tab.evaluate("(document.querySelector('.ytp-play-button') || document.querySelector('video')).click(), 1",
-                     gesture=True)
-        playing = cc.wait_for(lambda: not (tab.evaluate(RECT) or {}).get("paused", True), 10)
+        playing = press_play(tab)
         cc.check("YouTube: pressing play on the paused player plays it", playing, str(tab.evaluate(RECT)))
         tab.evaluate("window.scrollTo(0, 0), 1")
         rect = cc.wait_for(settled, 15) or rect

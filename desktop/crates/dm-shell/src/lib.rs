@@ -12,20 +12,12 @@
 //! downloads through. It knows nothing about any window toolkit, so the
 //! window can be replaced without any of this being written twice.
 
-// Every public item says what it is for (gaps row 27), as dm-protocol's do.
-#![warn(missing_docs)]
 // Never crash on what comes from outside: no unwrap, expect or panic in
 // shipped code (tests may), checked by clippy in CI.
 #![cfg_attr(
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-// From Google's Rust style guide, checked in CI: an `unsafe` block says why it
-// is sound (`// SAFETY:`, on every platform, Windows included), and a string is
-// built with `format!` rather than `+`, and a loop is a loop rather than
-// `for_each`.
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod app;
 pub mod dialup;
 pub mod firewall;

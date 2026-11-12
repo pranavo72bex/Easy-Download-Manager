@@ -226,6 +226,18 @@ pub fn due(last: u64, now: u64) -> bool {
     now < last || now - last >= WEEK
 }
 
+/// The settings with the weekly check stamped at `now`, when the person
+/// wants it and it is due: to be saved as the check is made, so the next is
+/// a week after this one however long dm runs. `None` when no check is due.
+pub fn weekly(settings: &crate::Settings, now: u64) -> Option<crate::Settings> {
+    if !settings.check_updates || !due(settings.update_checked, now) {
+        return None;
+    }
+    let mut wanted = settings.clone();
+    wanted.update_checked = now;
+    Some(wanted)
+}
+
 /// Asks in the background, with the application's client (`Backend::client`:
 /// through the proxy downloads go through; a plain client went out directly,
 /// past a proxy a person had set so that nothing would), whether a version
@@ -597,5 +609,26 @@ mod tests {
             asked[0].starts_with("CONNECT github.com:443"),
             "the check went elsewhere: {asked:?}"
         );
+    }
+
+    #[test]
+    fn the_weekly_check_is_stamped_when_due_and_wanted() {
+        let settings = crate::Settings {
+            check_updates: true,
+            update_checked: 1_000,
+            ..crate::Settings::default()
+        };
+        assert!(
+            weekly(&settings, 1_000 + WEEK - 1).is_none(),
+            "not a week yet"
+        );
+        let wanted = weekly(&settings, 1_000 + WEEK).unwrap();
+        assert_eq!(wanted.update_checked, 1_000 + WEEK);
+        assert!(weekly(&wanted, 1_000 + WEEK + 60).is_none(), "stamped");
+        let off = crate::Settings {
+            check_updates: false,
+            ..settings
+        };
+        assert!(weekly(&off, 1_000 + 2 * WEEK).is_none(), "not wanted");
     }
 }

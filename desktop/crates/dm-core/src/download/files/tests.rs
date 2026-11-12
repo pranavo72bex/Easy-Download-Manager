@@ -110,10 +110,43 @@ fn a_file_a_range_only_where_the_folder_is_on_another_disk() {
 fn a_range_files_name_gives_its_index() {
     assert_eq!(super::staged_index("range-0012"), Some(12));
     assert_eq!(super::staged_index("done-0012"), Some(12));
+    assert_eq!(super::staged_index("done-0012.synced"), Some(12));
     assert_eq!(super::staged_index("part-0012"), Some(12));
     assert_eq!(super::staged_index("staged"), None);
     assert_eq!(
         super::range_path(std::path::Path::new("p"), 3),
         std::path::Path::new("p").join("range-0003")
     );
+}
+
+/// A stopped connection's sync goes on without it; the download waits for it, and its mark, before
+/// returning, so nothing comes into the parts after (`Stopping`).
+#[tokio::test]
+async fn a_stop_s_sync_is_waited_for_and_writes_its_mark() {
+    use std::sync::Arc;
+    let dir = tempfile::tempdir().unwrap();
+    let file = tokio::fs::File::create(dir.path().join("staged"))
+        .await
+        .unwrap();
+    let stopping = Arc::new(super::Stopping::default());
+    // A sync still on its thread when the download gets to its end.
+    stopping
+        .count
+        .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    let held = super::Syncing(stopping.clone());
+    let late = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        drop(held);
+    });
+    let began = std::time::Instant::now();
+    stopping.settled().await;
+    assert!(
+        began.elapsed() >= std::time::Duration::from_millis(190),
+        "the download returned with a sync still running"
+    );
+    late.join().unwrap();
+    // One begun and waited for leaves its mark and no count behind.
+    super::sync_and_mark(&stopping, dir.path(), &file, 3, 4096).await;
+    stopping.settled().await;
+    assert_eq!(super::read_synced(dir.path(), 3), Some(4096));
 }

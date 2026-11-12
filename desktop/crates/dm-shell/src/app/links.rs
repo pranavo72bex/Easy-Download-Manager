@@ -357,6 +357,54 @@ pub fn clipboard_offer(
     }
 }
 
+/// The last part of a link's path, its query and fragment left off: the
+/// name its address gives a file, before its server names it.
+pub fn name_in_address(url: &str) -> &str {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    path.rsplit('/').next().unwrap_or_default()
+}
+
+/// Whether a link looks like a web page rather than a file, by its address
+/// alone (before its server says): a folder, a name with no extension, or
+/// a page's extension.
+pub fn looks_like_page(url: &str) -> bool {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let last = name_in_address(url).to_ascii_lowercase();
+    path.ends_with('/')
+        || !last.contains('.')
+        || [".html", ".htm", ".php", ".asp", ".aspx", ".jsp"]
+            .iter()
+            .any(|e| last.ends_with(e))
+}
+
+/// Whether a file of this name is a picture.
+pub fn is_picture(name: &str) -> bool {
+    dm_core::classify(name, None) == dm_core::Category::Pictures
+}
+
+/// The file types a filter such as "zip, .mp4 pdf" names, lowercased and
+/// without their dots; none is every type.
+pub fn wanted_types(types: &str) -> Vec<String> {
+    types
+        .split([' ', ',', ';'])
+        .map(|t| t.trim().trim_start_matches('.').to_ascii_lowercase())
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+/// Whether a file of this name is of a type `wanted` names (as
+/// [`wanted_types`] reads them); every file when none is named.
+pub fn of_wanted_type(name: &str, wanted: &[String]) -> bool {
+    if wanted.is_empty() {
+        return true;
+    }
+    let ext = name
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    wanted.contains(&ext)
+}
+
 #[cfg(test)]
 mod clipboard_tests {
     use super::*;
@@ -452,5 +500,30 @@ mod drop_tests {
             ),
             ["https://e.com/i.ico"]
         );
+    }
+}
+
+#[cfg(test)]
+mod link_kind_tests {
+    use super::*;
+
+    #[test]
+    fn a_link_is_a_page_by_its_address_until_its_server_says() {
+        assert_eq!(name_in_address("https://e.com/a/b.zip?x=1#y"), "b.zip");
+        assert!(looks_like_page("https://e.com/files/"));
+        assert!(looks_like_page("https://e.com/about"));
+        assert!(looks_like_page("https://e.com/index.PHP?id=2"));
+        assert!(!looks_like_page("https://e.com/setup.exe?mirror=3"));
+        assert!(is_picture("cat.JPG") && !is_picture("cat.zip"));
+    }
+
+    #[test]
+    fn a_types_filter_names_extensions_and_none_is_every_type() {
+        let wanted = wanted_types(" .ZIP, mp4;pdf ");
+        assert_eq!(wanted, ["zip", "mp4", "pdf"]);
+        assert!(of_wanted_type("a.Zip", &wanted));
+        assert!(!of_wanted_type("a.exe", &wanted));
+        assert!(!of_wanted_type("noext", &wanted));
+        assert!(of_wanted_type("anything.at.all", &wanted_types("  ")));
     }
 }

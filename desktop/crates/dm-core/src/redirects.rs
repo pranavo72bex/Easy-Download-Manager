@@ -204,11 +204,31 @@ fn referer_across(page: &HeaderValue, to: &Url) -> Option<HeaderValue> {
 /// ranges). A page out on the internet that sends dm to such an address is
 /// using dm to reach what it cannot reach itself; a download that started
 /// inside (a server at home, a test's) may go on to another inside address.
-/// Judged by the address as written, not by what a name resolves to.
+/// Judged by the address as written; a public-looking name it judges is then
+/// held by the resolver to public addresses (`dns::must_be_public`).
 pub(crate) fn inward(to: &Url, previous: &[Url]) -> bool {
-    // The same hosts as the extension's `decide::streams::inside` (dm-core may not depend on
-    // dm-protocol, where one copy for both would go): this computer, a private or link-local
-    // network, a provider's shared address space, and the names only a local network answers.
+    // A hop counts as inside by its address as written, or by where its name was found to lead
+    // when dm connected to it: an intranet's own names (`files.company.example` at 10.x) lead
+    // from one to another as a home server's addresses do.
+    let reached_inside = |url: &Url| {
+        inside(url)
+            || matches!(url.host(), Some(url::Host::Domain(name)) if crate::dns::leads_inside(name))
+    };
+    let from_public = !previous.is_empty() && !previous.iter().any(reached_inside);
+    // A name a public address leads to, which looks public: the resolver holds it to public
+    // addresses, so it cannot be pointed inside once judged here (DNS rebinding, gaps row 200).
+    if from_public && !inside(to) {
+        if let Some(url::Host::Domain(name)) = to.host() {
+            crate::dns::must_be_public(name);
+        }
+    }
+    from_public && inside(to)
+}
+
+/// Whether an address is inside: this computer, a private or link-local network, a provider's
+/// shared address space. The same hosts as the extension's `decide::streams::inside` (dm-core may
+/// not depend on dm-protocol, where one copy for both would go).
+pub(crate) fn inside_ip(ip: std::net::IpAddr) -> bool {
     fn inside_v4(ip: std::net::Ipv4Addr) -> bool {
         let [a, b, ..] = ip.octets();
         ip.is_loopback()
@@ -217,32 +237,73 @@ pub(crate) fn inward(to: &Url, previous: &[Url]) -> bool {
             || ip.is_unspecified()
             || (a == 100 && (64..128).contains(&b))
     }
-    fn inside(url: &Url) -> bool {
-        match url.host() {
-            Some(url::Host::Ipv4(ip)) => inside_v4(ip),
-            Some(url::Host::Ipv6(ip)) => {
-                ip.is_loopback()
-                    || ip.is_unspecified()
-                    || ip.is_unique_local()
-                    || ip.is_unicast_link_local()
-                    || ip.to_ipv4_mapped().is_some_and(inside_v4)
-            }
-            Some(url::Host::Domain(name)) => {
-                let name = name.to_ascii_lowercase();
-                name == "localhost"
-                    || [".localhost", ".local", ".internal", ".lan", ".home.arpa"]
-                        .iter()
-                        .any(|suffix| name.ends_with(suffix))
-            }
-            None => false,
+    match ip {
+        std::net::IpAddr::V4(ip) => inside_v4(ip),
+        std::net::IpAddr::V6(ip) => {
+            ip.is_loopback()
+                || ip.is_unspecified()
+                || ip.is_unique_local()
+                || ip.is_unicast_link_local()
+                || ip.to_ipv4_mapped().is_some_and(inside_v4)
         }
     }
-    !previous.is_empty() && inside(to) && !previous.iter().any(inside)
+}
+
+/// Whether an address's host is inside, as written: an inside address ([`inside_ip`]), or a name
+/// only a local network answers.
+fn inside(url: &Url) -> bool {
+    match url.host() {
+        Some(url::Host::Ipv4(ip)) => inside_ip(ip.into()),
+        Some(url::Host::Ipv6(ip)) => inside_ip(ip.into()),
+        Some(url::Host::Domain(name)) => {
+            let name = name.to_ascii_lowercase();
+            name == "localhost"
+                || [".localhost", ".local", ".internal", ".lan", ".home.arpa"]
+                    .iter()
+                    .any(|suffix| name.ends_with(suffix))
+        }
+        None => false,
+    }
+}
+
+/// Whether `to`, an address that what was fetched from `from` names (a playlist's segment, key
+/// or map, a DASH piece, a Metalink mirror, a page's link), would take dm from a public address
+/// to one inside, as [`inward`] judges a redirect. Those addresses are requested as first hops,
+/// which `inward` never judged, so a public playlist naming `http://192.168.1.1/…` sent dm there
+/// with the page's Referer and any cookies held for that host (security audit, 2026-11-12).
+/// Either not an address: not judged inside.
+pub fn named_inside(from: &str, to: &str) -> bool {
+    match (Url::parse(from.trim()), Url::parse(to.trim())) {
+        (Ok(from), Ok(to)) => inward(&to, &[from]),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What a public playlist, manifest, mirror list or page names inside is judged inside; what
+    /// an inside one names, or a public address, is not.
+    #[test]
+    fn an_address_a_public_document_names_inside_is_judged_inside() {
+        let public = "https://cdn.example/live/index.m3u8";
+        for inside in [
+            "http://192.168.1.1/cgi?reboot",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1:8080/x",
+            "http://router.local/apply",
+            "http://[::1]/x",
+        ] {
+            assert!(named_inside(public, inside), "{inside}");
+        }
+        assert!(!named_inside(public, "https://cdn.example/seg1.ts"));
+        assert!(!named_inside(
+            "http://192.168.1.5/index.m3u8",
+            "http://192.168.1.5/seg1.ts"
+        ));
+        assert!(!named_inside("not an address", "http://127.0.0.1/"));
+    }
 
     /// A public address may not send dm inward; an inside one may go on
     /// to another inside address, and public to public is anyone's.

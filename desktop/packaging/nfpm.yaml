@@ -18,21 +18,24 @@ description: |
 homepage: https://github.com/pranavo72bex/Easy-Download-Manager
 license: GPL-3.0-or-later
 
-# What the binary opens at run time (winit and glow load them, so rpm's own
-# scan of the binary does not see them): winit's X11 and Wayland libraries,
-# xkbcommon and GL. Named by library rather than by package, since Fedora
-# and openSUSE package them under different names.
+# What the GPUI window links and opens at run time (much of it loaded as it
+# starts, so rpm's own scan of the binary does not see it): X11 through
+# xcb, xkbcommon, FreeType and fontconfig, Vulkan or else GL through EGL,
+# and Wayland. Named by library rather than by package, since Fedora and
+# openSUSE package them under different names.
 depends:
-  - libX11.so.6()(64bit)
-  - libXcursor.so.1()(64bit)
-  - libX11-xcb.so.1()(64bit)
-  - libXi.so.6()(64bit)
+  # The GPUI window (docs/gaps.md G9) links X11 through xcb, the keyboard's
+  # layout and the font rasteriser, and opens Vulkan or else GL through EGL
+  # (Mesa draws without a GPU), and Wayland where the desktop is.
+  - libxcb.so.1()(64bit)
   - libxkbcommon.so.0()(64bit)
   - libxkbcommon-x11.so.0()(64bit)
+  - libfreetype.so.6()(64bit)
+  - libfontconfig.so.1()(64bit)
+  - libvulkan.so.1()(64bit)
+  - libEGL.so.1()(64bit)
   - libwayland-client.so.0()(64bit)
   - libwayland-egl.so.1()(64bit)
-  - libEGL.so.1()(64bit)
-  - libGL.so.1()(64bit)
   - hicolor-icon-theme
   # Open and Open folder go through xdg-open.
   - xdg-utils
@@ -40,22 +43,21 @@ depends:
   # desktop's Secret Service (gaps row 39): Fedora's libsecret, openSUSE's
   # libsecret-tools.
   - /usr/bin/secret-tool
+  # WebKitGTK's JavaScriptCore, which YouTube's checks and a proxy script run in
+  # (dm-core/src/javascript.rs); nothing is fetched or run in its place
+  # (docs/gaps.md P1). Named by library, as above.
+  - libjavascriptcoregtk-4.1.so.0()(64bit)
 
 # A font for names in Chinese, Japanese and Korean, which neither Inter nor
 # egui's fonts have: dm takes the computer's own (gap 116), and a system
 # with none showed such names blank (gap 45). Recommended, as it is large;
 # Fedora's name, then openSUSE's.
-#
-# WebKitGTK's JavaScriptCore, which YouTube's checks and a proxy script run in
-# (dm-core/src/javascript.rs, gaps row 164); without it dm fetches QuickJS
-# from GitHub at first use. Named by library, as above.
 recommends:
   - google-noto-sans-cjk-fonts
   - noto-sans-cjk-fonts
-  - libjavascriptcoregtk-4.1.so.0()(64bit)
 
 contents:
-  - src: desktop/target/release/dm-desktop
+  - src: desktop/target/release/nfpm/dm
     dst: /usr/bin/dm
     file_info:
       mode: 0755

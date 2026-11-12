@@ -551,6 +551,48 @@ fn options_apply_to_the_link_after_them() {
     assert!(got.start_queue);
 }
 
+/// Words after a `magnet:` link a protocol launch hands dm are the link's, never options: a
+/// split link cannot ask nothing, choose a folder or add another download (security audit,
+/// 2026-11-12).
+#[test]
+fn a_magnet_launch_is_one_link_whatever_follows_it() {
+    let launched = one_link_launch(argv(&[
+        "magnet:?xt=urn:btih:x\"",
+        "--quiet",
+        "--save-to",
+        "/tmp",
+        "https://evil.example/a.bat",
+    ]));
+    assert_eq!(launched.len(), 1);
+    let got = orders(&launched);
+    assert_eq!(got.downloads.len(), 1);
+    assert!(got.downloads[0].url.starts_with("magnet:"));
+    assert!(!got.downloads[0].quiet);
+    assert_eq!(got.downloads[0].save_dir, None);
+    // Options before a link are read as ever.
+    assert_eq!(
+        one_link_launch(argv(&["--quiet", "magnet:?xt=urn:btih:x"])).len(),
+        2
+    );
+}
+
+/// `--quiet` has every link after it added with nothing asked; links before it ask as Options
+/// says (gaps row F3).
+#[test]
+fn quiet_asks_nothing_for_the_links_after_it() {
+    let got = orders(&argv(&[
+        "https://a.example/1.bin",
+        "--quiet",
+        "https://a.example/2.bin",
+        "--later",
+        "https://a.example/3.bin",
+    ]));
+    let quiet: Vec<bool> = got.downloads.iter().map(|d| d.quiet).collect();
+    assert_eq!(quiet, [false, true, true]);
+    assert!(got.downloads[2].later);
+    assert!(unrecognised(&argv(&["--quiet", "https://a.example/1.bin"])).is_empty());
+}
+
 #[test]
 fn options_with_no_link_after_them_do_nothing() {
     assert_eq!(
@@ -613,4 +655,41 @@ fn a_program_that_cannot_start_says_so_and_an_empty_one_is_nothing() {
     let said = run_program("dm-no-such-program-here --flag").unwrap_err();
     assert!(said.contains("dm-no-such-program-here"), "{said}");
     assert!(said.contains("scheduled downloads are done"), "{said}");
+}
+
+/// A path Windows' shell takes goes to it as it is; a longer one goes
+/// verbatim to the call that shortens it, and comes back plain (gaps row 191).
+#[test]
+fn a_long_path_goes_to_the_shell_in_a_form_it_takes() {
+    assert_eq!(for_shell(r"C:\Downloads\a.zip"), r"C:\Downloads\a.zip");
+    // Off Windows there is no short form: the path goes as it is.
+    let long = format!(r"C:\Downloads\{}\a.zip", "d".repeat(300));
+    if !cfg!(windows) {
+        assert_eq!(for_shell(&long), long);
+    }
+    assert_eq!(verbatim(r"C:\a"), r"\\?\C:\a");
+    assert_eq!(verbatim(r"\\server\share\a"), r"\\?\UNC\server\share\a");
+    assert_eq!(verbatim(r"\\?\C:\a"), r"\\?\C:\a");
+    assert_eq!(plain(r"\\?\C:\DOWNLO~1\a.zip"), r"C:\DOWNLO~1\a.zip");
+    assert_eq!(plain(r"\\?\UNC\server\share\a"), r"\\server\share\a");
+    assert_eq!(plain(r"C:\a"), r"C:\a");
+    assert_eq!(SHELL_PATH_MOST, 260);
+}
+
+/// A notification's Retry is a file in the inbox named for the row, which
+/// the inbox reads back as that row (gaps row U15).
+#[test]
+fn a_notifications_retry_is_asked_through_the_inbox() {
+    let home = tempfile::tempdir().unwrap();
+    ask_running_to_retry(home.path(), 42);
+    let names: Vec<String> = std::fs::read_dir(host::inbox(home.path()))
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, ["retry-42"]);
+    assert_eq!(retry_asked("retry-42"), Some(42));
+    assert_eq!(retry_asked("retry-"), None);
+    assert_eq!(retry_asked("retry-x"), None);
+    assert_eq!(retry_asked("show"), None);
 }

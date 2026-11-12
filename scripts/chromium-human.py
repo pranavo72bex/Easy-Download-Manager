@@ -42,7 +42,10 @@ import drawn  # scripts/drawn.py: where dm says it drew words
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "chrome"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-desktop"))
+BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-gpui"))
+# The name dm's window gives itself on the accessibility bus: its binary's
+# (dm-gpui, or dm-desktop for the egui window), or as DM_ATSPI_APP says.
+DM_APP = os.environ.get("DM_ATSPI_APP") or BINARY.name
 CHROMIUM = os.environ.get("CHROMIUM", "/usr/bin/chromium")
 SHOTS = pathlib.Path(os.environ.get("DM_SHOTS") or tempfile.mkdtemp(prefix="dm-human-shots-"))
 # Microsoft Edge (DM_DISTRO=edge) is Chromium under another name: its
@@ -739,14 +742,14 @@ def main():
         selected = wait_for(lambda: (ORACLE("ui.inspect") or {}).get("selected"), 5)
         check("5. its row, clicked, is selected", selected and (dm_row("slow.zip") or {}).get("id") in selected,
               str(selected))
-        stopped = click_control("dm-desktop", "push button", "Stop") and \
+        stopped = click_control(DM_APP, "push button", "Stop") and \
             wait_for(lambda: (dm_row("slow.zip") or {}).get("status", "").startswith("Stopped"), 15)
         shoot("5-stopped")
         check("5. Stop, clicked, stops it", stopped, str(dm_row("slow.zip")))
         held = (dm_row("slow.zip") or {}).get("status") or ""
         time.sleep(2)
         check("5. and it stays stopped", held.startswith("Stopped") and (dm_row("slow.zip") or {}).get("status", "").startswith("Stopped"))
-        resumed = click_control("dm-desktop", "push button", "Resume") and \
+        resumed = click_control(DM_APP, "push button", "Resume") and \
             wait_for(lambda: (dm_row("slow.zip") or {}).get("status", "") != "" and not (dm_row("slow.zip") or {}).get("status", "").startswith("Stopped"), 15)
         check("5. Resume, clicked, carries on", resumed, str(dm_row("slow.zip")))
         shoot("5-resumed")
@@ -768,11 +771,11 @@ def main():
                 break
         check("5. the finished row from step 1, clicked, is selected",
               (dm_row("grab.zip") or {}).get("id") in picked, str(picked))
-        click_control("dm-desktop", "push button", "Delete")
+        click_control(DM_APP, "push button", "Delete")
         # A finished row is taken off the list ("Remove it"); one still to
         # finish has its parts deleted too ("Yes, remove"). Either asks.
-        confirm = wait_for(lambda: where("dm-desktop", "push button", "Remove it")
-                           or where("dm-desktop", "push button", "Yes, remove"), 5)
+        confirm = wait_for(lambda: where(DM_APP, "push button", "Remove it")
+                           or where(DM_APP, "push button", "Yes, remove"), 5)
         if confirm:
             press(confirm)
         gone = wait_for(lambda: dm_row("grab.zip") is None, 10)

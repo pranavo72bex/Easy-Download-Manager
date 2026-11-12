@@ -99,6 +99,24 @@ pub(crate) fn sparse(file: &impl std::os::windows::io::AsRawHandle) {
 #[cfg(test)]
 mod tests;
 
+/// The disk a test stands in for: every write of a part, all connections together, held to its
+/// pace. Unlimited (one atomic load a write) outside a test that sets it.
+static SLOW_DISK: std::sync::LazyLock<crate::limit::Limiter> =
+    std::sync::LazyLock::new(crate::limit::Limiter::unlimited);
+
+/// Holds every write of a part to `bytes_per_second`, all connections together, as a slow disk
+/// takes them; zero lets them go. For tests (gaps row 185: a slow disk slows the download and
+/// does not grow its memory).
+#[doc(hidden)]
+pub async fn slow_part_writes_to(bytes_per_second: u64) {
+    SLOW_DISK.set_rate(bytes_per_second).await;
+}
+
+/// Waits as long as the slow disk a test set would take to write `bytes`; at once otherwise.
+pub(super) async fn as_slow_as_the_disk(bytes: u64) {
+    SLOW_DISK.take(bytes).await;
+}
+
 /// The ledger of range `index`: how many of its bytes are on disk, in
 /// decimal. A part file's length used to be this number; in one shared
 /// file, where every range's region exists from the start, it is written
@@ -131,11 +149,109 @@ pub(crate) fn read_ledger(parts_dir: &Path, index: usize) -> Option<u64> {
         .ok()
 }
 
-/// The index a staged file's name gives it: `part-0003`, `range-0003` or `done-0003`.
+/// Where a range's last stop wrote down how much of it is on the disk itself, not only handed to
+/// the system: `done-0003.synced`, beside its ledger, and gone with it.
+pub(crate) fn synced_path(parts_dir: &Path, index: usize) -> PathBuf {
+    parts_dir.join(format!("done-{index:04}.synced"))
+}
+
+/// How much of range `index` a stop put on the disk (synced) before writing it down, if one did.
+/// Those bytes need no check against the server at the next run, as a ledger alone does
+/// (`RESUME_CHECK`): the stop synced them before it wrote this, so a power cut since cannot have
+/// lost them. A note cut short by a crash reads as less, or as nothing: never as more.
+pub(crate) fn read_synced(parts_dir: &Path, index: usize) -> Option<u64> {
+    std::fs::read_to_string(synced_path(parts_dir, index))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Writes down that `done` bytes of range `index` are on the disk itself. Called only once they
+/// are synced.
+fn mark_synced(parts_dir: &Path, index: usize, done: u64) {
+    let _ = std::fs::write(synced_path(parts_dir, index), format!("{done:020}"));
+}
+
+/// The syncs a stop began (`sync_and_mark`), counted until each has written its mark or given up.
+///
+/// A sync runs on a blocking thread, and the thread goes on when the connection that asked for
+/// it is stopped: a range still syncing when a stop's grace ran out (`STOP_GRACE`, on a slow or
+/// loaded disk) wrote its mark after the download had returned, so a Delete removing the parts
+/// at once found a file come into the folder and left the folder behind
+/// (`queue.rs` `deleting_a_row_removes_the_parts_where_it_began_after_the_folder_changed`,
+/// failed once in a whole `cargo test --workspace` with the disk nearly full, 2026-11-12). A
+/// download waits for these before it returns (`settled`).
+#[derive(Debug, Default)]
+pub(super) struct Stopping {
+    count: AtomicUsize,
+    done: tokio::sync::Notify,
+}
+
+impl Stopping {
+    /// Returns once no sync a stop began is still running.
+    pub(super) async fn settled(&self) {
+        loop {
+            let done = self.done.notified();
+            tokio::pin!(done);
+            done.as_mut().enable();
+            if self.count.load(Ordering::Acquire) == 0 {
+                return;
+            }
+            done.await;
+        }
+    }
+}
+
+/// Counts one sync from its start until its thread is done with it.
+struct Syncing(Arc<Stopping>);
+
+impl Drop for Syncing {
+    fn drop(&mut self) {
+        self.0.count.fetch_sub(1, Ordering::AcqRel);
+        self.0.done.notify_waiters();
+    }
+}
+
+/// Puts what range `index` wrote on the disk itself and, once that worked, writes down that
+/// `done` bytes of it are there (`mark_synced`), on one blocking thread counted in `stopping`.
+pub(super) async fn sync_and_mark(
+    stopping: &Arc<Stopping>,
+    parts_dir: &Path,
+    file: &fs::File,
+    index: usize,
+    done: u64,
+) {
+    // A copy of the handle, taken once the file's own writes in flight are done: what the
+    // blocking thread syncs whether or not anyone still waits for it.
+    let Ok(copy) = file.try_clone().await else {
+        return;
+    };
+    let copy = copy.into_std().await;
+    stopping.count.fetch_add(1, Ordering::AcqRel);
+    let syncing = Syncing(stopping.clone());
+    let parts_dir = parts_dir.to_path_buf();
+    let _ = tokio::task::spawn_blocking(move || {
+        let _syncing = syncing;
+        if copy.sync_data().is_ok() {
+            mark_synced(&parts_dir, index, done);
+        }
+    })
+    .await;
+}
+
+/// Forgets what a stop synced of range `index`: its ledger was cut back, or the range is new.
+pub(super) async fn forget_synced(parts_dir: &Path, index: usize) {
+    let _ = fs::remove_file(synced_path(parts_dir, index)).await;
+}
+
+/// The index a staged file's name gives it: `part-0003`, `range-0003`, `done-0003` or
+/// `done-0003.synced`.
 pub(super) fn staged_index(name: &str) -> Option<usize> {
     name.strip_prefix("part-")
         .or_else(|| name.strip_prefix(RANGE))
         .or_else(|| name.strip_prefix("done-"))
+        .map(|n| n.strip_suffix(".synced").unwrap_or(n))
         .and_then(|n| n.parse().ok())
 }
 

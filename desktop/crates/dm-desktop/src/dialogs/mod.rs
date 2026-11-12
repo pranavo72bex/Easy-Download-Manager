@@ -17,7 +17,7 @@ use crate::update::Said as _;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
-use dm_core::{AddOptions, Category, Id, Schedule, State, MAIN_QUEUE};
+use dm_core::{AddOptions, Category, Id, State, MAIN_QUEUE};
 use dm_shell::settings::SiteLogin;
 use dm_shell::Settings;
 use egui::{Color32, RichText};
@@ -80,20 +80,9 @@ fn warn(ui: &egui::Ui) -> Color32 {
 }
 
 /// Move/Rename: the finished downloads it moves, the new name where it is
-/// one, and the folder they go to.
-#[derive(Debug, Clone, Default)]
-pub struct MoveRename {
-    /// The finished downloads to move.
-    pub ids: Vec<Id>,
-    /// The new name, where one download is moved.
-    pub name: String,
-    /// The folder they go to.
-    pub folder: String,
-    /// For several files: how to name them. Empty keeps their names;
-    /// `{n}` counts from 1 in the order they are listed, `{name}` is the
-    /// old name without its ending, and the ending is kept.
-    pub pattern: String,
-}
+/// one, and the folder they go to (`dm_desktop_base::row_edits`, both
+/// windows).
+pub use dm_desktop_base::row_edits::MoveRename;
 
 /// The Add URL dialog: an address, and a login if it needs one.
 #[derive(Default)]
@@ -204,258 +193,16 @@ pub struct FileInfo {
     pub replace: bool,
 }
 
-/// Where the name Download details shows is taken already.
-enum Clash {
-    /// By another download in the list: this one takes a number.
-    Listed,
-    /// By a file in the folder: this one takes `free`, or replaces `taken`
-    /// once it is whole.
-    OnDisk {
-        free: String,
-        taken: std::path::PathBuf,
-    },
-}
-
 /// What Download details learned by asking the server, and the name an HLS
 /// stream is saved under: the application's (`dm_shell::app::lookups`).
 pub use dm_shell::app::lookups::{stream_name, Probed};
 
-/// What dm learned of one link by asking its server.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Found {
-    /// The name the server gave the link.
-    pub name: String,
-    /// The kind of file it is, as its server says.
-    pub kind: String,
-    /// The size in bytes, where the server said.
-    pub size: Option<u64>,
-    /// Whether it is a web page rather than a file.
-    pub html: bool,
-    /// Why the server could not be asked about it.
-    pub failed: Option<String>,
-}
+/// "Download links": what each link's server said, the dialog's state and
+/// rules, and where the ticked links go; dm's (`dm_desktop_base::links_import`),
+/// as every window's.
+pub use dm_desktop_base::links_import::{Found, LinksImport, SaveTo};
 
-/// The import dialog for a page's links: each checked or not, with its
-/// name, kind and size as its server tells them.
-#[derive(Default)]
-pub struct LinksImport {
-    /// The page the links came from.
-    pub page: String,
-    /// The sign-in the browser handed over for the page's own server, and
-    /// that server's address: given to the links on that server only.
-    pub sign_in: Option<dm_core::cookies::SignIn>,
-    /// The cookies the browser handed over, given to the links on the page's own server.
-    pub cookies: String,
-    /// Each link's address, and whether it is ticked.
-    pub items: Vec<(String, bool)>,
-    /// Those already in dm's list (bare addresses): offered unticked and
-    /// said so, rather than fetched again as `name (1).zip` without a word.
-    pub listed: std::collections::HashSet<String>,
-    /// Links unticked when their server refused them, once, so a person
-    /// can tick one again (they were added and failed).
-    pub refused: std::collections::HashSet<String>,
-    /// Whether web pages are left out of the list.
-    pub hide_html: bool,
-    /// File types to list alone, as typed ("zip pdf"); empty lists all.
-    pub types: String,
-    /// What each link's server said, by address.
-    pub found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>>,
-    /// Whether pictures are left out of the list (reference A's "Hide images
-    /// located on this web page", on as there).
-    pub hide_images: bool,
-    /// Whether an address the page links to more than once is listed once.
-    pub hide_repeats: bool,
-    /// Where the links ticked are saved.
-    pub save_to: SaveTo,
-    /// The category every file goes to, for `SaveTo::OneCategory`: a kind's
-    /// word or a person's own category's name.
-    pub category: String,
-    /// The folder every file goes to, for `SaveTo::OneFolder`, as typed.
-    pub folder: String,
-    /// The row whose name and address are being edited, by its place.
-    pub editing: Option<usize>,
-    /// Names given with Edit, by address.
-    pub names: std::collections::HashMap<String, String>,
-    /// Each link's words on the page, by address, as the browser sent them.
-    pub texts: std::collections::BTreeMap<String, String>,
-    /// Whether those words become the downloads' descriptions (reference A's
-    /// "Use link texts as descriptions", on as there).
-    pub use_texts: bool,
-    /// The queue "Add for later" puts them in; the Main queue at first.
-    pub queue: String,
-}
-
-/// Where the links ticked in "Download links" are saved, as reference A
-/// offers: each to its category's folder, all to one category's, or all to
-/// one folder.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SaveTo {
-    /// Each file to the folder of its category.
-    #[default]
-    ByCategory,
-    /// Every file to one category's folder (`LinksImport::category`).
-    OneCategory,
-    /// Every file to one folder (`LinksImport::folder`).
-    OneFolder,
-}
-
-impl LinksImport {
-    /// A link that is a web page rather than a file: by what its server
-    /// said, or before it answers, by the look of its address.
-    pub fn is_html(&self, url: &str) -> bool {
-        if let Some(found) = dm_core::lock(&self.found).get(url) {
-            return found.html;
-        }
-        let path = url.split(['?', '#']).next().unwrap_or(url);
-        let last = path
-            .rsplit('/')
-            .next()
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        path.ends_with('/')
-            || !last.contains('.')
-            || [".html", ".htm", ".php", ".asp", ".aspx", ".jsp"]
-                .iter()
-                .any(|e| last.ends_with(e))
-    }
-
-    /// A link that is a picture: by what its server said, or before it
-    /// answers, by its address.
-    pub fn is_image(&self, url: &str) -> bool {
-        let name = dm_core::lock(&self.found)
-            .get(url)
-            .map(|f| f.name.clone())
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| {
-                let path = url.split(['?', '#']).next().unwrap_or(url);
-                path.rsplit('/').next().unwrap_or_default().to_string()
-            });
-        dm_core::classify(&name, None) == dm_core::Category::Pictures
-    }
-
-    /// Which rows are listed, in order: what the filters leave, and of an
-    /// address the page links to more than once, its first.
-    pub fn visible(&self) -> Vec<bool> {
-        let mut seen = std::collections::HashSet::new();
-        self.items
-            .iter()
-            .map(|(url, _)| {
-                let first = seen.insert(bare(url));
-                self.shown(url) && (first || !self.hide_repeats)
-            })
-            .collect()
-    }
-
-    /// Whether the filters leave `url` in the list.
-    pub fn shown(&self, url: &str) -> bool {
-        if self.hide_html && self.is_html(url) {
-            return false;
-        }
-        if self.hide_images && self.is_image(url) {
-            return false;
-        }
-        let wanted: Vec<String> = self
-            .types
-            .split([' ', ',', ';'])
-            .map(|t| t.trim().trim_start_matches('.').to_ascii_lowercase())
-            .filter(|t| !t.is_empty())
-            .collect();
-        if wanted.is_empty() {
-            return true;
-        }
-        // By the name its server gave, or before it answers, its address.
-        let name = dm_core::lock(&self.found)
-            .get(url)
-            .map(|f| f.name.clone())
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| {
-                let path = url.split(['?', '#']).next().unwrap_or(url);
-                path.rsplit('/').next().unwrap_or_default().to_string()
-            });
-        let ext = name
-            .rsplit_once('.')
-            .map(|(_, e)| e.to_ascii_lowercase())
-            .unwrap_or_default();
-        wanted.contains(&ext)
-    }
-
-    /// The links OK would add: checked, and listed.
-    pub fn chosen(&self) -> Vec<String> {
-        self.items
-            .iter()
-            .zip(self.visible())
-            .filter(|((_, on), listed)| *on && *listed)
-            .map(|((url, _), _)| url.clone())
-            .collect()
-    }
-
-    /// The folder the links go to where the choice names one: `None` is each
-    /// to the folder of its category, as dm sorts a download.
-    pub fn save_dir(
-        &self,
-        root: &std::path::Path,
-        categories: &dm_core::Categories,
-    ) -> Option<String> {
-        match self.save_to {
-            SaveTo::ByCategory => None,
-            SaveTo::OneFolder => {
-                let folder = self.folder.trim();
-                (!folder.is_empty()).then(|| folder.to_string())
-            }
-            SaveTo::OneCategory => Some(
-                category_folder(&self.category, root, categories)
-                    .display()
-                    .to_string(),
-            ),
-        }
-    }
-
-    /// The folder `url` will be saved to, as the Save to column says it.
-    pub fn folder_of(
-        &self,
-        url: &str,
-        root: &std::path::Path,
-        categories: &dm_core::Categories,
-    ) -> String {
-        if let Some(dir) = self.save_dir(root, categories) {
-            return dir;
-        }
-        let name = self.name_of(url);
-        categories
-            .destination(root, dm_core::classify(&name, None))
-            .display()
-            .to_string()
-    }
-
-    /// The name `url` will be saved under: the one given with Edit, else its
-    /// server's, else its address's.
-    pub fn name_of(&self, url: &str) -> String {
-        if let Some(name) = self.names.get(url).filter(|n| !n.trim().is_empty()) {
-            return name.trim().to_string();
-        }
-        dm_core::lock(&self.found)
-            .get(url)
-            .map(|f| f.name.clone())
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| crate::format::provisional(url))
-    }
-}
-
-/// A category's folder, by the category's word (a kind) or a person's own
-/// category's name.
-pub fn category_folder(
-    word: &str,
-    root: &std::path::Path,
-    categories: &dm_core::Categories,
-) -> std::path::PathBuf {
-    match dm_core::Category::ALL
-        .iter()
-        .find(|c| crate::app::category_word(**c) == word)
-    {
-        Some(kind) => categories.destination(root, *kind),
-        None => root.join(word),
-    }
-}
+pub use dm_shell::app::names::category_folder;
 
 /// The Properties dialog of one download: its name, address, login and checks.
 pub struct Properties {
@@ -492,37 +239,9 @@ pub use dm_shell::app::files::{TakeSlot, ZipSlot};
 /// What the background hashing of a finished file has found so far.
 pub use dm_shell::app::files::Sums;
 
-/// An address split into itself and the user and password in it.
-fn split_login(url: &str) -> (String, String, String) {
-    match url::Url::parse(url) {
-        Ok(mut parsed) if !parsed.username().is_empty() => {
-            let decode = |s: &str| {
-                url::form_urlencoded::parse(format!("x={}", s.replace('+', "%2B")).as_bytes())
-                    .next()
-                    .map(|(_, v)| v.into_owned())
-                    .unwrap_or_default()
-            };
-            let login = decode(parsed.username());
-            let password = decode(parsed.password().unwrap_or(""));
-            let _ = parsed.set_username("");
-            let _ = parsed.set_password(None);
-            (parsed.to_string(), login, password)
-        }
-        _ => (url.to_string(), String::new(), String::new()),
-    }
-}
-
-/// The address with a user and password put back in it.
-fn join_login(address: &str, login: &str, password: &str) -> String {
-    match url::Url::parse(address.trim()) {
-        Ok(mut parsed) if !login.is_empty() => {
-            let _ = parsed.set_username(login);
-            let _ = parsed.set_password(Some(password).filter(|p| !p.is_empty()));
-            parsed.to_string()
-        }
-        _ => address.trim().to_string(),
-    }
-}
+/// An address's sign-in taken out for its own fields, and put back on OK
+/// (`dm_desktop_base::row_edits`, both windows).
+use dm_desktop_base::row_edits::{join_login, split_login};
 
 /// A playlist being read for the dialog: `None` until it is; the reading's
 /// own words where it could not be.
@@ -559,239 +278,31 @@ pub struct Series {
     pub says: String,
 }
 
-/// How the search of a site for files is going.
-#[derive(Default, Debug)]
-pub enum Grab {
-    /// Not started.
-    #[default]
-    Idle,
-    /// Pages are being read.
-    Looking,
-    /// The links found, each with whether it is ticked; how many pages were
-    /// read; and whether the run's time ran out.
-    Found(Vec<(String, bool)>, usize, bool),
-    /// The search failed, with the reason.
-    Failed(String),
-}
+/// The Grabber's search as typed, and how a run of it is going: dm's
+/// (`dm_desktop_base::grabber`), as every window's.
+pub use dm_desktop_base::grabber::{Grab, SiteFiles};
 
-/// The Site files dialog: a page to search for files, and how far to follow its links.
-pub struct SiteFiles {
-    /// The page to start from, as typed.
-    pub page: String,
-    /// The file types to list, as typed.
-    pub types: String,
-    /// Pages past the start page to read.
-    pub depth: u8,
-    /// Path filters, as typed: words separated by spaces.
-    pub include: String,
-    /// Paths to leave out, as typed.
-    pub exclude: String,
-    /// The name to save this search under, and how often it runs.
-    pub name: String,
-    /// How often a saved search runs, in hours.
-    pub every_hours: u64,
-    /// Minutes a run reads pages for; 0 is no limit.
-    pub stop_after_minutes: u64,
-    /// Whether pages on other sites are followed too.
-    pub other_sites: bool,
-    /// Whether files are saved in folders that mirror the site's.
-    pub keep_layout: bool,
-    /// Files smaller than this (KB) are left out; 0 is no floor.
-    pub min_kb: u64,
-    /// Files larger than this (KB) are left out; 0 is no ceiling.
-    pub max_kb: u64,
-    /// What went wrong, said in the dialog; empty when nothing did.
-    pub says: String,
-    /// How the running search is going.
-    pub state: Arc<Mutex<Grab>>,
-}
-
-impl Default for SiteFiles {
-    fn default() -> Self {
-        SiteFiles {
-            page: String::new(),
-            types: dm_shell::lists::DEFAULT_TYPES.into(),
-            depth: 0,
-            include: String::new(),
-            exclude: String::new(),
-            name: String::new(),
-            every_hours: 0,
-            stop_after_minutes: 0,
-            other_sites: false,
-            keep_layout: false,
-            min_kb: 0,
-            max_kb: 0,
-            says: String::new(),
-            state: Arc::default(),
-        }
-    }
-}
-
-impl SiteFiles {
-    /// What the dialog describes, as a search.
-    pub fn search(&self) -> dm_shell::lists::Search {
-        let words = |text: &str| -> Vec<String> {
-            text.split(|c: char| c == ',' || c.is_whitespace())
-                .filter(|w| !w.is_empty())
-                .map(|w| w.trim_start_matches('.').to_string())
-                .collect()
-        };
-        dm_shell::lists::Search {
-            name: self.name.trim().to_string(),
-            page: self.page.trim().to_string(),
-            types: words(&self.types),
-            depth: self.depth.min(dm_shell::lists::MAX_DEPTH),
-            other_sites: self.other_sites,
-            keep_layout: self.keep_layout,
-            include: words(&self.include),
-            exclude: words(&self.exclude),
-            every_hours: self.every_hours,
-            stop_after_minutes: self.stop_after_minutes,
-            last_run: 0,
-            seen: Vec::new(),
-            min_kb: self.min_kb,
-            max_kb: self.max_kb,
-        }
-    }
-}
-
-/// The pages of Options.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Tab {
-    /// The General page.
-    General,
-    /// The File types page.
-    FileTypes,
-    /// The Save to page.
-    SaveTo,
-    /// The Downloads page.
-    Downloads,
-    /// The expert settings, in one page: the connection's and the proxy's.
-    Advanced,
-    /// The Sign-ins page.
-    SiteLogins,
-}
-
-/// The settings each tab of Options edits, by the names they are saved under:
-/// what its Restore defaults puts back. Sign-ins hold a person's own logins,
-/// which are not a default to go back to.
-pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
-    match tab {
-        Tab::General => &[
-            "language",
-            "theme",
-            "start_on_login",
-            "allow_command_line",
-            "allow_mcp",
-            "check_updates",
-            "sound_on_complete",
-            "sound_on_failure",
-            "mica",
-            "show_progress",
-            "show_complete",
-            "watch_clipboard",
-            "ask_panel_downloads",
-            "ask_caught_downloads",
-            "offer_new_link",
-            "server_dates",
-            "double_click",
-            "on_close",
-        ],
-        Tab::FileTypes => &["catch"],
-        Tab::SaveTo => &[
-            "categorize",
-            "category_folders",
-            "download_dir",
-            "parts_dir",
-        ],
-        Tab::Downloads => &[
-            "concurrency",
-            "connections",
-            "fetch_tools",
-            "on_complete",
-            "queue_limits",
-            "queue_starts",
-            "recheck_hours",
-            "record_minutes",
-            "remux_ts",
-            "start_queue_on_launch",
-            "stream_quality",
-            "subtitles",
-            "watch_folder",
-        ],
-        Tab::Advanced => &[
-            "attempts",
-            "cookies_file",
-            "dialup",
-            "host_limits",
-            "proxy",
-            "read_timeout",
-            "retry_wait",
-            "site_rules",
-            "speed_limit",
-        ],
-        Tab::SiteLogins => &[],
-    }
-}
+/// Options' pages, the settings each puts back, and their names
+/// (`dm_desktop_base::options`, both windows).
+pub use dm_desktop_base::options::{tab_settings, Tab, TABS, THEMES};
 
 impl OptionsDialog {
     /// Puts the tab's settings back to what a new install has, in the draft:
     /// OK keeps them, Cancel leaves everything as it was. The words typed for
     /// the lists are read again from what they now hold.
     pub fn restore_defaults(&mut self) {
-        let (Ok(serde_json::Value::Object(mut now)), Ok(serde_json::Value::Object(fresh))) = (
-            serde_json::to_value(&self.draft),
-            serde_json::to_value(Settings::default()),
-        ) else {
-            return;
-        };
-        for key in tab_settings(self.tab) {
-            if let Some(value) = fresh.get(*key) {
-                now.insert((*key).to_string(), value.clone());
-            }
-        }
-        if let Ok(draft) = serde_json::from_value(serde_json::Value::Object(now)) {
-            self.draft = draft;
-        }
-        let s = &self.draft;
-        self.types = s.catch.extensions.join(" ");
-        self.skip = s.catch.skip_hosts.join(" ");
-        self.once = s.catch.once_hosts.join(" ");
-        self.bypass = s.proxy.bypass.join(" ");
-        self.custom = s
-            .custom_categories
-            .iter()
-            .map(|c| [c.name.clone(), c.extensions.join(" "), c.sites.join(" ")])
-            .collect();
+        self.draft = dm_desktop_base::options::restore_defaults(self.tab, &self.draft);
+        let typed = dm_desktop_base::options::Typed::of(&self.draft);
+        self.types = typed.types;
+        self.skip = typed.skip;
+        self.once = typed.once;
+        self.bypass = typed.bypass;
+        self.custom = typed.custom;
     }
 }
 
-/// Every page of Options, with the name it shows.
-pub const TABS: [(Tab, &str); 6] = [
-    (Tab::General, "General"),
-    (Tab::FileTypes, "Browser"),
-    (Tab::SaveTo, "Folders"),
-    (Tab::Downloads, "Downloads"),
-    (Tab::Advanced, "Advanced"),
-    (Tab::SiteLogins, "Sign-ins"),
-];
-
-/// Options › General's looks: the setting's word, and what the choice says.
-pub const THEMES: [(&str, &str); 4] = [
-    ("system", "As the computer is"),
-    ("light", "Light"),
-    ("dark", "Dark"),
-    ("classic", "Classic"),
-];
-
 /// Options › Downloads' video qualities: the setting's word, and its name.
-pub const QUALITIES: [(&str, &str); 5] = [
-    ("best", "Best available"),
-    ("1080", "Up to 1080p"),
-    ("720", "Up to 720p"),
-    ("480", "Up to 480p"),
-    ("audio", "Audio only"),
-];
+pub use dm_desktop_base::file_info::QUALITIES;
 
 /// The Options dialog: a draft of the settings, edited until OK.
 pub struct OptionsDialog {
@@ -1179,7 +690,7 @@ mod links_import_tests {
             ..dm_core::Categories::default()
         };
         let mut d = import(&["http://h/a.zip", "http://h/b.mp4"]);
-        assert_eq!(d.save_dir(root, &sorted), None, "each to its own");
+        assert_eq!(d.save.save_dir(root, &sorted), None, "each to its own");
         assert_eq!(
             d.folder_of("http://h/b.mp4", root, &sorted),
             sorted
@@ -1187,16 +698,16 @@ mod links_import_tests {
                 .display()
                 .to_string()
         );
-        d.save_to = SaveTo::OneFolder;
-        d.folder = "   ".into();
-        assert_eq!(d.save_dir(root, &sorted), None, "no folder typed");
-        d.folder = " elsewhere ".into();
-        assert_eq!(d.save_dir(root, &sorted).as_deref(), Some("elsewhere"));
+        d.save.save_to = SaveTo::OneFolder;
+        d.save.folder = "   ".into();
+        assert_eq!(d.save.save_dir(root, &sorted), None, "no folder typed");
+        d.save.folder = " elsewhere ".into();
+        assert_eq!(d.save.save_dir(root, &sorted).as_deref(), Some("elsewhere"));
         assert_eq!(d.folder_of("http://h/a.zip", root, &sorted), "elsewhere");
-        d.save_to = SaveTo::OneCategory;
-        d.category = crate::app::category_word(dm_core::Category::Documents);
+        d.save.save_to = SaveTo::OneCategory;
+        d.save.category = crate::app::category_word(dm_core::Category::Documents);
         assert_eq!(
-            d.save_dir(root, &sorted),
+            d.save.save_dir(root, &sorted),
             Some(
                 sorted
                     .destination(root, dm_core::Category::Documents)
@@ -1205,9 +716,9 @@ mod links_import_tests {
             )
         );
         // A person's own category is a folder of its name.
-        d.category = "Receipts".into();
+        d.save.category = "Receipts".into();
         assert_eq!(
-            category_folder(&d.category, root, &sorted),
+            category_folder(&d.save.category, root, &sorted),
             root.join("Receipts")
         );
     }

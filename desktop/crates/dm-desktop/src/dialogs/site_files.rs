@@ -52,13 +52,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 combo("grabber-template")
                     .selected_text(t("Choose…"))
                     .show_ui(ui, |ui| {
-                        for (words, types) in [
-                            (t("Pictures"), "jpg jpeg png gif webp bmp tif tiff svg"),
-                            (t("Documents"), "pdf doc docx xls xlsx ppt pptx odt ods odp rtf txt epub"),
-                            (t("Videos and music"), "mp4 mkv avi mov wmv webm flv m4v mp3 m4a aac wav flac ogg opus"),
-                            (t("Archives and programs"), "zip rar 7z gz tar bz2 xz exe msi iso dmg apk"),
-                            (t("Every file"), ""),
-                        ] {
+                        for (words, types) in dm_desktop_base::grabber::templates() {
                             if ui.selectable_label(false, words).clicked() {
                                 d.types = types.to_string();
                             }
@@ -204,37 +198,20 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         });
     }
     if save {
-        let search = d.search();
-        if search.name.is_empty() {
-            d.says = t("A saved search needs a name.").to_string();
-        } else if search.page.is_empty() {
-            d.says = t("A saved search needs a start page.").to_string();
-        } else {
-            d.says.clear();
-            let mut settings = app.applied.clone();
-            // Saved again under its name: what it found before is kept.
-            let mut search = search;
-            // Its first run on the timer one interval from now: run at once,
-            // a search just saved queued its files with nothing said in the
-            // dialog. Find files runs it now.
-            search.last_run = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| d.as_secs());
-            if let Some(before) = settings
-                .site_searches
-                .iter()
-                .find(|s| s.name == search.name)
-            {
-                search.seen.clone_from(&before.seen);
-                search.last_run = before.last_run;
-            }
-            settings.site_searches.retain(|s| s.name != search.name);
-            settings.site_searches.push(search);
-            if let Err(e) = app.apply_settings(settings) {
-                if let Some(d) = app.dialogs.site_files.as_mut() {
-                    d.says = e;
+        // Saved by dm (`grabber::saved`), as every window saves it.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        match dm_desktop_base::grabber::saved(&app.applied, d.search(), now) {
+            Ok(settings) => {
+                d.says.clear();
+                if let Err(e) = app.apply_settings(settings) {
+                    if let Some(d) = app.dialogs.site_files.as_mut() {
+                        d.says = e;
+                    }
                 }
             }
+            Err(words) => d.says = words.to_string(),
         }
     }
     if let Some(search) = run_saved {

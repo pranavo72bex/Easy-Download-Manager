@@ -14,12 +14,15 @@
 # drags it onto dm's window. Screenshots are copied out of a Docker volume.
 set -e
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 docker volume rm dm-wayland-shots >/dev/null 2>&1 || true
 docker build -q -t dm-linux-check scripts/linux >/dev/null
 status=0
 git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
   | docker run --rm -i \
+      -e DM_BINARY="/target/debug/$binary" \
       -e DM_WAYLAND_DEBUG="${DM_WAYLAND_DEBUG:-}" \
       -v dm-linux-target:/target \
       -v dm-wayland-shots:/shots \
@@ -35,10 +38,10 @@ git ls-files -z --cached --others --exclude-standard \
           && wayland-scanner client-header wlr-virtual-pointer-unstable-v1.xml /tmp/wlr-virtual-pointer-unstable-v1-client-protocol.h \
           && wayland-scanner private-code wlr-virtual-pointer-unstable-v1.xml /tmp/vp-protocol.c \
           && cc -I/tmp -o /tmp/vpointer vpointer.c /tmp/vp-protocol.c -lwayland-client)
-        cd desktop && cargo build -q -p dm-desktop && cd ..
+        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
         # sway will not run as root: the session runs as an ordinary user.
         useradd -m tester && chmod 777 /shots && chmod -R a+rX /work
-        su tester -w DM_WAYLAND_DEBUG -c "dbus-launch --exit-with-session sh /work/scripts/linux/wayland_session.sh"
+        su tester -w DM_WAYLAND_DEBUG,DM_BINARY -c "dbus-launch --exit-with-session sh /work/scripts/linux/wayland_session.sh"
       ' || status=$?
 SHOTS="${DM_SHOTS:-$PWD/human-shots/wayland-drag}"
 mkdir -p "$SHOTS"

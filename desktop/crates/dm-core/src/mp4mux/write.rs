@@ -324,6 +324,7 @@ pub(super) fn moov(
     layout: &[Chunk],
     data_at: u64,
     cut: Option<(u64, u64)>,
+    tags: &super::Tags,
 ) -> Vec<u8> {
     let mut offsets: Vec<Vec<u64>> = vec![Vec::new(); tracks.len()];
     let mut per_chunk: Vec<Vec<u32>> = vec![Vec::new(); tracks.len()];
@@ -399,8 +400,50 @@ pub(super) fn moov(
             trim,
         ));
     }
+    if let Some(udta) = user_data(tags) {
+        parts.push(udta);
+    }
     let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
     boxed(b"moov", &refs)
+}
+
+/// The file's own words about itself, as iTunes and every player after it read them: a `udta`
+/// holding a `meta` whose `ilst` has the title (`©nam`), the artist (`©ART`), the date (`©day`)
+/// and where it came from (`©cmt`), each a UTF-8 `data` box (gaps row Y11). `None` with nothing
+/// to say.
+fn user_data(tags: &super::Tags) -> Option<Vec<u8>> {
+    let items: Vec<Vec<u8>> = [
+        (*b"\xa9nam", &tags.title),
+        (*b"\xa9ART", &tags.artist),
+        (*b"\xa9day", &tags.date),
+        (*b"\xa9cmt", &tags.source),
+    ]
+    .into_iter()
+    .filter(|(_, value)| !value.trim().is_empty())
+    .map(|(key, value)| {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u32.to_be_bytes()); // UTF-8 text
+        data.extend_from_slice(&0u32.to_be_bytes()); // no locale
+        data.extend_from_slice(value.trim().as_bytes());
+        let data = boxed(b"data", &[&data]);
+        boxed(&key, &[&data])
+    })
+    .collect();
+    if items.is_empty() {
+        return None;
+    }
+    let item_refs: Vec<&[u8]> = items.iter().map(Vec::as_slice).collect();
+    let ilst = boxed(b"ilst", &item_refs);
+    // The handler a `meta` of tags names: `mdir`, from `appl`.
+    let mut hdlr = Vec::new();
+    hdlr.extend_from_slice(&0u32.to_be_bytes());
+    hdlr.extend_from_slice(b"mdir");
+    hdlr.extend_from_slice(b"appl");
+    hdlr.extend_from_slice(&[0u8; 8]);
+    hdlr.push(0);
+    let hdlr = full(b"hdlr", 0, 0, &hdlr);
+    let meta = full(b"meta", 0, 0, &[hdlr, ilst].concat());
+    Some(boxed(b"udta", &[&meta]))
 }
 
 pub(crate) fn write_output(
@@ -409,6 +452,17 @@ pub(crate) fn write_output(
     out: &Path,
     cut: Option<(u64, u64)>,
 ) -> Result<u64, String> {
+    write_output_tagged(tracks, files, out, cut, &super::Tags::default())
+}
+
+/// [`write_output`], with the file's own words about itself (`Tags`).
+pub(crate) fn write_output_tagged(
+    tracks: &[Track],
+    files: &mut [File],
+    out: &Path,
+    cut: Option<(u64, u64)>,
+    tags: &super::Tags,
+) -> Result<u64, String> {
     let ftyp = boxed(
         b"ftyp",
         &[b"isom", &0x200u32.to_be_bytes(), b"isomiso2avc1mp41"],
@@ -416,9 +470,9 @@ pub(crate) fn write_output(
     let layout = chunks(tracks);
     // The index's length does not depend on the offsets in it (all 64-bit),
     // so it is laid out once to measure and once for real.
-    let measured = moov(tracks, &layout, 0, cut).len() as u64;
+    let measured = moov(tracks, &layout, 0, cut, tags).len() as u64;
     let data_at = ftyp.len() as u64 + measured + 16;
-    let index = moov(tracks, &layout, data_at, cut);
+    let index = moov(tracks, &layout, data_at, cut, tags);
     let data: u64 = tracks
         .iter()
         .flat_map(|t| t.samples.iter())

@@ -101,11 +101,11 @@ you the first time. That is expected; here is how to get past it.
 
 Prefer not to install anything, or want dm on a USB stick? Download
 `dm_…_x64-portable.zip` instead, unzip it anywhere and double-click
-`dm-desktop.exe`. The empty file named `portable` beside it makes dm keep its
+`dm-gpui.exe`. The empty file named `portable` beside it makes dm keep its
 settings and its list in a `dm-data` folder next to it and write nothing else
 to the computer; delete the folder and dm is gone. A portable dm does not start
 when you sign in. To let the browser extension hand downloads to this copy, run
-`dm-desktop.exe --register` once in its folder (and again if you move it).
+`dm-gpui.exe --register` once in its folder (and again if you move it).
 
 #### Mac
 
@@ -293,12 +293,14 @@ dm-desktop list                # what is downloading, one line each  (--json too
 dm-desktop status 3            # one download, by the number `list` gives
 dm-desktop pause 3 4           # or: resume, cancel
 dm-desktop --later https://example.com/a.iso     # add a link (starts dm if needed)
+dm-desktop --quiet https://example.com/a.iso     # start it with nothing asked
 ```
 
 It exits 0 when done, 1 when dm refused or a number was not acted on, 2 for
 a wrong command and 3 when no dm is running. It talks only to your own dm
 over the loopback address with a token only your account can read, and
-prints no cookies or sign-ins. (`dm` rather than `dm-desktop` on the
+prints no cookies or sign-ins. (The program is `dm-gpui` on macOS and Windows
+(`dm-desktop` in an older dm), and `dm` rather than `dm-desktop` on the
 Fedora, openSUSE, Arch and AppImage installs.)
 
 </details>
@@ -308,11 +310,11 @@ Fedora, openSUSE, Arch and AppImage installs.)
 
 dm can be driven by any AI client that speaks the Model Context Protocol
 (Claude Desktop and others), using the client's own account: dm needs no key
-and sends nothing off your computer. It is **on by default**: dm opens a local control port at every start,
-reachable only from your own computer and only with a token that your account
-alone can read. To turn it off, untick **Options › General › Allow AI assistants
-to control dm (MCP)**; assistants are then refused at once. Add dm to the client's
-settings:
+and sends nothing off your computer. It is **off until you turn it on**: tick
+**Options › General › Allow AI assistants to control dm (MCP)**, and dm opens a local
+control port at every start, reachable only from your own computer and only with a
+token that your account alone can read. Untick it and assistants are refused at once.
+Add dm to the client's settings:
 
 ```json
 { "mcpServers": { "dm": { "command": "/path/to/dm-desktop", "args": ["mcp"] } } }
@@ -409,14 +411,15 @@ login), so nothing is left pointing at a program that is not there. Quit dm,
 then run:
 
 - **Windows:** in Command Prompt,
-  `start "" /wait "%LOCALAPPDATA%\dm\dm-desktop.exe" --unregister`, or in
+  `start "" /wait "%LOCALAPPDATA%\dm\dm-gpui.exe" --unregister`, or in
   PowerShell,
-  `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\dm\dm-desktop.exe" --unregister`.
+  `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\dm\dm-gpui.exe" --unregister`
+  (`dm-desktop.exe` in an older dm).
   dm is a windowed program, so without `start /wait` (or `-Wait`) the prompt
   comes back before dm has finished and what it says lands after it;
   `echo %errorlevel%` then shows 0 for success. dm's uninstaller also runs
   this before it removes the files.
-- **Mac:** `/Applications/dm.app/Contents/MacOS/dm-desktop --unregister`
+- **Mac:** `/Applications/dm.app/Contents/MacOS/dm-gpui --unregister` (`dm-desktop` in an older dm)
 - **Ubuntu / Debian (.deb):** `dm-desktop --unregister`
 - **Fedora / openSUSE / Arch:** `dm --unregister`
 - **AppImage:** `/path/to/dm.AppImage --unregister`
@@ -532,9 +535,8 @@ how to open it). Once it is, this is the policy:
   authentication.
 
 Privacy: dm sends nothing about you anywhere. It reaches other computers
-only to fetch what you ask it to download, and, each with its own switch,
-to check GitHub for a new version (off until you turn it on) and to fetch
-the video helper from GitHub (on, and Options › Downloads turns it off).
+only to fetch what you ask it to download, and to check GitHub for a new
+version (off until you turn it on). No program is downloaded and run.
 See [PRIVACY.md](PRIVACY.md).
 
 ## License

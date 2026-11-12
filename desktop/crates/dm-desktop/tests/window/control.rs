@@ -351,10 +351,12 @@ fn a_batch_runs_its_steps_in_order() {
         .is_err());
 }
 
-/// The pictures in the README, rendered offscreen from a queue the engine
-/// really served — the sizes, rates and times are its, not a mock-up's.
+/// The egui window's pictures, rendered offscreen from a queue the engine
+/// really served — the sizes, rates and times are its, not a mock-up's. The
+/// README's are the GPUI window's (`scripts/readme-shots.py`), so these go to
+/// a folder of their own:
 ///
-///     DM_SHOTS=docs cargo test -p dm-desktop --test window shots
+///     DM_SHOTS=/tmp/egui-shots cargo test -p dm-desktop --test window shots
 ///
 /// Writes screenshot.png, progress.png and settings.png there, each with its
 /// -dark twin, with the download folder shown as ~/Downloads: nothing of the
@@ -467,14 +469,18 @@ fn allow_mcp(harness: &mut Harness<'_, DmApp>, on: bool) {
     harness.state_mut().apply_settings(wanted).unwrap();
 }
 
-/// Options › General › Let AI assistants use dm over MCP: on unless unticked,
-/// asked afresh with every request, and said plainly when it refuses.
+/// Options › General › Let AI assistants use dm over MCP: off in a new install
+/// (gaps row F7), asked afresh with every request, and said plainly when it refuses.
 #[test]
 fn ai_assistants_are_answered_only_while_the_setting_is_on() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
-    assert!(harness.state().applied.allow_mcp, "on unless turned off");
+    assert!(
+        !dm_shell::Settings::default().allow_mcp,
+        "off in a new install"
+    );
+    allow_mcp(&mut harness, true);
     let (to_window, requests) = std::sync::mpsc::channel();
     harness.state_mut().attach_control(requests);
     let token = "f".repeat(64);
@@ -535,6 +541,8 @@ fn a_port_opened_for_assistants_alone_refuses_other_clients() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
+    // Assistants let in: off in a new install (gaps row F7).
+    allow_mcp(&mut harness, true);
     harness.state_mut().restrict_control_to_assistants(true);
     let (to_window, requests) = std::sync::mpsc::channel();
     harness.state_mut().attach_control(requests);
@@ -602,6 +610,8 @@ fn a_resume_straight_after_a_pause_is_not_refused_by_a_stale_list() {
 /// drove the window keep the program the queue had.
 #[test]
 fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
+    // Its settings are applied, and so saved.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let key = serde_json::json!({ "key": "Escape" });

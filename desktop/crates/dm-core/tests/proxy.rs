@@ -281,33 +281,33 @@ async fn a_socks5_proxy_carries_the_download_and_resolves_its_name() {
     );
 }
 
-/// The JavaScript engine for the configuration script: on Windows none named, so the script runs
-/// as written in Windows' own engine, as it does for a person; elsewhere the QuickJS `DM_QJS`
-/// names where it does, else a stand-in that answers as the script below would (DIRECT for
-/// `localhost`, the proxy for the rest), so the test needs nothing installed.
-fn script_engine(dir: &std::path::Path, proxy: &str) -> Option<std::path::PathBuf> {
-    if cfg!(windows) {
-        return None;
+/// The JavaScript engine for the configuration script: the computer's own where it has one, so
+/// the script runs as written, as it does for a person; elsewhere (a Linux without WebKitGTK) a
+/// stand-in host that answers as the script below would (DIRECT for `localhost`, the proxy for the
+/// rest), so the test needs nothing installed.
+fn script_engine(dir: &std::path::Path, proxy: &str) {
+    dm_core::pac::forget_all();
+    if cfg!(windows) || dm_core::javascript::system_engine_here() {
+        return;
     }
-    if let Some(real) = std::env::var_os("DM_QJS").map(std::path::PathBuf::from) {
-        if real.is_file() {
-            return Some(real);
-        }
-    }
-    let engine = dir.join("engine.sh");
+    let host = dir.join("host.sh");
     std::fs::write(
-        &engine,
+        &host,
         format!(
-            "#!/bin/sh\nfor last in \"$@\"; do :; done\nif grep -q '//localhost:' \"$last\"; then echo DIRECT; else echo 'PROXY {proxy}'; fi\n"
+            "#!/bin/sh\nif grep -q '//localhost:'; then a=DIRECT; else a='PROXY {proxy}'; fi\nprintf 'dm-javascript-answer {{\"answer\":\"%s\"}}\\n' \"$a\"\n"
         ),
     )
     .unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::set_permissions(&host, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
-    Some(engine)
+    dm_core::javascript::set_host(Some(dm_core::javascript::Host {
+        program: host,
+        args: Vec::new(),
+        env: Vec::new(),
+    }));
 }
 
 #[tokio::test]
@@ -333,7 +333,7 @@ async fn a_configuration_script_chooses_each_sites_way_and_a_failed_one_sends_no
         ),
     )
     .unwrap();
-    dm_core::pac::set_engine(script_engine(dir.path(), &proxy));
+    script_engine(dir.path(), &proxy);
     let settings = Proxy {
         enabled: true,
         kind: Kind::Http,
@@ -413,7 +413,8 @@ async fn a_configuration_script_chooses_each_sites_way_and_a_failed_one_sends_no
             .as_deref(),
         Some(dm_core::pac::NO_WAY)
     );
-    dm_core::pac::set_engine(None);
+    dm_core::javascript::set_host(None);
+    dm_core::pac::forget_all();
 }
 
 /// A proxy named for `http` alone carries that scheme's requests; a site on the

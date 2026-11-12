@@ -12,6 +12,7 @@
 //! — a 404 answered instantly forever is not a download in progress.
 
 use std::future::Future;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crate::control::Control;
@@ -172,18 +173,37 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
 {
-    run_making_progress_unless(control, tries, progress, retrying, |_| false, op).await
+    run_making_progress_unless(
+        control,
+        None,
+        tries,
+        progress,
+        retrying,
+        |_| false,
+        |_| None,
+        op,
+    )
+    .await
 }
 
 /// As [`run_making_progress_telling`], giving up at once on an error
 /// `give_up` says is not worth waiting out here, though it is transient: a
 /// server turning away one more connection while others are being served.
+/// `together`, where the attempt is one connection of several fetching one
+/// file, has them take turns asking a server they have all lost, and sends
+/// them all again the moment one of them gets a byte ([`Together`]).
+/// `paced` names the wait after an error where the caller knows the server's
+/// own pace better than the backoff does (a server that limits how often it
+/// takes a request); the attempt counts against the tries all the same.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_making_progress_unless<F, Fut, T>(
     control: &Control,
+    together: Option<&Together>,
     tries: impl Into<Tries>,
     progress: impl Fn() -> u64,
     retrying: impl Fn(u32, u32, &Error, Duration),
     give_up: impl Fn(&Error) -> bool,
+    paced: impl Fn(&Error) -> Option<Duration>,
     mut op: F,
 ) -> Result<T, Error>
 where
@@ -199,6 +219,9 @@ where
     loop {
         control.check()?;
         let before = progress();
+        // Read before asking: a first byte that comes to another connection
+        // while this one asks, or waits after, is news this one acts on.
+        let seen = together.map(Together::seen);
         match op().await {
             Ok(value) => return Ok(value),
             Err(error) => {
@@ -211,13 +234,205 @@ where
                 let Some(nap) = pace.failed(&error, limit, every) else {
                     return Err(error);
                 };
+                let nap = paced(&error).unwrap_or(nap);
+                /* Asked again at once and failed again for want of a
+                 * connection, with no connection of the file bringing bytes
+                 * in: the server is gone for all of them, so this one waits
+                 * its turn among them rather than its own lane's time. One
+                 * failing beside others that are fetching keeps its own pace:
+                 * the server may be turning that one away. */
+                let turn = match (together, seen) {
+                    (Some(together), Some(seen))
+                        if pace.quick >= 2 && quickly(&error, every) && together.flowing() == 0 =>
+                    {
+                        let now = tokio::time::Instant::now();
+                        Some((together, seen, together.turn_at(now, pace.turn)))
+                    }
+                    _ => None,
+                };
+                let nap = turn.map_or(nap, |(_, _, at)| {
+                    at.saturating_duration_since(tokio::time::Instant::now())
+                });
                 // Said with how long it waits, so a row can tell a retry that
                 // comes in a moment from one that comes in half a minute.
                 retrying(pace.attempt.saturating_add(1), attempts, &error, nap);
-                wait(control, nap).await?;
+                match turn {
+                    Some((together, seen, at)) => {
+                        together.wait_turn(control, seen, at).await?;
+                        pace.turn = Some(tokio::time::Instant::now());
+                    }
+                    None => wait(control, nap).await?,
+                }
             }
         }
     }
+}
+
+/// While every connection of a download fails for want of a connection, each
+/// asks again once a round. The round is this at first...
+const ROUND_LEAST: Duration = Duration::from_millis(800);
+
+/// ...and grows to this, a twenty-fifth of how long the failing has gone on
+/// (from twenty seconds in to fifty), so a long outage is asked about as often
+/// as each connection asked on its own before there were turns (`quick_nap`:
+/// two seconds and up to a quarter more).
+const ROUND_MOST: Duration = Duration::from_secs(2);
+
+/// Never two turns of one download closer than this: ten a second at most,
+/// however many connections it has.
+const TURN_LEAST: Duration = Duration::from_millis(100);
+
+/// What the connections fetching one file share as they try again: how many
+/// are bringing bytes in, and, while none is, whose turn it is to ask.
+///
+/// Eight connections that lost the server together each asked again on its own
+/// lane's time, every two seconds a quarter-second apart: the first byte after
+/// a fifteen-second outage came 0.2 s after the server returned, and the other
+/// seven connections over the next 1.75 s (`bench` outage, macOS, 2026-11-11),
+/// where reference A, asking about six hundred times a second, had a request
+/// waiting. Taking turns, a download asks evenly, ten times a second while it
+/// has eight connections, and the first byte any of them gets sends every other
+/// one at once. Hundreds a second are still not copied.
+#[derive(Debug)]
+pub struct Together {
+    /// How many connections the download spreads its turns over.
+    connections: u32,
+    /// Requests bringing bytes in now, each from its first byte to its end.
+    flowing: AtomicUsize,
+    /// The most that have brought bytes in at once: what a server that turns
+    /// requests away has shown it serves (`download::Limits`).
+    most: AtomicUsize,
+    /// How many first bytes have come: one that comes while a connection waits
+    /// its turn sends it at once.
+    came: tokio::sync::watch::Sender<u64>,
+    /// The turns, while every connection fails.
+    turns: std::sync::Mutex<Turns>,
+}
+
+/// Where the turns of one outage stand.
+#[derive(Debug, Default)]
+struct Turns {
+    /// When the connections began failing together.
+    since: Option<tokio::time::Instant>,
+    /// The soonest the next turn may be.
+    next: Option<tokio::time::Instant>,
+}
+
+impl Together {
+    /// For a download of `connections` connections (at least one).
+    pub fn new(connections: usize) -> Together {
+        Together {
+            connections: u32::try_from(connections.max(1)).unwrap_or(u32::MAX),
+            flowing: AtomicUsize::new(0),
+            most: AtomicUsize::new(0),
+            came: tokio::sync::watch::Sender::new(0),
+            turns: std::sync::Mutex::new(Turns::default()),
+        }
+    }
+
+    /// How many requests are bringing bytes in now.
+    pub fn flowing(&self) -> usize {
+        self.flowing.load(Ordering::SeqCst)
+    }
+
+    /// The most requests that have brought bytes in at once.
+    pub fn most(&self) -> usize {
+        self.most.load(Ordering::SeqCst)
+    }
+
+    /// A request's first byte: it is counted among those bringing bytes in for
+    /// as long as the guard lives, and every connection waiting its turn asks
+    /// at once, the server being back.
+    pub fn bringing(&self) -> Bringing<'_> {
+        let now = self.flowing.fetch_add(1, Ordering::SeqCst) + 1;
+        self.most.fetch_max(now, Ordering::SeqCst);
+        // The next outage's turns begin afresh, at a point of their own.
+        *crate::lock(&self.turns) = Turns::default();
+        self.came.send_modify(|came| *came = came.wrapping_add(1));
+        Bringing(self)
+    }
+
+    /// How many first bytes have come so far.
+    fn seen(&self) -> u64 {
+        *self.came.borrow()
+    }
+
+    /// When a connection that failed at `now`, and last asked at `last` in
+    /// this outage, asks next: no sooner than a round after `last`, and no
+    /// sooner than a share of the round after the turn before it, so the
+    /// download's connections take the round evenly. The first turn of an
+    /// outage falls at a random point of its share ([`phase`]).
+    fn turn_at(
+        &self,
+        now: tokio::time::Instant,
+        last: Option<tokio::time::Instant>,
+    ) -> tokio::time::Instant {
+        let mut turns = crate::lock(&self.turns);
+        let since = *turns.since.get_or_insert(now);
+        let round = ((now - since) / 25).clamp(ROUND_LEAST, ROUND_MOST);
+        let apart = (round / self.connections).max(TURN_LEAST);
+        let own = last.map_or(now, |last| (last + round).max(now));
+        let turn = match turns.next {
+            Some(next) => next.max(own),
+            None => own + phase(apart),
+        };
+        turns.next = Some(turn + apart);
+        turn
+    }
+
+    /// Waits until `at`, or only until a first byte has come to any connection
+    /// since `seen`: the server is back, and this connection asks now.
+    async fn wait_turn(
+        &self,
+        control: &Control,
+        seen: u64,
+        at: tokio::time::Instant,
+    ) -> Result<(), Error> {
+        let mut came = self.came.subscribe();
+        loop {
+            control.check()?;
+            let now = tokio::time::Instant::now();
+            if *came.borrow_and_update() != seen || now >= at {
+                return Ok(());
+            }
+            // Looked at every tenth of a second for a pause or a cancel, as
+            // `wait` does.
+            tokio::select! {
+                () = tokio::time::sleep_until(at.min(now + Duration::from_millis(100))) => {}
+                // An error only once the sender is gone, which it is not while
+                // `self` is here to wait on.
+                _ = came.changed() => {}
+            }
+        }
+    }
+}
+
+/// A request counted among those bringing bytes in ([`Together::bringing`])
+/// while it lives.
+#[derive(Debug)]
+pub struct Bringing<'a>(&'a Together);
+
+impl Drop for Bringing<'_> {
+    fn drop(&mut self) {
+        self.0.flowing.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// A random share of `within`: where the first turn of an outage falls. Two
+/// downloads, or two computers, that lost a server in the same instant then
+/// ask it apart rather than in the same instant every round, and do not all
+/// come back to it at once. It also keeps the wait after an outage from
+/// hanging on how long the outage lasted: turns counted from its first
+/// instant would find a server gone a whole number of tenths of a second back
+/// at once, and one gone a few milliseconds longer a tenth later.
+fn phase(within: Duration) -> Duration {
+    let mut bytes = [0u8; 4];
+    let share = match getrandom::fill(&mut bytes) {
+        Ok(()) => f64::from(u32::from_le_bytes(bytes)) / (f64::from(u32::MAX) + 1.0),
+        // Without the system's randomness, half-way: as good as any one point.
+        Err(_) => 0.5,
+    };
+    within.mul_f64(share)
 }
 
 /// Where a run of failed attempts stands.
@@ -240,6 +455,16 @@ struct Pace {
     quick: u32,
     /// When the failing began.
     since: Option<tokio::time::Instant>,
+    /// Where in the two-second round this run of failing asks, so the
+    /// connections of a download that failed together do not all ask in the
+    /// same instant: eight that asked in step found a server back up to two
+    /// seconds after it came (`bench` outage, 1.97 s, against reference A's
+    /// request already waiting), eight a quarter-second apart within 0.25 s.
+    /// Where the download's connections take turns ([`Together`]), only one
+    /// failing while others fetch still asks on its lane.
+    lane: Option<u32>,
+    /// When this connection last asked on its turn among the download's.
+    turn: Option<tokio::time::Instant>,
 }
 
 impl Pace {
@@ -257,16 +482,22 @@ impl Pace {
         every: Option<Duration>,
     ) -> Option<Duration> {
         let since = *self.since.get_or_insert(now);
-        let retry_after = error.retry_after();
-        if every.is_none() && retry_after.is_none() && dropped(error) {
+        if quickly(error, every) {
             self.quick = self.quick.saturating_add(1);
             self.attempt = self.attempt.max(schedule_reached(now - since, limit));
-            (self.attempt < limit).then(|| quick_nap(self.quick))
+            let lane = *self.lane.get_or_insert_with(next_lane);
+            (self.attempt < limit).then(|| quick_nap(self.quick, lane))
         } else {
             self.attempt = self.attempt.saturating_add(1);
-            (self.attempt < limit).then(|| pause(self.attempt, retry_after, every))
+            (self.attempt < limit).then(|| pause(self.attempt, error.retry_after(), every))
         }
     }
+}
+
+/// Whether a failed attempt is asked again on the quick pace: it failed for
+/// want of a connection, and neither the server nor the person named a wait.
+fn quickly(error: &Error, every: Option<Duration>) -> bool {
+    every.is_none() && error.retry_after().is_none() && dropped(error)
 }
 
 /// Whether the attempt failed for want of a connection, not on a server's
@@ -295,12 +526,24 @@ fn schedule_reached(failing: Duration, limit: u32) -> u32 {
 
 /// The wait before quick attempt `n` (the first is 1): none, then a
 /// quarter, a half and a whole second, then two seconds apart, each a
-/// little longer by the attempt number.
-fn quick_nap(n: u32) -> Duration {
+/// little longer by the attempt number. The first two-second wait is cut
+/// short by `lane` quarter-seconds, so lanes keep apart from then on. A
+/// connection whose download's every connection is failing waits its turn
+/// instead, after the first ([`Together::turn_at`]).
+fn quick_nap(n: u32, lane: u32) -> Duration {
     const STEPS_MS: [u64; 5] = [0, 250, 500, 1000, 2000];
-    let step = STEPS_MS[(n.saturating_sub(1) as usize).min(STEPS_MS.len() - 1)];
+    let mut step = STEPS_MS[(n.saturating_sub(1) as usize).min(STEPS_MS.len() - 1)];
+    if n as usize == STEPS_MS.len() {
+        step -= u64::from(lane % 8) * 250;
+    }
     let jitter = if n > 1 { u64::from(n) * 137 % 250 } else { 0 };
     Duration::from_millis(step + jitter)
+}
+
+/// A lane for a run of failing that has just begun: each the next of eight.
+fn next_lane() -> u32 {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// As [`run`], with the number of attempts a setting rather than a
@@ -446,6 +689,190 @@ mod tests {
             naps.iter().all(|n| *n <= Duration::from_millis(2250)),
             "{naps:?}"
         );
+    }
+
+    #[test]
+    fn connections_failing_together_ask_apart_once_the_waits_are_long() {
+        let cut = Error::Connection("refused".into());
+        let mut asks: Vec<Duration> = (0..8)
+            .map(|lane| (1..=6).map(|n| quick_nap(n, lane)).sum())
+            .collect();
+        asks.sort();
+        assert!(
+            asks.windows(2)
+                .all(|w| w[1] - w[0] >= Duration::from_millis(200)),
+            "{asks:?}"
+        );
+        let mut pace = Pace::default();
+        assert!(pace.failed(&cut, 15, None).is_some() && pace.lane.is_some());
+    }
+
+    /// Eight connections that lose the server in the same instant ask a
+    /// tenth of a second apart, the first at a random point of its tenth, and
+    /// each again a round after its own turn.
+    #[test]
+    fn connections_that_lose_the_server_together_take_turns() {
+        let together = Together::new(8);
+        let now = tokio::time::Instant::now();
+        let first: Vec<_> = (0..8).map(|_| together.turn_at(now, None)).collect();
+        assert!(first[0] >= now && first[0] < now + TURN_LEAST, "{first:?}");
+        assert!(first.windows(2).all(|w| w[1] - w[0] == TURN_LEAST));
+        // Each fails a moment after its turn and is given the next.
+        let again: Vec<_> = first
+            .iter()
+            .map(|&asked| together.turn_at(asked + Duration::from_millis(1), Some(asked)))
+            .collect();
+        for (asked, next) in first.iter().zip(&again) {
+            assert_eq!(*next - *asked, ROUND_LEAST, "{first:?} then {again:?}");
+        }
+    }
+
+    /// Every connection asking on its turn, failing a millisecond later and
+    /// taking the next: the asks of a download through an outage.
+    fn asks_through(together: &Together, connections: usize, lasting: Duration) -> Vec<Duration> {
+        let start = tokio::time::Instant::now();
+        // When each connection fails next, and when it last asked.
+        let mut failing: Vec<(tokio::time::Instant, Option<tokio::time::Instant>)> =
+            vec![(start, None); connections];
+        let mut asks = Vec::new();
+        loop {
+            let (who, &(at, last)) = failing
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, (at, _))| *at)
+                .expect("connections");
+            if at - start > lasting {
+                return asks;
+            }
+            let turn = together.turn_at(at, last);
+            asks.push(turn - start);
+            failing[who] = (turn + Duration::from_millis(1), Some(turn));
+        }
+    }
+
+    /// A server back at any moment of a fifteen-second outage is asked within
+    /// a tenth of a second by a download of eight connections, at about a
+    /// hundred and fifty requests: not reference A's thousands.
+    #[test]
+    fn a_server_back_at_any_moment_is_asked_within_a_tenth_of_a_second() {
+        let asks = asks_through(&Together::new(8), 8, Duration::from_secs(15));
+        let gaps: Vec<Duration> = asks.windows(2).map(|w| w[1] - w[0]).collect();
+        assert!(gaps.iter().all(|g| *g <= TURN_LEAST), "{gaps:?}");
+        assert!(asks[0] < TURN_LEAST, "{:?}", asks[0]);
+        let within = asks
+            .iter()
+            .filter(|a| **a <= Duration::from_secs(15))
+            .count();
+        assert!((140..=160).contains(&within), "{within} asks in 15 s");
+    }
+
+    /// One connection failing alone asks once a round, not ten times a
+    /// second; and a long outage is asked about at the pace each connection
+    /// kept alone before there were turns: a download of eight, four times a
+    /// second.
+    #[test]
+    fn turns_are_held_to_a_round_each_and_lengthen_as_an_outage_goes_on() {
+        let alone = asks_through(&Together::new(8), 1, Duration::from_secs(10));
+        assert!(
+            alone.windows(2).all(|w| w[1] - w[0] >= ROUND_LEAST),
+            "{alone:?}"
+        );
+        let long = asks_through(&Together::new(8), 8, Duration::from_secs(300));
+        let late: Vec<&Duration> = long
+            .iter()
+            .filter(|a| **a >= Duration::from_secs(60))
+            .collect();
+        let gaps: Vec<Duration> = late.windows(2).map(|w| *w[1] - *w[0]).collect();
+        assert!(
+            gaps.iter().all(|g| *g == ROUND_MOST / 8),
+            "{:?}",
+            &gaps[..gaps.len().min(20)]
+        );
+        // A download of two connections spreads them over the round evenly.
+        let two = asks_through(&Together::new(2), 2, Duration::from_secs(10));
+        assert!(
+            two.windows(2).all(|w| w[1] - w[0] == ROUND_LEAST / 2),
+            "{two:?}"
+        );
+    }
+
+    /// The first byte any connection gets sends every one waiting its turn at
+    /// once, including one whose own attempt began before that byte came.
+    #[tokio::test]
+    async fn a_byte_that_comes_sends_every_waiting_connection_at_once() {
+        let together = std::sync::Arc::new(Together::new(8));
+        let control = Control::new();
+        let before = together.seen();
+        let started = std::time::Instant::now();
+        let waiting: Vec<_> = (0..7)
+            .map(|_| {
+                let (together, control) = (std::sync::Arc::clone(&together), control.clone());
+                tokio::spawn(async move {
+                    let seen = together.seen();
+                    let far = tokio::time::Instant::now() + Duration::from_secs(5);
+                    together
+                        .wait_turn(&control, seen, far)
+                        .await
+                        .map(|()| started.elapsed())
+                })
+            })
+            .collect();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let bringing = together.bringing();
+        assert_eq!(together.flowing(), 1);
+        for one in waiting {
+            let waited = one.await.expect("joined").expect("not stopped");
+            assert!(waited < Duration::from_secs(2), "{waited:?}");
+        }
+        // Seen before the byte came, the wait does not begin at all.
+        let far = tokio::time::Instant::now() + Duration::from_secs(5);
+        let at_once = std::time::Instant::now();
+        together
+            .wait_turn(&control, before, far)
+            .await
+            .expect("not stopped");
+        assert!(at_once.elapsed() < Duration::from_secs(1));
+        drop(bringing);
+        assert_eq!(together.flowing(), 0);
+    }
+
+    /// The retry loop: a connection that keeps failing for want of a
+    /// connection asks again at once, then on its turn when no connection is
+    /// bringing bytes in, and on its own lane's time when one is.
+    #[tokio::test]
+    async fn a_connection_waits_its_turn_only_when_every_connection_has_lost_the_server() {
+        async fn waits(together: &Together) -> Vec<Duration> {
+            let told = std::sync::Mutex::new(Vec::new());
+            let tries = std::sync::atomic::AtomicU32::new(0);
+            let outcome: Result<(), Error> = run_making_progress_unless(
+                &Control::new(),
+                Some(together),
+                15,
+                || 0,
+                |_, _, _, wait| told.lock().unwrap().push(wait),
+                |_| false,
+                |_| None,
+                || async {
+                    if tries.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 2 {
+                        Err(Error::Connection("reset".into()))
+                    } else {
+                        Ok(())
+                    }
+                },
+            )
+            .await;
+            assert!(outcome.is_ok(), "{outcome:?}");
+            told.into_inner().unwrap()
+        }
+        let lost = Together::new(8);
+        let turned = waits(&lost).await;
+        assert_eq!(turned[0], Duration::ZERO, "{turned:?}");
+        assert!(turned[1] < TURN_LEAST, "{turned:?}");
+        let fetching = Together::new(8);
+        let _bringing = fetching.bringing();
+        let own = waits(&fetching).await;
+        assert_eq!(own[0], Duration::ZERO, "{own:?}");
+        assert!(own[1] >= Duration::from_millis(250), "{own:?}");
     }
 
     #[test]

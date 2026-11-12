@@ -4,6 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
+use dm_desktop_base::file_info;
 pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     if app.dialogs.file_info.is_none() {
         return;
@@ -27,39 +28,9 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let Some(d) = app.dialogs.file_info.as_mut() else {
         return;
     };
-    let default_dir = app.applied.download_dir.display().to_string();
-    // Each kind's folder, and each category a person made, to pick from:
-    // a file can go to another kind's folder without typing its path.
-    let places: Vec<(String, String)> = {
-        // Each kind's own folder, whether or not finished files are sorted
-        // into them: picked here, it is asked for (with sorting off every
-        // kind named the download folder itself).
-        let mut categories = app.applied.categories();
-        categories.enabled = true;
-        let root = &app.applied.download_dir;
-        let mut places: Vec<(String, String)> = dm_core::Category::ALL
-            .iter()
-            .map(|kind| {
-                let word = format::titled(&category_word(*kind));
-                (
-                    crate::i18n::name(&word),
-                    categories.destination(root, *kind).display().to_string(),
-                )
-            })
-            .collect();
-        places.extend(app.applied.custom_categories.iter().map(|custom| {
-            let name = custom.name.trim().to_string();
-            (name.clone(), root.join(&name).display().to_string())
-        }));
-        places
-    };
-    // The folder an empty field means: sorted into kinds' folders only
-    // where Options › Folders sorts them.
-    let default_dir = if app.applied.categorize {
-        tf("{} (sorted by kind)", &[&default_dir])
-    } else {
-        default_dir
-    };
+    // Each kind's folder, and each category a person made, to pick from.
+    let places = file_info::places(&app.applied);
+    let default_dir = file_info::default_folder_words(&app.applied);
     let platform = std::sync::Arc::clone(&app.backend.platform);
     // The server is asked what it calls the file, once, as the dialog
     // opens; Save as had only the address's last part to show.
@@ -166,59 +137,24 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     if !d.folder_offered && d.urls.len() == 1 && !d.name.trim().is_empty() {
         d.folder_offered = true;
         if d.folder.trim().is_empty() {
-            if let Some(last) = app
-                .applied
-                .last_folders
-                .get(kind_key(d.name.trim()))
-                .filter(|f| std::path::Path::new(f).is_dir())
-            {
-                d.folder = last.clone();
+            if let Some(last) = file_info::last_folder(&app.applied, &d.name) {
+                d.folder = last;
             }
         }
     }
     // The name it will really get where its folder has one of that name
     // already: Save as said `big.zip` and the file came as `big (1).zip`.
     // Where a file taken out of a ZIP goes: beside the archive.
-    let archive_folder = folder_for(&app.applied, &d.folder, &first, d.name.trim());
-    let clash = (d.urls.len() == 1 && !d.name.trim().is_empty())
+    let archive_folder = file_info::folder_for(&app.applied, &d.folder, &first, d.name.trim());
+    let clash = (d.urls.len() == 1)
         .then(|| {
-            let name = d.name.trim();
             let url = d.urls.first().map(String::as_str).unwrap_or_default();
-            let dir = folder_for(&app.applied, &d.folder, url, name);
-            // Every download of that name still waiting to be placed there
-            // takes a free name first (two rows read
-            // "big (1).zip" and one landed as "big (2).zip").
-            let waiting = app
-                .rows
-                .iter()
-                .filter(|r| {
-                    // The row begun at once for this very dialog is this file.
-                    Some(r.id) != d.early
-                        && !r.state.settled()
-                        && r.path.is_empty()
-                        && name_of(r) == name
-                        && r.save_dir
-                            .as_deref()
-                            .is_none_or(|s| s.trim().is_empty() || std::path::Path::new(s) == dir)
-                })
-                .count();
-            let free = dm_core::nth_free_name(&dir, name, waiting);
-            let taken = dir.join(name);
-            if free == name {
-                None
-            } else if dm_core::free_name(&dir, name) == name {
-                // Free on disk: it is the list that has the name.
-                Some(Clash::Listed)
-            } else if waiting == 0 && taken.is_file() {
-                Some(Clash::OnDisk { free, taken })
-            } else {
-                Some(Clash::Listed)
-            }
+            file_info::clash(&app.applied, &app.rows, &d.folder, url, &d.name, d.early)
         })
         .flatten();
     // Only a file of that name can be replaced: offered again for the
     // next name, not carried to it.
-    if !matches!(clash, Some(Clash::OnDisk { .. })) {
+    if !matches!(clash, Some(file_info::Clash::OnDisk { .. })) {
         d.replace = false;
     }
     let mut open = true;
@@ -299,18 +235,11 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         let save_as = ui
                             .add(
                                 egui::TextEdit::singleline(&mut d.name)
-                                    .hint_text(if d.quality.is_some() || page {
-                                        // A video picked from a player page is
-                                        // named from its title: the page's own
-                                        // name ("player2.html") was shown, and
-                                        // the file came as something else.
-                                        t("The video's own title").to_string()
-                                    } else if dm_core::is_torrent(&first) {
-                                        t("The torrent's own name").to_string()
-                                    } else {
-                                        stream_name(&first, None, remux)
-                                            .unwrap_or_else(|| format::provisional(&first))
-                                    })
+                                    .hint_text(file_info::name_hint(
+                                        &first,
+                                        d.quality.is_some() || page,
+                                        remux,
+                                    ))
                                     .desired_width(360.0),
                             )
                             .labelled_by(name.id);
@@ -335,7 +264,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                                 ui.label(RichText::new("—").weak());
                             }
                             Some(list) => {
-                                let default = default_choice(list, setting);
+                                let default = file_info::default_choice(list, setting);
                                 let picked = d.quality.clone().or(default);
                                 // Four to a row, each its height over its
                                 // size, as a person compares them.
@@ -346,7 +275,10 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                                                 let on = picked.as_deref()
                                                     == Some(choice.quality.as_str());
                                                 if ui
-                                                    .selectable_label(on, chip_words(choice))
+                                                    .selectable_label(
+                                                        on,
+                                                        file_info::chip_words(choice),
+                                                    )
                                                     .clicked()
                                                 {
                                                     d.quality = Some(choice.quality.clone());
@@ -411,7 +343,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             // A link copied at a moment of the video: that
                             // moment offered as the part's start.
                             if let (false, Some(at)) = (d.part, starts) {
-                                let at = clock(at);
+                                let at = file_info::clock(at);
                                 ui.label(
                                     RichText::new(tf("This link starts at {}.", &[&at])).weak(),
                                 );
@@ -501,7 +433,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     ui.end_row();
                     // Chosen as it is saved, as the row's menu offers it
                     // after: the file to the Trash that long after it finishes.
-                    let times = crate::table::delete_after_times();
+                    let times = file_info::delete_after_times();
                     let name = ui.label(t("Delete file after"));
                     let now = times
                         .iter()
@@ -534,7 +466,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 );
             }
             match &clash {
-                Some(Clash::Listed) => {
+                Some(file_info::Clash::Listed) => {
                     ui.add(
                         egui::Label::new(
                             RichText::new(t(
@@ -545,7 +477,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         .wrap(),
                     );
                 }
-                Some(Clash::OnDisk { free, .. }) => {
+                Some(file_info::Clash::OnDisk { free, .. }) => {
                     ui.add(
                         egui::Label::new(
                             RichText::new(t("A file of that name is in the folder already."))
@@ -571,12 +503,9 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 None => {}
             }
             if let Some(why) = &problem {
-                let plain = format::reason(why).map(t).unwrap_or(why.as_str());
                 ui.add(
-                    egui::Label::new(
-                        RichText::new(tf("Not available: {}.", &[&plain])).color(warn(ui)),
-                    )
-                    .wrap(),
+                    egui::Label::new(RichText::new(file_info::problem_words(why)).color(warn(ui)))
+                        .wrap(),
                 )
                 .on_hover_text(why);
             }
@@ -633,64 +562,39 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     };
     // The part's ends, where one was asked for; a pair that is not a span
     // keeps the dialog, with the shape they take.
-    if d.part {
-        match dm_core::Span::parse(&d.part_from, &d.part_to) {
-            Some(span) => d.span = Some(span),
-            None => {
-                d.says = t("Enter the start and end as minutes and seconds, such as 4:10 and 4:45. The end comes after the start.").to_string();
-                return;
-            }
+    match file_info::span_of(d.part, &d.part_from, &d.part_to) {
+        Ok(span) => d.span = span,
+        Err(words) => {
+            d.says = words.to_string();
+            return;
         }
-    } else {
-        d.span = None;
     }
-    let with = AddOptions {
-        description: d.description.trim().to_string(),
-        queue: if later {
-            d.queue.clone()
-        } else {
-            String::new()
-        },
-        title_hint: None,
-        save_dir: Some(d.folder.trim().to_string()).filter(|f| !f.is_empty()),
-        // The server's own name, untouched, is what dm names the file
-        // anyway: left for it to place as it always does.
-        save_name: Some(d.name.trim().to_string())
-            .filter(|n| !n.is_empty())
-            .filter(|n| d.name_typed || server_name.as_deref() != Some(n.as_str())),
-        later,
+    let form = file_info::Form {
         referrer: d.referrer.clone(),
         quality: d.quality.clone(),
         sound: d.sound.clone(),
         span: d.span,
-        shape: d.shape.filter(|_| d.span.is_some()),
-        // An MP3 is asked for by its quality ("audio/mp3").
-        mp3: false,
-        gif: d.gif && d.span.is_some(),
+        shape: d.shape,
+        gif: d.gif,
         delete_after: d.delete_after,
+        folder: d.folder.clone(),
+        name: d.name.clone(),
+        name_typed: d.name_typed,
+        description: d.description.clone(),
+        queue: d.queue.clone(),
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
         headers: d.headers.clone(),
-        // The form for the first address alone, which is the one it was sent to.
         post: d.post.clone(),
-        checksum: None,
-        speed_limit: 0,
-        // Added from Download details, by a person: not a hand-over that
-        // may take a waiting row's place.
-        fresh_link_ok: false,
-        replaces: match &clash {
-            Some(Clash::OnDisk { taken, .. }) if d.replace => {
-                Some(taken.to_string_lossy().into_owned())
-            }
-            _ => None,
-        },
+        replace: d.replace,
     };
+    let with = file_info::options(&form, later, server_name.as_deref(), clash.as_ref());
     let urls = d.urls.clone();
     let always_here = d.caught && d.always_here;
     // Where this kind of file was put, for next time; the kind's own folder
     // chosen again forgets it.
     if urls.len() == 1 && !d.name.trim().is_empty() {
-        let kind = kind_key(d.name.trim());
+        let kind = file_info::kind_key(d.name.trim());
         let folder = Some(d.folder.trim().to_string()).filter(|f| !f.is_empty());
         if app.applied.last_folders.get(kind) != folder.as_ref() {
             match app.backend.remember_folder(kind, folder.as_deref()) {
@@ -784,12 +688,12 @@ fn begin_early(app: &mut DmApp) {
     let [url] = d.urls.as_slice() else {
         return;
     };
-    let plain = (url.starts_with("https://") || url.starts_with("http://"))
-        && !dm_core::is_torrent(url)
-        && d.choices.is_none()
-        && d.quality.is_none()
-        && d.post.is_none();
-    if !plain {
+    let form = file_info::Form {
+        quality: d.quality.clone(),
+        post: d.post.clone(),
+        ..file_info::Form::default()
+    };
+    if !file_info::begins_early(&app.applied, &d.urls, &form, d.choices.is_some()) {
         return;
     }
     let with = AddOptions {
@@ -808,161 +712,5 @@ fn begin_early(app: &mut DmApp) {
             app.refresh();
         }
         Err(e) => app.said = e.into(),
-    }
-}
-
-/// The choice the quality setting would take from a page's list (tallest
-/// first, the sound alone last): the tallest at or under the height asked,
-/// the first for "best", the sound for "audio"; `None` for an empty list.
-fn default_choice(
-    list: &[dm_core::videopage::Choice],
-    setting: dm_core::Quality,
-) -> Option<String> {
-    use dm_core::Quality;
-    let height = |choice: &dm_core::videopage::Choice| {
-        choice
-            .quality
-            .split('/')
-            .next()
-            .and_then(|h| h.parse::<u32>().ok())
-    };
-    let chosen = match setting {
-        Quality::Audio => list.iter().find(|c| c.quality.starts_with("audio")),
-        Quality::UpTo(limit) => list
-            .iter()
-            .find(|c| height(c).is_some_and(|h| h <= limit))
-            .or_else(|| list.iter().find(|c| height(c).is_some())),
-        Quality::Best => list.iter().find(|c| height(c).is_some()),
-    };
-    chosen.or(list.first()).map(|c| c.quality.clone())
-}
-
-/// A quality's chip: its height and container over its size ("1080p MP4"
-/// over "275.0 MB"), the sound alone said so.
-fn chip_words(choice: &dm_core::videopage::Choice) -> String {
-    let (head, ext) = choice
-        .quality
-        .split_once('/')
-        .unwrap_or((&choice.quality, ""));
-    let top = if head == "audio" {
-        format!("{} {}", t("Sound only"), ext.to_ascii_uppercase())
-    } else if let Ok(side) = head.parse::<u32>() {
-        // By its class, as the panel's list says it: "4K MP4", "1080p MP4".
-        format!(
-            "{} {}",
-            dm_core::videopage::class_name(0, side),
-            ext.to_ascii_uppercase()
-        )
-    } else {
-        choice.label.clone()
-    };
-    match choice.size {
-        Some(size) => format!("{}\n{}", top.trim(), format::bytes(size)),
-        None => top.trim().to_string(),
-    }
-}
-
-/// Seconds as a person writes a moment of a video: `0:34`, `12:05`,
-/// `1:02:03`.
-fn clock(seconds: u64) -> String {
-    let (h, m, s) = (seconds / 3600, seconds / 60 % 60, seconds % 60);
-    if h > 0 {
-        format!("{h}:{m:02}:{s:02}")
-    } else {
-        format!("{m}:{s:02}")
-    }
-}
-
-/// The folder a download of `name` from `url` is saved in, as the dialog
-/// stands: the folder typed, else the site rule's, else its category's, else
-/// the download folder.
-fn folder_for(applied: &Settings, typed: &str, url: &str, name: &str) -> std::path::PathBuf {
-    if !typed.trim().is_empty() {
-        std::path::PathBuf::from(typed.trim())
-    } else if let Some(rule) = applied
-        .site_rule_for(url)
-        .filter(|rule| !rule.folder.is_empty())
-    {
-        // The site's own folder, as its rule says.
-        std::path::PathBuf::from(&rule.folder)
-    } else {
-        let mut categories = applied.categories();
-        if categories.enabled {
-            categories.site = dm_core::host_of(url);
-            let kind = dm_core::by_name(name).unwrap_or(dm_core::Category::Other);
-            categories.place(&applied.download_dir, kind, name)
-        } else {
-            applied.download_dir.clone()
-        }
-    }
-}
-
-#[cfg(test)]
-mod clock_tests {
-    #[test]
-    fn a_moment_reads_as_a_player_shows_it() {
-        assert_eq!(super::clock(34), "0:34");
-        assert_eq!(super::clock(725), "12:05");
-        assert_eq!(super::clock(3723), "1:02:03");
-    }
-}
-
-#[cfg(test)]
-mod choice_tests {
-    use super::{chip_words, default_choice};
-    use dm_core::videopage::Choice;
-    use dm_core::Quality;
-
-    fn choice(quality: &str, label: &str, size: Option<u64>) -> Choice {
-        Choice {
-            label: label.into(),
-            quality: quality.into(),
-            size,
-        }
-    }
-
-    fn list() -> Vec<Choice> {
-        vec![
-            choice("2160/mp4", "MP4 3840×2160", Some(900_000_000)),
-            choice("1080/mp4", "MP4 1920×1080", Some(275_000_000)),
-            choice("480/webm", "WebM 854×480", None),
-            choice("audio/m4a", "M4A audio", Some(4_000_000)),
-        ]
-    }
-
-    #[test]
-    fn the_setting_picks_the_tallest_it_allows_or_the_sound() {
-        let list = list();
-        let pick = |q| default_choice(&list, q);
-        assert_eq!(pick(Quality::Best).as_deref(), Some("2160/mp4"));
-        assert_eq!(pick(Quality::UpTo(1080)).as_deref(), Some("1080/mp4"));
-        assert_eq!(pick(Quality::UpTo(720)).as_deref(), Some("480/webm"));
-        // Nothing that short: the tallest there is rather than nothing.
-        assert_eq!(pick(Quality::UpTo(144)).as_deref(), Some("2160/mp4"));
-        assert_eq!(pick(Quality::Audio).as_deref(), Some("audio/m4a"));
-        assert_eq!(default_choice(&[], Quality::Best), None);
-        // A list of only labels: its first.
-        let odd = [choice("hls", "Stream", None)];
-        assert_eq!(default_choice(&odd, Quality::Audio).as_deref(), Some("hls"));
-        assert_eq!(
-            default_choice(&odd, Quality::UpTo(720)).as_deref(),
-            Some("hls")
-        );
-    }
-
-    #[test]
-    fn a_chip_says_the_class_and_container_over_the_size() {
-        let chip = chip_words(&choice("1080/mp4", "MP4 1920×1080", Some(2048)));
-        assert!(chip.starts_with("1080p"), "{chip}");
-        assert!(chip.contains("MP4\n"), "{chip}");
-        assert!(chip.ends_with(&crate::format::bytes(2048)), "{chip}");
-        let sound = chip_words(&choice("audio/m4a", "M4A audio", None));
-        assert!(sound.ends_with("M4A"), "{sound}");
-        assert!(!sound.contains('\n'), "no size, no second line: {sound}");
-        // Not a height: the list's own words.
-        assert_eq!(
-            chip_words(&choice("hls", "Live stream", None)),
-            "Live stream"
-        );
     }
 }

@@ -3,6 +3,9 @@ name = "dm-core"
 version = "0.9.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
 
 [dependencies]
 # Already in the tree through reqwest; named for its chunk type.
@@ -31,7 +34,7 @@ futures-util = "0.3"
 thiserror = "2"
 # The shell sends these straight into a webview; deriving here beats
 # maintaining a parallel set of near-identical types in the GUI crate.
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 # The queue is written to disk so a restart does not lose it.
 serde_json = "1"
 # Already in the tree via reqwest's url dependency; named so the hand-rolled
@@ -40,6 +43,11 @@ percent-encoding = "2"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 sha2 = "0.11.0"
 md-5 = "0.11.0"
+# SHA-1 digests a person checks a file against (`checksum.rs`); already in the build through
+# the torrent engine, which names torrents by it.
+sha1 = "0.11"
+# CRC-32 digests the same way; already in the build through flate2 and png.
+crc32fast = "1.5"
 # NTLM sign-ins (`ntlm.rs`): its NT hash is MD4 of the password, and its
 # client challenge must be unpredictable.
 md4 = "0.11"
@@ -79,7 +87,7 @@ libc = "0.2"
 # start. Already in the tree through tokio and others; only its
 # file-system module is named.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 # Media Foundation, the system's own decoders, for a video's sound saved as MP3
 # and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers
@@ -93,8 +101,6 @@ windows = { version = "0.62", features = [
 ] }
 
 [dev-dependencies]
-# The info hash of a torrent another client made (tests/mse_interop.rs).
-sha1 = "0.11"
 # The AV1 reader is tested on every system, though only Linux builds it in;
 # libc for the C library's EAGAIN, rav1d's "not now", on Windows too.
 rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
@@ -120,3 +126,6 @@ symphonia-bundle-mp3 = "0.6.1"
 # from cargo-machete.
 [package.metadata.cargo-machete]
 ignored = ["md-5"]
+
+[lints]
+workspace = true

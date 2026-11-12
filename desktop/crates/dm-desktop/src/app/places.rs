@@ -15,152 +15,32 @@ impl DmApp {
     /// Whether every word typed over the list is in the row's name, its
     /// address or its note, whatever their case.
     pub(super) fn matches_filter(&self, row: &Entry) -> bool {
-        if self.filter.trim().is_empty() {
-            return true;
-        }
-        // The words made again only when the filter has changed.
-        if self.filter_words.borrow().0 != self.filter {
-            let words = self
-                .filter
-                .split_whitespace()
-                .map(str::to_lowercase)
-                .collect();
-            *self.filter_words.borrow_mut() = (self.filter.clone(), words);
-        }
-        let cached = self.filter_words.borrow();
-        let found = |said: &str| cached.1.iter().all(|w| said.contains(w.as_str()));
-        match self.haystacks.get(&row.id) {
-            Some(said) => found(said),
-            // A row the last refresh has not seen yet.
-            None => found(&haystack(row)),
-        }
+        self.places.matches_filter(&self.filter, row)
     }
 
     /// Whether `row` belongs in `place`.
     pub(super) fn within(&self, place: &Place, row: &Entry) -> bool {
-        match place {
-            Place::All => true,
-            // A row whose kind is not known yet, and in no category of a
-            // person's own, is Other: queued `.bin` rows were in no place
-            // and the counts did not add up.
-            Place::Kind(c) => match self.placed(row) {
-                (Some(kind), _) => kind == *c,
-                (None, custom) => *c == Category::Other && custom.is_none(),
-            },
-            Place::Custom(name) => self.placed(row).1.as_deref() == Some(name.as_str()),
-            // What is under way: running, waiting its turn, or held by the
-            // schedule or the download limit. Not a failed row or one a
-            // person stopped, which the status bar does not count as
-            // downloading either.
-            Place::Unfinished => {
-                matches!(row.state, State::Running | State::Queued)
-                    || (row.state == State::Paused && row.paused_by_schedule)
-            }
-            Place::Finished => row.state == State::Completed,
-            Place::Queue(name) => &row.queue == name,
-        }
+        self.places.within(place, row, &self.applied.categories())
     }
 
     /// The category a person made that `row` belongs to, by the rule its
     /// file was (or will be) placed by.
     pub fn custom_of(&self, row: &Entry) -> Option<String> {
-        let categories = self.applied.categories();
-        let name = name_of(row);
-        categories
-            .custom_for(&name, &dm_core::host_of(&row.url))
-            .map(|c| c.name.clone())
+        dm_shell::app::places::custom_of(row, &self.applied.categories())
     }
 
     /// Each row's kind and category of a person's own, worked out once a
-    /// refresh: the places' counts asked for them per row, per place, per
-    /// frame, and 500 rows went past the frame budget (CI, 909e714).
+    /// read (`dm_shell::app::places::Places::place_rows`).
     pub(super) fn place_rows(&mut self) {
-        let categories = self.applied.categories();
-        // Under other categories of a person's own, every row is placed
-        // again; under the same, only those whose name, address, note or
-        // kind changed (a read of the list four times a second used to
-        // parse and lowercase every row's, 5,000 of them).
-        let rules = format!("{:?}", categories.custom);
-        if rules != self.place_rules {
-            self.place_rules = rules;
-            self.place_fingerprints.clear();
-        }
         self.rows_gen += 1;
-        for row in &self.rows {
-            use std::hash::{Hash, Hasher};
-            if self
-                .place_fingerprints
-                .get(&row.id)
-                .is_some_and(|(_, seen)| Arc::ptr_eq(seen, row))
-                && self.placed.contains_key(&row.id)
-            {
-                continue;
-            }
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            (
-                &row.url,
-                &row.filename,
-                &row.save_name,
-                &row.description,
-                row.category.map_or(255u8, |c| c as u8),
-            )
-                .hash(&mut hasher);
-            let fingerprint = hasher.finish();
-            if self.place_fingerprints.get(&row.id).map(|(f, _)| *f) == Some(fingerprint)
-                && self.placed.contains_key(&row.id)
-            {
-                self.place_fingerprints
-                    .insert(row.id, (fingerprint, Arc::clone(row)));
-                continue;
-            }
-            // Each row's name worked out once: from its address, for a row
-            // not yet named, it is a parse and a decode.
-            let name = name_of(row);
-            // The site only where a category of a person's own could ask:
-            // without one, every address was parsed again for nothing.
-            let custom = if categories.custom.is_empty() {
-                None
-            } else {
-                categories
-                    .custom_for(&name, &dm_core::host_of(&row.url))
-                    .map(|c| c.name.clone())
-            };
-            let kind = dm_core::by_name(&name).or(row.category);
-            self.haystacks.insert(row.id, haystack_named(&name, row));
-            self.placed.insert(row.id, (kind, custom));
-            self.place_fingerprints
-                .insert(row.id, (fingerprint, Arc::clone(row)));
-        }
-        // Rows that are gone.
-        if self.placed.len() != self.rows.len() {
-            let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
-            self.placed.retain(|id, _| ids.contains(id));
-            self.haystacks.retain(|id, _| ids.contains(id));
-            self.place_fingerprints.retain(|id, _| ids.contains(id));
-        }
+        self.places
+            .place_rows(&self.rows, &self.applied.categories());
     }
 
-    /// A row's kind and own category, from [`Self::place_rows`] when it has
-    /// been placed.
-    pub(super) fn placed(&self, row: &Entry) -> (Option<Category>, Option<String>) {
-        match self.placed.get(&row.id) {
-            Some(placed) => placed.clone(),
-            None => (kind_of(row), self.custom_of(row)),
-        }
-    }
-
-    /// How many rows are in `place`: counted once for each generation of the
-    /// list, not once a frame for each place the sidebar draws.
+    /// How many rows are in `place`: counted once for each read.
     pub fn count(&self, place: &Place) -> usize {
-        let mut cache = self.counts_cache.borrow_mut();
-        if cache.0 != self.rows_gen {
-            cache.0 = self.rows_gen;
-            cache.1.clear();
-        }
-        *cache
-            .1
-            .entry(format!("{place:?}"))
-            .or_insert_with(|| self.rows.iter().filter(|r| self.within(place, r)).count())
+        self.places
+            .count(place, &self.rows, &self.applied.categories())
     }
 
     /// The rows the table shows, in the order it shows them, as a list of

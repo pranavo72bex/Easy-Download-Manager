@@ -34,7 +34,7 @@ import time
 
 from gi.repository import Gio, GLib
 
-BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-desktop")
+BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
 HERE = pathlib.Path(__file__).parent
 failed = 0
 reports = []  # what KWin's scripts said, in order

@@ -68,6 +68,14 @@ impl WhenDone {
             .find(|w| w.word() == word.trim())
             .unwrap_or_default()
     }
+
+    /// Whether it can be chosen on this computer: doing nothing and closing
+    /// dm always; the rest where the system has the command (`available`,
+    /// the desktop's: macOS does not hibernate). The menu and the Scheduler
+    /// grey the rest, and an order from the command line is refused.
+    pub fn possible(self, available: impl FnOnce(WhenDone) -> bool) -> bool {
+        matches!(self, WhenDone::Nothing | WhenDone::Quit) || available(self)
+    }
 }
 
 /// Where a refusal that comes back later is told: the window's list of
@@ -89,5 +97,14 @@ mod tests {
         }
         assert_eq!(WhenDone::from_word("reboot"), WhenDone::Nothing);
         assert_eq!(WhenDone::default(), WhenDone::Nothing);
+    }
+
+    #[test]
+    fn doing_nothing_and_closing_are_always_possible_the_rest_where_the_system_can() {
+        for w in WhenDone::ALL {
+            let always = matches!(w, WhenDone::Nothing | WhenDone::Quit);
+            assert_eq!(w.possible(|_| false), always, "{w:?}");
+            assert!(w.possible(|_| true), "{w:?}");
+        }
     }
 }

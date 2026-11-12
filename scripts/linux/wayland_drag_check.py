@@ -22,7 +22,7 @@ import sys
 import tempfile
 import time
 
-BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-desktop")
+BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
 LINK = "https://downloads.example.com/files/dragged-under-wayland.zip"
 HERE = pathlib.Path(__file__).parent
 

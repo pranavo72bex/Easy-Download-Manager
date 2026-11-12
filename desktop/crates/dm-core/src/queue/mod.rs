@@ -244,9 +244,15 @@ pub struct Entry {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fresh_link: bool,
     /// A torrent's files, once its metadata is known, each with whether it
-    /// is fetched (Properties).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub torrent_files: Vec<crate::torrent::TorrentFile>,
+    /// is fetched (Properties). Shared: a row is copied each time it changes while a list read
+    /// earlier still holds it, four times a second while it downloads, and a torrent's list of
+    /// thousands of files was copied with it every time (gaps row S15).
+    #[serde(default, skip_serializing_if = "no_files")]
+    pub torrent_files: std::sync::Arc<Vec<crate::torrent::TorrentFile>>,
+    /// What the download said of itself beside its state (`download::Update::Note`), in
+    /// English; kept with the row once it finishes.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub said: String,
     /// The form this download is the answer to, sent again to fetch it. Held
     /// in memory only: a form can hold what a person typed.
     #[serde(skip)]
@@ -419,6 +425,11 @@ struct Slot {
     own_limit: crate::limit::Limiter,
 }
 
+/// Whether a row lists no torrent files (`Entry::torrent_files`), left out of the queue file.
+fn no_files(files: &std::sync::Arc<Vec<crate::torrent::TorrentFile>>) -> bool {
+    files.is_empty()
+}
+
 impl Slot {
     /// The row, to change: copied first where a list handed out still
     /// shares it, so a list already read never changes under its reader.
@@ -473,6 +484,22 @@ impl Slot {
     }
 }
 
+/// The queue's state, shared by every clone of it.
+///
+/// The order its locks are taken in, where one is taken while another is
+/// held (gaps row 184): `saving`, then `slots`, then `order`. Every other
+/// lock here is a leaf, taken last: its value is copied out (`options`,
+/// `store`, `client`) or changed in place (`quota`, `leaving`, the
+/// schedules), and the guard dropped before anything else is locked or
+/// awaited. Nothing awaits while it holds `slots` or `order`, nor does any
+/// file or network work under them; `note`, which calls the change
+/// callback, is called with neither held, nor `saving`. `saving` alone is
+/// held across I/O, the queue file's write, on purpose: it is what keeps an
+/// older list from being written after a newer one, and nothing waits for
+/// it but the next write and a `flush` asked to return once the list is on
+/// disk (a save made meanwhile goes into the next write: `save`). The std
+/// locks cannot be held across an `.await` at all: clippy's
+/// `await_holding_lock` refuses it, and CI refuses its warnings.
 struct Inner {
     slots: Mutex<HashMap<Id, Slot>>,
     /// Insertion order, so the queue is served in the order it was given.
@@ -481,12 +508,21 @@ struct Inner {
     /// Changeable while downloads are running: a setting that only applies
     /// after a restart is one people assume is broken. Running transfers keep
     /// the options they started with; the next one to start picks these up.
-    options: Mutex<Options>,
-    /// Where the queue is written, if anywhere. Tests leave it unset.
-    store: Mutex<Option<PathBuf>>,
+    /// A plain mutex: it is only ever copied out or replaced, never held
+    /// while anything is awaited.
+    options: std::sync::Mutex<Options>,
+    /// Where the queue is written, if anywhere. Tests leave it unset. A plain
+    /// mutex, read by copying the path out: a tokio guard made in an `if let`
+    /// lived to the end of its block, and held this across the queue file's
+    /// whole write, so every save (each pause, each finished download) and
+    /// the progress's own writes waited for it (gaps row 184).
+    store: std::sync::Mutex<Option<PathBuf>>,
     /// Held from reading the rows to renaming the file, so an older snapshot
     /// cannot be written after a newer one.
     saving: Mutex<()>,
+    /// How long each write of the queue file is made to take, in
+    /// milliseconds, by a test standing in for a slow disk (zero: none).
+    slow_writes_ms: AtomicU64,
     /// When the queue file was last written, and whether a change is
     /// waiting for the next write (`save`, `flush`).
     written: std::sync::Mutex<Option<std::time::Instant>>,
@@ -500,6 +536,8 @@ struct Inner {
     queue_limits: std::sync::Mutex<HashMap<String, usize>>,
     /// Whether a scheduler is already serving this queue.
     scheduling: AtomicBool,
+    /// Set as dm ends (`Queue::shut_down`): nothing starts after it.
+    closing: AtomicBool,
     /// Wakes a scheduler between its ticks, so a download added while
     /// others run starts now rather than at the next tick.
     kick: tokio::sync::Notify,
@@ -531,8 +569,9 @@ struct Inner {
     starts: std::sync::Mutex<QueueStarts>,
     /// Replaceable, because changing the proxy means a different client and
     /// a preference that needed a restart is one people assume is broken.
-    /// Running downloads keep the client they started with.
-    client: Mutex<reqwest::Client>,
+    /// Running downloads keep the client they started with. A plain mutex:
+    /// it is only ever copied out or replaced.
+    client: std::sync::Mutex<reqwest::Client>,
     /// What went wrong that no row can carry: the queue file that could not
     /// be written, the parts that could not be removed. Printed to stderr
     /// these reached nobody — a Dock-launched app has no stderr — while the
@@ -593,9 +632,10 @@ impl Queue {
                 slots: Mutex::new(HashMap::new()),
                 order: Mutex::new(Vec::new()),
                 next_id: AtomicU64::new(1),
-                options: Mutex::new(options),
-                store: Mutex::new(None),
+                options: std::sync::Mutex::new(options),
+                store: std::sync::Mutex::new(None),
                 saving: Mutex::new(()),
+                slow_writes_ms: AtomicU64::new(0),
                 written: std::sync::Mutex::new(None),
                 unwritten: AtomicBool::new(false),
                 trailing: AtomicBool::new(false),
@@ -603,6 +643,7 @@ impl Queue {
                 problems: std::sync::Mutex::new(Vec::new()),
                 leaving: std::sync::Mutex::new(Vec::new()),
                 scheduling: AtomicBool::new(false),
+                closing: AtomicBool::new(false),
                 kick: tokio::sync::Notify::new(),
                 rechecking: AtomicBool::new(false),
                 concurrency: AtomicUsize::new(concurrency.max(1)),
@@ -613,7 +654,7 @@ impl Queue {
                 quota_saved: std::sync::Mutex::new(None),
                 recheck: std::sync::Mutex::new((None, now_millis())),
                 starts: std::sync::Mutex::new(QueueStarts::default()),
-                client: Mutex::new(client),
+                client: std::sync::Mutex::new(client),
                 saves: AtomicU64::new(0),
                 saved: std::sync::Mutex::new(None),
                 changed: std::sync::Mutex::new(None),
@@ -635,14 +676,16 @@ impl Queue {
             .filter(|p| !p.is_empty());
         match recorded {
             Some(dir) => PathBuf::from(dir),
-            None => self
-                .inner
-                .options
-                .lock()
-                .await
+            None => crate::lock(&self.inner.options)
                 .parts_dir
                 .join(id.to_string()),
         }
+    }
+
+    /// Where the queue is written, if anywhere: copied out, the lock let go
+    /// at once (`Inner::store`).
+    pub(super) fn store_path(&self) -> Option<PathBuf> {
+        crate::lock(&self.inner.store).clone()
     }
 
     /// Whether a scheduler is already serving this queue.
@@ -700,6 +743,7 @@ impl Queue {
                     total: None,
                     speed: 0.0,
                     eta: None,
+                    estimated: false,
                 },
                 filename: String::new(),
                 finished_at: None,
@@ -733,7 +777,8 @@ impl Queue {
                 stalled: String::new(),
                 fresh_link: false,
                 title_hint: None,
-                torrent_files: Vec::new(),
+                torrent_files: Default::default(),
+                said: String::new(),
                 post: None,
                 posted: false,
             }),
@@ -752,8 +797,7 @@ impl Queue {
 
     /// Where the recheck queue's last run is kept: beside the queue file.
     async fn recheck_file(&self) -> Option<PathBuf> {
-        let store = self.inner.store.lock().await.clone()?;
-        Some(store.with_file_name("recheck-at"))
+        Some(self.store_path()?.with_file_name("recheck-at"))
     }
 }
 

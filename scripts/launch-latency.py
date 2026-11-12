@@ -23,6 +23,7 @@ and a display (Xvfb will do):
 import http.server
 import json
 import os
+import pathlib
 import shutil
 import statistics
 import struct
@@ -64,6 +65,18 @@ class Server(http.server.BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
 
+
+
+def ring(home):
+    """Rings dm's inbox bell, as dm's own writers do: it looks at once, not at its next look,
+    seconds away (gaps row S18)."""
+    import socket
+    try:
+        port = int((pathlib.Path(home) / "inbox" / "bell").read_text().strip())
+    except (OSError, ValueError):
+        return
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.sendto(b"", ("127.0.0.1", port))
 
 def frame(message):
     data = json.dumps(message).encode()
@@ -137,6 +150,7 @@ def main():
             inbox = os.path.join(home, "inbox")
             os.makedirs(inbox, exist_ok=True)
             open(os.path.join(inbox, "quit"), "w").close()
+            ring(home)
             time.sleep(1.5)
             subprocess.run(["pkill", "-f", f"{dm} --desktop"], check=False)
             shutil.rmtree(home, ignore_errors=True)

@@ -184,6 +184,29 @@ pub struct PanelClick {
 /// app, so this is longer than that and no more.
 pub const FORMATS_PATIENCE_MS: i32 = 50_000;
 
+/// How long the app's reading of a page is waited for, in milliseconds,
+/// when the streams the page's player loaded already make a list of their own.
+pub const STREAMS_PATIENCE_MS: f64 = 8_000.0;
+
+/// Whether the app's reading of a page may be cut short, after
+/// [`STREAMS_PATIENCE_MS`], for the `stream_lines` lines the page's own streams
+/// make: only when they offer a choice by themselves. One line is no choice:
+/// a click answered with it alone hands that one over at once, at whatever
+/// quality the player happened to fetch, while the qualities the app was
+/// still reading go unseen (YouTube on macOS, 2026-11-11, gaps row 178).
+pub fn cut_reading_short(stream_lines: usize) -> bool {
+    stream_lines >= 2
+}
+
+/// How long a click on a YouTube player waits for the player to list the
+/// video's qualities, in milliseconds, when it has no list yet (still
+/// loading, or playing an advertisement first) and the app has given fewer
+/// than two lines: past it, what the app gave is used as before.
+pub const PLAYER_LIST_PATIENCE_MS: f64 = 15_000.0;
+
+/// How often the player is asked again for its list while a click waits.
+pub const PLAYER_ASK_EVERY_MS: i32 = 500;
+
 /// The page script telling what a video player asked for.
 pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 
@@ -419,8 +442,9 @@ pub fn panel_target(click: &PanelClick, tab_url: &str, private: bool) -> Result<
     menu_target(&menu, private)
 }
 
-/// The video's id in a YouTube watch or Shorts address: the pages whose
-/// own player lists its qualities for the panel. `None` elsewhere.
+/// The video's id in a YouTube watch, Shorts, embed or live address, on YouTube, its no-cookie
+/// host or YouTube Music: the pages whose own player lists its qualities for the panel, an
+/// embedded player on another site's page included (gaps row Y12). `None` elsewhere.
 pub fn youtube_video_id(url: &str) -> Option<String> {
     let rest = url
         .strip_prefix("https://")
@@ -429,15 +453,18 @@ pub fn youtube_video_id(url: &str) -> Option<String> {
     let host = host
         .strip_prefix("www.")
         .or_else(|| host.strip_prefix("m."))
+        .or_else(|| host.strip_prefix("music."))
         .unwrap_or(host);
-    if host != "youtube.com" {
+    if host != "youtube.com" && host != "youtube-nocookie.com" {
         return None;
     }
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
     let id = if path == "watch" {
         query.split('&').find_map(|pair| pair.strip_prefix("v="))?
     } else {
-        path.strip_prefix("shorts/")?
+        ["shorts/", "embed/", "live/"]
+            .iter()
+            .find_map(|kind| path.strip_prefix(kind))?
             .split(['/', '?', '#'])
             .next()?
     };

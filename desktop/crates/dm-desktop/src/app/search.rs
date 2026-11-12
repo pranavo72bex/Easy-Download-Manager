@@ -32,25 +32,13 @@ impl DmApp {
         if !keep_layout {
             return self.add(urls, with);
         }
-        let mut groups: std::collections::BTreeMap<Option<String>, Vec<String>> =
-            std::collections::BTreeMap::new();
-        for url in urls {
-            groups
-                .entry(dm_shell::lists::layout_folder(url))
-                .or_default()
-                .push(url.clone());
-        }
         let mut added = 0;
         let mut failure = None;
+        let groups = dm_shell::app::search::by_site_folder(urls, &self.applied.download_dir);
         for (folder, group) in groups {
             let mut here = with.clone();
-            if let Some(folder) = folder {
-                here.save_dir = Some(
-                    std::path::Path::new(&self.applied.download_dir)
-                        .join(folder)
-                        .to_string_lossy()
-                        .into_owned(),
-                );
+            if folder.is_some() {
+                here.save_dir = folder;
             }
             match self.add(&group, here) {
                 Ok(n) => added += n,
@@ -121,10 +109,9 @@ impl DmApp {
                             )),
                         }
                     }
-                    let mut settings = self.applied.clone();
-                    if let Some(search) = settings.site_searches.iter_mut().find(|s| s.name == name)
+                    if let Some(settings) =
+                        dm_shell::app::search::seen_saved(&self.applied, &name, remember)
                     {
-                        search.seen = dm_shell::app::search::remembered(&search.seen, remember);
                         if let Err(e) = self.apply_settings(settings) {
                             self.problem(format!(
                                 "what the search {name} has seen could not be saved: {e}"
@@ -147,22 +134,9 @@ impl DmApp {
         let epoch = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let due: Vec<dm_shell::lists::Search> = self
-            .applied
-            .site_searches
-            .iter()
-            .filter(|s| s.due(epoch))
-            .cloned()
-            .collect();
-        if due.is_empty() {
+        let Some((due, settings)) = dm_shell::app::search::due_now(&self.applied, epoch) else {
             return;
-        }
-        let mut settings = self.applied.clone();
-        for search in &mut settings.site_searches {
-            if due.iter().any(|d| d.name == search.name) {
-                search.last_run = epoch;
-            }
-        }
+        };
         if let Err(e) = self.apply_settings(settings) {
             // Still run, and not again for a minute; but said, since an
             // unsaved last run means the search runs again at every launch.
@@ -211,79 +185,6 @@ impl DmApp {
     }
 }
 
-/// The place of the next name holding `needle` (in lower case) from `from`,
-/// the selected row, going forward or back and wrapping round the list; the
-/// selected row itself is the last one tried. From no selection a search
-/// begins at the top going forward, at the bottom going back.
-pub(super) fn next_match(
-    names: &[String],
-    from: Option<usize>,
-    needle: &str,
-    forward: bool,
-) -> Option<usize> {
-    let n = names.len();
-    if n == 0 || needle.is_empty() {
-        return None;
-    }
-    (1..=n)
-        .map(|step| match (from, forward) {
-            (Some(i), true) => (i + step) % n,
-            (Some(i), false) => (i + n - step % n) % n,
-            (None, true) => step - 1,
-            (None, false) => n - step,
-        })
-        .find(|&at| names[at].to_lowercase().contains(needle))
-}
-
-#[cfg(test)]
-mod find_tests {
-    use super::next_match;
-
-    fn names() -> Vec<String> {
-        ["alpha.zip", "beta.bin", "Alpha2.pdf", "gamma.iso"]
-            .map(String::from)
-            .to_vec()
-    }
-
-    #[test]
-    fn find_goes_forward_and_wraps_round() {
-        let names = names();
-        assert_eq!(next_match(&names, Some(0), "alpha", true), Some(2));
-        assert_eq!(next_match(&names, Some(2), "alpha", true), Some(0), "wraps");
-        assert_eq!(next_match(&names, Some(3), "alpha", true), Some(0));
-    }
-
-    #[test]
-    fn find_previous_goes_back_and_wraps_round() {
-        let names = names();
-        assert_eq!(next_match(&names, Some(2), "alpha", false), Some(0));
-        assert_eq!(
-            next_match(&names, Some(0), "alpha", false),
-            Some(2),
-            "wraps"
-        );
-        assert_eq!(next_match(&names, Some(1), "alpha", false), Some(0));
-    }
-
-    #[test]
-    fn the_only_match_is_found_again_from_itself() {
-        let names = names();
-        assert_eq!(next_match(&names, Some(1), "beta", true), Some(1));
-        assert_eq!(next_match(&names, Some(1), "beta", false), Some(1));
-    }
-
-    #[test]
-    fn with_nothing_selected_it_starts_at_an_end() {
-        let names = names();
-        assert_eq!(next_match(&names, None, "alpha", true), Some(0));
-        assert_eq!(next_match(&names, None, "alpha", false), Some(2));
-    }
-
-    #[test]
-    fn nothing_matching_or_nothing_typed_finds_nothing() {
-        let names = names();
-        assert_eq!(next_match(&names, Some(0), "zzz", true), None);
-        assert_eq!(next_match(&names, Some(0), "", true), None);
-        assert_eq!(next_match(&[], None, "a", true), None);
-    }
-}
+/// The next row's place whose name holds the words: dm's
+/// (`dm_desktop_base::find`), as every window finds.
+pub(super) use dm_desktop_base::find::next_match;

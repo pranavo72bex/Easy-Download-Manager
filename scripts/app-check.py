@@ -27,7 +27,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Where cargo put the client: its own target directory unless one was named.
 TARGET = pathlib.Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else ROOT / "desktop" / "target"
-CLIENT = "dm-desktop"
+# The window dm ships, on every system: GPUI (docs/gaps.md G9).
+CLIENT = "dm-gpui"
 EXE = CLIENT + (".exe" if WINDOWS else "")
 # Or the binary a package installed, so what is shipped is what is driven.
 BINARY = pathlib.Path(os.environ["DM_BINARY"]) if os.environ.get("DM_BINARY") else TARGET / "debug" / EXE
@@ -61,7 +62,23 @@ def wait_for(what, condition, seconds=15):
             raise RuntimeError(f"dm exited with code {APP.returncode} while waiting for: {what}\n"
                                + ("  it said:\n    " + err.replace("\n", "\n    ") if err else "  it said nothing"))
         time.sleep(0.1)
-    raise TimeoutError(what)
+    raise TimeoutError(what + said_by_rows())
+
+
+#: The home of the dm being checked, for what its rows say when a wait fails.
+HOME = None
+
+
+def said_by_rows():
+    """Each row's address, state and note, so a wait that failed says why."""
+    if HOME is None:
+        return ""
+    try:
+        lines = [f"{r['url']}: {json.dumps(r['state'])} {r.get('said', '')} {r.get('stalled', '')}".rstrip()
+                 for r in rows(HOME)]
+    except (OSError, ValueError):
+        return ""
+    return "\n  the rows:\n    " + "\n    ".join(lines) if lines else "\n  no rows"
 
 
 HITS = {}
@@ -216,14 +233,39 @@ def windows_of(name):
             return None
         mapped = 0
         for line in got.stdout.splitlines():
-            if '"dm"' not in line:
+            # Titled dm: `0x400001 "dm": ("dm" "dm")`. Not any line with "dm" in
+            # it: every dm window's class is dm too, a dialog's as well.
+            parts = line.split(None, 1)
+            if len(parts) < 2 or not parts[1].startswith('"dm":'):
                 continue
-            ident = line.split()[0]
+            ident = parts[0]
             state = subprocess.run(["xwininfo", "-id", ident], capture_output=True, text=True, timeout=10)
             if "IsViewable" in state.stdout:
                 mapped += 1
         return mapped
     return None
+
+
+def clipboard(text=None):
+    """What the system's clipboard holds, or with `text`, puts that on it and
+    returns what it held before; None where no tool here can reach it
+    (macOS's pbcopy, xclip on Linux, PowerShell on Windows)."""
+    if sys.platform == "darwin":
+        get, put = ["pbpaste"], ["pbcopy"]
+    elif WINDOWS:
+        get = ["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"]
+        put = ["powershell", "-NoProfile", "-Command", "$input | Set-Clipboard"]
+    elif shutil.which("xclip") and os.environ.get("DISPLAY"):
+        get, put = ["xclip", "-selection", "clipboard", "-o"], ["xclip", "-selection", "clipboard"]
+    else:
+        return None
+    try:
+        held = subprocess.run(get, capture_output=True, timeout=10).stdout
+        if text is not None:
+            subprocess.run(put, input=text.encode(), timeout=10, check=True)
+        return held
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def launch(env, *args):
@@ -267,7 +309,9 @@ def main():
         subprocess.run([cargo, "build", "-p", CLIENT], cwd=ROOT / "desktop", check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    global HOME
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-home-"))
+    HOME = home
     downloads = home / "Downloads"
     env = {**os.environ, "DM_HOME": str(home)}
     # Three attempts, not the ten a person gets: a check that a failure is a
@@ -566,9 +610,107 @@ def main():
         soon(lambda: "Add URL" in open_dialogs())
         human("ui.key", key="Escape")
         check("Escape closes the top dialog", soon(lambda: "Add URL" not in open_dialogs()))
+        # View › Text size (issue #32): Ctrl (Cmd) with + draws the list's
+        # words and rows larger, at once and kept in the settings; with 0 they
+        # are back at 100%.
+        held = ["cmd" if sys.platform == "darwin" else "ctrl"]
+        def measures():
+            names = [t["rect"] for t in call("ui.texts")["result"]["texts"]
+                     if t.get("window") == "main" and t["text"].endswith(".zip")]
+            tops = sorted({r[1] for r in names})
+            pitch = min((b - a for a, b in zip(tops, tops[1:])), default=0)
+            # The tallest name: one at the list's edge is drawn clipped (2 points of a 29
+            # point row under Xvfb, 2026-11-12), which measured the zoom as shrinking.
+            return (max((r[3] - r[1] for r in names), default=0), pitch)
+        medium = measures()
+        human("ui.key", key="=", modifiers=held)
+        human("ui.key", key="=", modifiers=held)
+        grown = lambda: [round(b / a, 2) if a else 0 for a, b in zip(medium, measures())]
+        larger = soon(lambda: all(r >= 1.1 for r in grown()))
+        # Said when it fails: the name's height and the rows' pitch before
+        # and after, so a run under Xvfb tells a slow frame from a size kept.
+        check("Ctrl (Cmd) with + draws the words and the rows larger",
+              larger or {"before": medium, "after": measures()}, True)
+        check("and the text size is kept", json.loads((home / "settings.json").read_text()).get("text_size"), 1.2)
+        human("ui.key", key="0", modifiers=held)
+        check("and with 0 they are back at 100%", soon(lambda: measures() == medium), True)
+        # Links on the clipboard (issue #32): Save to, as Download links has
+        # it. A folder typed (the field Browse… fills, whose system panel
+        # waits for a person) takes every link; one not there yet, two
+        # levels deep, is made as they are added; a file in its way is said
+        # and the dialog stays.
+        def from_clipboard(*names):
+            if clipboard("\n".join(url(n) for n in names)) is None:
+                return False
+            call("command.run", id="program.add_from_clipboard")
+            return soon(lambda: "Links on the clipboard" in open_dialogs())
+        def landed(name):
+            return wait_for(f"{name} from the clipboard never finished",
+                            lambda: [pathlib.Path(r["path"]) for r in rows(home)
+                                     if r["url"].endswith("/" + name) and r["state"]["kind"] == "completed"], 30)[0]
+        was_held = clipboard()
+        if was_held is None:
+            unchecked("Links on the clipboard saves to a folder chosen or new", "no clipboard tool here")
+        else:
+            try:
+                check("Add links from clipboard opens Links on the clipboard", from_clipboard("clip-a.zip", "clip-b.zip"))
+                check("with Save to as Download links has it", soon(lambda: all(w in on_screen() for w in (
+                    "Save to", "Each file to the folder of its category", "Every file to this category",
+                    "Every file to this folder", "Browse…"))))
+                # Below the download folder: a folder typed while a script
+                # drives the window is held there (gaps row 199).
+                picked = downloads / "picked"
+                picked.mkdir(parents=True)
+                human("ui.click", text="Every file to this folder")
+                human("ui.type", text=str(picked))
+                human("ui.click", text="Start now")
+                check("a folder chosen takes every link",
+                      (landed("clip-a.zip").parent, landed("clip-b.zip").parent), (picked, picked))
+                check("and the dialog closed", soon(lambda: "Links on the clipboard" not in open_dialogs()))
+                new = downloads / "From the clipboard" / "new"
+                from_clipboard("clip-c.zip")
+                human("ui.click", text="Every file to this folder")
+                human("ui.type", text=str(new))
+                human("ui.click", text="Add for later")
+                check("a new folder is made as the links are added, for later too",
+                      wait_for("the new folder was never made", lambda: new.is_dir(), 10), True)
+                waiting = wait_for("clip-c.zip never reached the queue",
+                                   lambda: [r for r in rows(home) if r["url"].endswith("/clip-c.zip")])
+                check("and the link waits in the main queue with that folder",
+                      (waiting[0]["state"]["kind"], waiting[0]["queue"], waiting[0].get("save_dir")),
+                      ("paused", "Main queue", str(new)))
+                taken = downloads / "taken"
+                taken.write_bytes(b"x")
+                from_clipboard("clip-d.zip")
+                human("ui.click", text="Every file to this folder")
+                human("ui.type", text=str(taken / "below"))
+                human("ui.click", text="Start now")
+                check("a file in the way is said, and the dialog stays",
+                      soon(lambda: any("could not be written" in w for w in on_screen())
+                           and "Links on the clipboard" in open_dialogs()))
+                human("ui.click", text="Cancel")
+                check("and nothing was added", [r for r in rows(home) if r["url"].endswith("/clip-d.zip")], [])
+            finally:
+                clipboard(was_held.decode(errors="replace"))
         human("ui.click", text="Tasks")
         check("a menu opens and lists its items", soon(lambda: "Add numbered series…" in on_screen()))
         human("ui.key", key="Escape")
+        # A place's right-click menu (gaps row U12): a queue's, then a category's, whose Add or
+        # edit categories… opens Options at Folders.
+        human("ui.click", text="Main queue", button="right")
+        check("a queue's right-click menu offers Start Queue, Stop Queue and Scheduler…",
+              soon(lambda: all(w in on_screen() for w in ("Start Queue", "Stop Queue", "Scheduler…"))))
+        # Closed by a press outside it (the port's keys go to a dialog in front where one is open).
+        human("ui.click", text="All")
+        check("and a click outside closes it", soon(lambda: "Scheduler…" not in on_screen()))
+        human("ui.click", text="Videos", button="right")
+        soon(lambda: "Add or edit categories…" in on_screen())
+        human("ui.click", text="Add or edit categories…")
+        check("a category's Add or edit categories… opens Options at Folders",
+              soon(lambda: "Options" in open_dialogs()
+                   and "Sort finished files into folders by kind" in on_screen()))
+        human("ui.key", key="Escape")
+        soon(lambda: "Options" not in open_dialogs())
         outside = call("downloads.add", urls=[url("outside.zip")], folder=str(home.parent / "elsewhere"))
         check("a download is refused a folder outside the download folder", (outside["ok"], "inside the download folder" in outside.get("error", "")), (False, True))
         inside = call("downloads.add", urls=[url("inside.zip")], later=True, folder=str(downloads / "sub"))

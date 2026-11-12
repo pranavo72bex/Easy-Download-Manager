@@ -208,13 +208,11 @@ impl DmApp {
                 }
             }
             TreeAction::OpenFolder => {
-                let root = self.applied.download_dir.clone();
-                let categories = self.applied.categories();
-                let dir = match &place {
-                    Place::Kind(kind) => categories.destination(&root, *kind),
-                    Place::Custom(name) => root.join(name),
-                    _ => root,
-                };
+                let dir = dm_shell::app::places::folder_of(
+                    &place,
+                    &self.applied.download_dir,
+                    &self.applied.categories(),
+                );
                 self.open_file(&dir.to_string_lossy());
             }
         }

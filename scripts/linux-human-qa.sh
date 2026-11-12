@@ -11,7 +11,12 @@
 #   DM_DEB=dm_0.9.0_arm64.deb sh scripts/linux-human-qa.sh   # a .deb at hand
 #   sh scripts/linux-human-qa.sh                             # a build of the checkout
 #   sh scripts/linux-human-qa.sh --save-baseline             # the window's Linux pictures
+#   DM_WINDOW=egui sh scripts/linux-human-qa.sh              # the egui window, not the GPUI one
 #
+# A build of the checkout is the GPUI window (dm-gpui), checked against its
+# pictures in docs/behaviour-baseline/gpui/linux; DM_WINDOW=egui builds and
+# checks the egui window (dm-desktop) instead (scripts/linux/window.sh). A
+# .deb is checked with the window it installs.
 # DM_RELEASE downloads that release's .deb for Docker's own architecture and
 # its Chrome extension zip with `gh` (a draft too, for whoever may see it),
 # into a folder of their own, and checks each against the release's
@@ -35,6 +40,8 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/work" "$stage/in"
 arch=$(docker version --format '{{.Server.Arch}}')
+# shellcheck source=scripts/linux/window.sh
+. scripts/linux/window.sh
 
 if [ -n "$DM_RELEASE" ]; then
   echo "== $DM_RELEASE's .deb ($arch) and Chrome extension, from GitHub"
@@ -63,7 +70,7 @@ else
   docker build -q -t dm-linux-check scripts/linux >/dev/null
   { git ls-files -z --cached --others --exclude-standard; } | tar --null -T - -cf - \
     | docker run --rm -i -v dm-linux-target:/target -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
-      dm-linux-check sh -c 'set -e; mkdir -p /work && cd /work && tar -xf - && cd desktop && cargo build -q -p dm-desktop'
+      dm-linux-check sh -c 'set -e; mkdir -p /work && cd /work && tar -xf - && cd desktop && cargo build -q -p "$1"' build "$binary"
 fi
 if [ -n "$DM_EXTENSION_ZIP" ]; then
   mkdir -p "$stage/in/chrome"
@@ -79,14 +86,19 @@ docker build -q -t dm-human-qa -f scripts/linux/Dockerfile.human-qa scripts/linu
 volume=dm-human-shots-qa
 docker volume rm "$volume" >/dev/null 2>&1 || true
 status=0
-tar -C "$stage" -cf - work in | docker run --rm -i -v dm-linux-target:/target:ro -v "$volume":/shots dm-human-qa \
+tar -C "$stage" -cf - work in | docker run --rm -i -e DM_LINUX_BINARY="$binary" \
+  -v dm-linux-target:/target:ro -v "$volume":/shots dm-human-qa \
   sh -c 'set -e; tar -xf - -C / && cd /work && sh scripts/linux/human-qa-session.sh "$@"' qa "$@" || status=$?
 rm -rf "$SHOTS" && mkdir -p "$SHOTS"
 docker run --rm -v "$volume":/shots dm-human-qa tar -C /shots -cf - . | tar -xf - -C "$SHOTS"
+# The window checked, as the session found it (a .deb's own).
+[ -f "$SHOTS/binary" ] && binary=$(cat "$SHOTS/binary")
+pictures=docs/behaviour-baseline/linux
+[ "$binary" = dm-gpui ] && pictures=docs/behaviour-baseline/gpui/linux
 case " $* " in *" --save-baseline "*)
-  mkdir -p docs/behaviour-baseline/linux
-  cp "$SHOTS"/baseline/*.png docs/behaviour-baseline/linux/
-  echo "baseline pictures: docs/behaviour-baseline/linux (look at them before keeping them)" ;;
+  mkdir -p "$pictures"
+  cp "$SHOTS"/baseline/*.png "$pictures"/
+  echo "baseline pictures: $pictures (look at them before keeping them)" ;;
 esac
 echo "screenshots and human-qa.py's words: $SHOTS"
 exit $status

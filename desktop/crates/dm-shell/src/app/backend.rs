@@ -13,6 +13,11 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{lists, shell, Settings};
+
+/// How long a dm that is ending waits for its downloads to stop
+/// (`Backend::shut_down`): each stops at its next piece, and a person
+/// quitting is not kept waiting past this.
+pub const SHUT_DOWN_WITHIN: std::time::Duration = std::time::Duration::from_secs(2);
 use dm_core::{AddOptions, Connection, Entry, Id, Queue};
 
 pub use super::platform::{chooser_here, Platform};
@@ -33,6 +38,9 @@ pub struct Backend {
     /// Videos the browser's panel handed over to be asked about: the window
     /// opens "Download details" for each before it starts.
     pub handed: Arc<Mutex<std::collections::VecDeque<crate::host::Request>>>,
+    /// Where slow work the window asks for is done, off its thread, in the
+    /// order asked (`Self::later`).
+    errands: Arc<crate::app::errands::Errands>,
 }
 
 impl Backend {
@@ -51,7 +59,34 @@ impl Backend {
             notices: Arc::new(Mutex::new(notices)),
             platform,
             handed: Arc::default(),
+            errands: Arc::default(),
         }
+    }
+
+    /// Does `work` off the caller's thread, after the work asked for before
+    /// it (`errands`): what a window's handler would otherwise wait for, a
+    /// file copied to another disk or a command on ten thousand rows (gaps
+    /// row 183). Its answer is awaited where it is to be shown.
+    pub fn later<R: Send + 'static>(
+        &self,
+        work: impl FnOnce(&Backend) -> R + Send + 'static,
+    ) -> crate::app::errands::Answer<R> {
+        let backend = self.clone();
+        self.errands.run(move || work(&backend))
+    }
+
+    /// Runs `work` on the engine's runtime, beside the downloads rather
+    /// than behind the window's errands: a read a window draws from (a
+    /// download's pieces), which must not wait for a file being moved.
+    pub fn on_runtime<R: Send + 'static>(
+        &self,
+        work: impl std::future::Future<Output = R> + Send + 'static,
+    ) -> crate::app::errands::Answer<R> {
+        let (tell, answer) = tokio::sync::oneshot::channel();
+        self.runtime.spawn(async move {
+            let _ = tell.send(work.await);
+        });
+        crate::app::errands::Answer(answer)
     }
 
     /// Places a download begun while Download details asked (`Queue::settle_early`).
@@ -71,6 +106,7 @@ impl Backend {
     }
 
     fn block_on<T>(&self, work: impl std::future::Future<Output = T>) -> T {
+        crate::app::costs::waited();
         self.runtime.block_on(work)
     }
 
@@ -220,10 +256,18 @@ impl Backend {
         self.block_on(self.queue.remove_many(ids));
     }
 
-    /// Writes the queue file now if a change is still waiting to be written:
-    /// what a dm that is ending does last.
+    /// Writes the queue file now if a change is still waiting to be written.
     pub fn flush(&self) {
         self.block_on(self.queue.flush());
+    }
+
+    /// What a dm that is ending does last (Exit, a logout, a signal): every
+    /// running download stopped as a pause stops it, awaited for up to
+    /// [`SHUT_DOWN_WITHIN`], and put back in line for the next start; then
+    /// the queue file written (`Queue::shut_down`). Says how many runs were
+    /// still going at the deadline.
+    pub fn shut_down(&self) -> usize {
+        self.block_on(self.queue.shut_down(SHUT_DOWN_WITHIN))
     }
 
     /// One command for the lot, not one per row: pausing forty downloads by
@@ -251,6 +295,11 @@ impl Backend {
     /// A stopped download sent on to another folder, its unfinished parts
     /// moved there, and started again.
     pub fn relocate(&self, id: Id, dir: std::path::PathBuf) -> Result<(), String> {
+        if let Some(why) =
+            crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
+        {
+            return Err(why);
+        }
         self.block_on(async {
             self.queue.relocate(id, dir).await?;
             shell::wake(&self.queue);
@@ -273,6 +322,7 @@ impl Backend {
     /// The settings in force.
     #[must_use]
     pub fn settings(&self) -> Settings {
+        crate::app::costs::copied_settings();
         dm_core::lock(&self.settings).clone()
     }
 
@@ -318,7 +368,10 @@ impl Backend {
         by_script: bool,
     ) -> (Result<Settings, String>, crate::settings::KeptPrograms) {
         let kept = if by_script {
-            wanted.keep_programs_of(&self.settings())
+            let mine = self.settings();
+            let mut kept = wanted.keep_programs_of(&mine);
+            kept.folders = wanted.keep_places_of(&mine);
+            kept
         } else {
             Default::default()
         };
@@ -372,6 +425,29 @@ impl Backend {
             .save()
             .map_err(|e| format!("settings could not be saved: {e}"))?;
         Ok(settings)
+    }
+
+    /// A change to how the window looks and nothing else (a column or a
+    /// toolbar button dragged to another place): in force at once, and the
+    /// settings file written off the caller's thread, after the errands
+    /// asked before it (gaps row 183). Nothing reaches the queue, so
+    /// nothing is applied to it. What is written is the settings in force
+    /// when the errand runs, so a change made meanwhile is not written over
+    /// by an older copy; a file that cannot be written is said in the
+    /// banner.
+    pub fn keep_look(&self, change: impl FnOnce(&mut Settings)) -> Settings {
+        let now = {
+            let mut settings = dm_core::lock(&self.settings);
+            change(&mut settings);
+            settings.clone()
+        };
+        // Not awaited: the errand runs whether or not its answer is.
+        drop(self.later(|backend| {
+            if let Err(e) = backend.settings().save() {
+                backend.note(format!("settings could not be saved: {e}"));
+            }
+        }));
+        now
     }
 
     /// Add URL's remembered addresses, kept and saved alone: nothing else
@@ -455,6 +531,7 @@ impl Backend {
     pub fn add_with(&self, url: &str, with: AddOptions) -> Result<Id, String> {
         let settings = self.settings();
         let with = settings.with_site_rule(url, admit(url, with)?);
+        held_to_downloads(&with, &settings)?;
         let url = settings.with_login(url.trim());
         let later = with.later;
         let id = self
@@ -476,6 +553,7 @@ impl Backend {
             .into_iter()
             .map(|(url, with)| {
                 let with = settings.with_site_rule(&url, admit(&url, with)?);
+                held_to_downloads(&with, &settings)?;
                 Ok((settings.with_login(url.trim()), with))
             })
             .collect();
@@ -599,6 +677,11 @@ impl Backend {
     /// went there.
     pub fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
         let dir = full_folder(&dir.to_string_lossy())?;
+        if let Some(why) =
+            crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
+        {
+            return Err(why);
+        }
         self.block_on(self.queue.move_to(id, &dir))
     }
 
@@ -653,7 +736,7 @@ impl Backend {
 
     /// Adds what a `.dmlist` file or a plain list holds, saying how many.
     pub fn import(&self, text: &str) -> usize {
-        self.import_where(text, |_| true)
+        self.import_where(text, |_| true).len()
     }
 
     /// The addresses a list holds, in its order.
@@ -664,8 +747,9 @@ impl Backend {
             .collect()
     }
 
-    /// [`Self::import`], of only the rows whose address `keep` keeps.
-    pub fn import_where(&self, text: &str, keep: impl Fn(&str) -> bool) -> usize {
+    /// [`Self::import`], of only the rows whose address `keep` keeps; the
+    /// rows added.
+    pub fn import_where(&self, text: &str, keep: impl Fn(&str) -> bool) -> Vec<Id> {
         let mut rows = lists::from_list(text);
         rows.retain(|row| keep(&row.url));
         let items = rows
@@ -701,7 +785,7 @@ impl Backend {
         if held {
             self.block_on(async { shell::wake(&self.queue) });
         }
-        added.iter().filter(|r| r.is_ok()).count()
+        added.into_iter().filter_map(Result::ok).collect()
     }
 }
 
@@ -718,6 +802,19 @@ fn admit(url: &str, mut with: AddOptions) -> Result<AddOptions, String> {
         with.save_dir = Some(full_folder(&typed)?.display().to_string());
     }
     Ok(with)
+}
+
+/// A chosen folder held to the download folder while a script drives the window
+/// (`control_api::folder_refused`).
+fn held_to_downloads(with: &AddOptions, settings: &crate::Settings) -> Result<(), String> {
+    match with.save_dir.as_deref() {
+        Some(folder) => crate::app::control_api::folder_refused(
+            std::path::Path::new(folder),
+            &settings.download_dir,
+        )
+        .map_or(Ok(()), Err),
+        None => Ok(()),
+    }
 }
 
 /// A folder typed for a row, as a full path (`~` is the home folder), or why not.
@@ -839,6 +936,29 @@ mod chooser_tests {
 }
 
 #[cfg(test)]
+mod keep_look_tests {
+    use super::testing::backend;
+
+    /// A column dragged is in force at once and reaches the settings file
+    /// off the caller's thread; a change made meanwhile is not written over.
+    #[test]
+    fn a_look_kept_is_in_force_at_once_and_written_after() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        let order = vec!["size".to_string(), "status".to_string()];
+        let now = backend.keep_look(|s| s.column_order.clone_from(&order));
+        assert_eq!(now.column_order, order);
+        assert_eq!(backend.settings().column_order, order);
+        // An errand after it runs once it is written. (What the file holds
+        // is not compared: this crate's other tests write it at the same
+        // time, from their own backends.)
+        let written = runtime.block_on(backend.later(|_| crate::Settings::path().is_file()));
+        assert_eq!(written, Some(true));
+    }
+}
+
+#[cfg(test)]
 mod settings_from_tests {
     use super::testing::backend;
 
@@ -857,6 +977,84 @@ mod settings_from_tests {
         let (now, kept) = backend.set_settings_from(wanted, false);
         assert!(!kept.command);
         assert_eq!(now.unwrap().on_complete, "echo done");
+    }
+
+    /// Where downloads go is a person's to set too: a script moving the download folder into a
+    /// startup folder keeps the one in force and says it did; a person's change sets it
+    /// (security audit, 2026-11-12).
+    #[test]
+    fn a_scripts_settings_change_keeps_the_folders_a_persons_sets_them() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        let before = backend.settings().download_dir;
+        let elsewhere = dir.path().join("LaunchAgents");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        let mut wanted = backend.settings();
+        wanted.download_dir = elsewhere.clone();
+        wanted.categorize = !wanted.categorize;
+        let (now, kept) = backend.set_settings_from(wanted.clone(), true);
+        assert!(kept.folders);
+        let now = now.unwrap();
+        assert_eq!(now.download_dir, before);
+        assert_ne!(now.categorize, wanted.categorize);
+        let (now, kept) = backend.set_settings_from(wanted, false);
+        assert!(!kept.folders);
+        assert_eq!(now.unwrap().download_dir, elsewhere);
+    }
+}
+
+#[cfg(test)]
+mod undo_tests {
+    use super::testing::backend;
+    use super::*;
+
+    fn finished(id: Id) -> Entry {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "url": format!("http://127.0.0.1:9/{id}.bin"),
+            "state": serde_json::to_value(dm_core::State::Completed).unwrap(),
+            "progress": {"downloaded": 1, "total": 1, "speed": 0.0, "eta": null},
+            "filename": format!("{id}.bin"),
+        }))
+        .unwrap()
+    }
+
+    /// Finished rows taken off are put back once, while Undo is on offer,
+    /// and not after its time.
+    #[test]
+    fn undo_puts_the_rows_taken_off_back_once_and_only_in_its_time() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        backend.put_back(vec![(0, finished(7)), (1, finished(8))]);
+        let ids: Vec<Id> = backend.snapshot().rows.iter().map(|r| r.id).collect();
+        assert_eq!(ids.len(), 2, "{ids:?}");
+        let mut undo = Undo::default();
+        assert!(
+            !undo.live() && undo.put_back(&backend).is_none(),
+            "nothing kept"
+        );
+        assert_eq!(undo.keep(backend.finished_rows(&ids)), 2);
+        backend.remove_many(&ids);
+        assert!(backend.snapshot().rows.is_empty());
+        assert!(undo.live());
+        let mut back = undo.put_back(&backend).unwrap();
+        back.sort_unstable();
+        let mut want = ids.clone();
+        want.sort_unstable();
+        assert_eq!(back, want);
+        assert_eq!(backend.snapshot().rows.len(), 2);
+        assert!(undo.put_back(&backend).is_none(), "once");
+        // Its time over: put away, and nothing put back.
+        assert_eq!(undo.keep(backend.finished_rows(&ids)), 2);
+        backend.remove_many(&ids);
+        undo.backdate(UNDO_FOR);
+        assert!(!undo.live() && !undo.is_kept());
+        assert!(undo.put_back(&backend).is_none());
+        assert!(backend.snapshot().rows.is_empty());
+        assert_eq!(undo.keep(Vec::new()), 0, "nothing to keep");
+        assert!(!undo.is_kept());
     }
 }
 
@@ -905,6 +1103,67 @@ mod set_url_tests {
         );
         assert!(backend.set_url(id, "not a link").is_err());
         backend.cancel(id);
+    }
+}
+
+/// How long after downloads were taken off the list Undo puts them back.
+pub const UNDO_FOR: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Finished rows taken off the list, kept for [`UNDO_FOR`] so Undo can put
+/// them back where they were.
+#[derive(Debug, Default)]
+pub struct Undo(Option<(std::time::Instant, Vec<(usize, Entry)>)>);
+
+impl Undo {
+    /// Kept since `at` (the window's tests set a time).
+    pub fn since(at: std::time::Instant, rows: Vec<(usize, Entry)>) -> Undo {
+        Undo(Some((at, rows)))
+    }
+
+    /// `rows` were just taken off (`Backend::finished_rows` before the
+    /// removal): kept, in place of any before. How many; none keeps nothing.
+    pub fn keep(&mut self, rows: Vec<(usize, Entry)>) -> usize {
+        let n = rows.len();
+        if n > 0 {
+            self.0 = Some((std::time::Instant::now(), rows));
+        }
+        n
+    }
+
+    /// Whether Undo is still on offer; put away once its time is over.
+    pub fn live(&mut self) -> bool {
+        match &self.0 {
+            Some((at, _)) if at.elapsed() < UNDO_FOR => true,
+            Some(_) => {
+                self.0 = None;
+                false
+            }
+            None => false,
+        }
+    }
+
+    /// Whether anything is kept, on offer or not yet put away.
+    pub fn is_kept(&self) -> bool {
+        self.0.is_some()
+    }
+
+    /// As if kept `by` earlier (the window's tests).
+    pub fn backdate(&mut self, by: std::time::Duration) {
+        if let Some((at, _)) = self.0.as_mut() {
+            *at = at.checked_sub(by).unwrap_or(*at);
+        }
+    }
+
+    /// Puts the rows back through `backend` while Undo is on offer: their
+    /// ids, or `None` (nothing kept, or its time over). Once only.
+    pub fn put_back(&mut self, backend: &Backend) -> Option<Vec<Id>> {
+        let (at, rows) = self.0.take()?;
+        if at.elapsed() >= UNDO_FOR || rows.is_empty() {
+            return None;
+        }
+        let ids = rows.iter().map(|(_, e)| e.id).collect();
+        backend.put_back(rows);
+        Some(ids)
     }
 }
 

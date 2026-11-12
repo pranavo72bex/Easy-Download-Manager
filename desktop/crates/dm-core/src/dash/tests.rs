@@ -162,10 +162,11 @@ fn live_multi_period_and_protected_manifests_are_refused_by_name() {
         r#"<Period><AdaptationSet mimeType="video/mp4"><ContentProtection schemeIdUri="urn:x"/>
         <SegmentTemplate duration="1" media="m"/><Representation id="v" bandwidth="1"/></AdaptationSet></Period>"#,
     );
+    // In the same words as a protected HLS stream (gaps row Y19).
     assert!(plan(&drm, URL, Quality::Best, None)
         .unwrap_err()
         .to_string()
-        .contains("rights system"));
+        .contains("copy-protected (DRM)"));
 }
 
 #[test]
@@ -336,6 +337,7 @@ fn a_track_is_known_by_its_height_or_codec_and_subtitles_are_left_out() {
     let sound_only = super::Plan {
         video: None,
         audio: plan.audio.clone(),
+        protected_above: false,
     };
     assert!(sound_only.signature().starts_with("dash - a:"));
 }

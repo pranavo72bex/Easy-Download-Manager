@@ -842,8 +842,6 @@ g.Vx(om);
     /// an installed one.
     fn an_engine_is_here() -> bool {
         crate::javascript::system_engine_here()
-            || crate::videopage::deno().is_some()
-            || crate::videopage::quickjs().is_some()
     }
 
     #[tokio::test]
@@ -852,13 +850,11 @@ g.Vx(om);
             eprintln!("no JavaScript engine here: not run");
             return;
         }
-        let dir = tempfile::tempdir().unwrap();
         let program = program(PLAYER).unwrap();
         let got = crate::javascript::run(
             &program,
             &call(&["abc", "xyz"], &["a/b+c"]),
             std::time::Duration::from_secs(30),
-            dir.path(),
         )
         .await
         .unwrap();
@@ -872,7 +868,6 @@ g.Vx(om);
             &super::program(&failing).unwrap(),
             &call(&["abc"], &[]),
             std::time::Duration::from_secs(30),
-            dir.path(),
         )
         .await
         .unwrap_err();
@@ -903,12 +898,10 @@ document.body.appendChild(null);}).call(this);
             eprintln!("no JavaScript engine here: not run");
             return;
         }
-        let dir = tempfile::tempdir().unwrap();
         let got = crate::javascript::run(
             &program,
             &call(&["abc"], &["xyz"]),
             std::time::Duration::from_secs(30),
-            dir.path(),
         )
         .await
         .unwrap();

@@ -18,8 +18,6 @@ use common::{options, tempdir};
 #[ignore = "reaches youtube.com: run by hand"]
 async fn a_part_of_a_youtube_video_becomes_a_gif() {
     let dir = tempdir();
-    // Where the app keeps the JavaScript engine YouTube's challenges need.
-    dm_core::tools::set_folder(dir.path().join("tools"));
     let mut o = options(dir.path());
     o.gif = true;
     o.media = true;

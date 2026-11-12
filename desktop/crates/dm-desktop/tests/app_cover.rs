@@ -68,14 +68,22 @@ impl Platform for Refusing {
 
 /// A window over `settings` whose system is `platform`.
 fn app_on(world: &World, settings: Settings, platform: Arc<dyn Platform>) -> DmApp {
-    let queue = Queue::new(
-        dm_core::client(),
-        settings.options(
-            world.dir.path().join("parts"),
-            dm_core::Limiter::unlimited(),
-        ),
-        settings.concurrency,
+    app_with(world, settings, platform, |_| {})
+}
+
+/// `app_on` with the engine's options changed first by `tweak`.
+fn app_with(
+    world: &World,
+    settings: Settings,
+    platform: Arc<dyn Platform>,
+    tweak: impl FnOnce(&mut dm_core::Options),
+) -> DmApp {
+    let mut options = settings.options(
+        world.dir.path().join("parts"),
+        dm_core::Limiter::unlimited(),
     );
+    tweak(&mut options);
+    let queue = Queue::new(dm_core::client(), options, settings.concurrency);
     let backend = Backend::new(
         world.runtime.handle().clone(),
         queue,
@@ -864,7 +872,17 @@ fn huge_server(world: &World) -> String {
 fn a_hint_whose_mark_cannot_be_saved_says_why() {
     let _one = one_at_a_time();
     let world = world();
-    let mut app = app_on(&world, world.settings(), Arc::new(Refusing::default()));
+    // The file is 6 GiB, so the disk under the test is said to have room
+    // for it: on a nearly full disk the download would wait for room and the
+    // hint would never be due.
+    let mut app = app_with(
+        &world,
+        world.settings(),
+        Arc::new(Refusing::default()),
+        |o| {
+            o.room = dm_core::Room::with_free_space(|_| Some(1 << 40));
+        },
+    );
     app.add(&[huge_server(&world)], dm_core::AddOptions::default())
         .unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -897,6 +915,8 @@ fn a_hint_whose_mark_cannot_be_saved_says_why() {
 
     app.applied.start_on_login = true;
     app.said = Default::default();
+    // The tests' window has the Details hint given (`World::settings`).
+    app.applied.hinted_details = false;
     app.details_hint();
     assert!(
         app.said
@@ -926,14 +946,10 @@ fn undo_after_its_time_or_with_nothing_puts_nothing_back() {
     let id = app.rows()[0].id;
     app.remove_finished_with_undo(&[id]);
     assert!(app.rows().is_empty());
-    if let Some((at, _)) = app.undo_remove.as_mut() {
-        *at = Instant::now()
-            .checked_sub(Duration::from_secs(60))
-            .unwrap_or(*at);
-    }
+    app.undo_remove.backdate(Duration::from_secs(60));
     app.undo_remove();
     assert!(app.rows().is_empty(), "put back after its time");
-    app.undo_remove = Some((Instant::now(), Vec::new()));
+    app.undo_remove = dm_shell::app::backend::Undo::since(Instant::now(), Vec::new());
     app.undo_remove();
     assert!(app.rows().is_empty());
 }

@@ -16,13 +16,6 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-// From Google's Rust style guide, checked in CI: an `unsafe` block says why it
-// is sound (`// SAFETY:`, on every platform, Windows included), and a string is
-// built with `format!` rather than `+`, and a loop is a loop rather than
-// `for_each`.
-#![warn(missing_docs)]
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod aac;
 
 pub mod auth;
@@ -57,9 +50,13 @@ pub mod fmp4;
 
 pub mod frames;
 
+mod dns;
+mod finish_trace;
 pub mod ftp;
 
 pub mod gif;
+
+pub mod heavy;
 
 pub mod hex;
 
@@ -68,6 +65,9 @@ pub mod javascript;
 mod limit;
 
 pub mod live;
+
+#[cfg(target_os = "macos")]
+pub mod memory;
 
 mod metalink;
 
@@ -127,8 +127,6 @@ pub mod subtitles;
 #[path = "../../../test-support/secrets.rs"]
 pub(crate) mod test_secrets;
 
-pub mod tools;
-
 pub use second_path::{
     interfaces, on_second, set_second_client, set_second_path, system_name, Interface,
 };
@@ -173,8 +171,8 @@ pub use connect_first::{set_connect_first, ConnectFirst, Redial};
 pub use control::{Control, Wanted};
 
 pub use download::{
-    download, download_reporting, free_name, free_space, names_a_document, nth_free_name, Finished,
-    HostLimit, Options, Room, Update,
+    download, download_reporting, free_name, free_space, names_a_document, nth_free_name,
+    slow_part_writes_to, Finished, HostLimit, Options, Room, Update, NOTES,
 };
 
 pub use limit::Limiter;

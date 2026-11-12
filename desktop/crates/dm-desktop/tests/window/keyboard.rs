@@ -127,6 +127,8 @@ fn the_search_box_is_level_with_the_menus() {
 #[test]
 fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     use egui::accesskit::Role;
+    // Add URL saves its addresses.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -286,6 +288,8 @@ fn menus_open_from_the_keyboard() {
 
 #[test]
 fn the_lists_keys_do_not_reach_it_from_behind_a_dialog() {
+    // Options' OK saves the settings.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -380,6 +384,8 @@ fn f3_finds_the_next_one_while_find_is_open() {
 /// Enter presses its default button.
 #[test]
 fn a_dialog_is_typed_in_at_once_and_enter_presses_its_default_button() {
+    // Add URL saves its addresses.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::N);

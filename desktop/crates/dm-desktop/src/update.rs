@@ -12,27 +12,9 @@ use std::sync::{Arc, Mutex};
 
 pub use dm_shell::app::update::*;
 
-use crate::i18n::{t, tf};
-
-/// Where dm's documentation is: the project's README.
-pub const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#readme";
-
-/// The project's source, licence, privacy statement and code signing
-/// policy, as About dm links them.
-pub const SOURCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager";
-/// The guide to dm's parts, where Help's topics point (`docs/user-guide.md`).
-pub const GUIDE: &str =
-    "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/docs/user-guide.md";
-/// Where a person asks for help or reports a fault.
-pub const SUPPORT: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/issues";
-/// The project's licence.
-pub const LICENCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/LICENSE";
-/// The project's privacy statement.
-pub const PRIVACY: &str =
-    "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/PRIVACY.md";
-/// The project's code signing policy.
-pub const SIGNING: &str =
-    "https://github.com/pranavo72bex/Easy-Download-Manager#code-signing-policy";
+/// The project's pages About and Help link to (`dm_desktop_base::project`,
+/// both windows).
+pub use dm_desktop_base::project::{GUIDE, HELP, LICENCE, PRIVACY, SIGNING, SOURCE, SUPPORT};
 
 /// What the window says of the update check.
 pub trait Said {
@@ -42,27 +24,7 @@ pub trait Said {
 
 impl Said for Update {
     fn shown(&self) -> String {
-        let running = env!("CARGO_PKG_VERSION");
-        match self {
-            Update::NotAsked => t("Not checked yet.").to_owned(),
-            Update::Asking => t("Checking…").to_owned(),
-            Update::Current => tf("This is the newest version ({}).", &[&running]),
-            Update::Newer(v, Some(_)) => tf(
-                "dm {} is available (you have {}). Download its installer here.",
-                &[v, &running],
-            ),
-            Update::Newer(v, None) => tf(
-                "dm {} is out (this is {}). It is on the project's releases page.",
-                &[v, &running],
-            ),
-            Update::NoRelease => tf("No newer release yet (you have {}).", &[&running]),
-            // In plain words where dm knows them (the raw
-            // "error sending request for url (…)" offline).
-            Update::Failed(why) => tf(
-                "Could not reach the update server: {}",
-                &[&crate::format::reason(why).map(t).unwrap_or(why.as_str())],
-            ),
-        }
+        dm_desktop_base::project::update_words(self, env!("CARGO_PKG_VERSION"))
     }
 }
 

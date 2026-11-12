@@ -15,10 +15,15 @@ pub(in crate::download) const HELP_AFTER: Duration = Duration::from_millis(100);
 
 pub(in crate::download) const HELP_WATCH: Duration = Duration::from_millis(80);
 
-/// How much work, at the rate seen, a helper is worth opening a connection
-/// for: a connection costs a round trip before its first byte, so one opened
-/// for what the others finish sooner only slows the end.
-pub(in crate::download) const HELP_WORTH_SECS: f64 = 0.3;
+/// How much of the file, at the rate seen, is worth a helper's looking for a
+/// range to halve. Whether it then opens a connection is the range's to say
+/// (`Job::split_worth`: a connection costs a round trip before its first byte,
+/// so one opened for what the others finish sooner only slows the end), so
+/// this is no longer that guard. At 0.3 s, a 2 MiB file fetched at 2 MiB/s a
+/// connection was seen with 0.29 to 0.34 s left when its helpers looked, and was
+/// helped or not by how its bytes fell into the 80 ms watched: 0.32 s with help,
+/// 0.52 s without (`bench` batch, macOS, 2026-11-11).
+pub(in crate::download) const HELP_WORTH_SECS: f64 = 0.2;
 
 /// How long a helper waits for the first bytes to show a rate. A link that
 /// has sent nothing for so long is slow enough to be helped.
@@ -137,7 +142,9 @@ async fn growing(
     let (mut allowed, mut batch, mut again) = (0usize, 1usize, GROW_AGAIN);
     loop {
         let left = size.saturating_sub(job.downloaded.load(Ordering::Relaxed)) as f64;
-        if left == 0.0 || allowed >= grown {
+        // A server that turns requests away serves no more: none past the most it has served at
+        // once is let in (`limits`).
+        if left == 0.0 || allowed >= grown || job.limits.limited() {
             return;
         }
         // Nothing arrived over the window (a link gone quiet): looked at again.
@@ -150,13 +157,11 @@ async fn growing(
         }
         let at_work = active.load(Ordering::SeqCst).max(1);
         let added = batch.min(grown - allowed);
-        let flowing = job.flowing.load(Ordering::SeqCst);
+        let flowing = job.together.flowing();
         allowed += added;
         gate.send_modify(|g| g.allowed = allowed);
         let asked = tokio::time::Instant::now();
-        while job.flowing.load(Ordering::SeqCst) < flowing + added
-            && asked.elapsed() < GROW_FIRST_BYTES
-        {
+        while job.together.flowing() < flowing + added && asked.elapsed() < GROW_FIRST_BYTES {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
         tokio::time::sleep(GROW_SETTLE).await;
@@ -191,22 +196,6 @@ async fn rate_over(job: &Job) -> f64 {
     tokio::time::sleep(GROW_WINDOW).await;
     let got = job.downloaded.load(Ordering::Relaxed).saturating_sub(had);
     got as f64 / from.elapsed().as_secs_f64().max(f64::EPSILON)
-}
-
-/// A request counted among those bringing bytes in (`Job::flowing`) while it lives.
-pub(in crate::download) struct Flowing<'a>(&'a AtomicUsize);
-
-impl<'a> Flowing<'a> {
-    pub(in crate::download) fn new(count: &'a AtomicUsize) -> Self {
-        count.fetch_add(1, Ordering::SeqCst);
-        Flowing(count)
-    }
-}
-
-impl Drop for Flowing<'_> {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::SeqCst);
-    }
 }
 
 /// How long a connection is watched before it is judged against the rest.

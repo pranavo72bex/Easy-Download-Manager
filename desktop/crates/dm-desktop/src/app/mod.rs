@@ -104,127 +104,12 @@ struct VisibleKey {
     sizes_told: usize,
 }
 
-/// A place in the category tree: a filter over the one list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Place {
-    /// Every download.
-    All,
-    /// One built-in category.
-    Kind(Category),
-    /// A category a person made, by name.
-    Custom(String),
-    /// The downloads not yet finished.
-    Unfinished,
-    /// The finished downloads.
-    Finished,
-    /// The downloads in the queue of this name.
-    Queue(String),
-}
+/// A place in the category tree: a filter over the one list
+/// (`dm_shell::app::places`).
+pub use dm_shell::app::places::Place;
 
-/// A column of the download table, in its default order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Column {
-    /// The file's name.
-    Name,
-    /// The queue the download is in.
-    Queue,
-    /// The size.
-    Size,
-    /// The status.
-    Status,
-    /// The time left.
-    TimeLeft,
-    /// The transfer rate.
-    Rate,
-    /// The time of the last try.
-    LastTry,
-    /// The description.
-    Description,
-    /// The page a browser handed the download over from.
-    Referrer,
-    /// Where the finished file is, or where it will go.
-    Folder,
-}
-
-impl Column {
-    /// In the order a new window shows them, reference A's: File Name, Q
-    /// (narrow), Size, Status, Time left, Transfer rate, Last Try Date and
-    /// Description (decisions.md, "dm works exactly like reference A").
-    pub const ALL: [Column; 10] = [
-        Column::Name,
-        Column::Queue,
-        Column::Size,
-        Column::Status,
-        Column::TimeLeft,
-        Column::Rate,
-        Column::LastTry,
-        Column::Description,
-        Column::Referrer,
-        Column::Folder,
-    ];
-
-    /// What the settings file calls it.
-    pub fn key(self) -> &'static str {
-        match self {
-            Column::Name => "name",
-            Column::Queue => "queue",
-            Column::Size => "size",
-            Column::Status => "status",
-            Column::TimeLeft => "time_left",
-            Column::Rate => "rate",
-            Column::LastTry => "last_try",
-            Column::Description => "description",
-            Column::Referrer => "referrer",
-            Column::Folder => "folder",
-        }
-    }
-
-    /// The column saved under `key`, if there is one.
-    #[must_use]
-    pub fn from_key(key: &str) -> Option<Column> {
-        Column::ALL.into_iter().find(|c| c.key() == key)
-    }
-
-    /// Every column in the order a person chose, the file name first and
-    /// any the list does not mention after, in their usual place.
-    pub fn ordered(keys: &[String]) -> Vec<Column> {
-        let mut order = vec![Column::Name];
-        for column in keys.iter().filter_map(|k| Column::from_key(k)) {
-            if !order.contains(&column) {
-                order.push(column);
-            }
-        }
-        for column in Column::ALL {
-            if !order.contains(&column) {
-                order.push(column);
-            }
-        }
-        order
-    }
-
-    /// Its heading, in the language in force.
-    pub fn title(self) -> &'static str {
-        t(self.english())
-    }
-
-    /// Its heading in English, which the catalogs are keyed by.
-    pub fn english(self) -> &'static str {
-        match self {
-            Column::Name => "File Name",
-            // Its heading draws the queue's mark; this is its name in the
-            // columns menu and for a screen reader.
-            Column::Queue => "Queue",
-            Column::Size => "Size",
-            Column::Status => "Status",
-            Column::TimeLeft => "Time left",
-            Column::Rate => "Transfer rate",
-            Column::LastTry => "Last Try Date",
-            Column::Description => "Description",
-            Column::Referrer => "Referrer",
-            Column::Folder => "Folder",
-        }
-    }
-}
+/// A column of the download table (`dm_desktop_base::columns`).
+pub use dm_desktop_base::columns::Column;
 
 /// Whether the pointer is in `rect`.
 fn at_inside(ctx: &egui::Context, rect: egui::Rect) -> bool {
@@ -366,7 +251,7 @@ pub struct DmApp {
     /// The speed limit to go back to when the limiter is turned on again.
     last_limit: u64,
     /// Finished downloads just taken off the list, with when, for Undo.
-    pub undo_remove: Option<(Instant, Vec<(usize, Entry)>)>,
+    pub undo_remove: dm_shell::app::backend::Undo,
     /// A word in the status bar about the last thing done.
     pub said: crate::i18n::Said,
     /// What Copy link asked to put on the clipboard, for the next frame.
@@ -387,15 +272,10 @@ pub struct DmApp {
     pub filter: String,
     /// Questions the rows raised (the server's name, a page for a file, a 404),
     /// waiting for the dialogs to be free: one is asked at a time.
-    asks: std::collections::VecDeque<sync::Ask>,
-    /// Each row's name, and whether it had failed, at the last read: what is new
-    /// since is what is asked about.
-    ask_seen: std::collections::HashMap<Id, (String, bool)>,
-    /// Whether the first read of the list is over (what it held is not asked about).
-    asks_primed: bool,
+    asks: dm_shell::app::questions::Questions,
     /// Names to give a file once it has finished: the address's, where a person
     /// said no to the server's while it was still coming.
-    pending_renames: std::collections::HashMap<Id, String>,
+    pending_renames: dm_shell::app::names::PendingRenames,
     /// What saved site searches found, by name, waiting to be added.
     search_results: Arc<std::sync::Mutex<Vec<SearchResult>>>,
     /// How many searches are out, so the window keeps drawing to take
@@ -419,9 +299,9 @@ pub struct DmApp {
     /// Whether a menu, combo box or right-click menu was open at the end
     /// of the last frame: an Escape this frame was theirs, not a dialog's.
     pub popup_was_open: bool,
-    /// Handed-over downloads cancelled, by site, since one was accepted:
-    /// at two, the site is offered to the browser.
-    cancelled_hand_offs: std::collections::HashMap<String, u32>,
+    /// Handed-over downloads cancelled, by site: at two, the site is
+    /// offered to the browser.
+    cancelled_hand_offs: dm_shell::app::handoff::Cancels,
     /// The failed downloads the failed bar was hidden over: it stays away
     /// until another one fails.
     failed_hidden: BTreeSet<Id>,
@@ -441,7 +321,7 @@ pub struct DmApp {
     delivered_at: Option<Instant>,
     /// When a control client last clicked, typed or pressed a key: what is
     /// done within moments of it is a script's, not a person's.
-    scripted_at: Option<Instant>,
+    scripted_at: dm_shell::app::control_api::ScriptGuard,
     /// The filter is in the top row's search box this frame.
     title_search: bool,
     /// The control port answers AI assistants only (see `main.rs`).
@@ -455,14 +335,9 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
-    /// See [`Self::place_rows`].
-    placed: HashMap<Id, (Option<Category>, Option<String>)>,
-    /// Each row's name, address and note, lowercased once a refresh, for
-    /// the filter: lowercasing them for every row on every frame made a
-    /// frame with a filter typed take 36 ms at 5,000 rows.
-    haystacks: HashMap<Id, String>,
-    /// The filter's words, lowercased, and the filter they were made from.
-    filter_words: std::cell::RefCell<(String, Vec<String>)>,
+    /// Each row's place, the places' counts and the filter's matching
+    /// (`dm_shell::app::places`), kept from read to read.
+    places: dm_shell::app::places::Places,
     /// Counts up whenever `rows` or what places them is made again; what is
     /// worked out from the rows is kept for as long as it stands still.
     rows_gen: u64,
@@ -470,18 +345,9 @@ pub struct DmApp {
     /// (`DmApp::visible_shared`): a frame with no new read of the list
     /// reuses them instead of copying and sorting every row again.
     visible_cache: std::cell::RefCell<Option<(VisibleKey, SharedRows)>>,
-    /// How many rows each place holds, for the generation it was counted at.
-    counts_cache: std::cell::RefCell<(u64, HashMap<String, usize>)>,
     /// The queues the list names, for the generation they were read at
     /// ([`DmApp::queues`]).
     queues_cache: std::cell::RefCell<Option<(u64, std::rc::Rc<[String]>)>>,
-    /// What each row's kind, own category and filter text were made from, so
-    /// a read of the list makes them again only for a row that changed.
-    /// With the row they were made from: the same allocation again means
-    /// the row did not change, and nothing of it is hashed.
-    place_fingerprints: HashMap<Id, (u64, Arc<Entry>)>,
-    /// The categories of a person's own that `placed` was made under.
-    place_rules: String,
     /// The language the places were last drawn in.
     rail_language: Option<String>,
     /// Columns were moved, shown or hidden since the list was drawn.
@@ -507,10 +373,8 @@ pub struct DmApp {
     /// Where the toolbar ends (the menu bar's bottom with no toolbar):
     /// windows a download opens on its own start below it, not over Add URL.
     pub bars_bottom: f32,
-    /// Each finished file's size on disk, by the path it was read at: a
-    /// stream put into an MP4 is not the size of the joined stream the
-    /// engine counted. Read once a path.
-    pub saved: HashMap<Id, (String, u64)>,
+    /// Each finished file's size on disk (`snapshot::SavedSizes`).
+    pub saved: dm_shell::app::snapshot::SavedSizes,
     /// The status line's sentence and when it was said: an old one is not
     /// left standing beside rows it no longer describes.
     said_at: Option<(crate::i18n::Said, Instant)>,
@@ -520,7 +384,7 @@ pub struct DmApp {
 // Long enough to read; not standing over what was done since.
 const SAID_FOR: Duration = Duration::from_secs(12);
 /// How long Undo is offered after a download is taken off the list.
-const UNDO_FOR: Duration = Duration::from_secs(5);
+use dm_shell::app::backend::UNDO_FOR;
 
 impl DmApp {
     /// Creates the window's state over `backend`, reading the settings in force.
@@ -561,17 +425,12 @@ impl DmApp {
             list_page: 1,
             dialogs: Dialogs::default(),
             problems: Vec::new(),
-            // The limit in force, else the one last turned off — kept in
-            // the settings, so it survives a restart — else 512 KB/s.
-            last_limit: [settings.speed_limit, settings.last_speed_limit]
-                .into_iter()
-                .find(|kb| *kb > 0)
-                .unwrap_or(512),
+            last_limit: dm_shell::app::commands::remembered_limit(&settings),
             applied: settings,
             clipboard: Clipboard::default(),
             browser_hint: (None, false),
             update_row: None,
-            undo_remove: None,
+            undo_remove: Default::default(),
             show_asked: false,
             hide_asked: false,
             welcome_checked: false,
@@ -586,8 +445,6 @@ impl DmApp {
             accent_in_force: None,
             fonts_ready: false,
             asks: Default::default(),
-            ask_seen: Default::default(),
-            asks_primed: false,
             pending_renames: Default::default(),
             search_results: Arc::default(),
             filter: String::new(),
@@ -599,7 +456,7 @@ impl DmApp {
             hung_up: Arc::default(),
             focus_before: None,
             was_behind: false,
-            cancelled_hand_offs: std::collections::HashMap::new(),
+            cancelled_hand_offs: Default::default(),
             failed_hidden: BTreeSet::new(),
             headless: false,
             hidden: false,
@@ -609,21 +466,16 @@ impl DmApp {
             passes: 0,
             delivered_at_pass: None,
             delivered_at: None,
-            scripted_at: None,
+            scripted_at: Default::default(),
             title_search: false,
             mcp_only: false,
             last_added: Vec::new(),
             said_about: None,
             sizes_told: HashMap::new(),
-            placed: HashMap::new(),
-            haystacks: HashMap::new(),
-            filter_words: Default::default(),
             rows_gen: 0,
+            places: Default::default(),
             visible_cache: Default::default(),
             queues_cache: Default::default(),
-            counts_cache: Default::default(),
-            place_fingerprints: HashMap::new(),
-            place_rules: String::new(),
             rail_language: None,
             columns_changed: false,
             min_size_zoom: None,
@@ -635,7 +487,7 @@ impl DmApp {
             row_menu_by_key: false,
             menu_bottom: 0.0,
             bars_bottom: 0.0,
-            saved: HashMap::new(),
+            saved: Default::default(),
             said_at: None,
         };
         app.sort = Column::from_key(&app.applied.sort_column)
@@ -689,50 +541,15 @@ impl DmApp {
     }
 }
 
-/// A problem from outside the window, in the language in force where the
-/// window knows its words: a saved proxy turned off at launch is said in
-/// the language the person reads. Others are shown as written.
-pub fn worded_problem(problem: &str) -> String {
-    let proxy = problem
-        .strip_prefix("the saved proxy could not be used (")
-        .and_then(|rest| rest.split_once("), so it is turned off"));
-    match proxy {
-        Some((why, _)) => crate::i18n::tf(
-            "The proxy can't be used ({}) and is off. Fix it in Options › Advanced.",
-            &[&why],
-        ),
-        None => problem.to_string(),
-    }
-}
+/// A problem in words, and as shown alone: dm's (`dm_desktop_base::format`).
+pub use dm_desktop_base::format::{as_shown, worded_problem};
 
-/// A problem as it is shown on its own: begun with a capital. Problems are
-/// worded to sit inside a sentence ("the cookies file … could not be
-/// read"), and alone one read as cut off.
-pub fn as_shown(problem: &str) -> String {
-    let mut chars = problem.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
-}
+/// What a right-click on a place in the category tree can ask for, and its menu: the same in
+/// both windows (`dm_shell::app::places`).
+pub use dm_shell::app::places::{place_menu as tree_menu, PlaceAction as TreeAction};
 
-/// What a right-click on a place in the category tree can ask for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeAction {
-    /// Runs this command.
-    Run(Command),
-    /// Options › Folders, where categories are added, edited and deleted.
-    EditCategories,
-    /// The folder a category's files go to.
-    OpenFolder,
-}
-
-/// The toolbar's looks, and what View › Customize toolbar calls them.
-const TOOL_STYLES: [(ToolStyle, &str); 3] = [
-    (ToolStyle::Both, "Icons and text"),
-    (ToolStyle::Icons, "Small buttons"),
-    (ToolStyle::Text, "Text only"),
-];
+// The toolbar's looks, and what View › Customize toolbar calls them.
+use dm_desktop_base::toolbar::TOOL_STYLES;
 
 /// Every English string the window puts through `t` that is not written in
 /// the call itself but chosen at run time: choices from lists, a place's
@@ -746,7 +563,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::dialogs::QUALITIES.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::DAYS);
     words.extend(TOOL_STYLES.iter().map(|(_, w)| *w));
-    words.extend(TOOLBAR.iter().map(|(_, _, w)| *w));
+    words.extend(dm_shell::app::commands::TOOLBAR.iter().map(|(_, w)| *w));
     words.extend(Command::ALL.iter().map(|c| c.label()));
     words.extend(Column::ALL.iter().map(|c| c.english()));
     words.extend(crate::power::WhenDone::ALL.iter().map(|w| w.verb()));
@@ -756,70 +573,15 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
     words.extend(format::NEXT_STEPS.iter().map(|(_, step)| *step));
     words.extend(format::RETRY_CAUSES);
-    for place in [
-        Place::All,
-        Place::Unfinished,
-        Place::Finished,
-        Place::Queue(String::new()),
-    ] {
-        words.extend(tree_menu(&place).into_iter().map(|(w, _)| w));
-    }
+    // What a download may say of itself on its row (`rows::note_in`).
+    words.extend(dm_core::NOTES);
+    words.extend(dm_shell::app::places::place_menu_words());
     words
 }
 
-/// The right-click menu for a place in the tree.
-pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
-    match place {
-        Place::All | Place::Kind(_) | Place::Custom(_) => vec![
-            ("Open folder", TreeAction::OpenFolder),
-            ("Add or edit categories…", TreeAction::EditCategories),
-        ],
-        Place::Unfinished => vec![
-            ("Resume all", TreeAction::Run(Command::ResumeAll)),
-            ("Stop All", TreeAction::Run(Command::StopAll)),
-        ],
-        Place::Finished => vec![(
-            "Delete Completed",
-            TreeAction::Run(Command::DeleteCompleted),
-        )],
-        Place::Queue(_) => vec![
-            ("Start Queue", TreeAction::Run(Command::StartQueue)),
-            ("Stop Queue", TreeAction::Run(Command::StopQueue)),
-            ("Scheduler…", TreeAction::Run(Command::Scheduler)),
-        ],
-    }
-}
-
-/// When a closed schedule next opens, as a person reads it: "01:00" later
-/// today, "Mon 01:00" on another day. `None` if it never does.
-pub fn opens_next(schedule: &dm_core::Schedule) -> Option<String> {
-    use chrono::{Datelike, Timelike};
-    let now = chrono::Local::now();
-    let today = now.weekday().num_days_from_sunday();
-    let minute = now.time().hour() * 60 + now.time().minute();
-    opens_after(schedule, today, minute).map(|(days, at)| {
-        let clock = format!("{:02}:{:02}", at / 60, at % 60);
-        if days == 0 {
-            clock
-        } else {
-            let day = crate::dialogs::DAYS
-                .get(((today + days) % 7) as usize)
-                .copied()
-                .unwrap_or_default();
-            format!("{} {clock}", t(day))
-        }
-    })
-}
-
-/// The first minute after `minute` of weekday `today` that the schedule is
-/// open: how many days on, and the minute of that day.
-pub fn opens_after(schedule: &dm_core::Schedule, today: u32, minute: u32) -> Option<(u32, u32)> {
-    (1..=8 * 1440).map(|step| minute + step).find_map(|at| {
-        let (days, at) = (at / 1440, at % 1440);
-        let weekday = ((today + days) % 7) as u8;
-        schedule.open_at(weekday, at).then_some((days, at))
-    })
-}
+/// When a closed schedule next opens, and the minute it does: dm's
+/// (`dm_desktop_base::held`), as every window says it.
+pub use dm_desktop_base::held::{opens_after, opens_next};
 
 /// Writes what egui captured as a PNG.
 fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), String> {

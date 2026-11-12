@@ -6,14 +6,17 @@
 /// Whether one playlist or manifest says its media is encrypted by a DRM system.
 ///
 /// Rules:
-/// - An MPD (`<MPD`) is DRM if it contains a `ContentProtection` element whose
-///   `schemeIdUri` attribute (case-insensitively) is one of the known DRM system
-///   identifiers (Widevine, PlayReady, FairPlay). A `ContentProtection` with
-///   only the MPEG-DASH `mp4protection:2011` marker is NOT DRM on its own.
-/// - An HLS text (`#EXTM3U`) is DRM when it has an `#EXT-X-KEY` line whose
-///   `METHOD` is `SAMPLE-AES` or `SAMPLE-AES-CTR`, or whose `KEYFORMAT` is
-///   anything other than `identity` (or absent). `METHOD=AES-128` with no
-///   `KEYFORMAT` or `KEYFORMAT="identity"` is standard encryption, not DRM.
+/// The same judgement as the app's engine makes when it fetches the stream (`dm-core`'s
+/// `stream::protected_key`, `dash.rs`), so the panel never says "protected" of what the engine
+/// would take, nor the other way round (gaps row Y19):
+/// - An MPD (`<MPD`) is DRM if it contains a `ContentProtection` element with any
+///   `schemeIdUri` but the bare MPEG-DASH `mp4protection:2011` marker: a known system
+///   (Widevine, PlayReady, FairPlay), ClearKey, or one this does not know.
+/// - An HLS text (`#EXTM3U`) is DRM when an `#EXT-X-KEY` or `#EXT-X-SESSION-KEY` line (a
+///   master playlist names its keys in the second) has a `KEYFORMAT` other than `identity`, or
+///   a key address that is not a web address (FairPlay's `skd://`, a `data:` licence). A key
+///   of HLS's own (`identity`, a web address) is not, whatever its `METHOD`: AES-128 the
+///   engine decrypts, and SAMPLE-AES it refuses as encryption it cannot undo, not as DRM.
 pub fn is_drm(text: &str) -> bool {
     if text.contains("<MPD") {
         is_mpd_drm(text)
@@ -45,17 +48,6 @@ pub fn stream_protection(texts: &[String]) -> Option<bool> {
     }
 }
 
-/// The known DRM `schemeIdUri` values (lower-cased).
-const DRM_SCHEME_IDS: &[&str] = &[
-    // Widevine
-    "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed",
-    // PlayReady (two common URNs)
-    "urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95",
-    "urn:uuid:79f0049a-4098-8642-ab92-e65be0885f95",
-    // FairPlay
-    "urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2",
-];
-
 /// The common encryption marker — present in every CENC stream, with or
 /// without a real DRM system above it.
 const MP4_PROTECTION_MARKER: &str = "urn:mpeg:dash:mp4protection:2011";
@@ -73,9 +65,9 @@ fn is_mpd_drm(text: &str) -> bool {
             if lower == MP4_PROTECTION_MARKER {
                 continue;
             }
-            if DRM_SCHEME_IDS.iter().any(|&id| lower == id) {
-                return true;
-            }
+            // A known system (Widevine, PlayReady, FairPlay), ClearKey, or one not known: the
+            // engine takes none of them.
+            return true;
         }
     }
     false
@@ -84,28 +76,26 @@ fn is_mpd_drm(text: &str) -> bool {
 fn is_hls_drm(text: &str) -> bool {
     for line in text.lines() {
         let line = line.trim();
-        if !line.starts_with("#EXT-X-KEY:") {
+        let Some(attrs) = line
+            .strip_prefix("#EXT-X-KEY:")
+            .or_else(|| line.strip_prefix("#EXT-X-SESSION-KEY:"))
+        else {
+            continue;
+        };
+        let method = attr_value(attrs, "METHOD").unwrap_or_default();
+        if method.eq_ignore_ascii_case("NONE") {
             continue;
         }
-        let attrs = &line["#EXT-X-KEY:".len()..];
-        let method = attr_value(attrs, "METHOD").unwrap_or_default();
-        let keyformat = attr_value(attrs, "KEYFORMAT");
-        match method.to_ascii_uppercase().as_str() {
-            "SAMPLE-AES" | "SAMPLE-AES-CTR" => return true,
-            "AES-128" => {
-                // AES-128 with a non-identity KEYFORMAT is effectively DRM.
-                if let Some(kf) = keyformat {
-                    if !kf.eq_ignore_ascii_case("identity") {
-                        return true;
-                    }
-                }
-            }
-            _ => {
-                // Unknown method with a keyformat — treat as DRM.
-                if keyformat.is_some() {
-                    return true;
-                }
-            }
+        let keyformat = attr_value(attrs, "KEYFORMAT").unwrap_or_default().trim();
+        let uri = attr_value(attrs, "URI")
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase();
+        let own_format = keyformat.is_empty() || keyformat.eq_ignore_ascii_case("identity");
+        let web_key =
+            uri.starts_with("http://") || uri.starts_with("https://") || !uri.contains(':');
+        if !own_format || !web_key {
+            return true;
         }
     }
     false
@@ -173,6 +163,41 @@ mod tests {
     const AES128_HLS: &str =
         "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"https://k/1\"\n#EXTINF:10.0,\nseg0.ts";
     const CLEAR_HLS: &str = "#EXTM3U\n#EXTINF:10.0,\nseg0.ts";
+
+    /// Each scheme judged as the engine judges it (gaps row Y19).
+    #[test]
+    fn each_scheme_is_judged_as_the_engine_judges_it() {
+        let mpd = |scheme: &str| {
+            format!(
+                r#"<MPD><Period><AdaptationSet><ContentProtection schemeIdUri="{scheme}"/></AdaptationSet></Period></MPD>"#
+            )
+        };
+        // ClearKey (both its names) and a system not known are protected.
+        assert!(is_drm(&mpd(
+            "urn:uuid:e2719d58-a985-b3c9-781a-b030af78d30e"
+        )));
+        assert!(is_drm(&mpd(
+            "urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b"
+        )));
+        assert!(is_drm(&mpd(
+            "urn:uuid:00000000-1111-2222-3333-444444444444"
+        )));
+        // A master playlist's session key from a rights system is protected.
+        assert!(is_drm(
+            "#EXTM3U\n#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI=\"skd://k\",KEYFORMAT=\"com.apple.streamingkeydelivery\"\n#EXT-X-STREAM-INF:BANDWIDTH=1\nv.m3u8"
+        ));
+        // SAMPLE-AES with HLS's own key is not DRM (the engine refuses it otherwise).
+        assert!(!is_drm(
+            "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"https://k/1\",KEYFORMAT=\"identity\"\n#EXTINF:10.0,\nseg0.ts"
+        ));
+        // A data: licence is protected, whatever its format says; METHOD=NONE is clear.
+        assert!(is_drm(
+            "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"data:text/plain;base64,AAAA\"\n#EXTINF:10.0,\nseg0.ts"
+        ));
+        assert!(!is_drm(
+            "#EXTM3U\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:10.0,\nseg0.ts"
+        ));
+    }
 
     #[test]
     fn widevine_mpd_is_drm() {

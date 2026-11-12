@@ -74,7 +74,7 @@ impl Queue {
 
     /// The options the next download to start will use.
     pub async fn options(&self) -> Options {
-        self.inner.options.lock().await.clone()
+        crate::lock(&self.inner.options).clone()
     }
 
     /// Replaces the options the next download will start with.
@@ -83,7 +83,7 @@ impl Queue {
     /// download already running, and swapping the handle would leave those
     /// drawing on a budget nothing else could see. Use `set_speed_limit`.
     pub async fn set_options(&self, options: Options) {
-        let mut current = self.inner.options.lock().await;
+        let mut current = crate::lock(&self.inner.options);
         let limiter = current.limiter.clone();
         // Nor is the ledger of disk space promised to downloads under way.
         let room = current.room.clone();
@@ -96,12 +96,15 @@ impl Queue {
 
     /// The shared ceiling, in bytes per second. Zero means none.
     pub async fn speed_limit(&self) -> u64 {
-        self.inner.options.lock().await.limiter.rate().await
+        // Copied out first: the limiter's own lock is not waited for under
+        // this one.
+        let limiter = crate::lock(&self.inner.options).limiter.clone();
+        limiter.rate().await
     }
 
     /// Applies a ceiling to everything, including transfers already running.
     pub async fn set_speed_limit(&self, bytes_per_second: u64) {
-        let limiter = self.inner.options.lock().await.limiter.clone();
+        let limiter = crate::lock(&self.inner.options).limiter.clone();
         limiter.set_rate(bytes_per_second).await;
     }
 
@@ -179,7 +182,7 @@ impl Queue {
         read_timeout: Duration,
     ) -> Result<(), String> {
         let client = crate::proxy::client_with_timeout(proxy, read_timeout)?;
-        *self.inner.client.lock().await = client;
+        *crate::lock(&self.inner.client) = client;
         Ok(())
     }
 

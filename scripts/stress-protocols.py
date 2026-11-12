@@ -1192,7 +1192,78 @@ def p_fulldisk(ctx):
     finally:
         subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True)
 
-OPT_IN = {"realtorrent": p_realtorrent, "proxytls": p_proxytls, "fulldisk": p_fulldisk}
+def p_detach(ctx):
+    """A drive pulled mid-download (macOS; gaps row 187): the download folder a disk image, detached by force while a 100 MB file arrives into it; it must end paused with why, dm must keep answering, and with the drive back it lands whole."""
+    if sys.platform != "darwin":
+        # On Linux a loop device does this, and needs root: owed to the final Linux pass.
+        finding("low", "detach", "needs hdiutil (macOS); not run")
+        return
+    base, root = ctx["base"], ctx["root"]
+    image = root / "drive.sparseimage"
+    # Under /Volumes, as the system mounts a drive, so that the folder goes with it: one
+    # mounted on a folder of its own leaves that folder behind, empty, and a download
+    # finishes into it as into any other.
+    name = f"dmdrive{os.getpid()}"
+    mount = pathlib.Path("/Volumes") / name
+    made = subprocess.run(["hdiutil", "create", "-size", "250m", "-type", "SPARSE", "-fs", "HFS+",
+                           "-volname", name, "-ov", str(image)], capture_output=True, text=True)
+    if made.returncode:
+        finding("low", "detach", f"no disk image could be made: {made.stderr.strip()}")
+        return
+
+    def attach():
+        return subprocess.run(["hdiutil", "attach", "-nobrowse", str(image)],
+                              capture_output=True, text=True).returncode == 0 and mount.is_dir()
+    if not attach():
+        finding("low", "detach", "the disk image would not attach")
+        return
+    size = 100 * MB
+    try:
+        dm = DM(root, {"connections": 4, "download_dir": str(mount)}, name="detach").start()
+        try:
+            dm.add([f"{base}/f/drive/{size}/drive.bin?rate={MB}"])
+            wait_for(lambda: any(r["progress"]["downloaded"] > 5 * MB for r in dm.rows()
+                                 if r["state"]["kind"] == "running"), 60)
+            had = dm.rows()[0]["progress"]["downloaded"]
+            pulled = subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True, text=True)
+            check("detach", "the volume was detached by force, and its folder went with it",
+                  pulled.returncode == 0 and not mount.exists(), pulled.stderr.strip())
+            t = time.time()
+            # It goes on until it next touches the folder: up to 90 s is given.
+            wait_for(lambda: dm.rows()[0]["state"]["kind"] in ("paused", "failed", "completed"), 90)
+            row = dm.rows()[0]
+            kind = row["state"]["kind"]
+            reason = row.get("stalled") or row["state"].get("reason", "") or row["state"].get("message", "")
+            measure("detach", f"pulled at {had / MB:.0f} MB of 100: {kind} after {time.time() - t:.1f}s: {reason}")
+            if kind == "completed":
+                finding("critical", "detach", "a download into a drive that was pulled was said to complete")
+            elif kind == "running":
+                finding("high", "detach", "a download whose drive was pulled is still said to be running after 90 s")
+            elif kind == "failed":
+                finding("medium", "detach", f"a pulled drive failed the download instead of pausing it: {reason}")
+            elif not reason:
+                finding("medium", "detach", "it paused without saying why")
+            t = time.time()
+            dm.call("commands.list")
+            answer = time.time() - t
+            measure("detach", f"dm answered in {answer * 1000:.0f} ms after the drive was pulled")
+            check("detach", "dm still answers after the drive was pulled", answer < 1.0, f"{answer:.2f}s")
+            # The drive put back, and the download resumed into it.
+            if kind != "completed" and attach():
+                dm.call("downloads.resume", ids=[row["id"]])
+                wait_for(lambda: dm.rows()[0]["state"]["kind"] in ("completed", "failed"), 240)
+                ok, bad = verify(dm.rows(), {"drive.bin": ("drive", size)})
+                measure("detach", f"with the drive back and resumed: {dm.rows()[0]['state']['kind']}, byte-exact: {ok == 1}")
+                if ok != 1:
+                    finding("high", "detach", f"after the drive came back the file did not land whole: {bad[:1]}")
+        finally:
+            dm.stop()
+    finally:
+        if mount.exists():
+            subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True)
+
+
+OPT_IN = {"realtorrent": p_realtorrent, "proxytls": p_proxytls, "fulldisk": p_fulldisk, "detach": p_detach}
 
 
 # ----------------------------------------------------------------- main

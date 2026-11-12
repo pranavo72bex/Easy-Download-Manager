@@ -34,15 +34,15 @@ gh secret set APPLE_TEAM_ID
 ```
 
 The identity, `Developer ID Application: NAME (TEAMID)`, goes in
-`desktop/crates/dm-desktop/Cargo.toml` as `packager.macos.signingIdentity`.
+`desktop/crates/dm-gpui/Cargo.toml` (the window macOS ships) as `packager.macos.signingIdentity`.
 Without these the build still succeeds — it just produces something
 Gatekeeper distrusts.
 
 ### 2. Windows
 
 Authenticode signing is configured under `packager.windows` in
-`desktop/crates/dm-desktop/Cargo.toml` (a certificate thumbprint or a sign
-command). Without it, SmartScreen warns until enough people install it
+`desktop/crates/dm-gpui/Cargo.toml` (the window Windows ships; a certificate
+thumbprint or a sign command). Without it, SmartScreen warns until enough people install it
 anyway.
 
 ## Cutting a release
@@ -137,7 +137,7 @@ The parts that are easy to get wrong, and how they were checked here:
 cd desktop && cargo test -p dm-desktop --test window
 
 # The packaged app, driven: lock, hand-off, proxy, schedule, --hidden.
-DM_BINARY=desktop/target/release/bundle/dm.app/Contents/MacOS/dm-desktop python3 scripts/app-check.py
+DM_BINARY=desktop/target/release/bundle/dm.app/Contents/MacOS/dm-gpui python3 scripts/app-check.py
 sh scripts/linux-package.sh     # builds the .deb and AppImage, installs the .deb, drives it
 
 # The release's own Linux .deb and extension, downloaded from its draft and checked

@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           components: clippy, rustfmt
 
       # Only main saves the cache; a pull request restores main's rather
@@ -70,6 +70,15 @@ jobs:
       - name: Check formatting
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
+
+      # The GPUI window (dm-gpui, docs/gaps.md G6) builds against these on
+      # Linux; the egui window needs none of them.
+      - name: GPUI's Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 
       - name: Refuse warnings
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -91,14 +100,15 @@ jobs:
       # CJK font, which a desktop has and this runner does not.
       - name: Install a CJK font
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci
 
       # The log is the administrators' alone; the annotations are anyone's.
-      - name: Name the tests that failed
-        if: failure()
+      # Run on a pass too: a test that needed a retry is named as flaky.
+      - name: Name the tests that failed or needed a retry
+        if: always()
         shell: bash
         run: python3 ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml || python ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml
 
@@ -115,7 +125,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -125,7 +135,7 @@ jobs:
         with:
           tool: cargo-llvm-cov
       - name: Install a CJK font
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
       - name: Measure, and hold to the floor
         run: |
           floor=$(cat ../docs/coverage-floor.txt)
@@ -172,25 +182,33 @@ jobs:
             os: ubuntu-22.04
             formats: deb,appimage
             artifact: linux-x86_64
+            # The GPUI window on Linux (docs/gaps.md G9).
+            crate: dm-gpui
           - name: Linux arm64 (deb, AppImage, rpm)
             os: ubuntu-22.04-arm
             formats: deb,appimage
             artifact: linux-arm64
+            # The GPUI window on Linux (docs/gaps.md G9).
+            crate: dm-gpui
           - name: Windows (NSIS installer)
             os: windows-latest
             formats: nsis
             artifact: windows
+            # The GPUI window on Windows (docs/gaps.md G9).
+            crate: dm-gpui
           - name: macOS (app, dmg)
             os: macos-latest
             formats: app,dmg
             artifact: macos
+            # The GPUI window on macOS (docs/gaps.md G9).
+            crate: dm-gpui
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -201,7 +219,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends patchelf file desktop-file-utils
+          sudo apt-get install -y --no-install-recommends patchelf file desktop-file-utils \
+            libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev \
+            libjavascriptcoregtk-4.1-0
 
       - name: cargo-packager
         run: cargo install cargo-packager --version 0.11.8 --locked
@@ -209,7 +230,7 @@ jobs:
       # CI is set on every runner, which is what tells the .dmg step to skip
       # the Finder AppleScript a headless machine cannot run.
       - name: Build the installers
-        working-directory: desktop/crates/dm-desktop
+        working-directory: desktop/crates/${{ matrix.crate }}
         # Apple: a Developer ID certificate and an app-specific password, from
         # the repository's Actions secrets. Absent, the macOS build is
         # unsigned and Gatekeeper refuses it until someone right-clicks and
@@ -230,7 +251,9 @@ jobs:
           # (shellcheck SC2155, which failed the packaging lint).
           CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
           export CARGO_BUILD_RUSTFLAGS
-          cargo packager --release --formats ${{ matrix.formats }}
+          # This crate's packages alone: without -p, cargo-packager packages every
+          # crate of the workspace that has packager settings, both windows.
+          cargo packager --release -p ${{ matrix.crate }} --formats ${{ matrix.formats }}
         # This step's own: the check below was put between its run and its env,
         # and took the signing secrets from it.
         env:
@@ -245,9 +268,22 @@ jobs:
         working-directory: desktop
         shell: bash
         run: |
-          found=$(strings target/release/dm-desktop | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
+          found=$(strings target/release/${{ matrix.crate }} | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
           echo "paths of this runner in the binary: $found"
           test "$found" = 0
+
+      # The binary's size on each system, against the one recorded in
+      # scripts/binary-size.json: a jump of more than 10% fails the build
+      # (a profile changed, a crate added by mistake), anything less is only
+      # said, in the log and in the run's summary.
+      - name: The binary's size
+        working-directory: .
+        shell: bash
+        run: |
+          binary=desktop/target/release/${{ matrix.crate }}
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          py=python3; command -v python3 >/dev/null || py=python
+          "$py" scripts/binary-size.py "$binary" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Fedora, openSUSE and their kin: the same binary, laid out as the
       # Arch package is (desktop/packaging/nfpm.yaml).
@@ -255,19 +291,21 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: .
         run: |
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
-          sh scripts/linux/nfpm.sh desktop/target/release/dm-desktop "$version" desktop/target/release/bundle
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/${{ matrix.crate }}/Cargo.toml | head -1)
+          sh scripts/linux/nfpm.sh desktop/target/release/${{ matrix.crate }} "$version" desktop/target/release/bundle
 
       # cargo-packager names the .deb, the AppImage and the Windows installer
-      # after the binary (dm-desktop_…) and only the .dmg after the product;
-      # one name for all of them, the one the README and the update check use.
+      # after the binary (dm-desktop_…, dm-gpui_…) and only the .dmg after the
+      # product; one name for all of them, the one the README and the update
+      # check use. Only this job's crate's, so another's left in the folder
+      # is never renamed over it.
       - name: Name the installers dm
         shell: bash
         working-directory: desktop/target/release/bundle
         run: |
-          for f in dm-desktop_*; do
+          for f in ${{ matrix.crate }}_*; do
             [ -e "$f" ] || continue
-            mv -v "$f" "dm_${f#dm-desktop_}"
+            mv -v "$f" "dm_${f#*_}"
           done
           ls
 
@@ -284,7 +322,7 @@ jobs:
           $version = (Select-String -Path desktop/crates/dm-desktop/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
           $dir = Join-Path desktop/target/release/bundle "dm_${version}_x64-portable"
           New-Item -ItemType Directory -Path $dir | Out-Null
-          Copy-Item desktop/target/release/dm-desktop.exe $dir
+          Copy-Item desktop/target/release/${{ matrix.crate }}.exe $dir
           New-Item -ItemType File -Path (Join-Path $dir 'portable') | Out-Null
           Copy-Item desktop/packaging/portable-readme.txt (Join-Path $dir 'README.txt')
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
@@ -373,25 +411,20 @@ jobs:
         run: |
           $setup = Get-ChildItem installers -Filter '*-setup.exe' | Select-Object -First 1
           Start-Process $setup.FullName -ArgumentList '/S' -Wait
-          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter 'dm-desktop.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $exe) { throw 'the installer put no dm-desktop.exe anywhere' }
-          # The runner has no graphics driver, and the window needs OpenGL
-          # 2.0: Mesa's software one, beside the program for this check only,
-          # as a machine with a real driver would not need (CI, 0.2.0).
-          $mesa = "$env:RUNNER_TEMP\mesa"
-          Invoke-WebRequest 'https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z' -OutFile "$mesa.7z"
-          7z x "$mesa.7z" "-o$mesa" | Out-Null
-          $dlls = Get-ChildItem "$mesa\x64" -Filter '*.dll'
-          $dlls | Copy-Item -Destination $exe.DirectoryName
-          $env:GALLIUM_DRIVER = 'llvmpipe'
+          # The GPUI window, the one dm ships on Windows (docs/gaps.md G9).
+          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter 'dm-gpui.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'the installer put no dm-gpui.exe anywhere' }
+          # The runner has no graphics driver: GPUI draws through Direct3D 11
+          # on Windows' own software adapter (WARP), with nothing beside the
+          # program, as a computer with no GPU does (docs/decisions.md,
+          # 2026-11-11).
           python scripts/smoke.py $exe.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $dlls | ForEach-Object { Remove-Item (Join-Path $exe.DirectoryName $_.Name) }
           $uninstall = Get-ChildItem $exe.DirectoryName -Filter 'uninstall*.exe' | Select-Object -First 1
           Start-Process $uninstall.FullName -ArgumentList '/S' -Wait
           # The uninstaller hands itself to a copy and returns at once.
           for ($i = 0; $i -lt 30 -and (Test-Path $exe.FullName); $i++) { Start-Sleep 1 }
-          if (Test-Path $exe.FullName) { throw 'uninstalling left dm-desktop.exe behind' }
+          if (Test-Path $exe.FullName) { throw 'uninstalling left dm-gpui.exe behind' }
 
       # The zip a person unzips and runs from wherever they put it: its data
       # lands in `dm-data` beside it and nowhere else (scripts/portable-check.py).
@@ -402,8 +435,8 @@ jobs:
           $zip = Get-ChildItem installers -Filter '*-portable.zip' | Select-Object -First 1
           if (-not $zip) { throw 'no portable zip was built' }
           Expand-Archive $zip.FullName -DestinationPath portable-unzipped
-          $exe = Get-ChildItem portable-unzipped -Recurse -Filter 'dm-desktop.exe' | Select-Object -First 1
-          if (-not $exe) { throw 'the portable zip holds no dm-desktop.exe' }
+          $exe = Get-ChildItem portable-unzipped -Recurse -Filter 'dm-gpui.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'the portable zip holds no dm-gpui.exe' }
           if (-not (Test-Path (Join-Path $exe.DirectoryName 'portable'))) { throw 'the portable zip holds no `portable` file beside the program' }
           python scripts/portable-check.py $exe.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -416,7 +449,7 @@ jobs:
           hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dm" "$dmg"
           cp -R "$RUNNER_TEMP/dm/dm.app" "$RUNNER_TEMP/"
           hdiutil detach "$RUNNER_TEMP/dm"
-          python3 scripts/smoke.py "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-desktop"
+          python3 scripts/smoke.py "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-gpui"
           rm -rf "$RUNNER_TEMP/dm.app"
 
   extension:
@@ -429,7 +462,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - name: Build the Chrome and Firefox zips
         working-directory: .

@@ -1,0 +1,113 @@
+[package]
+name = "dm-desktop-base"
+version = "0.9.0"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
+description = "dm — what the desktop program does that is not drawing: the system's services, the control port, the command line"
+
+# Everything of the desktop program that no window toolkit draws, so that a
+# second window (docs/migration/GPUI_MIGRATION_PLAN.md) can use it without
+# depending on the egui one. `cargo xtask layers` forbids it every window
+# crate.
+[lib]
+name = "dm_desktop_base"
+path = "src/lib.rs"
+
+[dependencies]
+dm-core = { path = "../dm-core" }
+dm-shell = { path = "../dm-shell" }
+serde_json = "1"
+# The control port's window answers, as typed shapes (probe.rs).
+serde = { version = "1", features = ["derive"] }
+# The control protocol's token (control.rs).
+getrandom = "0.4"
+# The system's language, for the window's first one: from the OS itself,
+# since an app opened from the Dock or a login item has no LANG (i18n.rs).
+sys-locale = "0.3"
+# Dates and addresses as a row's details say them (format.rs, details.rs).
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+url = "2"
+# The login item on macOS and Windows (login.rs): a launch agent, the Run key.
+auto-launch = "0.6"
+# A removed file to the Recycle Bin or the Trash (desktop.rs).
+trash = "5.2.9"
+# The window's native handle, for Windows' taskbar progress (taskbar.rs).
+raw-window-handle = "0.6"
+# A logout or `kill` quits dm as Exit does (signals.rs).
+tokio = { version = "1", features = ["rt-multi-thread", "signal"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# What VoiceOver is given of each window, read from inside (a11y_tree.rs).
+objc2 = "0.6"
+# The Dock's bar and badge (taskbar.rs): its tile, the program's picture and a bar over it.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSAccessibility", "objc2-core-foundation", "NSDockTile", "NSImage", "NSImageView", "NSControl", "NSView", "NSProgressIndicator"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSGeometry"] }
+
+[target.'cfg(windows)'.dependencies]
+# A finished download's toast (toast.rs): WinRT, which windows-sys has no
+# wrappers for. Already in the tree through other crates.
+windows = { version = "0.62", features = [
+  # The taskbar button's jump list (jumplist.rs): COM.
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_Storage_EnhancedStorage",
+  "Foundation",
+  "Data_Xml_Dom",
+  "UI_Notifications",
+] }
+windows-sys = { version = "0.61", features = [
+  # What --register and --help print reaches the console that started dm
+  # (modes.rs).
+  "Win32_System_Console",
+  # The login item's Run key, read as UTF-16 (autostart.rs).
+  "Win32_Foundation",
+  # dm's own drop target, for a link dragged from a browser (drops.rs):
+  # OLE and its data objects (STGMEDIUM is behind Gdi as well), the
+  # clipboard formats, global memory and dropped files' paths.
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_SystemServices",
+  "Win32_UI_Shell",
+  "Win32_System_Registry",
+  # Sleep and hibernate (power.rs), and keeping the computer awake
+  # (awake.rs).
+  "Win32_System_Power",
+  # The sounds: MessageBeep, and a sound file of the person's own
+  # (power.rs).
+  "Win32_System_Diagnostics_Debug",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_Media_Audio",
+  # A wake timer for the schedule (wake.rs).
+  "Win32_System_Threading",
+  # Whether the person is busy: fullscreen, a game, Focus Assist (quiet.rs).
+  "Win32_UI_Shell",
+  # High Contrast: whether it is on, and the colours it sets (contrast.rs).
+  "Win32_UI_Accessibility",
+  "Win32_Graphics_Gdi",
+  # The taskbar button's progress (taskbar.rs): COM.
+  "Win32_System_Com",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The file manager's "show this file" and the portal's file chooser, on the
+# session bus (desktop.rs).
+zbus = { version = "5", default-features = false, features = ["blocking-api"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

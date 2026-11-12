@@ -103,120 +103,42 @@ pub(super) fn list_file(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// Sites as the rules match them, by host name: an address pasted whole,
-/// scheme and path and all, was kept as it was and matched nothing.
-/// A bare name, or one with a leading dot, is kept.
-pub fn sites(words: &[String]) -> Vec<String> {
-    words
-        .iter()
-        .map(|w| {
-            let host = if w.contains("://") {
-                url::Url::parse(w)
-                    .ok()
-                    .and_then(|u| u.host_str().map(str::to_string))
-            } else {
-                // "example.com/path" or "example.com:8080": the name alone.
-                w.split(['/', ':']).next().map(str::to_string)
-            };
-            host.filter(|h| !h.is_empty())
-                .unwrap_or_else(|| w.clone())
-                .to_ascii_lowercase()
-        })
-        .collect()
-}
+/// Sites as the rules match them, by host name (`dm_desktop_base::options`,
+/// both windows).
+pub use dm_desktop_base::options::sites;
 
-/// The `file://` address of a `.torrent` on this computer named by `text`,
-/// its path (`~` for the home folder) or that address itself, if the file
-/// is there.
-pub fn local_torrent(text: &str) -> Option<String> {
-    let text = text.trim();
-    let path = match dm_core::local_file(text) {
-        Some(path) => path,
-        None if !text.contains("://") => dm_shell::settings::full_path(text)?,
-        None => return None,
-    };
-    if !dm_core::is_torrent(&path.to_string_lossy()) || !path.is_file() {
-        return None;
-    }
-    dm_core::file_url(&path)
-}
+/// A `.torrent` on this computer named by a path or `file://` address
+/// (`dm_desktop_base::add_url`).
+pub use dm_desktop_base::add_url::local_torrent;
 
 /// Where Export offers to write the list when its path is typed.
 pub fn default_list_path(settings: &Settings) -> std::path::PathBuf {
     settings.download_dir.join("downloads.dmlist")
 }
 
-/// The row already holding `address`, if one does and was not cancelled.
-pub(crate) fn already_listed(app: &DmApp, address: &str) -> Option<Id> {
-    dm_shell::app::rules::already_listed(app.rows(), address)
-}
-
 /// How an address already in the list is answered (`dm_shell::app::rules::Dup`).
 pub(crate) use dm_shell::app::rules::Dup;
 
-/// The finished file of row `id` as (path, folder, name), where it is on the
-/// disk to be replaced.
-fn replaceable(app: &DmApp, id: Id) -> Option<(String, String, String)> {
-    let row = app.row(id)?;
-    if row.state != State::Completed || row.path.is_empty() {
-        return None;
-    }
-    let path = std::path::Path::new(&row.path);
-    if !path.exists() {
-        return None;
-    }
-    Some((
-        row.path.clone(),
-        path.parent()?.to_string_lossy().into_owned(),
-        path.file_name()?.to_string_lossy().into_owned(),
-    ))
-}
-
-/// Whether the row is stopped, or failed: one that "Show it" can also go on
-/// with.
-fn can_go_on(app: &DmApp, id: Id) -> bool {
-    app.row(id).is_some_and(|r| {
-        matches!(
-            dm_shell::app::rules::go_on(&r.state, false),
-            GoOn::Resume | GoOn::Retry
-        )
-    })
-}
-
-/// Carries out an answer: asked, or remembered.
+/// Carries out an answer: asked, or remembered (what it does is dm's,
+/// `dm_desktop_base::add_url::carry`, as every window's).
 pub(crate) fn answer_duplicate(app: &mut DmApp, address: String, id: Id, how: Dup) {
-    match how {
-        Dup::Show => {
+    use dm_desktop_base::add_url::Carried;
+    match dm_desktop_base::add_url::carry(app.rows(), address, id, how) {
+        Carried::Show { id, go_on } => {
             app.selected.clear();
             app.selected.insert(id);
-            // A stopped or failed row goes on, so the person who clicked the
-            // link again is not left to find the button.
-            // Held or not: the person asked for this file again.
-            match app
-                .row(id)
-                .map(|r| dm_shell::app::rules::go_on(&r.state, false))
-            {
+            match go_on {
                 Some(GoOn::Retry) => app.backend.retry(id),
                 Some(GoOn::Resume) => app.backend.resume(id),
                 _ => {}
             }
         }
-        Dup::Again => app.dialogs.open_file_info(vec![address]),
-        Dup::Replace => match replaceable(app, id) {
-            Some((path, dir, name)) => {
-                let with = dm_core::AddOptions {
-                    replaces: Some(path),
-                    save_dir: Some(dir),
-                    save_name: Some(name),
-                    ..Default::default()
-                };
-                if let Err(e) = app.add(&[address], with) {
-                    app.said = e.into();
-                }
+        Carried::Details(address) => app.dialogs.open_file_info(vec![address]),
+        Carried::Replace { address, with } => {
+            if let Err(e) = app.add(&[address], *with) {
+                app.said = e.into();
             }
-            // Nothing finished to replace: a numbered copy, as before.
-            None => app.dialogs.open_file_info(vec![address]),
-        },
+        }
     }
 }
 
@@ -227,8 +149,7 @@ pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let status = app.row(id).map(crate::app::status_of).unwrap_or_default();
-    let go_on = can_go_on(app, id);
-    let can_replace = replaceable(app, id).is_some();
+    let (go_on, can_replace) = dm_desktop_base::add_url::duplicate_offers(app.rows(), id);
     let tick = egui::Id::unique("duplicate-remember");
     let mut remember = ctx.data(|d| d.get_temp::<bool>(tick)).unwrap_or(false);
     let (mut again, mut show, mut replace, mut cancel) = (false, false, false, false);
@@ -280,33 +201,9 @@ pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// Whether an address's query carries something secret: a token, a signature,
-/// a key, a password or a session. Such an address is not remembered for Add
-/// URL's list of recent ones (the list is kept in the settings file in the
-/// clear, and a signed link has expired by the next time), and one already
-/// remembered is not offered.
-pub(crate) fn query_carries_a_secret(address: &str) -> bool {
-    const SECRET: [&str; 8] = [
-        "token", "sig", "key", "auth", "pass", "pwd", "secret", "session",
-    ];
-    let Ok(url) = url::Url::parse(address) else {
-        return false;
-    };
-    url.query_pairs().any(|(name, _)| {
-        let name = name.to_ascii_lowercase();
-        SECRET.iter().any(|word| name.contains(word)) || name.contains("credential")
-    })
-}
-
 pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Add URL");
-    let recent: Vec<String> = app
-        .applied
-        .recent_urls
-        .iter()
-        .filter(|url| !query_carries_a_secret(url))
-        .cloned()
-        .collect();
+    let recent: Vec<String> = dm_desktop_base::add_url::recent(&app.applied);
     let Some(d) = app.dialogs.add_url.as_mut() else {
         return;
     };
@@ -324,7 +221,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         }
         // The link it was opened with is selected, so a link pasted or
         // typed replaces it rather than joining it.
-        select_on_focus(ui, &address, &d.address);
+        select_on_focus_asked(ui, &address, &d.address, focus);
         ok |= entered(&address);
         // Addresses added here before, to pick again, and a way to forget
         // them.
@@ -383,87 +280,54 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     if !ok {
         return;
     }
-    let mut address = d.address.trim().to_string();
-    // A .torrent on this computer, by its path or its file:// address: it
-    // could only be dragged in, and Add URL called it no link.
-    if let Some(local) = local_torrent(&address) {
-        address = local;
-    }
-    if crate::app::looks_downloadable(&address).is_none() && local_torrent(&address).is_none() {
-        // Nothing typed is asked for, not called a bad link.
-        d.says = if address.is_empty() {
-            t("Type or paste the address of what to download.").into()
-        } else {
-            t("That isn't a link dm can download. Paste a web address like https://example.com/file.zip.").into()
-        };
+    // What OK does with it is dm's (`dm_desktop_base::add_url::decide`),
+    // as every window's Add URL does it.
+    use dm_desktop_base::add_url::Next;
+    let (typed, authorize, login, password) = (
+        d.address.clone(),
+        d.authorize,
+        d.login.clone(),
+        d.password.clone(),
+    );
+    let decided = dm_desktop_base::add_url::decide(
+        &typed,
+        authorize,
+        &login,
+        &password,
+        &app.applied,
+        app.rows(),
+    );
+    if let Next::Says(words) = decided.next {
+        if let Some(d) = app.dialogs.add_url.as_mut() {
+            d.says = words.into();
+        }
         // The address keeps the keyboard, to be put right: after the
         // warning, typing went nowhere.
         app.dialogs.focus_on("Add URL");
         return;
-    }
-    // Several links pasted one after another (a list copied from a page or a
-    // chat, a line each): a batch, in one Download details. Run together with
-    // nothing between them, they are still asked about, since where one ends
-    // is a guess.
-    if crate::app::two_addresses(&address) {
-        let found = crate::app::links_in(&address);
-        if found.len() > 1 && found.len() == address.split_whitespace().count() {
-            app.dialogs.add_url = None;
-            app.dialogs.open_file_info(found);
-            return;
-        }
-    }
-    if crate::app::two_addresses(&address) {
-        d.says =
-            t("That looks like two links. Add one at a time, or use Add links from clipboard.")
-                .into();
-        // The address keeps the keyboard, to be put right: after the
-        // warning, typing went nowhere.
-        app.dialogs.focus_on("Add URL");
-        return;
-    }
-    if d.authorize && !d.login.is_empty() {
-        if let Ok(mut url) = url::Url::parse(&address) {
-            let _ = url.set_username(&d.login);
-            let _ = url.set_password(Some(&d.password));
-            address = url.to_string();
-        }
     }
     app.dialogs.add_url = None;
-    // Remembered for Add URL's list, without any login.
-    let remembered = bare(&address);
-    if !query_carries_a_secret(&remembered) && app.applied.recent_urls.first() != Some(&remembered)
-    {
-        let mut recent = app.applied.recent_urls.clone();
-        recent.retain(|u| *u != remembered);
-        recent.insert(0, remembered);
+    if let Some(recent) = decided.remember {
         match app.backend.remember_urls(recent) {
             Ok(now) => app.applied.recent_urls = now.recent_urls,
             Err(e) => app.said = e.into(),
         }
     }
-    // Already a row: asked, rather than a second row nobody meant.
-    if let Some(id) = already_listed(app, &address) {
-        // Answered at once where the person ticked "Remember my choice".
-        if let Some(how) = Dup::from_word(&app.applied.duplicate_choice) {
-            answer_duplicate(app, address, id, how);
-            return;
+    match decided.next {
+        Next::Says(_) => {}
+        Next::Details(addresses) => app.dialogs.open_file_info(addresses),
+        Next::Duplicate { address, id } => app.dialogs.duplicate = Some((address, id)),
+        Next::Answered { address, id, how } => answer_duplicate(app, address, id, how),
+        Next::Playlist(address) => {
+            let quality = app.applied.stream_quality.clone();
+            app.dialogs.open_playlist(address, &app.backend, quality);
         }
-        app.dialogs.duplicate = Some((address, id));
-        return;
     }
-    // A playlist is its videos, each a download: listed to be ticked.
-    if dm_core::youtube::playlist_id(&address).is_some() {
-        let quality = app.applied.stream_quality.clone();
-        app.dialogs.open_playlist(address, &app.backend, quality);
-        return;
-    }
-    app.dialogs.open_file_info(vec![address]);
 }
 
 #[cfg(test)]
 mod recent_tests {
-    use super::query_carries_a_secret as secret;
+    use dm_desktop_base::add_url::query_carries_a_secret as secret;
 
     /// A signed or token-bearing address is not kept in the settings file for
     /// Add URL's list; a plain one is.

@@ -18,9 +18,27 @@ use serde_json::Value;
 
 use super::Choice;
 
-/// Whether `url` is one YouTube's player data is read from: a watch page or
-/// a short link, not a playlist, a channel or another site.
+/// Whether `url` is one YouTube's player data is read from: a watch page, a
+/// short link, or a video's embed, live, no-cookie or YouTube Music address
+/// (read from its watch page, `watch_address`); not a playlist, a channel or
+/// another site.
 pub(super) fn is_watch_page(url: &str) -> bool {
+    watch_address(url).is_some()
+}
+
+/// The watch page the qualities of `url` are read from: `url` itself where it
+/// is one, else the watch page of the video an embed, live, no-cookie or
+/// YouTube Music address names, so a site with a YouTube player in it lists
+/// them too (gaps row Y12).
+pub(super) fn watch_address(url: &str) -> Option<String> {
+    if is_own_watch_page(url) {
+        return Some(url.trim().to_string());
+    }
+    crate::youtube::video_id(url).map(|id| format!("https://www.youtube.com/watch?v={id}"))
+}
+
+/// A watch page or a short link as it stands.
+fn is_own_watch_page(url: &str) -> bool {
     let Ok(parsed) = url::Url::parse(url.trim()) else {
         return false;
     };
@@ -379,9 +397,18 @@ mod tests {
             "https://m.youtube.com/watch?v=abc",
             "https://youtu.be/dQw4w9WgXcQ",
             "https://www.youtube.com/shorts/abc",
+            "https://www.youtube.com/embed/dQw4w9WgXcQ?start=3",
+            "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+            "https://www.youtube.com/live/dQw4w9WgXcQ",
+            "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
         ] {
             assert!(is_watch_page(yes), "{yes}");
         }
+        // An embedded player's qualities come from its video's watch page.
+        assert_eq!(
+            watch_address("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ").as_deref(),
+            Some("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        );
         for no in [
             "https://www.youtube.com/playlist?list=PL1",
             "https://www.youtube.com/@channel",

@@ -33,7 +33,34 @@ pub fn host(url: &str) -> String {
 
 /// What to call a row the probe has not reached yet: the last path segment,
 /// which is the engine's own fallback, or a magnet's `dn`.
+///
+/// Kept by address once worked out, on the thread that asked: the window
+/// names every row from it at a read, twice, and parsing ten thousand
+/// addresses each time was most of what a read cost after Stop on ten
+/// thousand rows (gaps row 183).
 pub fn provisional(url: &str) -> String {
+    /// How many names are kept before they are all let go.
+    const KEPT: usize = 50_000;
+    thread_local! {
+        static NAMED: std::cell::RefCell<std::collections::HashMap<String, String>> =
+            std::cell::RefCell::default();
+    }
+    NAMED.with(|named| {
+        if let Some(name) = named.borrow().get(url) {
+            return name.clone();
+        }
+        let name = provisional_of(url);
+        let mut named = named.borrow_mut();
+        if named.len() >= KEPT {
+            named.clear();
+        }
+        named.insert(url.to_string(), name.clone());
+        name
+    })
+}
+
+/// [`provisional`], worked out.
+fn provisional_of(url: &str) -> String {
     let Ok(parsed) = url::Url::parse(url) else {
         return url.to_string();
     };
@@ -67,6 +94,30 @@ pub fn provisional(url: &str) -> String {
             }
         }
         _ => last,
+    }
+}
+
+/// The name the address itself gives the file, as the engine names it when
+/// the server sends none: its last path segment, decoded (a magnet's `dn`).
+/// What B39 sets against the server's name, and what No saves it as; not
+/// `provisional`, which shows a script's page by its short address
+/// (`example.com/dl?id=7`), a row's label rather than a file's name.
+pub fn address_file_name(url: &str) -> String {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return url.to_string();
+    };
+    if parsed.scheme() == "magnet" {
+        return provisional(url);
+    }
+    let last = parsed
+        .path_segments()
+        .and_then(|mut s| s.next_back().map(str::to_owned))
+        .unwrap_or_default();
+    let last = percent_decode(&last);
+    if last.is_empty() {
+        host(url)
+    } else {
+        last
     }
 }
 
@@ -193,6 +244,7 @@ pub fn name_it_will_get_after(
     thread_local! {
         static FREE: std::cell::RefCell<HashMap<(Id, std::path::PathBuf), (Instant, String)>> =
             std::cell::RefCell::new(HashMap::new());
+        static LIMIT: std::cell::Cell<usize> = const { std::cell::Cell::new(2000) };
     }
     FREE.with(|free| {
         let mut free = free.borrow_mut();
@@ -201,8 +253,13 @@ pub fn name_it_will_get_after(
                 return said.clone();
             }
         }
-        if free.len() > 2000 {
-            free.clear();
+        // Kept small by dropping what has expired, not by emptying it:
+        // emptied past 2,000, a list of 10,000 rows waiting asked the disk
+        // for every one of them at every read (gaps row 181). Looked over
+        // again only once it has doubled, so the look costs nothing a row.
+        if free.len() > LIMIT.get() {
+            free.retain(|_, (at, _)| at.elapsed() < Duration::from_secs(2));
+            LIMIT.set((free.len() * 2).max(2000));
         }
         // Each earlier row of the same name bound for the same folder,
         // and not yet placed, takes a free name first: three added for
@@ -222,6 +279,66 @@ pub fn name_it_will_get_after(
         free.insert(key, (Instant::now(), said.clone()));
         said
     })
+}
+
+/// Renames asked for before a row's file is whole ("use the address's
+/// name"): a finished row is renamed at once, one still under way when it
+/// finishes, and one that failed or was cancelled (or removed) never.
+#[derive(Debug, Default)]
+pub struct PendingRenames(HashMap<Id, String>);
+
+impl PendingRenames {
+    /// `id`, in `state` (`None`: no such row), is to be called `name`: the
+    /// name to rename it to now, or `None` (kept for later, or dropped).
+    pub fn ask(&mut self, id: Id, state: Option<&State>, name: &str) -> Option<String> {
+        match state {
+            Some(State::Completed) => Some(name.to_string()),
+            Some(State::Failed(_) | State::Cancelled) | None => None,
+            Some(_) => {
+                self.0.insert(id, name.to_string());
+                None
+            }
+        }
+    }
+
+    /// The renames due now, by each row's state (`state_of`): those
+    /// finished, taken out; those that failed, were cancelled or are gone,
+    /// dropped.
+    pub fn due(&mut self, state_of: impl Fn(Id) -> Option<State>) -> Vec<(Id, String)> {
+        let mut now = Vec::new();
+        self.0.retain(|id, name| match state_of(*id) {
+            Some(State::Completed) => {
+                now.push((*id, std::mem::take(name)));
+                false
+            }
+            Some(State::Failed(_) | State::Cancelled) | None => false,
+            Some(_) => true,
+        });
+        now.sort_by_key(|(id, _)| *id);
+        now
+    }
+}
+
+/// A category's name as the settings and the control protocol write it.
+#[must_use]
+pub fn category_word(c: Category) -> String {
+    serde_json::to_value(c)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+/// A category's folder under `root`, by the category's word (a kind, as
+/// [`category_word`] writes it) or a person's own category's name.
+pub fn category_folder(
+    word: &str,
+    root: &Path,
+    categories: &dm_core::Categories,
+) -> std::path::PathBuf {
+    match Category::ALL.iter().find(|c| category_word(**c) == word) {
+        Some(kind) => categories.destination(root, *kind),
+        None => root.join(word),
+    }
 }
 
 #[cfg(test)]
@@ -314,6 +431,48 @@ mod tests {
         assert_eq!(
             planned_folder(&odd, dir.path(), &mut categories),
             Some(dir.path().join("Odd").display().to_string())
+        );
+    }
+
+    #[test]
+    fn a_rename_waits_for_the_file_to_be_whole_and_is_dropped_if_it_never_is() {
+        let mut renames = PendingRenames::default();
+        assert_eq!(
+            renames.ask(1, Some(&State::Completed), "a.bin").as_deref(),
+            Some("a.bin"),
+            "finished: at once"
+        );
+        assert_eq!(renames.ask(2, Some(&State::Running), "b.bin"), None);
+        assert_eq!(renames.ask(3, Some(&State::Queued), "c.bin"), None);
+        assert_eq!(renames.ask(4, Some(&State::Running), "d.bin"), None);
+        assert_eq!(renames.ask(5, Some(&State::Cancelled), "e.bin"), None);
+        assert_eq!(renames.ask(6, None, "f.bin"), None);
+        let states = |id: Id| match id {
+            2 => Some(State::Completed),
+            3 => Some(State::Running),
+            4 => Some(State::Failed("gone".into())),
+            _ => None,
+        };
+        assert_eq!(renames.due(states), vec![(2, "b.bin".to_string())]);
+        // 3 still waits; 4 failed and is dropped.
+        let finished = |id: Id| (id == 3 || id == 4).then_some(State::Completed);
+        assert_eq!(renames.due(finished), vec![(3, "c.bin".to_string())]);
+        assert!(renames.due(finished).is_empty(), "each once");
+    }
+
+    #[test]
+    fn a_kinds_folder_is_its_categorys_and_another_word_a_folder_of_that_name() {
+        let root = Path::new("/dl");
+        let categories = dm_core::Categories::default();
+        let videos = category_word(Category::Videos);
+        assert!(!videos.is_empty());
+        assert_eq!(
+            category_folder(&videos, root, &categories),
+            categories.destination(root, Category::Videos)
+        );
+        assert_eq!(
+            category_folder("Work", root, &categories),
+            root.join("Work")
         );
     }
 }

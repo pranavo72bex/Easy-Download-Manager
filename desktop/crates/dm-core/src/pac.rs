@@ -134,23 +134,6 @@ pub fn is_in_net(address: &str, pattern: &str, mask: &str) -> bool {
     u32::from(a) & u32::from(m) == u32::from(p) & u32::from(m)
 }
 
-/// What stands in front of the script in an engine run as a program of its own (QuickJS, Deno).
-///
-/// Every way of making code from text is taken away, for good: QuickJS's command line keeps its
-/// `qjs:os` and `qjs:std` modules within reach of an `import()`, and `os.exec` runs any program
-/// (security review, 2026-11-08). A script that says `import` itself is refused before it runs
-/// ([`refused`]); without `eval` and the function constructors it cannot write one. Then `std`,
-/// `os` and `bjson` are taken from the global object where an engine put them. Windows' own
-/// engine needs none of it: it is run with `eval` and the constructors off, and holds nothing of
-/// the computer.
-const HARDENING: &str = r#"
-(function(){var made=[function(){},function*(){},async function(){},async function*(){}];for(var i=0;i<made.length;i++){Object.defineProperty(Object.getPrototypeOf(made[i]),'constructor',{value:undefined,writable:false,configurable:false});}})();
-Object.defineProperty(globalThis,'eval',{value:undefined,writable:false,configurable:false});
-Object.defineProperty(globalThis,'Function',{value:undefined,writable:false,configurable:false});
-['std','os','bjson','Deno'].forEach(function(n){try{delete globalThis[n];}catch(e){}});
-var __say=(typeof print==='function')?print:console.log;
-"#;
-
 /// The helpers, in JavaScript, to stand in front of the script. The names that need the network
 /// (`dnsResolve`, `myIpAddress`) answer nothing, so a script cannot reach out from its sandbox.
 const HELPERS: &str = r#"
@@ -169,17 +152,6 @@ function dateRange(){return true;}
 function timeRange(){return true;}
 "#;
 
-/// The whole program to run in an engine of its own: the hardening, the helpers, the script, and
-/// a line printing its answer for `url`.
-pub fn program(script: &str, url: &str, host: &str) -> String {
-    let quote = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".into());
-    format!(
-        "{HARDENING}{HELPERS}\n{script}\n__say(String(FindProxyForURL({}, {})));\n",
-        quote(url),
-        quote(host)
-    )
-}
-
 /// Why a script is not run at all: one that names `import` (the way to QuickJS's modules for
 /// files and programs, which no proxy script needs), or that hides words behind `\u` escapes.
 pub fn refused(script: &str) -> Option<&'static str> {
@@ -197,54 +169,12 @@ pub fn refused(script: &str) -> Option<&'static str> {
     None
 }
 
-/// Runs `script` for `url` with the JavaScript engine at `engine` (QuickJS, or Deno), the program written
-/// in `staging` for the run. Fails closed: any trouble is an error, never `DIRECT`.
-pub async fn evaluate(
-    engine: &std::path::Path,
-    script: &str,
-    url: &str,
-    host: &str,
-    staging: &std::path::Path,
-) -> Result<Vec<Hop>, String> {
-    if let Some(why) = refused(script) {
-        return Err(why.into());
-    }
-    tokio::fs::create_dir_all(staging)
-        .await
-        .map_err(|e| format!("no room for the proxy script: {e}"))?;
-    let file = staging.join(format!(".dm-pac-{}.js", std::process::id()));
-    crate::videopage::write_private(&file, &program(script, url, host))
-        .await
-        .map_err(|e| format!("could not write the proxy script: {e}"))?;
-    let _gone = crate::videopage::RemoveOnDrop(file.clone());
-    let mut command = crate::videopage::js_command(engine, &file);
-    crate::no_window_async(&mut command);
-    command
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true);
-    let output = tokio::time::timeout(std::time::Duration::from_secs(5), command.output())
-        .await
-        .map_err(|_| "the proxy script took too long".to_string())?
-        .map_err(|e| format!("the proxy script would not run: {e}"))?;
-    if !output.status.success() {
-        return Err("the proxy script failed".into());
-    }
-    parse_result(String::from_utf8_lossy(&output.stdout).trim())
-}
-
 /// Runs `script` for `url` in the computer's own JavaScript engine (Windows' own Chakra, in a
 /// process of its own in the app: `crate::javascript`), with the helpers in front of it and the
 /// answer taken as the value of `FindProxyForURL`. That engine is run with `eval` and the function
-/// constructors off and holds nothing of the computer, so the hardening a command engine needs is
-/// not written. Fails closed, as [`evaluate`] does.
-pub async fn evaluate_here(
-    script: &str,
-    url: &str,
-    host: &str,
-    staging: &std::path::Path,
-) -> Result<Vec<Hop>, String> {
+/// constructors off and holds nothing of the computer. Fails closed: any trouble is an error,
+/// never `DIRECT`.
+pub async fn evaluate_here(script: &str, url: &str, host: &str) -> Result<Vec<Hop>, String> {
     if let Some(why) = refused(script) {
         return Err(why.into());
     }
@@ -258,7 +188,6 @@ pub async fn evaluate_here(
         ),
         &call,
         std::time::Duration::from_secs(5),
-        staging,
     )
     .await
     .map_err(|e| format!("the proxy script failed: {e}"))?;
@@ -283,20 +212,15 @@ struct Kept {
 static KEPT: std::sync::LazyLock<std::sync::Mutex<Kept>> =
     std::sync::LazyLock::new(Default::default);
 
-/// Held while a script is fetched or run, so a site is asked about once however many requests
-/// to it start together.
-static ASKING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+/// One lock for each script and site, held while the script is fetched or run for that site, so
+/// a site is asked about once however many requests to it start together. One lock for them all
+/// held every other site's first request behind a slow script or a slow server of one (gaps row
+/// 184); each is kept for the session, as the answer it guards is.
+static ASKING: std::sync::LazyLock<std::sync::Mutex<SiteLocks>> =
+    std::sync::LazyLock::new(Default::default);
 
-/// The engine a test names in place of QuickJS.
-static ENGINE: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
-
-/// Runs the scripts with `engine` in place of QuickJS found or fetched (`None` puts that back),
-/// and forgets what they said. For tests.
-#[doc(hidden)]
-pub fn set_engine(engine: Option<std::path::PathBuf>) {
-    *crate::lock(&ENGINE) = engine;
-    forget_all();
-}
+/// A lock for each script's address and site (`ASKING`).
+type SiteLocks = std::collections::HashMap<(String, String), std::sync::Arc<std::sync::Mutex<()>>>;
 
 /// Forgets every script and answer, so each is fetched and asked again: the settings changed.
 pub fn forget_all() {
@@ -338,7 +262,8 @@ pub fn way_to(address: &str, target: &url::Url) -> Result<Option<url::Url>, Stri
         return way.clone();
     }
     let ask = || {
-        let _one = crate::lock(&ASKING);
+        let site_lock = std::sync::Arc::clone(crate::lock(&ASKING).entry(key.clone()).or_default());
+        let _one = crate::lock(&site_lock);
         if let Some(way) = crate::lock(&KEPT).ways.get(&key) {
             return way.clone();
         }
@@ -351,20 +276,7 @@ pub fn way_to(address: &str, target: &url::Url) -> Result<Option<url::Url>, Stri
                 .map_err(|e| format!("the proxy script could not be run: {e}"))?;
             runtime.block_on(async move {
                 let text = text_of(&address).await?;
-                let named = crate::lock(&ENGINE).is_some();
-                let hops = if !named && crate::javascript::system_engine_here() {
-                    evaluate_here(&text, &format!("{site}/"), &host, &std::env::temp_dir()).await?
-                } else {
-                    let engine = engine().await?;
-                    evaluate(
-                        &engine,
-                        &text,
-                        &format!("{site}/"),
-                        &host,
-                        &std::env::temp_dir(),
-                    )
-                    .await?
-                };
+                let hops = evaluate_here(&text, &format!("{site}/"), &host).await?;
                 first_way(&hops)
             })
         })
@@ -397,22 +309,6 @@ fn first_way(hops: &[Hop]) -> Result<Option<url::Url>, String> {
                 .map_err(|e| format!("the script named a proxy that is not one: {e}"))
         }
     }
-}
-
-/// The JavaScript engine to run a script with: the one a test named, else QuickJS, found or
-/// fetched.
-async fn engine() -> Result<std::path::PathBuf, String> {
-    let named = crate::lock(&ENGINE).clone();
-    if let Some(named) = named {
-        return Ok(named);
-    }
-    // An installed Deno first: with no permissions it is the tighter sandbox.
-    if let Some(deno) = crate::videopage::deno() {
-        return Ok(deno);
-    }
-    crate::tools::ensure(&crate::client(), crate::tools::Tool::QuickJs)
-        .await
-        .map_err(|e| format!("no JavaScript engine to run the proxy script: {e}"))
 }
 
 /// The most of a script that is read: a script is a few kilobytes.
@@ -535,18 +431,6 @@ mod tests {
     }
 
     #[test]
-    fn the_program_carries_the_script_and_asks_it_about_the_address() {
-        let p = program(
-            "function FindProxyForURL(u,h){return 'DIRECT';}",
-            "http://a/\"x",
-            "a",
-        );
-        assert!(p.contains("function FindProxyForURL"));
-        assert!(p.contains(r#"FindProxyForURL("http://a/\"x", "a")"#));
-        assert!(p.contains("function shExpMatch"));
-    }
-
-    #[test]
     fn a_script_that_imports_or_hides_its_words_is_refused_before_it_runs() {
         for bad in [
             "function FindProxyForURL(u,h){import('qjs:os').then(o=>o.exec(['/bin/sh']));return 'DIRECT';}",
@@ -562,70 +446,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_prelude_takes_away_every_way_of_making_code_from_text() {
-        for gone in [
-            "'constructor',{value:undefined",
-            "globalThis,'eval'",
-            "globalThis,'Function'",
-            "'std','os','bjson'",
-        ] {
-            assert!(HARDENING.contains(gone), "{gone}");
-        }
-        // Before the script, so the script cannot have kept a constructor first.
-        let p = program(
-            "function FindProxyForURL(){return 'DIRECT';}",
-            "http://a/",
-            "a",
-        );
-        assert!(p.find("globalThis,'Function'") < p.find("function FindProxyForURL"));
-    }
-
-    /// With a real engine (where dm finds one installed): a script reaching for a program, by a
-    /// function constructor, fails, and an ordinary one still answers.
-    #[tokio::test]
-    async fn in_a_real_engine_a_script_cannot_make_code_and_an_ordinary_one_answers() {
-        let Some(engine) = crate::videopage::quickjs().or_else(crate::videopage::deno) else {
-            eprintln!("not run: no QuickJS or Deno installed");
-            return;
-        };
-        let dir = tempfile::tempdir().unwrap();
-        let ok = evaluate(
-            &engine,
-            "function FindProxyForURL(u,h){return shExpMatch(h,'*.corp')?'PROXY p:8080':'DIRECT';}",
-            "http://a.corp/",
-            "a.corp",
-            dir.path(),
-        )
-        .await
-        .unwrap();
-        assert_eq!(ok.len(), 1);
-        for reach in [
-            "function FindProxyForURL(){return (function(){}).constructor('return \"DIRECT\"')();}",
-            "function FindProxyForURL(){return Object.constructor('return \"DIRECT\"')();}",
-            "function FindProxyForURL(){return (async function(){}).constructor.name;}",
-            "function FindProxyForURL(){return eval('\"DIRECT\"');}",
-        ] {
-            assert!(
-                evaluate(&engine, reach, "http://a/", "a", dir.path())
-                    .await
-                    .is_err(),
-                "{reach}"
-            );
-        }
-    }
-
     /// In Windows' own engine: an ordinary script answers, and one reaching for a way to make
     /// code from text fails, never answering DIRECT.
     #[cfg(windows)]
     #[tokio::test]
     async fn in_windows_own_engine_a_script_answers_and_cannot_make_code() {
-        let dir = tempfile::tempdir().unwrap();
         let ok = evaluate_here(
             "function FindProxyForURL(u,h){return shExpMatch(h,'*.corp')&&isInNet('10.1.2.3','10.0.0.0','255.0.0.0')?'PROXY p:8080':'DIRECT';}",
             "http://a.corp/",
             "a.corp",
-            dir.path(),
         )
         .await
         .unwrap();
@@ -645,77 +474,34 @@ mod tests {
             "function FindProxyForURL(){return import('os');}",
         ] {
             assert!(
-                evaluate_here(reach, "http://a/", "a", dir.path())
-                    .await
-                    .is_err(),
+                evaluate_here(reach, "http://a/", "a").await.is_err(),
                 "{reach}"
             );
         }
     }
 
+    /// In the computer's own engine, where it has one (JavaScriptCore on macOS, WebKitGTK's on
+    /// Linux): an ordinary script answers, and one that imports is refused before it runs.
+    #[cfg(not(windows))]
     #[tokio::test]
-    async fn a_missing_engine_is_an_error_and_never_direct() {
-        let dir = tempfile::tempdir().unwrap();
-        let r = evaluate(
-            std::path::Path::new("/no/such/qjs"),
-            "function FindProxyForURL(){return 'DIRECT';}",
-            "http://a/",
-            "a",
-            dir.path(),
-        )
-        .await;
-        assert!(r.is_err());
-    }
-
-    #[tokio::test]
-    async fn a_refused_script_is_not_written_or_run_by_either_engine() {
-        let dir = tempfile::tempdir().unwrap();
-        let staging = dir.path().join("staging");
+    async fn in_the_computers_own_engine_a_script_answers_and_an_import_is_refused() {
         let script = "import * as os from 'qjs:os'; function FindProxyForURL(){return 'DIRECT';}";
-        let why = evaluate(
-            std::path::Path::new("/no/such/qjs"),
-            script,
-            "http://a/",
-            "a",
-            &staging,
+        let why = evaluate_here(script, "http://a/", "a").await.unwrap_err();
+        assert!(why.contains("import a module"), "{why}");
+        if !crate::javascript::system_engine_here() {
+            eprintln!("not run further: {}", crate::javascript::NO_ENGINE);
+            return;
+        }
+        let ok = evaluate_here(
+            "function FindProxyForURL(u,h){return shExpMatch(h,'*.corp')&&isInNet('10.1.2.3','10.0.0.0','255.0.0.0')?'PROXY p:8080; DIRECT':'DIRECT';}",
+            "http://a.corp/",
+            "a.corp",
         )
         .await
-        .unwrap_err();
-        assert!(why.contains("import a module"), "{why}");
-        assert!(!staging.exists(), "nothing was written for it");
-        let why = evaluate_here(script, "http://a/", "a", &staging)
-            .await
-            .unwrap_err();
-        assert!(why.contains("import a module"), "{why}");
-    }
-
-    /// An engine that is a shell script, so a run needs no JavaScript engine installed.
-    #[cfg(unix)]
-    fn fake_engine(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-        let engine = dir.join(format!("engine-{}", body.len()));
-        std::fs::write(&engine, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
-        engine
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn an_engines_answer_is_read_and_a_failed_or_odd_run_is_an_error() {
-        let dir = tempfile::tempdir().unwrap();
-        let staging = dir.path().join("staging");
-        let script = "function FindProxyForURL(u,h){return 'PROXY p:8080; DIRECT';}";
-        // The program it is handed is the script's, and is gone after the run.
-        let answers = fake_engine(
-            dir.path(),
-            "for last in \"$@\"; do :; done\ngrep -q 'PROXY p:8080' \"$last\" && echo 'PROXY p:8080; DIRECT'",
-        );
-        let hops = evaluate(&answers, script, "http://a/", "a", &staging)
-            .await
-            .unwrap();
+        .unwrap();
         assert_eq!(
-            hops,
-            vec![
+            ok,
+            [
                 Hop::Via {
                     kind: Kind::Http,
                     host: "p".into(),
@@ -724,17 +510,6 @@ mod tests {
                 Hop::Direct
             ]
         );
-        assert_eq!(std::fs::read_dir(&staging).unwrap().count(), 0);
-
-        let fails = fake_engine(dir.path(), "echo DIRECT; exit 3");
-        assert_eq!(
-            evaluate(&fails, script, "http://a/", "a", &staging).await,
-            Err("the proxy script failed".to_string())
-        );
-        let odd = fake_engine(dir.path(), "echo 'what is this'");
-        assert!(evaluate(&odd, script, "http://a/", "a", &staging)
-            .await
-            .is_err());
     }
 
     #[test]

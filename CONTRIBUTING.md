@@ -19,15 +19,16 @@ fix, open an issue first so the approach can be agreed before you build it.
 
 ## Building and testing
 
-You need Rust (stable) from <https://rustup.rs>.
+You need rustup from <https://rustup.rs>; it fetches the Rust dm is built with
+(`rust-toolchain.toml`) the first time you build.
 
 ```sh
-# the app
+# every check that needs no window, both the app and the extension
 cd desktop
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all --check
-cargo run -p dm-desktop
+cargo xtask check
+
+# the app
+cargo run -p dm-gpui
 
 # the browser extension
 cd browser

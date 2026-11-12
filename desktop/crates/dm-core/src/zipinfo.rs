@@ -312,7 +312,10 @@ pub async fn zip_take_one(
     if entry.is_folder() {
         return Err("a folder is not a file to take out".into());
     }
-    if entry.packed > MOST_TAKEN {
+    // Unpacked as well as packed: deflated zeros said to unpack to more than the cap were
+    // unpacked into memory up to what the archive claimed, a thousand times the packed bytes
+    // (security audit, 2026-11-12).
+    if entry.packed > MOST_TAKEN || entry.size > MOST_TAKEN {
         return Err("this file is too large to take out alone; download the archive".into());
     }
     let unreadable = || "the server would not give that part of the archive".to_string();
@@ -372,9 +375,10 @@ fn unpack(packed: &[u8], entry: &ZipEntry) -> Result<Vec<u8>, String> {
         0 => packed.to_vec(),
         8 => {
             let mut out = Vec::with_capacity(usize::try_from(entry.size.min(MOST_TAKEN)).unwrap_or(0));
-            // Never more than the list says, plus one to tell a liar.
+            // Never more than the list says, plus one to tell a liar; never past the cap whatever
+            // it says.
             flate2::read::DeflateDecoder::new(packed)
-                .take(entry.size.saturating_add(1))
+                .take(entry.size.min(MOST_TAKEN).saturating_add(1))
                 .read_to_end(&mut out)
                 .map_err(|_| "the file's packed bytes are damaged".to_string())?;
             out
@@ -444,6 +448,45 @@ pub fn zip_contents_of_file(path: &std::path::Path) -> Option<Vec<ZipEntry>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file said to unpack to more than the cap is refused before anything is fetched, and
+    /// unpacking stops at the cap whatever the list says (security audit, 2026-11-12).
+    #[tokio::test]
+    async fn a_file_said_to_unpack_past_the_cap_is_refused_and_never_unpacked_past_it() {
+        let huge = ZipEntry {
+            name: "zeros.bin".into(),
+            size: 10 * MOST_TAKEN,
+            packed: 1024,
+            at: 0,
+            method: 8,
+            crc: 0,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let why = zip_take_one(
+            &crate::client(),
+            "http://127.0.0.1:9/a.zip",
+            None,
+            None,
+            &huge,
+            dir.path(),
+        )
+        .await
+        .unwrap_err();
+        assert!(why.contains("too large"), "{why}");
+        // Deflated zeros: a few kilobytes that would unpack to far more.
+        use std::io::Write;
+        let mut packer =
+            flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+        packer.write_all(&vec![0u8; 4 * 1024 * 1024]).unwrap();
+        let packed = packer.finish().unwrap();
+        let lying = ZipEntry {
+            size: u64::MAX,
+            packed: packed.len() as u64,
+            ..huge
+        };
+        // Unpacked no further than the cap plus one, then refused as not what the list says.
+        assert!(unpack(&packed, &lying).is_err());
+    }
 
     /// A ZIP with a folder and two files, stored, built by the writer.
     fn archive() -> Vec<u8> {

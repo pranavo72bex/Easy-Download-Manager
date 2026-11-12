@@ -304,16 +304,20 @@ async fn two_at_a_time(State(b): State<Arc<Busy>>, headers: HeaderMap) -> Respon
     let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
         .await
         .unwrap();
-    let busy = Arc::clone(&b);
+    // Its place given back however the body ends, as a server frees one on a
+    // disconnect: sent whole, or let go of part-way.
+    struct Place(Arc<Busy>);
+    impl Drop for Place {
+        fn drop(&mut self) {
+            self.0.now.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+    let place = Arc::new(Place(Arc::clone(&b)));
     let chunks: Vec<Vec<u8>> = bytes.chunks(64 * 1024).map(<[u8]>::to_vec).collect();
-    let paced = futures_util::stream::iter(chunks.into_iter().enumerate()).then(move |(i, c)| {
-        let busy = Arc::clone(&busy);
-        let last = i + 1 == bytes.len().div_ceil(64 * 1024);
+    let paced = futures_util::stream::iter(chunks).then(move |c| {
+        let _held = Arc::clone(&place);
         async move {
             tokio::time::sleep(Duration::from_millis(30)).await;
-            if last {
-                busy.now.fetch_sub(1, Ordering::SeqCst);
-            }
             Ok::<_, std::io::Error>(c)
         }
     });
@@ -328,7 +332,8 @@ async fn two_at_a_time(State(b): State<Arc<Busy>>, headers: HeaderMap) -> Respon
 /// own set for it: the connections it turns away step aside at once and
 /// the two it serves fetch the file. They used to wait each refusal out
 /// with backoff, ten times over, which made a 100 MB file take minutes at
-/// a seventh of curl's speed.
+/// a seventh of curl's speed. The next file from it opens two connections,
+/// and none is turned away.
 #[tokio::test]
 async fn connections_a_server_turns_away_step_aside_at_once() {
     let busy = Arc::new(Busy {
@@ -348,6 +353,10 @@ async fn connections_a_server_turns_away_step_aside_at_once() {
         .await
         .expect("download");
     let took = started.elapsed();
+    println!(
+        "{took:?}, {} requests turned away",
+        busy.most.load(Ordering::SeqCst)
+    );
     assert_eq!(
         std::fs::read(&done.path).unwrap(),
         busy.data,
@@ -357,10 +366,253 @@ async fn connections_a_server_turns_away_step_aside_at_once() {
         busy.most.load(Ordering::SeqCst) > 0,
         "the server turned none away"
     );
-    // 4 MiB at 2 MB/s a connection on two: about two seconds. The refusals
-    // waited out took sixteen.
+    /* 4 MiB at 2.2 MB/s a connection (64 KiB every 30 ms) on two: about one
+     * second. The refusals waited out took sixteen; the connections turned
+     * away ending for good, and a wait after each refusal for the next
+     * request though the server took one the moment another ended, 1.5 to
+     * 4.3 (gaps row 197). */
     assert!(
-        took < Duration::from_secs(8),
+        took < Duration::from_millis(1500),
         "took {took:?}: the refusals were waited out"
+    );
+
+    // The same server again: two connections from the start, none turned away.
+    busy.most.store(0, Ordering::SeqCst);
+    let again = tempdir();
+    let done = download(&client(), &url, &options(again.path()))
+        .await
+        .expect("download");
+    assert_eq!(std::fs::read(&done.path).unwrap(), busy.data);
+    assert_eq!(done.connections, 2, "the server's limit was not kept");
+    assert_eq!(
+        busy.most.load(Ordering::SeqCst),
+        0,
+        "the second file had requests turned away"
+    );
+}
+
+/// How many requests [`Mirror`] serves at once.
+const MIRROR_AT_ONCE: usize = 2;
+/// How many new requests [`Mirror`] takes a second, beyond its burst.
+const MIRROR_EACH_SECOND: f64 = 1.0;
+/// How many requests over its rate [`Mirror`] takes at once (nginx's `burst`).
+const MIRROR_BURST: f64 = 2.0;
+/// How late [`Mirror`] answers every request, served or refused.
+const MIRROR_LATE: Duration = Duration::from_millis(100);
+/// How fast [`Mirror`] sends on each connection, in bytes a second.
+const MIRROR_RATE: f64 = 4.0 * 1024.0 * 1024.0;
+
+/// A mirror that limits both how many requests it serves at once and how often it takes a new
+/// one, as nginx's `limit_conn` and `limit_req` (with `nodelay`) do, and as Hetzner's mirrors were
+/// seen to (2026-11-12): two at once, a request a second with a burst of two, every answer 100 ms
+/// late, each connection held to [`MIRROR_RATE`]. Refused requests are answered 429 and cost a
+/// place in the bucket only when they are taken.
+struct Mirror {
+    data: Vec<u8>,
+    started: Instant,
+    serving: AtomicUsize,
+    /// `limit_req`'s bucket: the requests over the rate it holds, and when it was last drained.
+    bucket: std::sync::Mutex<(f64, Instant)>,
+    log: std::sync::Mutex<Vec<Asked>>,
+}
+
+/// One request to [`Mirror`]: when it came, what it asked for, and when its body went out
+/// (from its first byte to its last, or to the client letting go), or none if it was refused.
+#[derive(Debug, Clone)]
+struct Asked {
+    came: Duration,
+    range: Option<String>,
+    sent: Option<(Duration, Duration)>,
+}
+
+/// Holds a place among the requests [`Mirror`] serves for as long as a body goes out, and
+/// notes when it stopped, however it stopped.
+struct Sending {
+    mirror: Arc<Mirror>,
+    index: usize,
+}
+
+impl Drop for Sending {
+    fn drop(&mut self) {
+        self.mirror.serving.fetch_sub(1, Ordering::SeqCst);
+        let at = self.mirror.started.elapsed();
+        if let Some(sent) = self.mirror.log.lock().unwrap()[self.index].sent.as_mut() {
+            sent.1 = at;
+        }
+    }
+}
+
+async fn mirrored(State(m): State<Arc<Mirror>>, headers: HeaderMap) -> Response {
+    let came = m.started.elapsed();
+    let asked = headers
+        .get("range")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    // Over the rate as it comes: the bucket drains at the rate, and a request that would
+    // overflow it is refused and left out of it.
+    let over_rate = {
+        let mut bucket = m.bucket.lock().unwrap();
+        let now = Instant::now();
+        let held =
+            (bucket.0 - MIRROR_EACH_SECOND * now.duration_since(bucket.1).as_secs_f64()).max(0.0);
+        bucket.1 = now;
+        let over = held + 1.0 > MIRROR_BURST + 1.0;
+        bucket.0 = if over { held } else { held + 1.0 };
+        over
+    };
+    let index = {
+        let mut log = m.log.lock().unwrap();
+        log.push(Asked {
+            came,
+            range: asked.clone(),
+            sent: None,
+        });
+        log.len() - 1
+    };
+    tokio::time::sleep(MIRROR_LATE).await;
+    let refused = || {
+        Response::builder()
+            .status(429)
+            .body(Body::from("Too Many Requests"))
+            .unwrap()
+    };
+    if over_rate {
+        return refused();
+    }
+    if m.serving.fetch_add(1, Ordering::SeqCst) >= MIRROR_AT_ONCE {
+        m.serving.fetch_sub(1, Ordering::SeqCst);
+        return refused();
+    }
+    let total = m.data.len();
+    let (a, b) = asked
+        .as_deref()
+        .and_then(|v| v.strip_prefix("bytes="))
+        .and_then(|v| v.split_once('-'))
+        .map(|(a, b)| {
+            let a: usize = a.parse().unwrap();
+            (a, b.parse::<usize>().unwrap_or(total - 1).min(total - 1))
+        })
+        .unwrap_or((0, total - 1));
+    let sending = Arc::new(Sending {
+        mirror: Arc::clone(&m),
+        index,
+    });
+    const CHUNK: usize = 64 * 1024;
+    let begun = tokio::time::Instant::now();
+    let pieces: Vec<(usize, usize)> = (a..=b)
+        .step_by(CHUNK)
+        .map(|s| (s, (s + CHUNK - 1).min(b)))
+        .collect();
+    let paced = futures_util::stream::iter(pieces).then(move |(s, e)| {
+        let sending = Arc::clone(&sending);
+        async move {
+            // Each piece once the connection's rate has let its last byte through.
+            let due = begun + Duration::from_secs_f64((e + 1 - a) as f64 / MIRROR_RATE);
+            tokio::time::sleep_until(due).await;
+            let mirror = &sending.mirror;
+            let at = mirror.started.elapsed();
+            let mut log = mirror.log.lock().unwrap();
+            let sent = log[sending.index].sent.get_or_insert((at, at));
+            sent.1 = at;
+            drop(log);
+            Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(&mirror.data[s..=e]))
+        }
+    });
+    Response::builder()
+        .status(if asked.is_some() { 206 } else { 200 })
+        .header("content-range", format!("bytes {a}-{b}/{total}"))
+        .header("content-length", b - a + 1)
+        .header("etag", "\"mirror\"")
+        .body(Body::from_stream(paced))
+        .unwrap()
+}
+
+/// A server that serves two connections at once and takes a new request about once a second,
+/// as Hetzner's mirrors do: dm is to fetch on both, faster than one connection could, with no
+/// stretch of the download where nothing is fetched. Before, dm took about 1.6 times as long as
+/// one connection: its next range's request at each range's end was refused and waited out with
+/// backoff while nothing was fetched, the seams' checks went out beside it and took the request
+/// the server would have taken, the connections it turned away never came back, and a range
+/// halved for a request the server refused left its back half to no one for seconds.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection() {
+    let mirror = Arc::new(Mirror {
+        data: body(32 * 1024 * 1024),
+        started: Instant::now(),
+        serving: AtomicUsize::new(0),
+        bucket: std::sync::Mutex::new((0.0, Instant::now())),
+        log: std::sync::Mutex::new(Vec::new()),
+    });
+    let app = axum::Router::new()
+        .route("/mirror.bin", get(mirrored))
+        .with_state(Arc::clone(&mirror));
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let url = format!("http://127.0.0.1:{}/mirror.bin", addr.port());
+    let started = Instant::now();
+    let done = download(&client(), &url, &options(dir.path()))
+        .await
+        .expect("download");
+    let took = started.elapsed();
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        mirror.data,
+        "bytes differ"
+    );
+    let log = mirror.log.lock().unwrap().clone();
+    let refused = log.iter().filter(|asked| asked.sent.is_none()).count();
+    // Where nothing was being sent, from the first byte to the last.
+    let mut sent: Vec<(Duration, Duration)> = log.iter().filter_map(|asked| asked.sent).collect();
+    sent.sort();
+    let mut longest_still = Duration::ZERO;
+    let mut covered = sent.first().map_or(Duration::ZERO, |s| s.1);
+    for &(from, to) in &sent {
+        longest_still = longest_still.max(from.saturating_sub(covered));
+        covered = covered.max(to);
+    }
+    let one_connection = Duration::from_secs_f64(mirror.data.len() as f64 / MIRROR_RATE);
+    println!(
+        "{took:?} for {} MiB, one connection {one_connection:?}; {} requests, {refused} refused; \
+         longest with nothing sent {longest_still:?}",
+        mirror.data.len() >> 20,
+        log.len()
+    );
+    for asked in &log {
+        println!("  {asked:?}");
+    }
+    assert!(
+        longest_still < Duration::from_millis(300),
+        "nothing was fetched for {longest_still:?} while the server was there to fetch from"
+    );
+    /* The seams' checks (a kibibyte or so each) went out once no range was being asked for:
+     * asked as each range ended, each took the request the server would have taken for the
+     * next range, which was refused and waited out with nothing fetched. */
+    let span = |asked: &Asked| -> Option<usize> {
+        let (a, b) = asked
+            .range
+            .as_deref()?
+            .strip_prefix("bytes=")?
+            .split_once('-')?;
+        Some(b.parse::<usize>().ok()? + 1 - a.parse::<usize>().ok()?)
+    };
+    let is_check = |asked: &&Asked| span(asked).is_some_and(|n| n <= 2048);
+    let first_check = log.iter().filter(is_check).map(|asked| asked.came).min();
+    if let Some(first_check) = first_check {
+        let later: Vec<&Asked> = log
+            .iter()
+            .filter(|asked| !is_check(asked) && asked.came > first_check)
+            .collect();
+        assert!(
+            later.is_empty(),
+            "ranges were asked for after a seam's check: {later:?}"
+        );
+    }
+    // Two connections at once take half as long as one; refusals and the answers' 100 ms
+    // allowed for, about 0.6 of it alone, and up to 0.65 beside a whole workspace's tests (4.85
+    // to 5.2 s of 8 in four runs beside four copies of the queue tests, 2026-11-12): held to 0.7.
+    // Before row 197 it took 1.6 times one connection's.
+    assert!(
+        took < one_connection.mul_f64(0.7),
+        "took {took:?} where one connection takes {one_connection:?}"
     );
 }

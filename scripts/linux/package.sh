@@ -8,7 +8,7 @@
 # installs the .deb the way a person would, and drives what it installed.
 #
 # The release configuration, as CI uses it: cargo-packager reading the
-# metadata in desktop/crates/dm-desktop/Cargo.toml.
+# metadata in desktop/crates/dm-gpui/Cargo.toml (the GPUI window).
 set -e
 cd /work
 
@@ -31,9 +31,10 @@ apt-get install -y --no-install-recommends \
 # arm64 machine runs.
 FORMATS="${DM_FORMATS:-deb,appimage}"
 echo "== building: $FORMATS"
-cd desktop/crates/dm-desktop
+# The GPUI window (docs/gaps.md G9); the version is the workspace's own.
+cd desktop/crates/dm-gpui
 # AppImage tools are themselves AppImages, and a container has no FUSE.
-APPIMAGE_EXTRACT_AND_RUN=1 CARGO_BUILD_RUSTFLAGS="$(sh "$(dirname "$0")/../release-flags.sh")" cargo packager --release --formats "$FORMATS" \
+APPIMAGE_EXTRACT_AND_RUN=1 CARGO_BUILD_RUSTFLAGS="$(sh "$(dirname "$0")/../release-flags.sh")" cargo packager --release -p dm-gpui --formats "$FORMATS" \
   --out-dir /target/release/bundle
 cd /work
 
@@ -41,12 +42,13 @@ BUNDLE=/target/release/bundle
 # Built only, for `make build-linux`: the packages the release has, the .rpm
 # among them, copied out; nothing installed or driven.
 if [ -n "${DM_BUILD_ONLY:-}" ]; then
-  version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
-  sh scripts/linux/nfpm.sh /target/release/dm-desktop "$version" "$BUNDLE"
+  version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-gpui/Cargo.toml | head -1)
+  sh scripts/linux/nfpm.sh /target/release/dm-gpui "$version" "$BUNDLE"
   for f in "$BUNDLE"/*.deb "$BUNDLE"/*.AppImage "$BUNDLE"/*.rpm; do
     [ -e "$f" ] || continue
     name=$(basename "$f")
-    case "$name" in dm-desktop_*) name="dm_${name#dm-desktop_}" ;; esac
+    # The GPUI window's; an earlier build's egui packages, left in the folder, are not.
+    case "$name" in dm-gpui_*) name="dm_${name#dm-gpui_}" ;; dm-desktop_*) continue ;; esac
     cp "$f" "/out/$name"
   done
   ls -la /out
@@ -54,8 +56,10 @@ if [ -n "${DM_BUILD_ONLY:-}" ]; then
 fi
 DEB=''
 APPIMAGE=''
-for f in "$BUNDLE"/*.deb; do [ -e "$f" ] && DEB=$f && break; done
-for f in "$BUNDLE"/*.AppImage; do [ -e "$f" ] && APPIMAGE=$f && break; done
+# The GPUI window's, by name: an earlier build's dm-desktop_* may lie beside them.
+for f in "$BUNDLE"/dm-gpui_*.deb; do [ -e "$f" ] && DEB=$f && break; done
+for f in "$BUNDLE"/dm-gpui_*.AppImage; do [ -e "$f" ] && APPIMAGE=$f && break; done
+[ -n "$DEB" ] || { echo "FAIL  no dm-gpui .deb in $BUNDLE"; exit 1; }
 echo
 ls -la "$DEB" ${APPIMAGE:+"$APPIMAGE"}
 
@@ -68,10 +72,16 @@ echo "== installing it, dependencies resolved by apt"
 apt-get update >/dev/null
 apt-get install -y --no-install-recommends "$DEB" >/dev/null
 dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep -E 'bin/|\.desktop$'
+# The old name runs the window too.
+test -x /usr/bin/dm-desktop || { echo "FAIL  no /usr/bin/dm-desktop"; exit 1; }
+/usr/bin/dm-desktop --help >/dev/null || { echo "FAIL  /usr/bin/dm-desktop does not run dm"; exit 1; }
+echo "dm-desktop runs dm-gpui"
 
 echo
 echo "== the installed binary, driven"
-INSTALLED=$(dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep -E '/bin/' | head -1)
+# The window itself, not the dm-desktop that runs it under its old name.
+INSTALLED=$(dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep -E '/bin/dm-gpui$' | head -1)
+[ -n "$INSTALLED" ] || { echo "FAIL  the .deb installs no dm-gpui"; exit 1; }
 DM_BINARY="$INSTALLED" xvfb-run -a -s "-screen 0 1280x800x24" python3 scripts/app-check.py
 
 echo

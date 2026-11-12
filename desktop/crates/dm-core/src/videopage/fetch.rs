@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use super::{finish_dm, remove_staging};
+use super::{finish_dm_tagged, remove_staging};
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error};
 
@@ -44,6 +44,23 @@ pub async fn download_page(
         .map_err(Error::Disk)?;
 
     let read = resolve(url, options).await?;
+    // A live stream (YouTube's own HLS playlist of it): recorded by the engine's live HLS
+    // recording, as a stream's address is, from now until it ends or is stopped (gaps row Y5).
+    if read.info.is_live == Some(true) && !part {
+        if let Some(live) = read
+            .info
+            .single
+            .url
+            .as_deref()
+            .filter(|u| u.starts_with("https://"))
+            .filter(|_| read.info.single.protocol.as_deref() == Some("m3u8_native"))
+        {
+            return Box::pin(crate::download::download_reporting(
+                client, live, options, report,
+            ))
+            .await;
+        }
+    }
     let Some(plan) = read.plan(staging) else {
         if part {
             return Err(Error::Internal(
@@ -226,6 +243,16 @@ struct Info {
     /// Subtitles asked for, by language.
     #[serde(default)]
     requested_subtitles: Option<HashMap<String, Subtitle>>,
+    /// The video's title, its channel, when it was published and its page: written into the
+    /// joined file (gaps row Y11).
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    uploader: Option<String>,
+    #[serde(default)]
+    upload_date: Option<String>,
+    #[serde(default)]
+    webpage_url: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, serde::Deserialize)]
@@ -570,7 +597,14 @@ async fn fetch(
     subtitles(client, read, &plan.produced, options).await;
     let found = crate::subtitles::beside(&plan.produced);
     let (files, texts): (Vec<PathBuf>, Vec<crate::subtitles::Subtitle>) = found.into_iter().unzip();
-    let outcome = finish_dm(&plan.produced, texts, options).await;
+    let info = &read.info;
+    let tags = crate::mp4mux::Tags {
+        title: info.title.clone().unwrap_or_default(),
+        artist: info.uploader.clone().unwrap_or_default(),
+        date: info.upload_date.clone().unwrap_or_default(),
+        source: info.webpage_url.clone().unwrap_or_default(),
+    };
+    let outcome = finish_dm_tagged(&plan.produced, texts, tags, options).await;
     for file in files {
         let _ = tokio::fs::remove_file(file).await;
     }
@@ -652,6 +686,10 @@ async fn fetch_part(
 /// as they are left (`name.<language>.vtt`). One that cannot be had is
 /// passed over: subtitles are not worth the video.
 async fn subtitles(client: &reqwest::Client, read: &Read, produced: &Path, options: &Options) {
+    // Only where the video is to carry them: what is fetched is put inside it, then removed.
+    if !options.subtitles {
+        return;
+    }
     let Some(asked) = read.info.requested_subtitles.as_ref() else {
         return;
     };
@@ -719,6 +757,10 @@ fn merge_progress(
                 retrying @ Update::Retrying { .. } => {
                     let _ = report.send(retrying).await;
                 }
+                // A stream's note is the row's.
+                note @ Update::Note(_) => {
+                    let _ = report.send(note).await;
+                }
                 Update::Named { .. }
                 | Update::Validator(_)
                 | Update::Swarm(_)
@@ -748,6 +790,7 @@ fn sum(latest: &[Option<crate::Progress>]) -> crate::Progress {
         total,
         speed,
         eta,
+        estimated: false,
     }
 }
 
@@ -929,6 +972,7 @@ mod tests {
             total,
             speed,
             eta: None,
+            estimated: false,
         };
         let one = sum(&[Some(p(100, Some(1000), 10.0)), None]);
         assert_eq!((one.downloaded, one.total), (100, None));
@@ -1130,7 +1174,14 @@ mod coverage_tests {
         );
         let dir = tempfile::tempdir().unwrap();
         let produced = dir.path().join("Talk [x].mp4");
+        // With subtitles off, none is fetched: what is fetched is only to be put inside.
         subtitles(&crate::client(), &r, &produced, &options(dir.path())).await;
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+        let carrying = Options {
+            subtitles: true,
+            ..options(dir.path())
+        };
+        subtitles(&crate::client(), &r, &produced, &carrying).await;
         let mut names: Vec<String> = std::fs::read_dir(dir.path())
             .unwrap()
             .flatten()
@@ -1163,6 +1214,7 @@ mod coverage_tests {
             total: Some(10),
             speed: 1.0,
             eta: None,
+            estimated: false,
         };
         tx.send(Update::Named {
             name: "x.f137.mp4".into(),

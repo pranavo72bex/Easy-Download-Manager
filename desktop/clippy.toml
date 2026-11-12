@@ -1,0 +1,11 @@
+# Clippy's settings for every dm crate (gaps row A1). The lints themselves are in
+# Cargo.toml's [workspace.lints]; this file holds what they are measured against.
+
+# The toolchain dm is built with (rust-toolchain.toml): clippy suggests nothing newer.
+msrv = "1.98"
+
+# `dbg!` is for a moment at the desk, never for a commit: it writes to the
+# terminal of whoever runs dm, and a release has no terminal to read it in.
+disallowed-macros = [
+    { path = "std::dbg", reason = "a debugging print left in; use eprintln! with a reason, or remove it" },
+]
