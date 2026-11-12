@@ -87,13 +87,19 @@ struct Defaults {
 /// system's video decoder, `frames`; macOS so far).
 #[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
 pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, String> {
+    tracks_of_input(path, 0)
+}
+
+/// The tracks of the MP4 at `path`, as input `input` of a join, refused
+/// where its index points past its end (for the MKV writer, `mkvmux`).
+pub(crate) fn tracks_of_input(path: &Path, input: usize) -> Result<Vec<Track>, String> {
     let mut file =
         File::open(path).map_err(|e| format!("{} could not be read: {e}", path.display()))?;
     let length = file
         .metadata()
         .map_err(|e| format!("{} could not be read: {e}", path.display()))?
         .len();
-    let tracks = read_input(&mut file, length, 0)?;
+    let tracks = read_input(&mut file, length, input)?;
     within(&tracks, length, path)?;
     Ok(tracks)
 }
@@ -326,6 +332,7 @@ mod write;
 
 pub(crate) use part::*;
 use read::*;
+pub(crate) use read::{boxes, child};
 use text::*;
 pub(crate) use write::*;
 

@@ -111,7 +111,8 @@ pub struct Options {
     pub proxy: Option<String>,
     /// The container a video from the browser's panel was listed in ("mp4",
     /// "webm"), preferred when choosing among the formats at its height,
-    /// so what arrives is what the list said.
+    /// so what arrives is what the list said. "mkv" takes the MP4 formats
+    /// and joins a picture and sound fetched apart into a Matroska file.
     pub container: Option<String>,
     /// The frame rate a video from the panel was listed at, where its height
     /// has two lines ("720p HD" and "720p HD 60 fps", as reference A): above

@@ -3,15 +3,21 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Joins a WebM video's picture and sound into one file, by dm itself.
+//! Joins a video's picture and sound into one WebM or Matroska file, by dm
+//! itself.
 //!
 //! A video site's WebM qualities (VP9 or AV1 picture, Opus sound) come as
 //! two WebM files, as its MP4 ones do (`mp4mux`). This reads each input's
 //! tracks and blocks — the frames, with when each plays — and writes one
-//! WebM: both tracks, the blocks of both in time order in clusters that
+//! file: both tracks, the blocks of both in time order in clusters that
 //! start at a picture's key frame, an index of those (`Cues`) so a player
 //! can seek, and a `SeekHead` to find it. The frames are copied byte for
 //! byte, laced or not: nothing is decoded or encoded.
+//!
+//! An input may be an MP4 as well (`from_mp4`): its samples become blocks,
+//! so a pair no MP4 holds (a VP8 or Vorbis WebM beside an MP4) is joined
+//! into a Matroska file. The file says it is WebM where every track is a
+//! WebM codec, Matroska otherwise.
 //!
 //! The inputs came from a server: nothing here indexes past what it
 //! checked, and a file whose blocks point outside it is refused.
@@ -83,8 +89,13 @@ struct TrackIn {
 struct Block {
     input: usize,
     track: u64,
-    /// Cluster time plus the block's own offset, in the input's ticks.
+    /// Cluster time plus the block's own offset, in the input's ticks:
+    /// when the frame shows.
     ticks: i64,
+    /// When the frame is decoded, in the same ticks: the order blocks are
+    /// written in. A WebM's are its show times; an MP4 picture with frames
+    /// shown out of order has its own (`from_mp4`).
+    decode: i64,
     key: bool,
     flags: u8,
     /// The frame data after the block's header, in its input.
@@ -98,6 +109,10 @@ struct Input {
     scale: u64,
     tracks: Vec<TrackIn>,
     blocks: Vec<Block>,
+    /// Where an MP4 input's fragments say its first track starts (`tfdt`),
+    /// in its ticks: the inputs that say are moved together so the
+    /// earliest starts at zero, as the MP4 writer does.
+    origin: Option<i64>,
 }
 
 // ---- EBML ---------------------------------------------------------------
@@ -241,6 +256,12 @@ impl Reader {
 }
 
 fn read_input(path: &Path, input: usize) -> Result<Input, String> {
+    read_webm(path, input, false)
+}
+
+/// A WebM input: its tracks, and its blocks unless `tracks_only`, where
+/// the reading stops at the first cluster.
+fn read_webm(path: &Path, input: usize, tracks_only: bool) -> Result<Input, String> {
     let length = std::fs::metadata(path)
         .map_err(|e| format!("{} could not be read: {e}", path.display()))?
         .len();
@@ -284,6 +305,7 @@ fn read_input(path: &Path, input: usize) -> Result<Input, String> {
                 }
                 at = end;
             }
+            CLUSTER if tracks_only => break,
             CLUSTER => {
                 at = read_cluster(&mut r, input, start, end, segment_end, &mut blocks)?;
             }
@@ -300,6 +322,7 @@ fn read_input(path: &Path, input: usize) -> Result<Input, String> {
         scale,
         tracks,
         blocks,
+        origin: None,
     })
 }
 
@@ -375,6 +398,7 @@ fn read_cluster(
                     input,
                     track,
                     ticks: cluster_time + offset,
+                    decode: cluster_time + offset,
                     key: flags & 0x80 != 0,
                     flags,
                     data_at: body + header as u64,
@@ -415,6 +439,7 @@ fn read_cluster(
                         input,
                         track,
                         ticks: cluster_time + offset,
+                        decode: cluster_time + offset,
                         key: !referenced,
                         flags,
                         data_at,
@@ -432,15 +457,18 @@ fn read_cluster(
 
 // ---- writing ------------------------------------------------------------
 
-/// A block as written: its new track, its time in milliseconds.
+/// A block as written: its new track, when it shows and when it is
+/// decoded, in milliseconds.
 struct Placed<'a> {
     block: &'a Block,
     track: u64,
     ms: i64,
+    decode_ms: i64,
     video: bool,
 }
 
-/// Joins the WebM files `inputs` into one at `out`. Returns its length.
+/// Joins the WebM, Matroska or MP4 files `inputs` into one at `out`.
+/// Returns its length.
 pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
     join_with_text(inputs, &[], out)
 }
@@ -473,10 +501,12 @@ fn text_input(texts: &[crate::subtitles::Subtitle], input: usize, data: &mut Vec
             let data_at = data.len() as u64;
             data.extend_from_slice(b"\n\n");
             data.extend_from_slice(cue.text.as_bytes());
+            let ticks = i64::try_from(cue.start).unwrap_or(i64::MAX);
             blocks.push(Block {
                 input,
                 track: number,
-                ticks: i64::try_from(cue.start).unwrap_or(i64::MAX),
+                ticks,
+                decode: ticks,
                 key: true,
                 flags: 0,
                 data_at,
@@ -490,6 +520,7 @@ fn text_input(texts: &[crate::subtitles::Subtitle], input: usize, data: &mut Vec
         scale: SCALE_NS,
         tracks,
         blocks,
+        origin: None,
     }
 }
 
@@ -500,15 +531,28 @@ pub fn join_with_text(
     out: &Path,
 ) -> Result<u64, String> {
     let mut read = Vec::new();
+    let mut webm = Vec::new();
     for (i, path) in inputs.iter().enumerate() {
-        let input = read_input(path, i)
-            .map_err(|e| format!("{} is not a WebM dm can join: {e}", path.display()))?;
+        webm.push(is_webm(path));
+        let input = if webm.last() == Some(&true) {
+            read_input(path, i)
+                .map_err(|e| format!("{} is not a WebM dm can join: {e}", path.display()))?
+        } else {
+            from_mp4::read(path, i)
+                .map_err(|e| format!("{} is not an MP4 dm can join: {e}", path.display()))?
+        };
         let length = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
-        if input.blocks.iter().any(|b| b.data_at + b.data_len > length) {
+        let past = input.blocks.iter().any(|b| {
+            b.data_at
+                .checked_add(b.data_len)
+                .is_none_or(|end| end > length)
+        });
+        if past {
             return Err(format!("{} is cut short", path.display()));
         }
         read.push(input);
     }
+    line_up(&mut read, &webm);
     let mut scratch_name = out.as_os_str().to_owned();
     scratch_name.push(".text");
     let scratch = PathBuf::from(scratch_name);
@@ -522,6 +566,43 @@ pub fn join_with_text(
     let joined = join_read(&read, &sources, out);
     let _ = std::fs::remove_file(&scratch);
     joined
+}
+
+/// Moves the MP4 inputs whose fragments say when they start together, so
+/// the earliest starts at zero, as the MP4 writer does. A WebM beside them
+/// (`webm`, by input) is placed by its first block, as the MP4 writer
+/// places it: a live stream's WebM picture keeps its own clock, which is
+/// the clock the MP4 sound's fragments count on. An MP4 that does not say
+/// keeps its own times, and so does every input where none says.
+fn line_up(read: &mut [Input], webm: &[bool]) {
+    if read.iter().all(|input| input.origin.is_none()) {
+        return;
+    }
+    for (input, _) in read
+        .iter_mut()
+        .zip(webm)
+        .filter(|(input, webm)| **webm && input.origin.is_none())
+    {
+        input.origin = input.blocks.iter().map(|b| b.ticks.max(0)).min();
+    }
+    let earliest_ns = read
+        .iter()
+        .filter_map(|input| {
+            input
+                .origin
+                .map(|o| i128::from(o) * i128::from(input.scale))
+        })
+        .min();
+    let Some(earliest_ns) = earliest_ns else {
+        return;
+    };
+    for input in read.iter_mut().filter(|i| i.origin.is_some()) {
+        let by = i64::try_from(earliest_ns / i128::from(input.scale.max(1))).unwrap_or(0);
+        for block in &mut input.blocks {
+            block.ticks = block.ticks.saturating_sub(by);
+            block.decode = block.decode.saturating_sub(by);
+        }
+    }
 }
 
 fn join_read(read: &[Input], inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
@@ -551,11 +632,15 @@ fn join_read(read: &[Input], inputs: &[PathBuf], out: &Path) -> Result<u64, Stri
             let Some(track) = number_of(block.input, block.track) else {
                 continue;
             };
-            let ns = i128::from(block.ticks) * i128::from(input.scale);
+            let ms = |ticks: i64| {
+                let ns = i128::from(ticks) * i128::from(input.scale);
+                (ns / i128::from(SCALE_NS)) as i64
+            };
             placed.push(Placed {
                 block,
                 track,
-                ms: (ns / i128::from(SCALE_NS)) as i64,
+                ms: ms(block.ticks),
+                decode_ms: ms(block.decode),
                 video: order
                     .get(track as usize - 1)
                     .is_some_and(|(_, t)| t.kind == 1),
@@ -567,7 +652,9 @@ fn join_read(read: &[Input], inputs: &[PathBuf], out: &Path) -> Result<u64, Stri
     if placed.iter().any(|p| p.ms < -30_000) {
         return Err("a track starts too far before the others".into());
     }
-    placed.sort_by_key(|p| (p.ms, !p.video));
+    // In decoding order: a picture shown out of order (an MP4's B-frames)
+    // keeps the order its decoder needs, each block with its show time.
+    placed.sort_by_key(|p| (p.decode_ms, !p.video));
     let webm = order.iter().all(|(_, t)| {
         [
             "V_VP8",
@@ -780,6 +867,27 @@ fn write(
         .map_err(wrote)?;
     file.sync_all().map_err(wrote)?;
     Ok(data_start + segment_len)
+}
+
+// ---- which container a join needs ---------------------------------------
+
+/// The codecs an MP4 dm writes takes from a WebM (`mp4_tracks`).
+const MP4_TAKES: [&str; 3] = ["V_VP9", "V_AV1", "A_OPUS"];
+
+/// Whether `inputs` hold a picture or sound no MP4 dm writes can hold: a
+/// WebM's VP8 or Vorbis (or any codec but VP9, AV1 and Opus). Such a pair
+/// is joined into a Matroska file instead of being refused. An input that
+/// cannot be read says nothing here; the join that follows says why.
+pub(crate) fn needs_matroska(inputs: &[PathBuf]) -> bool {
+    inputs.iter().any(|path| {
+        is_webm(path)
+            && read_webm(path, 0, true).is_ok_and(|input| {
+                input
+                    .tracks
+                    .iter()
+                    .any(|t| !MP4_TAKES.contains(&t.codec.as_str()))
+            })
+    })
 }
 
 // ---- a WebM's tracks for an MP4 ------------------------------------------
@@ -1098,9 +1206,46 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
     Ok(tracks)
 }
 
+mod from_mp4;
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// A WebM of one track of `codec` (`kind` 1 a picture, 2 a sound):
+    /// `frames` blocks of 20 bytes each 33 ms apart, the first a key frame.
+    pub(crate) fn tiny_webm(path: &Path, codec: &str, kind: u64, frames: usize) {
+        tiny_webm_at(path, codec, kind, frames, 0);
+    }
+
+    /// [`tiny_webm`] whose one cluster starts `start_ms` in, as a live
+    /// stream's does.
+    pub(crate) fn tiny_webm_at(path: &Path, codec: &str, kind: u64, frames: usize, start_ms: u64) {
+        let header = element(EBML, &element(0x4282, b"webm"));
+        let info = element(INFO, &uint_element(TIMECODE_SCALE, SCALE_NS));
+        let mut entry = uint_element(TRACK_NUMBER, 1);
+        entry.extend(uint_element(TRACK_UID, 1));
+        entry.extend(uint_element(TRACK_TYPE, kind));
+        entry.extend(element(CODEC_ID, codec.as_bytes()));
+        if codec == "A_VORBIS" {
+            // Vorbis keeps its three headers here; their bytes do not matter.
+            entry.extend(element(0x63A2, &[2, 1, 1, 0xAA, 0xBB, 0xCC]));
+        }
+        let tracks = element(TRACKS, &element(TRACK_ENTRY, &entry));
+        let mut cluster = uint_element(TIMECODE, start_ms);
+        for i in 0..frames {
+            let mut block = vec![0x81];
+            block.extend_from_slice(&(i as i16 * 33).to_be_bytes());
+            block.push(if i == 0 || kind == 2 { 0x80 } else { 0 });
+            block.extend_from_slice(&[i as u8; 20]);
+            cluster.extend(element(SIMPLE_BLOCK, &block));
+        }
+        let segment = element(
+            SEGMENT,
+            &[info, tracks, element(CLUSTER, &cluster)].concat(),
+        );
+        std::fs::write(path, [header, segment].concat()).unwrap();
+    }
 
     #[test]
     fn a_signed_element_is_read_with_its_sign() {

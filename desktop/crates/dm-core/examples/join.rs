@@ -5,7 +5,8 @@
 
 //! Joins MP4 (or WebM) files' tracks into one, as dm does with a video's
 //! picture and sound: `cargo run -p dm-core --example join -- out.mp4
-//! video.mp4 audio.m4a`, or `out.webm` with WebM inputs.
+//! video.mp4 audio.m4a`, or `out.webm` with WebM inputs, or `out.mkv` with
+//! WebM or MP4 inputs.
 
 fn main() {
     let args: Vec<std::path::PathBuf> = std::env::args_os().skip(1).map(Into::into).collect();

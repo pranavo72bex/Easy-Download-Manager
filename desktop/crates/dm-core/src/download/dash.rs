@@ -327,7 +327,13 @@ async fn join_tracks(
 
     // Joined before a stop: that file is whole (it is named only when it is),
     // so it is placed and nothing is fetched again.
-    let joined = options.parts_dir.join(format!("joined.{extension}"));
+    let mut joined = options.parts_dir.join(format!("joined.{extension}"));
+    // A picture and sound joined into a Matroska file instead of an MP4
+    // (below) are found under that name.
+    let matroska = options.parts_dir.join("joined.mkv");
+    if extension == "mp4" && fs::metadata(&matroska).await.is_ok_and(|m| m.len() > 0) {
+        joined = matroska.clone();
+    }
     if !fs::metadata(&joined).await.is_ok_and(|m| m.len() > 0) {
         let downloaded = Arc::new(AtomicU64::new(0));
         // The size where the manifest gives every piece's bytes; else about, from each track's
@@ -349,13 +355,31 @@ async fn join_tracks(
         let files = fetched?;
         options.control.check()?;
 
-        let partial = options
-            .parts_dir
-            .join(format!("joined.partial.{extension}"));
+        // Matroska where it was asked for, or where the picture and sound
+        // are a pair no MP4 holds (VP8 or Vorbis beside an MP4's samples),
+        // rather than refused. A part or a reshaped picture is made by the
+        // MP4 writer alone, as before, and so is an HLS transport stream
+        // with its sound kept apart.
+        let streams = files
+            .iter()
+            .any(|f| crate::tsmux::is_transport_stream(f) || crate::tsmux::is_packed_aac(f));
+        let mkv = extension == "mp4"
+            && options.span.is_none()
+            && options.shape.is_none()
+            && !streams
+            && (options.container.as_deref() == Some("mkv")
+                || crate::mkvmux::needs_matroska(&files));
+        if mkv {
+            joined = matroska.clone();
+        }
+        let partial = options.parts_dir.join(format!(
+            "joined.partial.{}",
+            if mkv { "mkv" } else { extension }
+        ));
         let _ = fs::remove_file(&partial).await;
         // Run to the end like the remux of a transport stream: cut loose
         // from a pause it would go on writing a file a resume makes afresh.
-        let made = if webm {
+        let made = if webm || mkv {
             crate::mkvmux::join_async(files.clone(), partial.clone()).await
         } else if let [picture, sound] = files.as_slice().iter().collect::<Vec<_>>()[..]
             .iter()
@@ -382,6 +406,13 @@ async fn join_tracks(
         for file in files {
             let _ = fs::remove_file(file).await;
         }
+    }
+    // Saved under the name of what it is.
+    if joined == matroska {
+        filename = Path::new(&filename)
+            .with_extension("mkv")
+            .to_string_lossy()
+            .into_owned();
     }
 
     let (path, bytes, category) = finish(&filename, None, &[joined], options).await?;
@@ -1323,5 +1354,79 @@ mod tests {
         assert_eq!(hits.load(Ordering::SeqCst), 0, "the picture was kept");
         let data = std::fs::read(&done.path).unwrap();
         assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+    }
+
+    /// Serves a manifest of one picture and one sound, each one whole file
+    /// of its type, and returns its address.
+    async fn serve_pair(picture: (&str, Vec<u8>), sound: (&str, Vec<u8>)) -> String {
+        let mpd = format!(
+            r#"<MPD type="static" mediaPresentationDuration="PT2S"><Period>
+            <AdaptationSet mimeType="{}"><Representation id="v" bandwidth="9" height="90">
+              <BaseURL>picture</BaseURL><SegmentBase indexRange="0-1"/></Representation></AdaptationSet>
+            <AdaptationSet mimeType="{}"><Representation id="a" bandwidth="1">
+              <BaseURL>sound</BaseURL><SegmentBase indexRange="0-1"/></Representation></AdaptationSet>
+            </Period></MPD>"#,
+            picture.0, sound.0
+        );
+        let app = axum::Router::new()
+            .route(
+                "/show/video.mpd",
+                get(move || {
+                    let mpd = mpd.clone();
+                    async move { Response::new(Body::from(mpd)) }
+                }),
+            )
+            .route("/show/picture", ranged(picture.1, true))
+            .route("/show/sound", ranged(sound.1, true));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("http://{addr}/show/video.mpd")
+    }
+
+    fn media(name: &str) -> Vec<u8> {
+        std::fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/media/mp4mux")
+                .join(name),
+        )
+        .unwrap()
+    }
+
+    /// A VP8 picture beside an MP4's sound, a pair no MP4 holds, is saved
+    /// as an MKV rather than refused; an MP4 pair is one when MKV is asked.
+    #[tokio::test]
+    async fn a_pair_no_mp4_holds_is_saved_as_an_mkv() {
+        let dir = tempfile::tempdir().unwrap();
+        let vp8 = dir.path().join("vp8.webm");
+        crate::mkvmux::tests::tiny_webm(&vp8, "V_VP8", 1, 5);
+        let url = serve_pair(
+            ("video/webm", std::fs::read(&vp8).unwrap()),
+            ("audio/mp4", media("sound.m4a")),
+        )
+        .await;
+        let plain = options(dir.path());
+        let done = crate::download::download(&reqwest::Client::new(), &url, &plain)
+            .await
+            .unwrap();
+        assert_eq!(done.path.file_name().unwrap(), "show.mkv");
+        let data = std::fs::read(&done.path).unwrap();
+        assert!(data.windows(5).any(|w| w == b"V_VP8"));
+        assert!(data.windows(5).any(|w| w == b"A_AAC"));
+
+        let dir = tempfile::tempdir().unwrap();
+        let url = serve_pair(
+            ("video/mp4", media("picture.mp4")),
+            ("audio/mp4", media("sound.m4a")),
+        )
+        .await;
+        let mut asked = options(dir.path());
+        asked.container = Some("mkv".into());
+        let done = crate::download::download(&reqwest::Client::new(), &url, &asked)
+            .await
+            .unwrap();
+        assert_eq!(done.path.file_name().unwrap(), "show.mkv");
+        let data = std::fs::read(&done.path).unwrap();
+        assert!(data.windows(15).any(|w| w == b"V_MPEG4/ISO/AVC"));
     }
 }
