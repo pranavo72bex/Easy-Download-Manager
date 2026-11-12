@@ -789,6 +789,92 @@ mod tests {
         assert!(data.windows(4).any(|w| w == b"mp4a"));
     }
 
+    /// A live stream in fragmented MP4 whose sound is a playlist of its own:
+    /// both playlists grow a fragment at each ask and then end, and the
+    /// recording is one MP4 with a picture track and a sound track.
+    #[tokio::test]
+    async fn a_live_fragmented_picture_and_its_separate_sound_are_recorded_into_one_mp4() {
+        use std::sync::atomic::AtomicUsize;
+        let dir = tempfile::tempdir().unwrap();
+        // The stand-in's tracks: the same shape of fragments, one of them
+        // handled as sound.
+        let split = |path: PathBuf, sound: bool| {
+            let mut data = std::fs::read(path).unwrap();
+            if sound {
+                let at = data.windows(4).position(|w| w == b"vide").unwrap();
+                data[at..at + 4].copy_from_slice(b"soun");
+            }
+            let starts = box_starts(&data);
+            let mut pieces = vec![data[..starts[2]].to_vec()];
+            for f in 0..3 {
+                pieces.push(data[starts[2 + f * 2]..starts[4 + f * 2]].to_vec());
+            }
+            pieces
+        };
+        let picture = split(fragmented(dir.path(), "v.mp4", 3).0, false);
+        let sound = split(fragmented(dir.path(), "a.mp4", 3).0, true);
+        // At ask n, the fragments out so far; the end tag once all three are.
+        let live = |name: &'static str, asks: Arc<AtomicUsize>| {
+            get(move || {
+                let asks = Arc::clone(&asks);
+                async move {
+                    let out = (asks.fetch_add(1, Ordering::SeqCst) + 1).min(3);
+                    let mut text = format!(
+                        "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
+                         #EXT-X-MAP:URI=\"{name}-init.mp4\"\n"
+                    );
+                    for n in 0..out {
+                        text.push_str(&format!("#EXTINF:1,\n{name}{n}.m4s\n"));
+                    }
+                    if out == 3 {
+                        text.push_str("#EXT-X-ENDLIST\n");
+                    }
+                    Response::builder()
+                        .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                        .body(Body::from(text))
+                        .unwrap()
+                }
+            })
+        };
+        let bytes = |body: Vec<u8>| get(move || async move { Response::new(Body::from(body)) });
+        let mut app = axum::Router::new()
+            .route(
+                "/live/master.m3u8",
+                get(|| async {
+                    Response::builder()
+                        .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                        .body(Body::from(
+                            "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"en\",DEFAULT=YES,URI=\"sound.m3u8\"\n\
+                             #EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,AUDIO=\"a\"\npicture.m3u8\n",
+                        ))
+                        .unwrap()
+                }),
+            )
+            .route("/live/picture.m3u8", live("v", Arc::default()))
+            .route("/live/sound.m3u8", live("a", Arc::default()))
+            .route("/live/v-init.mp4", bytes(picture[0].clone()))
+            .route("/live/a-init.mp4", bytes(sound[0].clone()));
+        for n in 0..3 {
+            app = app
+                .route(&format!("/live/v{n}.m4s"), bytes(picture[n + 1].clone()))
+                .route(&format!("/live/a{n}.m4s"), bytes(sound[n + 1].clone()));
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let options = options(dir.path());
+        let url = format!("http://{addr}/live/master.m3u8");
+        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap();
+        assert_eq!(done.path.extension().unwrap(), "mp4");
+        let data = std::fs::read(&done.path).unwrap();
+        assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+        assert!(data.windows(4).any(|w| w == b"vide"), "no picture track");
+        assert!(data.windows(4).any(|w| w == b"soun"), "no sound track");
+    }
+
     #[tokio::test]
     async fn an_encrypted_hls_pair_cut_by_byte_ranges_is_fetched_decrypted_and_joined() {
         use aes::cipher::{block_padding::Pkcs7, BlockModeEncrypt, InnerIvInit, KeyInit};
