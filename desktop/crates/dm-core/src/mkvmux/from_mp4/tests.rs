@@ -7,7 +7,10 @@
 //! (`read_input`): tracks, codec IDs, CodecPrivate, every frame's bytes and
 //! when it shows.
 
-use super::super::{elements, find, join, needs_matroska, read_input, tests::tiny_webm};
+use super::super::{
+    elements, find, join, needs_matroska, read_input,
+    tests::{tiny_webm, tiny_webm_at},
+};
 use super::*;
 use crate::mp4mux::{Edit, Sample};
 use std::path::PathBuf;
@@ -345,9 +348,51 @@ fn inputs_that_say_when_they_start_line_up_at_zero() {
         input(Some(10_500_000_000), 10_500_000_000),
         input(None, 0),
     ];
-    super::super::line_up(&mut read);
+    super::super::line_up(&mut read, &[false; 3]);
     let ticks: Vec<i64> = read.iter().map(|i| i.blocks[0].ticks).collect();
     assert_eq!(ticks, [0, 500_000_000, 0]);
+
+    // A WebM beside them is placed by its first block, on the same clock.
+    let mut read = vec![
+        input(Some(10_200_000_000), 10_200_000_000),
+        input(None, 10_000_000_000),
+    ];
+    super::super::line_up(&mut read, &[false, true]);
+    let ticks: Vec<i64> = read.iter().map(|i| i.blocks[0].ticks).collect();
+    assert_eq!(ticks, [200_000_000, 0]);
+    // WebM inputs alone keep their own times, as before.
+    let mut read = vec![input(None, 10_000_000_000), input(None, 10_000_000_000)];
+    super::super::line_up(&mut read, &[true, true]);
+    assert_eq!(read[0].blocks[0].ticks, 10_000_000_000);
+}
+
+/// A live stream's VP8 picture, its clusters ten seconds in, beside its
+/// MP4 sound whose fragment says it starts there too: both start at zero
+/// in the MKV, as they played together.
+#[test]
+fn a_live_webm_picture_and_mp4_sound_stay_together() {
+    let dir = tempfile::tempdir().unwrap();
+    let vp8 = dir.path().join("live.webm");
+    tiny_webm_at(&vp8, "V_VP8", 1, 10, 10_000);
+    // The fragmented sound's tfdt rewritten to ten seconds.
+    let sound = dir.path().join("live.m4a");
+    let mut data = std::fs::read(media("sound.f140.m4a")).unwrap();
+    let scale = crate::mp4mux::tracks_of_input(&media("sound.f140.m4a"), 0).unwrap()[0].timescale;
+    let at = data.windows(4).position(|w| w == b"tfdt").unwrap() + 4;
+    if data[at] == 1 {
+        data[at + 4..at + 12].copy_from_slice(&(u64::from(scale) * 10).to_be_bytes());
+    } else {
+        data[at + 4..at + 8].copy_from_slice(&(scale * 10).to_be_bytes());
+    }
+    std::fs::write(&sound, &data).unwrap();
+
+    let out = dir.path().join("live.mkv");
+    join(&[vp8, sound], &out).unwrap();
+    let back = read_back(&out);
+    assert_eq!(back[0].codec, "V_VP8");
+    assert_eq!(back[0].ms.first(), Some(&0));
+    let first_sound = back[1].ms.first().copied().unwrap();
+    assert!((-100..100).contains(&first_sound), "{first_sound}");
 }
 
 #[test]

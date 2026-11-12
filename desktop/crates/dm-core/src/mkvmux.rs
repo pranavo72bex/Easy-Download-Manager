@@ -531,8 +531,10 @@ pub fn join_with_text(
     out: &Path,
 ) -> Result<u64, String> {
     let mut read = Vec::new();
+    let mut webm = Vec::new();
     for (i, path) in inputs.iter().enumerate() {
-        let input = if is_webm(path) {
+        webm.push(is_webm(path));
+        let input = if webm.last() == Some(&true) {
             read_input(path, i)
                 .map_err(|e| format!("{} is not a WebM dm can join: {e}", path.display()))?
         } else {
@@ -550,7 +552,7 @@ pub fn join_with_text(
         }
         read.push(input);
     }
-    line_up(&mut read);
+    line_up(&mut read, &webm);
     let mut scratch_name = out.as_os_str().to_owned();
     scratch_name.push(".text");
     let scratch = PathBuf::from(scratch_name);
@@ -567,8 +569,22 @@ pub fn join_with_text(
 }
 
 /// Moves the MP4 inputs whose fragments say when they start together, so
-/// the earliest starts at zero; the others keep their own times.
-fn line_up(read: &mut [Input]) {
+/// the earliest starts at zero, as the MP4 writer does. A WebM beside them
+/// (`webm`, by input) is placed by its first block, as the MP4 writer
+/// places it: a live stream's WebM picture keeps its own clock, which is
+/// the clock the MP4 sound's fragments count on. An MP4 that does not say
+/// keeps its own times, and so does every input where none says.
+fn line_up(read: &mut [Input], webm: &[bool]) {
+    if read.iter().all(|input| input.origin.is_none()) {
+        return;
+    }
+    for (input, _) in read
+        .iter_mut()
+        .zip(webm)
+        .filter(|(input, webm)| **webm && input.origin.is_none())
+    {
+        input.origin = input.blocks.iter().map(|b| b.ticks.max(0)).min();
+    }
     let earliest_ns = read
         .iter()
         .filter_map(|input| {
@@ -1199,6 +1215,12 @@ pub(crate) mod tests {
     /// A WebM of one track of `codec` (`kind` 1 a picture, 2 a sound):
     /// `frames` blocks of 20 bytes each 33 ms apart, the first a key frame.
     pub(crate) fn tiny_webm(path: &Path, codec: &str, kind: u64, frames: usize) {
+        tiny_webm_at(path, codec, kind, frames, 0);
+    }
+
+    /// [`tiny_webm`] whose one cluster starts `start_ms` in, as a live
+    /// stream's does.
+    pub(crate) fn tiny_webm_at(path: &Path, codec: &str, kind: u64, frames: usize, start_ms: u64) {
         let header = element(EBML, &element(0x4282, b"webm"));
         let info = element(INFO, &uint_element(TIMECODE_SCALE, SCALE_NS));
         let mut entry = uint_element(TRACK_NUMBER, 1);
@@ -1210,7 +1232,7 @@ pub(crate) mod tests {
             entry.extend(element(0x63A2, &[2, 1, 1, 0xAA, 0xBB, 0xCC]));
         }
         let tracks = element(TRACKS, &element(TRACK_ENTRY, &entry));
-        let mut cluster = uint_element(TIMECODE, 0);
+        let mut cluster = uint_element(TIMECODE, start_ms);
         for i in 0..frames {
             let mut block = vec![0x81];
             block.extend_from_slice(&(i as i16 * 33).to_be_bytes());
