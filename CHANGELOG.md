@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download's progress window closes when the download is taken out of the list, rather than stay open and empty.
+- The default button's focus ring can be seen: it was drawn in the accent colour on the accent.
 - Download details says "Checking…" while it asks the server, then the size beside the room the folder has left, marked when it will not fit.
 - A download's progress window has "When this download is done": open it, open its folder, or exit, sleep, hibernate or turn off (after the usual cancellable countdown).
 - YouTube: the clients dm asks YouTube's player as can be changed by the served rules, without a new version, and the next is tried where one is refused.
