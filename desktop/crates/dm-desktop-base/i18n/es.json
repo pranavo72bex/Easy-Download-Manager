@@ -915,5 +915,6 @@
  "Not for the downloads chosen": "No sirve para las descargas elegidas",
  "Nothing in the list for it now": "Ahora no hay nada en la lista para esto",
  "higher qualities are copy-protected, so the best one that is not was taken": "las calidades más altas están protegidas contra copia, así que se tomó la mejor que no lo está",
- "{} pieces of the live stream were gone before dm could fetch them": "{} partes de la emisión en directo desaparecieron antes de que dm pudiera obtenerlas"
+ "{} pieces of the live stream were gone before dm could fetch them": "{} partes de la emisión en directo desaparecieron antes de que dm pudiera obtenerlas",
+ "checked against the checksum file published beside it": "comprobado con el archivo de suma de verificación publicado junto a él"
 }

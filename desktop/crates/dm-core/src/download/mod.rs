@@ -41,6 +41,7 @@ mod http;
 mod mirrors;
 mod plain;
 mod ranged;
+mod sidecar;
 mod space;
 
 pub(crate) use assemble::*;
@@ -741,10 +742,14 @@ pub async fn download(
 
 /// Every note a download may put on its row ([`Update::Note`]), so the window has each in
 /// every language; a note with a number says it as `{}`.
-pub const NOTES: [&str; 2] = [
+pub const NOTES: [&str; 3] = [
     "higher qualities are copy-protected, so the best one that is not was taken",
     "{} pieces of the live stream were gone before dm could fetch them",
+    "checked against the checksum file published beside it",
 ];
+
+/// The note of a file checked against a checksum file found beside it ([`NOTES`], gaps row F5).
+pub const CHECKED_BESIDE: &str = NOTES[2];
 
 /// What the engine tells a caller while a download is in flight.
 ///
@@ -1139,6 +1144,7 @@ async fn fetch_reporting(
     }
 
     let mut checksum = options.checksum.clone();
+    let mut listed_mirrors = false;
     let mut sources = vec![Source {
         url: info.final_url.clone(),
         validator: info.validator.clone(),
@@ -1180,6 +1186,7 @@ async fn fetch_reporting(
         // The caller's digest wins: it is the one a person typed in, and a
         // Metalink is a document from the same place as the file.
         checksum = checksum.or(listed.checksum);
+        listed_mirrors = true;
     }
 
     fs::create_dir_all(&options.parts_dir).await?;
@@ -1384,6 +1391,22 @@ async fn fetch_reporting(
         return Box::pin(download_reporting(client, url, &one, again)).await;
     }
 
+    /* Nothing typed and no Metalink's: a checksum file the server publishes beside the file
+     * (`dm.zip.sha256`, `SHA256SUMS`) is the digest, checked as a typed one is (gaps row F5).
+     * Not for a video caught from a page or a web page saved as one, which no release
+     * vouches for. */
+    let beside = checksum.is_none()
+        && !listed_mirrors
+        && !is_stream()
+        && !options.media
+        && !options.accept_page;
+    // A pause or a cancel meanwhile ends the look with nothing found; the assembly below
+    // honours it as it does any other.
+    if beside {
+        checksum =
+            sidecar::published_beside(client, url, &info.final_url, &info.filename, options).await;
+    }
+    let from_beside = beside && checksum.is_some();
     /* A Metalink supplies its own digest where the caller gave none, so the
      * options handed to assembly carry whichever applies — one place decides
      * whether a file is the file. */
@@ -1423,6 +1446,12 @@ async fn fetch_reporting(
         return Box::pin(download_reporting(client, url, &one, again)).await;
     }
     let (path, bytes, category) = assembled?;
+    // Said on the row only once the file has passed: a mismatch fails it as a typed one does.
+    if from_beside {
+        if let Some(to) = &again {
+            let _ = to.send(Update::Note(CHECKED_BESIDE.into())).await;
+        }
+    }
     // The server's date on the file, where asked: a file a person sorts by
     // date then sorts by when it was made, not when it was fetched.
     if options.server_dates {

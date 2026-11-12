@@ -915,5 +915,6 @@
  "Not for the downloads chosen": "Не для выбранных загрузок",
  "Nothing in the list for it now": "Сейчас в списке нет подходящих",
  "higher qualities are copy-protected, so the best one that is not was taken": "более высокие качества защищены от копирования, поэтому взято лучшее незащищённое",
- "{} pieces of the live stream were gone before dm could fetch them": "{} фрагментов прямой трансляции исчезли до того, как dm успел их получить"
+ "{} pieces of the live stream were gone before dm could fetch them": "{} фрагментов прямой трансляции исчезли до того, как dm успел их получить",
+ "checked against the checksum file published beside it": "проверено по файлу контрольной суммы, опубликованному рядом"
 }

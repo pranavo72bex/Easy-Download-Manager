@@ -251,7 +251,7 @@ settings rather than borrowing the browser's.
 | **Categories** | Finished files sorted into Videos, Audio, Documents and the rest, configurable per kind. |
 | **Schedule** | A window in local time that may wrap past midnight, because "between 23:00 and 07:00" is the case people have. Outside it the queue stops and resumes from its part files later. A download paused on purpose stays paused. |
 | **Proxy** | HTTP, HTTPS, SOCKS4 or SOCKS5, with credentials if it needs them. A proxy that cannot be built is reported rather than quietly bypassed. |
-| **Checksums** | Paste a published SHA-256, SHA-512 or MD5 onto a row. A mismatch fails the download and removes the file — a file known to be wrong should not sit in the downloads folder looking like every other one. |
+| **Checksums** | Paste a published SHA-256, SHA-512, SHA-1, MD5 or CRC-32 onto a row; with none pasted, a checksum file the server publishes beside the file (`name.sha256`, `SHA256SUMS` …) is fetched and used. A mismatch fails the download and removes the file — a file known to be wrong should not sit in the downloads folder looking like every other one. |
 | **Mirrors** | Give it a `.meta4` or `.metalink` and it probes every mirror, drops any that disagree about the length, and hands each range its own mirror so all of them are working at once. The document's own checksum is used without being asked for. |
 | **History** | Finished rows stay, with the time they finished, until you clear them. |
 | **BitTorrent** | Paste a magnet or a `.torrent` and the client joins the swarm, fetches every piece, and reports on the same row as any other download — one speed ceiling covers both. The extension cannot do this at all: it has no sockets, so a magnet is a download only the app can take. With "Keep sharing a finished torrent" on (Options › Advanced, off by default), `torrent::keep_sharing` adds the torrent again, in a session of its own that listens for peers, over the files where they now are, and sends them until its ratio or its time is reached; `torrent::sharing` is what the row's status reads, and removing the row or deleting its file calls `stop_sharing`. That session never fetches: files that are no longer whole end the sharing. |
@@ -442,7 +442,7 @@ desktop/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
                           range workers, resume; ranged/limits.rs keeps to a server that
                           limits connections or requests), http.rs, mirrors.rs, hls.rs (playlists and
-                          live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (the staged file, or a file a range where the download folder is on another disk; names)
+                          live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, sidecar.rs (a checksum file published beside the download), space.rs (free-disk accounting), files.rs (the staged file, or a file a range where the download folder is on another disk; names)
     queue/                several downloads, a limit, and the states between: mod.rs (the state),
                           runner.rs (what starts and when), actions.rs (pause, resume, cancel,
                           remove), settings.rs, persist.rs, journal.rs (a long list saves
