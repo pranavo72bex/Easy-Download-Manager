@@ -1110,4 +1110,65 @@ mod tests {
         assert!(!state(&menus, Command::ToggleToolbar.label()).0);
         assert!(state(&menus, Command::ToggleDropTarget.label()).0);
     }
+
+    /// Every command's keys, as bound, and the command each one runs.
+    fn bound() -> Vec<(gpui::Keystroke, Command)> {
+        Command::ALL
+            .iter()
+            .flat_map(|c| c.chords().into_iter().map(move |k| (k, *c)))
+            .map(|(chord, command)| {
+                // As `bind_keys` reads it: GPUI keeps a keystroke's words.
+                let keys: &'static str = keystroke(&chord).leak();
+                let parsed = gpui::Keystroke::parse(keys)
+                    .unwrap_or_else(|e| panic!("{keys} cannot be bound: {e:?}"));
+                (parsed, command)
+            })
+            .collect()
+    }
+
+    /// What the key `keys` (as GPUI writes one) runs.
+    fn runs(keys: String) -> Vec<Command> {
+        let pressed = gpui::Keystroke::parse(keys.leak()).unwrap();
+        bound()
+            .into_iter()
+            .filter(|(k, _)| *k == pressed)
+            .map(|(_, c)| c)
+            .collect()
+    }
+
+    #[test]
+    fn each_key_runs_its_own_command_and_no_other() {
+        let keys = bound();
+        assert!(keys.len() >= 12, "only {} keys", keys.len());
+        for (i, (a, command)) in keys.iter().enumerate() {
+            assert!(
+                !keys[i + 1..].iter().any(|(b, _)| b == a),
+                "{a:?} runs {command:?} and another"
+            );
+        }
+        // The one that went wrong in the egui window: ⌘⇧N is the numbered
+        // series, not Add URL.
+        let command = if cfg!(target_os = "macos") {
+            "cmd"
+        } else {
+            "ctrl"
+        };
+        assert_eq!(runs(format!("{command}-shift-n")), vec![Command::AddSeries]);
+        assert_eq!(runs(format!("{command}-n")), vec![Command::AddUrl]);
+    }
+
+    #[test]
+    fn a_mac_removes_with_backspace_and_others_with_delete() {
+        if cfg!(target_os = "macos") {
+            assert_eq!(runs("backspace".into()), vec![Command::Remove]);
+            assert_eq!(
+                Command::Remove.chords().first().map(keystroke).as_deref(),
+                Some("cmd-backspace"),
+                "the menu shows ⌘⌫"
+            );
+        } else {
+            assert!(runs("backspace".into()).is_empty());
+        }
+        assert_eq!(runs("delete".into()), vec![Command::Remove]);
+    }
 }

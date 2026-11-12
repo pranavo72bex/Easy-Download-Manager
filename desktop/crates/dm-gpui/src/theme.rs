@@ -70,7 +70,16 @@ impl Theme {
     /// Under Windows' High Contrast, its own colours, whatever the look
     /// (contract B45: "on every look (light, dark, high contrast)").
     pub fn of(appearance: WindowAppearance) -> Theme {
-        if let Some(palette) = dm_desktop_base::contrast::system() {
+        Theme::in_force(appearance, dm_desktop_base::contrast::system())
+    }
+
+    /// The colours for `appearance`, or High Contrast's `palette` where the
+    /// system has one in force.
+    fn in_force(
+        appearance: WindowAppearance,
+        palette: Option<dm_desktop_base::contrast::Palette>,
+    ) -> Theme {
+        if let Some(palette) = palette {
             return high_contrast(&palette);
         }
         let dark = matches!(
@@ -83,6 +92,17 @@ impl Theme {
             macos(dark)
         } else {
             gnome(dark)
+        }
+    }
+
+    /// The focus ring's colour round a control: the accent, and on the
+    /// default button, which is filled with the accent, the words' colour
+    /// on it (the accent there was a ring no one could see).
+    pub fn ring(self, on_accent: bool) -> Rgba {
+        if on_accent {
+            self.on_accent
+        } else {
+            self.accent
         }
     }
 }
@@ -280,11 +300,16 @@ pub fn frame(colour: Rgba) -> Rgba {
 /// drawn here as the computer's). Every window follows, as the system's own
 /// setting would have it.
 pub fn follow(choice: &str, cx: &mut gpui::App) {
-    cx.set_window_appearance(match choice {
+    cx.set_window_appearance(asked(choice));
+}
+
+/// The appearance `choice` asks for: none for the computer's own.
+fn asked(choice: &str) -> Option<WindowAppearance> {
+    match choice {
         "light" => Some(WindowAppearance::Light),
         "dark" => Some(WindowAppearance::Dark),
         _ => None,
-    });
+    }
 }
 
 #[cfg(test)]
@@ -294,12 +319,173 @@ mod tests {
     /// WCAG's contrast (`dm_desktop_base::contrast`) of `fore` blended onto
     /// `back`.
     fn contrast(fore: Rgba, back: Rgba) -> f32 {
+        dm_desktop_base::contrast::ratio(over(fore, back), over(back, back))
+    }
+
+    /// `fore` as it shows on `back`, in bytes: a see-through colour blended
+    /// onto it.
+    fn over(fore: Rgba, back: Rgba) -> [u8; 3] {
         let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
         let on = |f: f32, b: f32| byte(f * fore.a + b * (1.0 - fore.a));
-        dm_desktop_base::contrast::ratio(
-            [on(fore.r, back.r), on(fore.g, back.g), on(fore.b, back.b)],
-            [byte(back.r), byte(back.g), byte(back.b)],
-        )
+        [on(fore.r, back.r), on(fore.g, back.g), on(fore.b, back.b)]
+    }
+
+    /// Every system's palette, light and dark, named.
+    fn systems() -> Vec<(String, Theme)> {
+        let mut all = Vec::new();
+        for dark in [false, true] {
+            all.push((format!("Windows, dark {dark}"), windows(dark)));
+            all.push((format!("GNOME, dark {dark}"), gnome(dark)));
+            all.push((format!("macOS, dark {dark}"), macos(dark)));
+        }
+        all
+    }
+
+    /// The system's palettes and High Contrast's two.
+    fn every_look() -> Vec<(String, Theme)> {
+        use dm_desktop_base::contrast::Palette;
+        let mut all = systems();
+        all.push(("High Contrast Black".into(), high_contrast(&Palette::BLACK)));
+        all.push(("High Contrast White".into(), high_contrast(&Palette::WHITE)));
+        all
+    }
+
+    /// Options › General's look: Light or Dark whatever the computer's,
+    /// else the computer's, followed as it changes.
+    #[test]
+    fn the_look_chosen_is_light_dark_or_the_computers() {
+        assert_eq!(asked("light"), Some(WindowAppearance::Light));
+        assert_eq!(asked("dark"), Some(WindowAppearance::Dark));
+        for word in ["system", "", "classic", "anything"] {
+            assert_eq!(asked(word), None, "{word} is the computer's");
+        }
+        let light = Theme::in_force(WindowAppearance::Light, None);
+        let dark = Theme::in_force(WindowAppearance::Dark, None);
+        assert_ne!(light.background, dark.background);
+        assert_eq!(
+            Theme::in_force(WindowAppearance::VibrantDark, None).background,
+            dark.background
+        );
+        assert_eq!(
+            Theme::in_force(WindowAppearance::VibrantLight, None).background,
+            light.background
+        );
+    }
+
+    /// Windows 11's palette is WinUI 3's brushes.
+    #[test]
+    fn the_windows_looks_are_winui_3s_brushes() {
+        let white = rgb(0xffffff);
+        let light = windows(false);
+        assert_eq!(light.sidebar, rgb(0xf3f3f3), "SolidBackgroundFillColorBase");
+        assert_eq!(light.accent, rgb(0x005fb8), "AccentFillColorDefault");
+        assert_eq!(
+            over(light.text, white),
+            [0x1b, 0x1b, 0x1b],
+            "TextFillColorPrimary"
+        );
+        let dark = windows(true);
+        assert_eq!(dark.window, rgb(0x202020), "SolidBackgroundFillColorBase");
+        assert_eq!(dark.accent, rgb(0x60cdff), "AccentFillColorDefault");
+        assert_eq!(
+            dark.on_accent,
+            rgb(0x000000),
+            "TextOnAccentFillColorPrimary"
+        );
+    }
+
+    /// The focus ring and the selection can be seen in every look: the ring
+    /// round the default button was the accent drawn on the accent.
+    #[test]
+    fn the_focus_ring_and_the_selection_can_be_seen_in_every_look() {
+        for (look, t) in every_look() {
+            let ring = contrast(t.ring(true), t.accent);
+            assert!(ring >= 3.0, "{look}: ring on the default button {ring:.2}");
+            for (name, surface) in [
+                ("the list", t.background),
+                ("a dialog", t.window),
+                ("the side panel", t.sidebar),
+            ] {
+                let seen = contrast(t.ring(false), surface);
+                assert!(seen >= 3.0, "{look}: ring on {name} {seen:.2}");
+            }
+            let words = contrast(t.on_selection, t.selection);
+            assert!(words >= 3.0, "{look}: words on the selection {words:.2}");
+        }
+    }
+
+    /// Hovering changes what a row, a place or a button looks like on every
+    /// surface it sits on.
+    #[test]
+    fn hover_can_be_seen_on_every_surface() {
+        for (look, t) in systems() {
+            for surface in [t.background, t.sidebar, t.window] {
+                assert_ne!(
+                    over(t.stripe, surface),
+                    over(surface, surface),
+                    "{look}: a row's hover"
+                );
+            }
+            // The title bar's buttons, on the frame.
+            assert_ne!(
+                over(t.control, t.sidebar),
+                over(t.sidebar, t.sidebar),
+                "{look}: a title bar button's hover"
+            );
+        }
+    }
+
+    /// Windows' High Contrast is the look whatever was chosen; a different
+    /// scheme is a different look.
+    #[test]
+    fn a_system_high_contrast_theme_is_the_look_whatever_was_chosen() {
+        use dm_desktop_base::contrast::Palette;
+        let black = high_contrast(&Palette::BLACK);
+        for appearance in [
+            WindowAppearance::Light,
+            WindowAppearance::Dark,
+            WindowAppearance::VibrantLight,
+            WindowAppearance::VibrantDark,
+        ] {
+            let t = Theme::in_force(appearance, Some(Palette::BLACK));
+            assert_eq!(
+                (t.background, t.text, t.selection, t.accent),
+                (black.background, black.text, black.selection, black.accent),
+                "{appearance:?}"
+            );
+        }
+        let white = high_contrast(&Palette::WHITE);
+        assert_ne!(black.background, white.background);
+    }
+
+    /// Every word and line on every surface it is drawn on, in each High
+    /// Contrast scheme, reads at 4.5:1 at least, and nothing is see-through.
+    #[test]
+    fn the_high_contrast_looks_read_at_four_and_a_half_to_one() {
+        use dm_desktop_base::contrast::Palette;
+        for palette in [Palette::BLACK, Palette::WHITE] {
+            let t = high_contrast(&palette);
+            for (name, words, ground) in [
+                ("text on the list", t.text, t.background),
+                ("text on the side panel", t.text, t.sidebar),
+                ("text on a dialog", t.text, t.window),
+                ("text on a button", t.text, t.control),
+                ("text in a field", t.text, t.field),
+                ("text on a menu", t.text, t.menu),
+                ("secondary words", t.muted, t.background),
+                ("a selected row", t.on_selection, t.selection),
+                ("words on the accent fill", t.on_accent, t.accent),
+                ("a warning", t.warning, t.window),
+                ("a line", t.separator, t.background),
+                ("a button's edge", t.control_border, t.control),
+            ] {
+                let seen = contrast(words, ground);
+                assert!(seen >= 4.5, "{name}: {seen:.1}:1 in {palette:?}");
+            }
+            for colour in [t.background, t.window, t.control, t.selection, t.accent] {
+                assert_eq!(colour.a, 1.0, "nothing see-through in {palette:?}");
+            }
+        }
     }
 
     #[test]

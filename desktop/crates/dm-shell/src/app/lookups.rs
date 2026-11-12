@@ -277,6 +277,24 @@ mod tests {
         assert_eq!(stream_name("http://h/file.zip", None, true), None);
     }
 
+    /// A stream is suggested under the name it will be saved as,
+    /// the engine's own: its folder's name, as an MP4 where it is remuxed.
+    #[test]
+    fn a_stream_is_suggested_under_the_name_it_is_saved_as() {
+        let url = "http://127.0.0.1:8000/hls/index.m3u8";
+        assert_eq!(stream_name(url, None, true).as_deref(), Some("hls.mp4"));
+        assert_eq!(stream_name(url, None, false).as_deref(), Some("hls.ts"));
+        assert_eq!(
+            stream_name("http://h/live/lecture.m3u8?t=1", None, true).as_deref(),
+            Some("lecture.mp4")
+        );
+        assert_eq!(
+            stream_name("http://h/x", Some("application/vnd.apple.mpegurl"), true).as_deref(),
+            Some("x.mp4")
+        );
+        assert_eq!(stream_name("http://h/file.zip", None, true), None);
+    }
+
     /// A server that is not there is a link that failed, said in words; a
     /// file's name and size come from the server that answers.
     #[test]

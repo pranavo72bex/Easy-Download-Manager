@@ -411,6 +411,29 @@ mod tests {
         assert_eq!(kept.catch.skip_hosts, ["skip.example"]);
     }
 
+    /// A site pasted as an address is kept by its host name,
+    /// which is what the rules match.
+    #[test]
+    fn sites_are_kept_by_their_host_name() {
+        let given: Vec<String> = [
+            "https://ads.example.com/path",
+            "tracker.example:8080",
+            "example.org/files",
+            "plain.example",
+        ]
+        .map(String::from)
+        .to_vec();
+        assert_eq!(
+            sites(&given),
+            [
+                "ads.example.com",
+                "tracker.example",
+                "example.org",
+                "plain.example"
+            ]
+        );
+    }
+
     #[test]
     fn a_proxy_with_nowhere_to_go_is_refused_on_advanced() {
         let opened = Settings::default();

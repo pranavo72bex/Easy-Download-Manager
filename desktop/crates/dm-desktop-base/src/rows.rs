@@ -709,4 +709,135 @@ mod tests {
             ("Nothing here", "Nothing here yet.", false)
         );
     }
+
+    /// A stopped row with nothing yet, held by the schedule where `by_schedule`.
+    fn paused(by_schedule: bool) -> Entry {
+        let mut row = row(State::Paused, by_schedule);
+        row.url = "https://e.com/f.bin".into();
+        row.filename = "f.bin".into();
+        row.progress.downloaded = 0;
+        row.progress.total = None;
+        row
+    }
+
+    #[test]
+    fn a_sign_in_is_asked_for_by_a_401_alone() {
+        assert!(needs_sign_in("the server answered 401 Unauthorized for x"));
+        assert!(!needs_sign_in(
+            "the server answered 404 Not Found for /4013"
+        ));
+    }
+
+    #[test]
+    fn a_row_held_by_the_schedule_or_the_limit_is_waiting_not_stopped() {
+        // Saying what it waits for.
+        set_limit_holds(false);
+        assert_eq!(status_in_english(&paused(true)), "Waiting for the schedule");
+        set_limit_holds(true);
+        assert_eq!(
+            status_in_english(&paused(true)),
+            "Waiting for the download limit"
+        );
+        set_limit_holds(false);
+        assert_eq!(status_in_english(&paused(false)), "Stopped");
+        let mut part_way = paused(false);
+        part_way.progress.downloaded = 45;
+        part_way.progress.total = Some(100);
+        assert_eq!(status_in_english(&part_way), "Stopped · 45%");
+    }
+
+    #[test]
+    fn a_download_of_unknown_length_says_what_has_arrived_and_how_fast() {
+        let mut row = paused(false);
+        row.state = State::Running;
+        assert_eq!(status_in_english(&row), "Starting…");
+        row.progress.downloaded = 3 * 1024 * 1024;
+        row.progress.speed = 2048.0;
+        assert_eq!(status_in_english(&row), "3.0 MB · 2.0 KB/s");
+        // Nothing arriving just now: what has arrived alone.
+        row.progress.speed = 0.0;
+        assert_eq!(status_in_english(&row), "3.0 MB");
+        // A torrent with nothing yet is finding its peers.
+        let mut magnet = paused(false);
+        magnet.state = State::Running;
+        magnet.url = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".into();
+        assert_eq!(status_in_english(&magnet), "Finding peers…");
+        // Known, but nothing arriving: waiting for peers.
+        magnet.progress.total = Some(100);
+        magnet.progress.downloaded = 10;
+        assert_eq!(status_in_english(&magnet), "10% · waiting for peers");
+        magnet.progress.speed = 5000.0;
+        assert_eq!(status_in_english(&magnet), "10%");
+        // Every byte in, its parts being joined: said so, not "100%".
+        let mut joining = paused(false);
+        joining.state = State::Running;
+        joining.progress.total = Some(100);
+        joining.progress.downloaded = 100;
+        assert_eq!(status_in_english(&joining), "Joining parts…");
+    }
+
+    /// A row whose file another, later row wrote again is
+    /// gone, not Complete; the later one is not.
+    #[test]
+    fn a_file_written_again_by_a_later_row_is_that_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("same.bin");
+        std::fs::write(&file, b"x").unwrap();
+        let row = |id: Id, at: u64| {
+            let mut row = paused(false);
+            row.id = id;
+            row.state = State::Completed;
+            row.path = file.display().to_string();
+            row.finished_at = Some(at);
+            row
+        };
+        let (old, new) = (row(1, 10), row(2, 20));
+        set_superseded(&[old.clone(), new.clone()]);
+        assert!(gone(&old));
+        assert!(!gone(&new));
+        // Finished in the same second: the later row's.
+        let twin = row(3, 20);
+        set_superseded(&[new.clone(), twin.clone()]);
+        assert!(gone(&new) && !gone(&twin));
+        set_superseded(std::slice::from_ref(&old));
+        assert!(!gone(&old), "alone, its file is its own");
+    }
+
+    /// A video page that failed says why after the sentence that was all a
+    /// person had; the specific failures keep their own words.
+    #[test]
+    fn a_video_page_that_failed_says_why_after_the_sentence() {
+        let mut row = paused(false);
+        row.state = State::Failed("no stream at that quality".into());
+        assert_eq!(
+            status_in_english(&row),
+            "Error: dm couldn't get the video from this page (no stream at that quality)"
+        );
+        // A failure with its own plain words is not given a second one.
+        row.state = State::Failed("YouTube says: Video unavailable".into());
+        assert_eq!(
+            status_in_english(&row),
+            "Error: this video isn't available. It may be private, removed, or not shown in your country"
+        );
+    }
+
+    /// A full disk says whose, the folder the file was going to.
+    #[test]
+    fn a_full_disk_says_which_folder() {
+        let mut row = paused(false);
+        row.state = State::Failed("disk: No space left on device (os error 28)".into());
+        row.began_in = "/media/usb/Downloads".into();
+        assert_eq!(
+            status_in_english(&row),
+            "Error: the disk is full in /media/usb/Downloads"
+        );
+        row.save_dir = Some("/mnt/big".into());
+        assert_eq!(
+            status_in_english(&row),
+            "Error: the disk is full in /mnt/big"
+        );
+        row.save_dir = None;
+        row.began_in.clear();
+        assert_eq!(status_in_english(&row), "Error: the disk is full");
+    }
 }

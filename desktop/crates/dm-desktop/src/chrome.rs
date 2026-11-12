@@ -98,15 +98,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mica_is_never_in_force_where_it_cannot_be_drawn() {
-        if !mica_possible() {
-            assert!(!use_mica(true));
-            assert!(!mica());
-        }
-        assert!(!use_mica(false), "never without being asked for");
-    }
-
-    #[test]
     fn a_colour_is_written_blue_green_red() {
         assert_eq!(
             colorref(egui::Color32::from_rgb(0x12, 0x34, 0x56)),

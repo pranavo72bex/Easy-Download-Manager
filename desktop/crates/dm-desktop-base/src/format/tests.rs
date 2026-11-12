@@ -383,3 +383,22 @@ fn a_connection_that_did_not_come_up_is_said_as_reference_a_says_it() {
     let redialling = "the connection Office VPN did not come up: Undefined RAS Dial Error.";
     assert_eq!(retry_cause(redialling), Some("Redialling"));
 }
+
+#[test]
+fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
+    let said = worded_problem(
+        "the saved proxy could not be used (the proxy has no host), so it is turned off and downloads \
+         go out directly. Fix it under Options › Advanced and tick it again.",
+    );
+    assert!(
+        said.starts_with("The proxy can't be used (the proxy has no host)"),
+        "{said}"
+    );
+    assert_eq!(worded_problem("something else"), "something else");
+    assert_eq!(
+        as_shown("the cookies file x could not be read"),
+        "The cookies file x could not be read"
+    );
+    assert_eq!(as_shown("ünlü"), "Ünlü");
+    assert_eq!(as_shown(""), "");
+}

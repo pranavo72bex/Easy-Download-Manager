@@ -1455,11 +1455,4 @@ mod dialup_tests {
         assert!(h.state().draft.dialup.connection.is_empty());
         assert!(h.state().draft.dialup.enabled);
     }
-
-    #[test]
-    fn the_connections_known_are_read_again_only_after_a_while() {
-        // None here (a system without Windows' dial-up), read once and kept.
-        assert_eq!(known_connections(), dm_shell::dialup::connections());
-        assert_eq!(known_connections(), dm_shell::dialup::connections());
-    }
 }

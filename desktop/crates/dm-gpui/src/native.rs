@@ -84,7 +84,7 @@ pub fn button(
         .off_where_greyed()
         // Reached by Tab, pressed by Space or Return, its place ringed (gaps row U2).
         .tab_index(0)
-        .focus(move |s| s.border_2().border_color(theme.accent))
+        .focus(move |s| s.border_2().border_color(theme.ring(default)))
         .h(px(CONTROL))
         .min_w(px(BUTTON_MIN))
         .px(px(14.0))
