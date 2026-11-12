@@ -1651,6 +1651,19 @@ impl Downloads {
         self.opener_said.clone()
     }
 
+    /// Runs `command` on the row of download `id` alone, as its own menu would: a step a
+    /// window over it offers (gaps row U10).
+    pub(crate) fn run_on(
+        &mut self,
+        id: dm_core::Id,
+        command: dm_shell::app::commands::Command,
+        cx: &mut Context<Self>,
+    ) {
+        self.selected = [id].into();
+        self.anchor = Some(id);
+        self.run(command, cx);
+    }
+
     /// Opens a file with its usual app, off the window's thread.
     pub fn open_path(&self, path: &str) {
         let said = self.opener_said.clone();

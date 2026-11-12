@@ -953,5 +953,6 @@
   "When this download is done": "이 다운로드가 끝나면",
   "{} \u00b7 {} free": "{} · {} 남음",
   "+{} more||+{} more": "{}개 더",
-  "Reading\u2026 {} pages, {} files found": "읽는 중… {}페이지, 파일 {}개 찾음"
+  "Reading\u2026 {} pages, {} files found": "읽는 중… {}페이지, 파일 {}개 찾음",
+  "Open the page": "페이지 열기"
 }

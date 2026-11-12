@@ -383,3 +383,21 @@ fn a_connection_that_did_not_come_up_is_said_as_reference_a_says_it() {
     let redialling = "the connection Office VPN did not come up: Undefined RAS Dial Error.";
     assert_eq!(retry_cause(redialling), Some("Redialling"));
 }
+
+/// Every next step dm can take has its button, and a step that is the person's alone has none
+/// (gaps row U10).
+#[test]
+fn a_failures_next_step_is_a_button_where_dm_can_take_it() {
+    for (said, _) in NEXT_STEPS {
+        let raw = REASONS
+            .iter()
+            .find(|(_, plain)| *plain == said)
+            .and_then(|(raws, _)| raws.first())
+            .copied()
+            .unwrap_or(said);
+        let button = step_button(raw);
+        let theirs = said.contains("refused") || said.contains("certificate");
+        assert_eq!(button.is_none(), theirs, "{said}: {button:?}");
+    }
+    assert_eq!(step_button("nothing dm knows"), None);
+}

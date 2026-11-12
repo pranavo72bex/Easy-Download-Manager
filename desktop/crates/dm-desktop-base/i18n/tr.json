@@ -953,5 +953,6 @@
   "When this download is done": "Bu indirme bittiğinde",
   "{} \u00b7 {} free": "{} · {} boş",
   "+{} more||+{} more": "+{} daha",
-  "Reading\u2026 {} pages, {} files found": "Okunuyor… {} sayfa, {} dosya bulundu"
+  "Reading\u2026 {} pages, {} files found": "Okunuyor… {} sayfa, {} dosya bulundu",
+  "Open the page": "Sayfayı aç"
 }

@@ -953,5 +953,6 @@
   "When this download is done": "此下载完成后",
   "{} \u00b7 {} free": "{} · 可用 {}",
   "+{} more||+{} more": "还有 {} 条",
-  "Reading\u2026 {} pages, {} files found": "正在读取… {} 个页面，找到 {} 个文件"
+  "Reading\u2026 {} pages, {} files found": "正在读取… {} 个页面，找到 {} 个文件",
+  "Open the page": "打开页面"
 }

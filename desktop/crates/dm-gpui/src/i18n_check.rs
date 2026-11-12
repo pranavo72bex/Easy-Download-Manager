@@ -144,6 +144,7 @@ fn run_time_words() -> Vec<&'static str> {
     words.extend(base::format::REASONS.iter().map(|(_, plain)| *plain));
     words.extend(base::format::NEXT_STEPS.iter().map(|(_, step)| *step));
     words.extend(base::format::RETRY_CAUSES);
+    words.extend(base::format::StepButton::ALL.iter().map(|b| b.words()));
     // What a download may say of itself on its row (`rows::note_in`).
     words.extend(dm_core::NOTES);
     words.extend(dm_shell::app::places::place_menu_words());

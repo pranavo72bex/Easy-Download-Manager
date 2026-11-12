@@ -186,7 +186,7 @@ pub fn page_for_file() -> DownloadAsk {
     }
 }
 
-/// B41: the server said the file is not there; told once, OK.
+/// B41: the server said the file is not there; told once, OK, or Update download link.
 pub fn not_found() -> DownloadAsk {
     DownloadAsk {
         title_english: "The file doesn't exist",
@@ -196,7 +196,8 @@ pub fn not_found() -> DownloadAsk {
             t("Details:").to_string(),
         ],
         detail: Some("HTTP/1.1 404 Not Found"),
-        buttons: vec![t("OK").into()],
+        // OK, and the step to take: a fresh link for the file (gaps row U10).
+        buttons: vec![t("OK").into(), t("Update download link").into()],
     }
 }
 
@@ -382,7 +383,7 @@ mod tests {
         let gone = not_found();
         assert_eq!(gone.title_english, "The file doesn't exist");
         assert_eq!(gone.detail, Some("HTTP/1.1 404 Not Found"));
-        assert_eq!(gone.buttons, vec!["OK"]);
+        assert_eq!(gone.buttons, vec!["OK", "Update download link"]);
     }
 
     #[test]

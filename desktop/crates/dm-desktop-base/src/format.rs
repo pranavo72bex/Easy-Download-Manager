@@ -602,6 +602,61 @@ pub const NEXT_STEPS: [(&str, &str); 7] = [
     ),
 ];
 
+/// What the button beside Retry does for a failure, where its next step is one dm can take
+/// (gaps row U10): its words name it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepButton {
+    /// The disk is full: the download moved to a folder chosen, as the stalled bar does.
+    ChooseFolder,
+    /// The link no longer works: Update download link, for the new one.
+    UpdateLink,
+    /// The site redirects in a loop: the page the download came from, opened in the browser.
+    OpenPage,
+    /// Something of that name is there: Move/Rename.
+    MoveRename,
+    /// The dial-up or VPN connection did not come up: Options, at that setting's tab.
+    Options,
+}
+
+impl StepButton {
+    /// Every one, for the catalogs' check.
+    pub const ALL: [StepButton; 5] = [
+        StepButton::ChooseFolder,
+        StepButton::UpdateLink,
+        StepButton::OpenPage,
+        StepButton::MoveRename,
+        StepButton::Options,
+    ];
+
+    /// Its words, in English (look them up with `t`), as the menus and bars name the same.
+    pub fn words(self) -> &'static str {
+        match self {
+            StepButton::ChooseFolder => "Choose another folder…",
+            StepButton::UpdateLink => "Update download link",
+            StepButton::OpenPage => "Open the page",
+            StepButton::MoveRename => "Move/Rename",
+            StepButton::Options => "Options",
+        }
+    }
+}
+
+/// The button a failure's window offers beside Retry, where its next step ([`next_step`]) is
+/// one dm can take; `None` where it is the person's alone (a firewall, the computer's clock).
+pub fn step_button(raw: &str) -> Option<StepButton> {
+    Some(match reason(raw)? {
+        "the disk is full" => StepButton::ChooseFolder,
+        "this link no longer works" => StepButton::UpdateLink,
+        "the site keeps redirecting in a loop, so the file can't be reached" => {
+            StepButton::OpenPage
+        }
+        "something of that name is already there" => StepButton::MoveRename,
+        "cannot connect to the Internet. The dial-up or VPN connection did not come up" => {
+            StepButton::Options
+        }
+        _ => return None,
+    })
+}
+
 /// The next step for a failure, in English (look it up with `t`); `None`
 /// where its plain words already say what to do, or are not known.
 pub fn next_step(raw: &str) -> Option<&'static str> {

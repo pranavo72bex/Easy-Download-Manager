@@ -63,3 +63,46 @@ fn the_bars_above_the_list_stand_one_at_a_time() {
     assert!(h.shows("The disk said no"));
     assert!(!h.shows("+1 more"));
 }
+
+/// A failure's window offers the step it names beside Retry: a link that no longer works has
+/// "Update download link", which opens that dialog for its row (gaps row U10).
+#[test]
+fn a_failures_next_step_is_a_button_beside_retry() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("missing.bin"), "Start now");
+    // The 404's window first, told once (B41).
+    h.until_shown("The file doesn't exist");
+    h.click("OK");
+    h.until("the row to fail", |h| {
+        matches!(
+            h.rows().first().map(|r| r.state.clone()),
+            Some(dm_core::State::Failed(_))
+        )
+    });
+    let id = h.rows()[0].id;
+    h.update(|view, cx| view.show_progress(id, cx));
+    h.until_shown("Retry");
+    h.click("Update download link");
+    h.until("Update download link's dialog", |h| {
+        h.dialogs()
+            .iter()
+            .any(|d| d.starts_with("Update download link"))
+    });
+}
+
+/// "The file doesn't exist" offers Update download link beside OK, which opens that dialog for
+/// its row (gaps row U10, B41).
+#[test]
+fn the_file_doesnt_exist_offers_a_fresh_link() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("missing.bin"), "Start now");
+    h.until_shown("The file doesn't exist");
+    h.click("Update download link");
+    h.until("Update download link's dialog", |h| {
+        h.dialogs()
+            .iter()
+            .any(|d| d.starts_with("Update download link"))
+    });
+}

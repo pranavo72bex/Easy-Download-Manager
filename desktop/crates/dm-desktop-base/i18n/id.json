@@ -953,5 +953,6 @@
   "When this download is done": "Saat unduhan ini selesai",
   "{} \u00b7 {} free": "{} · {} kosong",
   "+{} more||+{} more": "+{} lagi",
-  "Reading\u2026 {} pages, {} files found": "Membaca… {} halaman, {} berkas ditemukan"
+  "Reading\u2026 {} pages, {} files found": "Membaca… {} halaman, {} berkas ditemukan",
+  "Open the page": "Buka halamannya"
 }

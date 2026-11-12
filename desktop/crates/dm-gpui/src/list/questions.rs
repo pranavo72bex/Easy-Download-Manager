@@ -241,6 +241,10 @@ impl Downloads {
         let answer: crate::question::Answer = Box::new(move |button, _, cx| {
             let _ = view.update(cx, |view, cx| {
                 view.asking = false;
+                // "The file doesn't exist"'s second button: a fresh link for its row (gaps row U10).
+                if let (Question::NotFound(id), 1) = (&question, button) {
+                    view.run_on(*id, dm_shell::app::commands::Command::UpdateLink, cx);
+                }
                 view.answered(question, button == 0);
                 view.read();
                 view.promote_asks(cx);

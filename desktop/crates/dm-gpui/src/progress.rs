@@ -160,6 +160,42 @@ impl Progress {
         let _ = self.view.update(cx, |view, cx| view.ask_cancel(id, cx));
     }
 
+    /// The step a failure names, taken (gaps row U10): another folder chosen and the download
+    /// moved there, Update download link or Move/Rename on its row, the page it came from
+    /// opened, or Options at its setting.
+    fn take_step(&mut self, step: format::StepButton, cx: &mut Context<Self>) {
+        use dm_shell::app::commands::Command;
+        use format::StepButton;
+        let id = self.id;
+        let _ = self.view.update(cx, |view, cx| match step {
+            StepButton::ChooseFolder => crate::services::ask_then(
+                crate::services::Asked::folder(),
+                cx,
+                move |view: &mut Downloads, dir, _| match view.backend.relocate(id, dir) {
+                    Ok(()) => {
+                        view.read();
+                    }
+                    Err(e) => view.say(e),
+                },
+            ),
+            StepButton::UpdateLink => view.run_on(id, Command::UpdateLink, cx),
+            StepButton::MoveRename => view.run_on(id, Command::MoveRename, cx),
+            StepButton::OpenPage => {
+                if let Some(row) = view.row_of(id) {
+                    let page = if row.referrer.trim().is_empty() {
+                        row.url.clone()
+                    } else {
+                        row.referrer.clone()
+                    };
+                    view.open_path(&page);
+                }
+            }
+            StepButton::Options => {
+                view.open_options_at(dm_desktop_base::options::Tab::Advanced, cx)
+            }
+        });
+    }
+
     /// "When this download is done" set to the choice at `index` (`this_done_choices`).
     fn this_done(&mut self, index: usize, cx: &mut Context<Self>) {
         let Some(choice) = this_done_choices().get(index).copied() else {
@@ -265,6 +301,10 @@ impl Render for Progress {
         let status = dm_desktop_base::rows::status_of(&row);
         let next_step = match &row.state {
             State::Failed(why) => format::next_step(why).map(t),
+            _ => None,
+        };
+        let step = match &row.state {
+            State::Failed(why) => format::step_button(why),
             _ => None,
         };
         let torrent = dm_core::is_torrent(&row.url);
@@ -573,6 +613,21 @@ impl Render for Progress {
                                     &screen,
                                 )
                                 .on_click(cx.listener(|this, _, _, cx| this.go(true, cx)))
+                                .into_any_element()
+                            }),
+                            // The next step the failure names, as a button beside Retry where
+                            // dm can take it (gaps row U10).
+                            step.map(|step| {
+                                native::button(
+                                    "next-step",
+                                    t(step.words()).into(),
+                                    false,
+                                    theme,
+                                    &screen,
+                                )
+                                .on_click(
+                                    cx.listener(move |this, _, _, cx| this.take_step(step, cx)),
+                                )
                                 .into_any_element()
                             }),
                             matches!(row.state, State::Failed(_)).then(|| {

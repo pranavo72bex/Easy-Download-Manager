@@ -953,5 +953,6 @@
   "When this download is done": "Al termine di questo download",
   "{} \u00b7 {} free": "{} · {} liberi",
   "+{} more||+{} more": "+{} altro||+{} altri",
-  "Reading\u2026 {} pages, {} files found": "Lettura… {} pagine, {} file trovati"
+  "Reading\u2026 {} pages, {} files found": "Lettura… {} pagine, {} file trovati",
+  "Open the page": "Apri la pagina"
 }
