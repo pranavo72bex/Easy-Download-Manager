@@ -3,13 +3,14 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Every word the window translates is in every catalog, and every
-//! translation can be drawn in the window's fonts: a missing one reads in
-//! English, which is a gap; a glyph the fonts lack is a box, which is a bug.
+//! Every word the window translates is in every catalog, and no catalog keeps a word nothing
+//! says: a missing one reads in English, which is a gap. Moved from the egui window's tests;
+//! its check that every translation has a glyph in its own fonts is not, as this window draws
+//! in the system's fonts.
 
 use std::collections::{BTreeSet, HashMap};
 
-use dm_desktop::i18n::{CATALOGS, LANGUAGES};
+use dm_desktop_base::i18n::{CATALOGS, LANGUAGES};
 
 /// Every `.rs` file under `dir`, in folders too: the window's dialogs are a
 /// module of their own, and a scan of the top folder alone would silently
@@ -33,22 +34,27 @@ fn rust_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 
 /// Every English string the window passes through `t`, `tf` and the
 /// helpers that call them, read from its source, and the words it chooses
-/// at run time, as the window itself lists them.
+/// at run time ([`run_time_words`]).
 fn wanted() -> BTreeSet<String> {
     let mut keys = BTreeSet::new();
-    // The window's own source, what it says through dm-desktop-base
-    // (`format`, `i18n`, moved there for the GPUI migration), and the GPUI
-    // window's, which says the same words.
+    // The GPUI window's source and what it says through dm-desktop-base; and, while it is
+    // still in the tree, the egui window's, whose words the catalogs keep until it goes.
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let base = here.join("../dm-desktop-base/src");
-    let gpui = here.join("../dm-gpui/src");
-    for dir in [&base, &gpui] {
-        assert!(dir.is_dir(), "{} is not there", dir.display());
-    }
+    assert!(base.is_dir(), "{} is not there", base.display());
+    let egui = here.join("../dm-desktop/src");
     let files = rust_files(&here.join("src"))
         .into_iter()
         .chain(rust_files(&base))
-        .chain(rust_files(&gpui));
+        .chain(if egui.is_dir() {
+            rust_files(&egui)
+        } else {
+            Vec::new()
+        });
+    if egui.is_dir() {
+        // The egui window's text sizes, chosen at run time (`dialogs/controls.rs`).
+        keys.extend(["Small", "Medium", "Large"].map(String::from));
+    }
     for file in files {
         let text = std::fs::read_to_string(file).unwrap();
         // The window's source, not its tests' made-up strings.
@@ -95,12 +101,34 @@ fn wanted() -> BTreeSet<String> {
             }
         }
     }
-    keys.extend(
-        dm_desktop::app::run_time_words()
-            .into_iter()
-            .map(String::from),
-    );
+    keys.extend(run_time_words().into_iter().map(String::from));
     keys
+}
+
+/// The words the window chooses at run time and hands to `t` as a value, not a literal the
+/// source scan can find: from the lists they are kept in.
+fn run_time_words() -> Vec<&'static str> {
+    use dm_desktop_base as base;
+    let mut words: Vec<&'static str> = Vec::new();
+    words.extend(base::options::TABS.iter().map(|(_, w)| *w));
+    words.extend(base::options::THEMES.iter().map(|(_, w)| *w));
+    words.extend(base::file_info::QUALITIES.iter().map(|(_, w)| *w));
+    words.extend(base::held::DAYS);
+    words.extend(base::toolbar::TOOL_STYLES.iter().map(|(_, w)| *w));
+    words.extend(dm_shell::app::commands::TOOLBAR.iter().map(|(_, w)| *w));
+    words.extend(dm_shell::app::commands::Command::ALL.iter().map(|c| c.label()));
+    words.extend(base::columns::Column::ALL.iter().map(|c| c.english()));
+    words.extend(dm_shell::app::power::WhenDone::ALL.iter().map(|w| w.verb()));
+    words.extend(base::i18n::BUILT_IN_NAMES);
+    words.extend(base::format::MONTHS);
+    words.push(crate::drops::DROP_HINT);
+    words.extend(base::format::REASONS.iter().map(|(_, plain)| *plain));
+    words.extend(base::format::NEXT_STEPS.iter().map(|(_, step)| *step));
+    words.extend(base::format::RETRY_CAUSES);
+    // What a download may say of itself on its row (`rows::note_in`).
+    words.extend(dm_core::NOTES);
+    words.extend(dm_shell::app::places::place_menu_words());
+    words
 }
 
 fn catalog(text: &str) -> HashMap<String, String> {
@@ -125,13 +153,13 @@ fn every_translated_word_is_in_every_catalog() {
         }
         // Each `{}` of the English is in the translation as often: in
         // each of its forms, where it has forms for a count.
-        let forms = dm_desktop::i18n::FORMS;
+        let forms = dm_desktop_base::i18n::FORMS;
         for (english, translated) in &have {
             let first = english.split(forms).next().unwrap_or_default();
             for form in translated.split(forms) {
                 assert_eq!(
-                    dm_desktop::i18n::placeholders(first),
-                    dm_desktop::i18n::placeholders(form),
+                    dm_desktop_base::i18n::placeholders(first),
+                    dm_desktop_base::i18n::placeholders(form),
                     "{code}: {english:?} → {translated:?} takes other values"
                 );
             }
@@ -182,70 +210,6 @@ fn no_catalog_keeps_words_the_window_no_longer_says() {
             .collect();
         assert!(stale.is_empty(), "{code} has words nothing says: {stale:?}");
     }
-}
-
-#[test]
-fn every_translation_is_drawn_in_the_windows_fonts() {
-    let ctx = egui::Context::default();
-    dm_desktop::theme::apply(&ctx, dm_desktop::theme::Theme::Light);
-    // Fonts are put in place on the first pass.
-    for _ in 0..2 {
-        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-            dm_desktop::theme::apply(ui.ctx(), dm_desktop::theme::Theme::Light);
-        });
-        out.textures_delta.clear();
-    }
-    // Chinese, Japanese and Korean are drawn in the computer's own font for
-    // them, found as the window finds it: by covering what it shows.
-    dm_desktop::theme::cover(
-        &ctx,
-        CATALOGS
-            .iter()
-            .flat_map(|(_, text)| catalog(text).into_values())
-            .collect::<Vec<_>>()
-            .iter()
-            .map(String::as_str)
-            .chain(LANGUAGES.iter().map(|(_, name)| *name)),
-    );
-    for _ in 0..2 {
-        let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
-        out.textures_delta.clear();
-    }
-    let mut boxes = Vec::new();
-    for (code, text) in CATALOGS {
-        for translated in catalog(text).values() {
-            for family in [
-                egui::FontFamily::Proportional,
-                dm_desktop::theme::semibold(),
-            ] {
-                let id = egui::FontId::new(13.0, family);
-                let drawn = ctx.fonts_mut(|f| {
-                    translated
-                        .chars()
-                        .filter(|c| !c.is_whitespace())
-                        .all(|c| f.has_glyph(&id, c))
-                });
-                if !drawn {
-                    boxes.push(format!("{code}: {translated:?}"));
-                }
-            }
-        }
-        for (_, name) in LANGUAGES {
-            let id = egui::FontId::proportional(13.0);
-            assert!(
-                ctx.fonts_mut(|f| name
-                    .chars()
-                    .filter(|c| !c.is_whitespace())
-                    .all(|c| f.has_glyph(&id, c))),
-                "{name} cannot be drawn"
-            );
-        }
-    }
-    assert!(
-        boxes.is_empty(),
-        "drawn as boxes: {:?}",
-        &boxes[..boxes.len().min(10)]
-    );
 }
 
 /// Where `text` (what follows a call's opening bracket) closes the call: the
@@ -317,7 +281,7 @@ fn literals(text: &str) -> Vec<(String, &str)> {
 /// which the scan above then holds to be in every catalog.
 #[test]
 fn the_gpui_window_hands_no_english_straight_to_a_person() {
-    let gpui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dm-gpui/src");
+    let gpui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     // Where words go to be seen or heard.
     const SHOWN: [&str; 9] = [
         ".aria_label(",

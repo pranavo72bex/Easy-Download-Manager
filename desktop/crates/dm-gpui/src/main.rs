@@ -615,3 +615,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod i18n_check;

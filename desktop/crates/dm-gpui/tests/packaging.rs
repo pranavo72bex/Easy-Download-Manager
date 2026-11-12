@@ -52,16 +52,13 @@ fn the_icons_the_installers_name_are_all_there() {
     }
 }
 
-/* The binary keeps the name everything else already uses: the installer
- * (`make register`), the browser's native-host manifest and the CI jobs
- * looked for `dm-desktop` while the egui window shipped; every system ships
- * dm-gpui now (the Makefile's `WINDOW`), and this crate keeps its name for
- * the targets that compare the two windows. */
+/* The binary keeps the name everything else uses: the Makefile builds and
+ * packages `$(WINDOW)`, dm-gpui, and the packager's main binary is it. */
 #[test]
 fn the_binary_is_named_what_the_installer_looks_for() {
     let manifest = include_str!("../Cargo.toml");
-    assert!(manifest.contains("[[bin]]\nname = \"dm-desktop\""));
-    assert!(manifest.contains("binaries = [{ path = \"dm-desktop\", main = true }]"));
+    assert!(manifest.contains("[[bin]]\nname = \"dm-gpui\""));
+    assert!(manifest.contains("binaries = [{ path = \"dm-gpui\", main = true }]"));
     let makefile = include_str!("../../../../Makefile");
     assert!(makefile.contains("BINARY := desktop/target/release/$(WINDOW)"));
     assert!(makefile.contains("\nWINDOW := dm-gpui\n"));
@@ -73,9 +70,7 @@ fn the_binary_is_named_what_the_installer_looks_for() {
 #[test]
 fn every_linux_package_requires_what_opens_files() {
     for (package, text) in [
-        // The .deb is the GPUI window's on Linux, the egui window's before it.
-        (".deb", include_str!("../../dm-gpui/Cargo.toml")),
-        (".deb of the egui window", include_str!("../Cargo.toml")),
+        (".deb", include_str!("../Cargo.toml")),
         (".rpm", include_str!("../../../packaging/nfpm.yaml")),
         ("Arch", include_str!("../../../packaging/PKGBUILD")),
     ] {
