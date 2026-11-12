@@ -717,6 +717,52 @@ mod tests {
         }
     }
 
+    /// The app's and the extension's tables of YouTube's picture formats name the same formats
+    /// at the same heights (gaps row Y14): the panel's label and the download agree.
+    #[test]
+    fn the_youtube_format_tables_agree() {
+        use std::collections::BTreeMap;
+        let app =
+            std::fs::read_to_string(root().join("desktop/crates/dm-core/src/youtube/itags.rs"))
+                .unwrap();
+        let mut ours = BTreeMap::new();
+        for line in app.lines() {
+            let line = line.trim();
+            if let Some((itag, rest)) = line.split_once(" => video(") {
+                let height = rest.split(',').next().unwrap().trim();
+                ours.insert(
+                    itag.trim().parse::<u32>().unwrap(),
+                    height.parse::<u32>().unwrap(),
+                );
+            }
+        }
+        let extension =
+            std::fs::read_to_string(root().join("browser/src/decide/streams.rs")).unwrap();
+        let table = extension
+            .split("fn itag_height")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => return None").next())
+            .unwrap();
+        let mut theirs = BTreeMap::new();
+        for line in table.lines() {
+            let Some((itags, height)) = line.trim().split_once(" => ") else {
+                continue;
+            };
+            let Ok(height) = height.trim_end_matches(',').trim().parse::<u32>() else {
+                continue;
+            };
+            for itag in itags.split('|') {
+                if let Ok(itag) = itag.trim().parse::<u32>() {
+                    if height > 0 {
+                        theirs.insert(itag, height);
+                    }
+                }
+            }
+        }
+        assert!(!ours.is_empty() && !theirs.is_empty());
+        assert_eq!(ours, theirs, "the two tables of picture formats differ");
+    }
+
     #[test]
     fn the_scorecard_is_up_to_date() {
         let card = scorecard().unwrap();
