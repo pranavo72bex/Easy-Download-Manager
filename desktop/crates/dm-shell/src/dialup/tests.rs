@@ -168,8 +168,6 @@ fn an_endless_redial_ends_once_nobody_waits() {
     assert_eq!(fake.dialled.borrow().len(), 5);
 }
 
-/// `IN_FORCE` and the shared dial are the program's own: these tests take turns.
-static TURN: Mutex<()> = Mutex::new(());
 
 /// A dialler that can be used from several threads: fails every dial, slowly, counting them.
 struct Slow {
@@ -192,7 +190,7 @@ impl Dialer for Slow {
 
 #[test]
 fn downloads_that_start_together_wait_on_one_dial_and_fail_with_it() {
-    let _turn = dm_core::lock(&TURN);
+    let _turn = super::turn();
     let mut dial = chosen();
     dial.attempts = 2;
     dial.wait_seconds = 0;
@@ -223,7 +221,7 @@ fn downloads_that_start_together_wait_on_one_dial_and_fail_with_it() {
 
 #[test]
 fn turned_off_while_it_redials_the_download_goes_as_it_would_without_it() {
-    let _turn = dm_core::lock(&TURN);
+    let _turn = super::turn();
     let mut dial = chosen();
     dial.attempts = 0;
     *dm_core::lock(&IN_FORCE) = Some(dial);
@@ -248,7 +246,7 @@ fn turned_off_while_it_redials_the_download_goes_as_it_would_without_it() {
 
 #[test]
 fn a_download_no_longer_waited_for_stops_its_dial() {
-    let _turn = dm_core::lock(&TURN);
+    let _turn = super::turn();
     let mut dial = chosen();
     dial.attempts = 0;
     *dm_core::lock(&IN_FORCE) = Some(dial);
@@ -266,7 +264,7 @@ fn a_download_no_longer_waited_for_stops_its_dial() {
 
 #[test]
 fn hanging_up_ends_the_connection_options_sets_and_nothing_when_none_is_set() {
-    let _turn = dm_core::lock(&TURN);
+    let _turn = super::turn();
     *dm_core::lock(&IN_FORCE) = None;
     let fake = Fake::new(true, 0);
     assert_eq!(hang_up_with(&fake), HungUp::NoneSet);
@@ -298,7 +296,7 @@ impl Dialer for Refusing {
 
 #[test]
 fn a_hang_up_windows_refuses_says_why() {
-    let _turn = dm_core::lock(&TURN);
+    let _turn = super::turn();
     *dm_core::lock(&IN_FORCE) = Some(chosen());
     let said = hang_up_with(&Refusing);
     *dm_core::lock(&IN_FORCE) = None;
@@ -332,7 +330,7 @@ impl Dialer for Ordered {
 
 #[test]
 fn a_hang_up_waits_for_a_dial_under_way_to_end() {
-    let _turn = dm_core::lock(&TURN);
+    let _turn = super::turn();
     *dm_core::lock(&IN_FORCE) = Some(chosen());
     let ordered = Ordered {
         asked: Mutex::default(),
@@ -356,7 +354,7 @@ fn a_hang_up_waits_for_a_dial_under_way_to_end() {
 /// program while it is set.
 #[test]
 fn with_it_off_nothing_is_in_force() {
-    let _turn = dm_core::lock(&TURN);
+    let _turn = super::turn();
     let mut off = chosen();
     off.enabled = false;
     set(&off);

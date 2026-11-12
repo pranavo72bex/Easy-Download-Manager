@@ -161,9 +161,45 @@ static DIALLING: Mutex<()> = Mutex::new(());
 #[cfg(any(windows, test))]
 static LAST: Mutex<(u64, Option<String>)> = Mutex::new((0, None));
 
+/// The tests' turn at what is in force (`IN_FORCE`, the shared dial): every test in the crate
+/// that applies settings reaches `set` through `shell::apply`, and one did between a dial-up
+/// test's setting and its dials (gaps row S20). Taken again on a thread that holds it.
+#[cfg(test)]
+pub(crate) fn turn() -> Turn {
+    if HOLDS.with(std::cell::Cell::get) {
+        return Turn(None);
+    }
+    let guard = dm_core::lock(&TURN);
+    HOLDS.with(|h| h.set(true));
+    Turn(Some(guard))
+}
+
+#[cfg(test)]
+static TURN: Mutex<()> = Mutex::new(());
+
+#[cfg(test)]
+thread_local! {
+    static HOLDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// [`turn`], held until dropped.
+#[cfg(test)]
+pub(crate) struct Turn(Option<std::sync::MutexGuard<'static, ()>>);
+
+#[cfg(test)]
+impl Drop for Turn {
+    fn drop(&mut self) {
+        if self.0.take().is_some() {
+            HOLDS.with(|h| h.set(false));
+        }
+    }
+}
+
 /// Takes the settings' connection as the one to dial (`shell::apply`), and
 /// hands the engine the wait every download makes for it.
 pub fn set(dial: &DialUp) {
+    #[cfg(test)]
+    let _turn = turn();
     let wanted = dial.wanted().then(|| dial.clone());
     let any = wanted.is_some();
     *dm_core::lock(&IN_FORCE) = wanted;
