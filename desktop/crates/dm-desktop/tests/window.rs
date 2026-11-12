@@ -20,8 +20,6 @@ mod commands;
 mod control;
 #[path = "window/dialogs.rs"]
 mod dialogs;
-#[path = "window/downloads.rs"]
-mod downloads;
 #[path = "window/keyboard.rs"]
 mod keyboard;
 #[path = "window/layout.rs"]

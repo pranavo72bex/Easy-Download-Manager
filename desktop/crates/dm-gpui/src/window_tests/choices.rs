@@ -139,8 +139,8 @@ fn options_has_the_duplicate_row_and_the_identity_switch() {
     h.click("Identify as dm only");
     h.click("OK");
     h.until("Options to close", |h| h.dialogs().is_empty());
+    // Kept, and so put in force; the name the engine sends first is one for the whole process,
+    // which the other tests' windows set as they run beside this one: what the switch does to
+    // it is `dm-shell/tests/start_in_force.rs` and `dm-core/tests/identify_as.rs`.
     assert!(h.view(|view| view.backend.settings()).identify_as_dm);
-    assert_eq!(dm_core::first_agent(), dm_core::USER_AGENT);
-    h.apply(|s| s.identify_as_dm = false);
-    assert_eq!(dm_core::first_agent(), dm_core::IE_AGENT);
 }
