@@ -110,7 +110,7 @@ pub fn titlebar(
         .flex_none()
         .flex()
         .items_center()
-        .bg(theme.sidebar)
+        .bg(crate::theme::frame(theme.sidebar))
         .border_b_1()
         .border_color(theme.separator)
         .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())

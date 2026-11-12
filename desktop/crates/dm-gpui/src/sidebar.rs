@@ -88,7 +88,7 @@ pub fn sidebar(
         .flex_none()
         .h_full()
         .overflow_y_scroll()
-        .bg(theme.sidebar)
+        .bg(crate::theme::frame(theme.sidebar))
         .border_r_1()
         .border_color(theme.separator)
         .py_2()

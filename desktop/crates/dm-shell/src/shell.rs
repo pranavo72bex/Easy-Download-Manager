@@ -783,6 +783,76 @@ pub fn checksum(text: &str) -> Result<Option<Checksum>, String> {
         .ok_or_else(|| "that is not a checksum dm recognises".into())
 }
 
+/// Windows' longest path that its shell (Explorer, the Recycle Bin, a
+/// program started with a file) takes: `MAX_PATH`, its end included. dm's
+/// own reading and writing goes past it by itself (Rust's `std::fs` adds
+/// `\\?\`), but GPUI's manifest, which dm cannot replace, does not declare
+/// `longPathAware`, and the shell would not take such a path either way.
+pub const SHELL_PATH_MOST: usize = 260;
+
+/// `path` as Windows' shell can take it: as it is when it is short enough,
+/// else its 8.3 short form (`C:\DOWNLO~1\...`), which names the same file
+/// in fewer letters (gaps row 191). As it is wherever no short form is to
+/// be had (a volume with 8.3 names turned off), and on every other system.
+pub fn for_shell(path: &str) -> String {
+    if path.encode_utf16().count() < SHELL_PATH_MOST {
+        return path.to_string();
+    }
+    short_form(&verbatim(path))
+        .map(|short| plain(&short))
+        .unwrap_or_else(|| path.to_string())
+}
+
+/// `path` in Windows' verbatim form, which the system's calls take past
+/// `MAX_PATH`: `\\?\C:\...`, or `\\?\UNC\server\share\...` for a share.
+pub fn verbatim(path: &str) -> String {
+    if path.starts_with(r"\\?\") {
+        path.to_string()
+    } else if let Some(share) = path.strip_prefix(r"\\") {
+        format!(r"\\?\UNC\{share}")
+    } else {
+        format!(r"\\?\{path}")
+    }
+}
+
+/// `path` with its verbatim prefix taken off, as the shell reads paths.
+pub fn plain(path: &str) -> String {
+    if let Some(share) = path.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{share}")
+    } else if let Some(rest) = path.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        path.to_string()
+    }
+}
+
+/// The file system's 8.3 short form of a verbatim path, where it has one.
+#[cfg(windows)]
+fn short_form(path: &str) -> Option<String> {
+    use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
+    let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+    // SAFETY: `wide` is NUL-terminated; with no buffer the call only says
+    // how long the answer is, NUL included.
+    let needed = unsafe { GetShortPathNameW(wide.as_ptr(), std::ptr::null_mut(), 0) };
+    if needed == 0 {
+        return None;
+    }
+    let mut out = vec![0u16; needed as usize];
+    // SAFETY: `out` holds the `needed` letters the call asked for.
+    let written = unsafe { GetShortPathNameW(wide.as_ptr(), out.as_mut_ptr(), needed) };
+    if written == 0 || written >= needed {
+        return None;
+    }
+    out.truncate(written as usize);
+    String::from_utf16(&out).ok()
+}
+
+/// No short forms off Windows.
+#[cfg(not(windows))]
+fn short_form(_path: &str) -> Option<String> {
+    None
+}
+
 /// Opens the finished file's folder, with the file selected where the OS can.
 ///
 /// A finished download the user cannot get to is a download half-delivered;
@@ -805,7 +875,7 @@ pub fn reveal_in_folder(path: &str) -> Result<(), String> {
         // spaces wraps the whole of it, which Explorer does not undo.
         use std::os::windows::process::CommandExt;
         let mut c = std::process::Command::new("explorer");
-        c.raw_arg(format!("/select,\"{path}\""));
+        c.raw_arg(format!("/select,\"{}\"", for_shell(path)));
         c
     };
     // No portable "select the file", so the containing folder is opened.
@@ -1007,7 +1077,7 @@ pub fn open_file(path: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
-        command.raw_arg(format!("\"{path}\""));
+        command.raw_arg(format!("\"{}\"", for_shell(path)));
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     return linux_open(p);
@@ -1044,6 +1114,14 @@ pub fn open_with(path: &str, app: &Path) -> Result<(), String> {
     if !app.exists() {
         return Err(format!("{} is not there", app.display()));
     }
+    // A program on Windows is handed a long path's short form, which every
+    // program reads, where one written before long paths would not open it.
+    let shell_path = for_shell(path);
+    let p = if cfg!(windows) {
+        Path::new(&shell_path)
+    } else {
+        p
+    };
     let (program, args) = open_with_command(p, app, cfg!(target_os = "macos"));
     std::process::Command::new(program)
         .args(args)

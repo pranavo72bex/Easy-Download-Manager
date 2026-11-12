@@ -263,6 +263,18 @@ fn gnome(dark: bool) -> Theme {
     }
 }
 
+/// A colour of the main window's frame (its title bar, toolbar, side panel
+/// and status bar): clear under Mica, so the backdrop shows through it, as
+/// Windows' own apps draw theirs; the colour itself everywhere else. The
+/// list, dialogs and fields stay solid to be read on (gaps row G11).
+pub fn frame(colour: Rgba) -> Rgba {
+    if dm_desktop_base::mica::in_force() {
+        gpui::transparent_black().into()
+    } else {
+        colour
+    }
+}
+
 /// The look Options › General asks for: Light or Dark whatever the
 /// computer's, else the computer's (`classic` is the egui window's own look,
 /// drawn here as the computer's). Every window follows, as the system's own

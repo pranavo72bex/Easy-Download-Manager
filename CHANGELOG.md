@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- macOS: dm's Dock icon shows a bar of how far the downloads are and a badge of how many run, and its menu opens the download folder.
+- Linux: the launcher in the dock or panel shows how far the downloads are and how many run, where the desktop shows a launcher's progress (Ubuntu Dock, Dash to Dock, KDE's task manager, Plank).
+- A finished download's notification opens the file when clicked on macOS too, and offers Open folder; on Linux its buttons are in dm's language.
+- Windows: a finished download can be dragged from the window into an Explorer folder, a mail or a chat.
+- Windows 11: Options › General's "Use the Mica backdrop" is back, in the new window: the desktop shows faintly through the window's frame from dm's next start.
+- Windows: Open, Show in folder, Open with and Delete file work on a file whose path is longer than 260 characters.
 - GPUI window: every button, check box, choice and Options tab can be reached with Tab (and Shift+Tab back), and pressed or ticked with Space or Return, the keyboard's place ringed.
 - YouTube: a playlist's videos start sooner after the first: YouTube's player is fetched and cut once a session, not once for every video.
 - A DASH video whose picture or sound is one large file is fetched in pieces: no size limit, and a pause or a cut picks up from the pieces it has.

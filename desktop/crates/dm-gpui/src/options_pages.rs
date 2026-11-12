@@ -561,6 +561,23 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                 .child(play),
         );
     }
+    // Offered only where it can be drawn: Windows 11 22H2 and later. From
+    // dm's next start, as the window is made see-through when it opens
+    // (gaps row G11).
+    if dm_desktop_base::mica::possible() {
+        check(
+            p,
+            cx,
+            "mica",
+            t("Use the Mica backdrop"),
+            s.mica,
+            true,
+            |s| s.mica = !s.mica,
+        );
+        p.hint(t(
+            "Lets the desktop show faintly through the window, as Windows' own apps do.",
+        ));
+    }
     p.section(t("Pop-ups"));
     check(
         p,

@@ -152,3 +152,21 @@ only, where upstream offered a move as well: a file manager taking a move
 would carry the download away from where dm saved it. Owed to the Linux
 pass: `scripts/linux-drag-check.sh` and `scripts/linux-wayland-drag-check.sh`
 dragging out of the GPUI window (docs/gaps.md G10).
+
+## gpui-pre-windows 0.3.12
+
+Licence Apache-2.0 (its `LICENSE-APACHE`); the version the GPUI window
+(`crates/dm-gpui`, pinned `gpui-pre` 0.3.12) is built with on Windows. The
+published package's `Cargo.lock` and `.cargo_vcs_info.json` are left out.
+
+Files dragged out of the window (`src/drag_out.rs`, and `dm:` lines in
+`gpui_windows.rs`, `window.rs`, `events.rs`): upstream offers GPUI's
+`start_external_drag` on macOS and Wayland only, so a finished download could
+not be dragged from the Windows window into Explorer, a mail or a chat (dm's
+gaps row G10). The window now takes it: the files become shell items, the
+items a data object as Explorer's own (`BHID_DataObject`), and the shell's
+`SHDoDragDrop` makes the drag with its own drop source, copy or link, never
+move. That call holds a modal loop until the drop lands, so it is made from a
+message posted to the window (`WM_DM_DRAG_OUT`), outside any update of GPUI's,
+and GPUI is then told the drag is over (`FileDropEvent::Ended`), as the X11
+copy does.

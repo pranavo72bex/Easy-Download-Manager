@@ -13,41 +13,22 @@
 //! a see-through window, which an old GPU driver can turn black, so it is
 //! never on by default (docs/decisions.md).
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
-/// Whether this run's window was made see-through for Mica.
-static MICA: AtomicBool = AtomicBool::new(false);
+pub use dm_desktop_base::mica::MICA_BUILD;
 
 /// Whether this run's window has Mica behind it.
 pub fn mica() -> bool {
-    MICA.load(Ordering::Relaxed)
+    dm_desktop_base::mica::in_force()
 }
-
-/// The first Windows build with `DWMWA_SYSTEMBACKDROP_TYPE`: 11 22H2.
-pub const MICA_BUILD: u32 = 22621;
 
 /// Whether this computer can draw Mica: Windows 11 22H2 or later.
 pub fn mica_possible() -> bool {
-    #[cfg(windows)]
-    {
-        crate::autostart::registry::machine_string(
-            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion",
-            "CurrentBuildNumber",
-        )
-        .and_then(|b| b.trim().parse::<u32>().ok())
-        .is_some_and(|build| build >= MICA_BUILD)
-    }
-    #[cfg(not(windows))]
-    false
+    dm_desktop_base::mica::possible()
 }
 
 /// Puts Mica in force for this run where it is `wanted` and possible, and
-/// says whether it is: the window is then to be made see-through, and its
-/// frame drawn clear.
+/// says whether it is (`dm_desktop_base::mica::use_it`).
 pub fn use_mica(wanted: bool) -> bool {
-    let on = wanted && mica_possible();
-    MICA.store(on, Ordering::Relaxed);
-    on
+    dm_desktop_base::mica::use_it(wanted)
 }
 
 /// A colour as Windows takes it: `0x00BBGGRR`.

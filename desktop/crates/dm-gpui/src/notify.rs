@@ -18,9 +18,14 @@ pub fn claim() {
     let _ = notify_rust::set_application("com.dm.desktop");
 }
 
-/// Says a notification: one whose click opens a finished file (on Linux,
-/// with an Open folder button too), or a plain one. Off the window's
-/// thread: the system may take a moment.
+/// Says a notification: one whose click opens a finished file, with an
+/// Open folder button, or a plain one. Off the window's thread: the system
+/// may take a moment.
+///
+/// The click is heard by waiting on the notification in step, on its own
+/// thread: Linux's notification servers answer so, and macOS's centre does
+/// too while the program's main run loop runs, which GPUI's does (gaps row
+/// U15: before, a click on macOS only brought dm forward).
 pub fn say(note: Note) {
     let Note { title, body, path } = note;
     let Some(path) = path else {
@@ -37,37 +42,60 @@ pub fn say(note: Note) {
     /// clicked or closed, and some servers keep them a long time.
     static WAITING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     const MOST_WAITING: usize = 8;
+    // In the window's language, which is this thread's.
+    let buttons = buttons();
     std::thread::spawn(move || {
+        use std::sync::atomic::Ordering;
         let mut notification = notify_rust::Notification::new();
         notification.appname("dm").summary(&title).body(&body);
-        #[cfg(all(unix, not(target_os = "macos")))]
-        if !path.is_empty() {
-            // The body's click, as the servers name it, and a button for
-            // the folder: Open File and Open Folder on the toast itself.
-            notification.action("default", "Open");
-            notification.action("folder", "Open folder");
-        }
-        let Ok(handle) = notification.show() else {
-            return;
-        };
-        #[cfg(target_os = "macos")]
-        let _ = (handle, &path, &WAITING, MOST_WAITING);
-        #[cfg(not(target_os = "macos"))]
-        {
-            use std::sync::atomic::Ordering;
-            if path.is_empty() || WAITING.fetch_add(1, Ordering::AcqRel) >= MOST_WAITING {
-                WAITING.fetch_sub(1, Ordering::AcqRel);
-                return;
-            }
-            let _ = handle.wait_for_response(|response: &notify_rust::NotificationResponse| {
-                if response.is_default_action() {
-                    let _ = dm_shell::shell::open_file(&path);
-                } else if matches!(response, notify_rust::NotificationResponse::Action(key) if key == "folder")
-                {
-                    let _ = dm_shell::shell::reveal_in_folder(&path);
-                }
-            });
+        let waited = !path.is_empty() && WAITING.fetch_add(1, Ordering::AcqRel) < MOST_WAITING;
+        if !path.is_empty() && !waited {
             WAITING.fetch_sub(1, Ordering::AcqRel);
         }
+        if waited {
+            for (key, words) in buttons {
+                notification.action(key, words);
+            }
+        }
+        let Ok(handle) = notification.show() else {
+            if waited {
+                WAITING.fetch_sub(1, Ordering::AcqRel);
+            }
+            return;
+        };
+        if !waited {
+            // Dropped, it is posted as it is (macOS) or left to the server.
+            drop(handle);
+            return;
+        }
+        let _ =
+            handle.wait_for_response(
+                |response: &notify_rust::NotificationResponse| match response {
+                    notify_rust::NotificationResponse::Default => {
+                        let _ = dm_shell::shell::open_file(&path);
+                    }
+                    notify_rust::NotificationResponse::Action(key) if key == "folder" => {
+                        let _ = dm_shell::shell::reveal_in_folder(&path);
+                    }
+                    notify_rust::NotificationResponse::Action(key) if key == "default" => {
+                        let _ = dm_shell::shell::open_file(&path);
+                    }
+                    _ => {}
+                },
+            );
+        WAITING.fetch_sub(1, Ordering::AcqRel);
     });
+}
+
+/// The buttons on a finished file's notification, by the keys its answer
+/// names them with, in this thread's language (the window's). Linux's servers take the body's
+/// click as the `default` action, which some draw as a button of its own;
+/// macOS draws one button, and a click on the body is its own answer.
+fn buttons() -> Vec<(&'static str, &'static str)> {
+    use dm_desktop_base::i18n::t;
+    if cfg!(target_os = "macos") {
+        vec![("folder", t("Open folder"))]
+    } else {
+        vec![("default", t("Open")), ("folder", t("Open folder"))]
+    }
 }

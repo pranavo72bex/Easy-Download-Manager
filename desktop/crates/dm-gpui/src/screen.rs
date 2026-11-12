@@ -120,7 +120,9 @@ impl Screens {
     }
 
     /// `window` is out of the port's sight, as a closed window is, while it
-    /// is still going (a question's sheet sliding off, `question::close`).
+    /// is still going (a question's sheet sliding off, `question::close`:
+    /// macOS's alone).
+    #[cfg(target_os = "macos")]
     pub fn forget(window: AnyWindowHandle, cx: &mut App) {
         let screens = cx.default_global::<Screens>();
         screens.0.retain(|(w, _, _)| *w != window);

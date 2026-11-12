@@ -90,6 +90,7 @@ pub fn so_far() -> Option<Costs> {
 mod counted {
     use std::cell::Cell;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
+    #[cfg(unix)]
     use std::sync::OnceLock;
 
     pub(super) static BLOCK_ON: AtomicU64 = AtomicU64::new(0);
@@ -104,10 +105,20 @@ mod counted {
         static FS_AT: Cell<u64> = const { Cell::new(0) };
     }
 
+    #[cfg(unix)]
     type Counter = extern "C" fn() -> u64;
 
     /// The preloaded library's count of this thread's file-system calls,
+    /// where it is loaded. A library preloaded beside dm is a Unix way
+    /// (`LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`); Windows has none to ask.
+    #[cfg(not(unix))]
+    fn fs_calls() -> Option<u64> {
+        None
+    }
+
+    /// The preloaded library's count of this thread's file-system calls,
     /// where it is loaded.
+    #[cfg(unix)]
     fn fs_calls() -> Option<u64> {
         static COUNTER: OnceLock<Option<Counter>> = OnceLock::new();
         let counter = COUNTER.get_or_init(|| {

@@ -242,6 +242,10 @@ fn main() {
     // until Options was next applied.
     dm_desktop_base::i18n::set(dm_desktop_base::i18n::chosen(&backend.settings().language));
 
+    // Mica behind the window where it was chosen and Windows 11 can draw it
+    // (Options › General, from this start: gaps row G11).
+    let mica = dm_desktop_base::mica::use_it(backend.settings().mica);
+
     // What dm's own drop targets take wakes the window to read it.
     {
         let wake = Arc::clone(&wake);
@@ -355,6 +359,13 @@ fn main() {
                 }),
                 window_decorations: (!titlebar::DRAWN_BY_DM)
                     .then_some(gpui::WindowDecorations::Server),
+                // Under Mica the frame is drawn clear and the backdrop is
+                // its colour (`theme::frame`); the list stays solid.
+                window_background: if mica {
+                    gpui::WindowBackgroundAppearance::MicaBackdrop
+                } else {
+                    gpui::WindowBackgroundAppearance::Opaque
+                },
                 ..Default::default()
             },
             |window, cx| {

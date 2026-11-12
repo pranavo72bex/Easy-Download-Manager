@@ -57,6 +57,7 @@ pub mod jumplist;
 pub mod links_import;
 pub mod login;
 pub mod mcp;
+pub mod mica;
 pub mod modes;
 #[cfg(target_os = "macos")]
 pub mod opened;

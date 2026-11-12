@@ -615,21 +615,22 @@ impl Downloads {
 
     /// How far the downloads are, on the taskbar button, so a minimized
     /// window still says it, as the egui window's does: green while they
-    /// run, yellow paused, red a minute after one failed. Only Windows has
-    /// such a button.
+    /// run, yellow paused, red a minute after one failed (Windows); a bar
+    /// and a count on the Dock (macOS) and the launcher (Linux).
     fn taskbar_follow(&mut self, window: &Window) {
+        use dm_desktop_base::taskbar;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let mode = taskbar::mode_of(&self.rows, now);
         #[cfg(windows)]
         if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(window) {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| d.as_secs());
-            self.taskbar.show(
-                handle.as_raw(),
-                dm_desktop_base::taskbar::mode_of(&self.rows, now),
-            );
+            self.taskbar.show(handle.as_raw(), mode);
         }
         #[cfg(not(windows))]
-        let _ = (window, &mut self.taskbar);
+        let _ = window;
+        self.taskbar
+            .show_outside(taskbar::outside_of(mode, taskbar::running_of(&self.rows)));
     }
 
     /// How long the window sleeps when nothing wakes it: a quarter of a
@@ -2316,7 +2317,9 @@ impl Render for Downloads {
                 this.row_menu_by_key();
                 cx.notify();
             }))
-            .bg(theme.background)
+            // Clear under Mica (the toolbar on it too); the list's column
+            // below stays solid.
+            .bg(crate::theme::frame(theme.background))
             .text_color(theme.text)
             // The system's size for a list's rows and every control.
             .text_size(crate::zoom::px(crate::native::TEXT))
@@ -2338,6 +2341,7 @@ impl Render for Downloads {
                             .flex_col()
                             .flex_1()
                             .min_w_0()
+                            .bg(theme.background)
                             // dm's update, downloaded and checked: Install
                             // now, or Later.
                             .children(update_bar)

@@ -118,7 +118,8 @@ impl<W: WindowServices> Platform for Desktop<W> {
     /// To the Recycle Bin or the Trash, not erased: a file deleted by a
     /// mistake can be put back.
     fn trash(&self, path: &str) -> Result<(), String> {
-        trash::delete(path).map_err(|e| e.to_string())
+        // The Recycle Bin is the shell's: a long path goes as its short form.
+        trash::delete(dm_shell::shell::for_shell(path)).map_err(|e| e.to_string())
     }
 
     /// Posted from a thread of its own: on macOS, `show` waits on the

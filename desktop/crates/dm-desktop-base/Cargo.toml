@@ -43,8 +43,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "signal"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 # What VoiceOver is given of each window, read from inside (a11y_tree.rs).
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSAccessibility", "objc2-core-foundation"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray"] }
+# The Dock's bar and badge (taskbar.rs): its tile, the program's picture and a bar over it.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSAccessibility", "objc2-core-foundation", "NSDockTile", "NSImage", "NSImageView", "NSControl", "NSView", "NSProgressIndicator"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSGeometry"] }
 
 [target.'cfg(windows)'.dependencies]
 # A finished download's toast (toast.rs): WinRT, which windows-sys has no

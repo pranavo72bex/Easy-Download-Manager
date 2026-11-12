@@ -32,8 +32,8 @@ git ls-files -z --cached --others --exclude-standard \
       -v "$out":/out \
       -e CARGO_TARGET_DIR=/target \
       messense/cargo-xwin sh -c "mkdir -p /work && cd /work && tar -xf - && cd desktop \
-        && rustup -q toolchain install stable --profile minimal -t x86_64-pc-windows-msvc \
-        && rustup -q default stable \
+        && rustup -q toolchain install \
+        && rustup -q target add x86_64-pc-windows-msvc \
         && cargo xwin build --release --locked -p dm-desktop --target x86_64-pc-windows-msvc \
         && cp /target/x86_64-pc-windows-msvc/release/dm-desktop.exe /out/dm-desktop.exe"
 portable="$out/dm_${version}_x64-portable"

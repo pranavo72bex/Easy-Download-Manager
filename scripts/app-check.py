@@ -62,7 +62,23 @@ def wait_for(what, condition, seconds=15):
             raise RuntimeError(f"dm exited with code {APP.returncode} while waiting for: {what}\n"
                                + ("  it said:\n    " + err.replace("\n", "\n    ") if err else "  it said nothing"))
         time.sleep(0.1)
-    raise TimeoutError(what)
+    raise TimeoutError(what + said_by_rows())
+
+
+#: The home of the dm being checked, for what its rows say when a wait fails.
+HOME = None
+
+
+def said_by_rows():
+    """Each row's address, state and note, so a wait that failed says why."""
+    if HOME is None:
+        return ""
+    try:
+        lines = [f"{r['url']}: {json.dumps(r['state'])} {r.get('said', '')} {r.get('stalled', '')}".rstrip()
+                 for r in rows(HOME)]
+    except (OSError, ValueError):
+        return ""
+    return "\n  the rows:\n    " + "\n    ".join(lines) if lines else "\n  no rows"
 
 
 HITS = {}
@@ -293,7 +309,9 @@ def main():
         subprocess.run([cargo, "build", "-p", CLIENT], cwd=ROOT / "desktop", check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    global HOME
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-home-"))
+    HOME = home
     downloads = home / "Downloads"
     env = {**os.environ, "DM_HOME": str(home)}
     # Three attempts, not the ten a person gets: a check that a failure is a
@@ -606,8 +624,11 @@ def main():
         human("ui.key", key="=", modifiers=held)
         human("ui.key", key="=", modifiers=held)
         grown = lambda: [round(b / a, 2) if a else 0 for a, b in zip(medium, measures())]
+        larger = soon(lambda: all(r >= 1.1 for r in grown()))
+        # Said when it fails: the name's height and the rows' pitch before
+        # and after, so a run under Xvfb tells a slow frame from a size kept.
         check("Ctrl (Cmd) with + draws the words and the rows larger",
-              soon(lambda: all(r >= 1.1 for r in grown())), True)
+              larger or {"before": medium, "after": measures()}, True)
         check("and the text size is kept", json.loads((home / "settings.json").read_text()).get("text_size"), 1.2)
         human("ui.key", key="0", modifiers=held)
         check("and with 0 they are back at 100%", soon(lambda: measures() == medium), True)
@@ -634,8 +655,10 @@ def main():
                 check("with Save to as Download links has it", soon(lambda: all(w in on_screen() for w in (
                     "Save to", "Each file to the folder of its category", "Every file to this category",
                     "Every file to this folder", "Browse…"))))
-                picked = home / "picked"
-                picked.mkdir()
+                # Below the download folder: a folder typed while a script
+                # drives the window is held there (gaps row 199).
+                picked = downloads / "picked"
+                picked.mkdir(parents=True)
                 human("ui.click", text="Every file to this folder")
                 human("ui.type", text=str(picked))
                 human("ui.click", text="Start now")
@@ -654,7 +677,7 @@ def main():
                 check("and the link waits in the main queue with that folder",
                       (waiting[0]["state"]["kind"], waiting[0]["queue"], waiting[0].get("save_dir")),
                       ("paused", "Main queue", str(new)))
-                taken = home / "taken"
+                taken = downloads / "taken"
                 taken.write_bytes(b"x")
                 from_clipboard("clip-d.zip")
                 human("ui.click", text="Every file to this folder")

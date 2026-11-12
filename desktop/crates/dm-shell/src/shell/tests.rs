@@ -656,3 +656,22 @@ fn a_program_that_cannot_start_says_so_and_an_empty_one_is_nothing() {
     assert!(said.contains("dm-no-such-program-here"), "{said}");
     assert!(said.contains("scheduled downloads are done"), "{said}");
 }
+
+/// A path Windows' shell takes goes to it as it is; a longer one goes
+/// verbatim to the call that shortens it, and comes back plain (gaps row 191).
+#[test]
+fn a_long_path_goes_to_the_shell_in_a_form_it_takes() {
+    assert_eq!(for_shell(r"C:\Downloads\a.zip"), r"C:\Downloads\a.zip");
+    // Off Windows there is no short form: the path goes as it is.
+    let long = format!(r"C:\Downloads\{}\a.zip", "d".repeat(300));
+    if !cfg!(windows) {
+        assert_eq!(for_shell(&long), long);
+    }
+    assert_eq!(verbatim(r"C:\a"), r"\\?\C:\a");
+    assert_eq!(verbatim(r"\\server\share\a"), r"\\?\UNC\server\share\a");
+    assert_eq!(verbatim(r"\\?\C:\a"), r"\\?\C:\a");
+    assert_eq!(plain(r"\\?\C:\DOWNLO~1\a.zip"), r"C:\DOWNLO~1\a.zip");
+    assert_eq!(plain(r"\\?\UNC\server\share\a"), r"\\server\share\a");
+    assert_eq!(plain(r"C:\a"), r"C:\a");
+    assert_eq!(SHELL_PATH_MOST, 260);
+}

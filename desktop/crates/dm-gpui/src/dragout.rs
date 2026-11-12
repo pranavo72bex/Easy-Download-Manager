@@ -10,10 +10,10 @@
 //! name under the pointer while it is over the window. Once the pointer
 //! leaves the window, GPUI hands the drag to the system with the files the
 //! row carries (`external_drag_payload`): AppKit's dragging session on
-//! macOS, the data device on Wayland, and on X11 dm's own XDND source in the
-//! vendored GPUI (`desktop/vendor/README.md`). The system's drag runs
-//! beside GPUI's event loop rather than inside an update of it, so nothing
-//! is re-entered. Windows' GPUI has no such drag yet (docs/gaps.md G10).
+//! macOS, the data device on Wayland, and dm's own in the vendored GPUI
+//! (`desktop/vendor/README.md`): an XDND source on X11, the shell's
+//! `SHDoDragDrop` on Windows. The system's drag runs beside GPUI's event
+//! loop rather than inside an update of it, so nothing is re-entered.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;

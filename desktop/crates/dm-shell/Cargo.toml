@@ -47,6 +47,8 @@ windows-sys = { version = "0.61", features = [
   "Win32_Networking_WinSock",
   "Win32_Security",
   "Win32_Security_Authorization",
+  # A long path's short form for Explorer and the Recycle Bin (`shell::for_shell`).
+  "Win32_Storage_FileSystem",
   "Win32_System_Console",
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_Threading",

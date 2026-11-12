@@ -6974,3 +6974,32 @@ was the cost.
 - **S19**: a resolver of dm's own (`dm-core/src/dns.rs`, set in `http_client::builder_with`)
   keeps each name's addresses for 60 s, at most 512 names, a failed lookup not kept; a miss
   asks tokio's `lookup_host`. It is also where row 200 can judge the address a name gives.
+
+## 2026-11-12: Windows and Linux code written on the Mac (G10, G11, 191, U15, U16)
+
+The maintainer: "Make sure to implement coding part of all linux mac and windows". Each piece is
+compiled and linted for Windows by `scripts/windows-check.sh clippy` and for Linux by
+`scripts/linux-check.sh`, both in Docker; seeing it work there is owed to those computers.
+
+- **G10, the drag out on Windows**: not the `drag` crate (a third party's, and its own COM
+  objects) but the shell's: the files as shell items (`ILCreateFromPathW`,
+  `SHCreateShellItemArrayFromIDLists`), their data object as Explorer's (`BHID_DataObject`) and
+  `SHDoDragDrop` with the shell's own drop source, so no COM object of dm's is written. Its
+  modal loop runs from a message posted to the window (`WM_DM_DRAG_OUT`), outside GPUI's
+  updates, in a vendored `gpui-pre-windows` as `gpui-pre-linux` is for X11's.
+- **191, long paths**: `longPathAware` cannot be declared, because the manifest is GPUI's own
+  and `gpui-pre-platform`, `gpui-component` and `gpui-base` each turn it on; a second manifest
+  is a duplicate resource the linker refuses. So the shell is handed a path of 260 letters or
+  more as its 8.3 short form (`shell::for_shell`). Dropped: vendoring `gpui-pre` (the whole
+  core of GPUI) for one line of its manifest.
+- **G11, Mica**: the check moved toolkit-free (`dm_desktop_base::mica`); the frame (title bar,
+  toolbar, side panel, status bar) is drawn clear (`theme::frame`) and the list's column solid,
+  as the egui window kept the list solid.
+- **U16**: the Dock's bar is an `NSProgressIndicator` over the program's picture in the tile's
+  content view, dropped (the Dock's own picture again) when nothing sized runs; Linux's is
+  Unity's `LauncherEntry` signal, which the docks and panels that show a launcher's progress all
+  read, sent from a thread of its own. Both in whole hundredths. The window's title stays "dm"
+  for now: scripts and the control port find the main window by it.
+- **U15**: on macOS a notification is waited on in step, as on Linux (`notify-rust`'s
+  `wait_for_response`, which macOS answers while GPUI's main run loop runs), at most eight at
+  once.

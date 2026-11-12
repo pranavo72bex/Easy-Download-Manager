@@ -159,6 +159,12 @@ pub struct OpenPage {
     pub address: String,
 }
 
+/// The Dock menu's "Open download folder": the folder Options › Save to
+/// names, in Finder, whether or not dm's window is showing (gaps row U16).
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct OpenDownloadFolder;
+
 /// File › Close (⌘W), as every macOS program has it: the main window's
 /// close button, whatever Options says it does.
 #[derive(Clone, PartialEq, Default, Action)]
@@ -437,6 +443,16 @@ pub fn bind_keys(cx: &mut App) {
         }
     });
     cx.on_action(|_: &BringAllToFront, cx| cx.activate(true));
+    // Read from the settings file as saved, not the store of secrets: the
+    // folder is all it needs.
+    cx.on_action(|_: &OpenDownloadFolder, _| {
+        let settings =
+            dm_shell::settings::Settings::read_only(&dm_shell::settings::Settings::path());
+        let folder = settings.download_dir.display().to_string();
+        if let Err(e) = dm_shell::shell::open_file(&folder) {
+            eprintln!("dm: the download folder could not be opened: {e}");
+        }
+    });
 }
 
 fn item(command: Command) -> MenuItem {
@@ -485,10 +501,17 @@ pub fn set(cx: &mut App, ticks: &Ticks) {
     }
 }
 
-/// The Dock icon's menu: add a download, resume or stop them all.
+/// The Dock icon's menu: add a download, resume or stop them all, open the
+/// download folder.
 fn dock_menu() -> Vec<MenuItem> {
     use Command as C;
-    vec![item(C::AddUrl), item(C::ResumeAll), item(C::StopAll)]
+    vec![
+        item(C::AddUrl),
+        item(C::ResumeAll),
+        item(C::StopAll),
+        MenuItem::separator(),
+        MenuItem::action(t("Open download folder"), OpenDownloadFolder),
+    ]
 }
 
 /// The window's menus' titles, in English, in their order: what the top bar
@@ -904,7 +927,8 @@ mod tests {
         assert!(!state(&off, "Add URL…").1);
     }
 
-    /// The Dock's menu offers adding a download and resuming or stopping them all.
+    /// The Dock's menu offers adding a download, resuming or stopping them
+    /// all, and the download folder (gaps row U16).
     #[test]
     fn the_dock_menu_adds_resumes_and_stops() {
         let names: Vec<String> = dock_menu()
@@ -914,8 +938,9 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(names.len(), 3);
+        assert_eq!(names.len(), 4);
         assert!(names[0].starts_with("Add URL"), "{names:?}");
+        assert_eq!(names[3], "Open download folder");
     }
 
     #[test]
