@@ -180,6 +180,10 @@ pub struct Downloads {
     cursor: Option<dm_core::Id>,
     /// The row menu, open where it was asked for.
     menu: Option<gpui::Point<gpui::Pixels>>,
+    /// The keyboard's place in the open row menu, by entry (`rowmenu::entries`).
+    pub(crate) menu_at: Option<usize>,
+    /// What was typed over the list to find a row by its name, and when last (`keys.rs`).
+    pub(crate) typed: (String, Option<std::time::Instant>),
     /// A sentence for the status bar, and when it was said: it stands for
     /// a while, as the egui window's does.
     pub(crate) said: Option<(String, std::time::Instant)>,
@@ -364,6 +368,8 @@ impl Downloads {
             selected: Default::default(),
             anchor: None,
             cursor: None,
+            menu_at: None,
+            typed: (String::new(), None),
             resizing: None,
             resize_kept: None,
             menu: None,
@@ -1876,41 +1882,6 @@ impl Downloads {
         self.reshow();
     }
 
-    /// A click on the row at `position` in the list, with ⌘ (`toggle`) or
-    /// ⇧ (`range`) held, as a macOS list takes it.
-    ///
-    /// The row is the one clicked, `id`, wherever it is now: a sort or a
-    /// new row between the frame and the click moved it, and the click
-    /// acted on whatever row had taken its place (gaps row 182).
-    pub fn click_row(&mut self, id: dm_core::Id, toggle: bool, range: bool) {
-        let Some(position) = self.position_of(id) else {
-            return;
-        };
-        let shown: Vec<dm_core::Id> = if range {
-            (0..self.shown.len())
-                .filter_map(|p| self.id_at(p))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let anchor = self.anchor.and_then(|a| self.position_of(a));
-        let (selected, anchor) = clicked(
-            std::mem::take(&mut self.selected),
-            anchor,
-            &shown,
-            id,
-            position,
-            toggle,
-            range,
-        );
-        self.selected = selected;
-        self.cursor = Some(id);
-        // A ⇧-click keeps the anchor it ran from.
-        if !range {
-            self.anchor = anchor;
-        }
-    }
-
     /// A double-click on the row at `position`: what Options › General
     /// says a double-click does, Properties by default, for any download;
     /// Open or its folder for a finished one. A download that is running,
@@ -1937,19 +1908,6 @@ impl Downloads {
         self.selected = [id].into();
         self.anchor = Some(id);
         self.run(command, cx);
-    }
-
-    /// A right-click on the row at `position`, at `at`: the row is chosen
-    /// if it was not (a right-click on a chosen row keeps the choice), and
-    /// the row menu opens there.
-    pub fn open_menu(&mut self, id: dm_core::Id, at: gpui::Point<gpui::Pixels>) {
-        if self.position_of(id).is_some() {
-            if !self.selected.contains(&id) {
-                self.selected = [id].into();
-                self.anchor = Some(id);
-            }
-            self.menu = Some(at);
-        }
     }
 
     /// Remove (or Delete file, `deleting_files`) on the rows chosen. Finished
@@ -2106,38 +2064,6 @@ impl Downloads {
     /// Says `sentence` in the status bar.
     pub fn say(&mut self, sentence: String) {
         self.said = Some((sentence, std::time::Instant::now()));
-    }
-
-    /// Closes the row menu.
-    pub fn close_menu(&mut self) {
-        self.menu = None;
-    }
-
-    /// Moves the choice one row up (`-1`) or down (`1`), as the arrow keys
-    /// do, keeping the row on screen.
-    pub fn step(&mut self, by: isize) {
-        let step = if by < 0 {
-            dm_desktop_base::selection::Step::Up
-        } else {
-            dm_desktop_base::selection::Step::Down
-        };
-        self.step_by(step, false);
-    }
-
-    /// The id of the row at `position` in the list as shown.
-    pub(crate) fn id_at(&self, position: usize) -> Option<dm_core::Id> {
-        self.shown
-            .get(position)
-            .and_then(|&r| self.rows.get(r))
-            .map(|r| r.id)
-    }
-
-    /// Where the row `id` is in the list as shown.
-    fn position_of(&self, id: dm_core::Id) -> Option<usize> {
-        self.positions
-            .get(&id)
-            .copied()
-            .filter(|&at| self.id_at(at) == Some(id))
     }
 
     /// Sorts by `column`: up, then the other way on a second click, as
@@ -2322,13 +2248,54 @@ impl Render for Downloads {
             }))
             .on_action(
                 cx.listener(|this, _: &crate::menus::SelectPrevious, _, cx| {
-                    this.step(-1);
+                    if this.menu_open() {
+                        this.step_menu(-1);
+                    } else {
+                        this.step(-1);
+                    }
                     cx.notify();
                 }),
             )
             .on_action(cx.listener(|this, _: &crate::menus::SelectNext, _, cx| {
-                this.step(1);
+                // In the open row menu, the arrows move along it (gaps row U6).
+                if this.menu_open() {
+                    this.step_menu(1);
+                } else {
+                    this.step(1);
+                }
                 cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &crate::menus::Confirm, window, cx| {
+                if this.menu_open() {
+                    this.confirm_menu(window, cx);
+                } else {
+                    this.run(dm_shell::app::commands::Command::ShowProgress, cx);
+                }
+            }))
+            .on_action(cx.listener(|this, _: &crate::menus::Dismiss, _, cx| {
+                if this.menu_open() {
+                    this.close_menu();
+                    cx.notify();
+                }
+            }))
+            // A letter typed over the list finds the next row whose name starts with what was
+            // typed (gaps row U6); not while a field or the search box has the keys.
+            .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
+                let held = &event.keystroke.modifiers;
+                if !this.focus.is_focused(window)
+                    || held.platform
+                    || held.control
+                    || held.alt
+                    || held.function
+                {
+                    return;
+                }
+                if let Some(typed) = event.keystroke.key_char.as_deref() {
+                    if typed.chars().count() == 1 && typed.chars().all(|c| !c.is_control()) {
+                        this.type_to_find(typed);
+                        cx.notify();
+                    }
+                }
             }))
             .on_action(cx.listener(|this, m: &crate::menus::MoveInList, _, cx| {
                 use crate::menus::ListMove as M;

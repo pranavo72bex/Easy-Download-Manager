@@ -54,6 +54,145 @@ fn groups(resume: &'static str) -> Vec<Vec<(Command, &'static str)>> {
     ]
 }
 
+/// What one entry of the row menu does.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Act {
+    /// A command of the menus', on the rows chosen.
+    Run(Command),
+    /// "Delete file after" this many seconds (`None`: Never), on the rows that have a file.
+    DeleteAfter(Option<u64>),
+}
+
+/// One entry: what it does, its words, whether it applies, whether it is ticked, and whether a
+/// separator (or, for "Delete file after", that heading) comes before it.
+pub struct Entry {
+    pub act: Act,
+    pub words: &'static str,
+    pub enabled: bool,
+    pub ticked: bool,
+    pub before: Before,
+}
+
+/// What stands above an entry.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Before {
+    Nothing,
+    Separator,
+    Heading(&'static str),
+}
+
+/// The row menu's entries for the rows chosen, in order: the egui row menu's groups, then
+/// "Delete file after" (gaps row U8) for rows that have, or will have, a file.
+pub fn entries(view: &Downloads) -> Vec<Entry> {
+    let resume = dm_desktop_base::rows::resume_word(&view.chosen());
+    let mut all = Vec::new();
+    for (g, group) in groups(resume).into_iter().enumerate() {
+        for (n, (command, words)) in group.into_iter().enumerate() {
+            all.push(Entry {
+                act: Act::Run(command),
+                words,
+                enabled: view.enabled(command),
+                ticked: false,
+                before: if g > 0 && n == 0 {
+                    Before::Separator
+                } else {
+                    Before::Nothing
+                },
+            });
+        }
+    }
+    let chosen = view.chosen();
+    let with_file: Vec<_> = chosen
+        .iter()
+        .filter(|r| {
+            !matches!(
+                r.state,
+                dm_core::State::Failed(_) | dm_core::State::Cancelled
+            )
+        })
+        .collect();
+    if !with_file.is_empty() {
+        let shared = chosen
+            .first()
+            .map(|r| r.delete_after)
+            .filter(|first| chosen.iter().all(|r| r.delete_after == *first));
+        for (n, (words, seconds)) in dm_desktop_base::file_info::delete_after_times()
+            .into_iter()
+            .enumerate()
+        {
+            all.push(Entry {
+                act: Act::DeleteAfter(seconds),
+                words,
+                enabled: true,
+                ticked: shared == Some(seconds),
+                before: if n == 0 {
+                    Before::Heading(t("Delete file after"))
+                } else {
+                    Before::Nothing
+                },
+            });
+        }
+    }
+    all
+}
+
+impl Downloads {
+    /// Carries out the row menu's entry `act`, closing the menu: a click on it, or Return with
+    /// the keyboard on it (gaps row U6).
+    pub fn act_from_menu(&mut self, act: Act, window: &mut gpui::Window, cx: &mut Context<Self>) {
+        self.close_menu();
+        match act {
+            Act::Run(command) => window.dispatch_action(Box::new(Run(command)), cx),
+            Act::DeleteAfter(seconds) => {
+                let targets: Vec<dm_core::Id> = self
+                    .chosen()
+                    .into_iter()
+                    .filter(|r| {
+                        !matches!(
+                            r.state,
+                            dm_core::State::Failed(_) | dm_core::State::Cancelled
+                        )
+                    })
+                    .map(|r| r.id)
+                    .collect();
+                for id in targets {
+                    self.backend.set_delete_after(id, seconds);
+                }
+                self.read();
+            }
+        }
+        cx.notify();
+    }
+
+    /// The keyboard's place in the open row menu moved by `by` entries, over those that apply,
+    /// round from one end to the other as a system menu's.
+    pub fn step_menu(&mut self, by: isize) {
+        let all = entries(self);
+        let usable: Vec<usize> = (0..all.len()).filter(|&i| all[i].enabled).collect();
+        if usable.is_empty() {
+            return;
+        }
+        let at = self
+            .menu_at
+            .and_then(|now| usable.iter().position(|&i| i == now));
+        let next = match at {
+            Some(p) => (p as isize + by).rem_euclid(usable.len() as isize) as usize,
+            None if by < 0 => usable.len() - 1,
+            None => 0,
+        };
+        self.menu_at = usable.get(next).copied();
+    }
+
+    /// Return in the open row menu: the entry the keyboard is on, carried out.
+    pub fn confirm_menu(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
+        let all = entries(self);
+        if let Some(entry) = self.menu_at.and_then(|i| all.get(i)).filter(|e| e.enabled) {
+            let act = entry.act;
+            self.act_from_menu(act, window, cx);
+        }
+    }
+}
+
 /// The row menu, open at `at` (window points).
 pub fn menu(
     view: &Downloads,
@@ -63,116 +202,61 @@ pub fn menu(
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
     let mut items = Vec::new();
-    let resume = dm_desktop_base::rows::resume_word(&view.chosen());
-    for (g, group) in groups(resume).into_iter().enumerate() {
-        if g > 0 {
-            items.push(
-                div()
-                    .mx_2()
-                    .my_1()
-                    .h(px(1.0))
-                    .bg(theme.separator)
-                    .into_any_element(),
-            );
+    for (i, entry) in entries(view).into_iter().enumerate() {
+        match entry.before {
+            Before::Nothing => {}
+            Before::Separator => items.push(separator(theme)),
+            Before::Heading(words) => {
+                items.push(separator(theme));
+                items.push(
+                    div()
+                        .mx_1()
+                        .px_2()
+                        .h(px(20.0))
+                        .flex()
+                        .items_center()
+                        .text_size(px(crate::native::SMALL_TEXT))
+                        .text_color(theme.muted)
+                        .child(screen.label(words))
+                        .into_any_element(),
+                );
+            }
         }
-        for (command, words) in group {
-            let enabled = view.enabled(command);
-            items.push(
-                div()
-                    .id(command.id())
-                    .role(Role::MenuItem)
-                    .aria_label(words)
-                    .mx_1()
-                    .px_2()
-                    .h(px(22.0))
-                    .rounded(px(4.0))
-                    .flex()
-                    .items_center()
-                    .text_size(px(crate::native::TEXT))
-                    .when(!enabled, |d| d.text_color(theme.muted).opacity(0.6))
-                    .when(enabled, |d| {
-                        d.hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
-                            .on_click(cx.listener(move |view, _, window, cx| {
-                                view.close_menu();
-                                window.dispatch_action(Box::new(Run(command)), cx);
-                                cx.notify();
-                            }))
-                    })
-                    .child(screen.label(words))
-                    .into_any_element(),
-            );
-        }
-    }
-    // "Delete file after", as the egui row menu had it: the file goes to the Trash, its row
-    // with it, that long after it finished; Never stops the countdown (gaps row U8). For the
-    // rows that have, or will have, a file: not a failed or cancelled one.
-    let targets: Vec<dm_core::Id> = view
-        .chosen()
-        .into_iter()
-        .filter(|r| {
-            !matches!(
-                r.state,
-                dm_core::State::Failed(_) | dm_core::State::Cancelled
-            )
-        })
-        .map(|r| r.id)
-        .collect();
-    if !targets.is_empty() {
-        let chosen = view.chosen();
-        let shared = chosen
-            .first()
-            .map(|r| r.delete_after)
-            .filter(|first| chosen.iter().all(|r| r.delete_after == *first));
+        let id: gpui::ElementId = match entry.act {
+            Act::Run(command) => command.id().into(),
+            Act::DeleteAfter(seconds) => ("delete-after", seconds.unwrap_or(0)).into(),
+        };
+        let keyed = view.menu_at == Some(i);
+        let act = entry.act;
         items.push(
             div()
-                .mx_2()
-                .my_1()
-                .h(px(1.0))
-                .bg(theme.separator)
-                .into_any_element(),
-        );
-        items.push(
-            div()
+                .id(id)
+                .role(Role::MenuItem)
+                .aria_label(entry.words)
                 .mx_1()
                 .px_2()
-                .h(px(20.0))
+                .h(px(22.0))
+                .rounded(px(4.0))
                 .flex()
                 .items_center()
-                .text_size(px(crate::native::SMALL_TEXT))
-                .text_color(theme.muted)
-                .child(screen.label(t("Delete file after")))
+                .gap_1()
+                .text_size(px(crate::native::TEXT))
+                .when(!entry.enabled, |d| d.text_color(theme.muted).opacity(0.6))
+                .when(entry.enabled && keyed, |d| {
+                    d.bg(theme.selection).text_color(theme.on_selection)
+                })
+                .when(entry.enabled, |d| {
+                    d.hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.act_from_menu(act, window, cx);
+                        }))
+                })
+                .when(matches!(act, Act::DeleteAfter(_)), |d| {
+                    d.child(div().w(px(14.0)).child(if entry.ticked { "✓" } else { "" }))
+                })
+                .child(screen.label(entry.words))
                 .into_any_element(),
         );
-        for (words, seconds) in dm_desktop_base::file_info::delete_after_times() {
-            let targets = targets.clone();
-            let on = shared == Some(seconds);
-            items.push(
-                div()
-                    .id(("delete-after", seconds.unwrap_or(0)))
-                    .role(Role::MenuItem)
-                    .aria_label(words)
-                    .mx_1()
-                    .px_2()
-                    .h(px(22.0))
-                    .rounded(px(4.0))
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .text_size(px(crate::native::TEXT))
-                    .hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
-                    .on_click(cx.listener(move |view, _, _, cx| {
-                        view.close_menu();
-                        for &id in &targets {
-                            view.backend.set_delete_after(id, seconds);
-                        }
-                        view.read();
-                        cx.notify();
-                    }))
-                    .child(div().w(px(14.0)).child(if on { "✓" } else { "" }))
-                    .child(screen.label(words))
-                    .into_any_element(),
-            );
-        }
     }
     deferred(
         anchored().position(at).child(
@@ -200,4 +284,13 @@ pub fn menu(
         ),
     )
     .with_priority(1)
+}
+
+fn separator(theme: Theme) -> gpui::AnyElement {
+    div()
+        .mx_2()
+        .my_1()
+        .h(px(1.0))
+        .bg(theme.separator)
+        .into_any_element()
 }

@@ -357,16 +357,37 @@ fn folder_refused_while(
     folder: &std::path::Path,
     download_dir: &std::path::Path,
 ) -> Option<String> {
+    // Each as the disk has it, links followed (on macOS `/tmp` is `/private/tmp`), so one
+    // folder written two ways is one folder; `..` refused outright.
     let below = !folder
         .components()
         .any(|c| matches!(c, std::path::Component::ParentDir))
-        && folder.starts_with(download_dir);
+        && (folder.starts_with(download_dir) || real(folder).starts_with(real(download_dir)));
     (acting && !below).then(|| {
         format!(
             "a script was driving the window a moment ago, so a download goes into the download folder ({}) or below it; choose the folder yourself",
             download_dir.display()
         )
     })
+}
+
+/// `path` with its nearest folder that is there resolved as the disk has it (links followed),
+/// and the rest, not made yet, after it.
+fn real(path: &std::path::Path) -> std::path::PathBuf {
+    let mut there = path;
+    let mut rest = Vec::new();
+    loop {
+        if let Ok(resolved) = std::fs::canonicalize(there) {
+            return rest.iter().rev().fold(resolved, |p, part| p.join(part));
+        }
+        match (there.parent(), there.file_name()) {
+            (Some(parent), Some(name)) => {
+                rest.push(name.to_os_string());
+                there = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
 }
 
 impl ScriptGuard {
@@ -407,6 +428,17 @@ mod tests {
         );
         assert!(folder_refused_while(true, &downloads.join("films"), downloads).is_none());
         assert!(folder_refused_while(false, away, downloads).is_none());
+        // One folder written through a link and without it is one folder.
+        let dir = tempfile::tempdir().unwrap();
+        let real_downloads = dir.path().join("downloads");
+        std::fs::create_dir_all(&real_downloads).unwrap();
+        #[cfg(unix)]
+        {
+            let linked = dir.path().join("linked");
+            std::os::unix::fs::symlink(dir.path(), &linked).unwrap();
+            let through = linked.join("downloads").join("Videos");
+            assert!(folder_refused_while(true, &through, &real_downloads).is_none());
+        }
     }
 
     /// `url` with a login in it, set through its parts rather than written

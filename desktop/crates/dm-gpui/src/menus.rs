@@ -125,6 +125,16 @@ pub enum ListMove {
     PageDown,
 }
 
+/// Return over the list: the open row menu's entry, else the chosen downloads' progress.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct Confirm;
+
+/// Escape over the list: the open row menu closed.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct Dismiss;
+
 /// Shift+F10: the row menu at the keyboard's place.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
@@ -372,7 +382,8 @@ pub fn bind_keys(cx: &mut App) {
         bindings.push(KeyBinding::new(keys, MoveInList { to, shift }, None));
     }
     // Enter shows the chosen downloads' progress, as the egui window's list does.
-    bindings.push(KeyBinding::new("enter", Run(Command::ShowProgress), None));
+    bindings.push(KeyBinding::new("enter", Confirm, None));
+    bindings.push(KeyBinding::new("escape", Dismiss, None));
     bindings.push(KeyBinding::new("shift-f10", RowMenuByKey, None));
     cx.bind_keys(bindings);
     // The application's own actions, heard from any window: registered
