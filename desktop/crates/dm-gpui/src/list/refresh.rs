@@ -318,6 +318,25 @@ mod tests {
         assert_eq!(chosen.into_iter().collect::<Vec<_>>(), vec![2]);
     }
 
+    /// ⇧-click extends from the row last clicked, not from the topmost row
+    /// chosen.
+    #[test]
+    fn shift_click_extends_from_the_row_last_clicked() {
+        let rows: Vec<u64> = (1..=10).collect();
+        // Row 1 chosen, then row 5 added with ⌘: row 5 is where a ⇧-click
+        // now extends from.
+        let (chosen, anchor) = clicked(Default::default(), None, &rows, 1, 0, false, false);
+        let anchor_at = |a: Option<u64>| a.and_then(|a| rows.iter().position(|r| *r == a));
+        let (chosen, anchor) = clicked(chosen, anchor_at(anchor), &rows, 5, 4, true, false);
+        assert_eq!(anchor, Some(5));
+        let (chosen, kept) = clicked(chosen, anchor_at(anchor), &rows, 8, 7, false, true);
+        assert_eq!(chosen, (5..=8).collect());
+        assert_eq!(kept, None, "the anchor stays where it was");
+        // And again from the same place, the other way.
+        let (chosen, _) = clicked(chosen, anchor_at(anchor), &rows, 3, 2, false, true);
+        assert_eq!(chosen, (3..=5).collect());
+    }
+
     /// The row at the top of the view stays there while rows are added or
     /// taken away above it, half a row scrolled past as it was; a list at
     /// its top stays at its top (gaps row 182).

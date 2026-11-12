@@ -371,16 +371,3 @@ fn main() {
         std::process::exit(1);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn a_run_with_its_own_home_keeps_its_window_state_there() {
-        assert_eq!(
-            super::window_state_file(Some("/tmp/dm-test".into())),
-            Some(std::path::PathBuf::from("/tmp/dm-test/window.ron"))
-        );
-        assert_eq!(super::window_state_file(None), None, "the system's place");
-        assert_eq!(super::window_state_file(Some("".into())), None);
-    }
-}

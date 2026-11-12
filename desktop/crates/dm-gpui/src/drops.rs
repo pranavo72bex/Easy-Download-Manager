@@ -442,4 +442,22 @@ mod tests {
         assert_eq!(drop_it(), Bool::NO);
         assert!(take().is_empty());
     }
+
+    /// A drag with no dragging info at all is passed on, and there is no
+    /// method of GPUI's own to pass it to outside a window: refused.
+    #[test]
+    fn a_drag_with_no_dragging_info_is_passed_on() {
+        let sel = Sel::register(c"performDragOperation:");
+        // SAFETY: a null sender is what `pasteboard` checks for first; no
+        // method of GPUI's is installed in a test, so the null `this` is
+        // never used.
+        let taken = unsafe {
+            super::mac::perform_for_test(
+                std::ptr::null_mut(),
+                sel,
+                std::ptr::null_mut::<AnyObject>(),
+            )
+        };
+        assert_eq!(taken, Bool::NO);
+    }
 }

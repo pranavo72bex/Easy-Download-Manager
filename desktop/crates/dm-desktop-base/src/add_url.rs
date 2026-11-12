@@ -329,4 +329,21 @@ mod tests {
         };
         assert_eq!(recent(&settings), vec!["https://e.com/b".to_string()]);
     }
+
+    /// A signed or token-bearing address is not kept in the settings file for
+    /// Add URL's list; a plain one is.
+    #[test]
+    fn an_address_with_a_secret_in_its_query_is_not_remembered() {
+        let secret = query_carries_a_secret;
+        assert!(secret("https://cdn.example/f.zip?token=abc"));
+        assert!(secret(
+            "https://cdn.example/f.zip?X-Amz-Signature=1&X-Amz-Credential=2"
+        ));
+        assert!(secret("https://example.com/get?id=7&api_key=9"));
+        assert!(secret("https://example.com/get?Password=x"));
+        assert!(secret("https://example.com/get?sessionid=x"));
+        assert!(!secret("https://example.com/files/a.zip"));
+        assert!(!secret("https://example.com/get?id=7&name=report"));
+        assert!(!secret("not an address"));
+    }
 }

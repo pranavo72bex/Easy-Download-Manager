@@ -401,3 +401,22 @@ fn a_failures_next_step_is_a_button_where_dm_can_take_it() {
     }
     assert_eq!(step_button("nothing dm knows"), None);
 }
+
+#[test]
+fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
+    let said = worded_problem(
+        "the saved proxy could not be used (the proxy has no host), so it is turned off and downloads \
+         go out directly. Fix it under Options › Advanced and tick it again.",
+    );
+    assert!(
+        said.starts_with("The proxy can't be used (the proxy has no host)"),
+        "{said}"
+    );
+    assert_eq!(worded_problem("something else"), "something else");
+    assert_eq!(
+        as_shown("the cookies file x could not be read"),
+        "The cookies file x could not be read"
+    );
+    assert_eq!(as_shown("ünlü"), "Ünlü");
+    assert_eq!(as_shown(""), "");
+}

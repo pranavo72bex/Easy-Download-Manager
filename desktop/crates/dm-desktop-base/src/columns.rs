@@ -242,4 +242,40 @@ mod tests {
         assert_eq!(kept_sort(&old), None);
         assert!(old.sort_ascending);
     }
+
+    #[test]
+    fn columns_sort_by_what_they_show() {
+        use dm_core::State;
+        use std::cmp::Ordering::*;
+        let named = |name: &str| -> Entry {
+            serde_json::from_value(serde_json::json!({
+                "id": 1,
+                "url": "https://e.com/f.bin",
+                "state": serde_json::to_value(State::Paused).unwrap(),
+                "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
+                "filename": name,
+            }))
+            .unwrap()
+        };
+        // Names: numbers by value.
+        assert_eq!(
+            compare(Column::Name, &named("part 2"), &named("part 10")),
+            Less
+        );
+        // Size: what has arrived of a file of unknown length is its size.
+        let (mut big, mut small) = (named("a"), named("b"));
+        big.progress.downloaded = 5000;
+        small.progress.total = Some(10);
+        assert_eq!(compare(Column::Size, &big, &small), Greater);
+        // Speed and time left: a stopped row's last figures are not shown,
+        // and do not sort it ahead of one that is running.
+        let (mut stopped, mut running) = (named("a"), named("b"));
+        stopped.progress.speed = 9e9;
+        stopped.progress.eta = Some(std::time::Duration::from_secs(1));
+        running.state = State::Running;
+        running.progress.speed = 100.0;
+        running.progress.eta = Some(std::time::Duration::from_secs(500));
+        assert_eq!(compare(Column::Rate, &stopped, &running), Less);
+        assert_eq!(compare(Column::TimeLeft, &stopped, &running), Less);
+    }
 }

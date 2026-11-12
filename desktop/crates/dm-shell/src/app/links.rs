@@ -501,6 +501,75 @@ mod drop_tests {
             ["https://e.com/i.ico"]
         );
     }
+
+    #[test]
+    fn a_browser_dragged_url_is_read_from_its_path_when_bytes_cannot_be_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("browser-drag.txt");
+        std::fs::write(&path, b"https://example.com/file.bin\n").unwrap();
+        assert_eq!(
+            links_at(&path, || None),
+            vec!["https://example.com/file.bin"]
+        );
+    }
+
+    #[test]
+    fn a_dropped_file_is_read_for_links_only_if_it_is_text_and_only_its_start() {
+        // What a drop hands over: the whole file.
+        let dropped = |path: &std::path::Path| links_at(path, || std::fs::read(path).ok());
+        let dir = tempfile::tempdir().unwrap();
+
+        // A PDF with an address inside it queues nothing.
+        let pdf = dir.path().join("paper.pdf");
+        std::fs::write(&pdf, b"%PDF-1.7 https://example.com/cited.zip").unwrap();
+        assert!(dropped(&pdf).is_empty());
+
+        // A list is read, but only its first 64 KB.
+        let list = dir.path().join("links.txt");
+        let mut text = String::from("https://example.com/first.bin\n");
+        text.push_str(&" ".repeat(DROP_LOOK as usize));
+        text.push_str("https://example.com/past-the-start.bin\n");
+        std::fs::write(&list, text).unwrap();
+        assert_eq!(dropped(&list), vec!["https://example.com/first.bin"]);
+
+        // A file with no extension that is not text is not read for links.
+        let blob = dir.path().join("blob");
+        std::fs::write(&blob, b"\0\x01https://example.com/x.bin").unwrap();
+        assert!(dropped(&blob).is_empty());
+
+        // A .torrent is the download itself, by its file address.
+        let torrent = dir.path().join("a set.torrent");
+        std::fs::write(&torrent, b"d4:infodee").unwrap();
+        let taken = dropped(&torrent);
+        assert_eq!(taken, [dm_core::file_url(&torrent).unwrap()]);
+        assert!(dm_core::is_torrent(&taken[0]) && dm_core::accepted(&taken[0]));
+    }
+}
+
+#[cfg(test)]
+mod two_addresses_tests {
+    use super::*;
+
+    #[test]
+    fn two_links_pasted_into_one_field_are_seen() {
+        for two in [
+            "https://e.com/a.ziphttps://e.com/b.zip",
+            "https://e.com/a.zip https://e.com/b.zip",
+            "http://e.com/a.zipftp://e.com/b",
+            "https://e.com/a.zipmagnet:?xt=urn:btih:abc",
+        ] {
+            assert!(two_addresses(two), "{two}");
+        }
+        for one in [
+            "https://e.com/a.zip",
+            "https://e.com/go?to=https://f.com/b.zip",
+            "https://archive.example/web/2020/https://e.com/a.zip",
+            "https://e.com/r?u=https%3A//f.com&next=http://g.com",
+            "magnet:?xt=urn:btih:abc&tr=http://tracker.example/announce",
+        ] {
+            assert!(!two_addresses(one), "{one}");
+        }
+    }
 }
 
 #[cfg(test)]

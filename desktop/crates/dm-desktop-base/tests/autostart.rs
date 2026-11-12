@@ -3,17 +3,15 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The login entry (`autostart`) and the update check (`update`), with
-//! nothing of the person's touched: every folder the entry is looked for in
-//! is pointed at a temporary one first, under a lock, and put back after;
-//! the update check goes to a proxy on loopback that refuses it, so nothing
-//! leaves the computer.
+//! The login entry (`autostart`), with nothing of the person's touched:
+//! every folder the entry is looked for in is pointed at a temporary one
+//! first, under a lock, and put back after. Moved from the egui window's
+//! tests.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use dm_desktop::autostart::{self, Removal};
-use dm_desktop::update::{self, Said as _, Update};
+use dm_desktop_base::autostart::{self, Removal};
 
 /// The environment is the process's: tests that set it take turns.
 static ENV: Mutex<()> = Mutex::new(());
@@ -344,124 +342,4 @@ fn a_copy_refused_at_login_is_told_where_to_move() {
     let desktop = Path::new("/Users/a/Desktop/dm.app/Contents/MacOS/dm-desktop");
     let why = autostart::refused_at_login(desktop, home, true, |_| false).unwrap();
     assert!(why.contains("Downloads, Desktop or Documents"), "{why}");
-}
-
-/* ------------------------------------------------------------ the update check */
-
-#[test]
-fn what_about_says_for_each_answer_of_the_check() {
-    dm_desktop::i18n::set(dm_desktop::i18n::chosen("en"));
-    let running = env!("CARGO_PKG_VERSION");
-    let installer = update::Installer {
-        url: format!("{}desktop-v99.0.0/dm_99.0.0_aarch64.dmg", update::RELEASES),
-        sha256: "ab".repeat(32),
-    };
-    assert_eq!(Update::NotAsked.shown(), "Not checked yet.");
-    assert_eq!(Update::Asking.shown(), "Checking…");
-    assert_eq!(
-        Update::Current.shown(),
-        format!("This is the newest version ({running}).")
-    );
-    assert_eq!(
-        Update::Newer("99.0.0".into(), Some(installer)).shown(),
-        format!("dm 99.0.0 is available (you have {running}). Download its installer here.")
-    );
-    assert_eq!(
-        Update::Newer("99.0.0".into(), None).shown(),
-        format!("dm 99.0.0 is out (this is {running}). It is on the project's releases page.")
-    );
-    assert_eq!(
-        Update::NoRelease.shown(),
-        format!("No newer release yet (you have {running}).")
-    );
-    // A reason dm knows no plainer words for is said as it came.
-    assert_eq!(
-        Update::Failed("the release names no version".into()).shown(),
-        "Could not reach the update server: the release names no version"
-    );
-    assert_eq!(
-        Update::Failed("the server answered 500 Internal Server Error".into()).shown(),
-        "Could not reach the update server: the server had a problem on its end. Try again later"
-    );
-    let offline = Update::Failed(
-        "error sending request for url (https://github.com/): dns error: failed to lookup address"
-            .into(),
-    )
-    .shown();
-    assert!(
-        offline.starts_with("Could not reach the update server: ") && !offline.contains("url ("),
-        "{offline}"
-    );
-}
-
-#[test]
-fn a_manifest_that_does_not_read_offers_nothing() {
-    let url = format!("{}desktop-v9/dm_9_aarch64.dmg", update::RELEASES);
-    assert_eq!(update::digest_in("not json", &url), None);
-    assert_eq!(
-        update::digest_in(r#"{"sha256":{"dm_9_aarch64.dmg":7}}"#, &url),
-        None
-    );
-    let not_hex = serde_json::json!({ "sha256": { "dm_9_aarch64.dmg": "g".repeat(64) } });
-    assert_eq!(update::digest_in(&not_hex.to_string(), &url), None);
-    assert_eq!(
-        update::installer_in("not json", "macos", "aarch64", true),
-        None
-    );
-    assert_eq!(
-        update::installer_in(r#"{"installers":"one"}"#, "macos", "aarch64", true),
-        None
-    );
-    let listed = serde_json::json!({ "installers": [url, 7] }).to_string();
-    assert_eq!(
-        update::installer_in(&listed, "macos", "riscv64", true),
-        None,
-        "no installer for an unknown machine"
-    );
-    assert_eq!(
-        update::installer_in(&listed, "macos", "aarch64", false).as_deref(),
-        Some(url.as_str())
-    );
-    assert_eq!(update::version_in(r#"{"version":7}"#), None);
-    // A notes page with a space or a quote in it is not followed.
-    let notes = |n: &str| serde_json::json!({ "notes": n }).to_string();
-    assert_eq!(
-        update::notes_in(&notes(&format!("{}v1 x", update::NOTES))),
-        None
-    );
-    assert_eq!(
-        update::notes_in(&notes(&format!("{}v1\"", update::NOTES))),
-        None
-    );
-    assert_eq!(update::notes_in(r#"{"notes":7}"#), None);
-    // A rules entry with a quote in its address, or no size, is not read.
-    let rules = |url: &str, size: serde_json::Value| {
-        serde_json::json!({ "rules": { "url": url, "sha256": "a".repeat(64), "size": size } })
-            .to_string()
-    };
-    let at = format!("{}v1/rules.json", update::RELEASES);
-    assert!(update::rules_in(&rules(&at, 10.into()), update::RELEASES).is_some());
-    assert_eq!(
-        update::rules_in(&rules(&format!("{at}\""), 10.into()), update::RELEASES),
-        None
-    );
-    assert_eq!(
-        update::rules_in(&rules(&at, "ten".into()), update::RELEASES),
-        None
-    );
-    let bad_hex =
-        serde_json::json!({ "rules": { "url": at, "sha256": "z".repeat(64), "size": 1 } });
-    assert_eq!(
-        update::rules_in(&bad_hex.to_string(), update::RELEASES),
-        None
-    );
-}
-
-#[test]
-fn a_version_with_a_suffix_is_compared_by_its_numbers() {
-    assert!(update::newer("1.2.10-beta", "1.2.9"));
-    assert!(!update::newer("1.2.9+build7", "1.2.9"));
-    assert!(update::newer("1.3", "1.2.99"));
-    assert!(!update::newer("not a version", "0.0.1"));
-    assert!(update::newer("0.0.1", "not a version"));
 }

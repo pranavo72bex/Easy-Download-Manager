@@ -2527,3 +2527,15 @@ fn sign_ins(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
         "Kept in dm's settings file on this computer, readable by your account.",
     ));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::known_connections;
+
+    #[test]
+    fn the_connections_known_are_read_again_only_after_a_while() {
+        // None here (a system without Windows' dial-up), read once and kept.
+        assert_eq!(known_connections(), dm_shell::dialup::connections());
+        assert_eq!(known_connections(), dm_shell::dialup::connections());
+    }
+}

@@ -343,7 +343,10 @@ impl Downloads {
         // As the egui window ends: a request still waiting is told dm is
         // quitting, and `control.port` no longer sends a client to a port
         // nobody answers. Here, before the system ends the process:
-        // nothing after GPUI's run is reached on macOS.
+        // nothing after GPUI's run is reached on macOS. Not in the window's tests, which
+        // share one process: one test's Exit would close every other's port
+        // (`dm_desktop_base::control`'s own tests check the closing).
+        #[cfg(not(test))]
         dm_desktop_base::control::closing();
         dm_desktop_base::control::forget_port(&dm_shell::settings::home());
         // Where and as large as the window was, for the next start.

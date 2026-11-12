@@ -196,4 +196,16 @@ mod tests {
         let small = WindowBounds::Windowed(frame(0.0, 0.0, 300.0, 200.0));
         assert_eq!(sized(small, display, least), None);
     }
+
+    /// A run with a home of its own (`DM_HOME`) keeps its frame there, and
+    /// another home starts as a fresh install does.
+    #[test]
+    fn a_run_with_its_own_home_keeps_its_window_frame_there() {
+        let (home, other) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let windowed = WindowBounds::Windowed(frame(120.0, 80.0, 900.0, 600.0));
+        keep(home.path(), windowed, Some(3));
+        assert!(home.path().join(FILE).is_file());
+        assert_eq!(kept(home.path()), Some((windowed, Some(3))));
+        assert_eq!(kept(other.path()), None);
+    }
 }

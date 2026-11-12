@@ -20,6 +20,8 @@ the browser extension (`v*` tags) are versioned separately.
 - "Download complete" waits while "Exit dm?" is asked, rather than opening over the question.
 - A right-click on a row moves the keyboard's place to it: the arrows and Shift go on from there.
 - A script's clicks and keys are refused while dm's window is hidden in the tray, as they were in the older window; a script's added downloads are listed at once for its next step.
+- A download's progress window closes when the download is taken out of the list, rather than stay open and empty.
+- The default button's focus ring can be seen: it was drawn in the accent colour on the accent.
 - Download details says "Checking…" while it asks the server, then the size beside the room the folder has left, marked when it will not fit.
 - A download's progress window has "When this download is done": open it, open its folder, or exit, sleep, hibernate or turn off (after the usual cancellable countdown).
 - YouTube: the clients dm asks YouTube's player as can be changed by the served rules, without a new version, and the next is tried where one is refused.
