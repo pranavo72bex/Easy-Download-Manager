@@ -496,6 +496,8 @@ pub async fn start(orders: &Orders) -> Started {
     notices.extend(use_cookies(&saved));
     // So with the engine's name, the dial-up connection and the second network.
     notices.extend(engine_wide(&saved));
+    // The served rules' YouTube clients, asked before the engine's own (gaps row Y1).
+    crate::host::served::apply(&crate::settings::home());
 
     let queue = Queue::new(
         client,

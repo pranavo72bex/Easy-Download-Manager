@@ -27,6 +27,8 @@ const MAX_ENTRIES: usize = 2000;
 const MAX_PROFILES: usize = 500;
 const MAX_ANSWERS: usize = 64;
 const MAX_FINDERS: usize = 16;
+/// The most YouTube clients a document may list (gaps row Y1).
+const MAX_CLIENTS: usize = 8;
 const MAX_FINDER_TEXT: usize = 512;
 const MAX_KEYS: usize = 64;
 /// The largest floor for a Windows media stub a document may set: 10 MiB.
@@ -44,6 +46,34 @@ pub struct Rules {
     pub exclude: ExcludeRules,
     /// Sites whose pages build their streams from the answers of their own requests.
     pub sites: Vec<SiteProfile>,
+    /// How the app's own YouTube reader asks YouTube (the extension reads none of it).
+    pub youtube: YoutubeRules,
+}
+
+/// How the app's YouTube reader asks YouTube's player for a video, served so it can change
+/// without a new build (gaps row Y1).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct YoutubeRules {
+    /// The clients to ask as, in order: the next is asked where one is answered with anything
+    /// but a video that plays. The reader's own client is asked after them all.
+    pub clients: Vec<YoutubeClient>,
+}
+
+/// One client YouTube's player is asked as.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct YoutubeClient {
+    /// Its `clientName` ("TVHTML5").
+    pub name: String,
+    /// Its `clientVersion`.
+    pub version: String,
+    /// Its number, sent as `X-Youtube-Client-Name` ("7"): digits only.
+    pub id: String,
+    /// The User-Agent it is asked with.
+    pub agent: String,
+    /// Further fields of its `context.client` ("deviceMake", "osName"…), as text.
+    pub context: std::collections::BTreeMap<String, String>,
 }
 
 /// Names added to the extension's built-in list of what is never caught (the same classes; see the
@@ -229,6 +259,36 @@ impl Rules {
                 site.title.clear();
             }
         }
+        // The YouTube clients: whole, of sane lengths, a number that is one.
+        self.youtube.clients.truncate(MAX_CLIENTS);
+        for client in &mut self.youtube.clients {
+            for text in [
+                &mut client.name,
+                &mut client.version,
+                &mut client.id,
+                &mut client.agent,
+            ] {
+                *text = text.trim().to_string();
+            }
+            client.context.retain(|key, value| {
+                !key.trim().is_empty()
+                    && key.len() <= MAX_FINDER_TEXT
+                    && value.len() <= MAX_FINDER_TEXT
+            });
+            while client.context.len() > MAX_KEYS {
+                client.context.pop_last();
+            }
+        }
+        self.youtube.clients.retain(|client| {
+            !client.name.is_empty()
+                && !client.version.is_empty()
+                && !client.agent.is_empty()
+                && !client.id.is_empty()
+                && client.id.chars().all(|c| c.is_ascii_digit())
+                && [&client.name, &client.version, &client.id, &client.agent]
+                    .iter()
+                    .all(|text| text.len() <= MAX_FINDER_TEXT && !text.contains(['\r', '\n']))
+        });
         self.sites.retain(|site| {
             !site.host.is_empty()
                 && !site.host.contains(['/', ':', ' '])
@@ -462,5 +522,32 @@ mod tests {
         assert_eq!(back, with);
         let none = serde_json::to_string(&crate::Hello::default()).expect("text");
         assert!(!none.contains("rules"), "{none}");
+    }
+
+    /// The YouTube clients a document lists are read in order, and one that is not whole (no
+    /// number, a number that is not one, a line break in its agent) is left out (gaps row Y1).
+    #[test]
+    fn youtube_clients_are_read_and_the_broken_ones_left_out() {
+        let doc = format!(
+            r#"{{"format": {RULES_FORMAT}, "revision": 9, "youtube": {{"clients": [
+                {{"name": "TVHTML5", "version": "7.1", "id": "7", "agent": "TV", "context": {{"osName": "Tizen"}}}},
+                {{"name": "WEB", "version": "2.1", "id": "x", "agent": "Web"}},
+                {{"name": "IOS", "version": "1", "id": "5", "agent": "a\nb"}},
+                {{"name": " ANDROID ", "version": "19.1", "id": "3", "agent": "Droid"}}
+            ]}}}}"#
+        );
+        let rules = Rules::parse(&doc).expect("a document");
+        let names: Vec<&str> = rules
+            .youtube
+            .clients
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert_eq!(names, ["TVHTML5", "ANDROID"]);
+        assert_eq!(rules.youtube.clients[0].context["osName"], "Tizen");
+        // A document without it reads as before.
+        let plain =
+            Rules::parse(&format!(r#"{{"format": {RULES_FORMAT}, "revision": 1}}"#)).unwrap();
+        assert!(plain.youtube.clients.is_empty());
     }
 }

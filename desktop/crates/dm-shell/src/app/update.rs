@@ -214,7 +214,12 @@ pub async fn fetch_rules(
         return Err("not the digest the manifest said".into());
     }
     let text = String::from_utf8(body).map_err(|e| e.to_string())?;
-    crate::host::served::adopt(home, &text)
+    let kept = crate::host::served::adopt(home, &text)?;
+    if kept {
+        // Its YouTube clients in force from now on, with no restart.
+        crate::host::served::apply(home);
+    }
+    Ok(kept)
 }
 
 /// How often the weekly check looks.

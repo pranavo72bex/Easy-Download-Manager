@@ -470,6 +470,148 @@ pub fn video_id(url: &str) -> Option<String> {
     .then_some(id)
 }
 
+/// A client YouTube's player is asked as: dm's own, or one the served rules name (gaps row Y1).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PlayerClient {
+    /// Its `clientName`.
+    pub name: String,
+    /// Its `clientVersion`.
+    pub version: String,
+    /// Its number (`X-Youtube-Client-Name`).
+    pub id: String,
+    /// The User-Agent it is asked with.
+    pub agent: String,
+    /// Further fields of its `context.client`.
+    pub context: Vec<(String, String)>,
+}
+
+/// The clients the served rules name, asked before dm's own, in their order.
+static SERVED_CLIENTS: std::sync::Mutex<Vec<PlayerClient>> = std::sync::Mutex::new(Vec::new());
+
+/// The clients the served rules name (`rules.json`'s `youtube.clients`), in place of any before:
+/// asked in order before dm's own, so a client YouTube stops answering is changed with no new
+/// build (gaps row Y1).
+pub fn set_player_clients(clients: Vec<PlayerClient>) {
+    *crate::lock(&SERVED_CLIENTS) = clients;
+}
+
+/// The clients the served rules name, as set last.
+pub fn served_player_clients() -> Vec<PlayerClient> {
+    crate::lock(&SERVED_CLIENTS).clone()
+}
+
+/// The TV client this reads with today: its answers carry plain addresses and want no
+/// proof-of-origin token.
+fn own_client() -> PlayerClient {
+    PlayerClient {
+        name: TV_CLIENT_NAME.into(),
+        version: TV_CLIENT_VERSION.into(),
+        id: TV_CLIENT_ID.into(),
+        agent: TV_AGENT.into(),
+        context: [
+            ("deviceMake", "Samsung"),
+            ("deviceModel", "UKS9800"),
+            ("osName", "Tizen"),
+            ("osVersion", "2.4.0"),
+        ]
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .to_vec(),
+    }
+}
+
+/// Every client to ask as, in order: the served ones, then dm's own (once).
+fn player_clients() -> Vec<PlayerClient> {
+    let mut all = crate::lock(&SERVED_CLIENTS).clone();
+    let own = own_client();
+    if !all
+        .iter()
+        .any(|c| c.name == own.name && c.version == own.version)
+    {
+        all.push(own);
+    }
+    all
+}
+
+/// The player's answer for video `id`, asked as each of `clients` in turn until one answers
+/// with a video that plays: a client YouTube stops serving (an error, or a status but OK) is
+/// passed over for the next. The last one's reason where none does.
+async fn ask_player(
+    client: &reqwest::Client,
+    origin: &str,
+    id: &str,
+    facts: &PageFacts,
+    clients: &[PlayerClient],
+) -> Result<Value, Error> {
+    let mut failed = None;
+    for asked_as in clients {
+        match ask_player_as(client, origin, id, facts, asked_as).await {
+            Ok(player) => return Ok(player),
+            Err(e) => failed = Some(e),
+        }
+    }
+    Err(failed.unwrap_or_else(|| Error::Internal("no client to ask YouTube's player as".into())))
+}
+
+/// The player's answer for video `id`, asked as `asked_as`; an error unless it plays.
+async fn ask_player_as(
+    client: &reqwest::Client,
+    origin: &str,
+    id: &str,
+    facts: &PageFacts,
+    asked_as: &PlayerClient,
+) -> Result<Value, Error> {
+    let mut who = serde_json::Map::new();
+    for (key, value) in &asked_as.context {
+        who.insert(key.clone(), Value::String(value.clone()));
+    }
+    for (key, value) in [
+        ("clientName", &asked_as.name),
+        ("clientVersion", &asked_as.version),
+        ("userAgent", &asked_as.agent),
+    ] {
+        who.insert(key.into(), Value::String(value.clone()));
+    }
+    who.insert("hl".into(), json!("en"));
+    who.insert("timeZone".into(), json!("UTC"));
+    who.insert("utcOffsetMinutes".into(), json!(0));
+    let body = json!({
+        "context": {"client": who},
+        "videoId": id,
+        "playbackContext": {"contentPlaybackContext": {
+            "html5Preference": "HTML5_PREF_WANTS",
+            "signatureTimestamp": facts.sts,
+        }},
+        "contentCheckOk": true,
+        "racyCheckOk": true,
+    });
+    let mut ask = client
+        .post(format!("{origin}/youtubei/v1/player?prettyPrint=false"))
+        .header(reqwest::header::USER_AGENT, &asked_as.agent)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header("X-Youtube-Client-Name", &asked_as.id)
+        .header("X-Youtube-Client-Version", &asked_as.version)
+        .header(reqwest::header::ORIGIN, origin);
+    if let Some(visitor) = &facts.visitor {
+        ask = ask.header("X-Goog-Visitor-Id", visitor);
+    }
+    let answer = crate::redirects::send(ask.body(body.to_string())).await?;
+    let answered = text_capped(Error::refused_or(answer).await?, PAGE_MOST).await?;
+    let player: Value = serde_json::from_str(&answered)
+        .map_err(|e| Error::Internal(format!("the player API answered no JSON ({e})")))?;
+    let status = player
+        .pointer("/playabilityStatus/status")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if status != "OK" {
+        let reason = player
+            .pointer("/playabilityStatus/reason")
+            .and_then(Value::as_str)
+            .unwrap_or(status);
+        return Err(Error::Internal(format!("YouTube says: {reason}")));
+    }
+    Ok(player)
+}
+
 /// Where YouTube is: its own host, or a test's stand-in.
 fn origin() -> String {
     std::env::var("DM_YOUTUBE_HOST")
@@ -1079,46 +1221,7 @@ async fn read_within(
         script = Some(text);
     }
 
-    let body = json!({
-        "context": {"client": {
-            "clientName": TV_CLIENT_NAME, "clientVersion": TV_CLIENT_VERSION,
-            "deviceMake": "Samsung", "deviceModel": "UKS9800", "userAgent": TV_AGENT,
-            "osName": "Tizen", "osVersion": "2.4.0",
-            "hl": "en", "timeZone": "UTC", "utcOffsetMinutes": 0,
-        }},
-        "videoId": id,
-        "playbackContext": {"contentPlaybackContext": {
-            "html5Preference": "HTML5_PREF_WANTS",
-            "signatureTimestamp": facts.sts,
-        }},
-        "contentCheckOk": true,
-        "racyCheckOk": true,
-    });
-    let mut ask = client
-        .post(format!("{origin}/youtubei/v1/player?prettyPrint=false"))
-        .header(reqwest::header::USER_AGENT, TV_AGENT)
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .header("X-Youtube-Client-Name", TV_CLIENT_ID)
-        .header("X-Youtube-Client-Version", TV_CLIENT_VERSION)
-        .header(reqwest::header::ORIGIN, &origin);
-    if let Some(visitor) = &facts.visitor {
-        ask = ask.header("X-Goog-Visitor-Id", visitor);
-    }
-    let answer = crate::redirects::send(ask.body(body.to_string())).await?;
-    let answered = text_capped(Error::refused_or(answer).await?, PAGE_MOST).await?;
-    let player: Value = serde_json::from_str(&answered)
-        .map_err(|e| Error::Internal(format!("the player API answered no JSON ({e})")))?;
-    let status = player
-        .pointer("/playabilityStatus/status")
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    if status != "OK" {
-        let reason = player
-            .pointer("/playabilityStatus/reason")
-            .and_then(Value::as_str)
-            .unwrap_or(status);
-        return Err(Error::Internal(format!("YouTube says: {reason}")));
-    }
+    let player = ask_player(client, &origin, id, &facts, &player_clients()).await?;
     if player
         .pointer("/videoDetails/isLive")
         .and_then(Value::as_bool)
@@ -2254,5 +2357,85 @@ mod tests {
         assert!(alone.get("requested_formats").is_none());
         assert_eq!(safe_title(&"é".repeat(150)).len(), 200);
         assert_eq!(safe_title("  ... "), "video");
+    }
+
+    /// A client YouTube answers with anything but a video that plays is passed over for the
+    /// next, each asked as itself (its name, number and agent); the served ones come before
+    /// dm's own (gaps row Y1).
+    #[tokio::test]
+    async fn the_next_client_is_asked_where_one_is_not_served() {
+        use axum::routing::post;
+        use std::sync::{Arc, Mutex};
+        let asked: Arc<Mutex<Vec<(String, String, String)>>> = Arc::default();
+        let seen = Arc::clone(&asked);
+        let app = axum::Router::new().route(
+            "/youtubei/v1/player",
+            post(move |headers: axum::http::HeaderMap, body: String| {
+                let seen = Arc::clone(&seen);
+                async move {
+                    let body: Value = serde_json::from_str(&body).unwrap();
+                    let name = body["context"]["client"]["clientName"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_string();
+                    let header = |n: &str| {
+                        headers
+                            .get(n)
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or_default()
+                            .to_string()
+                    };
+                    seen.lock().unwrap().push((
+                        name.clone(),
+                        header("x-youtube-client-name"),
+                        header("user-agent"),
+                    ));
+                    if name == "GOOD" {
+                        r#"{"playabilityStatus":{"status":"OK"},"videoDetails":{"title":"t"}}"#
+                    } else {
+                        r#"{"playabilityStatus":{"status":"UNPLAYABLE","reason":"not for this client"}}"#
+                    }
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = |name: &str, id: &str| PlayerClient {
+            name: name.into(),
+            version: "1.0".into(),
+            id: id.into(),
+            agent: format!("{name} agent"),
+            context: Vec::new(),
+        };
+        let http = crate::reqwest_defaults();
+        let facts = PageFacts::default();
+        let player = ask_player(
+            &http,
+            &origin,
+            "abc",
+            &facts,
+            &[client("BROKEN", "1"), client("GOOD", "2")],
+        )
+        .await
+        .expect("the second client answers");
+        assert_eq!(player["videoDetails"]["title"], "t");
+        assert_eq!(
+            *asked.lock().unwrap(),
+            vec![
+                ("BROKEN".into(), "1".into(), "BROKEN agent".into()),
+                ("GOOD".into(), "2".into(), "GOOD agent".into()),
+            ]
+        );
+        // None serving: the last one's reason.
+        let why = ask_player(&http, &origin, "abc", &facts, &[client("BROKEN", "1")])
+            .await
+            .unwrap_err();
+        assert!(why.to_string().contains("not for this client"), "{why}");
+        // The served clients come first, dm's own after them.
+        set_player_clients(vec![client("GOOD", "2")]);
+        let names: Vec<String> = player_clients().into_iter().map(|c| c.name).collect();
+        set_player_clients(Vec::new());
+        assert_eq!(names, ["GOOD", TV_CLIENT_NAME]);
     }
 }
