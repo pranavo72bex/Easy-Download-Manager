@@ -255,6 +255,10 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
 }
 
 fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
+    // Asked for again while open: the one open, as it stands.
+    if crate::screen::bring_named(t("Speed limiter"), cx) {
+        return;
+    }
     let Some(downloads) = view.upgrade() else {
         return;
     };

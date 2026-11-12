@@ -143,11 +143,31 @@ fn input(
 ) -> AnyElement {
     let theme = Theme::of(window.appearance());
     let field = o.field(key, value, masked, window, cx);
+    let not_a_number = o.not_numbers.contains(key);
+    let screen = o.screen.clone();
     div()
         .w(px(width))
         .flex_none()
         .child(native::field_if(&field, name, on, theme))
+        .when(not_a_number, |d| {
+            d.child(native::note(
+                t("Numbers only: the one before was kept"),
+                theme.warning,
+                &screen,
+            ))
+        })
         .into_any_element()
+}
+
+/// What `event` is called beside its sound, in English (`options::sound_words` says it in
+/// the language in force).
+fn sound_english(event: &str) -> &'static str {
+    match event {
+        "complete" => "Download complete",
+        "failed" => "Download failed",
+        "queue_started" => "Queue started",
+        _ => "Queue finished",
+    }
 }
 
 /// A plain button.
@@ -515,7 +535,9 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             window,
             cx,
             &key,
-            options::sound_words(event),
+            // The field's name in English: the field translates its own name, and the
+            // translated words asked for again were reported as missing from every catalog.
+            sound_english(event),
             260.0,
             true,
             false,

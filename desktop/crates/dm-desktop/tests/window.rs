@@ -14,12 +14,8 @@
 #[path = "../../../test-support/secrets.rs"]
 mod test_secrets;
 
-#[path = "window/commands.rs"]
-mod commands;
 #[path = "window/control.rs"]
 mod control;
-#[path = "window/dialogs.rs"]
-mod dialogs;
 #[path = "window/keyboard.rs"]
 mod keyboard;
 #[path = "window/layout.rs"]

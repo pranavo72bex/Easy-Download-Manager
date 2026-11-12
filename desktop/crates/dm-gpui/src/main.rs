@@ -631,3 +631,7 @@ mod harness;
 
 #[cfg(test)]
 mod window_tests;
+
+#[cfg(test)]
+#[path = "../../../test-support/secrets.rs"]
+mod test_secrets;

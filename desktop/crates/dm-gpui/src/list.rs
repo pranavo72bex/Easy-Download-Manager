@@ -232,6 +232,9 @@ pub struct Downloads {
     pub(crate) problems: Vec<String>,
     /// Finished rows' sizes, read once from their files.
     saved: dm_shell::app::snapshot::SavedSizes,
+    /// The size a dialog learned of a row it added (Download links asks each link's server),
+    /// shown until the row knows its own, as the egui window shows it.
+    sizes_told: std::collections::HashMap<dm_core::Id, u64>,
     /// A browser's hand-off is being asked about (Download details or
     /// Download links): the next waits for it.
     pub(crate) handed_open: bool,
@@ -404,6 +407,7 @@ impl Downloads {
             detected: Vec::new(),
             problems: Vec::new(),
             saved: Default::default(),
+            sizes_told: Default::default(),
             handed_open: false,
             cancelled_hand_offs: Default::default(),
             countdown_shown: false,
@@ -1095,7 +1099,23 @@ impl Downloads {
         items: Vec<(String, dm_core::AddOptions)>,
         cx: &mut Context<Self>,
     ) -> Result<usize, String> {
+        self.add_items_sized(items, &Default::default(), cx)
+    }
+
+    /// [`Self::add_items`], with the sizes a dialog already learned for some of the links,
+    /// shown on their rows until each learns its own.
+    pub fn add_items_sized(
+        &mut self,
+        items: Vec<(String, dm_core::AddOptions)>,
+        sizes: &std::collections::HashMap<String, u64>,
+        cx: &mut Context<Self>,
+    ) -> Result<usize, String> {
         let added = self.session.add(&self.backend, items);
+        for (id, url, _) in &added.rows {
+            if let Some(size) = sizes.get(url) {
+                self.sizes_told.insert(*id, *size);
+            }
+        }
         if let Some((failed, e)) = added.partly() {
             // The rest went in; the ones that did not are said, not lost.
             self.say(match failed {
@@ -1840,6 +1860,19 @@ impl Downloads {
         let mut rows = read.snapshot.rows;
         // A finished row's size is its file's, read once from the disk.
         self.saved.apply(&mut rows);
+        // A size told by a dialog stands only until the row has its own.
+        if !self.sizes_told.is_empty() {
+            self.sizes_told.retain(|id, _| {
+                rows.iter().any(|r| {
+                    r.id == *id && r.progress.total.is_none() && r.progress.downloaded == 0
+                })
+            });
+            for row in &mut rows {
+                if let Some(size) = self.sizes_told.get(&row.id) {
+                    std::sync::Arc::make_mut(row).progress.total = Some(*size);
+                }
+            }
+        }
         let same_rows = rows.len() == self.rows.len()
             && rows
                 .iter()
