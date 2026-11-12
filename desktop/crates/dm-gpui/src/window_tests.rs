@@ -18,6 +18,7 @@ mod lists;
 mod options;
 mod playlist;
 mod port;
+mod properties;
 mod second_network;
 mod speed_schedule;
 mod status;
