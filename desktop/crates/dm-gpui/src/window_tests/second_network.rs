@@ -21,6 +21,10 @@ fn a_progress_window_says_what_came_over_the_second_network() {
         eprintln!("no network address here; skipped");
         return;
     };
+    // Settings put in force by another test's window set the process's second network again
+    // (`shell::engine_wide`, at every change): held off while this one runs, as those that
+    // write the settings hold the file.
+    let _file = crate::harness::settings_file();
     /// The second path is the process's: off again however the test ends.
     struct Off;
     impl Drop for Off {

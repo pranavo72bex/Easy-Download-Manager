@@ -268,7 +268,7 @@ impl Downloads {
     /// person chose a file, and When done (`Session::when_done_fires`).
     /// Whether dm is to quit now.
     fn when_queue_dry(&mut self) -> bool {
-        if !self.session.ran_dry(&self.rows) {
+        if !std::mem::take(&mut self.ran_dry) {
             return false;
         }
         let settings = self.backend.settings();

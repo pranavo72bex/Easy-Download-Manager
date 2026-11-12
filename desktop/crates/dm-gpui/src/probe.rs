@@ -770,6 +770,9 @@ impl WindowProbe for Probe<'_, '_> {
                 self.view.find_step(command == Command::FindNext);
                 self.cx.notify();
             }
+            // Exit asks a person, but nothing over the port can answer: a script's exits at
+            // once (docs/decisions.md, "Exit asks; scripts do not"), as the egui window's did.
+            Command::Quit => self.view.quit(self.cx),
             _ => self.view.run(command, self.cx),
         }
         Ok(probe::Ran {

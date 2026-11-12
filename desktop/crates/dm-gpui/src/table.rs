@@ -635,7 +635,19 @@ fn row_cells(
                     .into_any_element()
             }
             _ => {
-                let said = SharedString::from(words(column, row, whens));
+                let mut said = words(column, row, whens);
+                // A row not saved yet shows the folder it will go to, as the egui window's
+                // did, without that guess written into the row (`names::planned_folder`).
+                if column == Column::Folder && said.is_empty() {
+                    let settings = &view.drawn;
+                    said = dm_shell::app::names::planned_folder(
+                        row,
+                        &settings.download_dir,
+                        &mut settings.categories(),
+                    )
+                    .unwrap_or_default();
+                }
+                let said = SharedString::from(said);
                 let numeric = numeric(column);
                 let worded = cell(column, widths)
                     .when(!numeric, |c| c.text_color(theme.muted))

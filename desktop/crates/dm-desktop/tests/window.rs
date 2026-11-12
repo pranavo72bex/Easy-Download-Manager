@@ -20,11 +20,5 @@ mod control;
 mod keyboard;
 #[path = "window/layout.rs"]
 mod layout;
-#[path = "window/lists.rs"]
-mod lists;
-#[path = "window/options.rs"]
-mod options;
-#[path = "window/speed_schedule.rs"]
-mod speed_schedule;
 #[path = "window/support.rs"]
 mod support;

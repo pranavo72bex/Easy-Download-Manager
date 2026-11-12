@@ -175,13 +175,14 @@ fn button(p: &Page, id: impl Into<gpui::ElementId>, words: &str) -> gpui::Statef
     native::button(id, words.to_string().into(), false, p.theme, &p.screen)
 }
 
-/// The page `o` shows, as a column of settings.
+/// The page `o` shows, a row of settings each: laid out as a column by the view that scrolls
+/// them, whose children they are, so it can scroll to one of them (`Options::to_proxy`).
 pub(crate) fn page(
     o: &mut Options,
     theme: Theme,
     window: &mut Window,
     cx: &mut Context<Options>,
-) -> AnyElement {
+) -> Vec<AnyElement> {
     let mut p = Page {
         items: Vec::new(),
         theme,
@@ -195,13 +196,7 @@ pub(crate) fn page(
         Tab::Advanced => advanced(o, &mut p, window, cx),
         Tab::SiteLogins => sign_ins(o, &mut p, window, cx),
     }
-    div()
-        .p(px(16.0))
-        .flex()
-        .flex_col()
-        .gap(px(native::ROW_GAP))
-        .children(p.items)
-        .into_any_element()
+    p.items
 }
 
 /// A choice made in a page's pop-up.
@@ -1866,7 +1861,8 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
     p.section(t("Proxy"));
     proxy(o, p, window, cx);
     if std::mem::take(&mut o.to_proxy) {
-        o.scroll.scroll_to_item(proxy_at);
+        // Its heading at the top of the page, its settings under it.
+        o.scroll.scroll_to_top_of_item(proxy_at);
     }
     // A dial-up or VPN connection every download waits for, as the egui
     // window's, in reference A's words and order (contract B43). Windows
