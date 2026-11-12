@@ -41,9 +41,14 @@ default-tls = [
     "librqbit-core/sha1-crypto-hash",
 ]
 disable-upload = []
+# dm: axum-extra and the dual-stack listener's axum support are the HTTP
+# API's alone, so they come with it; without it (as dm builds librqbit) no
+# axum is built (desktop/vendor/README.md).
 http-api = [
     "axum",
+    "axum-extra",
     "tower-http",
+    "librqbit-dualstack-sockets/axum",
 ]
 http-api-client = []
 miri = []
@@ -52,8 +57,13 @@ postgres = [
     "home",
 ]
 prometheus = ["metrics-exporter-prometheus"]
+# dm: reqwest's rustls without its own provider (its `rustls` feature brings
+# aws-lc-rs, a C library built with cmake); ring, the provider dm uses
+# everywhere else, is installed by `Session::new_with_opts` instead
+# (desktop/vendor/README.md).
 rust-tls = [
-    "reqwest/rustls",
+    "reqwest/rustls-no-provider",
+    "rustls",
     "sha1w/sha1-ring",
     "librqbit-core/sha1-ring",
 ]
@@ -121,6 +131,7 @@ optional = true
 [dependencies.axum-extra]
 version = "0.12"
 features = ["query"]
+optional = true
 
 [dependencies.backon]
 version = "1.5"
@@ -190,7 +201,6 @@ default-features = false
 
 [dependencies.librqbit-dualstack-sockets]
 version = "0.7"
-features = ["axum"]
 
 [dependencies.librqbit-lsd]
 version = "9.0.1"
@@ -259,6 +269,17 @@ features = [
     "stream",
 ]
 default-features = false
+
+# dm: the provider `rust-tls` installs (ring), named so reqwest has one.
+[dependencies.rustls]
+version = "0.23"
+optional = true
+default-features = false
+features = [
+    "ring",
+    "std",
+    "tls12",
+]
 
 [dependencies.rlimit]
 version = "0.11"

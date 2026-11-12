@@ -74,6 +74,21 @@ torrent's folder before dm's own check refused the torrent (dm's gaps row 159 b)
 `dm_tests` in that file (`cargo test --lib dm_tests` here) and dm-core's
 `tests/torrent_names.rs`.
 
+No second crypto library and no web server (`dm:` lines in `Cargo.toml` and
+`src/session.rs`; dm's gaps row P7). Upstream's `rust-tls` feature asked for
+reqwest's `rustls`, which brings aws-lc-rs as rustls's provider, and for the
+SHA-1 wrapper's `sha1-ring`, which is aws-lc-rs too: a C library built with
+cmake, beside the ring that dm's own TLS uses. `rust-tls` now asks for
+`reqwest/rustls-no-provider`, and `Session::new_with_opts` makes ring the
+process's default provider when none is installed, so the clients this
+session and its trackers build have one (a reqwest client built with none
+panics). The SHA-1 wrapper is a patched copy of its own, below. And
+`axum-extra` and `librqbit-dualstack-sockets`' `axum` feature, which only the
+HTTP API (`http-api`, which dm does not turn on) uses, come with that feature
+now, so dm builds no axum outside its tests. `cargo tree -i aws-lc-sys`,
+`-i cmake`, `-i axum-extra` and `-e normal -i axum` (from `desktop/`, with
+`--target all`) are empty.
+
 Left out of the copy: upstream's `webui/CLAUDE.md`, notes for an AI assistant
 working on its web interface (built only with the `webui` feature, which dm
 does not use), which would otherwise read as instructions for this project.
@@ -85,6 +100,20 @@ connections, both ways (`scripts/mse-interop.sh`,
 `a_seeder_that_takes_only_encrypted_connections_is_reached`. The protocol's own
 tests are in `src/mse.rs` (run from `desktop/vendor/librqbit` with
 `cargo test --lib mse`, as the crate is not a workspace member).
+
+## librqbit-sha1-wrapper 9.0.1
+
+The SHA-1 and SHA-256 behind librqbit's piece checks and info hashes, under
+the feature name librqbit and librqbit-core ask for, `sha1-ring` (`Cargo.toml`
+and `src/lib.rs`, searched for `dm:`; dm's gaps row P7). Upstream backs that
+feature with aws-lc-rs, a C library built with cmake, a second crypto library
+beside ring; here it is the pure-Rust `sha1` and `sha2` crates (RustCrypto),
+which dm builds already. The `sha1` crate uses the processor's SHA
+instructions where it has them (x86 SHA-NI, ARMv8 SHA). The other backend,
+`sha1-crypto-hash` (the system's library), is as published. A test of the
+FIPS 180 "abc" vector for SHA-1, fed in two parts, is added beside upstream's
+SHA-256 one (`cargo test --features sha1-ring --no-default-features` here).
+Licence Apache-2.0, as published; its `Cargo.lock` is left out.
 
 ## eframe 0.37.0
 

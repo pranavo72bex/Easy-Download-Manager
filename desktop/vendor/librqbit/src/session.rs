@@ -703,6 +703,16 @@ impl Session {
                 .client_name_and_version
                 .unwrap_or_else(|| crate::client_name_and_version().to_owned());
 
+            // dm: reqwest is built without a TLS provider of its own under
+            // `rust-tls` (Cargo.toml), and a client built with none panics.
+            // ring is made the process's default unless one already is (an
+            // Err here only says one is); every client this session and its
+            // trackers use then has it.
+            #[cfg(feature = "rust-tls")]
+            if rustls::crypto::CryptoProvider::get_default().is_none() {
+                let _ = rustls::crypto::ring::default_provider().install_default();
+            }
+
             let reqwest_client = {
                 let builder = if let Some(proxy_url) = proxy_url {
                     let proxy = reqwest::Proxy::all(proxy_url)

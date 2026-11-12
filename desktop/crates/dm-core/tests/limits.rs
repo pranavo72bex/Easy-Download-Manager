@@ -664,8 +664,10 @@ async fn a_first_answer_read_on_into_the_ranges_after_ends_inside_one_without_a_
     assert_eq!(first.as_deref(), Some("bytes=0-8388607"), "{log:?}");
     // Read on past range 0's end into the fourth range, which goes on from the first answer's end.
     assert!(
-        log.iter()
-            .any(|asked| asked.range.as_deref().is_some_and(|r| r.starts_with("bytes=8388608-"))),
+        log.iter().any(|asked| asked
+            .range
+            .as_deref()
+            .is_some_and(|r| r.starts_with("bytes=8388608-"))),
         "{log:?}"
     );
     let cut_short = said.await.unwrap();

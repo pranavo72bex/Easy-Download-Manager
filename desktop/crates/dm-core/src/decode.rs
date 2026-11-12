@@ -311,7 +311,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_error_of_the_connection_is_passed_on_and_ends_the_body() {
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         // A request that cannot be sent gives a reqwest error to pass on.
         let error = client.get("http://127.0.0.1:0/").send().await.unwrap_err();
         let chunks: Vec<reqwest::Result<Bytes>> = vec![Err(error), Ok(Bytes::from_static(b"x"))];

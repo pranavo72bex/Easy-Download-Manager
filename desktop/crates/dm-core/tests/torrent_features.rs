@@ -730,7 +730,9 @@ async fn a_finished_torrent_kept_shared_serves_another_peer_and_stops_at_its_rat
         data,
         "the file is not whole"
     );
-    let torrent = reqwest::get(&swarm.torrent_url)
+    let torrent = dm_core::reqwest_defaults()
+        .get(&swarm.torrent_url)
+        .send()
         .await
         .unwrap()
         .bytes()

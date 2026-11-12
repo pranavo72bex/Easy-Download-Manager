@@ -375,7 +375,7 @@ mod tests {
     #[tokio::test]
     async fn newer_rules_are_kept_and_older_or_equal_ones_are_not() {
         let dir = home();
-        let client = dm_core::reqwest::Client::new();
+        let client = dm_core::reqwest_defaults();
         let newer = rules_doc(900, "ads.example").into_bytes();
         let base = serve(newer.clone()).await;
         assert_eq!(
@@ -398,7 +398,7 @@ mod tests {
     #[tokio::test]
     async fn rules_with_a_wrong_digest_size_or_content_are_refused_and_change_nothing() {
         let dir = home();
-        let client = dm_core::reqwest::Client::new();
+        let client = dm_core::reqwest_defaults();
         let file = dir.path().join(crate::host::served::FILE);
         let doc = rules_doc(900, "ads.example").into_bytes();
         let base = serve(doc.clone()).await;

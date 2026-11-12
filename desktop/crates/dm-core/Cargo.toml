@@ -60,7 +60,9 @@ cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
 chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
 # BitTorrent, the one kind of download the browser side cannot do at all: an
 # extension has no sockets. rustls to match reqwest above, so the binary
-# carries one TLS stack rather than two.
+# carries one TLS stack rather than two; in the vendored copy `rust-tls`
+# means ring and the pure-Rust SHA-1, so no second crypto library (aws-lc,
+# built in C with cmake) and no axum come with it (desktop/vendor/README.md).
 librqbit = { version = "9.0.1", default-features = false, features = ["rust-tls"] }
 tokio-util = "0.7"
 dirs = "7.0.0"

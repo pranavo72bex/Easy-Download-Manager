@@ -110,6 +110,19 @@ pub fn client() -> reqwest::Client {
         .expect("a client with no TLS backend cannot be built")
 }
 
+/// reqwest's own defaults (every redirect followed, no timeouts, the
+/// computer's proxy) with dm's TLS, for the tests that talk to a server of
+/// their own. `reqwest::Client::new()` cannot stand in for it: reqwest is
+/// built without a TLS provider of its own (gaps row P7), and a client built
+/// with none panics unless a process-wide default was installed first.
+// As `client`: only a build without a TLS backend fails here.
+#[allow(clippy::expect_used)]
+pub fn reqwest_defaults() -> reqwest::Client {
+    with_tls(reqwest::Client::builder())
+        .build()
+        .expect("a client with no TLS backend cannot be built")
+}
+
 #[cfg(test)]
 mod redirect_tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};

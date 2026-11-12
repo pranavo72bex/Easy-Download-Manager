@@ -25,8 +25,8 @@ optdepends=('noto-fonts-cjk: names in Chinese, Japanese and Korean')
 # debuginfo flags only made the fat-LTO link of dm's window hold the whole
 # program's debug information at once, which ran x86_64 builders out of
 # memory (killed by signal 9 in build()).
-# No makepkg LTO: its -flto=auto turns the C inside aws-lc-sys and ring into
-# GCC bytecode that Rust's linker (lld) cannot read, so their symbols went
+# No makepkg LTO: its -flto=auto turns the C inside ring into
+# GCC bytecode that Rust's linker (lld) cannot read, so its symbols went
 # missing at the link. Cargo's release profile does Rust's own LTO.
 options=('!debug' '!lto')
 

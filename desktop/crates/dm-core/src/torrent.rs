@@ -1421,7 +1421,7 @@ mod tests {
         let (address, hits) = blocklist_server(200).await;
         let dir = tempfile::tempdir().unwrap();
         let parts = dir.path().join("parts");
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         let first = super::blocklist_file(&client, &format!(" {address} "), &parts)
             .await
             .unwrap();
@@ -1443,7 +1443,7 @@ mod tests {
     #[tokio::test]
     async fn a_blocklist_that_cannot_be_read_is_an_error_not_no_list() {
         let dir = tempfile::tempdir().unwrap();
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         let (missing, _) = blocklist_server(404).await;
         let why = super::blocklist_file(&client, &missing, dir.path())
             .await
@@ -1466,7 +1466,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let list = dir.path().join("list.p2p");
         std::fs::write(&list, b"x").unwrap();
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         let address = super::blocklist_file(&client, &list.display().to_string(), dir.path())
             .await
             .unwrap();

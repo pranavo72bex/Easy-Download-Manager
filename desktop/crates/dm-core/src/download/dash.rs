@@ -781,7 +781,7 @@ mod tests {
     async fn a_picture_by_byte_ranges_and_a_sound_are_joined_into_one_mp4() {
         let (url, dir, tracks) = serve(true).await;
         let options = options(dir.path());
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         let done = crate::download::download(&client, &url, &options)
             .await
             .unwrap();
@@ -796,7 +796,7 @@ mod tests {
     async fn a_server_that_ignores_the_range_is_not_written_in_as_the_piece() {
         let (url, dir, _) = serve(false).await;
         let options = options(dir.path());
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         let err = crate::download::download(&client, &url, &options)
             .await
             .unwrap_err();
@@ -852,7 +852,7 @@ mod tests {
 
         let options = options(dir.path());
         let url = format!("http://{addr}/hls/master.m3u8");
-        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &options)
             .await
             .unwrap();
         assert_eq!(done.path.extension().unwrap(), "mp4");
@@ -911,7 +911,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let options = options(dir.path());
         let url = format!("http://{addr}/hls/master.m3u8");
-        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &options)
             .await
             .unwrap();
         assert_eq!(done.path.extension().unwrap(), "mp4");
@@ -997,7 +997,7 @@ mod tests {
 
         let options = options(dir.path());
         let url = format!("http://{addr}/live/master.m3u8");
-        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &options)
             .await
             .unwrap();
         assert_eq!(done.path.extension().unwrap(), "mp4");
@@ -1083,7 +1083,7 @@ mod tests {
 
         let options = options(dir.path());
         let url = format!("http://{addr}/hls/master.m3u8");
-        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &options)
             .await
             .unwrap();
         assert_eq!(done.path.extension().unwrap(), "mp4");
@@ -1123,7 +1123,7 @@ mod tests {
         options.sound = Some(format!("http://{addr}/p/sound"));
         options.save_name = Some("clip".into());
         let url = format!("http://{addr}/p/picture");
-        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &options)
             .await
             .unwrap();
         assert_eq!(done.path.file_name().unwrap(), "clip.mp4");
@@ -1145,7 +1145,7 @@ mod tests {
         let mut options = options(dir.path());
         options.sound = Some(format!("http://{addr}/p/sound"));
         let url = format!("http://{addr}/p/picture");
-        let err = crate::download::download(&reqwest::Client::new(), &url, &options)
+        let err = crate::download::download(&crate::reqwest_defaults(), &url, &options)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("byte ranges"), "{err}");
@@ -1175,7 +1175,7 @@ mod tests {
         let mut options = options(dir.path());
         options.sound = Some(format!("http://{addr}/p/sound"));
         let url = format!("http://{addr}/p/picture");
-        let err = crate::download::download(&reqwest::Client::new(), &url, &options)
+        let err = crate::download::download(&crate::reqwest_defaults(), &url, &options)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("bytes long"), "{err}");
@@ -1262,10 +1262,14 @@ mod tests {
         let (url, dir, _) = serve(true).await;
         let options = options(dir.path());
         let (tx, mut rx) = tokio::sync::mpsc::channel(256);
-        let done =
-            crate::download::download_reporting(&reqwest::Client::new(), &url, &options, Some(tx))
-                .await
-                .unwrap();
+        let done = crate::download::download_reporting(
+            &crate::reqwest_defaults(),
+            &url,
+            &options,
+            Some(tx),
+        )
+        .await
+        .unwrap();
         let mut said = Vec::new();
         while let Ok(update) = rx.try_recv() {
             said.push(update);
@@ -1282,9 +1286,10 @@ mod tests {
     async fn a_stream_of_sound_alone_is_saved_as_an_m4a() {
         let idle = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let (url, dir, _) = serve_listed(true, true, idle).await;
-        let done = crate::download::download(&reqwest::Client::new(), &url, &options(dir.path()))
-            .await
-            .unwrap();
+        let done =
+            crate::download::download(&crate::reqwest_defaults(), &url, &options(dir.path()))
+                .await
+                .unwrap();
         assert_eq!(done.path.file_name().unwrap(), "show.m4a");
         let data = std::fs::read(&done.path).unwrap();
         assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 1);
@@ -1294,7 +1299,7 @@ mod tests {
     async fn a_part_of_a_listed_stream_fetches_only_the_pieces_it_needs() {
         let idle = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let (url, dir, hits) = serve_listed(false, false, idle).await;
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         let whole = crate::download::download(&client, &url, &options(dir.path()))
             .await
             .unwrap();
@@ -1337,7 +1342,7 @@ mod tests {
     async fn a_stream_whose_sound_failed_is_resumed_without_fetching_the_picture_again() {
         let failing = Arc::new(std::sync::atomic::AtomicBool::new(true));
         let (url, dir, hits) = serve_listed(true, false, failing.clone()).await;
-        let client = reqwest::Client::new();
+        let client = crate::reqwest_defaults();
         let options = options(dir.path());
         assert!(crate::download::download(&client, &url, &options)
             .await
@@ -1406,7 +1411,7 @@ mod tests {
         )
         .await;
         let plain = options(dir.path());
-        let done = crate::download::download(&reqwest::Client::new(), &url, &plain)
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &plain)
             .await
             .unwrap();
         assert_eq!(done.path.file_name().unwrap(), "show.mkv");
@@ -1422,7 +1427,7 @@ mod tests {
         .await;
         let mut asked = options(dir.path());
         asked.container = Some("mkv".into());
-        let done = crate::download::download(&reqwest::Client::new(), &url, &asked)
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &asked)
             .await
             .unwrap();
         assert_eq!(done.path.file_name().unwrap(), "show.mkv");

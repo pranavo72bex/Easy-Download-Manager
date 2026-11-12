@@ -9,7 +9,7 @@
 resolver = "2"
 members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop-base", "crates/dm-desktop", "crates/dm-gpui", "xtask"]
 # A patched copy, used through [patch.crates-io], not a member.
-exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/eframe", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
+exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/eframe", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
 
 # The lints every dm crate keeps, in one place rather than pasted into each crate's root
 # (gaps row A1); each crate's `[lints] workspace = true` takes them. Clippy refuses warnings in
@@ -109,5 +109,6 @@ winit = { path = "vendor/winit" }
 egui-winit = { path = "vendor/egui-winit" }
 eframe = { path = "vendor/eframe" }
 librqbit = { path = "vendor/librqbit" }
+librqbit-sha1-wrapper = { path = "vendor/librqbit-sha1-wrapper" }
 gpui-pre-linux = { path = "vendor/gpui-pre-linux" }
 gpui-pre-windows = { path = "vendor/gpui-pre-windows" }

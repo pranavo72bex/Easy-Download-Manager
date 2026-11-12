@@ -1833,7 +1833,7 @@ mod tests {
         let mut options = options_in(dir.path());
         options.span = crate::clip::Span::new(1.0, 2.0);
         let why = download(
-            &reqwest::Client::new(),
+            &crate::reqwest_defaults(),
             &format!("http://{addr}/files/pack.zip"),
             &options,
         )
@@ -1854,7 +1854,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let options = options_in(dir.path());
         let why = download_video_stream_with(
-            &reqwest::Client::new(),
+            &crate::reqwest_defaults(),
             &format!("http://{addr}/v/stream"),
             &options,
             None,

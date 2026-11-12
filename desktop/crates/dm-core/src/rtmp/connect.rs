@@ -56,8 +56,9 @@ pub(crate) fn tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Er
 fn make_tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Error> {
     let mut roots = tokio_rustls::rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    // The provider named: two are compiled in (through other crates), and
-    // rustls will not pick between them.
+    // The provider named rather than taken from the process's default:
+    // ring is the only one compiled in (gaps row P7), but whether a default
+    // is installed depends on whether a torrent session has started yet.
     let config = tokio_rustls::rustls::ClientConfig::builder_with_provider(Arc::new(
         tokio_rustls::rustls::crypto::ring::default_provider(),
     ))
