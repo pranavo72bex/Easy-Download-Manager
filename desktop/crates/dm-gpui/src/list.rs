@@ -191,6 +191,9 @@ pub struct Downloads {
     /// A sentence for the status bar, and when it was said: it stands for
     /// a while, as the egui window's does.
     pub(crate) said: Option<(String, std::time::Instant)>,
+    /// What finished or failed last, said aloud to a screen reader from the status bar and not
+    /// drawn (`a11y::heard`, gaps row U23), and when.
+    pub(crate) heard: Option<(String, std::time::Instant)>,
     /// Finished rows Remove took off, kept a moment for Undo.
     pub(crate) undo: dm_shell::app::backend::Undo,
     /// The questions the rows raise as they run (B39 to B41), asked one at
@@ -382,6 +385,7 @@ impl Downloads {
             panel_resizing: None,
             menu: None,
             said: None,
+            heard: None,
             undo: Default::default(),
             asks: Default::default(),
             renames: Default::default(),
@@ -2418,6 +2422,7 @@ impl Render for Downloads {
                             .child(
                                 div()
                                     .id("table")
+                                    .map(|table| crate::table::told_table(table, self))
                                     .flex()
                                     .when(empty, |table| table.flex_none())
                                     .when(!empty, |table| table.flex_1().min_h_0())

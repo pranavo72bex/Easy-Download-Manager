@@ -12,6 +12,7 @@ use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
 use gpui::{div, prelude::*, svg, Context, Role, Window};
 
+use crate::a11y::Told;
 use crate::list::Downloads;
 use crate::menus::Run;
 use crate::screen::Screen;
@@ -126,6 +127,8 @@ pub fn toolbar(
                 .id(command.id())
                 .role(Role::Button)
                 .aria_label(words)
+                // Greyed, told off to a screen reader too (gaps row U23).
+                .off_if(!enabled)
                 // Dragged onto another button, it takes that one's place, as
                 // a column's heading does (View › Customize toolbar shows or
                 // hides each).

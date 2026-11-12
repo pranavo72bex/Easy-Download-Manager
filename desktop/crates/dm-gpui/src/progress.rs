@@ -24,6 +24,7 @@ use gpui::{
 };
 use gpui_component::input::{InputEvent, InputState};
 
+use crate::a11y::Told;
 use crate::list::Downloads;
 use crate::native;
 use crate::screen::{Screen, Screens};
@@ -52,9 +53,12 @@ pub struct Progress {
     screen: Screen,
 }
 
-/// A bar, as the system draws a progress indicator: `fraction` filled.
-fn bar(fraction: f32, theme: Theme) -> gpui::Div {
+/// A bar, as the system draws a progress indicator: `fraction` filled, and
+/// its value told to a screen reader (gaps row U23).
+fn bar(id: impl Into<gpui::ElementId>, fraction: f32, theme: Theme) -> gpui::Stateful<gpui::Div> {
     div()
+        .id(id)
+        .progress_bar(t("Progress"), f64::from(fraction))
         .h(px(6.0))
         .flex_1()
         .rounded_full()
@@ -299,7 +303,12 @@ impl Render for Progress {
                                 .child(screen.label(format!("{}", n + 1))),
                         )
                         .when_some(fill, |d, fill| {
-                            d.child(div().w(px(160.0)).flex().child(bar(fill, theme)))
+                            d.child(
+                                div()
+                                    .w(px(160.0))
+                                    .flex()
+                                    .child(bar(("piece", n), fill, theme)),
+                            )
                         })
                         .child(div().text_color(theme.muted).child(screen.label(words)))
                         .when(rate > 0.0 && done < *span && running, |d| {
@@ -380,6 +389,9 @@ impl Render for Progress {
                     .child(if multi {
                         let total = p.total.unwrap_or(1).max(1) as f32;
                         div()
+                            // One bar to a screen reader, at how far the whole file is.
+                            .id("pieces")
+                            .progress_bar(t("Progress"), f64::from(fraction))
                             .h(px(8.0))
                             .flex()
                             .gap(px(1.0))
@@ -396,7 +408,10 @@ impl Render for Progress {
                             }))
                             .into_any_element()
                     } else {
-                        div().flex().child(bar(fraction, theme)).into_any_element()
+                        div()
+                            .flex()
+                            .child(bar("bar", fraction, theme))
+                            .into_any_element()
                     })
                     // This download's own limit, beside the one for all.
                     .when(!settled, |d| {
@@ -433,6 +448,8 @@ impl Render for Progress {
                                 .id("connections")
                                 .role(Role::Button)
                                 .aria_label(t("Connections"))
+                                // Open or shut, as its arrow shows (gaps row U23).
+                                .aria_expanded(open)
                                 .flex()
                                 .items_center()
                                 .gap(px(4.0))

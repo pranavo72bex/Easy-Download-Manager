@@ -943,5 +943,7 @@
  "dm settings": "dm-instellingen",
  "Download lists": "Downloadlijsten",
  "Delete the file?": "Het bestand verwijderen?",
- "{} parts of the stream in another format, such as an advert, were left out": "{} delen van de stream in een ander formaat, zoals een advertentie, zijn weggelaten"
+ "{} parts of the stream in another format, such as an advert, were left out": "{} delen van de stream in een ander formaat, zoals een advertentie, zijn weggelaten",
+ "{} finished.": "{} is klaar.",
+ "{} failed: {}": "{} is mislukt: {}"
 }

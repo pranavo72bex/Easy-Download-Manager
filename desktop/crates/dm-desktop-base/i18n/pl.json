@@ -943,5 +943,7 @@
  "dm settings": "Ustawienia dm",
  "Download lists": "Listy pobierania",
  "Delete the file?": "Usunąć plik?",
- "{} parts of the stream in another format, such as an advert, were left out": "Pominięto części strumienia w innym formacie, np. reklamy: {}"
+ "{} parts of the stream in another format, such as an advert, were left out": "Pominięto części strumienia w innym formacie, np. reklamy: {}",
+ "{} finished.": "Ukończono: {}.",
+ "{} failed: {}": "Nie powiodło się: {}: {}"
 }

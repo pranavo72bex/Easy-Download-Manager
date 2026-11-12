@@ -943,5 +943,7 @@
  "dm settings": "dm 설정",
  "Download lists": "다운로드 목록",
  "Delete the file?": "파일을 삭제할까요?",
- "{} parts of the stream in another format, such as an advert, were left out": "광고 등 다른 형식으로 된 스트림 부분 {}개를 제외했습니다"
+ "{} parts of the stream in another format, such as an advert, were left out": "광고 등 다른 형식으로 된 스트림 부분 {}개를 제외했습니다",
+ "{} finished.": "{} 다운로드가 끝났습니다.",
+ "{} failed: {}": "{} 다운로드 실패: {}"
 }

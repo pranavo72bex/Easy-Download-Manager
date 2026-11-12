@@ -100,7 +100,8 @@ impl Downloads {
         self.say_opener();
         let mut finished: Vec<(String, String)> = Vec::new();
         let mut finished_ids: Vec<dm_core::Id> = Vec::new();
-        let mut failed = false;
+        // Each failure's name and why, said aloud too (gaps row U23).
+        let mut failures: Vec<(String, String)> = Vec::new();
         let expired = detected
             .iter()
             .find_map(|read| read.expired.first().copied());
@@ -108,17 +109,17 @@ impl Downloads {
         for read in detected {
             for row in &self.rows {
                 if read.failed.contains(&row.id) {
-                    failed = true;
+                    let (name, why) = (
+                        dm_shell::app::names::name_of(row),
+                        dm_desktop_base::rows::status_of(row),
+                    );
                     // Told as a finish is, with why in plain words.
                     self.backend.platform.notify_failure(
                         t("Download failed"),
-                        &format!(
-                            "{} — {}",
-                            dm_shell::app::names::name_of(row),
-                            dm_desktop_base::rows::status_of(row)
-                        ),
+                        &format!("{name} — {why}"),
                         row.id,
                     );
+                    failures.push((name, why));
                 }
                 if read.finished.contains(&row.id) {
                     finished.push((dm_shell::app::names::name_of(row), row.path.clone()));
@@ -152,6 +153,12 @@ impl Downloads {
         if !finished_ids.is_empty() {
             self.finished(&finished_ids, cx);
         }
+        // Said aloud from the status bar, not by the system's notification
+        // alone, which a screen reader may not read (gaps row U23).
+        let names: Vec<String> = finished.iter().map(|(name, _)| name.clone()).collect();
+        if let Some(sentence) = crate::a11y::heard(&names, &failures) {
+            self.heard = Some((sentence, std::time::Instant::now()));
+        }
         match finished.as_slice() {
             [] => {}
             [(name, path)] => self
@@ -176,7 +183,7 @@ impl Downloads {
                 None => self.backend.platform.chime(),
             }
         }
-        if settings.sound_on_failure && failed {
+        if settings.sound_on_failure && !failures.is_empty() {
             match sound("failed") {
                 Some(path) => self.backend.platform.play_file(&path),
                 None => self.backend.platform.alert(),

@@ -14,6 +14,7 @@
 use gpui::{div, prelude::*, Action, App, Role, SharedString, Window};
 use gpui_component::native_menu::NativeMenu;
 
+use crate::a11y::Told;
 use crate::screen::Screen;
 use crate::theme::Theme;
 use crate::zoom::px;
@@ -94,6 +95,8 @@ pub fn button_of(
     div()
         .id((field, item))
         .role(Role::ComboBox)
+        // Told off to a screen reader where it is greyed (gaps row U23).
+        .off_where_greyed()
         // Reached by Tab, opened by Space or Return (gaps row U2).
         .tab_index(0)
         .focus(move |s| s.border_2().border_color(theme.accent))

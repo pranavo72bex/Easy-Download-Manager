@@ -15,6 +15,7 @@
 use gpui::{div, prelude::*, Div, Entity, FontWeight, Role, SharedString, Stateful};
 use gpui_component::input::{Input, InputState};
 
+use crate::a11y::{Greyed, Told};
 use crate::screen::Screen;
 use crate::theme::Theme;
 use crate::zoom::px;
@@ -79,6 +80,8 @@ pub fn button(
         .id(id)
         .role(Role::Button)
         .aria_label(words.clone())
+        // Told off to a screen reader where it is greyed (gaps row U23).
+        .off_where_greyed()
         // Reached by Tab, pressed by Space or Return, its place ringed (gaps row U2).
         .tab_index(0)
         .focus(move |s| s.border_2().border_color(theme.accent))
@@ -225,6 +228,7 @@ pub fn checkbox(
         .id(id)
         .role(Role::CheckBox)
         .aria_label(words.clone())
+        .off_where_greyed()
         // Reached by Tab, ticked by Space, its place ringed (gaps row U2).
         .tab_index(0)
         .focus(move |s| s.bg(theme.stripe))
@@ -309,6 +313,7 @@ pub fn radio(
         .id(id)
         .role(Role::RadioButton)
         .aria_label(words.clone())
+        .off_where_greyed()
         // Reached by Tab, chosen by Space, its place ringed (gaps row U2).
         .tab_index(0)
         .focus(move |s| s.bg(theme.stripe))
@@ -346,18 +351,22 @@ pub fn radio(
 /// blocking on the wrapper itself left its own controls clickable: a greyed
 /// check box still turned). The wheel still scrolls the page it is on:
 /// occluded whole, a greyed control stopped Options' Advanced page short of
-/// its end for a pointer resting on it.
+/// its end for a pointer resting on it. Each of dm's controls in it is told
+/// off to a screen reader too (`a11y::Greyed`, gaps row U23).
 pub fn enabled<E: IntoElement>(on: bool, element: E) -> Div {
-    div().relative().child(element).when(!on, |d| {
-        d.opacity(0.45).child(
-            div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full()
-                .block_mouse_except_scroll(),
-        )
-    })
+    div()
+        .relative()
+        .child(Greyed::new(!on, element))
+        .when(!on, |d| {
+            d.opacity(0.45).child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .block_mouse_except_scroll(),
+            )
+        })
 }
 
 /// A dialog's own way out, which its window's close button takes too, as

@@ -943,5 +943,7 @@
  "dm settings": "Настройки dm",
  "Download lists": "Списки загрузок",
  "Delete the file?": "Удалить файл?",
- "{} parts of the stream in another format, such as an advert, were left out": "Пропущены части трансляции в другом формате, например реклама: {}"
+ "{} parts of the stream in another format, such as an advert, were left out": "Пропущены части трансляции в другом формате, например реклама: {}",
+ "{} finished.": "Завершено: {}.",
+ "{} failed: {}": "Не удалось: {}: {}"
 }

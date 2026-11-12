@@ -18,8 +18,11 @@ use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
 use gpui::{
-    div, prelude::*, relative, uniform_list, AnyElement, Context, Role, SharedString, Window,
+    div, prelude::*, relative, uniform_list, AnyElement, Context, Div, Role, SharedString,
+    Stateful, Window,
 };
+
+use crate::a11y::Told;
 
 use crate::list::{kind_picture, Downloads, ROW_HEIGHT};
 use crate::screen::Screen;
@@ -166,6 +169,70 @@ fn words(column: Column, row: &Entry, whens: &format::Whens) -> String {
     }
 }
 
+/* ------------------------------------------- as a screen reader is told */
+
+/// The list as a screen reader is told it (gaps row U23): a table named Downloads, of the
+/// header and the rows of the place chosen, in the columns shown. It said a flat list.
+pub fn told_table(table: Stateful<Div>, view: &Downloads) -> Stateful<Div> {
+    as_table(table, view.shown.len(), columns(view).len())
+}
+
+/// `table` told as one of `rows` rows under its header's, in `columns` columns.
+fn as_table(table: Stateful<Div>, rows: usize, columns: usize) -> Stateful<Div> {
+    table
+        .role(Role::Table)
+        .aria_label(t("Downloads"))
+        .aria_row_count(rows + 1)
+        .aria_column_count(columns)
+}
+
+/// A column's heading as a screen reader is told it: its column's name, its place, and which
+/// way the list is sorted by it, where it is (`up` for the smallest first).
+fn told_heading(
+    heading: Stateful<Div>,
+    column: Column,
+    place: usize,
+    sorted: Option<bool>,
+) -> Stateful<Div> {
+    let heading = heading
+        .role(Role::ColumnHeader)
+        .aria_label(column.title())
+        .aria_column_index(place);
+    match sorted {
+        Some(up) => heading.a11y_synthetic_children(move |built| {
+            built.parent_node().set_sort_direction(if up {
+                gpui::accesskit::SortDirection::Ascending
+            } else {
+                gpui::accesskit::SortDirection::Descending
+            });
+        }),
+        None => heading,
+    }
+}
+
+/// A row's cell as a screen reader is told it: its words, in its column's place.
+fn told_cell(cell: Stateful<Div>, place: usize, said: impl Into<SharedString>) -> Stateful<Div> {
+    cell.role(Role::Cell)
+        .aria_column_index(place)
+        .aria_label(said)
+}
+
+/// `cell`, told to a screen reader as one where `told` (one is reading the window), under
+/// `id`; else as drawn alone, with no node of its own to keep (gaps row 180's cost).
+fn maybe_told(
+    cell: Div,
+    told: bool,
+    id: impl Into<gpui::ElementId>,
+    place: usize,
+    said: impl Into<SharedString>,
+) -> AnyElement {
+    if told {
+        told_cell(cell.id(id), place, said).into_any_element()
+    } else {
+        cell.into_any_element()
+    }
+}
+
 /// The header.
 pub fn header(
     view: &Downloads,
@@ -178,6 +245,8 @@ pub fn header(
     div()
         .id("header")
         .role(Role::Row)
+        // The table's first row (gaps row U23).
+        .aria_row_index(0)
         .h(px(HEADER_HEIGHT))
         .flex_none()
         .flex()
@@ -186,83 +255,94 @@ pub fn header(
         .border_color(theme.separator)
         .text_size(px(crate::native::SMALL_TEXT))
         .text_color(theme.muted)
-        .children(columns(view).into_iter().map(|column| {
-            let heading = if column == Column::Queue {
-                String::new()
-            } else {
-                column.title().to_string()
-            };
-            let arrow = match sort {
-                Some((c, true)) if c == column => " ▲",
-                Some((c, false)) if c == column => " ▼",
-                _ => "",
-            };
-            // The file name stays first: every other heading moves.
-            let movable = column != Column::Name;
-            cell(column, &widths)
-                .id(column.key())
-                .role(Role::ColumnHeader)
-                .aria_label(column.title())
-                .hover(|s| s.bg(theme.stripe))
-                .on_click(cx.listener(move |view, _, _, cx| {
-                    // Kept in the settings; View › Sort by's tick follows.
-                    view.sort_by(column, cx);
-                    view.refresh_menus(cx);
-                    cx.notify();
-                }))
-                .when(movable, |heading| {
-                    heading
-                        .on_drag(DraggedColumn { column, theme }, |dragged, _, _, cx| {
-                            cx.new(|_| dragged.clone())
-                        })
-                        .drag_over::<DraggedColumn>(move |style, _, _, _| style.bg(theme.stripe))
-                        .on_drop(cx.listener(move |view, dragged: &DraggedColumn, _, cx| {
-                            view.move_column(dragged.column, column, cx)
-                        }))
-                })
-                .child(screen.label(format!("{heading}{arrow}")))
-                // Its right edge dragged makes it wider or narrower, and a double-click there
-                // fits it to what it shows (gaps row U4). Not the name's, which takes the rest.
-                .when(width(column).is_some(), |heading| {
-                    heading
-                        .relative()
-                        .on_drag_move::<ResizingColumn>(cx.listener(
-                            move |view, event: &gpui::DragMoveEvent<ResizingColumn>, _, cx| {
-                                if event.drag(cx).column != column {
-                                    return;
-                                }
-                                let wide = f32::from(event.event.position.x - event.bounds.left());
-                                view.resize_column(column, wide / crate::zoom::factor(), cx);
-                            },
-                        ))
-                        .child(
-                            div()
-                                .id(gpui::ElementId::Name(
-                                    format!("edge-{}", column.key()).into(),
-                                ))
-                                .absolute()
-                                .top_0()
-                                .right_0()
-                                .h_full()
-                                .w(px(6.0))
-                                .cursor(gpui::CursorStyle::ResizeColumn)
-                                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
-                                    cx.stop_propagation();
-                                })
-                                .on_click(cx.listener(
-                                    move |view, event: &gpui::ClickEvent, _, cx| {
+        .children(
+            columns(view)
+                .into_iter()
+                .enumerate()
+                .map(|(place, column)| {
+                    let heading = if column == Column::Queue {
+                        String::new()
+                    } else {
+                        column.title().to_string()
+                    };
+                    let arrow = match sort {
+                        Some((c, true)) if c == column => " ▲",
+                        Some((c, false)) if c == column => " ▼",
+                        _ => "",
+                    };
+                    // The file name stays first: every other heading moves.
+                    let movable = column != Column::Name;
+                    let sorted = sort.filter(|(c, _)| *c == column).map(|(_, up)| up);
+                    told_heading(
+                        cell(column, &widths).id(column.key()),
+                        column,
+                        place,
+                        sorted,
+                    )
+                    .hover(|s| s.bg(theme.stripe))
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        // Kept in the settings; View › Sort by's tick follows.
+                        view.sort_by(column, cx);
+                        view.refresh_menus(cx);
+                        cx.notify();
+                    }))
+                    .when(movable, |heading| {
+                        heading
+                            .on_drag(DraggedColumn { column, theme }, |dragged, _, _, cx| {
+                                cx.new(|_| dragged.clone())
+                            })
+                            .drag_over::<DraggedColumn>(move |style, _, _, _| {
+                                style.bg(theme.stripe)
+                            })
+                            .on_drop(cx.listener(move |view, dragged: &DraggedColumn, _, cx| {
+                                view.move_column(dragged.column, column, cx)
+                            }))
+                    })
+                    .child(screen.label(format!("{heading}{arrow}")))
+                    // Its right edge dragged makes it wider or narrower, and a double-click there
+                    // fits it to what it shows (gaps row U4). Not the name's, which takes the rest.
+                    .when(width(column).is_some(), |heading| {
+                        heading
+                            .relative()
+                            .on_drag_move::<ResizingColumn>(cx.listener(
+                                move |view, event: &gpui::DragMoveEvent<ResizingColumn>, _, cx| {
+                                    if event.drag(cx).column != column {
+                                        return;
+                                    }
+                                    let wide =
+                                        f32::from(event.event.position.x - event.bounds.left());
+                                    view.resize_column(column, wide / crate::zoom::factor(), cx);
+                                },
+                            ))
+                            .child(
+                                div()
+                                    .id(gpui::ElementId::Name(
+                                        format!("edge-{}", column.key()).into(),
+                                    ))
+                                    .absolute()
+                                    .top_0()
+                                    .right_0()
+                                    .h_full()
+                                    .w(px(6.0))
+                                    .cursor(gpui::CursorStyle::ResizeColumn)
+                                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
                                         cx.stop_propagation();
-                                        if event.click_count() == 2 {
-                                            view.fit_column(column, cx);
-                                        }
-                                    },
-                                ))
-                                .on_drag(ResizingColumn { column }, |dragged, _, _, cx| {
-                                    cx.new(|_| dragged.clone())
-                                }),
-                        )
-                })
-        }))
+                                    })
+                                    .on_click(cx.listener(
+                                        move |view, event: &gpui::ClickEvent, _, cx| {
+                                            cx.stop_propagation();
+                                            if event.click_count() == 2 {
+                                                view.fit_column(column, cx);
+                                            }
+                                        },
+                                    ))
+                                    .on_drag(ResizingColumn { column }, |dragged, _, _, cx| {
+                                        cx.new(|_| dragged.clone())
+                                    }),
+                            )
+                    })
+                }),
+        )
         .on_drop(cx.listener(|view, _: &ResizingColumn, _, cx| view.finish_resize(cx)))
 }
 
@@ -419,10 +499,13 @@ fn spoken(
     .into()
 }
 
-/// The columns shown, in order, and the widths a person gave them.
+/// The columns shown, in order, and the widths a person gave them; and
+/// whether a screen reader is reading the window, so each cell is told as
+/// one (`maybe_told`).
 struct Layout<'a> {
     columns: &'a [Column],
     widths: &'a Widths,
+    told: bool,
 }
 
 /// One row's cells, its own `buttons` at the name's right end.
@@ -435,16 +518,22 @@ fn row_cells(
     screen: &Screen,
     buttons: AnyElement,
 ) -> Vec<AnyElement> {
-    let Layout { columns, widths } = layout;
+    let Layout {
+        columns,
+        widths,
+        told,
+    } = layout;
     let (names, whens) = (&view.shown_names, &view.whens);
     let mut buttons = Some(buttons);
+    let id = row.id as usize;
     columns
         .iter()
-        .map(|&column| match column {
+        .enumerate()
+        .map(|(place, &column)| match column {
             Column::Name => {
                 let (picture, colour) = kind_picture(kind);
                 let name = shown_name(row, names);
-                cell(column, widths)
+                let named = cell(column, widths)
                     .gap_2()
                     .relative()
                     .children(buttons.take())
@@ -477,16 +566,24 @@ fn row_cells(
                             );
                         // Read as the whole name, as it was one label.
                         screen.mark(name.clone(), drawn)
-                    })
-                    .into_any_element()
+                    });
+                maybe_told(named, told, ("name", id), place, name)
             }
-            // Reference A's Q: a mark for a download in a queue.
-            Column::Queue => cell(column, widths)
-                .justify_center()
-                .when(!row.queue.is_empty(), |c| {
-                    c.child(div().size(px(8.0)).rounded_full().bg(theme.selection))
-                })
-                .into_any_element(),
+            // Reference A's Q: a mark for a download in a queue; its queue's name to a screen
+            // reader.
+            Column::Queue => {
+                let marked = cell(column, widths)
+                    .justify_center()
+                    .when(!row.queue.is_empty(), |c| {
+                        c.child(div().size(px(8.0)).rounded_full().bg(theme.selection))
+                    });
+                let queue = if row.queue.is_empty() {
+                    String::new()
+                } else {
+                    dm_desktop_base::i18n::name(&row.queue)
+                };
+                maybe_told(marked, told, ("queue", id), place, queue)
+            }
             Column::Status => {
                 let said = words(column, row, whens);
                 let fraction = (row.state == State::Running)
@@ -500,6 +597,7 @@ fn row_cells(
                 };
                 cell(column, widths)
                     .id(("status", row.id))
+                    .when(told, |c| told_cell(c, place, said.clone()))
                     .flex_col()
                     .items_start()
                     .justify_center()
@@ -511,31 +609,38 @@ fn row_cells(
                     })
                     .child(screen.label(said))
                     .when_some(fraction, |c, f| {
-                        c.child(
-                            div()
-                                .mt(px(2.0))
-                                .w_full()
-                                .h(px(3.0))
-                                .rounded_full()
-                                .bg(theme.separator)
-                                .child(
-                                    div()
-                                        .h_full()
-                                        .rounded_full()
-                                        .bg(theme.selection)
-                                        .w(relative(f.clamp(0.0, 1.0) as f32)),
-                                ),
-                        )
+                        let track = div()
+                            .mt(px(2.0))
+                            .w_full()
+                            .h(px(3.0))
+                            .rounded_full()
+                            .bg(theme.separator)
+                            .child(
+                                div()
+                                    .h_full()
+                                    .rounded_full()
+                                    .bg(theme.selection)
+                                    .w(relative(f.clamp(0.0, 1.0) as f32)),
+                            );
+                        // How far it is, told to a screen reader as a bar's value.
+                        c.child(if told {
+                            track
+                                .id("bar")
+                                .progress_bar(t("Progress"), f)
+                                .into_any_element()
+                        } else {
+                            track.into_any_element()
+                        })
                     })
                     .into_any_element()
             }
             _ => {
-                let said = words(column, row, whens);
+                let said = SharedString::from(words(column, row, whens));
                 let numeric = numeric(column);
-                cell(column, widths)
+                let worded = cell(column, widths)
                     .when(!numeric, |c| c.text_color(theme.muted))
-                    .child(screen.label(SharedString::from(said)))
-                    .into_any_element()
+                    .child(screen.label(said.clone()));
+                maybe_told(worded, told, (column.key(), id), place, said)
             }
         })
         .collect()
@@ -602,10 +707,13 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
     uniform_list(
         "rows",
         count,
-        cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
+        cx.processor(move |this, range: std::ops::Range<usize>, window, cx| {
             // The rows are built as the list is laid out, after `render`:
             // part of the frame all the same (`costs::drawing`).
             let _drawing = dm_shell::app::costs::drawing();
+            // Each cell a node of its own only while a screen reader reads
+            // the window: nothing else asks for them (gaps row U23).
+            let told = window.is_a11y_active();
             this.laid_out(range.clone(), cx);
             let categories = this.drawn.categories();
             let columns = columns(this);
@@ -653,6 +761,8 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         // it stands, as the row shows them (it said nothing).
                         .aria_label(spoken(row, &this.shown_names))
                         .aria_selected(chosen)
+                        // Its place in the table, under the header's row.
+                        .aria_row_index(i + 1)
                         .w_full()
                         .h(px(ROW_HEIGHT))
                         .px_1()
@@ -710,6 +820,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             Layout {
                                 columns: &columns,
                                 widths: &widths,
+                                told,
                             },
                             kind,
                             theme,
@@ -809,6 +920,27 @@ fn row_buttons(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_list_is_told_as_a_table_of_headings_and_cells() {
+        use crate::a11y::node_of;
+        // The header's row and three of downloads, in four columns.
+        let table = node_of(&as_table(div().id("table"), 3, 4));
+        assert_eq!(table.role(), Role::Table);
+        assert_eq!(table.label(), Some("Downloads"));
+        assert_eq!(table.row_count(), Some(4));
+        assert_eq!(table.column_count(), Some(4));
+
+        let heading = node_of(&told_heading(div().id("size"), Column::Size, 2, Some(true)));
+        assert_eq!(heading.role(), Role::ColumnHeader);
+        assert_eq!(heading.label(), Some(Column::Size.title()));
+        assert_eq!(heading.column_index(), Some(2));
+
+        let cell = node_of(&told_cell(div().id(("size", 7usize)), 2, "1.5 MB"));
+        assert_eq!(cell.role(), Role::Cell);
+        assert_eq!(cell.label(), Some("1.5 MB"));
+        assert_eq!(cell.column_index(), Some(2));
+    }
 
     #[test]
     fn a_names_extension_is_kept_apart_to_stay_whole() {

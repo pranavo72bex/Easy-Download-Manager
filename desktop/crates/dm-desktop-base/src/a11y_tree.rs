@@ -17,8 +17,9 @@ const MOST_ELEMENTS: usize = 3000;
 #[cfg(target_os = "macos")]
 const DEEPEST: usize = 40;
 
-/// Each visible window's title and the elements a screen reader is given in it: role, label and
-/// title, with their depth. AppKit asks this on the main thread; elsewhere it is refused.
+/// Each visible window's title and the elements a screen reader is given in it: role, label,
+/// title, whether it can be used (`enabled`) and its value where it has one, with their depth.
+/// AppKit asks this on the main thread; elsewhere it is refused.
 #[cfg(target_os = "macos")]
 pub fn windows() -> Result<Value, String> {
     use objc2::rc::Retained;
@@ -52,6 +53,20 @@ pub fn windows() -> Result<Value, String> {
                 .map(|s| s.to_string())
                 .unwrap_or_default()
         };
+        // Whether it can be used: false for a control told off, which VoiceOver says is dimmed.
+        let enabled = |object: &AnyObject| -> bool {
+            !answers(object, objc2::sel!(isAccessibilityEnabled))
+                || msg_send![object, isAccessibilityEnabled]
+        };
+        // Its value as words (a bar's per cent, a field's text, a box's tick), where it has one.
+        let value = |object: &AnyObject| -> Option<String> {
+            if !answers(object, objc2::sel!(accessibilityValue)) {
+                return None;
+            }
+            let value: Option<Retained<AnyObject>> = msg_send![object, accessibilityValue];
+            let said: Option<Retained<NSString>> = msg_send![&*value?, description];
+            said.map(|s| s.to_string())
+        };
         let windows: Retained<NSArray<AnyObject>> = msg_send![&*app, windows];
         let mut out = Vec::new();
         for window in windows.iter() {
@@ -66,12 +81,17 @@ pub fn windows() -> Result<Value, String> {
                     break;
                 }
                 if depth > 0 {
-                    elements.push(serde_json::json!({
+                    let mut said = serde_json::json!({
                         "depth": depth,
                         "role": text(&element, objc2::sel!(accessibilityRole)),
                         "label": text(&element, objc2::sel!(accessibilityLabel)),
                         "title": text(&element, objc2::sel!(accessibilityTitle)),
-                    }));
+                        "enabled": enabled(&element),
+                    });
+                    if let Some(value) = value(&element) {
+                        said["value"] = Value::String(value);
+                    }
+                    elements.push(said);
                 }
                 if depth >= DEEPEST || !answers(&element, objc2::sel!(accessibilityChildren)) {
                     continue;

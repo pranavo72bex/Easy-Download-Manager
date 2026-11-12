@@ -14,6 +14,7 @@ use dm_desktop_base::format::rate;
 use dm_desktop_base::i18n::{t, tf, tn};
 use gpui::{div, prelude::*, Role};
 
+use crate::a11y::Told;
 use crate::list::Downloads;
 use crate::screen::Screen;
 use crate::theme::Theme;
@@ -102,10 +103,32 @@ pub fn statusbar(
             crate::menus::speed_limiter_popup(speed_limit).show(event.position(), window, cx);
         }))
         .child(screen.label(limit));
+    // What finished or failed a moment ago, for a screen reader alone.
+    let heard = view
+        .heard
+        .as_ref()
+        .filter(|(_, at)| at.elapsed() < SAID_FOR)
+        .map(|(sentence, _)| sentence.clone());
     div()
         .id("status")
         .role(Role::Status)
         .aria_label(whole)
+        .relative()
+        // Said aloud as it changes, and drawn nowhere: a point of its own,
+        // not the bar, whose speeds change every second (gaps row U23).
+        .when_some(heard, |bar, sentence| {
+            bar.child(
+                div()
+                    .id("heard")
+                    .role(Role::Status)
+                    .aria_label(sentence)
+                    .said_aloud()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size(px(1.0)),
+            )
+        })
         .h(px(HEIGHT))
         .flex_none()
         .flex()

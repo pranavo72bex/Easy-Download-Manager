@@ -24,6 +24,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+mod a11y;
 mod about;
 mod actions;
 mod addurl;

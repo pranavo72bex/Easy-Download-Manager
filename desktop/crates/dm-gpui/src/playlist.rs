@@ -17,6 +17,7 @@ use gpui::{
     SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 
+use crate::a11y::Told;
 use crate::list::Downloads;
 use crate::native;
 use crate::popup::{self, Pick};
@@ -252,8 +253,11 @@ impl Render for PlaylistWindow {
             }
         };
         let button = |id: &'static str, words: &'static str, default: bool| {
+            let greyed = !ready && id != "cancel";
             native::button(id, t(words).into(), default, theme, &screen)
-                .when(!ready && id != "cancel", |b| b.opacity(0.5))
+                .when(greyed, |b| b.opacity(0.5))
+                // Told off to a screen reader too (gaps row U23).
+                .off_if(greyed)
         };
         crate::native::dialog("playlist", t("Playlist"), theme, cx)
             .track_focus(&self.focus)
