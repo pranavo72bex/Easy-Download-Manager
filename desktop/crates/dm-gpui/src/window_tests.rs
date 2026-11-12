@@ -8,6 +8,8 @@
 
 mod asks;
 mod choices;
+mod commands;
+mod dialogs;
 mod downloads;
 mod find;
 mod lists;

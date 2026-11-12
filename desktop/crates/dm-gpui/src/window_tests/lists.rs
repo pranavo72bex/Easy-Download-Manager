@@ -17,9 +17,6 @@ use dm_shell::app::power::WhenDone;
 use crate::harness::world::{world, World, PAYLOAD};
 use crate::harness::{settings_file, Harness};
 
-#[path = "../../../../test-support/secrets.rs"]
-mod test_secrets;
-
 /// The settings in force.
 fn kept(h: &mut Harness) -> dm_shell::Settings {
     h.view(|view| view.backend.settings())
@@ -477,7 +474,7 @@ fn the_toolbar_is_customized_from_the_view_menu_and_remembered() {
 
 #[test]
 fn a_rows_handed_over_sign_in_is_never_read_back_out() {
-    let session = test_secrets::secret("session");
+    let session = crate::test_secrets::secret("session");
     let world = world();
     let mut h = world.harness();
     let url = world.url("file.zip");

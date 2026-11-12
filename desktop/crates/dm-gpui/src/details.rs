@@ -381,7 +381,7 @@ impl Details {
                             size,
                             view.selected.iter().copied().collect::<Vec<_>>().as_slice(),
                         ) {
-                            view.sizes_told.insert(*id, (size, None));
+                            view.sizes_told.insert(*id, size);
                             view.read();
                         }
                         Ok(())

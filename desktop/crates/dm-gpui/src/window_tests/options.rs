@@ -34,7 +34,7 @@ fn tab(h: &mut Harness, name: &str) {
 
 /// OK, and Options gone.
 fn ok(h: &mut Harness) {
-    h.person_click("OK");
+    h.click_as_person("OK", 0);
     h.until("Options to close", |h| !h.dialog_open("Options"));
 }
 
@@ -80,10 +80,10 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
     let mut h = world.harness();
     open_options(&mut h);
     tab(&mut h, "Browser");
-    h.type_into("File types", "ZIP .iso, mkv");
-    h.type_into("Never take downloads from these sites", "intranet.example");
+    h.fill("File types", "ZIP .iso, mkv");
+    h.fill("Never take downloads from these sites", "intranet.example");
     // Sites whose links work once.
-    h.type_into("Sites whose links work only once", "*.once.example");
+    h.fill("Sites whose links work only once", "*.once.example");
     // The browsers dm takes from, each ticked at first (gaps row 86): one unticked is kept in
     // the rules the extension is sent.
     h.reveal("Brave");
@@ -113,12 +113,12 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     tab(&mut h, "Advanced");
     assert!(h.shows("Attempts per connection (0 to keep trying)"));
     assert!(h.shows("Time out a silent connection after (seconds)"));
-    h.type_into("Attempts per connection (0 to keep trying)", "0");
-    h.type_into("Time out a silent connection after (seconds)", "10");
+    h.fill("Attempts per connection (0 to keep trying)", "0");
+    h.fill("Time out a silent connection after (seconds)", "10");
     h.reveal("Add a site limit");
     h.click("Add a site limit");
-    h.type_into("Site", "Slow.Example");
-    h.type_into("Connections", "2");
+    h.fill("Site", "Slow.Example");
+    h.fill("Connections", "2");
     ok(&mut h);
     let settings = kept(&mut h);
     assert_eq!((settings.attempts, settings.read_timeout), (0, 10));
@@ -161,9 +161,9 @@ fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
     // At the foot of the page, scrolled to as a person would.
     h.reveal("Add a category");
     h.click("Add a category");
-    h.type_into("Category", "Lectures");
-    h.type_into("Types", "zip");
-    h.type_into("Sites", "127.0.0.1");
+    h.fill("Category", "Lectures");
+    h.fill("Types", "zip");
+    h.fill("Sites", "127.0.0.1");
     ok(&mut h);
     let made = kept(&mut h).custom_categories;
     assert_eq!(made.len(), 1, "{made:?}");
@@ -209,7 +209,7 @@ fn the_recording_limit_is_set_in_options_and_reaches_the_queue() {
     let mut h = world.harness();
     open_options(&mut h);
     tab(&mut h, "Downloads");
-    h.type_into("Stop recording after (minutes, 0 for no limit)", "90");
+    h.fill("Stop recording after (minutes, 0 for no limit)", "90");
     ok(&mut h);
     assert_eq!(kept(&mut h).record_minutes, 90);
     assert_eq!(
@@ -228,14 +228,14 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     open_options(&mut h);
     tab(&mut h, "Advanced");
     own_proxy(&mut h);
-    h.type_into("Host", "proxy.example");
-    h.type_into(
+    h.fill("Host", "proxy.example");
+    h.fill(
         "Not for these sites (fetched directly)",
         "Intranet.example 10.0.0.5",
     );
     // The recheck timer lives on the Downloads tab; what was typed on Advanced waits there.
     tab(&mut h, "Downloads");
-    h.type_into("Recheck every (hours, 0 for manual)", "6");
+    h.fill("Recheck every (hours, 0 for manual)", "6");
     ok(&mut h);
     let settings = kept(&mut h);
     assert!(settings.proxy.enabled);
@@ -265,10 +265,10 @@ fn a_proxy_of_its_own_for_https_and_a_configuration_script_are_set_in_options() 
     open_options(&mut h);
     tab(&mut h, "Advanced");
     own_proxy(&mut h);
-    h.type_into("Host", "proxy.example");
+    h.fill("Host", "proxy.example");
     h.reveal("A proxy of its own for HTTPS downloads");
     h.click("A proxy of its own for HTTPS downloads");
-    h.type_into("Its host", "secure-proxy.example");
+    h.fill("Its host", "secure-proxy.example");
     ok(&mut h);
     let settings = kept(&mut h);
     let https = &settings.proxy.per_scheme["https"];
@@ -280,7 +280,7 @@ fn a_proxy_of_its_own_for_https_and_a_configuration_script_are_set_in_options() 
     let script = "Automatic configuration script address (it chooses each site's proxy, in place of the above)";
     open_options(&mut h);
     tab(&mut h, "Advanced");
-    h.type_into(script, "http://wpad.example/proxy.pac");
+    h.fill(script, "http://wpad.example/proxy.pac");
     ok(&mut h);
     assert_eq!(kept(&mut h).proxy.script, "http://wpad.example/proxy.pac");
     let saved = saved_settings();
@@ -303,9 +303,9 @@ fn a_queues_start_time_is_set_in_options() {
     // Scrolled to, as a person scrolls to it.
     h.reveal("Add a start time");
     h.click("Add a start time");
-    h.type_into("Starts at (HH:MM)", "x");
+    h.fill("Starts at (HH:MM)", "x");
     h.until_shown("Not a time");
-    h.type_into("Starts at (HH:MM)", "23:45");
+    h.fill("Starts at (HH:MM)", "23:45");
     h.until("the time taken", |h| !h.shows("Not a time"));
     ok(&mut h);
     assert_eq!(
@@ -324,10 +324,10 @@ fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
     h.reveal("Add a queue limit");
     h.click("Add a queue limit");
     // The queue's own "Files at once", under the one for every download.
-    h.type_into_after("Queues with their own limit:", "Files at once", "2");
+    h.fill_after("Queues with their own limit:", "Files at once", "2");
     tab(&mut h, "Folders");
     let staged = world.dir.path().join("staging");
-    h.type_into(
+    h.fill(
         "Folder for unfinished downloads",
         &staged.display().to_string(),
     );
@@ -363,7 +363,7 @@ fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
     h.click("Start dm when I sign in");
     h.reveal("Play a sound when a download finishes");
     h.click("Play a sound when a download finishes");
-    h.person_click("OK");
+    h.click_as_person("OK", 0);
     h.until("the reason", |h| {
         h.shows_part("could not change start-on-login")
     });
@@ -415,21 +415,21 @@ fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_fol
     h.click("Sort finished files into folders by kind");
     h.reveal("Add a category");
     h.click("Add a category");
-    h.type_into("Category", "Work/Docs");
-    h.type_into("Types", "pdf");
-    h.person_click("OK");
+    h.fill("Category", "Work/Docs");
+    h.fill("Types", "pdf");
+    h.click_as_person("OK", 0);
     h.until("the refusal", |h| h.shows_part("can't be a category"));
     assert_eq!(kept(&mut h).custom_categories, before.custom_categories);
 
     h.reveal("Delete category");
     h.click("Delete category");
-    h.type_into("Download folder", "Downloads/dm");
-    h.person_click("OK");
+    h.fill("Download folder", "Downloads/dm");
+    h.click_as_person("OK", 0);
     h.until("the refusal", |h| h.shows_part("must be a full path"));
     assert_eq!(kept(&mut h).download_dir, before.download_dir);
 
     // From the home folder is a full path, and is expanded.
-    h.type_into("Download folder", "~/dm-test-downloads");
+    h.fill("Download folder", "~/dm-test-downloads");
     ok(&mut h);
     assert_eq!(
         kept(&mut h).download_dir,
@@ -456,7 +456,7 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
     // An unrelated change goes through.
     open_options(&mut h);
     tab(&mut h, "Downloads");
-    h.type_into("Connections per file", "4");
+    h.fill("Connections per file", "4");
     ok(&mut h);
     let now = kept(&mut h);
     assert_eq!(now.connections, 4);
@@ -468,20 +468,20 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
     // A kind's folder renamed to one Windows cannot make is refused.
     open_options(&mut h);
     tab(&mut h, "Folders");
-    h.type_into("Videos", "Clips|new");
-    h.person_click("OK");
+    h.fill("Videos", "Clips|new");
+    h.click_as_person("OK", 0);
     h.until("the refusal", |h| {
         h.shows_part("because its name is also its folder")
     });
     assert_eq!(kept(&mut h).category_folders[0], before.category_folders[0]);
     // And a new category.
-    h.type_into("Videos", &before.category_folders[0]);
+    h.fill("Videos", &before.category_folders[0]);
     h.reveal("Add a category");
     h.click("Add a category");
     // The new category's row, after the saved one's.
-    h.type_into_after("Delete category", "Category", "Notes?");
-    h.type_into_after("Delete category", "Types", "txt");
-    h.person_click("OK");
+    h.fill_after("Delete category", "Category", "Notes?");
+    h.fill_after("Delete category", "Types", "txt");
+    h.click_as_person("OK", 0);
     for _ in 0..5 {
         h.until("a wake", |_| true);
     }
@@ -546,14 +546,14 @@ fn options_refuses_a_proxy_with_no_host() {
     open_options(&mut h);
     tab(&mut h, "Advanced");
     own_proxy(&mut h);
-    h.person_click("OK");
+    h.click_as_person("OK", 0);
     h.until("the refusal", |h| h.shows_part("Enter the proxy's host"));
     assert!(h.dialog_open("Options"), "OK took a proxy with no host");
     // Nothing was put in force: the proxy still follows the computer's settings.
     let untouched = |h: &mut Harness| kept(h).proxy.kind == dm_core::ProxyKind::System;
     assert!(untouched(&mut h));
-    h.type_into("Host", "http://proxy.example:3128");
-    h.person_click("OK");
+    h.fill("Host", "http://proxy.example:3128");
+    h.click_as_person("OK", 0);
     h.until("the refusal", |h| h.shows_part("isn't a valid proxy host"));
     assert!(untouched(&mut h));
     h.click("Cancel");
@@ -601,10 +601,10 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     tab(&mut h, "Advanced");
     h.reveal("Add a site rule");
     h.click("Add a site rule");
-    h.type_into("Site", "127.0.0.1");
-    h.type_into("Folder", &folder.display().to_string());
+    h.fill("Site", "127.0.0.1");
+    h.fill("Folder", &folder.display().to_string());
     // The rule's own speed, under the page's of the same name.
-    h.type_into_after(
+    h.fill_after(
         "Sites with their own folder and speed:",
         "Speed limit, KB/s (0 for none)",
         "4096",
@@ -766,7 +766,7 @@ fn a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section() {
     own_proxy(&mut h);
     // Another tab, as a person leaves the proxy for another page and presses OK.
     tab(&mut h, "Downloads");
-    h.person_click("OK");
+    h.click_as_person("OK", 0);
     h.until("Advanced at its proxy section", |h| {
         h.dialog(|o: &mut Options, _, _| o.tab == dm_desktop_base::options::Tab::Advanced)
             && h.shows("Connect through a proxy")
@@ -784,14 +784,14 @@ fn ok_keeps_every_setting_of_the_advanced_page() {
     let mut h = world.harness();
     open_options(&mut h);
     tab(&mut h, "Advanced");
-    h.type_into("Speed limit, KB/s (0 for none)", "321");
-    h.type_into("Attempts per connection (0 to keep trying)", "7");
-    h.type_into("Wait between attempts (seconds, 0 for automatic)", "9");
-    h.type_into("Time out a silent connection after (seconds)", "45");
+    h.fill("Speed limit, KB/s (0 for none)", "321");
+    h.fill("Attempts per connection (0 to keep trying)", "7");
+    h.fill("Wait between attempts (seconds, 0 for automatic)", "9");
+    h.fill("Time out a silent connection after (seconds)", "45");
     own_proxy(&mut h);
-    h.type_into("Host", "proxy.example");
-    h.type_into("Port", "3128");
-    h.type_into("Username, if it needs one", "someone");
+    h.fill("Host", "proxy.example");
+    h.fill("Port", "3128");
+    h.fill("Username, if it needs one", "someone");
     ok(&mut h);
     let s = kept(&mut h);
     assert_eq!(
@@ -828,7 +828,7 @@ fn a_sound_file_is_chosen_for_each_event_in_options() {
     ] {
         h.reveal(words);
     }
-    h.type_into("Queue finished", r"C:\Windows\Media\tada.wav");
+    h.fill("Queue finished", r"C:\Windows\Media\tada.wav");
     ok(&mut h);
     assert_eq!(
         kept(&mut h).sounds.get("queue_done").map(String::as_str),
@@ -836,7 +836,7 @@ fn a_sound_file_is_chosen_for_each_event_in_options() {
     );
     // Emptied, the event's entry goes, and the usual sound is back.
     open_options(&mut h);
-    h.type_into("Queue finished", "");
+    h.fill("Queue finished", "");
     ok(&mut h);
     assert!(!kept(&mut h).sounds.contains_key("queue_done"));
 }
@@ -872,9 +872,9 @@ fn keeping_a_finished_torrent_shared_is_set_in_options() {
     tab(&mut h, "Advanced");
     h.reveal("Keep sharing a finished torrent");
     h.click("Keep sharing a finished torrent");
-    h.type_into("Until it has sent (times its size)", "2");
-    h.type_into("For at most (minutes)", "30");
-    h.type_into("Send at most (KB/s, 0 for no limit)", "100");
+    h.fill("Until it has sent (times its size)", "2");
+    h.fill("For at most (minutes)", "30");
+    h.fill("Send at most (KB/s, 0 for no limit)", "100");
     ok(&mut h);
     let settings = kept(&mut h);
     assert!(settings.torrent_share);
@@ -914,9 +914,9 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     }
     // A connection Windows knows, as its pop-up gives it (this computer may know none).
     h.dialog(|o: &mut Options, _, _| o.draft.dialup.connection = "Office VPN".into());
-    h.type_into("User name", "me");
-    h.type_into("Redial attempts (zero if endlessly)", "3");
-    h.type_into("Time between redial attempts (seconds)", "10");
+    h.fill("User name", "me");
+    h.fill("Redial attempts (zero if endlessly)", "3");
+    h.fill("Time between redial attempts (seconds)", "10");
     ok(&mut h);
     let s = kept(&mut h);
     assert!(!s.dialup.enabled, "a new dm dials nothing");

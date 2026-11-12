@@ -483,6 +483,10 @@ pub fn open(view: WeakEntity<Downloads>, queue: String, cx: &mut App) {
 }
 
 fn open_now(view: WeakEntity<Downloads>, queue: String, cx: &mut App) {
+    // Asked for again while open: the one open, as it stands.
+    if crate::screen::bring_named(t("Scheduler"), cx) {
+        return;
+    }
     let Some(downloads) = view.upgrade() else {
         return;
     };

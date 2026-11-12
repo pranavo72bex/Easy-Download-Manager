@@ -392,6 +392,20 @@ impl Downloads {
             });
         });
         self.sheets.push_back((asked, reword, live, answer));
+        // Asked from another of dm's windows (a progress window's Cancel download): the main
+        // window, which a question waits for on macOS and Windows, is brought in front, and its
+        // coming in front shows it (`observe_window_activation`). Without it the question
+        // waited unseen until the person clicked the main window (found by the window's tests,
+        // 2026-11-13).
+        let main = self.main;
+        if cfg!(any(target_os = "macos", windows))
+            && !self.sheet_open
+            && cx.active_window() != Some(main)
+        {
+            cx.defer(move |cx| {
+                let _ = main.update(cx, |_, window, _| window.activate_window());
+            });
+        }
         self.show_sheets(cx);
     }
 

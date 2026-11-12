@@ -366,8 +366,9 @@ impl Downloads {
     }
 
     /// "Keep running in the tray?", asked once: the answer is kept in
-    /// Options, and carried out.
-    fn ask_close(&mut self, cx: &mut Context<Self>) {
+    /// Options, and carried out. Asked by the window's tests too, which
+    /// have no tray.
+    pub(crate) fn ask_close(&mut self, cx: &mut Context<Self>) {
         use dm_desktop_base::i18n::t;
         let asked = crate::question::Asked {
             title: t("Keep running in the tray?").into(),

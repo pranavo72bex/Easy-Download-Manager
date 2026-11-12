@@ -70,12 +70,21 @@ pub struct Options {
     pub(crate) handlers_asked: bool,
     /// Each field, by its key, made the first time it is drawn.
     fields: HashMap<String, Entity<InputState>>,
+    /// The fields that hold a number, by key, and those left holding words that are not
+    /// one: what was typed was not taken, and the field says so until it is typed in again.
+    numbers: std::collections::HashSet<String>,
+    pub(crate) not_numbers: std::collections::HashSet<String>,
     /// Appearance's scale slider, once drawn.
     scale: Option<Entity<SliderState>>,
     pub(crate) scroll: ScrollHandle,
     focus: gpui::FocusHandle,
     done: bool,
     pub(crate) screen: Screen,
+}
+
+/// Whether `text` is a number as a number box holds one.
+fn is_number(text: &str) -> bool {
+    text.trim().parse::<f64>().is_ok()
 }
 
 impl Options {
@@ -93,6 +102,9 @@ impl Options {
             return field.clone();
         }
         let text = value(self);
+        if is_number(&text) {
+            self.numbers.insert(key.to_string());
+        }
         let field = cx.new(|cx| {
             let mut input = InputState::new(window, cx).masked(masked);
             input.set_value(text, window, cx);
@@ -109,6 +121,15 @@ impl Options {
                     cx.notify();
                 }
                 InputEvent::PressEnter { .. } => this.ok(window, cx),
+                // A number box left holding letters says the number before was kept (they
+                // were not taken, `put`); typed in again, it says no more.
+                InputEvent::Blur if this.numbers.contains(&owned) => {
+                    if !is_number(&input.read(cx).value()) {
+                        this.not_numbers.insert(owned.clone());
+                        cx.notify();
+                    }
+                }
+                InputEvent::Focus if this.not_numbers.remove(&owned) => cx.notify(),
                 _ => {}
             },
         )
@@ -737,6 +758,8 @@ fn open_window(
                 #[cfg(windows)]
                 handlers_asked: false,
                 fields: HashMap::new(),
+                numbers: Default::default(),
+                not_numbers: Default::default(),
                 scale: None,
                 scroll: ScrollHandle::new(),
                 focus,

@@ -165,8 +165,8 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
     h.command("downloads.scheduler");
     h.until("the Scheduler", |h| h.dialog_open("Scheduler"));
     h.click("Only download between set hours");
-    h.type_into("Start at", "25:00");
-    h.type_into("Stop at", "1am");
+    h.fill("Start at", "25:00");
+    h.fill("Stop at", "1am");
     h.click("OK");
     h.until("the reason", |h| {
         h.shows_part("times are HH:MM in 24 hours")
@@ -176,8 +176,8 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
 
     // No day ticked is refused where it was unticked: every day is shown, and kept, as seven
     // ticks.
-    h.type_into("Start at", "01:00");
-    h.type_into("Stop at", "07:00");
+    h.fill("Start at", "01:00");
+    h.fill("Stop at", "07:00");
     let days = dm_desktop_base::held::DAYS.map(dm_desktop_base::i18n::t);
     assert_eq!(
         h.dialog(|s: &mut Scheduler, _, _| s.draft.schedule.days.len()),
@@ -222,8 +222,8 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
     h.until("the Speed limiter", |h| h.dialog_open("Speed limiter"));
     assert!(h.shows("Download at most this many MB (0 for no limit)"));
     assert!(h.shows("in each period of this many hours"));
-    h.type_into("Download at most this many MB (0 for no limit)", "500");
-    h.type_into("in each period of this many hours", "4");
+    h.fill("Download at most this many MB (0 for no limit)", "500");
+    h.fill("in each period of this many hours", "4");
     h.click("OK");
     h.until("the Speed limiter to close", |h| {
         !h.dialog_open("Speed limiter")
@@ -388,8 +388,8 @@ fn the_scheduler_hangs_up_the_dial_up_connection_when_its_downloads_are_done() {
     h.until("the Scheduler", |h| h.dialog_open("Scheduler"));
     // Start and stop the same: open all day.
     h.click("Only download between set hours");
-    h.type_into("Start at", "00:00");
-    h.type_into("Stop at", "00:00");
+    h.fill("Start at", "00:00");
+    h.fill("Stop at", "00:00");
     let offered = h.shows("Hang up modem when done");
     assert_eq!(offered, cfg!(windows), "offered on Windows alone");
     if !cfg!(windows) {
@@ -484,8 +484,8 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
         "opened on the list's queue"
     );
     h.click("Only download between set hours");
-    h.type_into("Start at", "01:00");
-    h.type_into("Stop at", "07:00");
+    h.fill("Start at", "01:00");
+    h.fill("Stop at", "07:00");
     h.click("Night");
     h.until("Night chosen", |h| draft(h).queue == "Night");
     assert!(
@@ -497,8 +497,8 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     if !draft(&mut h).schedule.enabled {
         h.click("Only download between set hours");
     }
-    h.type_into("Start at", "22:00");
-    h.type_into("Stop at", "23:00");
+    h.fill("Start at", "22:00");
+    h.fill("Stop at", "23:00");
     h.click("OK");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));
     let settings = kept(&mut h);
@@ -519,10 +519,10 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     assert!(h.shows("22:00"), "its hours shown");
     // Once, on a date: a date that is not one is refused where it was typed.
     h.click("Once, on this date");
-    h.type_into("Once, on this date", "tomorrow");
+    h.fill("Once, on this date", "tomorrow");
     h.click("OK");
     h.until("the refusal", |h| h.shows_part("is not a date"));
-    h.type_into("Once, on this date", "2026-12-31");
+    h.fill("Once, on this date", "2026-12-31");
     // Start now acts on the queue chosen in the list, not the list's.
     h.click("Start now");
     let said = h.view(|view| view.said.clone().map(|(said, _)| said).unwrap_or_default());
@@ -553,16 +553,16 @@ fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
     h.command("downloads.speed_limiter.settings");
     h.until("the Speed limiter", |h| h.dialog_open("Speed limiter"));
     h.click("Slower between set hours");
-    h.type_into("Start at", "7pm");
+    h.fill("Start at", "7pm");
     h.click("OK");
     h.until("the reason", |h| {
         h.shows_part("times are HH:MM in 24 hours")
     });
     assert!(!kept(&mut h).slow_hours.enabled);
     // Hours that hold every minute of the day, so the test is in them.
-    h.type_into("Start at", "00:00");
-    h.type_into("Stop at", "23:59");
-    h.type_into("Speed limit in those hours (KB/s)", "64");
+    h.fill("Start at", "00:00");
+    h.fill("Stop at", "23:59");
+    h.fill("Speed limit in those hours (KB/s)", "64");
     h.click("OK");
     h.until("the Speed limiter to close", |h| {
         !h.dialog_open("Speed limiter")

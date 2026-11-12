@@ -201,6 +201,22 @@ impl Screens {
     }
 }
 
+/// The dialog called `name`, where one is open, brought in front as it stands: a dialog asked
+/// for again while it is open is the same one, what was typed in it kept, not a second beside
+/// it. Whether there was one.
+pub fn bring_named(name: &str, cx: &mut App) -> bool {
+    let open = Screens::all(cx).into_iter().find(|(handle, _, dialog)| {
+        *dialog && Screens::name_of(*handle, cx).is_some_and(|n| n.as_ref() == name)
+    });
+    match open {
+        Some((handle, _, _)) => {
+            let _ = handle.update(cx, |_, window, _| window.activate_window());
+            true
+        }
+        None => false,
+    }
+}
+
 /// The name every dm window gives the desktop on Linux, as the egui
 /// window's does: the `.desktop` entry's `StartupWMClass`.
 pub const APP_ID: &str = "dm";
