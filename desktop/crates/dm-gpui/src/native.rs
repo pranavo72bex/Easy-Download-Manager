@@ -79,6 +79,9 @@ pub fn button(
         .id(id)
         .role(Role::Button)
         .aria_label(words.clone())
+        // Reached by Tab, pressed by Space or Return, its place ringed (gaps row U2).
+        .tab_index(0)
+        .focus(move |s| s.border_2().border_color(theme.accent))
         .h(px(CONTROL))
         .min_w(px(BUTTON_MIN))
         .px(px(14.0))
@@ -222,6 +225,9 @@ pub fn checkbox(
         .id(id)
         .role(Role::CheckBox)
         .aria_label(words.clone())
+        // Reached by Tab, ticked by Space, its place ringed (gaps row U2).
+        .tab_index(0)
+        .focus(move |s| s.bg(theme.stripe))
         .aria_toggled(if ticked {
             gpui::Toggled::True
         } else {
@@ -303,6 +309,9 @@ pub fn radio(
         .id(id)
         .role(Role::RadioButton)
         .aria_label(words.clone())
+        // Reached by Tab, chosen by Space, its place ringed (gaps row U2).
+        .tab_index(0)
+        .focus(move |s| s.bg(theme.stripe))
         .aria_toggled(if on {
             gpui::Toggled::True
         } else {

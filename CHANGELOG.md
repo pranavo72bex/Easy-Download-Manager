@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- GPUI window: every button, check box, choice and Options tab can be reached with Tab (and Shift+Tab back), and pressed or ticked with Space or Return, the keyboard's place ringed.
 - YouTube: a playlist's videos start sooner after the first: YouTube's player is fetched and cut once a session, not once for every video.
 - A DASH video whose picture or sound is one large file is fetched in pieces: no size limit, and a pause or a cut picks up from the pieces it has.
 - YouTube: HDR, 8K and more 60-frame qualities are known by their sizes, in the browser's panel and in the app alike.

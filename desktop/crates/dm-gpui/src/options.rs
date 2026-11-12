@@ -503,6 +503,9 @@ impl Render for Options {
             div()
                 .id(SharedString::from(*words))
                 .role(Role::Tab)
+                // Reached by Tab, chosen by Space or Return (gaps row U2).
+                .tab_index(0)
+                .focus(move |s| s.bg(theme.stripe))
                 .aria_label(SharedString::from(t(words)))
                 .aria_selected(on)
                 .px(px(12.0))

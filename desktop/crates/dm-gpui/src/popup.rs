@@ -94,6 +94,9 @@ pub fn button_of(
     div()
         .id((field, item))
         .role(Role::ComboBox)
+        // Reached by Tab, opened by Space or Return (gaps row U2).
+        .tab_index(0)
+        .focus(move |s| s.border_2().border_color(theme.accent))
         .aria_label(words.clone())
         .h(px(CONTROL))
         .min_w(px(100.0))

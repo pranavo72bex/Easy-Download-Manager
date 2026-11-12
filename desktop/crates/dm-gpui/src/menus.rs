@@ -135,6 +135,16 @@ pub struct Confirm;
 #[action(namespace = dm, no_json)]
 pub struct Dismiss;
 
+/// Tab: the keyboard to the next control of the window in front (gaps row U2).
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct FocusNext;
+
+/// Shift+Tab: the keyboard to the control before.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct FocusPrevious;
+
 /// Shift+F10: the row menu at the keyboard's place.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
@@ -385,9 +395,26 @@ pub fn bind_keys(cx: &mut App) {
     bindings.push(KeyBinding::new("enter", Confirm, None));
     bindings.push(KeyBinding::new("escape", Dismiss, None));
     bindings.push(KeyBinding::new("shift-f10", RowMenuByKey, None));
+    // Tab and Shift+Tab walk a window's controls (gaps row U2), from a text field too: its own
+    // indenting, bound in its context, is for a code editor, not a form, and this binding of the
+    // same context, made after it, comes first.
+    for context in [None, Some("Input")] {
+        bindings.push(KeyBinding::new("tab", FocusNext, context));
+        bindings.push(KeyBinding::new("shift-tab", FocusPrevious, context));
+    }
     cx.bind_keys(bindings);
     // The application's own actions, heard from any window: registered
     // once, here, as the menus are built again whenever the queues change.
+    cx.on_action(|_: &FocusNext, cx| {
+        if let Some(front) = cx.active_window() {
+            let _ = front.update(cx, |_, window, cx| window.focus_next(cx));
+        }
+    });
+    cx.on_action(|_: &FocusPrevious, cx| {
+        if let Some(front) = cx.active_window() {
+            let _ = front.update(cx, |_, window, cx| window.focus_prev(cx));
+        }
+    });
     cx.on_action(|_: &Hide, cx| cx.hide());
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
     cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
