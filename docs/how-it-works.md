@@ -213,7 +213,7 @@ failure is silent. Install to `/Applications` and register that;
 
 | | |
 |---|---|
-| **Archives** | A finished `.zip` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `dm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs |
+| **Archives** | A finished `.zip`, `.tar`, `.tar.gz`, `.tgz` or `.7z` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `dm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs. A tar is read by dm's own `extract/tar.rs`; a 7z by `extract/sevenz.rs` (its header, `sevenz/header.rs`) with dm's own LZMA and LZMA2 decoders (`sevenz/lzma.rs`), solid archives included, every file's CRC32 checked as it is written; BCJ filters, PPMd, BZip2, AES passwords and split archives are refused by name before anything is written |
 | **Live streams** | RTMP, RTSP and MMS are recorded as they come (`live.rs`). Options › Downloads › *Stop recording a live stream after, minutes* ends a recording the way Stop does — the file closed first — and keeps and places what was recorded; 0 records until the stream ends or Stop |
 | **Command line** | `dm-desktop list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
 | **Watched folder** | `app/watch.rs`: every five seconds a folder named in Options is read for links saved as `.url`, `.webloc`, text or `.torrent`, read as a drop is read; handled files move to its `done` folder |
@@ -473,6 +473,8 @@ desktop/
     videopage/page_data.rs    a YouTube watch page's own player data, read as that list
     videopage/playlist.rs     a playlist page's videos, listed to tick
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
+    extract/tar.rs        a tar, plain or gzipped, read under the same rules
+    extract/sevenz.rs     a 7z under the same rules (sevenz/: header, lzma with LZMA2)
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)
   crates/dm-protocol/     what the extension and the host say, and the catch rule

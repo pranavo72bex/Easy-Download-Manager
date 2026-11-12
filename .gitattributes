@@ -8,3 +8,6 @@
 *.icns binary
 *.ttf binary
 *.wasm binary
+*.7z binary
+*.lzma binary
+*.lzma2 binary

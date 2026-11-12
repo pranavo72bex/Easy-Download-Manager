@@ -3,7 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Extracting a finished ZIP into a folder of its own.
+//! Extracting a finished archive (a ZIP here; a tar in `extract/tar.rs`, a 7z in
+//! `extract/sevenz.rs`) into a folder of its own.
 //!
 //! An archive is outside input, so it is read before it is trusted: every
 //! entry is checked first, and nothing is written unless all of them pass.
@@ -75,6 +76,9 @@ pub enum Error {
     /// An entry is protected by a password.
     #[error("the archive is password-protected, which dm does not extract: {0}")]
     Encrypted(String),
+    /// The archive is packed with a method dm does not unpack; the text names it.
+    #[error("the archive is packed with {0}, which dm does not unpack")]
+    Method(String),
     /// Two entries have the same name.
     #[error("the archive lists the same name twice: {0}")]
     Duplicate(String),
@@ -95,7 +99,7 @@ impl From<std::io::Error> for Error {
     }
 }
 
-/// The folder an archive extracts into: its name without `.zip`, made
+/// The folder an archive extracts into: its name without its last extension, made
 /// unique beside it.
 pub fn destination_for(archive: &Path) -> PathBuf {
     destination_in(archive, archive.parent().unwrap_or_else(|| Path::new(".")))
@@ -122,12 +126,14 @@ pub fn is_zip(name: &str) -> bool {
     name.to_ascii_lowercase().ends_with(".zip")
 }
 
+mod sevenz;
 mod tar;
+pub use sevenz::is_7z;
 pub use tar::is_tar;
 
-/// Whether a file name is an archive this extracts: a ZIP, or a tar plain or gzipped.
+/// Whether a file name is an archive this extracts: a ZIP, a tar plain or gzipped, or a 7z.
 pub fn is_archive(name: &str) -> bool {
-    is_zip(name) || is_tar(name)
+    is_zip(name) || is_tar(name) || is_7z(name)
 }
 
 /// Whether a Unix mode, if the entry has one, is a file or a folder: not a
@@ -211,6 +217,10 @@ pub fn extract_into(
     // A tar, plain or gzipped, by dm's own reader under the same rules (gaps row F10).
     if is_tar(&archive.to_string_lossy()) {
         return tar::extract_into(archive, folder, limits, cancel, origin, progress);
+    }
+    // A 7z, by dm's own reader and LZMA decoders under the same rules (gaps row F10).
+    if is_7z(&archive.to_string_lossy()) {
+        return sevenz::extract_into(archive, folder, limits, cancel, origin, progress);
     }
     let file = File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::Unreadable(e.to_string()))?;

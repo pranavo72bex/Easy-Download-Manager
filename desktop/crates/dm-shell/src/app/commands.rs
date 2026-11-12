@@ -531,7 +531,7 @@ pub fn applies(
                 && chosen[0].progress.downloaded > 0
                 && looks.plays(chosen[0])
         }
-        // A finished ZIP that is still on disk.
+        // A finished archive dm unpacks (ZIP, tar, 7z) that is still on disk.
         Command::ExtractHere | Command::ExtractTo => {
             one && chosen[0].state == State::Completed
                 && dm_core::extract::is_archive(&chosen[0].path)
