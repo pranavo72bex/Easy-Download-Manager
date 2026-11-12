@@ -7,7 +7,7 @@
 //! is running (gaps T6; done by hand on 2026-11-02).
 //!
 //! On Windows it writes the real `HKCU\Software\Classes\magnet` key, so it runs
-//! only when asked: `DM_REGISTRY_TEST=1 cargo test -p dm-desktop --test
+//! only when asked: `DM_REGISTRY_TEST=1 cargo test -p dm-gpui --test
 //! magnet_registry -- --ignored`. What the key held before is exported first
 //! and put back afterwards, however the test ends. A program chosen in
 //! Settings › Default apps decides over any key and cannot be written, so the
@@ -15,13 +15,13 @@
 //!
 //! Elsewhere there is no registry: the test runs the command the key would
 //! hold, as Windows would, which checks that command and the hand-off to the
-//! running dm.
+//! running dm. Moved from the egui window's tests, with the GPUI binary.
 
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use dm_desktop::mcp::{finder, Control};
+use dm_desktop_base::mcp::{finder, Control};
 use serde_json::json;
 
 /// A made-up torrent: the row appears before any peer is asked for it.
@@ -159,7 +159,7 @@ fn a_magnet_opened_through_dms_key_becomes_a_row_in_the_running_dm() {
     // keeps a `CARGO_TARGET_DIR` as given, so `D:/dm-target` makes the path
     // `D:/dm-target\debug\…`, and Windows' shell refuses a key whose command
     // names its program with a forward slash: "Access is denied" (2026-11-10).
-    let exe = Path::new(env!("CARGO_BIN_EXE_dm-desktop"))
+    let exe = Path::new(env!("CARGO_BIN_EXE_dm-gpui"))
         .canonicalize()
         .map(dm_core::plain_path)
         .unwrap();

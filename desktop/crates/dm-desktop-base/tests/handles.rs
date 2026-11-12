@@ -14,11 +14,12 @@
 //! does not. So the toasts go in rounds, the count is read once things have
 //! settled, and the limit is half a handle a toast over all the rounds: far
 //! above the coming and going (+15 for thirty, seen once beside the whole
-//! suite), far below one handle kept a toast.
+//! suite), far below one handle kept a toast. Moved from the egui window's
+//! tests.
 
 #![cfg(windows)]
 
-use dm_desktop::toast::{heard, remove_group, show_unseen, MOST_HEARD};
+use dm_desktop_base::toast::{heard, remove_group, show_unseen, MOST_HEARD};
 use std::time::Duration;
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
 
