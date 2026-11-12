@@ -369,8 +369,23 @@ impl Details {
             ),
             None => {
                 let urls = self.urls.clone();
+                // The size it learned, kept for the row until the row knows its own: a row
+                // added for later shows it.
+                let size = (urls.len() == 1)
+                    .then(|| self.probed.as_ref().and_then(|p| p.size))
+                    .flatten();
                 self.view
-                    .update(cx, |view, cx| view.add(urls, with, cx).map(|_| ()))
+                    .update(cx, |view, cx| {
+                        view.add(urls, with, cx)?;
+                        if let (Some(size), [id]) = (
+                            size,
+                            view.selected.iter().copied().collect::<Vec<_>>().as_slice(),
+                        ) {
+                            view.sizes_told.insert(*id, (size, None));
+                            view.read();
+                        }
+                        Ok(())
+                    })
                     .unwrap_or_else(|_| Err(String::new()))
             }
         };

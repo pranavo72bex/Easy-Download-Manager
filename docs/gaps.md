@@ -232,6 +232,7 @@ staging on the download drive, copying to it during the download.
 | U39 | (egui-removal map) Rows cannot be dragged to reorder them in the GPUI window (the egui window's queue order by drag) | OPEN · M | A row dragged within its queue moves there and the queue's order is saved; a test through the control port |
 | U40 | (egui-removal map) The GPUI side panel has no Grabber projects | OPEN · M | The Grabber's saved projects listed under their heading, opened with a click; a test |
 | U41 | (egui-removal map) Three egui-only rules, each to build in the GPUI window or drop by decision: a sentence about one row stands until that row runs; a saved search opens the Grabber filled in; a typed path for list files | OPEN · S each · decide | Each built with a test, or dropped with a line in `docs/decisions.md` |
+| U42 | (egui removal, window tests) The GPUI side panel's groups (All Downloads, Queues) cannot be shut and opened from their heading, as the egui window's could, as a navigation view's expandable items do; `a_group_of_places_shuts_and_opens_from_its_row` was left out of `dm-gpui/src/window_tests/lists.rs` for it | OPEN · S | A click on a group's heading hides its places and a second shows them again, kept for the next launch; the egui test ported |
 
 ### F. Features against reference A, and beyond it
 

@@ -236,7 +236,13 @@ pub struct Downloads {
     /// Problems to show above the list, each until dismissed.
     pub(crate) problems: Vec<String>,
     /// Finished rows' sizes, read once from their files.
-    saved: dm_shell::app::snapshot::SavedSizes,
+    pub(crate) saved: dm_shell::app::snapshot::SavedSizes,
+    /// What Download details learned of a row's size, until the row knows its own (a row added
+    /// for later has none until it starts), as the egui window keeps it; with the row last given
+    /// it and the copy with the size, handed out again while the queue's row is the same.
+    #[allow(clippy::type_complexity)]
+    pub(crate) sizes_told:
+        std::collections::HashMap<dm_core::Id, (u64, Option<(Arc<Entry>, Arc<Entry>)>)>,
     /// A browser's hand-off is being asked about (Download details or
     /// Download links): the next waits for it.
     pub(crate) handed_open: bool,
@@ -412,6 +418,7 @@ impl Downloads {
             detected: Vec::new(),
             problems: Vec::new(),
             saved: Default::default(),
+            sizes_told: Default::default(),
             handed_open: false,
             cancelled_hand_offs: Default::default(),
             countdown_shown: false,
@@ -1848,6 +1855,27 @@ impl Downloads {
         let mut rows = read.snapshot.rows;
         // A finished row's size is its file's, read once from the disk.
         self.saved.apply(&mut rows);
+        // A size Download details learned, while the row has none of its own.
+        if !self.sizes_told.is_empty() {
+            let told = &mut self.sizes_told;
+            told.retain(|id, _| {
+                rows.iter()
+                    .any(|r| r.id == *id && r.progress.total.is_none())
+            });
+            for row in rows.iter_mut() {
+                let Some((size, given)) = told.get_mut(&row.id) else {
+                    continue;
+                };
+                match given {
+                    Some((from, copy)) if Arc::ptr_eq(from, row) => *row = Arc::clone(copy),
+                    _ => {
+                        let from = Arc::clone(row);
+                        Arc::make_mut(row).progress.total = Some(*size);
+                        *given = Some((from, Arc::clone(row)));
+                    }
+                }
+            }
+        }
         let same_rows = rows.len() == self.rows.len()
             && rows
                 .iter()

@@ -488,13 +488,37 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
     assert!(h.dialog_open("Options"), "a new bad name was taken");
 }
 
-/// Options keeps its place whichever tab shows: OK stands where it stood. (The other half of
-/// the egui window's test, the sort remembered across a restart and a third click back to the
-/// queue's order, is gaps row U29.)
+/// The sort is remembered, and a third click on its heading puts the list back in the queue's
+/// order; Options keeps its place whichever tab shows: OK stands where it stood. (The egui
+/// window's test also had a status line naming a row go with the row: gaps row U41's first
+/// rule.)
 #[test]
 fn the_sort_survives_a_restart_and_options_keeps_its_place() {
+    use dm_desktop_base::columns::Column;
+    let _file = settings_file();
     let world = world();
     let mut h = world.harness();
+    h.add_url(&world.url("file.zip"), "Add for later");
+    h.until("the row", |h| !h.rows().is_empty());
+    h.click("Size");
+    h.click("Size");
+    h.until("the sort kept", |h| {
+        let saved = kept(h);
+        saved.sort_column == "size" && !saved.sort_ascending
+    });
+    // The next launch, from what was saved.
+    let mut again = world.harness_with(kept(&mut h));
+    assert_eq!(
+        again.view(|view| view.sort),
+        Some((Column::Size, false)),
+        "not remembered"
+    );
+    drop(again);
+    // A third click puts the list back in the queue's order.
+    h.click("Size");
+    h.until("no sort", |h| h.view(|view| view.sort).is_none());
+    assert_eq!(kept(&mut h).sort_column, "");
+
     open_options(&mut h);
     let ok_at = |h: &mut Harness| h.dialog_words("OK").expect("OK on screen");
     let first = ok_at(&mut h);

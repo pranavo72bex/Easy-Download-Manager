@@ -28,8 +28,6 @@ mod downloads;
 mod keyboard;
 #[path = "window/layout.rs"]
 mod layout;
-#[path = "window/lists.rs"]
-mod lists;
 #[path = "window/support.rs"]
 mod support;
 #[path = "window/zip.rs"]
