@@ -21,7 +21,8 @@ with no flaky result in those three.
   its fix.
 - **Open: 0.** BUG-003, the last one open, was confirmed on real YouTube in
   Brave on CachyOS (40 rounds, no "Unsafe attempt to load" error; gaps row 30,
-  `CHANGELOG.md`). Its Firefox live-page panel check was never compared with
+  `CHANGELOG.md`); the reporter's own word after the next extension release
+  is still to come. Its Firefox live-page panel check was never compared with
   the build before the fix.
 - **Tests that were wrong: 15** (T-001 to T-014, two of them T-011), each explained below before
   it was changed. Most were the test expecting a failure where dm, by design,

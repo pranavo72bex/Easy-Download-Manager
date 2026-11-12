@@ -13,7 +13,8 @@ state change ──► Queue::save ──► Queue::on_change ──► changes:
                                                        the window's loop ◄────┘ (list.rs: a Soon waits 250 ms,
                                                          gathering the burst; Now, a hand-off, ends the wait;
                                                          with nothing told, it looks every 250 ms while a
-                                                         download runs, else every 30 s)
+                                                         download runs, every second while When done counts
+                                                         down or the clipboard is watched, else every 30 s)
                                                        Downloads::read: changes::take()
                                                        Session::read: Backend::snapshot() ──► Snapshot {rows, retrying, swarms, allowance_spent}
                                                          ├─► detect::Detector: what finished / failed / started (the window's toasts, sounds, dialogs)
