@@ -259,6 +259,12 @@ pub fn quitting() {
     QUITTING.with(|q| q.set(true));
 }
 
+/// Whether dm is quitting (`quitting`): the window's tests read that Exit quit.
+#[cfg(test)]
+pub fn is_quitting() -> bool {
+    QUITTING.with(std::cell::Cell::get)
+}
+
 /// Asks `asked` as a sheet on the dm window; `answer` is told how it was
 /// answered. The question's window, or `None` (and no answer) if it could
 /// not open.

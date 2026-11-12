@@ -87,7 +87,11 @@ fn a_404_is_told_once_in_a_window_of_its_own() {
     let mut h = world.harness();
     h.add_url(&world.url("missing.bin"), "Start now");
     h.until_shown("The file doesn't exist");
-    assert!(h.shows("The requested file doesn't exist."), "{:?}", h.texts());
+    assert!(
+        h.shows("The requested file doesn't exist."),
+        "{:?}",
+        h.texts()
+    );
     assert!(h.shows("HTTP/1.1 404 Not Found"), "{:?}", h.texts());
     h.click("OK");
     // The row stays failed, and the window does not come back for it.

@@ -150,6 +150,17 @@ fn input(
         .into_any_element()
 }
 
+/// What `event` is called beside its sound, in English (`options::sound_words` says it in
+/// the language in force).
+fn sound_english(event: &str) -> &'static str {
+    match event {
+        "complete" => "Download complete",
+        "failed" => "Download failed",
+        "queue_started" => "Queue started",
+        _ => "Queue finished",
+    }
+}
+
 /// A plain button.
 fn button(p: &Page, id: impl Into<gpui::ElementId>, words: &str) -> gpui::Stateful<gpui::Div> {
     native::button(id, words.to_string().into(), false, p.theme, &p.screen)
@@ -515,7 +526,9 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             window,
             cx,
             &key,
-            options::sound_words(event),
+            // The field's name in English: the field translates its own name, and the
+            // translated words asked for again were reported as missing from every catalog.
+            sound_english(event),
             260.0,
             true,
             false,

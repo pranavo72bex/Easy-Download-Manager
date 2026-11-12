@@ -16,8 +16,6 @@ mod test_secrets;
 
 #[path = "window/choices.rs"]
 mod choices;
-#[path = "window/commands.rs"]
-mod commands;
 #[path = "window/control.rs"]
 mod control;
 #[path = "window/dialogs.rs"]

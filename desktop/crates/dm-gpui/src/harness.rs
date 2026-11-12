@@ -78,7 +78,10 @@ impl dm_shell::app::platform::Platform for Fake {
         action: dm_shell::app::power::WhenDone,
         _report: dm_shell::app::power::Report,
     ) -> Result<(), String> {
-        self.opened.lock().unwrap().push(format!("power {action:?}"));
+        self.opened
+            .lock()
+            .unwrap()
+            .push(format!("power {action:?}"));
         Ok(())
     }
     fn choose_app(&self) -> Option<std::path::PathBuf> {
@@ -142,6 +145,8 @@ impl Harness {
         let (wakes, woken) = crate::wakes::pair();
         let mut cx = TestAppContext::single();
         cx.update(gpui_component::init);
+        // The keys a launch binds: ⌘N, ⌘⇧N, Delete…
+        cx.update(crate::menus::bind_keys);
         crate::screen::record();
         let window = cx.add_window(|window, cx| {
             Downloads::new(
@@ -155,6 +160,9 @@ impl Harness {
                 cx,
             )
         });
+        // What a launch hears from any window (Quit), and its menus.
+        let view = window.root(&mut cx).unwrap().downgrade();
+        cx.update(|cx| crate::heard_anywhere(view, cx));
         cx.run_until_parked();
         Harness {
             cx,
@@ -320,6 +328,212 @@ impl Harness {
             }
         }
         Err(format!("{method} was not answered"))
+    }
+
+    /// `act` on the window's view, with its context (a command run, settings put in force),
+    /// then a wake.
+    pub(crate) fn act<R>(
+        &mut self,
+        act: impl FnOnce(&mut Downloads, &mut gpui::Context<Downloads>) -> R,
+    ) -> R {
+        let done = self
+            .window
+            .update(&mut self.cx, |view, _, cx| act(view, cx))
+            .unwrap();
+        self.step();
+        done
+    }
+
+    /// Runs the command `id` (`"file.properties"`…) as a script's `command.run` does.
+    pub(crate) fn command(&mut self, id: &str) {
+        if let Err(why) = self.call("command.run", serde_json::json!({ "id": id })) {
+            panic!("{id} did not run: {why}");
+        }
+    }
+
+    /// The settings in force, `change`d and put in force as Options' OK puts them.
+    pub(crate) fn settings_to(&mut self, change: impl FnOnce(&mut dm_shell::Settings)) {
+        let mut wanted = self.view(|view| view.backend.settings());
+        change(&mut wanted);
+        self.act(|view, cx| view.apply_settings(wanted, cx))
+            .unwrap();
+    }
+
+    /// What the status line says now.
+    pub(crate) fn said(&mut self) -> String {
+        self.view(|view| view.said.as_ref().map(|(s, _)| s.clone()))
+            .unwrap_or_default()
+    }
+
+    /// A download handed over by the browser, as the native host leaves one in the inbox.
+    pub(crate) fn hand(&mut self, request: dm_shell::host::Request) {
+        self.view(|view| dm_core::lock(&view.backend.handed).push_back(request));
+        self.step();
+    }
+
+    /// Whether a piece of text on screen holds `words`.
+    pub(crate) fn shows_part(&mut self, words: &str) -> bool {
+        self.texts().iter().any(|t| t.contains(words))
+    }
+
+    /// Clicks the words `text` as a right-click.
+    pub(crate) fn right_click(&mut self, text: &str) {
+        let asked = serde_json::json!({ "text": text, "button": "right" });
+        if let Err(why) = self.call("ui.click", asked) {
+            panic!("{text} could not be right-clicked: {why}");
+        }
+    }
+
+    /// Clicks the text field beside the label `label` (a form's row: the label at the left,
+    /// its field just right of it), selects what it holds and types `text` over it, as a
+    /// person replaces a field's words.
+    pub(crate) fn type_into(&mut self, label: &str, text: &str) {
+        let (window, at) = self.drawn(label);
+        let beside = gpui::point(
+            at.origin.x + at.size.width + gpui::px(16.0),
+            at.origin.y + at.size.height / 2.0,
+        );
+        self.press_at(window, beside, 1);
+        self.key("a", &["cmd"]);
+        self.type_text(text);
+    }
+
+    /// Clicks (`clicks` 2: double-clicks) the words `text` as a person's pointer does, not a
+    /// script's: what runs a downloaded file takes a person's click alone.
+    pub(crate) fn person_click(&mut self, text: &str, clicks: usize) {
+        let (window, at) = self.drawn(text);
+        self.press_at(window, at.center(), clicks);
+    }
+
+    /// Waits until a script's last act is long enough ago for a person's click to run a file.
+    pub(crate) fn until_a_persons_moment(&mut self) {
+        self.until_within(
+            "the script's moment to pass",
+            std::time::Duration::from_secs(10),
+            &mut |h| !h.view(|view| view.scripted.by_script()),
+        );
+    }
+
+    /// The next of dm's own file or folder panels (Import, Export, Options' Browse…) is
+    /// answered with `path`, as a script's `ui.choose` answers it.
+    pub(crate) fn choose_ahead(&mut self, path: &std::path::Path) {
+        crate::services::choose_ahead(path.to_path_buf());
+    }
+
+    /// The folder panel a dialog's Browse… opened (GPUI's own path prompt) answered with
+    /// `path`.
+    pub(crate) fn answer_folder_panel(&mut self, path: &std::path::Path) {
+        let path = path.to_path_buf();
+        self.until("a folder panel", |h| h.cx.did_prompt_for_paths());
+        self.cx
+            .simulate_path_prompt_response(move |_| Some(vec![path]));
+        self.step();
+    }
+
+    /// The dialogs open by the name each was opened with (a progress window is "Download
+    /// progress", whatever its title says of how far it is), the oldest first.
+    pub(crate) fn dialog_names(&mut self) -> Vec<String> {
+        let seen = self.call("ui.inspect", Value::Null).unwrap();
+        seen["dialogs"]
+            .as_array()
+            .map(|all| {
+                all.iter()
+                    .filter_map(|d| d.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The row called `name`, as the list names it.
+    pub(crate) fn row(&mut self, name: &str) -> dm_core::Entry {
+        self.rows()
+            .into_iter()
+            .find(|r| dm_shell::app::names::name_of(r) == name)
+            .unwrap_or_else(|| panic!("no row is called {name}"))
+    }
+
+    /// Chooses the row called `name` alone, as a click on it does.
+    pub(crate) fn select(&mut self, name: &str) {
+        let id = self.row(name).id;
+        self.call("ui.select", serde_json::json!({ "ids": [id] }))
+            .unwrap();
+    }
+
+    /// Every dialog's window closed, as its close button closes it, and a menu the port opened.
+    pub(crate) fn close_dialogs(&mut self) {
+        let _ = self.call("ui.key", serde_json::json!({ "key": "escape" }));
+        let main: gpui::AnyWindowHandle = self.window.into();
+        self.cx.update(|cx| {
+            for window in cx.windows() {
+                if window != main {
+                    let _ = window.update(cx, |_, window, _| window.remove_window());
+                }
+            }
+        });
+        self.step();
+    }
+
+    /// Where the words `text` were drawn, nearest the front first, and in which window.
+    fn drawn(&mut self, text: &str) -> (gpui::AnyWindowHandle, gpui::Bounds<gpui::Pixels>) {
+        self.step();
+        let found = self.cx.update(|cx| {
+            crate::screen::Screens::all(cx)
+                .into_iter()
+                .find_map(|(handle, screen, _)| {
+                    screen
+                        .drawn()
+                        .into_iter()
+                        .rev()
+                        .find(|d| d.text.as_ref() == text)
+                        .map(|d| (handle, d.bounds))
+                })
+        });
+        found.unwrap_or_else(|| panic!("nothing on screen says {text:?}: {:?}", self.texts()))
+    }
+
+    /// A press and release of the pointer at `at` in `window`, `clicks` times.
+    fn press_at(
+        &mut self,
+        window: gpui::AnyWindowHandle,
+        at: gpui::Point<gpui::Pixels>,
+        clicks: usize,
+    ) {
+        use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent};
+        self.cx.update(|cx| {
+            let _ = window.update(cx, |_, window, cx| {
+                let none = Modifiers::default();
+                window.dispatch_event(
+                    gpui::PlatformInput::MouseMove(MouseMoveEvent {
+                        position: at,
+                        pressed_button: None,
+                        modifiers: none,
+                    }),
+                    cx,
+                );
+                for count in 1..=clicks {
+                    window.dispatch_event(
+                        gpui::PlatformInput::MouseDown(MouseDownEvent {
+                            button: MouseButton::Left,
+                            position: at,
+                            modifiers: none,
+                            click_count: count,
+                            first_mouse: false,
+                        }),
+                        cx,
+                    );
+                    window.dispatch_event(
+                        gpui::PlatformInput::MouseUp(MouseUpEvent {
+                            button: MouseButton::Left,
+                            position: at,
+                            modifiers: none,
+                            click_count: count,
+                        }),
+                        cx,
+                    );
+                }
+            });
+        });
+        self.step();
     }
 }
 

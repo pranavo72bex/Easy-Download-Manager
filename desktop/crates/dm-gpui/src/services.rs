@@ -117,6 +117,7 @@ impl Asked {
 }
 
 /// The path a script chose ahead (`ui.choose`) and when.
+#[cfg(not(test))]
 static CHOSEN_AHEAD: std::sync::Mutex<Option<(PathBuf, std::time::Instant)>> =
     std::sync::Mutex::new(None);
 
@@ -130,15 +131,32 @@ const CHOSEN_AHEAD_FOR: std::time::Duration = std::time::Duration::from_secs(30)
 /// the system's own panel (it is not dm's window), and Import, Export and
 /// the Browse… buttons are measured and checked through it (gaps row 183).
 pub fn choose_ahead(path: PathBuf) {
-    *dm_core::lock(&CHOSEN_AHEAD) = Some((path, std::time::Instant::now()));
+    let chosen = Some((path, std::time::Instant::now()));
+    #[cfg(test)]
+    CHOSEN_HERE.with(|c| *c.borrow_mut() = chosen);
+    #[cfg(not(test))]
+    {
+        *dm_core::lock(&CHOSEN_AHEAD) = chosen;
+    }
 }
 
 /// The path chosen ahead, taken, where it is still fresh.
 fn chosen_ahead() -> Option<PathBuf> {
-    dm_core::lock(&CHOSEN_AHEAD)
-        .take()
+    #[cfg(test)]
+    let chosen = CHOSEN_HERE.with(|c| c.borrow_mut().take());
+    #[cfg(not(test))]
+    let chosen = dm_core::lock(&CHOSEN_AHEAD).take();
+    chosen
         .filter(|(_, at)| at.elapsed() < CHOSEN_AHEAD_FOR)
         .map(|(path, _)| path)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// In the window's tests, a test's own path chosen ahead: each runs its window on a thread
+    /// of its own, beside the others, and one's Export took another's path.
+    static CHOSEN_HERE: std::cell::RefCell<Option<(PathBuf, std::time::Instant)>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 /// Opens the system's own panel for `asked` and answers with what was

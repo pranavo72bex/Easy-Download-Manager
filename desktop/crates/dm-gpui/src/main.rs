@@ -440,31 +440,7 @@ fn main() {
         // dm's menus in the system's menu bar, and every command's keys.
         menus::bind_keys(cx);
         view.update(cx, |view, cx| view.refresh_menus(cx));
-        // Quit is heard from any window in front (a dialog's too), as in
-        // every macOS program: the main window's view ends dm.
-        let view = view.downgrade();
-        let text_view = view.clone();
-        cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
-            Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
-            None => cx.quit(),
-        });
-        // View › Text size and its keys, heard from any window in front, a
-        // dialog's too, as the egui window's zoom was: kept by the list,
-        // which keeps the settings.
-        let text_size = move |up: Option<bool>| {
-            let view = text_view.clone();
-            move |cx: &mut App| {
-                if let Some(view) = view.upgrade() {
-                    view.update(cx, |view, cx| view.step_text_size(up, cx));
-                }
-            }
-        };
-        let larger = text_size(Some(true));
-        cx.on_action(move |_: &viewmenu::TextLarger, cx| larger(cx));
-        let smaller = text_size(Some(false));
-        cx.on_action(move |_: &viewmenu::TextSmaller, cx| smaller(cx));
-        let normal = text_size(None);
-        cx.on_action(move |_: &viewmenu::TextNormal, cx| normal(cx));
+        heard_anywhere(view.downgrade(), cx);
         // The commands themselves are the list's (`Downloads`' root element
         // handles `menus::Run`), reached through the window's own dispatch,
         // as a key or the menu bar sends them: the list keeps the keyboard.
@@ -476,6 +452,31 @@ fn main() {
             cx.spawn(async move |cx| dump(cx, churn).await).detach();
         }
     });
+}
+
+/// What is heard from any window in front, a dialog's too: Quit, as in every macOS program
+/// (the main window's view ends dm), and View › Text size and its keys, as the egui window's
+/// zoom was (kept by the list, which keeps the settings).
+pub(crate) fn heard_anywhere(view: gpui::WeakEntity<list::Downloads>, cx: &mut App) {
+    let text_view = view.clone();
+    cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
+        Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
+        None => cx.quit(),
+    });
+    let text_size = move |up: Option<bool>| {
+        let view = text_view.clone();
+        move |cx: &mut App| {
+            if let Some(view) = view.upgrade() {
+                view.update(cx, |view, cx| view.step_text_size(up, cx));
+            }
+        }
+    };
+    let larger = text_size(Some(true));
+    cx.on_action(move |_: &viewmenu::TextLarger, cx| larger(cx));
+    let smaller = text_size(Some(false));
+    cx.on_action(move |_: &viewmenu::TextSmaller, cx| smaller(cx));
+    let normal = text_size(None);
+    cx.on_action(move |_: &viewmenu::TextNormal, cx| normal(cx));
 }
 
 /// What VoiceOver is given of each window, then out (Phase B check 1). The
