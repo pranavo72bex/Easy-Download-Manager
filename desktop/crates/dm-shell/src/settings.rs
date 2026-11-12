@@ -44,6 +44,34 @@ pub const TEXT_SIZE: TextSizes = TextSizes {
     stops: [0.6, 0.8, 1.0, 1.2],
 };
 
+/// How wide the GPUI window's side panel may be, in points at 100% (gaps row U12).
+pub struct PanelWidths {
+    /// The narrowest its edge is dragged to: a place's picture, a short name and its count.
+    pub least: f32,
+    /// A new install's, and an older settings file's: the panel as it always was.
+    pub default: f32,
+    /// The widest its edge is dragged to, so the list keeps the most of the window.
+    pub most: f32,
+}
+
+/// The side panel's widths: 200 points by default, dragged between 150 and 400.
+pub const SIDEBAR_WIDTH: PanelWidths = PanelWidths {
+    least: 150.0,
+    default: 200.0,
+    most: 400.0,
+};
+
+impl PanelWidths {
+    /// `width` held between the least and the most, in whole points; one that is no number
+    /// (a hand-edited file's) is the default.
+    pub fn held(&self, width: f32) -> f32 {
+        if !width.is_finite() {
+            return self.default;
+        }
+        width.clamp(self.least, self.most).round()
+    }
+}
+
 /// The egui window's named text sizes, as a settings file may still say
 /// them, and the stop each is read as.
 const TEXT_SIZE_NAMES: [(&str, f32); 3] = [("small", 0.8), ("medium", 1.0), ("large", 1.2)];
@@ -348,6 +376,10 @@ pub struct Settings {
     /// The widths a person gave columns by dragging a heading's edge, in points at 100%, by key;
     /// a column not named has its own (gaps row U4).
     pub column_widths: std::collections::BTreeMap<String, f32>,
+    /// How wide the GPUI window's side panel is, in points at 100%: its edge dragged, kept
+    /// here so it holds across launches; `SIDEBAR_WIDTH.default` for a file from before it.
+    #[serde(default = "default_sidebar_width")]
+    pub sidebar_width: f32,
     /// The column the list is sorted by, by its key, and which way; empty
     /// for the order downloads were added in. Kept so the list is sorted
     /// the same way at the next launch.
@@ -493,6 +525,10 @@ pub const RECENT_URLS: usize = 20;
 /// couple of minutes without a network (`retry::backoff`).
 fn default_text_size() -> f32 {
     TEXT_SIZE.default
+}
+
+fn default_sidebar_width() -> f32 {
+    SIDEBAR_WIDTH.default
 }
 
 fn default_attempts() -> u32 {
@@ -822,6 +858,7 @@ impl Default for Settings {
             column_order: Vec::new(),
             column_widths: std::collections::BTreeMap::new(),
             columns_hidden: Vec::new(),
+            sidebar_width: SIDEBAR_WIDTH.default,
             sort_column: String::new(),
             sort_ascending: true,
             toolbar_hidden: Vec::new(),
@@ -844,6 +881,7 @@ impl Settings {
         self.recent_urls.truncate(RECENT_URLS);
         self.retry_wait = self.retry_wait.min(3600);
         self.text_size = TEXT_SIZE.held(self.text_size);
+        self.sidebar_width = SIDEBAR_WIDTH.held(self.sidebar_width);
         // A day at most: a stream meant to run longer is stopped by hand.
         self.record_minutes = self.record_minutes.min(24 * 60);
         if !["ask", "tray", "exit"].contains(&self.on_close.as_str()) {
