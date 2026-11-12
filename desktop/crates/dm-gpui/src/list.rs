@@ -153,7 +153,7 @@ pub struct Downloads {
     /// The control port's requests, answered on this thread.
     requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
     /// The port was opened only for AI assistants.
-    assistants_only: bool,
+    pub(crate) assistants_only: bool,
     /// Where the list is scrolled, and where it is on screen.
     pub(crate) scroll: UniformListScrollHandle,
     /// The words on screen, where the last frame laid them out.

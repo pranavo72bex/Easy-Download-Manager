@@ -14,6 +14,7 @@ mod downloads;
 mod find;
 mod lists;
 mod options;
+mod port;
 mod second_network;
 mod speed_schedule;
 mod status;

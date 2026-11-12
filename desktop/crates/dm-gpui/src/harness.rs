@@ -1131,6 +1131,37 @@ impl Harness {
         });
         self.step();
     }
+
+    /// [`Harness::call`] as an AI assistant's client asks it, through `dm mcp`.
+    pub(crate) fn call_as_assistant(&mut self, method: &str, params: Value) -> Result<Value, String> {
+        let (reply, answer) = mpsc::channel();
+        self.asks
+            .send(dm_desktop_base::control::Request {
+                via_mcp: true,
+                method: method.into(),
+                params,
+                reply,
+            })
+            .unwrap();
+        for _ in 0..100 {
+            self.step();
+            if let Ok(answered) = answer.try_recv() {
+                return answered;
+            }
+        }
+        Err(format!("{method} was not answered"))
+    }
+
+    /// Where the window's requests come in, for a real control port opened over it
+    /// (`dm_desktop_base::control::listen`).
+    pub(crate) fn requests(&self) -> mpsc::Sender<dm_desktop_base::control::Request> {
+        self.asks.clone()
+    }
+
+    /// Whether the window takes requests from AI assistants alone, as `dm --mcp-only` opens it.
+    pub(crate) fn assistants_only(&mut self, only: bool) {
+        self.view(|view| view.assistants_only = only);
+    }
 }
 
 #[cfg(test)]
