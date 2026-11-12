@@ -229,27 +229,11 @@ pub fn menu(
         let keyed = view.menu_at == Some(i);
         let act = entry.act;
         items.push(
-            div()
-                .id(id)
-                .role(Role::MenuItem)
-                .aria_label(entry.words)
-                .mx_1()
-                .px_2()
-                .h(px(22.0))
-                .rounded(px(4.0))
-                .flex()
-                .items_center()
-                .gap_1()
-                .text_size(px(crate::native::TEXT))
-                .when(!entry.enabled, |d| d.text_color(theme.muted).opacity(0.6))
-                .when(entry.enabled && keyed, |d| {
-                    d.bg(theme.selection).text_color(theme.on_selection)
-                })
+            item(id, entry.words, entry.enabled, keyed, theme)
                 .when(entry.enabled, |d| {
-                    d.hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
-                        .on_click(cx.listener(move |view, _, window, cx| {
-                            view.act_from_menu(act, window, cx);
-                        }))
+                    d.on_click(cx.listener(move |view, _, window, cx| {
+                        view.act_from_menu(act, window, cx);
+                    }))
                 })
                 .when(matches!(act, Act::DeleteAfter(_)), |d| {
                     d.child(div().w(px(14.0)).child(if entry.ticked { "✓" } else { "" }))
@@ -258,12 +242,65 @@ pub fn menu(
                 .into_any_element(),
         );
     }
+    panel(
+        "row-menu",
+        "Row menu",
+        at,
+        theme,
+        items,
+        cx,
+        Downloads::close_menu,
+    )
+}
+
+/// One item of a menu drawn as a macOS context menu: its words, greyed where it does not apply,
+/// in the selection colour under the pointer or where the keyboard is (`keyed`). The caller adds
+/// what a click does.
+pub(crate) fn item(
+    id: impl Into<gpui::ElementId>,
+    words: &'static str,
+    enabled: bool,
+    keyed: bool,
+    theme: Theme,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id.into())
+        .role(Role::MenuItem)
+        .aria_label(words)
+        .mx_1()
+        .px_2()
+        .h(px(22.0))
+        .rounded(px(4.0))
+        .flex()
+        .items_center()
+        .gap_1()
+        .text_size(px(crate::native::TEXT))
+        .when(!enabled, |d| d.text_color(theme.muted).opacity(0.6))
+        .when(enabled && keyed, |d| {
+            d.bg(theme.selection).text_color(theme.on_selection)
+        })
+        .when(enabled, |d| {
+            d.hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
+        })
+}
+
+/// A menu of `items` open at `at` (window points), rounded and shadowed over the window, closed
+/// by `close` at a press outside it.
+pub(crate) fn panel(
+    id: &'static str,
+    name: &'static str,
+    at: Point<Pixels>,
+    theme: Theme,
+    items: Vec<gpui::AnyElement>,
+    cx: &mut Context<Downloads>,
+    close: fn(&mut Downloads),
+) -> impl IntoElement {
     deferred(
         anchored().position(at).child(
             div()
-                .id("row-menu")
+                .id(id)
                 .role(Role::Menu)
-                .aria_label("Row menu")
+                .aria_label(name)
                 .min_w(px(220.0))
                 .py_1()
                 .rounded(px(6.0))
@@ -276,8 +313,8 @@ pub fn menu(
                 // and Extract here, over another row, chose that row first and
                 // extracted it instead (Linux, real input, 2026-11-11).
                 .occlude()
-                .on_mouse_down_out(cx.listener(|view, _, _, cx| {
-                    view.close_menu();
+                .on_mouse_down_out(cx.listener(move |view, _, _, cx| {
+                    close(view);
                     cx.notify();
                 }))
                 .children(items),

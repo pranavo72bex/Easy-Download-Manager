@@ -182,6 +182,8 @@ pub struct Downloads {
     menu: Option<gpui::Point<gpui::Pixels>>,
     /// The keyboard's place in the open row menu, by entry (`rowmenu::entries`).
     pub(crate) menu_at: Option<usize>,
+    /// A place's right-click menu, open where it was asked for (`placemenu`).
+    pub(crate) place_menu: Option<(Place, gpui::Point<gpui::Pixels>)>,
     /// What was typed over the list to find a row by its name, and when last (`keys.rs`).
     pub(crate) typed: (String, Option<std::time::Instant>),
     /// A sentence for the status bar, and when it was said: it stands for
@@ -369,6 +371,7 @@ impl Downloads {
             anchor: None,
             cursor: None,
             menu_at: None,
+            place_menu: None,
             typed: (String::new(), None),
             resizing: None,
             resize_kept: None,
@@ -2274,8 +2277,9 @@ impl Render for Downloads {
                 }
             }))
             .on_action(cx.listener(|this, _: &crate::menus::Dismiss, _, cx| {
-                if this.menu_open() {
+                if this.menu_open() || this.place_menu.is_some() {
                     this.close_menu();
+                    this.close_place_menu();
                     cx.notify();
                 }
             }))
@@ -2425,6 +2429,9 @@ impl Render for Downloads {
             .child(crate::statusbar::statusbar(self, theme, &screen, cx))
             .when_some(self.menu, |root, at| {
                 root.child(crate::rowmenu::menu(self, at, theme, &screen, cx))
+            })
+            .when_some(self.place_menu.clone(), |root, (place, at)| {
+                root.child(crate::placemenu::menu(&place, at, theme, &screen, cx))
             })
             // Held by Options, the window takes no click: one brings Options
             // forward (B42).

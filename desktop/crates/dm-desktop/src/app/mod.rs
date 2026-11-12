@@ -544,16 +544,9 @@ impl DmApp {
 /// A problem in words, and as shown alone: dm's (`dm_desktop_base::format`).
 pub use dm_desktop_base::format::{as_shown, worded_problem};
 
-/// What a right-click on a place in the category tree can ask for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeAction {
-    /// Runs this command.
-    Run(Command),
-    /// Options › Folders, where categories are added, edited and deleted.
-    EditCategories,
-    /// The folder a category's files go to.
-    OpenFolder,
-}
+/// What a right-click on a place in the category tree can ask for, and its menu: the same in
+/// both windows (`dm_shell::app::places`).
+pub use dm_shell::app::places::{place_menu as tree_menu, PlaceAction as TreeAction};
 
 // The toolbar's looks, and what View › Customize toolbar calls them.
 use dm_desktop_base::toolbar::TOOL_STYLES;
@@ -582,38 +575,8 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(format::RETRY_CAUSES);
     // What a download may say of itself on its row (`rows::note_in`).
     words.extend(dm_core::NOTES);
-    for place in [
-        Place::All,
-        Place::Unfinished,
-        Place::Finished,
-        Place::Queue(String::new()),
-    ] {
-        words.extend(tree_menu(&place).into_iter().map(|(w, _)| w));
-    }
+    words.extend(dm_shell::app::places::place_menu_words());
     words
-}
-
-/// The right-click menu for a place in the tree.
-pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
-    match place {
-        Place::All | Place::Kind(_) | Place::Custom(_) => vec![
-            ("Open folder", TreeAction::OpenFolder),
-            ("Add or edit categories…", TreeAction::EditCategories),
-        ],
-        Place::Unfinished => vec![
-            ("Resume all", TreeAction::Run(Command::ResumeAll)),
-            ("Stop All", TreeAction::Run(Command::StopAll)),
-        ],
-        Place::Finished => vec![(
-            "Delete Completed",
-            TreeAction::Run(Command::DeleteCompleted),
-        )],
-        Place::Queue(_) => vec![
-            ("Start Queue", TreeAction::Run(Command::StartQueue)),
-            ("Stop Queue", TreeAction::Run(Command::StopQueue)),
-            ("Scheduler…", TreeAction::Run(Command::Scheduler)),
-        ],
-    }
 }
 
 /// When a closed schedule next opens, and the minute it does: dm's

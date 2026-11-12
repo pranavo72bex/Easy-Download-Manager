@@ -695,6 +695,22 @@ def main():
         human("ui.click", text="Tasks")
         check("a menu opens and lists its items", soon(lambda: "Add numbered series…" in on_screen()))
         human("ui.key", key="Escape")
+        # A place's right-click menu (gaps row U12): a queue's, then a category's, whose Add or
+        # edit categories… opens Options at Folders.
+        human("ui.click", text="Main queue", button="right")
+        check("a queue's right-click menu offers Start Queue, Stop Queue and Scheduler…",
+              soon(lambda: all(w in on_screen() for w in ("Start Queue", "Stop Queue", "Scheduler…"))))
+        # Closed by a press outside it (the port's keys go to a dialog in front where one is open).
+        human("ui.click", text="All")
+        check("and a click outside closes it", soon(lambda: "Scheduler…" not in on_screen()))
+        human("ui.click", text="Videos", button="right")
+        soon(lambda: "Add or edit categories…" in on_screen())
+        human("ui.click", text="Add or edit categories…")
+        check("a category's Add or edit categories… opens Options at Folders",
+              soon(lambda: "Options" in open_dialogs()
+                   and "Sort finished files into folders by kind" in on_screen()))
+        human("ui.key", key="Escape")
+        soon(lambda: "Options" not in open_dialogs())
         outside = call("downloads.add", urls=[url("outside.zip")], folder=str(home.parent / "elsewhere"))
         check("a download is refused a folder outside the download folder", (outside["ok"], "inside the download folder" in outside.get("error", "")), (False, True))
         inside = call("downloads.add", urls=[url("inside.zip")], later=True, folder=str(downloads / "sub"))

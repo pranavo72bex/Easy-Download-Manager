@@ -601,6 +601,11 @@ impl Downloads {
     /// Options, over the settings in force; brought forward where it is
     /// open, with what was typed in it.
     pub(crate) fn open_options(&mut self, cx: &mut Context<Self>) {
+        self.open_options_at(Tab::General, cx);
+    }
+
+    /// Options open at `tab`; brought forward where it is open, at its tab as it stands.
+    pub(crate) fn open_options_at(&mut self, tab: Tab, cx: &mut Context<Self>) {
         let open = cx.windows();
         if let Some(options) = self.options_window.filter(|w| open.contains(w)) {
             let _ = options.update(cx, |_, window, _| window.activate_window());
@@ -611,7 +616,7 @@ impl Downloads {
         let view = cx.entity().downgrade();
         let me = view.clone();
         cx.defer(move |cx| {
-            let handle = open_window(view, settings, queues, cx);
+            let handle = open_window(view, settings, queues, tab, cx);
             let _ = me.update(cx, |me, _| me.options_window = handle);
         });
     }
@@ -689,6 +694,7 @@ fn open_window(
     view: WeakEntity<Downloads>,
     settings: Settings,
     queues: Vec<String>,
+    tab: Tab,
     cx: &mut App,
 ) -> Option<gpui::AnyWindowHandle> {
     let bounds = Bounds::centered(None, size(px(WIDTH), px(HEIGHT)), cx);
@@ -710,7 +716,7 @@ fn open_window(
             window.focus(&focus, cx);
             let options = cx.new(|_| Options {
                 view,
-                tab: Tab::General,
+                tab,
                 typed: Typed::of(&settings),
                 opened: settings.clone(),
                 draft: settings,

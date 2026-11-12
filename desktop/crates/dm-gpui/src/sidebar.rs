@@ -131,10 +131,25 @@ pub fn sidebar(
                                 d.bg(theme.selection).text_color(theme.on_selection)
                             })
                             .when(!chosen, |d| d.hover(|s| s.bg(theme.stripe)))
-                            .on_click(cx.listener(move |view, _, _, cx| {
-                                view.choose(place.clone());
-                                cx.notify();
-                            }))
+                            .on_click({
+                                let place = place.clone();
+                                cx.listener(move |view, _, _, cx| {
+                                    view.choose(place.clone());
+                                    cx.notify();
+                                })
+                            })
+                            // Its menu, as the egui window's (gaps row U12).
+                            .on_mouse_down(
+                                gpui::MouseButton::Right,
+                                cx.listener(
+                                    move |view, event: &gpui::MouseDownEvent, window, cx| {
+                                        view.open_place_menu(place.clone(), event.position);
+                                        // The list's keys, Escape among them, reach it.
+                                        window.focus(&view.focus, cx);
+                                        cx.notify();
+                                    },
+                                ),
+                            )
                             .child(
                                 div()
                                     .flex()

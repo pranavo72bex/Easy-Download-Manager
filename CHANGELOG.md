@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The side panel's right-click menu is back: a category's Open folder and Add or edit categories…, Unfinished's Resume all and Stop All, Finished's Delete Completed, and a queue's Start Queue, Stop Queue and Scheduler….
+- dm's JavaScript helper (YouTube's player checks, proxy scripts) runs shut off from the computer by the system's own sandbox on macOS, Linux and Windows.
+- A name that a public page, playlist or redirect leads to, and that turns out to point inside your own network, is refused at the connection (DNS rebinding).
 - macOS: dm's Dock icon shows a bar of how far the downloads are and a badge of how many run, and its menu opens the download folder.
 - Linux: the launcher in the dock or panel shows how far the downloads are and how many run, where the desktop shows a launcher's progress (Ubuntu Dock, Dash to Dock, KDE's task manager, Plank).
 - A finished download's notification opens the file when clicked on macOS too, and offers Open folder everywhere, Windows included; on Linux its buttons are in dm's language.

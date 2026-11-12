@@ -249,6 +249,70 @@ impl Places {
     }
 }
 
+/// What a place's right-click menu asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaceAction {
+    /// Runs this command, the place chosen first.
+    Run(super::commands::Command),
+    /// Options › Folders, where categories are added, edited and deleted.
+    EditCategories,
+    /// The folder the place's files go to ([`folder_of`]).
+    OpenFolder,
+}
+
+/// A place's right-click menu, in order: its words (English, as the catalogs are keyed) and
+/// what each does. The same in both windows.
+pub fn place_menu(place: &Place) -> Vec<(&'static str, PlaceAction)> {
+    use super::commands::Command;
+    match place {
+        Place::All | Place::Kind(_) | Place::Custom(_) => vec![
+            ("Open folder", PlaceAction::OpenFolder),
+            ("Add or edit categories…", PlaceAction::EditCategories),
+        ],
+        Place::Unfinished => vec![
+            ("Resume all", PlaceAction::Run(Command::ResumeAll)),
+            ("Stop All", PlaceAction::Run(Command::StopAll)),
+        ],
+        Place::Finished => vec![(
+            "Delete Completed",
+            PlaceAction::Run(Command::DeleteCompleted),
+        )],
+        Place::Queue(_) => vec![
+            ("Start Queue", PlaceAction::Run(Command::StartQueue)),
+            ("Stop Queue", PlaceAction::Run(Command::StopQueue)),
+            ("Scheduler…", PlaceAction::Run(Command::Scheduler)),
+        ],
+    }
+}
+
+/// Every place menu's words, for the catalogs' test.
+pub fn place_menu_words() -> Vec<&'static str> {
+    [
+        Place::All,
+        Place::Unfinished,
+        Place::Finished,
+        Place::Queue(String::new()),
+    ]
+    .iter()
+    .flat_map(place_menu)
+    .map(|(words, _)| words)
+    .collect()
+}
+
+/// The folder a place's files go to: a kind's or a person's own category's, else the download
+/// folder.
+pub fn folder_of(
+    place: &Place,
+    download_dir: &std::path::Path,
+    categories: &Categories,
+) -> std::path::PathBuf {
+    match place {
+        Place::Kind(kind) => categories.destination(download_dir, *kind),
+        Place::Custom(name) => download_dir.join(name),
+        _ => download_dir.to_path_buf(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

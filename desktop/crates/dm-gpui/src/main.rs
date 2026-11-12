@@ -48,6 +48,7 @@ mod native;
 mod notify;
 mod options;
 mod options_pages;
+mod placemenu;
 mod playlist;
 mod popup;
 mod port;
