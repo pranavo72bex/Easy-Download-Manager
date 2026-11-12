@@ -210,6 +210,12 @@ impl Render for Progress {
         let (row, backend, named) = {
             let view = view.read(cx);
             let Some(row) = view.row_of(self.id).cloned() else {
+                // Its download taken out of the list (removed, here or by a script): the
+                // window closes, as the egui window's did, rather than stay open and empty.
+                // One the list has not read yet is still in the queue, and waits.
+                if view.backend.row(self.id).is_none() {
+                    window.remove_window();
+                }
                 return div().into_any_element();
             };
             let named = view

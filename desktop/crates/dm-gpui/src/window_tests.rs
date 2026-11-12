@@ -16,6 +16,7 @@ mod downloads;
 mod find;
 mod grabber;
 mod lists;
+mod more_dialogs;
 mod options;
 mod options_tabs;
 mod playlist;
