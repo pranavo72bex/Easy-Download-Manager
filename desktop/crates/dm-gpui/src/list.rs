@@ -1602,11 +1602,18 @@ impl Downloads {
         }
     }
 
-    /// Downloads that finished: their progress windows close, and
-    /// "Download complete" lists them, where that is asked for.
+    /// Downloads that finished: "Download complete" says so, where that is asked for, in the
+    /// progress window of one that has it open, else in a window listing the rest; a progress
+    /// window closes where it is not.
     pub(crate) fn finished(&mut self, ids: &[dm_core::Id], cx: &mut Context<Self>) {
         let show = self.backend.settings().show_complete;
         for id in ids {
+            // Its progress window open: that window becomes Download complete itself, with
+            // Open and Open folder, rather than a second window opening over it (gaps row U11,
+            // B63).
+            if show && self.progress_windows.contains_key(id) {
+                continue;
+            }
             self.close_progress(*id, cx);
             if show {
                 self.complete.insert(*id);

@@ -958,5 +958,6 @@
   "Check now": "Nu controleren",
   "Connected \u00b7 last heard {} ago": "Verbonden · laatst gehoord {} geleden",
   "Find a setting": "Instelling zoeken",
-  "No setting says \u201c{}\u201d.": "Geen instelling bevat ‘{}’."
+  "No setting says \u201c{}\u201d.": "Geen instelling bevat ‘{}’.",
+  "Download complete \u2014 {}": "Download voltooid — {}"
 }

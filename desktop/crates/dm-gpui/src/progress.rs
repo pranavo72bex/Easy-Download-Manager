@@ -160,6 +160,21 @@ impl Progress {
         let _ = self.view.update(cx, |view, cx| view.ask_cancel(id, cx));
     }
 
+    /// Open or Open folder on the finished download, and the window closed, as Download
+    /// complete's buttons do.
+    fn finished_with(
+        &mut self,
+        command: dm_shell::app::commands::Command,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let id = self.id;
+        let _ = self
+            .view
+            .update(cx, |view, cx| view.run_on(id, command, cx));
+        window.remove_window();
+    }
+
     /// The step a failure names, taken (gaps row U10): another folder chosen and the download
     /// moved there, Update download link or Move/Rename on its row, the page it came from
     /// opened, or Options at its setting.
@@ -273,15 +288,17 @@ impl Render for Progress {
             None if joining => self.resumable_seen,
             None => None,
         };
-        crate::screen::set_title(
-            window,
-            &title_with_percent(
+        // Finished, it is Download complete (gaps row U11, B63).
+        let heading = if row.state == State::Completed {
+            tf("Download complete — {}", &[&named])
+        } else {
+            title_with_percent(
                 tf("Download progress — {}", &[&named]),
                 row.progress.downloaded,
                 row.progress.total,
-            ),
-            cx,
-        );
+            )
+        };
+        crate::screen::set_title(window, &heading, cx);
         let p = &row.progress;
         let running = row.state == State::Running;
         let width = native::label_width(&[
@@ -629,6 +646,36 @@ impl Render for Progress {
                                     cx.listener(move |this, _, _, cx| this.take_step(step, cx)),
                                 )
                                 .into_any_element()
+                            }),
+                            // Finished with this window open: it is Download complete itself
+                            // (gaps row U11, B63).
+                            (row.state == State::Completed).then(|| {
+                                native::button(
+                                    "open-folder",
+                                    t("Open folder").into(),
+                                    false,
+                                    theme,
+                                    &screen,
+                                )
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.finished_with(
+                                        dm_shell::app::commands::Command::OpenFolder,
+                                        window,
+                                        cx,
+                                    )
+                                }))
+                                .into_any_element()
+                            }),
+                            (row.state == State::Completed).then(|| {
+                                native::button("open", t("Open").into(), true, theme, &screen)
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.finished_with(
+                                            dm_shell::app::commands::Command::OpenFile,
+                                            window,
+                                            cx,
+                                        )
+                                    }))
+                                    .into_any_element()
                             }),
                             matches!(row.state, State::Failed(_)).then(|| {
                                 native::button("retry", t("Retry").into(), false, theme, &screen)

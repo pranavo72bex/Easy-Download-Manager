@@ -57,3 +57,40 @@ fn when_this_download_is_done_opens_it() {
         row.state == State::Completed && h.fake.opened.lock().unwrap().contains(&row.path)
     });
 }
+
+/// A download that finishes with its progress window open turns that window into Download
+/// complete, with Open and Open folder, where a second window opened over it (gaps row U11,
+/// B63).
+#[test]
+fn a_progress_window_becomes_download_complete() {
+    let world = world();
+    let mut h = world.harness_with(dm_shell::Settings {
+        show_progress: true,
+        show_complete: true,
+        ..world.settings()
+    });
+    h.call(
+        "downloads.add",
+        json!({ "urls": [world.url("file.zip")], "later": true }),
+    )
+    .unwrap();
+    h.until("the row", |h| h.rows().len() == 1);
+    let id = h.rows()[0].id;
+    h.update(|view, cx| view.show_progress(id, cx));
+    h.until("its progress window", |h| {
+        h.dialogs().iter().any(|d| d.contains("Download progress"))
+    });
+    h.call("downloads.resume", json!({ "ids": [id] })).unwrap();
+    h.until("the window to say it is complete", |h| {
+        h.dialogs()
+            .iter()
+            .any(|d| d.starts_with("Download complete — "))
+    });
+    assert_eq!(
+        h.dialogs().len(),
+        1,
+        "a second window opened: {:?}",
+        h.dialogs()
+    );
+    assert!(h.shows("Open folder"), "{:?}", h.texts());
+}

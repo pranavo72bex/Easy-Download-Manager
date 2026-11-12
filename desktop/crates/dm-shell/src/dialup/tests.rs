@@ -168,7 +168,6 @@ fn an_endless_redial_ends_once_nobody_waits() {
     assert_eq!(fake.dialled.borrow().len(), 5);
 }
 
-
 /// A dialler that can be used from several threads: fails every dial, slowly, counting them.
 struct Slow {
     dials: AtomicUsize,

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download that finishes with its progress window open turns that window into Download complete, with Open and Open folder, rather than opening a second window.
 - The browser's toast after a hand-off says "Sent to dm" (in the browser's language), says several sent together in one, and is not posted when dm's own window comes forward to ask.
 - Options has a Find a setting field: the settings of every page that say what is typed, under their page's name.
 - Options › Browser says when each browser's extension was last heard from, with Check now, where it said "Connected" for one removed long ago.
