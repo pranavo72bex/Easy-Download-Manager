@@ -244,7 +244,7 @@ pub fn menu(
     }
     panel(
         "row-menu",
-        "Row menu",
+        t("Row menu"),
         at,
         theme,
         items,

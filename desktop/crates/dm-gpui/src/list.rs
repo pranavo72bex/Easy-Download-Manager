@@ -978,8 +978,8 @@ impl Downloads {
         if let Some((failed, e)) = added.partly() {
             // The rest went in; the ones that did not are said, not lost.
             self.say(match failed {
-                1 => format!("One of the links was not added: {e}"),
-                n => format!("{n} of the links were not added: {e}"),
+                1 => dm_desktop_base::i18n::tf("One of the links was not added: {}", &[&e]),
+                n => dm_desktop_base::i18n::tf("{} of the links were not added: {}", &[&n, &e]),
             });
         }
         self.read();
@@ -1073,8 +1073,8 @@ impl Downloads {
         if let Some((failed, e)) = added.partly() {
             // The rest went in; the ones that did not are said, not lost.
             self.say(match failed {
-                1 => format!("One of the links was not added: {e}"),
-                n => format!("{n} of the links were not added: {e}"),
+                1 => dm_desktop_base::i18n::tf("One of the links was not added: {}", &[&e]),
+                n => dm_desktop_base::i18n::tf("{} of the links were not added: {}", &[&n, &e]),
             });
         }
         self.read();
@@ -1430,8 +1430,9 @@ impl Downloads {
                                 n as u64,
                                 &[&n, &dm_desktop_base::i18n::name(dm_core::MAIN_QUEUE)],
                             )),
-                            Err(e) => self.problems.push(format!(
-                                "the search {name} found files that could not be added: {e}"
+                            Err(e) => self.problems.push(tf(
+                                "the search {} found files that could not be added: {}",
+                                &[&name, &e],
                             )),
                         }
                     }
@@ -1440,13 +1441,16 @@ impl Downloads {
                         dm_shell::app::search::seen_saved(&settings, &name, remember)
                     {
                         if let Err(e) = self.backend.set_settings(wanted) {
-                            self.problems.push(format!(
-                                "what the search {name} has seen could not be saved: {e}"
+                            self.problems.push(tf(
+                                "what the search {} has seen could not be saved: {}",
+                                &[&name, &e],
                             ));
                         }
                     }
                 }
-                Err(e) => self.problems.push(format!("the search {name} failed: {e}")),
+                Err(e) => self
+                    .problems
+                    .push(tf("the search {} failed: {}", &[&name, &e])),
             }
         }
         let now = std::time::Instant::now();
@@ -1467,8 +1471,9 @@ impl Downloads {
         if let Err(e) = self.backend.set_settings(wanted) {
             // Still run, and not again for a minute; but said, since an
             // unsaved last run means the search runs again at every launch.
-            self.problems.push(format!(
-                "when the saved searches last ran could not be saved: {e}"
+            self.problems.push(dm_desktop_base::i18n::tf(
+                "when the saved searches last ran could not be saved: {}",
+                &[&e],
             ));
         }
         for search in due {

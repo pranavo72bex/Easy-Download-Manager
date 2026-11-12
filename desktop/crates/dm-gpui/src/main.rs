@@ -90,6 +90,7 @@ use std::time::Duration;
 static ALLOCATOR: dm_core::memory::Allocator = dm_core::memory::Allocator;
 
 use dm_desktop_base::boot::{self, Wake};
+use dm_desktop_base::i18n::t;
 use gpui::{
     div, point, prelude::*, px, size, App, Bounds, Context, Role, TitlebarOptions, Window,
     WindowBounds, WindowHandle, WindowOptions,
@@ -117,19 +118,19 @@ impl Render for Question {
         div()
             .id("question")
             .role(Role::Dialog)
-            .aria_label("Delete the file?")
+            .aria_label(t("Delete the file?"))
             .size_full()
             .flex()
             .flex_col()
             .gap_3()
             .p_4()
-            .child("Delete the file?")
+            .child(t("Delete the file?"))
             .child(
                 div()
                     .flex()
                     .gap_2()
-                    .child(button("ok", "OK").into_any_element())
-                    .child(button("cancel", "Cancel").into_any_element()),
+                    .child(button("ok", t("OK")).into_any_element())
+                    .child(button("cancel", t("Cancel")).into_any_element()),
             )
     }
 }
@@ -145,7 +146,7 @@ fn open_question(cx: &mut App) -> Option<WindowHandle<Question>> {
             ..Default::default()
         },
         |window, cx| {
-            crate::screen::set_title(window, "Delete", cx);
+            crate::screen::set_title(window, t("Delete"), cx);
             cx.new(|_| Question)
         },
     )
@@ -264,7 +265,10 @@ fn main() {
                 Some(requests)
             }
             Err(e) => {
-                backend.note(format!("the control protocol could not start: {e}"));
+                backend.note(dm_desktop_base::i18n::tf(
+                    "the control protocol could not start: {}",
+                    &[&e],
+                ));
                 None
             }
         }

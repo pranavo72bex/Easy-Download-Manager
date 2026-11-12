@@ -12,6 +12,7 @@
 use std::path::PathBuf;
 
 use dm_desktop_base::desktop::WindowServices;
+use dm_desktop_base::i18n::t;
 use dm_desktop_base::quiet::Note;
 
 /// The GPUI window's services.
@@ -23,13 +24,13 @@ impl WindowServices for GpuiServices {
     }
 
     fn choose_app(&self) -> Option<PathBuf> {
-        let dialog = rfd::FileDialog::new().set_title("Open with");
+        let dialog = rfd::FileDialog::new().set_title(t("Open with"));
         #[cfg(target_os = "macos")]
         let dialog = dialog
             .set_directory("/Applications")
-            .add_filter("Applications", &["app"]);
+            .add_filter(t("Applications"), &["app"]);
         #[cfg(target_os = "windows")]
-        let dialog = dialog.add_filter("Apps", &["exe"]);
+        let dialog = dialog.add_filter(t("Apps"), &["exe"]);
         dialog.pick_file()
     }
 
@@ -92,9 +93,9 @@ impl Asked {
         Asked {
             save,
             filter: Some(if suggested.ends_with(".json") {
-                ("dm settings", &["json"])
+                (t("dm settings"), &["json"])
             } else {
-                ("Download lists", &["dmlist", "txt"])
+                (t("Download lists"), &["dmlist", "txt"])
             }),
             name: (save && !suggested.is_empty()).then(|| suggested.to_string()),
             ..Asked::default()
@@ -107,9 +108,9 @@ impl Asked {
             #[cfg(target_os = "macos")]
             directory: Some(PathBuf::from("/Applications")),
             #[cfg(target_os = "macos")]
-            filter: Some(("Applications", &["app"])),
+            filter: Some((t("Applications"), &["app"])),
             #[cfg(target_os = "windows")]
-            filter: Some(("Apps", &["exe"])),
+            filter: Some((t("Apps"), &["exe"])),
             ..Asked::default()
         }
     }

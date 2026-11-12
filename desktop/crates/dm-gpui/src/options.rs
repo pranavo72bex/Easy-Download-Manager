@@ -635,13 +635,13 @@ impl Downloads {
             .backend
             .set_settings_from(wanted, self.scripted.by_script());
         let said = if kept.command {
-            Some("The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again")
+            Some(t("The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again"))
         } else if kept.schedule {
-            Some("The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again")
+            Some(t("The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again"))
         } else if kept.proxy_script {
-            Some("The proxy script was not changed: a script was driving the window a moment ago; set it again")
+            Some(t("The proxy script was not changed: a script was driving the window a moment ago; set it again"))
         } else if kept.folders {
-            Some("The folders downloads go to were not changed: a script was driving the window a moment ago; set them again")
+            Some(t("The folders downloads go to were not changed: a script was driving the window a moment ago; set them again"))
         } else {
             None
         };

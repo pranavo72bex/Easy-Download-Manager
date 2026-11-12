@@ -438,7 +438,7 @@ impl Downloads {
                                 // the installer.
                                 if this.scripted.by_script() {
                                     this.say(
-                                        "Not installed: a script was driving the window a moment ago; click again"
+                                        t("Not installed: a script was driving the window a moment ago; click again")
                                             .to_string(),
                                     );
                                     cx.notify();

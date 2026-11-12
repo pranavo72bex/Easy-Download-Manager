@@ -83,7 +83,7 @@ pub fn sidebar(
     div()
         .id("sidebar")
         .role(Role::List)
-        .aria_label("Places")
+        .aria_label(t("Places"))
         .w(px(WIDTH))
         .flex_none()
         .h_full()
