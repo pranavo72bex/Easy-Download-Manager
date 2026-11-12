@@ -3,13 +3,41 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
+use std::sync::atomic::AtomicBool;
+
 use super::*;
 
 mod helping;
+mod limits;
 mod staged;
 
 use helping::*;
+pub(super) use limits::Limits;
+use limits::*;
 pub(super) use staged::*;
+
+/// An answer a range's attempt reads where it asks for none of its own.
+pub(super) enum Answer {
+    /// The probe's, which runs from the file's first byte.
+    Probe(reqwest::Response),
+    /// The rest of one that brought the range before this one whole and goes on.
+    Carried(Carried),
+}
+
+/// A body as a range's attempt reads it.
+type BodyStream =
+    std::pin::Pin<Box<dyn futures_util::Stream<Item = reqwest::Result<bytes::Bytes>> + Send>>;
+
+/// An answer read to the end of one range and going on into the next (`limits::continue_into`).
+pub(super) struct Carried {
+    stream: BodyStream,
+    /// What came past the range's end in the last piece read, the next range's first bytes.
+    rest: Option<bytes::Bytes>,
+    /// The last byte the answer brings.
+    reach: u64,
+    /// Its request, still at the server.
+    out: Out,
+}
 
 /// Samples the byte count and reports a rate until the download ends.
 ///
@@ -204,18 +232,24 @@ pub(super) async fn release_staged(job: &Job, wait: bool) {
 
 /// Runs every range, and keeps running until none are left unfinished.
 ///
-/// `workers` connections take the pieces in file order, each the next one
-/// not yet taken as soon as it is done with its own: the fast connections
-/// fetch most of the file, and a slow one holds a single piece. Once none is
-/// left untaken, a connection that is free halves the largest range still
-/// under way and takes its back half (dynamic segmentation),
-/// so no connection sits idle behind a slow one.
+/// `workers` connections take the pieces, each the next one not yet taken as
+/// soon as it is done with its own: the fast connections fetch most of the
+/// file, and a slow one holds a single piece. Once none is left untaken, a
+/// connection that is free halves the largest range still under way and takes
+/// its back half (dynamic segmentation), so no connection sits idle behind a
+/// slow one. The first piece is the probe's answer's; the rest are asked for
+/// from the file's end backwards ([`in_order`]).
 ///
 /// `helpers` more connections than there are pieces (a small file, on few
 /// ranges) start late: each waits [`HELP_AFTER`], and halves a range only if
 /// the file is slow enough that more than [`HELP_WORTH_SECS`] is left. A
 /// server that serves it fast never sees them, and one that holds each
 /// connection down is fetched on all of them within a fraction of a second.
+///
+/// Once the server has turned a request away while serving others, the
+/// connections keep to what it serves (`limits`): no more at work than it has
+/// served at once, the others waiting for a place; each request at the
+/// server's pace; and the work taken as [`pick_limited`] finds it.
 pub(super) async fn run(
     client: &reqwest::Client,
     job: &Arc<Job>,
@@ -241,9 +275,6 @@ pub(super) async fn run(
     // waiting have nothing to wait for.
     let first_wave = Arc::new(std::sync::atomic::AtomicUsize::new(workers.max(1)));
     let (wave_over, wave_over_seen) = tokio::sync::watch::channel(false);
-    // Set once the server has turned a connection away: it limits them, and
-    // a helper is not worth asking it for.
-    let refused = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let started = tokio::time::Instant::now();
     // A second network path, where one is chosen: every other connection
     // goes out on it (`second_path`). The ranges are taken as connections
@@ -277,16 +308,16 @@ pub(super) async fn run(
         let probe = Arc::clone(&probe);
         let (job, next) = (Arc::clone(job), Arc::clone(&next));
         let (orphans, active) = (Arc::clone(&orphans), Arc::clone(&active));
-        let refused = Arc::clone(&refused);
         let (first_wave, wave_over, mut wave_over_seen) = (
             Arc::clone(&first_wave),
             wave_over.clone(),
             wave_over_seen.clone(),
         );
         running.spawn(async move {
-            // A helper that has been let in: it is one of the active, to the
-            // connection that steps aside for a server that limits them.
-            let mut joined = false;
+            /* Counted among the connections at work (`active`): one with a range of its own from
+             * the start, a helper from when it takes one, and neither while it waits as one a
+             * limiting server turned away past the most it serves at once (`limits::rejoin`). */
+            let mut counted = !helper;
             // Whether this connection, left alone, has had its second go.
             let mut alone_again = false;
             if helper && grown_as.is_none() {
@@ -310,97 +341,132 @@ pub(super) async fn run(
                     job.control.check()?;
                 }
                 loop {
-                    let index = next.fetch_add(1, Ordering::Relaxed);
-                    let orphan = if index < planned {
-                        None
-                    } else {
-                        crate::lock(&orphans).pop()
-                    };
-                    let index = if index < planned {
-                        index
-                    } else if let Some(index) = orphan {
-                        index
-                    } else {
-                        /* The watching ends early once the connections with
-                         * ranges of their own are done: they end only when no
-                         * range is left to halve (or a refusal, which ends a
-                         * helper here anyway), and ranges only shrink, so
-                         * there is nothing for a helper either. The last helper
-                         * to finish its range otherwise watched out its whole
-                         * window after the file was in, and the download waited
-                         * for it: 80 ms of every small slow file (gaps row 165). */
-                        // One `grow` let in has been judged worth it already.
-                        if helper
-                            && (refused.load(Ordering::SeqCst)
-                            || (grown_as.is_none()
-                                && !tokio::select! {
-                                    worth = slow_enough_to_help(&job, started) => worth,
-                                    _ = wave_over_seen.wait_for(|over| *over) => false,
-                                })
-                            // Looked at again after the watching: a refusal
-                            // while it went on is as good as one before.
-                            || refused.load(Ordering::SeqCst))
-                        {
+                    // Turned away past the most the server serves at once: back in when one at
+                    // work is done.
+                    if !counted && !helper {
+                        rejoin(&job, &active).await?;
+                        counted = true;
+                    }
+                    let index = if job.limits.limited() {
+                        // A helper is not worth asking a server that limits connections for.
+                        if helper {
                             break 'connection;
                         }
-                        /* A range worth halving, or a wait for one: a range can stop or slow
-                         * down, and one just asked for is judged once its bytes come. Looked at
-                         * again as soon as a range ends or is given up, or after `SPLIT_LOOK`,
-                         * and given up only once no range under way is long enough to halve. */
-                        let found = loop {
-                            // Asked for before looking, so a range that ends meanwhile still
-                            // wakes it.
-                            let moved = job.moved.notified();
-                            tokio::pin!(moved);
-                            moved.as_mut().enable();
-                            let now = tokio::time::Instant::now();
-                            let judge_from = crate::lock(&job.last_ended)
-                                .map_or(now, |ended| ended + SPLIT_SETTLE);
-                            match split_largest(&job, now >= judge_from).await {
-                                Halving::Range(index) => break Some(index),
-                                Halving::Nothing => break None,
-                                Halving::Later => {}
-                            }
-                            let wake = if now < judge_from {
-                                judge_from
-                            } else {
-                                now + SPLIT_LOOK
-                            };
-                            tokio::select! {
-                                () = &mut moved => {}
-                                () = tokio::time::sleep_until(wake) => {}
-                            }
-                            job.control.check()?;
-                            if let Some(index) = crate::lock(&orphans).pop() {
-                                break Some(index);
-                            }
-                            // Taken back by `grow` while it waited: it waits to be let in again.
-                            if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
-                                if joined {
-                                    joined = false;
-                                    active.fetch_sub(1, Ordering::SeqCst);
-                                }
-                                continue 'connection;
-                            }
-                        };
-                        match found {
+                        match limited_work(&job).await? {
                             Some(index) => index,
                             None => break 'connection,
                         }
+                    } else {
+                        let counter = next.fetch_add(1, Ordering::Relaxed);
+                        let given = if counter < planned {
+                            Some(in_order(counter, planned))
+                        } else {
+                            crate::lock(&orphans).pop()
+                        };
+                        if let Some(index) = given {
+                            // An answer may have gone on into it already (`limits`).
+                            if !take(&job, index) {
+                                continue;
+                            }
+                            index
+                        } else {
+                            /* The watching ends early once the connections with
+                             * ranges of their own are done: they end only when no
+                             * range is left to halve (or a refusal, which ends a
+                             * helper here anyway), and ranges only shrink, so
+                             * there is nothing for a helper either. The last helper
+                             * to finish its range otherwise watched out its whole
+                             * window after the file was in, and the download waited
+                             * for it: 80 ms of every small slow file (gaps row 165). */
+                            // One `grow` let in has been judged worth it already.
+                            if helper
+                                && (job.limits.limited()
+                                    || (grown_as.is_none()
+                                        && !tokio::select! {
+                                            worth = slow_enough_to_help(&job, started) => worth,
+                                            _ = wave_over_seen.wait_for(|over| *over) => false,
+                                        })
+                                    // Looked at again after the watching: a refusal
+                                    // while it went on is as good as one before.
+                                    || job.limits.limited())
+                            {
+                                break 'connection;
+                            }
+                            /* A range worth halving, or a wait for one: a range can stop or slow
+                             * down, and one just asked for is judged once its bytes come. Looked at
+                             * again as soon as a range ends or is given up, or after `SPLIT_LOOK`,
+                             * and given up only once no range under way is long enough to halve. */
+                            let found = loop {
+                                // Asked for before looking, so a range that ends meanwhile still
+                                // wakes it.
+                                let moved = job.moved.notified();
+                                tokio::pin!(moved);
+                                moved.as_mut().enable();
+                                let now = tokio::time::Instant::now();
+                                let judge_from = crate::lock(&job.last_ended)
+                                    .map_or(now, |ended| ended + SPLIT_SETTLE);
+                                match split_largest(&job, now >= judge_from).await {
+                                    Halving::Range(index) => break Found::Range(index),
+                                    Halving::Nothing => break Found::Done,
+                                    Halving::Later => {}
+                                }
+                                let wake = if now < judge_from {
+                                    judge_from
+                                } else {
+                                    now + SPLIT_LOOK
+                                };
+                                tokio::select! {
+                                    () = &mut moved => {}
+                                    () = tokio::time::sleep_until(wake) => {}
+                                }
+                                job.control.check()?;
+                                // The server has turned a request away: looked at as one that
+                                // limits connections (above).
+                                if job.limits.limited() {
+                                    break Found::Again;
+                                }
+                                let orphan = crate::lock(&orphans).pop();
+                                if let Some(index) = orphan.filter(|&index| take(&job, index)) {
+                                    break Found::Range(index);
+                                }
+                                // Taken back by `grow` while it waited: it waits to be let in again.
+                                if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
+                                    if counted {
+                                        counted = false;
+                                        active.fetch_sub(1, Ordering::SeqCst);
+                                    }
+                                    continue 'connection;
+                                }
+                            };
+                            match found {
+                                Found::Range(index) => index,
+                                Found::Again => continue,
+                                Found::Done => break 'connection,
+                            }
+                        }
                     };
-                    if helper && !joined {
-                        joined = true;
+                    if !counted {
+                        counted = true;
                         active.fetch_add(1, Ordering::SeqCst);
                     }
-                    crate::lock(&job.live[index]).taken = true;
                     crate::second_path::fetched_by(&job.parts, index, on_second);
                     let first = if index == 0 {
-                        crate::lock(&probe).take()
+                        crate::lock(&probe).take().map(Answer::Probe)
                     } else {
                         None
                     };
-                    let fetched =
-                        fetch_segment(&client, &job, index, resumable, &active, first).await;
+                    let turned_away = AtomicBool::new(false);
+                    let (index, fetched) = fetch_chain(
+                        &client,
+                        &job,
+                        index,
+                        resumable,
+                        &active,
+                        first,
+                        &turned_away,
+                        on_second,
+                    )
+                    .await;
                     // A connection waiting for a range worth halving looks again.
                     job.moved.notify_waiters();
                     match fetched {
@@ -414,11 +480,23 @@ pub(super) async fn run(
                         Err(e)
                             if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 =>
                         {
-                            refused.store(true, Ordering::SeqCst);
-                            crate::lock(&job.live[index]).taken = false;
-                            crate::lock(&orphans).push(index);
-                            job.moved.notify_waiters();
-                            break 'connection;
+                            give_back(&job, &orphans, index);
+                            // Only a server's refusal makes it one that limits connections;
+                            // a range that keeps failing otherwise is left to the others.
+                            if helper || !turned_away.load(Ordering::SeqCst) {
+                                break 'connection;
+                            }
+                            /* Past the most the server has served at once, it waits for a
+                             * place among those at work; within it, for the server's pace,
+                             * and looks for work again. Ending, it never came back: from the
+                             * twelfth request on, a two-at-once server's file was fetched on
+                             * one connection (gaps row 197). */
+                            if active.load(Ordering::SeqCst) > job.together.most().max(1) {
+                                counted = false;
+                                active.fetch_sub(1, Ordering::SeqCst);
+                                job.moved.notify_waiters();
+                            }
+                            continue;
                         }
                         /* The others stepped aside between the judgement and
                          * now, and this is the last connection: its range is
@@ -428,9 +506,7 @@ pub(super) async fn run(
                             alone_again = true;
                             // Given back, so it is this range that is tried
                             // again and not a fresh one taken in its place.
-                            crate::lock(&job.live[index]).taken = false;
-                            crate::lock(&orphans).push(index);
-                            job.moved.notify_waiters();
+                            give_back(&job, &orphans, index);
                             continue;
                         }
                         Err(e) => return Err(e),
@@ -440,16 +516,18 @@ pub(super) async fn run(
                     *crate::lock(&job.last_ended) = Some(tokio::time::Instant::now());
                     // Taken back by `grow`, with its piece done: it waits to be let in again.
                     if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
-                        if joined {
-                            joined = false;
+                        if counted {
+                            counted = false;
                             active.fetch_sub(1, Ordering::SeqCst);
                         }
                         continue 'connection;
                     }
                 }
             }
-            if !helper || joined {
+            if counted {
                 active.fetch_sub(1, Ordering::SeqCst);
+                // One waiting for a place may have one now.
+                job.moved.notify_waiters();
             }
             if !helper && first_wave.fetch_sub(1, Ordering::SeqCst) == 1 {
                 let _ = wave_over.send(true);
@@ -508,17 +586,152 @@ pub(super) async fn run(
     if let Some(grower) = grower {
         grower.abort();
     }
+    // A sync a stopped connection began goes on without it: waited for here, so nothing is
+    // written into the parts once the download has returned (`files::Stopping`).
+    job.stopping.settled().await;
     if let Some(e) = failed {
         return Err(e);
     }
-    // A range given up on after the others had finished: fetched now, on
-    // one connection, its failure this download's.
-    let left: Vec<usize> = std::mem::take(&mut *crate::lock(&orphans));
+    // A range given up on after the others had finished, or never taken: fetched now, on one
+    // connection, its failure this download's.
+    let left: Vec<usize> = {
+        let count = job.segments.lock().await.len();
+        (0..count)
+            .filter(|&index| {
+                let l = crate::lock(&job.live[index]);
+                !l.taken && l.left() > 0
+            })
+            .collect()
+    };
     for index in left {
-        crate::lock(&job.live[index]).taken = true;
-        fetch_segment(client, job, index, resumable, &AtomicUsize::new(1), None).await?;
+        if !take(job, index) {
+            continue;
+        }
+        let (_, fetched) = fetch_chain(
+            client,
+            job,
+            index,
+            resumable,
+            &AtomicUsize::new(1),
+            None,
+            &AtomicBool::new(false),
+            false,
+        )
+        .await;
+        fetched?;
+    }
+    /* The seams of a server that limits requests, checked now that no range is being asked for,
+     * one at a time: a check sent beside a range's request took the request the server would
+     * have taken. A refused check proves nothing, and once one is refused the rest are not
+     * asked (gaps row 197). */
+    for index in job.limits.take_due() {
+        if !check_seams(client, job, index, true).await {
+            break;
+        }
     }
     Ok(())
+}
+
+/// Which planned range the `counter`th one taken is: the first is range 0, the probe's answer's;
+/// after it, from the file's end backwards. A server that turns most of them away serves the
+/// ones that came first, and the probe's answer, which runs on from the file's start, then goes
+/// on through the ranges it turned away (`limits::continue_into`) as far as the first of those it
+/// served: the farther that is, the fewer requests the rest of the file takes. In file order, the
+/// served one was nearly always range 1, where the probe's answer had to stop.
+fn in_order(counter: usize, planned: usize) -> usize {
+    if counter == 0 {
+        0
+    } else {
+        planned - counter
+    }
+}
+
+/// Takes range `index` for this connection, unless another has it (an answer that went on
+/// into it, `limits::continue_into`).
+fn take(job: &Job, index: usize) -> bool {
+    let mut l = crate::lock(&job.live[index]);
+    !std::mem::replace(&mut l.taken, true)
+}
+
+/// Gives range `index` back for another connection to take.
+fn give_back(job: &Job, orphans: &std::sync::Mutex<Vec<usize>>, index: usize) {
+    crate::lock(&job.live[index]).taken = false;
+    crate::lock(orphans).push(index);
+    job.moved.notify_waiters();
+}
+
+/// What a connection waiting for a range to halve found.
+enum Found {
+    Range(usize),
+    /// The server turned a request away meanwhile: looked at again as one that limits.
+    Again,
+    Done,
+}
+
+/// The next range for a connection at work on a download whose server limits it, once the
+/// server's pace allows a request: what [`pick_limited`] finds, looked at again as ranges end or
+/// every [`SPLIT_LOOK`]. None once nothing is left.
+async fn limited_work(job: &Job) -> Result<Option<usize>, Error> {
+    loop {
+        let moved = job.moved.notified();
+        tokio::pin!(moved);
+        moved.as_mut().enable();
+        job.limits.ready(&job.control).await?;
+        let now = tokio::time::Instant::now();
+        let judge_from = crate::lock(&job.last_ended).map_or(now, |ended| ended + SPLIT_SETTLE);
+        match pick_limited(job, now >= judge_from).await {
+            Halving::Range(index) => return Ok(Some(index)),
+            Halving::Nothing => return Ok(None),
+            Halving::Later => {}
+        }
+        let wake = if now < judge_from {
+            judge_from
+        } else {
+            now + SPLIT_LOOK
+        };
+        tokio::select! {
+            () = &mut moved => {}
+            () = tokio::time::sleep_until(wake) => {}
+        }
+        job.control.check()?;
+    }
+}
+
+/// Fetches range `index`, and the ranges after it its answer goes on into
+/// (`limits::continue_into`): the last range fetched, and how that went.
+#[allow(clippy::too_many_arguments)]
+async fn fetch_chain(
+    client: &reqwest::Client,
+    job: &Job,
+    mut index: usize,
+    resumable: bool,
+    active: &AtomicUsize,
+    mut answer: Option<Answer>,
+    turned_away: &AtomicBool,
+    on_second: bool,
+) -> (usize, Result<(), Error>) {
+    loop {
+        let fetched = fetch_segment(
+            client,
+            job,
+            index,
+            resumable,
+            active,
+            answer.take(),
+            turned_away,
+        )
+        .await;
+        match fetched {
+            Ok(Some((next, carried))) => {
+                job.moved.notify_waiters();
+                crate::second_path::fetched_by(&job.parts, next, on_second);
+                index = next;
+                answer = Some(Answer::Carried(carried));
+            }
+            Ok(None) => return (index, Ok(())),
+            Err(e) => return (index, Err(e)),
+        }
+    }
 }
 
 /// What a connection with no range of its own found to do.
@@ -626,6 +839,7 @@ pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
         reserved: 0,
         taken: true,
         trusted: true,
+        reach: 0,
         going: Going {
             since: Some(tokio::time::Instant::now()),
             ..Going::default()
@@ -644,26 +858,27 @@ async fn stopped_synced(job: &Job, index: usize, file: &fs::File, written: u64) 
     if written == 0 {
         return;
     }
-    if file.sync_data().await.is_ok() {
-        mark_synced(&job.parts, index, written).await;
-    }
+    sync_and_mark(&job.stopping, &job.parts, file, index, written).await;
 }
 
 /// Fetches one range into its place in the staged file, retrying what is
-/// worth retrying.
+/// worth retrying. Where its answer goes on into the range after it
+/// (`limits::continue_into`), that range and the rest of the answer, to be read
+/// on. `turned_away` is set where the server's refusal made it step aside.
 pub(super) async fn fetch_segment(
     client: &reqwest::Client,
     job: &Job,
     index: usize,
     resumable: bool,
     active: &AtomicUsize,
-    first_body: Option<reqwest::Response>,
-) -> Result<(), Error> {
+    answer: Option<Answer>,
+    turned_away: &AtomicBool,
+) -> Result<Option<(usize, Carried)>, Error> {
     // A part found whole on a resume is still checked at its end where the
     // server can be asked for it, since a power cut can tear a whole part
     // as easily as a half one.
     if !resumable && job.segments.lock().await[index].finished() {
-        return Ok(());
+        return Ok(None);
     }
 
     /* Each attempt reads the range's ledger rather than anything
@@ -721,12 +936,38 @@ pub(super) async fn fetch_segment(
         let unanswered = matches!(e, Error::Network(e) if e.is_timeout())
             && on_disk() == own_before
             && job.downloaded.load(Ordering::Relaxed) > whole_before;
-        (refused || unanswered) && active.load(Ordering::SeqCst) > 1
+        /* Once the server is known to limit this download, only while another range is being
+         * fetched: one refused while none is, is asked again at the server's pace and counted
+         * against the tries, so a server that refuses everything still fails the download
+         * rather than being asked for ever. */
+        let others = active.load(Ordering::SeqCst) > 1
+            && (!job.limits.limited() || job.together.flowing() > 0);
+        let stepping_aside = (refused || unanswered) && others;
+        if stepping_aside {
+            turned_away.store(true, Ordering::SeqCst);
+            job.limits.found();
+        }
+        stepping_aside
+    };
+    // Refused by a server that limits how often it takes a request: asked again when its pace
+    // allows, not on the backoff's growing waits (`limits::Limits::turned_away`).
+    let paced = |e: &Error| {
+        let wait = job.limits.wait_left();
+        (job.limits.limited()
+            && !wait.is_zero()
+            && matches!(
+                e,
+                Error::Refused {
+                    status: 429 | 503,
+                    ..
+                }
+            ))
+        .then_some(wait.max(PACE_LEAST))
     };
     // Only a capped stream is asked again slice by slice; without a cap the
     // ledger is not read here at all (it is a file, opened and read).
     let sliced = job.chunk.is_some() && resumable;
-    let mut first_body = first_body;
+    let mut answer = answer;
     let outcome = loop {
         let before = if sliced { on_disk() } else { 0 };
         let outcome = retry::run_making_progress_unless(
@@ -736,6 +977,7 @@ pub(super) async fn fetch_segment(
             on_disk,
             retrying,
             busy,
+            paced,
             || {
                 // Counted before the attempt, so the next one picks a different
                 // mirror where there is one to pick.
@@ -744,7 +986,7 @@ pub(super) async fn fetch_segment(
                     .0
                     .store(job.downloaded.load(Ordering::Relaxed), Ordering::Relaxed);
                 at_start.1.store(on_disk(), Ordering::Relaxed);
-                attempt_segment(client, job, index, resumable, first_body.take())
+                attempt_segment(client, job, index, resumable, answer.take())
             },
         )
         .await;
@@ -775,11 +1017,18 @@ pub(super) async fn fetch_segment(
          * Assembly compares the whole against the length the server stated,
          * so one place decides whether a file is complete rather than two
          * disagreeing about it. */
-        Err(Error::Incomplete { .. }) => Ok(()),
-        // Its seams with the ranges either side that are whole, asked for again (`check_seams`).
-        Ok(()) if resumable => {
-            check_seams(client, job, index).await;
-            Ok(())
+        Err(Error::Incomplete { .. }) => Ok(None),
+        /* Its seams with the ranges either side that are whole, asked for again (`check_seams`):
+         * at once, or, where the server limits this download, once no range is being asked for
+         * (`run`), as a check sent beside a range's request took the request the server would
+         * have taken. */
+        Ok(onward) if resumable => {
+            if job.limits.limited() {
+                job.limits.check_later(index);
+            } else {
+                check_seams(client, job, index, false).await;
+            }
+            Ok(onward)
         }
         other => other,
     }
@@ -795,8 +1044,8 @@ pub(super) async fn attempt_segment(
     job: &Job,
     index: usize,
     resumable: bool,
-    first_body: Option<reqwest::Response>,
-) -> Result<(), Error> {
+    answer: Option<Answer>,
+) -> Result<Option<(usize, Carried)>, Error> {
     // Read at each attempt: a split may have shortened the range since.
     let (start, end) = {
         let l = crate::lock(&job.live[index]);
@@ -826,7 +1075,7 @@ pub(super) async fn attempt_segment(
     // against the server below: one this run wrote or checked has nothing to check.
     if already >= span && (!resumable || trusted) {
         job.segments.lock().await[index].done = span;
-        return Ok(());
+        return Ok(None);
     }
 
     /* A server that does not serve ranges is asked for the whole file, so
@@ -841,10 +1090,19 @@ pub(super) async fn attempt_segment(
     } else {
         already
     };
+    let (probe, carried) = match answer {
+        Some(Answer::Probe(res)) => (Some(res), None),
+        Some(Answer::Carried(carried)) => (None, Some(carried)),
+        None => (None, None),
+    };
+    // An answer that went on from the range before is read on only into a range with nothing in it.
+    let carried = carried.filter(|_| already == 0);
+    let carried_on = carried.is_some();
 
     // A range after the first, starting fresh, asks for up to LEAD_BYTES more
-    // at its front: the bytes of the range before it, checked at assembly.
-    let lead = resumable && index > 0 && already == 0 && start > 0;
+    // at its front: the bytes of the range before it, checked at assembly. Not one
+    // read on from the range before: those bytes came in the same answer.
+    let lead = resumable && index > 0 && already == 0 && start > 0 && !carried_on;
     /* What a part already holds is asked for again at its end, and compared.
      * Its ledger says how much is there, and after a power cut the ledger can
      * be on disk while the last bytes are not — zeros, on NTFS, exFAT and
@@ -866,131 +1124,190 @@ pub(super) async fn attempt_segment(
     // How many lead bytes are actually before `start` (may be < LEAD_BYTES
     // when `start` itself is near the beginning of the file).
     let lead_n = if lead { (start - from) as usize } else { 0 };
+    let probe = probe.filter(|_| from == 0 && already == 0);
+    let is_probe_body = probe.is_some();
 
-    /* Where this request stops. Without a cap, at the range's end, as ever.
-     * With one (`Job::chunk`, from the reading of a video page), a slice of
-     * it: the connection asks for the next when this one ends, and the
-     * range, the ledger and what a split sees are those of the whole. */
+    /* Where this request stops. Without a cap, at the range's end, as ever, or
+     * where the server limits this download, past it over the ranges after it
+     * that nobody has run on (`limits::reach_from`): the answer goes on into
+     * them as it comes to them. With a cap (`Job::chunk`, from the reading of a
+     * video page), a slice of it: the connection asks for the next when this
+     * one ends, and the range, the ledger and what a split sees are those of
+     * the whole. */
     let asked_end = match job.chunk.filter(|_| resumable) {
         Some(cap) => end.min(from.saturating_add(cap.max(MIN_CHUNK)) - 1),
+        None if probe.is_none() && !carried_on => reach_from(job, index, end).await,
         None => end,
     };
+    // The last byte the answer brings: what was asked; the probe's runs to the
+    // file's end; one read on, as far as its request asked.
+    let reach = match &carried {
+        Some(carried) => carried.reach,
+        None if is_probe_body => job.size.map_or(u64::MAX, |size| size.saturating_sub(1)),
+        None => asked_end,
+    };
+    crate::lock(&job.live[index]).reach = reach;
     let source = job.source(index);
-    let is_probe_body = first_body.is_some() && from == 0 && already == 0;
-    let res = if let Some(res) = first_body.filter(|_| from == 0 && already == 0) {
-        res
-    } else {
-        let mut request = get(
-            client,
-            &source.url,
-            job.referrer.as_deref(),
-            job.sign_in.as_ref(),
-        );
-        request = job.headers.onto(
-            request,
-            crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
-            job.referrer.is_some(),
-        );
-        if resumable {
-            request = request.header(reqwest::header::RANGE, format!("bytes={from}-{asked_end}"));
-            // Only ever alongside a range: it is a condition on the range, and a
-            // republished file answers 200 instead, which is how a changed file
-            // is noticed rather than spliced into the old one. The validator is
-            // this mirror's own — another server's would simply not match.
-            // Never a weak ETag (`W/"…"`): `If-Range` takes only a strong one
-            // (RFC 9110), and a strict server answers a weak one with the whole
-            // file, every range, so the download fell back to one connection
-            // and a resume failed as though ranges had stopped. Without the
-            // condition, a changed file is still caught: by the validator the
-            // answer carries, and by the bytes the resume compares.
-            if let Some(validator) = source.validator.as_ref().filter(|v| !v.starts_with("W/")) {
-                request = request.header(reqwest::header::IF_RANGE, validator);
-            }
-        }
-
-        Error::refused_or(
-            or_stop(
-                &job.control,
-                crate::auth::send(client, request, &source.url),
-            )
-            .await?,
+    /* Read on from the range before: asked for, and checked, there. `carry` is the part of a
+     * chunk still to be written: past the bytes a resume compares, or what came past the range
+     * before's end. */
+    let (mut stream, stopped, stated, mut carry, decoded, out) = if let Some(carried) = carried {
+        let stopped: crate::decode::Stopped = Default::default();
+        (
+            carried.stream,
+            stopped,
+            None,
+            carried.rest,
+            false,
+            carried.out,
         )
-        .await?
-    };
-    let status = res.status();
-    // The length an encoded body states is the encoded one, and what is written is decoded: held
-    // to it, a whole file was taken as short and fetched again for as long as retries last
-    // (engine review, 2026-11-08). A cut-off encoded body is still caught: the decoder says so.
-    let stated = if crate::decode::coding_of(res.headers()).is_some() {
-        None
     } else {
-        res.content_length()
-    };
-    if resumable && status != reqwest::StatusCode::PARTIAL_CONTENT {
-        // The server answered the whole file to a request for part of it.
-        // Under the validator the ranges were planned under, it is the same
-        // file served whole; under another, everything staged belongs to a
-        // version that is gone.
-        let header = |name| {
-            res.headers()
-                .get(name)
-                .and_then(|v: &reqwest::header::HeaderValue| v.to_str().ok())
+        let (res, out) = if let Some(res) = probe {
+            (res, Out::sent(&job.limits))
+        } else {
+            let mut request = get(
+                client,
+                &source.url,
+                job.referrer.as_deref(),
+                job.sign_in.as_ref(),
+            );
+            request = job.headers.onto(
+                request,
+                crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
+                job.referrer.is_some(),
+            );
+            if resumable {
+                request =
+                    request.header(reqwest::header::RANGE, format!("bytes={from}-{asked_end}"));
+                // Only ever alongside a range: it is a condition on the range, and a
+                // republished file answers 200 instead, which is how a changed file
+                // is noticed rather than spliced into the old one. The validator is
+                // this mirror's own — another server's would simply not match.
+                // Never a weak ETag (`W/"…"`): `If-Range` takes only a strong one
+                // (RFC 9110), and a strict server answers a weak one with the whole
+                // file, every range, so the download fell back to one connection
+                // and a resume failed as though ranges had stopped. Without the
+                // condition, a changed file is still caught: by the validator the
+                // answer carries, and by the bytes the resume compares.
+                if let Some(validator) = source.validator.as_ref().filter(|v| !v.starts_with("W/"))
+                {
+                    request = request.header(reqwest::header::IF_RANGE, validator);
+                }
+            }
+            // Where the server limits this download, no sooner than its pace allows.
+            if job.limits.limited() {
+                job.limits.ready(&job.control).await?;
+            }
+            let sent = tokio::time::Instant::now();
+            let out = Out::sent(&job.limits);
+            let answered = Error::refused_or(
+                or_stop(
+                    &job.control,
+                    crate::auth::send(client, request, &source.url),
+                )
+                .await?,
+            )
+            .await;
+            // Turned away: the download's next request may wait for the server's pace.
+            if let Err(Error::Refused {
+                status: 429 | 503,
+                retry_after,
+                ..
+            }) = &answered
+            {
+                let most = job.together.most();
+                job.limits.turned_away(sent, out.beside, most, *retry_after);
+            }
+            (answered?, out)
         };
-        let answered =
-            header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
-        let same = source.validator.is_some() && answered == source.validator.as_deref();
-        // Asked for every byte, it is the range: Wikimedia answers a range
-        // of the whole file that way, and that is the file.
-        let all_of_it = from == 0 && stated == Some(end + 1);
-        // A server that names no version, then or now, gives no sign of a change: its 200 is
-        // ranges refused, fetched again on one connection, not "the file changed on the server"
-        // (engine review, 2026-11-08).
-        let unversioned = source.validator.is_none() && answered.is_none();
-        if unversioned && !all_of_it {
-            return Err(Error::RangesIgnored);
-        }
-        if !unversioned && !(same && all_of_it) {
-            if !same {
-                forget_plan(job).await;
+        let status = res.status();
+        // The length an encoded body states is the encoded one, and what is written is decoded: held
+        // to it, a whole file was taken as short and fetched again for as long as retries last
+        // (engine review, 2026-11-08). A cut-off encoded body is still caught: the decoder says so.
+        let stated = if crate::decode::coding_of(res.headers()).is_some() {
+            None
+        } else {
+            res.content_length()
+        };
+        if resumable && status != reqwest::StatusCode::PARTIAL_CONTENT {
+            // The server answered the whole file to a request for part of it.
+            // Under the validator the ranges were planned under, it is the same
+            // file served whole; under another, everything staged belongs to a
+            // version that is gone.
+            let header = |name| {
+                res.headers()
+                    .get(name)
+                    .and_then(|v: &reqwest::header::HeaderValue| v.to_str().ok())
+            };
+            let answered =
+                header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
+            let same = source.validator.is_some() && answered == source.validator.as_deref();
+            // Asked for every byte, it is the range: Wikimedia answers a range
+            // of the whole file that way, and that is the file.
+            let all_of_it = from == 0 && stated == Some(end + 1);
+            // A server that names no version, then or now, gives no sign of a change: its 200 is
+            // ranges refused, fetched again on one connection, not "the file changed on the server"
+            // (engine review, 2026-11-08).
+            let unversioned = source.validator.is_none() && answered.is_none();
+            if unversioned && !all_of_it {
+                return Err(Error::RangesIgnored);
             }
-            return Err(if same {
-                Error::RangesIgnored
-            } else {
-                Error::Changed
-            });
-        }
-    }
-    /* A 206 for another range than the one asked — a server rounding to its
-     * own blocks — said so in its Content-Range, and its bytes were written
-     * at the asked offset regardless. Refused, from the zoo. */
-    if resumable {
-        let said_start = res
-            .headers()
-            .get(reqwest::header::CONTENT_RANGE)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().strip_prefix("bytes "))
-            .and_then(|v| v.split(['-', '/']).next())
-            .and_then(|v| v.trim().parse::<u64>().ok());
-        if said_start.is_some_and(|s| s != from) {
-            return Err(Error::DishonestRanges);
-        }
-        // The total it names is the file's length now: another than the one the ranges were
-        // planned on is another file, whatever its validator says (a server that ignores
-        // If-Range, or a weak ETag dm does not send), caught here rather than by the sampled
-        // checks of the bytes (engine review, 2026-11-08).
-        let said_total = res
-            .headers()
-            .get(reqwest::header::CONTENT_RANGE)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.rsplit_once('/'))
-            .and_then(|(_, total)| total.trim().parse::<u64>().ok());
-        if let (Some(total), Some(size)) = (said_total, job.size) {
-            if total != size {
-                forget_plan(job).await;
-                return Err(Error::Changed);
+            if !unversioned && !(same && all_of_it) {
+                if !same {
+                    forget_plan(job).await;
+                }
+                return Err(if same {
+                    Error::RangesIgnored
+                } else {
+                    Error::Changed
+                });
             }
         }
-    }
+        /* A 206 for another range than the one asked — a server rounding to its
+         * own blocks — said so in its Content-Range, and its bytes were written
+         * at the asked offset regardless. Refused, from the zoo. */
+        if resumable {
+            let said_start = res
+                .headers()
+                .get(reqwest::header::CONTENT_RANGE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.trim().strip_prefix("bytes "))
+                .and_then(|v| v.split(['-', '/']).next())
+                .and_then(|v| v.trim().parse::<u64>().ok());
+            if said_start.is_some_and(|s| s != from) {
+                return Err(Error::DishonestRanges);
+            }
+            // The total it names is the file's length now: another than the one the ranges were
+            // planned on is another file, whatever its validator says (a server that ignores
+            // If-Range, or a weak ETag dm does not send), caught here rather than by the sampled
+            // checks of the bytes (engine review, 2026-11-08).
+            let said_total = res
+                .headers()
+                .get(reqwest::header::CONTENT_RANGE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.rsplit_once('/'))
+                .and_then(|(_, total)| total.trim().parse::<u64>().ok());
+            if let (Some(total), Some(size)) = (said_total, job.size) {
+                if total != size {
+                    forget_plan(job).await;
+                    return Err(Error::Changed);
+                }
+            }
+        }
+        // Undone here where a server compressed what it was not asked to: with a
+        // count of what came over the wire, so that a body which unpacks to far
+        // more is stopped (`decode.rs`).
+        let stopped: crate::decode::Stopped = Default::default();
+        let coding = crate::decode::coding_of(res.headers());
+        let decoded = coding.is_some();
+        let stream: BodyStream = match coding {
+            Some(coding) => {
+                crate::decode::decoded(coding, Box::pin(res.bytes_stream()), stopped.clone())
+            }
+            None => Box::pin(res.bytes_stream()),
+        };
+        (stream, stopped, stated, None, decoded, out)
+    };
 
     /* Created if absent, never truncated.
      *
@@ -1006,25 +1323,6 @@ pub(super) async fn attempt_segment(
         .open(&held)
         .await?;
 
-    /* Buffered, because chunks arrive far smaller than a useful write.
-     *
-     * Safe because the ledger is written down only after the buffer is
-     * flushed: a retry starts from what the ledger says reached the disk, so
-     * a buffer lost to a crash costs the bytes it held and nothing else. */
-    // Undone here where a server compressed what it was not asked to: with a
-    // count of what came over the wire, so that a body which unpacks to far
-    // more is stopped (`decode.rs`).
-    let stopped: crate::decode::Stopped = Default::default();
-    let mut stream: std::pin::Pin<
-        Box<dyn futures_util::Stream<Item = reqwest::Result<bytes::Bytes>> + Send>,
-    > = match crate::decode::coding_of(res.headers()) {
-        Some(coding) => {
-            crate::decode::decoded(coding, Box::pin(res.bytes_stream()), stopped.clone())
-        }
-        None => Box::pin(res.bytes_stream()),
-    };
-    // The part of a chunk past the bytes compared, still to be written.
-    let mut carry = None;
     let already = if check > 0 {
         let mut tail = vec![0u8; check as usize];
         let mut on_disk = tokio::fs::File::open(&held).await?;
@@ -1116,6 +1414,11 @@ pub(super) async fn attempt_segment(
     // What the ledger vouches for is checked, or this run's own, from here on.
     crate::lock(&job.live[index]).trusted = true;
 
+    /* Buffered, because chunks arrive far smaller than a useful write.
+     *
+     * Safe because the ledger is written down only after the buffer is
+     * flushed: a retry starts from what the ledger says reached the disk, so
+     * a buffer lost to a crash costs the bytes it held and nothing else. */
     /* Small: tokio's file keeps a copy of every write it hands to the
      * disk, so each connection holds this twice. 256 KiB cost 20–30 MB more
      * over ten downloads of eight connections than 16 KiB, and fetched 2 GB
@@ -1145,11 +1448,15 @@ pub(super) async fn attempt_segment(
     let mut reader = Reader::new();
     let mut window = Window::open(written, job);
     // Counted among the requests bringing bytes in from its first byte (`grow`); that byte also
-    // sends at once every connection waiting its turn through an outage (`retry::Together`).
-    let mut flowing = None;
+    // sends at once every connection waiting its turn through an outage (`retry::Together`). The
+    // probe's from the start: the server answered it before any range was asked for, and the
+    // ranges it turns away meanwhile are turned away while it serves another (`fetch_segment`).
+    let mut flowing = is_probe_body.then(|| job.together.bringing());
     // A pause seen, and how much has been taken since of what had already come (`DRAIN_MOST`).
     let mut draining: Option<Error> = None;
     let mut drained = 0u64;
+    // What came past the range's end, where the answer goes on.
+    let mut onward: Option<bytes::Bytes> = None;
 
     loop {
         /* Paused: what has already come, in the connection's buffers and the
@@ -1294,8 +1601,9 @@ pub(super) async fn attempt_segment(
             return Err(stopped);
         }
 
-        if !is_probe_body && written + chunk.len() as u64 > span {
-            /* More bytes than the range asked for.
+        if !is_probe_body && start + written + chunk.len() as u64 > reach.max(end) + 1 {
+            /* More bytes than the request asked for: past the range's end, or
+             * past the ranges after it it asked on over (`reach`).
              *
              * A server holding a compressed representation ranges over the
              * *encoded* bytes and hands back the decoded ones, and nothing in
@@ -1325,11 +1633,14 @@ pub(super) async fn attempt_segment(
             let first = l.going.came(arrived, held);
             (fits, first)
         };
-        if first {
+        // Read on from the range before, its first bytes waited for nothing.
+        if first && !carried_on {
             job.note_first_byte(arrived.saturating_duration_since(asked_at));
         }
         let cut = fits < chunk.len() as u64;
         if cut {
+            // What is past the range's end: the next range's, where the answer goes on into it.
+            onward = Some(chunk.slice(fits as usize..));
             chunk = chunk.slice(..fits as usize);
         }
         as_slow_as_the_disk(chunk.len() as u64).await;
@@ -1444,12 +1755,12 @@ pub(super) async fn attempt_segment(
      * retry as "short" before this. A length the response stated is still
      * held to, and assembly holds the total to the probed one. */
     if !resumable && stated.is_none_or(|stated| stated == written) {
-        return Ok(());
+        return Ok(None);
     }
 
     // A slice that came whole is not a short range: the next is asked for.
     if asked_end < end && written < span_now && start + written > asked_end {
-        return Ok(());
+        return Ok(None);
     }
 
     // A stream that ended early without erroring is not a finished range.
@@ -1459,7 +1770,34 @@ pub(super) async fn attempt_segment(
             expected: span_now,
         });
     }
-    Ok(())
+
+    /* Whole, with the answer going on past it: where the server limits this download, read on
+     * into the range after it where nobody has that one, rather than asked for again. Only from
+     * the range's very end (a range halved under a connection already past the new end stops
+     * there), and never through a decoder or under a cap. */
+    if let Some(rest) = onward {
+        let at = start + written;
+        let may = job.limits.limited()
+            && resumable
+            && job.chunk.is_none()
+            && job.size.is_some()
+            && !decoded
+            && written == span_now;
+        if may {
+            if let Some(next) = continue_into(job, index, at, reach).await {
+                return Ok(Some((
+                    next,
+                    Carried {
+                        stream,
+                        rest: Some(rest).filter(|rest| !rest.is_empty()),
+                        reach,
+                        out,
+                    },
+                )));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /* ------------------------------------------------------------- streams */

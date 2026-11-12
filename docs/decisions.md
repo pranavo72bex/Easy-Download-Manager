@@ -6743,3 +6743,31 @@ was the cost.
   restart's own share 30 to 460 KB. What is left is counted by the test's server as it yields
   pieces to the connection, including what never reached dm (its send buffer, and pieces yielded
   before it sees the connection closed); the row's 16 KiB is not met as the test measures it.
+- **The sync waited for past the grace** (2026-11-12, after): a range still syncing when the grace
+  ran out was stopped, but its `sync_data` and its mark went on, on their blocking thread, after the
+  download had returned. A Delete at once then raced the mark into the folder it was removing, and
+  the folder stayed (`queue.rs` `deleting_a_row_removes_the_parts_where_it_began_after_the_folder_changed`,
+  failed once in a whole `cargo test --workspace` with the disk nearly full). The sync and the mark
+  now run together on one blocking thread, counted on the job (`files::Stopping`), and the run
+  waits for the count to be zero before it returns. **Dropped: retrying the folder's removal** in
+  Delete: it hides a write after the end rather than ending it.
+
+## 2026-11-12: A server that limits connections and requests is kept to (gaps row 197)
+
+- **Found**: on a local copy of a mirror run by nginx with `limit_conn` and `limit_req` (two at
+  once, a request a second, as Hetzner's mirrors answer) dm took 1.6 times as long as one
+  connection, and four times on Hetzner's own mirror. Each turned-away connection ended for good;
+  each range's next request was refused and waited out with backoff while nothing came; the
+  seams' checks took the request the server would have given a range; and a halving whose request
+  was refused left its back half to no one.
+- **Chosen** (`download/ranged/limits.rs`): once a request is turned away (429, 503, or left
+  unanswered) while others are served, no more connections work than the most the server has
+  served at once, the rest waiting for a place; requests are paced after a refusal (0.5 s, half
+  again each refusal of one that waited, at most 4 s; a `Retry-After` is kept to, at least
+  0.1 s); an answer that brings its range whole reads on into ranges nobody has, as far as it asked,
+  and asks that far; a halving's back half stays with the answer that would read into it; the
+  seams are checked one at a time once nothing else is asked for; and the next file from the same
+  server opens that many connections. Ranges after the first are asked for from the file's end
+  backwards, so the probe's answer can run on through those refused.
+- **Measured** (`tests/limits.rs`): 32 MiB at 4 MiB/s a connection, two at once, a request a
+  second with a burst of two, each answer 100 ms late: under 0.6 of one connection's 8 s.

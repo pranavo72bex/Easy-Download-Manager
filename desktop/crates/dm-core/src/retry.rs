@@ -173,7 +173,17 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
 {
-    run_making_progress_unless(control, None, tries, progress, retrying, |_| false, op).await
+    run_making_progress_unless(
+        control,
+        None,
+        tries,
+        progress,
+        retrying,
+        |_| false,
+        |_| None,
+        op,
+    )
+    .await
 }
 
 /// As [`run_making_progress_telling`], giving up at once on an error
@@ -182,6 +192,10 @@ where
 /// `together`, where the attempt is one connection of several fetching one
 /// file, has them take turns asking a server they have all lost, and sends
 /// them all again the moment one of them gets a byte ([`Together`]).
+/// `paced` names the wait after an error where the caller knows the server's
+/// own pace better than the backoff does (a server that limits how often it
+/// takes a request); the attempt counts against the tries all the same.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_making_progress_unless<F, Fut, T>(
     control: &Control,
     together: Option<&Together>,
@@ -189,6 +203,7 @@ pub async fn run_making_progress_unless<F, Fut, T>(
     progress: impl Fn() -> u64,
     retrying: impl Fn(u32, u32, &Error, Duration),
     give_up: impl Fn(&Error) -> bool,
+    paced: impl Fn(&Error) -> Option<Duration>,
     mut op: F,
 ) -> Result<T, Error>
 where
@@ -219,6 +234,7 @@ where
                 let Some(nap) = pace.failed(&error, limit, every) else {
                     return Err(error);
                 };
+                let nap = paced(&error).unwrap_or(nap);
                 /* Asked again at once and failed again for want of a
                  * connection, with no connection of the file bringing bytes
                  * in: the server is gone for all of them, so this one waits
@@ -283,6 +299,9 @@ pub struct Together {
     connections: u32,
     /// Requests bringing bytes in now, each from its first byte to its end.
     flowing: AtomicUsize,
+    /// The most that have brought bytes in at once: what a server that turns
+    /// requests away has shown it serves (`download::Limits`).
+    most: AtomicUsize,
     /// How many first bytes have come: one that comes while a connection waits
     /// its turn sends it at once.
     came: tokio::sync::watch::Sender<u64>,
@@ -305,6 +324,7 @@ impl Together {
         Together {
             connections: u32::try_from(connections.max(1)).unwrap_or(u32::MAX),
             flowing: AtomicUsize::new(0),
+            most: AtomicUsize::new(0),
             came: tokio::sync::watch::Sender::new(0),
             turns: std::sync::Mutex::new(Turns::default()),
         }
@@ -315,11 +335,17 @@ impl Together {
         self.flowing.load(Ordering::SeqCst)
     }
 
+    /// The most requests that have brought bytes in at once.
+    pub fn most(&self) -> usize {
+        self.most.load(Ordering::SeqCst)
+    }
+
     /// A request's first byte: it is counted among those bringing bytes in for
     /// as long as the guard lives, and every connection waiting its turn asks
     /// at once, the server being back.
     pub fn bringing(&self) -> Bringing<'_> {
-        self.flowing.fetch_add(1, Ordering::SeqCst);
+        let now = self.flowing.fetch_add(1, Ordering::SeqCst) + 1;
+        self.most.fetch_max(now, Ordering::SeqCst);
         // The next outage's turns begin afresh, at a point of their own.
         *crate::lock(&self.turns) = Turns::default();
         self.came.send_modify(|came| *came = came.wrapping_add(1));
@@ -825,6 +851,7 @@ mod tests {
                 || 0,
                 |_, _, _, wait| told.lock().unwrap().push(wait),
                 |_| false,
+                |_| None,
                 || async {
                     if tries.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 2 {
                         Err(Error::Connection("reset".into()))

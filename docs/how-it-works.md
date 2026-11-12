@@ -428,7 +428,8 @@ extension/
 desktop/
   crates/dm-core/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
-                          range workers, resume), http.rs, mirrors.rs, hls.rs (playlists and
+                          range workers, resume; ranged/limits.rs keeps to a server that
+                          limits connections or requests), http.rs, mirrors.rs, hls.rs (playlists and
                           live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (the staged file, or a file a range where the download folder is on another disk; names)
     queue/                several downloads, a limit, and the states between: mod.rs (the state),
                           runner.rs (what starts and when), actions.rs (pause, resume, cancel,

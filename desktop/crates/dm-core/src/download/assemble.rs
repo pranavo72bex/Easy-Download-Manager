@@ -207,12 +207,21 @@ pub(super) const SEAM_WINDOW: u64 = 512;
 /// A request that fails or is not answered as a range proves nothing and is let pass; bytes that
 /// differ, or the whole file answered under the validator (another version of it), are a finding,
 /// and the file is fetched again on one connection (`Job::disagreed`).
-pub(super) async fn check_seams(client: &reqwest::Client, job: &Job, index: usize) {
+///
+/// `one_at_a_time` where the server limits the download (`ranged::limits`): asked one after the
+/// other, and no more once one is refused. False where one was refused, so the caller asks none
+/// after it.
+pub(super) async fn check_seams(
+    client: &reqwest::Client,
+    job: &Job,
+    index: usize,
+    one_at_a_time: bool,
+) -> bool {
     use std::sync::atomic::Ordering::SeqCst;
     let (spans, segments) = {
         let segments = job.segments.lock().await;
         let Some(me) = segments.get(index).filter(|s| s.finished()) else {
-            return;
+            return true;
         };
         let mut spans = Vec::new();
         // The range just before this one in the file, and the one just after it.
@@ -248,25 +257,49 @@ pub(super) async fn check_seams(client: &reqwest::Client, job: &Job, index: usiz
             spans.push((me.end + 1 - me.span().min(SEAM_WINDOW), me.end));
         }
         if spans.is_empty() {
-            return;
+            return true;
         }
         (spans, segments.clone())
     };
-    let asked = spans
-        .iter()
-        .map(|&(low, high)| span_agrees(client, job, index, &segments, low, high));
-    if !futures_util::future::join_all(asked)
-        .await
-        .into_iter()
-        .all(|agrees| agrees)
-    {
+    let looks = if one_at_a_time {
+        let mut looks = Vec::with_capacity(spans.len());
+        for &(low, high) in &spans {
+            let look = span_agrees(client, job, index, &segments, low, high).await;
+            let refused = matches!(look, Look::Unproven { refused: true });
+            looks.push(look);
+            if refused {
+                break;
+            }
+        }
+        looks
+    } else {
+        let asked = spans
+            .iter()
+            .map(|&(low, high)| span_agrees(client, job, index, &segments, low, high));
+        futures_util::future::join_all(asked).await
+    };
+    if looks.iter().any(|look| matches!(look, Look::Differs)) {
         job.disagreed.store(true, SeqCst);
     }
+    !looks
+        .iter()
+        .any(|look| matches!(look, Look::Unproven { refused: true }))
+}
+
+/// What a span asked for again showed.
+enum Look {
+    /// The bytes on disk.
+    Same,
+    /// Other bytes, or another version of the file.
+    Differs,
+    /// Nothing either way: the request failed, or was answered otherwise than as the range
+    /// (`refused` where the server turned it away, 429 or 503).
+    Unproven { refused: bool },
 }
 
 /// Whether `low..=high` of the file, fetched afresh from the source of range `index` exactly as
 /// a range is asked for (with the headers a stream's reader says its server wants, and under the
-/// validator), is the bytes on disk. True where the answer proves nothing.
+/// validator), is the bytes on disk.
 async fn span_agrees(
     client: &reqwest::Client,
     job: &Job,
@@ -274,7 +307,7 @@ async fn span_agrees(
     segments: &[Segment],
     low: u64,
     high: u64,
-) -> bool {
+) -> Look {
     let source = job.source(index);
     let mut request = get(
         client,
@@ -298,32 +331,38 @@ async fn span_agrees(
     )
     .await
     else {
-        return true;
+        return Look::Unproven { refused: false };
     };
     /* Asked under the validator, the whole file instead of the range is the server saying the
      * file is no longer that version: the bytes on disk are not all of one file (a file
      * republished during the download, `zoo.rs` changes-midway). */
     if conditional.is_some() && res.status() == reqwest::StatusCode::OK {
-        return false;
+        return Look::Differs;
     }
+    let unproven = Look::Unproven { refused: false };
     if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
-        return true;
+        let refused = matches!(res.status().as_u16(), 429 | 503);
+        return Look::Unproven { refused };
     }
     let wanted = high - low + 1;
     if res.content_length().is_some_and(|n| n != wanted) {
-        return true;
+        return unproven;
     }
     let Ok(Ok(there)) = tokio::time::timeout(std::time::Duration::from_secs(15), res.bytes()).await
     else {
-        return true;
+        return unproven;
     };
     if there.len() as u64 != wanted {
-        return true;
+        return unproven;
     }
     let Some(here) = bytes_at(job, segments, low, wanted).await else {
-        return true;
+        return unproven;
     };
-    there[..] == here[..]
+    if there[..] == here[..] {
+        Look::Same
+    } else {
+        Look::Differs
+    }
 }
 
 /// `length` bytes of the file from `at`, read from where its ranges are: the staged file, or each

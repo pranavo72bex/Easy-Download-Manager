@@ -314,6 +314,8 @@ struct Job {
     /// 2026-11-11). Held here, no range's close is the last one, and the one that is happens off
     /// the runtime's threads once nothing waits on it.
     holding: std::sync::Mutex<Option<std::fs::File>>,
+    /// The syncs a stop began, waited for before the download returns (`files::Stopping`).
+    stopping: Arc<files::Stopping>,
     /// For each range after the first, the bytes just before it (up to 64)
     /// fetched as an overlap with the range before. `None` until fetched;
     /// compared at assembly against the same bytes on disk, which is the only
@@ -379,6 +381,9 @@ struct Job {
     /// When a range last came whole: the ranges still under way take up its share for a moment,
     /// and none is judged for halving until they have (`SPLIT_SETTLE`).
     last_ended: std::sync::Mutex<Option<tokio::time::Instant>>,
+    /// What the server has shown of a limit on the requests it serves at once or takes a second,
+    /// and how the connections keep to it (`ranged::limits`).
+    limits: Limits,
 }
 
 /// The most connections a download opens at once, whatever more it is allowed. Past these, one
@@ -408,6 +413,9 @@ struct Live {
     /// reconnect, it was a sixteenth of each request on a server that cuts connections every
     /// megabyte or so (gaps row 167).
     trusted: bool,
+    /// The last byte its attempt's answer brings, past the range's end where the request asked
+    /// on over the ranges after it, or the answer is the probe's (`ranged::limits`).
+    reach: u64,
     /// How its attempt is going, for whether halving it is worth a request (`Going::time_left`).
     going: Going,
 }
@@ -959,9 +967,12 @@ async fn fetch_reporting(
     }
 
     // A site with a limit of its own is fetched on that many connections,
-    // whatever the setting says; decided once, here, for every path below.
+    // whatever the setting says; decided once, here, for every path below. So is a server found
+    // in this run of dm to serve no more at once (`agents::remember_ceiling`).
     let options = &Options {
-        connections: options.connections_for(url),
+        connections: options
+            .connections_for(url)
+            .min(crate::agents::ceiling_for(url).unwrap_or(usize::MAX)),
         ..options.clone()
     };
 
@@ -1157,6 +1168,13 @@ async fn fetch_reporting(
     fs::create_dir_all(&options.parts_dir).await?;
     fs::create_dir_all(&options.dest_dir).await?;
 
+    // Where the address led on to another server, that one's limit as found in this run of dm.
+    let options = &Options {
+        connections: options
+            .connections
+            .min(crate::agents::ceiling_for(&info.final_url).unwrap_or(usize::MAX)),
+        ..options.clone()
+    };
     let segments = planned_segments(&info, options).await?;
     let planned = segments.len();
     // Room for the ranges splitting may add, where the length is known and
@@ -1183,6 +1201,7 @@ async fn fetch_reporting(
             .collect(),
         end_checked: std::sync::atomic::AtomicBool::new(false),
         holding: std::sync::Mutex::new(None),
+        stopping: Arc::default(),
         segments: Mutex::new(segments),
         limiter: options.limiter.clone(),
         sources,
@@ -1196,6 +1215,7 @@ async fn fetch_reporting(
                     reserved: 0,
                     taken: false,
                     trusted: false,
+                    reach: 0,
                     going: Going::default(),
                 }))
             })
@@ -1214,6 +1234,7 @@ async fn fetch_reporting(
         moved: tokio::sync::Notify::new(),
         first_byte_us: AtomicU64::new(0),
         last_ended: std::sync::Mutex::new(None),
+        limits: Limits::default(),
         control: options.control.clone(),
         // The ranges go straight to where the probe landed: past a redirect
         // to another host they carry what the hop carried, the page's origin.
@@ -1282,6 +1303,10 @@ async fn fetch_reporting(
         first_response,
     )
     .await;
+    // The next file from a server that turned requests away opens no more than it served at once.
+    if job.limits.limited() && job.sources.len() == 1 {
+        crate::agents::remember_ceiling(&job.sources[0].url, job.together.most());
+    }
 
     if let Some((handle, finished)) = reporter {
         // Ask for a closing sample, then wait for it to be sent.
@@ -1452,6 +1477,7 @@ mod tests {
             reserved: held,
             taken: true,
             trusted: true,
+            reach: 0,
             going: super::Going {
                 since: Some(asked),
                 ..Default::default()

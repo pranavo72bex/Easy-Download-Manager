@@ -142,7 +142,9 @@ async fn growing(
     let (mut allowed, mut batch, mut again) = (0usize, 1usize, GROW_AGAIN);
     loop {
         let left = size.saturating_sub(job.downloaded.load(Ordering::Relaxed)) as f64;
-        if left == 0.0 || allowed >= grown {
+        // A server that turns requests away serves no more: none past the most it has served at
+        // once is let in (`limits`).
+        if left == 0.0 || allowed >= grown || job.limits.limited() {
             return;
         }
         // Nothing arrived over the window (a link gone quiet): looked at again.
