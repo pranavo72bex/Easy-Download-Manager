@@ -292,55 +292,52 @@ fn internal(result: Result<dm_core::Finished, Error>) -> String {
     }
 }
 
-const TWO_KEYS: &str = "#EXT-X-KEY:METHOD=AES-128,URI=\"a.key\"\n#EXTINF:4.0,\nseg0.ts\n\
-                        #EXT-X-KEY:METHOD=AES-128,URI=\"b.key\"\n";
+/// The second key, for a stream whose key changes part-way.
+const KEY_TWO: [u8; 16] = [0x42; 16];
 
+/// Segment `index` scrambled with `key` under its sequence number as the IV.
+fn sealed_with(key: &[u8; 16], index: usize) -> Vec<u8> {
+    let mut iv = [0u8; 16];
+    iv[8..].copy_from_slice(&(index as u64).to_be_bytes());
+    let cipher = aes::Aes128::new_from_slice(key).unwrap();
+    cbc::Encryptor::<aes::Aes128>::inner_iv_slice_init(cipher, &iv)
+        .unwrap()
+        .encrypt_padded_vec::<Pkcs7>(&segment(index))
+}
+
+/// A stream whose key changes part-way, as a packager rotates keys, is fetched with each
+/// segment's own key, each key asked for once, and joins whole (gaps row Y16): refused
+/// before as beyond dm.
 #[tokio::test]
-async fn a_stream_that_changes_its_key_part_way_is_said_to_be_beyond_dm() {
-    // Straight to the media playlist.
-    let site = Site::new(&[("/v/show.m3u8", vod(2, TWO_KEYS))]);
-    let addr = site.serve().await;
-    let dir = tempdir();
-    let why = internal(
-        download(
-            &client(),
-            &format!("http://{addr}/v/show.m3u8"),
-            &options(dir.path()),
-        )
-        .await,
-    );
-    assert!(
-        why.contains("changes its encryption part-way through"),
-        "{why}"
-    );
-    assert!(
-        why.ends_with("this stream shape is not supported yet"),
-        "{why}"
-    );
-
-    // Through a master playlist naming it.
+async fn a_stream_that_changes_its_key_part_way_is_decrypted_segment_by_segment() {
+    let playlist = "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n\
+                    #EXT-X-KEY:METHOD=AES-128,URI=\"a.key\"\n#EXTINF:4.0,\nseg0.ts\n#EXTINF:4.0,\nseg1.ts\n\
+                    #EXT-X-KEY:METHOD=AES-128,URI=\"b.key\"\n#EXTINF:4.0,\nseg2.ts\n\
+                    #EXT-X-KEY:METHOD=NONE\n#EXTINF:4.0,\nseg3.ts\n#EXT-X-ENDLIST\n";
     let site = Site::new(&[
-        (
-            "/v/master.m3u8",
-            b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nshow.m3u8\n".to_vec(),
-        ),
-        ("/v/show.m3u8", vod(2, TWO_KEYS)),
+        ("/v/show.m3u8", playlist.as_bytes().to_vec()),
+        ("/v/a.key", KEY.to_vec()),
+        ("/v/b.key", KEY_TWO.to_vec()),
+        ("/v/seg0.ts", sealed_with(&KEY, 0)),
+        ("/v/seg1.ts", sealed_with(&KEY, 1)),
+        ("/v/seg2.ts", sealed_with(&KEY_TWO, 2)),
+        ("/v/seg3.ts", segment(3)),
     ]);
     let addr = site.serve().await;
-    let why = internal(
-        download(
-            &client(),
-            &format!("http://{addr}/v/master.m3u8"),
-            &options(dir.path()),
-        )
-        .await,
-    );
-    assert!(why.contains("changes its encryption"), "{why}");
-    // Nothing was fetched past the playlists.
-    assert!(
-        site.asked().iter().all(|(p, _)| p.ends_with(".m3u8")),
-        "{:?}",
-        site.asked()
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/v/show.m3u8"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("a stream whose key changes is fetched");
+    assert_eq!(std::fs::read(&done.path).unwrap(), segments(0..4));
+    let asked = |path: &str| site.asked().iter().filter(|(p, _)| p == path).count();
+    assert_eq!(
+        (asked("/v/a.key"), asked("/v/b.key")),
+        (1, 1),
+        "each key once"
     );
 }
 
@@ -413,12 +410,6 @@ fn media(names: &[&str], ended: bool) -> Vec<u8> {
 async fn a_picture_and_sound_dm_cannot_join_are_said_to_be_beyond_it() {
     let dir = tempdir();
     let master = |addr: SocketAddr| format!("http://{addr}/p/master.m3u8");
-
-    // The picture changes its key part-way.
-    let site = site_of(&paired(vod(2, TWO_KEYS), media(&["a0.aac"], true)));
-    let addr = site.serve().await;
-    let why = internal(download(&client(), &master(addr), &options(dir.path())).await);
-    assert!(why.contains("changes its encryption"), "{why}");
 
     // The sound is live while the picture is not.
     let site = site_of(&paired(media(&["v0.ts"], true), media(&["a0.aac"], false)));

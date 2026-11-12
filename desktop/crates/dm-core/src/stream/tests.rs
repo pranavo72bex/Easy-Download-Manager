@@ -107,9 +107,8 @@ fn streams_dm_cannot_assemble_itself_are_named() {
     assert!(is_live(live));
     assert!(!is_live(vod) && !is_live(plain));
     let rotated = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k1\"\na.ts\n#EXT-X-KEY:METHOD=NONE\nb.ts\n#EXT-X-ENDLIST\n";
-    assert!(beyond_dm(None, None, rotated, "http://h/v/i.m3u8")
-        .unwrap()
-        .contains("encryption"));
+    // A key that changes part-way is each segment's own, not beyond dm (gaps row Y16).
+    assert_eq!(beyond_dm(None, None, rotated, "http://h/v/i.m3u8"), None);
     let sealed_init = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-ENDLIST\n";
     assert!(beyond_dm(None, None, sealed_init, "http://h/v/i.m3u8").is_some());
     let separate = "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",DEFAULT=YES,URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO=\"a\"\nv.m3u8\n";
@@ -536,7 +535,12 @@ fn a_key_is_followed_switched_off_or_refused_by_its_method() {
     let clear = "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"k.bin\"\n#EXTINF:4,\na.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\nb.ts\n#EXT-X-ENDLIST\n";
     let read = media_playlist(clear, url, url, Quality::Best).unwrap();
     assert_eq!(read.parts.len(), 2);
-    assert!(read.key.is_none(), "the last key said is none");
+    // Each segment keeps its own: the first scrambled, the second in the clear (gaps row Y16).
+    assert!(read.parts[0].key.is_some() && read.parts[1].key.is_none());
+    assert!(
+        read.key.is_some(),
+        "the stream's is its first scrambled segment's"
+    );
     let sample = clear.replace("AES-128,", "SAMPLE-AES,");
     let why = media_playlist(&sample, url, url, Quality::Best)
         .unwrap_err()

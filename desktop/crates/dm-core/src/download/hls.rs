@@ -72,12 +72,18 @@ pub(super) async fn download_stream(
             .await;
     }
 
-    let key = match &listed.key {
-        // Once, not once per segment: a playlist of a thousand segments
-        // would otherwise be a thousand requests for the same sixteen bytes.
-        Some(key) => Some(fetch_capped(client, &key.uri, 1024, options).await?.body),
-        None => None,
-    };
+    // Each key once, not once per segment: a playlist of a thousand segments would otherwise
+    // be a thousand requests for the same sixteen bytes. A key that changes part-way is
+    // several (gaps row Y16).
+    let mut keys = Keys::new();
+    for declared in listed.parts.iter().filter_map(|p| p.key.as_ref()) {
+        if !keys.contains_key(&declared.uri) {
+            let body = fetch_capped(client, &declared.uri, 1024, options)
+                .await?
+                .body;
+            keys.insert(declared.uri.clone(), body);
+        }
+    }
 
     fs::create_dir_all(&options.dest_dir).await?;
 
@@ -131,7 +137,7 @@ pub(super) async fn download_stream(
         let outcome = fetch_segments(
             client,
             &listed,
-            key.as_deref(),
+            &keys,
             options,
             &downloaded,
             Some(&estimate),
@@ -427,7 +433,7 @@ impl LiveTrack {
             else {
                 break;
             };
-            let bytes = match &listed.key {
+            let bytes = match part.key.as_ref() {
                 Some(declared) if !part.init => {
                     if !self.keys.contains_key(&declared.uri) {
                         let key = fetch_capped(client, &declared.uri, 1024, options)
@@ -521,7 +527,7 @@ pub(super) async fn first_segment_is(
     options: &Options,
 ) -> Option<&'static str> {
     const HEAD: usize = 4096;
-    if listed.key.is_some() || listed.parts.iter().any(|p| p.init) {
+    if listed.parts.iter().any(|p| p.init || p.key.is_some()) {
         return None;
     }
     for staged in [
@@ -942,10 +948,13 @@ pub(super) async fn keep_only_parts_of(parts_dir: &Path, rendition: &str) -> Res
 /// by its index, so arrival order does not matter: the parts are joined by
 /// index afterwards, as before. The first failure is the stream's, and the
 /// segments still under way are dropped with it.
+/// The keys a stream's segments are decrypted with, by their address.
+pub(super) type Keys = std::collections::HashMap<String, Vec<u8>>;
+
 pub(super) async fn fetch_segments(
     client: &reqwest::Client,
     listed: &stream::Stream,
-    key: Option<&[u8]>,
+    keys: &Keys,
     options: &Options,
     downloaded: &AtomicU64,
     estimate: Option<&AtomicU64>,
@@ -960,7 +969,7 @@ pub(super) async fn fetch_segments(
             let Some(part) = listed.parts.get(index) else {
                 return Ok::<(), Error>(());
             };
-            fetch_one_segment(client, listed, key, options, downloaded, index, part).await?;
+            fetch_one_segment(client, keys, options, downloaded, index, part).await?;
             // The stream's size, about: what its pieces so far came to, as many times over as
             // it has pieces (gaps row Y22). Surer with each piece; from the second.
             let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -980,8 +989,7 @@ pub(super) async fn fetch_segments(
 
 async fn fetch_one_segment(
     client: &reqwest::Client,
-    listed: &stream::Stream,
-    key: Option<&[u8]>,
+    keys: &Keys,
     options: &Options,
     downloaded: &AtomicU64,
     index: usize,
@@ -1009,12 +1017,13 @@ async fn fetch_one_segment(
     })
     .await?;
 
-    let bytes = match (key, &listed.key) {
-        (Some(key), Some(declared)) if !part.init => {
-            // The initialisation segment is never encrypted.
+    // Decrypted with its own key, where it has one (the initialisation segment never does).
+    let bytes = match part.key.as_ref().filter(|_| !part.init) {
+        Some(declared) => {
+            let key = keys.get(&declared.uri).map(Vec::as_slice).unwrap_or(&[]);
             stream::decrypt(key, &stream::iv_for(declared, part.sequence), &fetched)?
         }
-        _ => fetched,
+        None => fetched,
     };
 
     downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);

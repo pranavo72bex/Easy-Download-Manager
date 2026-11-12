@@ -74,6 +74,9 @@ pub struct Part {
     /// How long the piece plays, in seconds, as the playlist's `#EXTINF`
     /// says; 0 for an initialisation segment or where it said nothing.
     pub duration: f64,
+    /// The key it is decrypted with: the playlist's last `#EXT-X-KEY` before it, which may
+    /// change part-way (gaps row Y16); none for one in the clear.
+    pub key: Option<Key>,
 }
 
 /// Everything needed to fetch a stream as one file.
@@ -261,9 +264,8 @@ pub fn beyond_dm(
         .filter(|l| l.to_ascii_uppercase().starts_with("#EXT-X-KEY"))
         .map(|l| l.trim().to_string())
         .collect();
-    if keys.len() > 1 {
-        return Some("this stream changes its encryption part-way through");
-    }
+    // A key that changes part-way is each segment's own (`Part::key`), fetched once each, as
+    // a player does (gaps row Y16): refused before.
     /* One initialisation segment leads the file; a second, different one
      * belongs to the segments after it, and joined as one file they decode
      * against the wrong one. Restated unchanged, it is still one — however
@@ -491,6 +493,7 @@ pub fn media_playlist(
                  * vector for a playlist that declares none — so a stream that
                  * is both fMP4 and AES-128 would decrypt to noise. */
                 sequence: sequence + parts.len() as u64,
+                key: key.clone(),
             });
             continue;
         }
@@ -575,6 +578,8 @@ pub fn media_playlist(
                         sequence: 0,
                         range,
                         duration: 0.0,
+                        // Never encrypted where it leads the key (`beyond_dm`).
+                        key: None,
                     });
                 }
                 container = "mp4";
@@ -622,6 +627,10 @@ pub fn media_playlist(
         parts.insert(0, init);
     }
 
+    // The stream's key, where one is: its first encrypted segment's; each segment keeps its
+    // own, as the key may change part-way (gaps row Y16).
+    let _ = key;
+    let key = parts.iter().find_map(|p| p.key.clone());
     Ok(Stream {
         filename: name_for(name_from, container),
         parts,
