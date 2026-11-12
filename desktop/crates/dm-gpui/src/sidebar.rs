@@ -147,7 +147,7 @@ pub fn sidebar(
             div()
                 .id("sidebar")
                 .role(Role::List)
-                .aria_label("Places")
+                .aria_label(t("Places"))
                 .size_full()
                 .overflow_y_scroll()
                 .py_2()

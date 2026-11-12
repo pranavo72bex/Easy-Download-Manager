@@ -72,25 +72,28 @@ impl Downloads {
     fn extract(&mut self, path: &str, url: &str, into: Option<std::path::PathBuf>) {
         let said = self.opener_said();
         self.say(t("Extracting…").into());
+        // The answer is worded on the extracting thread, which has no
+        // language of its own: it is given the window's.
+        let language = dm_desktop_base::i18n::code();
         let started = dm_shell::app::files::extract_later(
             std::path::PathBuf::from(path),
             url.to_string(),
             into,
             move |answer| {
+                dm_desktop_base::i18n::set(language);
                 let answer = match answer {
-                    Ok(done) => format!(
-                        "Extracted {} {} to {}",
-                        done.files,
-                        if done.files == 1 { "file" } else { "files" },
-                        done.folder.display()
+                    Ok(done) => tn(
+                        "Extracted {} file to {}||Extracted {} files to {}",
+                        done.files as u64,
+                        &[&done.files, &done.folder.display()],
                     ),
-                    Err(e) => format!("Not extracted: {e}"),
+                    Err(e) => tf("Not extracted: {}", &[&e]),
                 };
                 *dm_core::lock(&said) = Some(answer);
             },
         );
         if let Err(e) = started {
-            self.say(format!("Not extracted: {e}"));
+            self.say(tf("Not extracted: {}", &[&e]));
         }
     }
 

@@ -59,7 +59,7 @@ pub fn toolbar(
     div()
         .id("toolbar")
         .role(Role::Toolbar)
-        .aria_label("Toolbar")
+        .aria_label(t("Toolbar"))
         // A row as tall as a button; where the buttons do not fit across
         // the window (a narrow one, a larger text size), the rest go on to
         // a second row, as the egui window's toolbar does, rather than past

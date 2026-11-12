@@ -248,6 +248,133 @@ fn every_translation_is_drawn_in_the_windows_fonts() {
     );
 }
 
+/// Where `text` (what follows a call's opening bracket) closes the call: the
+/// first `)` outside brackets and string literals of its own.
+fn call_end(text: &str) -> usize {
+    let mut depth = 0usize;
+    let mut chars = text.char_indices();
+    while let Some((at, c)) = chars.next() {
+        match c {
+            '"' => {
+                while let Some((_, c)) = chars.next() {
+                    match c {
+                        '\\' => {
+                            chars.next();
+                        }
+                        '"' => break,
+                        _ => {}
+                    }
+                }
+            }
+            '(' | '[' | '{' => depth += 1,
+            ')' if depth == 0 => return at,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    text.len()
+}
+
+/// Each string literal in `text`, with what is written just before it; not
+/// those in a list (`&["app"]`), which are a panel's file endings, not words.
+fn literals(text: &str) -> Vec<(String, &str)> {
+    let mut found = Vec::new();
+    let mut listed = 0usize;
+    let mut chars = text.char_indices();
+    while let Some((at, c)) = chars.next() {
+        match c {
+            '[' => listed += 1,
+            ']' => listed = listed.saturating_sub(1),
+            _ => {}
+        }
+        if c != '"' {
+            continue;
+        }
+        let mut literal = String::new();
+        while let Some((_, c)) = chars.next() {
+            match c {
+                '\\' => {
+                    if let Some((_, escaped)) = chars.next() {
+                        literal.push(escaped);
+                    }
+                }
+                '"' => break,
+                c => literal.push(c),
+            }
+        }
+        if listed == 0 {
+            found.push((literal, text[..at].trim_end()));
+        }
+    }
+    found
+}
+
+/// The GPUI window's own words go through the catalogs: a literal handed
+/// straight to where a person sees or hears it (a status sentence, a
+/// problem, a screen reader's name, a menu item, a system panel's title or
+/// filter) reads in English whatever the language (gaps row U21). A
+/// literal there must be the English a `t`, `tf` or `tn` call is given,
+/// which the scan above then holds to be in every catalog.
+#[test]
+fn the_gpui_window_hands_no_english_straight_to_a_person() {
+    let gpui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dm-gpui/src");
+    // Where words go to be seen or heard.
+    const SHOWN: [&str; 9] = [
+        ".aria_label(",
+        ".say(",
+        "problems.push(",
+        ".note(",
+        "set_title(",
+        "add_filter(",
+        "MenuItem::action(",
+        "MenuItem::os_submenu(",
+        "Menu::new(",
+    ];
+    // dm's own name, the same in every language.
+    const SAME_EVERYWHERE: [&str; 1] = ["dm"];
+    let mut english = Vec::new();
+    for file in rust_files(&gpui) {
+        let text = std::fs::read_to_string(&file).unwrap();
+        let text = text.split("#[cfg(test)]").next().unwrap_or_default();
+        for sink in SHOWN {
+            for (at, _) in text.match_indices(sink) {
+                let rest = &text[at + sink.len()..];
+                for (literal, before) in literals(&rest[..call_end(rest)]) {
+                    // A literal of placeholders alone ("{}%") has no words.
+                    let mut words = literal.clone();
+                    while let (Some(open), Some(close)) = (words.find('{'), words.find('}')) {
+                        if close < open {
+                            break;
+                        }
+                        words.replace_range(open..=close, "");
+                    }
+                    if SAME_EVERYWHERE.contains(&literal.as_str())
+                        || !words.chars().any(char::is_alphabetic)
+                    {
+                        continue;
+                    }
+                    let translated = ["t(", "tf(", "tn("].iter().any(|call| {
+                        before.strip_suffix(call).is_some_and(|head| {
+                            !head
+                                .chars()
+                                .last()
+                                .is_some_and(|c| c.is_alphanumeric() || c == '_')
+                        })
+                    });
+                    if !translated {
+                        let name = file.file_name().unwrap_or_default().to_string_lossy();
+                        english.push(format!("{name}: {sink} {literal:?}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        english.is_empty(),
+        "English handed straight to a person: {english:#?}"
+    );
+}
+
 /// "Everything" heads the category tree and "All" is its first child: one
 /// word for both read as the same place twice.
 #[test]

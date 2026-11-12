@@ -80,7 +80,7 @@ pub fn menu(
         .collect();
     crate::rowmenu::panel(
         "place-menu",
-        "Place menu",
+        t("Place menu"),
         at,
         theme,
         items,
