@@ -556,7 +556,14 @@ impl Render for Options {
                     .border_color(theme.separator)
                     .overflow_y_scroll()
                     .track_scroll(&self.scroll)
-                    .child(page),
+                    // The settings its own children, so the page scrolls to one by its
+                    // place (Advanced to its proxy section, where a proxy was refused): a
+                    // column inside it was its one child, and that scroll went nowhere.
+                    .p(px(16.0))
+                    .flex()
+                    .flex_col()
+                    .gap(px(native::ROW_GAP))
+                    .children(page),
             )
             .child(
                 div()
