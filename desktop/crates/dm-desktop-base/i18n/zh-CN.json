@@ -949,5 +949,6 @@
   "Use {}": "使用 {}",
   "Keep {}": "保留 {}",
   "Save as HTML": "另存为 HTML",
-  "Don't download": "不下载"
+  "Don't download": "不下载",
+  "When this download is done": "此下载完成后"
 }

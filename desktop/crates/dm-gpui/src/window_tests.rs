@@ -14,5 +14,6 @@ mod downloads;
 mod find;
 mod second_network;
 mod status;
+mod this_done;
 mod undo;
 mod zip;

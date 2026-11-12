@@ -949,5 +949,6 @@
   "Use {}": "{} kullan",
   "Keep {}": "{} olarak bırak",
   "Save as HTML": "HTML olarak kaydet",
-  "Don't download": "İndirme"
+  "Don't download": "İndirme",
+  "When this download is done": "Bu indirme bittiğinde"
 }

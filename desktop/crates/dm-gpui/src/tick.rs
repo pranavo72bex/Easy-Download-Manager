@@ -50,6 +50,7 @@ impl Downloads {
         }
         self.told(cx);
         self.schedule_hooks();
+        self.this_done_due();
         if self.when_queue_dry() {
             self.quit(cx);
             return;
@@ -237,6 +238,29 @@ impl Downloads {
             Some(Ok(sentence)) => self.say(sentence),
             Some(Err(problem)) => self.problems.push(problem),
             None => {}
+        }
+    }
+
+    /// Each download whose own "When this download is done" is due (gaps row U36): its file or
+    /// folder opened, or exit, sleep, hibernate or turn off through When done's own countdown,
+    /// which can be cancelled.
+    fn this_done_due(&mut self) {
+        use dm_shell::app::session::ThisDone;
+        for (row, choice) in self.session.this_done_due(&self.rows) {
+            let opened = match choice {
+                ThisDone::Nothing => Ok(()),
+                ThisDone::Open => self.backend.platform.open(&row.path),
+                ThisDone::OpenFolder => self.backend.platform.reveal(&row.path),
+                ThisDone::Then(action) => {
+                    let at = Instant::now()
+                        + std::time::Duration::from_secs(dm_shell::app::power::COUNTDOWN_SECS);
+                    self.session.countdown = Some((action, at));
+                    Ok(())
+                }
+            };
+            if let Err(why) = opened {
+                self.problems.push(why);
+            }
         }
     }
 

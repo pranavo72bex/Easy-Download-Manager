@@ -949,5 +949,6 @@
   "Use {}": "Usar {}",
   "Keep {}": "Mantener {}",
   "Save as HTML": "Guardar como HTML",
-  "Don't download": "No descargar"
+  "Don't download": "No descargar",
+  "When this download is done": "Cuando termine esta descarga"
 }

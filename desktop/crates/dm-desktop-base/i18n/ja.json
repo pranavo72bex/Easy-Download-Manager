@@ -949,5 +949,6 @@
   "Use {}": "{} を使う",
   "Keep {}": "{} のままにする",
   "Save as HTML": "HTML として保存",
-  "Don't download": "ダウンロードしない"
+  "Don't download": "ダウンロードしない",
+  "When this download is done": "このダウンロードが終わったら"
 }

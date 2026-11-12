@@ -18,6 +18,7 @@ use dm_desktop_base::progress::{
     can_resume_words, piece_words, swarm_lines, title_with_percent, ConnRates,
 };
 use dm_shell::app::rules::GoOn;
+use dm_shell::app::session::ThisDone;
 use gpui::{
     div, point, prelude::*, size, App, Bounds, Context, Entity, Role, SharedString, WeakEntity,
     Window, WindowBounds, WindowOptions,
@@ -32,6 +33,20 @@ use crate::theme::Theme;
 use crate::zoom::px;
 
 /// The progress window's view.
+/// The pop-up "When this download is done" (gaps row U36).
+const THIS_DONE: &str = "this-done";
+
+/// What "When this download is done" offers: what this computer can do.
+fn this_done_choices() -> Vec<ThisDone> {
+    ThisDone::ALL
+        .into_iter()
+        .filter(|choice| match choice {
+            ThisDone::Then(action) => action.possible(dm_desktop_base::power::available),
+            _ => true,
+        })
+        .collect()
+}
+
 pub struct Progress {
     view: WeakEntity<Downloads>,
     id: Id,
@@ -145,6 +160,23 @@ impl Progress {
         let _ = self.view.update(cx, |view, cx| view.ask_cancel(id, cx));
     }
 
+    /// "When this download is done" set to the choice at `index` (`this_done_choices`).
+    fn this_done(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(choice) = this_done_choices().get(index).copied() else {
+            return;
+        };
+        let id = self.id;
+        let _ = self.view.update(cx, |view, cx| {
+            if choice == ThisDone::Nothing {
+                view.session.this_done.remove(&id);
+            } else {
+                view.session.this_done.insert(id, choice);
+            }
+            cx.notify();
+        });
+        cx.notify();
+    }
+
     /// "Limit this download to": on, at what is typed, or off.
     fn limit(&mut self, on: bool, cx: &mut Context<Self>) {
         let typed = self
@@ -244,6 +276,13 @@ impl Render for Progress {
         let multi = p.total.is_some() && connections.len() > 1;
         let own_on = row.speed_limit > 0;
         let settled = row.state.settled();
+        let this_done = view
+            .read(cx)
+            .session
+            .this_done
+            .get(&id)
+            .copied()
+            .unwrap_or_default();
 
         // Connections, when open: each piece's bar and its own speed.
         let conn_rows = (self.connections && !torrent).then(|| {
@@ -358,6 +397,12 @@ impl Render for Progress {
                     window.remove_window();
                 }
             }))
+            // "When this download is done"'s choice (gaps row U36).
+            .on_action(cx.listener(|this, pick: &crate::popup::Pick, _, cx| {
+                if pick.field == THIS_DONE {
+                    this.this_done(pick.index, cx);
+                }
+            }))
             .size_full()
             .bg(theme.window)
             .child(crate::fit::fitted(
@@ -461,6 +506,25 @@ impl Render for Progress {
                                 )))
                                 .child(screen.label(t("KB/s"))),
                         )
+                    })
+                    // What dm does when this download is done (gaps row U36).
+                    .when(!settled, |d| {
+                        d.child(native::row(
+                            Some(t("When this download is done")),
+                            width,
+                            &screen,
+                            crate::popup::button(
+                                THIS_DONE,
+                                t(this_done.english()).into(),
+                                this_done_choices()
+                                    .iter()
+                                    .map(|c| t(c.english()).into())
+                                    .collect(),
+                                this_done_choices().iter().position(|c| *c == this_done),
+                                theme,
+                                &screen,
+                            ),
+                        ))
                     })
                     // Shut until asked for; a torrent's swarm in its place.
                     .when(!torrent, |d| {

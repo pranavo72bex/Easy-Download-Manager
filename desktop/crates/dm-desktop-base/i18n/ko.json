@@ -949,5 +949,6 @@
   "Use {}": "{} 사용",
   "Keep {}": "{} 유지",
   "Save as HTML": "HTML로 저장",
-  "Don't download": "다운로드 안 함"
+  "Don't download": "다운로드 안 함",
+  "When this download is done": "이 다운로드가 끝나면"
 }
