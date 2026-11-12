@@ -303,6 +303,13 @@ impl Queue {
                         form_lost = true;
                     }
                     options.checksum = slot.entry.checksum.clone();
+                    /* Whether a checksum file found beside the file passed is said by the run
+                     * that checked it (`Update::Note`): a run fetching the file again, which may
+                     * check a typed digest instead or fail its check, does not carry an earlier
+                     * run's word. */
+                    if slot.entry.said == crate::download::CHECKED_BESIDE {
+                        slot.entry_mut().said.clear();
+                    }
                     options.torrent.only = crate::torrent::only_files(&slot.entry.torrent_files);
                     // Files of different priorities: the first tier asked for alone.
                     let tiers = crate::torrent::tiers(&slot.entry.torrent_files);
@@ -673,10 +680,6 @@ impl Queue {
                     slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
                     slot.entry_mut().category = Some(finished.category);
                     slot.entry_mut().verified = finished.verified;
-                    // A file fetched again and not checked this time no longer says it was.
-                    if !finished.verified && slot.entry.said == crate::download::CHECKED_BESIDE {
-                        slot.entry_mut().said.clear();
-                    }
                     slot.entry_mut().mirrors = finished.mirrors;
                     slot.entry_mut().replaces = None;
                     if std::mem::take(&mut slot.entry_mut().cookies_once) {

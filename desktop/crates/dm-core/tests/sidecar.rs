@@ -246,3 +246,36 @@ async fn a_typed_digest_is_checked_and_no_checksum_file_is_asked_for() {
     let asked = site.asked.lock().unwrap().clone();
     assert!(asked.iter().all(|p| p == "/rel/dm.zip"), "{asked:?}");
 }
+
+/// A row fetched again says what this run checked, not what an earlier run did: checked beside
+/// once, then again with a typed digest and no checksum file, it no longer says the first.
+#[tokio::test]
+async fn a_row_fetched_again_does_not_keep_an_earlier_runs_word() {
+    let (addr, site) = site().await;
+    site.answer(
+        "/rel/dm.zip.sha256",
+        &format!("{}  dm.zip\n", sha256_of(&served())),
+    );
+    let dir = tempdir();
+    let q = Queue::new(
+        client(),
+        dm_core::Options {
+            connections: 1,
+            ..common::options(dir.path())
+        },
+        1,
+    );
+    let id = q.add(&format!("http://{addr}/rel/dm.zip")).await.unwrap();
+    q.run().await;
+    assert_eq!(q.get(id).await.unwrap().said, dm_core::CHECKED_BESIDE);
+
+    site.extra.lock().unwrap().clear();
+    q.set_checksum(id, dm_core::Checksum::parse(&sha256_of(&served())))
+        .await;
+    assert!(q.redownload(id).await);
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert!(row.verified, "the typed digest was not checked");
+    assert!(row.said.is_empty(), "{}", row.said);
+}

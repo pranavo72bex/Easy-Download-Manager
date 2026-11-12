@@ -213,10 +213,16 @@ pub(crate) const LISTS: [(&str, Algorithm); 2] = [
 /// The digest a checksum file of `algorithm` publishes for a file called one of `names`.
 ///
 /// Reads the forms the common tools write: `<digest>  name` and `<digest> *name` (the GNU
-/// tools), and `SHA256 (name) = <digest>` (the BSD ones). A list (`SHA256SUMS`) must name the
-/// file; a file of one digest (`alone`, `dm.zip.sha256`) may hold the bare digest, but one that
-/// names some other file is not taken for this one. A digest of the wrong length for the
-/// algorithm is never taken, so a page or a note that happens to hold hex is not a checksum.
+/// tools), `SHA256 (name) = <digest>` (the BSD ones) and `SHA256(name)= <digest>` (OpenSSL's). A
+/// list (`SHA256SUMS`) must name the file; a file of one digest (`alone`, `dm.zip.sha256`) may
+/// hold the bare digest, but one that names some other file is not taken for this one. A digest
+/// of the wrong length for the algorithm is never taken, so a page or a note that happens to hold
+/// hex is not a checksum.
+///
+/// A line naming the file itself (`dm.zip`, `./dm.zip`) is taken first. One naming it in another
+/// folder (`dist/dm.zip`, how a list hashed in a build folder reads) is taken only where every
+/// such line gives the same digest: a list of `linux/dm.zip` and `windows/dm.zip` does not say
+/// which this one is, and the wrong one would fail a good file and remove it.
 pub(crate) fn listed_for(
     text: &str,
     algorithm: Algorithm,
@@ -227,52 +233,76 @@ pub(crate) fn listed_for(
         digest.chars().all(|c| c.is_ascii_hexdigit())
             && Algorithm::from_digest_length(digest) == Some(algorithm)
     };
-    // A listed name may carry the folder it was hashed from (`./dm.zip`, `dist/dm.zip`).
-    let names_this = |listed: &str| {
+    // How a listed name names the file: as itself, in another folder, or not at all.
+    let names_this = |listed: &str| -> Option<bool> {
         let listed = listed.trim();
+        let listed = listed.strip_prefix("./").unwrap_or(listed);
+        if names.iter().any(|name| !name.is_empty() && *name == listed) {
+            return Some(true);
+        }
         let base = listed.rsplit(['/', '\\']).next().unwrap_or(listed);
-        names.iter().any(|name| !name.is_empty() && *name == base)
+        names
+            .iter()
+            .any(|name| !name.is_empty() && *name == base)
+            .then_some(false)
     };
+    let found = |digest: &str| Checksum {
+        algorithm,
+        expected: digest.to_ascii_lowercase(),
+    };
+    // The digests lines give for the file in another folder, while no line names it itself.
+    let mut elsewhere: Vec<String> = Vec::new();
     for line in text.lines() {
         let line = line.trim().trim_start_matches('\u{feff}');
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        // BSD: `SHA256 (name) = digest`, its tag naming the algorithm.
-        if let Some((head, digest)) = line.rsplit_once(") = ") {
-            let Some((tag, name)) = head.split_once(" (") else {
-                continue;
-            };
+        // BSD and OpenSSL: `SHA256 (name) = digest`, `SHA256(name)= digest`, the tag naming the
+        // algorithm (`SHA2-256` in newer OpenSSL).
+        let tagged = line.rsplit_once('=').and_then(|(head, digest)| {
+            let (tag, name) = head.trim_end().strip_suffix(')')?.split_once('(')?;
             let tag = tag.trim().to_ascii_lowercase().replace('-', "");
-            let digest = digest.trim();
-            if tag == algorithm.name() && fits(digest) && names_this(name) {
-                return Some(Checksum {
-                    algorithm,
-                    expected: digest.to_ascii_lowercase(),
-                });
+            let tag = match tag.strip_prefix("sha2") {
+                Some(bits @ ("256" | "512")) => format!("sha{bits}"),
+                _ => tag,
+            };
+            (!tag.is_empty() && tag.chars().all(|c| c.is_ascii_alphanumeric()))
+                .then(|| (tag, name, digest.trim()))
+        });
+        let (digest, named) = match tagged {
+            Some((tag, name, digest)) => {
+                if tag != algorithm.name() {
+                    continue;
+                }
+                (digest, names_this(name))
             }
-            continue;
-        }
-        // GNU: the digest, then the name after a space and, in binary mode, a `*`.
-        let (digest, name) = match line.split_once(char::is_whitespace) {
-            Some((digest, name)) => (digest, Some(name.trim_start().trim_start_matches('*'))),
-            None => (line, None),
+            // GNU: the digest, then the name after a space and, in binary mode, a `*`.
+            None => match line.split_once(char::is_whitespace) {
+                Some((digest, name)) => {
+                    let name = name.trim_start().trim_start_matches('*');
+                    if name.trim().is_empty() {
+                        (digest, alone.then_some(true))
+                    } else {
+                        (digest, names_this(name))
+                    }
+                }
+                None => (line, alone.then_some(true)),
+            },
         };
         if !fits(digest) {
             continue;
         }
-        let taken = match name {
-            Some(name) if !name.trim().is_empty() => names_this(name),
-            _ => alone,
-        };
-        if taken {
-            return Some(Checksum {
-                algorithm,
-                expected: digest.to_ascii_lowercase(),
-            });
+        match named {
+            Some(true) => return Some(found(digest)),
+            Some(false) => elsewhere.push(digest.to_ascii_lowercase()),
+            None => {}
         }
     }
-    None
+    let first = elsewhere.first()?;
+    elsewhere
+        .iter()
+        .all(|digest| digest == first)
+        .then(|| found(first))
 }
 
 #[cfg(test)]
@@ -309,6 +339,43 @@ mod tests {
             "ef".repeat(32)
         );
         assert_eq!(listed_for(&list, Algorithm::Sha256, &names, false), want);
+        // OpenSSL's form, its newer tag too, and a name with brackets of its own.
+        for text in [
+            format!("SHA256(dm.zip)= {sha}"),
+            format!("SHA2-256(dm.zip)= {sha}"),
+        ] {
+            assert_eq!(
+                listed_for(&text, Algorithm::Sha256, &names, false),
+                want,
+                "{text:?}"
+            );
+        }
+        assert_eq!(
+            listed_for(
+                &format!("SHA256 (dm (1).zip) = {sha}"),
+                Algorithm::Sha256,
+                &["dm (1).zip"],
+                false
+            ),
+            want
+        );
+        // A GNU name holding `=` is still a GNU line.
+        assert_eq!(
+            listed_for(
+                &format!("{sha}  a=b.zip"),
+                Algorithm::Sha256,
+                &["a=b.zip"],
+                false
+            ),
+            want
+        );
+        // The file named itself wins over the same name in another folder, wherever it is.
+        let both = format!("{}  linux/dm.zip\n{sha}  dm.zip\n", "cd".repeat(32));
+        assert_eq!(listed_for(&both, Algorithm::Sha256, &names, false), want);
+        // Two folders' files of that name that differ: which is this one is not known, so
+        // neither is taken (the wrong one would fail a good file).
+        let two = format!("{}  linux/dm.zip\n{sha}  windows/dm.zip\n", "cd".repeat(32));
+        assert_eq!(listed_for(&two, Algorithm::Sha256, &names, false), None);
         // A bare digest says nothing of which file a list means.
         assert_eq!(listed_for(&sha, Algorithm::Sha256, &names, false), None);
         // Another file's digest, a digest of the wrong length, and a page are not this one's.
