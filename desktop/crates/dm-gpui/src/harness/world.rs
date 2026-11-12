@@ -385,7 +385,6 @@ impl World {
     }
 }
 
-
 /// 8 MiB served in ranges, each sending its first `first` bytes and then
 /// nothing.
 async fn ranges_stall(first: u64, headers: axum::http::HeaderMap) -> Response<Body> {
@@ -419,4 +418,3 @@ async fn ranges_stall(first: u64, headers: axum::http::HeaderMap) -> Response<Bo
         )))
         .unwrap()
 }
-

@@ -78,7 +78,10 @@ impl dm_shell::app::platform::Platform for Fake {
         action: dm_shell::app::power::WhenDone,
         _report: dm_shell::app::power::Report,
     ) -> Result<(), String> {
-        self.opened.lock().unwrap().push(format!("power {action:?}"));
+        self.opened
+            .lock()
+            .unwrap()
+            .push(format!("power {action:?}"));
         Ok(())
     }
     fn choose_app(&self) -> Option<std::path::PathBuf> {
