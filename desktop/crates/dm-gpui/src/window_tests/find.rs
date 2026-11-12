@@ -58,4 +58,11 @@ fn find_next_steps_through_the_rows_the_box_shows() {
         first,
         "Find previous did not go back"
     );
+    // And by its key, from the search box's own field (B48).
+    h.key("f3", &[]);
+    assert_eq!(
+        h.view(|view| view.selected.clone()),
+        second,
+        "F3 from the box did not go on"
+    );
 }
