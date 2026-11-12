@@ -21,9 +21,16 @@ impl Downloads {
             command,
             &chosen,
             &self.rows,
-            false,
+            self.finding(),
             &dm_desktop_base::rows::Looks,
         )
+    }
+
+    /// Whether the search box has words, which Find next and previous step through: told as
+    /// `false` always, they were greyed and refused whatever was typed (found by the window's
+    /// tests, 2026-11-13).
+    fn finding(&self) -> bool {
+        !self.filter_text.trim().is_empty()
     }
 
     /// Why `command` is greyed, in the language in force, where it is: none is chosen and one would do, the
@@ -41,7 +48,7 @@ impl Downloads {
             command,
             &every,
             &self.rows,
-            false,
+            self.finding(),
             &dm_desktop_base::rows::Looks,
         );
         use dm_desktop_base::i18n::t;
@@ -65,7 +72,7 @@ impl Downloads {
                         command,
                         &chosen,
                         &self.rows,
-                        false,
+                        self.finding(),
                         &dm_desktop_base::rows::Looks,
                     )
             })
