@@ -9,4 +9,5 @@
 mod asks;
 mod choices;
 mod downloads;
+mod find;
 mod zip;

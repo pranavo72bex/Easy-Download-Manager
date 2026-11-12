@@ -30,6 +30,36 @@ pub fn next_match(
         .find(|&at| names[at].to_lowercase().contains(needle))
 }
 
+/// The place after `from` (before it, going back) among `n` rows that all match, going round:
+/// Find next and previous over the rows the search box shows, which it has narrowed by name,
+/// address or note already (gaps row U30). With none chosen, the first (the last going back).
+pub fn step(n: usize, from: Option<usize>, forward: bool) -> Option<usize> {
+    if n == 0 {
+        return None;
+    }
+    Some(match (from, forward) {
+        (Some(i), true) => (i + 1) % n,
+        (Some(i), false) => (i + n - 1) % n,
+        (None, true) => 0,
+        (None, false) => n - 1,
+    })
+}
+
+#[cfg(test)]
+mod step_tests {
+    use super::step;
+
+    #[test]
+    fn find_next_and_previous_go_round_the_rows_shown() {
+        assert_eq!(step(0, None, true), None);
+        assert_eq!(step(3, None, true), Some(0));
+        assert_eq!(step(3, None, false), Some(2));
+        assert_eq!(step(3, Some(2), true), Some(0));
+        assert_eq!(step(3, Some(0), false), Some(2));
+        assert_eq!(step(3, Some(1), true), Some(2));
+    }
+}
+
 #[cfg(test)]
 mod find_tests {
     use super::next_match;

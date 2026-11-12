@@ -8,7 +8,7 @@
 
 use std::sync::{mpsc, Arc};
 
-use gpui::{TestAppContext, WindowHandle};
+use gpui::{AnyWindowHandle, AppContext as _, Entity, TestAppContext};
 use serde_json::Value;
 
 use crate::list::Downloads;
@@ -105,7 +105,8 @@ impl dm_shell::app::platform::Platform for Fake {
 /// The window, opened, and how to ask it things.
 pub(crate) struct Harness {
     pub(crate) cx: TestAppContext,
-    pub(crate) window: WindowHandle<Downloads>,
+    pub(crate) window: AnyWindowHandle,
+    view: Entity<Downloads>,
     /// What dm asked of the system; read by the tests ported from the egui window's.
     #[allow(dead_code)]
     pub(crate) fake: Arc<Fake>,
@@ -146,22 +147,34 @@ impl Harness {
         let mut cx = TestAppContext::single();
         cx.update(gpui_component::init);
         crate::screen::record();
-        let window = cx.add_window(|window, cx| {
-            Downloads::new(
-                backend,
-                woken,
-                Some(asked),
-                false,
-                Default::default(),
-                false,
-                window,
-                cx,
-            )
+        // As `main` opens it: the list in gpui-component's root, then what the application
+        // hears beside it (`wire`: the keys, the menus, Quit and the text size).
+        let made = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let kept = std::rc::Rc::clone(&made);
+        let window = cx.add_window(move |window, cx| {
+            let view = cx.new(|cx| {
+                Downloads::new(
+                    backend,
+                    woken,
+                    Some(asked),
+                    false,
+                    Default::default(),
+                    false,
+                    window,
+                    cx,
+                )
+            });
+            *kept.borrow_mut() = Some(view.clone());
+            gpui_component::Root::new(view, window, cx)
         });
+        let view: Entity<Downloads> = made.borrow_mut().take().unwrap();
+        cx.update(|cx| crate::wire(&view, cx));
+        let window: AnyWindowHandle = window.into();
         cx.run_until_parked();
         Harness {
             cx,
             window,
+            view,
             fake,
             asks,
             wakes,
@@ -170,9 +183,7 @@ impl Harness {
 
     /// `read` of the window's own state.
     pub(crate) fn view<R>(&mut self, read: impl FnOnce(&mut Downloads) -> R) -> R {
-        self.window
-            .update(&mut self.cx, |view, _, _| read(view))
-            .unwrap()
+        self.view.update(&mut self.cx, |view, _| read(view))
     }
 
     /// Every piece of text on screen, in every window, nearest the front first.
@@ -355,10 +366,7 @@ impl Harness {
         &mut self,
         alter: impl FnOnce(&mut Downloads, &mut gpui::Context<Downloads>) -> R,
     ) -> R {
-        let done = self
-            .window
-            .update(&mut self.cx, |view, _, cx| alter(view, cx))
-            .unwrap();
+        let done = self.view.update(&mut self.cx, |view, cx| alter(view, cx));
         self.step();
         done
     }
@@ -508,6 +516,53 @@ impl Harness {
             "{words} never came in sight: {:?}",
             self.texts()
         );
+    }
+
+    /// Clicks the field beside the words `label` (its name, at its left), as a person clicks
+    /// into it: the keyboard goes there.
+    pub(crate) fn click_beside(&mut self, label: &str) {
+        use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, PlatformInput};
+        let found = self.cx.update(|cx| {
+            crate::screen::Screens::all(cx)
+                .into_iter()
+                .flat_map(|(handle, screen, _)| {
+                    screen.drawn().into_iter().rev().map(move |d| (handle, d))
+                })
+                .find(|(_, d)| d.text.as_ref() == label)
+        });
+        let Some((window, drawn)) = found else {
+            panic!("{label} is not on screen: {:?}", self.texts());
+        };
+        let bounds = drawn.bounds;
+        let at = gpui::point(
+            bounds.origin.x + bounds.size.width + gpui::px(30.0),
+            bounds.origin.y + bounds.size.height / 2.0,
+        );
+        self.cx.update(|cx| {
+            let _ = window.update(cx, |_, window, cx| {
+                let none = Modifiers::default();
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button: MouseButton::Left,
+                        position: at,
+                        modifiers: none,
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button: MouseButton::Left,
+                        position: at,
+                        modifiers: none,
+                        click_count: 1,
+                    }),
+                    cx,
+                );
+            });
+        });
+        self.step();
     }
 }
 

@@ -149,12 +149,12 @@ pub struct DownloadAsk {
     pub lines: Vec<String>,
     /// What the server answered, shown as it came, where it says.
     pub detail: Option<&'static str>,
-    /// Its buttons, the default first.
-    pub buttons: Vec<&'static str>,
+    /// Its buttons, the default first: verbs that say what each does (gaps row U31).
+    pub buttons: Vec<String>,
 }
 
 /// B39: the server named the file `server_name`, the address `address_name`.
-/// Yes keeps the server's name; No saves it under the address's.
+/// "Use" the server's name (the default) keeps it; "Keep" the address's saves it under that.
 pub fn name_sent(address_name: &str, server_name: &str) -> DownloadAsk {
     DownloadAsk {
         title_english: "Name sent by the server",
@@ -164,12 +164,15 @@ pub fn name_sent(address_name: &str, server_name: &str) -> DownloadAsk {
             &[&address_name, &server_name],
         )],
         detail: None,
-        buttons: vec![t("Yes"), t("No")],
+        buttons: vec![
+            tf("Use {}", &[&server_name]),
+            tf("Keep {}", &[&address_name]),
+        ],
     }
 }
 
-/// B40: a web page answered for a file. Yes saves the page as HTML; No
-/// removes the row and keeps nothing.
+/// B40: a web page answered for a file. "Save as HTML" saves the page as HTML; "Don't
+/// download" removes the row and keeps nothing.
 pub fn page_for_file() -> DownloadAsk {
     DownloadAsk {
         title_english: "Web page instead of the file",
@@ -179,7 +182,7 @@ pub fn page_for_file() -> DownloadAsk {
         )
         .to_string()],
         detail: None,
-        buttons: vec![t("Yes"), t("No")],
+        buttons: vec![t("Save as HTML").into(), t("Don't download").into()],
     }
 }
 
@@ -193,7 +196,7 @@ pub fn not_found() -> DownloadAsk {
             t("Details:").to_string(),
         ],
         detail: Some("HTTP/1.1 404 Not Found"),
-        buttons: vec![t("OK")],
+        buttons: vec![t("OK").into()],
     }
 }
 
@@ -372,10 +375,10 @@ mod tests {
             name.lines,
             vec!["The name to save the file was dl, but the server sent Report 2026.pdf. Save the file with the name received from the server?".to_string()]
         );
-        assert_eq!(name.buttons, vec!["Yes", "No"]);
+        assert_eq!(name.buttons, vec!["Use Report 2026.pdf", "Keep dl"]);
         let page = page_for_file();
         assert_eq!(page.title_english, "Web page instead of the file");
-        assert_eq!(page.buttons, vec!["Yes", "No"]);
+        assert_eq!(page.buttons, vec!["Save as HTML", "Don't download"]);
         let gone = not_found();
         assert_eq!(gone.title_english, "The file doesn't exist");
         assert_eq!(gone.detail, Some("HTTP/1.1 404 Not Found"));

@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Find next and Find previous (F3, Shift-F3) step through the rows the search box shows, matched by name, address or note as the box matches them.
+- "Name sent by the server" and "Web page instead of the file" answer with what each button does ("Use Report 2026.pdf", "Keep dl"; "Save as HTML", "Don't download"), not Yes and No.
 - Screen readers: the download list is read as a table, a greyed button as dimmed, a progress bar with its per cent, and a download finishing or failing is said aloud.
 - DASH: a live stream is recorded until it ends or is stopped, and a stream of several periods is saved as one file, an advert in another format left out and said.
 - dm is built with one crypto library, all in Rust: the torrent engine no longer brings a second one written in C (and the cmake needed to build it), nor a web server.
