@@ -176,6 +176,8 @@ windows-sys = { version = "0.61", features = [
 [dev-dependencies]
 # A home of its own for each run of the real binary (tests/quit.rs).
 tempfile = "3"
+# Random and hostile requests on the control port, answered by the window (`window_tests/fuzz.rs`).
+proptest = "1"
 # The window opened in GPUI's test platform and driven through its control-port methods, as
 # a script drives it (`src/harness.rs`).
 gpui = { package = "gpui-pre", version = "=0.3.12", features = ["test-support"] }

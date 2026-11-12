@@ -14,6 +14,7 @@ mod commands;
 mod dialogs;
 mod downloads;
 mod find;
+mod fuzz;
 mod grabber;
 mod lists;
 mod more_dialogs;
