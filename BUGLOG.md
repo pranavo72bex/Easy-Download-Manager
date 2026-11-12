@@ -9,19 +9,21 @@ The loop ended on 2026-10-29 after five full runs and three in a row with
 every scenario passing (37 of 37) and every browser check passing (69 of 69),
 with no flaky result in those three.
 
-- **Found and fixed: 7.** BUG-001 a range whose server overstates its length
-  was fetched for ever; BUG-002 an untrusted certificate was retried for two
-  minutes; BUG-003 Brave refused the panel's WebAssembly on YouTube; BUG-004 a
-  silent the external video tool kept its row running for ever; BUG-005 the new panel loader
-  logged an error where WebAssembly is forbidden; BUG-006 the panel stayed
-  put when the player changed size; BUG-007 the panel stayed put when the
-  player moved without changing size (found by `scripts/human-qa.py` on real
-  YouTube, 2026-10-30). Each has a regression test that failed before its
-  fix.
-- **Open: 1.** BUG-003 is not yet confirmed on real YouTube
-  (Google blocks the container's browser for now), and the Firefox live-page
-  panel check has not been compared with the build before it.
-- **Tests that were wrong: 8** (T-001 to T-008), each explained below before
+- **Found and fixed: 14** (BUG-001 to BUG-014, below). The first seven came
+  from the Docker loop and `scripts/human-qa.py` up to 2026-10-30: BUG-001 a
+  range whose server overstates its length was fetched for ever; BUG-002 an
+  untrusted certificate was retried for two minutes; BUG-003 Brave refused the
+  panel's WebAssembly on YouTube; BUG-004 a silent video helper kept its row
+  running for ever (the helper is gone since); BUG-005 the new panel loader
+  logged an error where WebAssembly is forbidden; BUG-006 the panel stayed put
+  when the player changed size; BUG-007 the panel stayed put when the player
+  moved without changing size. Each has a regression test that failed before
+  its fix.
+- **Open: 0.** BUG-003, the last one open, was confirmed on real YouTube in
+  Brave on CachyOS (40 rounds, no "Unsafe attempt to load" error; gaps row 30,
+  `CHANGELOG.md`). Its Firefox live-page panel check was never compared with
+  the build before the fix.
+- **Tests that were wrong: 15** (T-001 to T-014, two of them T-011), each explained below before
   it was changed. Most were the test expecting a failure where dm, by design,
   pauses with a reason, or a test environment that was not what it claimed.
 - **Flaky: none** in the last three runs. Run 1's network and folder
@@ -39,13 +41,17 @@ with no flaky result in those three.
     resumed range's tail against the server before trusting it, retries what
     waiting can fix (`retry.rs`: 10 tries by default, backoff to 30 s), and
     moves the file into the download folder at the end. Also HLS/DASH, FTP,
-    Metalink, torrents, and the external video tool (run as a child process) for video pages.
+    Metalink, torrents, and YouTube's pages, read by dm itself (`youtube.rs`).
   - `dm-shell`: settings, the queue file, the browser host and `--register`,
-    the one-instance lock.
-  - `dm-desktop`: the program. The window (egui), and `--headless` with no
-    window; a local **control port** (JSON lines on 127.0.0.1, token in
-    `DM_HOME/control.token`: `downloads.add`, `queue.list`, `downloads.pause`,
-    `.resume`, `.cancel`, ...), the command line and an MCP server on it.
+    the one-instance lock, and the application layer (`dm_shell::app`).
+  - `dm-desktop-base`: what the program does that is not drawing:
+    `--headless` with no window; a local **control port** (JSON lines on
+    127.0.0.1, token in `DM_HOME/control.token`: `downloads.add`,
+    `queue.list`, `downloads.pause`, `.resume`, `.cancel`, ...), the command
+    line and an MCP server on it.
+  - `dm-gpui`: the program people install, its window drawn with GPUI.
+    `dm-desktop` is the older egui window, still built and tested until gaps
+    row G9 removes it; the QA stack here still builds it (`qa/app/Dockerfile`).
   - `dm-protocol`: the messages between extension and app.
 - **`browser/`** is the extension's logic in Rust, compiled to WebAssembly;
   **`extension/`** the manifests and three small JavaScript loaders.
@@ -127,9 +133,10 @@ Deviations from the brief, and why:
 - **Regression test**: `browser/src/decide/tests.rs`
   `the_panel_is_put_in_by_the_browser_and_fetched_from_no_page`;
   `ext-check.sh` shows no `chrome-extension://` request from the page.
-- **Open**: not yet confirmed on real YouTube (Google blocks the container's
-  browser for now); the Firefox live-page check (W3Schools) did not show the
-  panel and has not been compared with the build before this change.
+- **Confirmed** on real YouTube in Brave on CachyOS (gaps row 30: 40 rounds,
+  no "Unsafe attempt to load" error). The Firefox live-page check (W3Schools),
+  which did not show the panel then, was never compared with the build before
+  this change.
 
 ### BUG-004 — an external video tool that never says anything keeps the row running for ever
 
@@ -359,12 +366,10 @@ Deviations from the brief, and why:
 
 ## Open, not fixed
 
-- Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not
-  dm's: The external video tool's `HTML5MediaEmbed` numbers every video on a plain page
-  (`'{title} ({num})'`, `'{id}-{num}'`), even the only one, and leaves the
-  playlist fields out when there is one. dm now drops the number for a
-  page's only video (`videopage/fetch.rs` `unnumbered`); `video_page` checks the
-  name, and failed before the change.
+None. Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" came
+from the video helper dm used then, which numbered every video on a plain page,
+even the only one; dm dropped the number for a page's only video. The helper,
+and the plain-page reading with it, are gone since 2026-10-31.
 
 ## Tests that were wrong
 

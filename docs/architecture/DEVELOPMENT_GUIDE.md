@@ -13,8 +13,11 @@ may depend on is in [MODULE_BOUNDARIES.md](MODULE_BOUNDARIES.md).
    Example: whether a row can be resumed (`rules::go_on`), what When done
    means, a new kind of change to tell presentations of.
 3. **Is it how something looks, or what a person clicks?** It is the
-   presentation: `dm-desktop`. It asks the application to act and words the
-   answer itself.
+   presentation: `dm-gpui`, the window people install. It asks the
+   application to act and words the answer itself. What both windows need
+   that is not drawing (words, numbers, the system's services) goes in
+   `dm-desktop-base`. `dm-desktop` is the older egui window, kept until gaps
+   row G9 removes it: new work does not go there.
 4. **Does it need the computer itself (a notification, the clipboard, the
    tray, power)?** Declare what the application needs on `Platform` (or
    another trait in `dm_shell::app`); implement it in the desktop.
@@ -34,24 +37,26 @@ drawing function.
 **A new command** (a menu item, a button, a key): add it to
 `dm_shell::app::commands` (its name in `Command::ALL` and `id`, its English
 label, its `Chord`s, when it applies in `applies`, and, where it needs no
-dialog, what it does in `verb`). The window gives it words (`Shown::title`)
-and opens its dialog in `DmApp::run`; the control port and MCP reach it by its
-name with nothing more.
+dialog, what it does in `verb`). The window's menus give it words from its
+label (`dm-gpui/src/menus.rs`), and the window carries it out or opens its
+dialog in `Downloads::run` (`dm-gpui/src/list.rs`); the control port and MCP
+reach it by its name with nothing more.
 
 **A new control-port or MCP method**: a UI-free one goes in
 `dm_shell::app::control_api` (`answer`, with its check in `refused` if a
-person alone may call it); only `ui.*` methods and `command.run`'s dialogs stay
-in `dm-desktop/src/app/control.rs`.
+person alone may call it); only `ui.*` methods and `command.run`'s dialogs are
+the window's (`dm-gpui/src/probe.rs`, through
+`dm_desktop_base::probe::WindowProbe`).
 
 **Something asked of a server that is not a download** (a page read, a size
 asked, a list fetched): a function in `dm_shell::app::lookups` (or `search`,
 `update`, `files`) that takes the `Backend`, uses `Backend::client` (the proxy
 and timeout in force), runs on `backend.runtime`, and gives its answer to a
 callback. The window keeps the slot it shows and asks for a repaint in the
-callback. Never build a client or spawn a request in dm-desktop.
+callback. Never build a client or spawn a request in a window's crate.
 
 **Something the window must react to at once**: it is told through
-`dm_shell::app::changes`; subscribe, signal, and read on the next frame.
+`dm_shell::app::changes`; subscribe, signal, and read on the next wake.
 Never send data through a subscriber or block in one.
 
 **What happened to each download** (for a script, a second front end, a

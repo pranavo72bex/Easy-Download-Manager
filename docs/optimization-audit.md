@@ -305,7 +305,7 @@ and change report, were added on 2026-11-11 as "Rules for performance and platfo
 | 9 Every async task has an owner, a cancellation and a shutdown | Missing | Stated (rows 185, 186) |
 | 10 Every optimization has benchmark or profile evidence | gaps.md's bottom line | Stated |
 | 11 Preserve user-visible behaviour unless authorized | Rule 0 | Kept |
-| 12 No UI design change during engine or infrastructure work | CLAUDE.md, `docs/architecture.md` | Stated |
+| 12 No UI design change during engine or infrastructure work | CLAUDE.md, `docs/architecture/ARCHITECTURE.md` | Stated |
 | 13 Narrow public APIs, documented invariants | `missing_docs` | Stated |
 | 14 A regression test for each bug found | Rule 1 | Kept |
 | 15 Never claim platform support from compilation alone | "Wired is not working" | Stated |

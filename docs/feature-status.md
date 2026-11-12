@@ -1,16 +1,19 @@
 # Feature status, with evidence
 
-Checked against the code on 2026-10-23, not against memory. `[x]` means done
-and tested; an unticked box says what is missing rather than nothing.
+Begun against the code on 2026-10-23 and kept up since, not from memory: each
+line names the test or run that showed it, dated where it has a date. `[x]`
+means done and tested; an unticked box says what is missing rather than
+nothing.
 
 `desktop/` is the product and does the
 downloading; the browser extension catches downloads and hands them to it,
 and downloads nothing itself — with no app, the browser keeps its downloads.
-Everything is Rust: the extension is `browser/` compiled to WebAssembly,
-loaded by `extension/background.js`, a 20-line loader that exists because a
-Manifest V3 background must register its listeners before any WebAssembly
-can load. The JavaScript extension (popup, options, in-browser downloader)
-was removed on 2026-10-12 and is in git history.
+Everything is Rust: the extension is `browser/` compiled to WebAssembly. Its
+background and popup scripts are written by `scripts/package.sh` with the
+WebAssembly in them, so Rust registers the listeners on the worker's first
+turn (`web/listen.rs`); only the two page scripts (`content.js`,
+`document.js`) are JavaScript. The JavaScript extension (popup, options,
+in-browser downloader) was removed on 2026-10-12 and is in git history.
 
 ## Core downloader
 - [x] A browser download whose signed address expired waits for a fresh one (`Entry::fresh_link`, saved with the row) and the browser's next hand-over of the same file, matched by name, exact size and family of servers, takes its place and resumes from the staged parts (`Queue::adopt_fresh_link`; `fresh_link.rs`)
@@ -20,7 +23,7 @@ was removed on 2026-10-12 and is in git history.
 - [x] Each piece's lead re-reads 64 bytes across the seam (`ranged.rs` `LEAD_BYTES`; `seam_check.rs` `a_corrupt_seam_interior_is_caught_by_the_64_byte_overlap`); a cut connection or a short outage is retried at once (`tests/errors.rs` `a_dropped_connection_is_retried_and_the_file_still_arrives`, `a_server_back_after_a_short_outage_is_reached_quickly`), and connections that have all lost the server take turns asking it and come back together (`connections_that_lose_the_server_take_turns_and_come_back_together`, `retry::Together`)
 - [x] The files of a ZIP listed from its end by range requests, without the archive (`zipinfo.rs`; `zip_contents.rs`); listed as a Contents section in Download details before the file is fetched, and in a finished ZIP's Properties (`dialogs/zip_list.rs`; `tests/window/zip.rs`; contract row B44)
 - [x] One file taken out of a ZIP on a server before the archive is downloaded: Download details › Contents › Take out fetches that file's own bytes by range requests, unpacks (stored or deflated), checks its CRC and saves it beside where the archive goes (`zipinfo::zip_take_one`; `tests/zip_contents.rs` `one_file_is_taken_out_of_a_remote_zip_without_fetching_the_archive`, `a_folder_a_damaged_file_or_a_server_without_ranges_takes_nothing_out`; window test `take_out_saves_one_file_of_a_zip_before_the_zip_is_fetched`; contract row B44)
-- [ ] A part (From/To) cut from an HLS stream, a DASH stream and a plain MP4 (`stream::cover`, `dash::cut`, `download/hls.rs`, `download/dash.rs`, `download/plain.rs`, `mp4mux/part.rs`; gaps row 45): written, not yet built or tested
+- [x] A part (From/To) cut from an HLS stream, a DASH stream and a plain MP4 (`stream::cover`, `dash::cut`, `download/hls.rs`, `download/dash.rs`, `download/plain.rs`, `mp4mux/part.rs`; gaps row 45, closed): `scripts/part-check.py` in Microsoft Edge on Windows took 0:02 to 0:06 from the hls.js demo, dash.js's player and W3C's media page, through the panel's Part line and through Download details, each part with picture and sound (HLS 10.0 s, joined at the piece the part falls in; DASH and MP4 4.0 s)
 - [x] A small picture of the file's kind before each row's name, told apart by shape (play mark, note, lines, window, zip, hill and sun; none for other files) and not by colour alone (`icons.rs` `kind_shapes`; two unit tests; contract row B45)
 - [x] A double-click on a download that is running, waiting or stopped opens its progress window, whose title starts with how far it is (`37% Download progress — name`) and counts as it runs (`table.rs`; `dialogs/progress.rs` `title_with_percent`, three unit tests; `tests/window/dialogs.rs`; contract row B46)
 - [x] Add URL's Recent list keeps no address that carries a token, signature, key, password or session in its query, and offers none already kept (`dialogs/add.rs` `query_carries_a_secret`; contract row B47)
@@ -214,9 +217,13 @@ and is not carried over.
 
 ## UI
 - [x] Download manager — the client's. Its window is drawn in Rust with
-      egui (`desktop/crates/dm-desktop`), no web view; it replaced a Tauri web-view window (in git history)
-      on 2026-10-11. It calls the queue directly, and `tests/window.rs` drives
-      every control through its accessibility tree against a real queue on
+      GPUI (`desktop/crates/dm-gpui`), no web view: the one built and
+      shipped on macOS since its .dmg held the behaviour contract
+      (64 of 64, 2026-11-10), on Windows and Linux since 2026-11-11 (gaps G9), held to
+      `scripts/human-qa.py`. The older egui window (`desktop/crates/dm-desktop`,
+      which replaced a Tauri web-view window on 2026-10-11) is still built
+      and tested until G9 removes it; its `tests/window.rs` drives every
+      control through its accessibility tree against a real queue on
       loopback
 - [x] The window's scale (issue #32, 2026-11-11): Options › General ›
       Appearance's Text size slider with four stops, 60, 80, 100 (the
@@ -447,9 +454,18 @@ and is not carried over.
       (`scripts/arch-check.sh`, arm64). CI installs and runs every installer on its
       own system before a release is drafted (`desktop.yml`, job
       `installed`), which passed on 2026-10-20 for the .deb, AppImage and
-      .rpm on x86_64 and arm64, the x86_64 AppImage included. Unchecked: a
-      real desktop install of each
-- [ ] Windows — run on CI's Windows machines, not yet on a person's. The
+      .rpm on x86_64 and arm64, the x86_64 AppImage included. Since
+      2026-11-11 they package the GPUI window (gaps G8): the .deb installed by
+      apt passes `app-check.py` and the Secret Service check, the AppImage
+      answers as a native host, `human-qa.py` held 64 of 64 from a build of
+      the checkout and `linux-gui-check.sh` 122 of 122 with real input.
+      Unchecked: a real desktop install of each, and the release workflow's
+      packages from a draft
+- [ ] Windows — run on CI's Windows machines and, since 2026-11-11, on a
+      person's: the GPUI window's NSIS installer (`cargo packager -p dm-gpui
+      --formats nsis`) held 63 of 64 contract rows installed on a Windows
+      laptop, with the tray, the login launch, the jump list, taskbar
+      progress and High Contrast (gaps G7, G8). The
       workspace tests pass on windows-latest on every push, and on
       2026-10-20 the NSIS installer was installed silently there and
       `scripts/smoke.py` passed against the installed binary: native host,
@@ -458,8 +474,9 @@ and is not carried over.
       passes against the real `dm-desktop.exe` there (`windows-check.yml`,
       2026-10-21), which found and fixed a native host that held the
       browser's pipes open through the dm it started. `scripts/windows-check.sh`
-      compiles it from this Mac. Unchecked: a real Windows desktop (GPU
-      driver, tray, SmartScreen, a login)
+      compiles it from this Mac. Unchecked: a whole `human-qa.py` run on an
+      installer built after the review fixes of 2026-11-11 (G7), and the
+      release workflow's installer from a draft (G8)
 - [x] Installer — `cargo packager` (no Tauri) builds a 7.9 MB dmg and
       `dm.app` on macOS, and the binary inside the .app passes every
       `app-check.py` check. The dmg step runs a Finder AppleScript that is

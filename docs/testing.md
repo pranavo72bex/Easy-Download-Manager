@@ -24,10 +24,13 @@ cd ../browser && cargo test                     # the extension's decisions, on 
 ```
 
 - The engine's tests run against a real HTTP server on loopback and a real
-  queue, and a loopback BitTorrent swarm. The window's tests click every
-  control through its accessibility tree (`crates/dm-desktop/tests/window.rs`,
-  which indexes `tests/window/`: `support.rs` is the fake system and shared helpers,
-  the rest are grouped by what they check).
+  queue, and a loopback BitTorrent swarm. The older egui window's tests (kept
+  until gaps row G9) click every control through its accessibility tree
+  (`crates/dm-desktop/tests/window.rs`, which indexes `tests/window/`:
+  `support.rs` is the fake system and shared helpers, the rest are grouped by
+  what they check). The GPUI window, the one shipped, has its unit tests in
+  `crates/dm-gpui` and is driven whole through the control port by
+  `scripts/human-qa.py` and `scripts/app-check.py`.
 - Every reader of outside input (names, headers, playlists, archives, the
   control protocol) has a property test in `tests/fuzz.rs`; `PROPTEST_CASES=200000
   cargo test --release -p dm-core --test fuzz` hunts deeper.
@@ -170,7 +173,7 @@ test and the release gate. `--phases engine` runs one phase; `--list` prints eve
 
 | Check | What it proves | Run |
 |---|---|---|
-| `scripts/app-check.py` | The real binary as a process: the one-instance lock, a browser hand-off, downloads sorted, HLS, a player page handed to the external video tool, a proxy not gone around, a speed limit, a schedule, the login launch in the tray, the command line (`list`, `status`, `pause`…, exit codes), the control protocol, headless and MCP | `python3 scripts/app-check.py` (`DM_BINARY=` for a packaged one) |
+| `scripts/app-check.py` | The real binary as a process: the one-instance lock, a browser hand-off, downloads sorted, HLS, a player page that is not YouTube's refused with a reason, a proxy not gone around, a speed limit, a schedule, the login launch in the tray, the command line (`list`, `status`, `pause`…, exit codes), the control protocol, headless and MCP | `python3 scripts/app-check.py` (`DM_BINARY=` for a packaged one) |
 | `scripts/smoke.py` | An *installed* dm starts, answers as the browsers' native host, opens a window, runs headless and downloads byte-exact. The same on Linux, Windows and macOS | `python3 scripts/smoke.py /path/to/dm-desktop` |
 | `scripts/chrome-check.py` | The extension in Chrome for Testing handing off to a real dm: byte-exact files, the browser's copy gone, cookie-gated files left to the browser, no host | `sh scripts/package.sh` then `python3 scripts/chrome-check.py` |
 | `scripts/firefox-check.py` | The same in a real Firefox | `python3 scripts/firefox-check.py native` |
@@ -178,7 +181,7 @@ test and the release gate. `--phases engine` runs one phase; `--list` prints eve
 | `scripts/panel-check.py` | The "Download video" panel's hard cases in Chromium | `python3 scripts/panel-check.py` |
 | `scripts/ui-shot.py` | A picture of the window for checking a visual change by eye | `python3 scripts/ui-shot.py` |
 | `scripts/launch-latency.py` | How long from a browser click (a `download.start` to the native host) to dm's first request for the file, with dm closed (cold) and running (warm). Numbers for comparing two builds, not a pass or a fail | `xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-desktop` |
-| `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s; `video_helper` compares the external video tool fetching a page's stream against dm fetching it (needs the external video tool). Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
+| `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s. Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
 
 By hand only (they reach real sites, so they are not in CI):
 `scripts/youtube-check.py`, `scripts/live-panel-check.py`,

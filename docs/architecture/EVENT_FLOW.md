@@ -3,21 +3,27 @@
 From the engine to whatever presentation draws it, as the code does it today.
 
 ```text
-engine (dm-core runner)            application (dm_shell::app)         presentation (egui window)
-───────────────────────            ───────────────────────────         ──────────────────────────
-progress bytes ──► row's Slot (no signal; read on the next poll)
+engine (dm-core runner)            application (dm_shell::app)         presentation (the GPUI window, dm-gpui)
+───────────────────────            ───────────────────────────         ───────────────────────────────────────
+progress bytes ──► row's Slot (no signal; read on the next look)
 state change ──► Queue::save ──► Queue::on_change ──► changes::changed()
                                                        │ CHANGED = true
-                                                       └─► each subscriber ──► request_repaint_after(250 ms)
+                                                       └─► each subscriber ──► wake(Wake::Soon) (boot.rs)
                                                                               │
-                                                       frame: logic() ◄───────┘
-                                                       read now? (CHANGED, or 250 ms since the last read)
-                                                       changes::take()
+                                                       the window's loop ◄────┘ (list.rs: a Soon waits 250 ms,
+                                                         gathering the burst; Now, a hand-off, ends the wait;
+                                                         with nothing told, it looks every 250 ms while a
+                                                         download runs, else every 30 s)
+                                                       Downloads::read: changes::take()
                                                        Session::read: Backend::snapshot() ──► Snapshot {rows, retrying, swarms, allowance_spent}
                                                          ├─► detect::Detector: what finished / failed / started (the window's toasts, sounds, dialogs)
                                                          └─► events::Events::publish ──► each Subscription (typed DownloadEvents)
-                                                       refresh(): react, then draw
+                                                       Downloads::tick, then drawn again only where something shown changed
 ```
+
+The older egui window (`dm-desktop`, until gaps row G9) is told the same way;
+its subscriber asks for a repaint after 250 ms and its `logic()` reads on that
+frame.
 
 ## Policies
 
@@ -52,7 +58,7 @@ For a presentation, a script or a test that wants to know what happened to
 each download rather than draw the list, `session.events.subscribe(wake)` gives
 a `Subscription`, drained when it likes, of `DownloadEvent`s: `Added`,
 `StateChanged`, `Completed`, `Failed` (the engine's words), `Removed` and
-`Progress`. The egui window does not subscribe: it reacts to the same read's
+`Progress`. Neither window subscribes: each reacts to the same read's
 `Read::detected` (toasts, sounds, dialogs). The events are for a second
 presentation, scripts and tests (`session.rs`'s tests subscribe). They come from the same reads as everything else (no read, no
 events; nothing polls the engine), each read compared with the last.
