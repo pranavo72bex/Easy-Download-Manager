@@ -390,6 +390,11 @@ pub enum Reply {
     Started {
         /// The hand-off's [`Start::id`].
         id: String,
+        /// Whether the app's own window comes forward to ask about it (Download details,
+        /// Download links): the browser posts no toast of its own then (gaps row U11). Not
+        /// sent when false, and read as false from an app that does not say.
+        #[serde(default, skip_serializing_if = "is_false")]
+        shown: bool,
     },
     /// The app did not take the download; the browser keeps it.
     #[serde(rename = "download.failed")]
@@ -976,3 +981,8 @@ mod test_secrets;
 
 #[cfg(test)]
 mod tests;
+
+/// For `skip_serializing_if`: a flag sent only when set.
+fn is_false(flag: &bool) -> bool {
+    !*flag
+}

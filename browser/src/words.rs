@@ -530,8 +530,16 @@ pub const PANEL_DOWNLOAD: Word = Word {
     places: NONE,
 };
 
+/// The one toast for several downloads handed to the app together.
+pub const TOAST_SENT_MANY: Word = Word {
+    key: "toastSentMany",
+    en: "Sent $COUNT$ downloads to dm",
+    places: &["count"],
+};
+
 /// Every word, so each catalog can be held to the list.
 pub const ALL: &[Word] = &[
+    TOAST_SENT_MANY,
     EXT_NAME,
     EXT_DESCRIPTION,
     MENU_LINK,

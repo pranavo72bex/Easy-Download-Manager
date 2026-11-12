@@ -259,5 +259,14 @@
   },
   "panelDownload": {
     "message": "下载"
+  },
+  "toastSentMany": {
+    "message": "已将 $COUNT$ 个下载发送到 dm",
+    "description": "The one toast for several downloads handed to the app together.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

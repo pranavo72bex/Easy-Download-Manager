@@ -313,7 +313,8 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
     assert_eq!(
         reply,
         Some(Reply::Started {
-            id: "links-1".into()
+            id: "links-1".into(),
+            shown: true,
         })
     );
     let filed: Request = serde_json::from_str(
@@ -412,7 +413,13 @@ fn a_sites_cookies_handed_over_reach_the_app_and_the_probe() {
         budgets: Vec::new(),
     };
     let reply = answer(dir.path(), &frame, &mut world).map(|r| Reply::from_frame(&r).unwrap());
-    assert_eq!(reply, Some(Reply::Started { id: "c1".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "c1".into(),
+            shown: true
+        })
+    );
     // The probe before taking it asked as the signed-in browser would.
     assert_eq!(world.cookies_seen, ["session=abc; theme=dark"]);
     let filed: Request =
@@ -464,7 +471,8 @@ fn a_video_from_the_panel_reaches_the_app_with_its_quality_and_asks_first() {
     assert_eq!(
         reply,
         Some(Reply::Started {
-            id: "panel-1".into()
+            id: "panel-1".into(),
+            shown: true,
         })
     );
     let filed: Request = serde_json::from_str(
@@ -490,7 +498,8 @@ fn a_picture_and_the_sound_that_goes_with_it_reach_the_app_together() {
     assert_eq!(
         reply,
         Some(Reply::Started {
-            id: "pair-1".into()
+            id: "pair-1".into(),
+            shown: false,
         })
     );
     let filed: Request = serde_json::from_str(
@@ -596,7 +605,8 @@ fn a_renewal_is_filed_for_a_running_dm_only_and_never_asks_or_launches() {
     assert_eq!(
         reply,
         Some(Reply::Started {
-            id: "renew-2".into()
+            id: "renew-2".into(),
+            shown: false,
         })
     );
     assert!(!launched);
@@ -746,11 +756,19 @@ fn the_extension_is_sent_the_catch_rules_in_the_apps_settings() {
 fn a_caught_download_asks_where_to_save_only_where_options_say() {
     let filed = |home: &Path, id: &str| -> Request {
         let (reply, _) = ask(home, start(id, "https://e.com/a.zip"), true, Ok(()));
-        assert_eq!(reply, Some(Reply::Started { id: id.into() }));
-        serde_json::from_str(
+        let request: Request = serde_json::from_str(
             &std::fs::read_to_string(inbox(home).join(format!("{id}.json"))).unwrap(),
         )
-        .unwrap()
+        .unwrap();
+        // The reply says the app's window comes forward exactly where it asks (gaps row U11).
+        assert_eq!(
+            reply,
+            Some(Reply::Started {
+                id: id.into(),
+                shown: request.ask
+            })
+        );
+        request
     };
     // A new install asks first, as reference A's File Info does.
     let home = tempfile::tempdir().unwrap();
@@ -781,7 +799,13 @@ fn a_hand_off_is_filed_and_taken_by_the_running_app() {
         true,
         Ok(()),
     );
-    assert_eq!(reply, Some(Reply::Started { id: "b1-2".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "b1-2".into(),
+            shown: true
+        })
+    );
     assert!(!launched, "a running app is not started twice");
 
     let filed: Request = serde_json::from_str(
@@ -797,7 +821,13 @@ fn with_no_app_running_one_is_started_and_a_failure_to_start_is_said() {
     let dir = tempfile::tempdir().unwrap();
     let (reply, launched) = ask(dir.path(), start("a", "https://e.com/f.zip"), false, Ok(()));
     assert!(launched);
-    assert_eq!(reply, Some(Reply::Started { id: "a".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "a".into(),
+            shown: true
+        })
+    );
 
     let (reply, _) = ask(
         dir.path(),
@@ -994,7 +1024,13 @@ fn a_sign_in_page_served_in_place_of_the_file_leaves_it_with_the_browser() {
         &mut world,
     )
     .map(|r| Reply::from_frame(&r).unwrap());
-    assert_eq!(reply, Some(Reply::Started { id: "s3".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "s3".into(),
+            shown: true
+        })
+    );
 
     // And the file itself, served as one, is taken.
     let mut world = pretend("application/zip", 0, 0);
@@ -1004,7 +1040,13 @@ fn a_sign_in_page_served_in_place_of_the_file_leaves_it_with_the_browser() {
         &mut world,
     )
     .map(|r| Reply::from_frame(&r).unwrap());
-    assert_eq!(reply, Some(Reply::Started { id: "s4".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "s4".into(),
+            shown: true
+        })
+    );
 }
 
 #[test]
@@ -1035,7 +1077,13 @@ fn a_hand_off_the_extension_has_stopped_waiting_for_is_not_filed() {
         &mut world,
     )
     .map(|r| Reply::from_frame(&r).unwrap());
-    assert_eq!(reply, Some(Reply::Started { id: "t2".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "t2".into(),
+            shown: true
+        })
+    );
     assert_eq!(world.budgets, [5_000 - dm_protocol::ANSWER_MARGIN_MS]);
     let mut world = pretend("application/zip", now, 0);
     let _ = answer(
@@ -1092,7 +1140,13 @@ fn a_link_handed_over_on_request_is_taken_without_asking_the_server() {
     })
     .to_frame();
     let reply = answer(dir.path(), &asked, &mut world).map(|r| Reply::from_frame(&r).unwrap());
-    assert_eq!(reply, Some(Reply::Started { id: "m1".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "m1".into(),
+            shown: false
+        })
+    );
     assert!(world.asked.is_empty(), "the server was asked");
     assert!(inbox(dir.path()).join("m1.json").exists());
 }
@@ -1358,7 +1412,13 @@ fn a_forms_answer_is_taken_without_asking_and_its_form_goes_with_it() {
         budgets: Vec::new(),
     };
     let reply = answer(dir.path(), &frame, &mut world).map(|r| Reply::from_frame(&r).unwrap());
-    assert_eq!(reply, Some(Reply::Started { id: "f1".into() }));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "f1".into(),
+            shown: true
+        })
+    );
     assert!(
         world.asked.is_empty(),
         "the form's address was asked: {:?}",

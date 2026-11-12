@@ -814,12 +814,13 @@ pub fn answer(
                     },
                 );
                 match filed {
+                    // Download links asks in the app's window.
                     Ok(_) if world.app_running() => {
                         world.ring();
-                        Reply::Started { id }
+                        Reply::Started { id, shown: true }
                     }
                     Ok(filed) => match world.launch() {
-                        Ok(()) => Reply::Started { id },
+                        Ok(()) => Reply::Started { id, shown: true },
                         // Taken back out: the browser keeps it, and a dm
                         // started later must not download it a second time.
                         Err(e) => {
@@ -938,6 +939,8 @@ pub fn answer(
                 // and failed in dm — a download caught and then lost.
                 Reply::failed(&id, why)
             } else {
+                // A caught download asks too, where Options says so; a renewal never does.
+                let asks = !renews && (ask || (caught && saved(home).ask_caught_downloads));
                 match deposit(
                     home,
                     &id,
@@ -949,9 +952,7 @@ pub fn answer(
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty()),
                         label,
-                        // A caught download asks too, where Options says so;
-                        // a renewal never does.
-                        ask: !renews && (ask || (caught && saved(home).ask_caught_downloads)),
+                        ask: asks,
                         // Only a video asked for from the panel has a part.
                         from: if caught {
                             String::new()
@@ -978,10 +979,10 @@ pub fn answer(
                 ) {
                     Ok(_) if world.app_running() => {
                         world.ring();
-                        Reply::Started { id }
+                        Reply::Started { id, shown: asks }
                     }
                     Ok(filed) => match world.launch() {
-                        Ok(()) => Reply::Started { id },
+                        Ok(()) => Reply::Started { id, shown: asks },
                         // Filed, but nothing will read it: said now, not
                         // discovered when the file never appears — and taken
                         // back out, since the browser keeps the download and
@@ -1238,7 +1239,8 @@ mod coverage_tests {
         assert_eq!(
             reply(home.path(), batch("links-1"), &mut world),
             Reply::Started {
-                id: "links-1".into()
+                id: "links-1".into(),
+                shown: true,
             }
         );
         assert_eq!(filed(home.path()).len(), 1, "left for the dm started");
@@ -1374,7 +1376,8 @@ mod coverage_tests {
         assert_eq!(
             reply(home.path(), start, &mut world),
             Reply::Started {
-                id: "caught-2".into()
+                id: "caught-2".into(),
+                shown: true,
             }
         );
         assert_eq!(filed(home.path()).len(), 1);

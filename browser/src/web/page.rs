@@ -207,7 +207,7 @@ pub(super) async fn hand_asked(target: Target, store: Option<String>, tab: Optio
         Ok(said) if said.starts_with("the browser is downloading it") => notify("dm", &said),
         // Said, as a caught download is: nothing in the browser showed it
         // had been taken.
-        Ok(_) => notify("dm is downloading it", &name),
+        Ok(_) => toast_sent(name),
         Err(why) => notify("dm could not take that", &why),
     }
 }
@@ -349,7 +349,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         } else {
             match hand_target(target, tab_store(&sender, "tab"), tab_of(&sender, "tab")).await {
                 Ok(_) => {
-                    notify("dm is downloading it", &decide::magnet_name(&url));
+                    toast_sent(decide::magnet_name(&url));
                     return answer(true, "the app takes it");
                 }
                 Err(why) => Some(why),
@@ -405,7 +405,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         };
         return match hand_target(target, tab_store(&sender, "tab"), tab_of(&sender, "tab")).await {
             Ok(_) => {
-                notify("dm is downloading it", &decide::taken_name("", &url));
+                toast_sent(decide::taken_name("", &url));
                 answer(true, "the app takes it")
             }
             Err(why) => answer(false, &why),
@@ -635,7 +635,7 @@ pub(super) async fn page_links(
         match port.next(deadline).await {
             Heard::Frame(frame) => {
                 if let Some(outcome) = decide::taken(&frame, &id) {
-                    return outcome.map(|()| count);
+                    return outcome.map(|_| count);
                 }
             }
             Heard::Gone(why) => return Err(why),

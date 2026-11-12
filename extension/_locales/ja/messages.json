@@ -259,5 +259,14 @@
   },
   "panelDownload": {
     "message": "ダウンロード"
+  },
+  "toastSentMany": {
+    "message": "$COUNT$ 件のダウンロードを dm に送りました",
+    "description": "The one toast for several downloads handed to the app together.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

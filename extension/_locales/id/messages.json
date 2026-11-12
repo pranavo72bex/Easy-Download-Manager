@@ -259,5 +259,14 @@
   },
   "panelDownload": {
     "message": "Unduh"
+  },
+  "toastSentMany": {
+    "message": "$COUNT$ unduhan dikirim ke dm",
+    "description": "The one toast for several downloads handed to the app together.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

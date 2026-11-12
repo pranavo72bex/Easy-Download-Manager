@@ -323,5 +323,14 @@
   "panelDownload": {
     "message": "Download",
     "description": "The plain panel's line for a choice that names nothing."
+  },
+  "toastSentMany": {
+    "message": "Sent $COUNT$ downloads to dm",
+    "description": "The one toast for several downloads handed to the app together.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

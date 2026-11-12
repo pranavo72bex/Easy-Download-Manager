@@ -486,7 +486,7 @@ mod tests {
             format: dm_protocol::RULES_FORMAT,
             revision: 2,
             exclude: served(r#"{ "advert_hosts": ["Promo.Example"] }"#),
-            sites: Vec::new(),
+            ..dm_protocol::Rules::default()
         };
         rules::install(Some(list));
         assert_eq!(

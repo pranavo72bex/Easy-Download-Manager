@@ -259,5 +259,14 @@
   },
   "panelDownload": {
     "message": "Descargar"
+  },
+  "toastSentMany": {
+    "message": "$COUNT$ descargas enviadas a dm",
+    "description": "The one toast for several downloads handed to the app together.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

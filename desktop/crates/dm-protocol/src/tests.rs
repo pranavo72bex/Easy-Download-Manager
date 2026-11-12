@@ -47,7 +47,11 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
     let start = Request::Start(Start::default()).to_frame();
     assert_eq!(start["type"], kind::START);
     assert_eq!(
-        Reply::Started { id: "a".into() }.to_frame()["type"],
+        Reply::Started {
+            id: "a".into(),
+            shown: false
+        }
+        .to_frame()["type"],
         kind::STARTED
     );
     let failed = Reply::failed("a", "no").to_frame();

@@ -243,9 +243,11 @@ impl Probe {
 
 /// Whether a frame answers the hand-off filed under `id`: `Some(Ok)` taken,
 /// `Some(Err)` refused with the app's reason, `None` not about it.
-pub fn taken(frame: &Value, id: &str) -> Option<Result<(), String>> {
+pub fn taken(frame: &Value, id: &str) -> Option<Result<bool, String>> {
     match Reply::from_frame(frame).ok()? {
-        Reply::Started { id: said } if said == id => Some(Ok(())),
+        // Whether the app's own window comes forward to ask about it: then the browser posts
+        // no toast of its own (gaps row U11).
+        Reply::Started { id: said, shown } if said == id => Some(Ok(shown)),
         Reply::Failed { id: said, failure } if said == id => Some(Err(failure
             .map(|f| f.message)
             .filter(|m| !m.is_empty())

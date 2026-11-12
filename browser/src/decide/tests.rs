@@ -1399,7 +1399,12 @@ fn a_download_the_browser_holds_goes_only_to_an_app_that_judges_pages() {
 #[test]
 fn only_the_answer_about_this_hand_off_counts() {
     let started = json!({ "protocolVersion": 1, "type": "download.started", "id": "b1-2" });
-    assert_eq!(taken(&started, "b1-2"), Some(Ok(())));
+    assert_eq!(taken(&started, "b1-2"), Some(Ok(false)));
+    // The app's own window comes forward to ask about it: the browser then posts no toast
+    // (gaps row U11).
+    let shown =
+        json!({ "protocolVersion": 1, "type": "download.started", "id": "b1-2", "shown": true });
+    assert_eq!(taken(&shown, "b1-2"), Some(Ok(true)));
     assert_eq!(taken(&started, "b9-9"), None);
     let failed = json!({
         "protocolVersion": 1, "type": "download.failed", "id": "b1-2",

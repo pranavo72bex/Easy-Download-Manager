@@ -39,7 +39,12 @@ pub fn app_status() -> String {
 
 /// Hands one download to the app, and waits for it to say it has it. `tab` is the tab it was
 /// asked for from, whose own requests alone may renew its address later.
-pub(super) async fn hand(port: Option<Port>, start: Start, tab: Option<i64>) -> Result<(), String> {
+/// `Ok(true)` where the app's own window comes forward to ask about it.
+pub(super) async fn hand(
+    port: Option<Port>,
+    start: Start,
+    tab: Option<i64>,
+) -> Result<bool, String> {
     let mut port = match port {
         Some(port) => port,
         None => Port::open()?,
@@ -75,6 +80,42 @@ pub(super) async fn hand(port: Option<Port>, start: Start, tab: Option<i64>) -> 
         store_handed().await;
     }
     outcome
+}
+
+thread_local! {
+    /// The names handed to the app in the last moment, said in one toast (gaps row U11).
+    static SENT: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Says that `name` was handed to the app: those handed together, within a second and a half,
+/// in one toast, where each posted one (three stacked for three files). Not said where the
+/// app's own window comes forward to ask about it, which says so itself.
+pub(super) fn toast_sent(name: String) {
+    let first = SENT.with(|sent| {
+        let mut sent = sent.borrow_mut();
+        sent.push(name);
+        sent.len() == 1
+    });
+    if !first {
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async {
+        super::plumbing::sleep(1500.0).await;
+        let names = SENT.with(|sent| std::mem::take(&mut *sent.borrow_mut()));
+        match names.as_slice() {
+            [] => {}
+            // The panel's own words for the same (gaps row U11): "Sent to dm".
+            [one] => notify(&crate::words::PANEL_SENT.say(), one),
+            many => {
+                let count = many.len().to_string();
+                let mut listed = many.iter().take(3).cloned().collect::<Vec<_>>().join(", ");
+                if many.len() > 3 {
+                    listed.push_str(", …");
+                }
+                notify(&crate::words::TOAST_SENT_MANY.with(&[&count]), &listed);
+            }
+        }
+    });
 }
 
 pub(super) fn notify(title: &str, message: &str) {

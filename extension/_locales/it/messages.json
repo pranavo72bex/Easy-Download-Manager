@@ -259,5 +259,14 @@
   },
   "panelDownload": {
     "message": "Scarica"
+  },
+  "toastSentMany": {
+    "message": "$COUNT$ download inviati a dm",
+    "description": "The one toast for several downloads handed to the app together.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

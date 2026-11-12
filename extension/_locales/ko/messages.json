@@ -259,5 +259,14 @@
   },
   "panelDownload": {
     "message": "다운로드"
+  },
+  "toastSentMany": {
+    "message": "다운로드 $COUNT$개를 dm으로 보냄",
+    "description": "The one toast for several downloads handed to the app together.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }
