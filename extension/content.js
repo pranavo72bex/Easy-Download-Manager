@@ -361,7 +361,18 @@
     const t = (key, english) => {
       try { return ext.i18n.getMessage(key) || english; } catch { return english; }
     };
-    const STYLE =':host{all:initial;position:fixed;z-index:2147483647;display:none}'
+    // The background's own answers, in English, said in the browser's language as the full panel
+    // says them (words::answered); anything else (a reason from the app) is said as it came.
+    const ANSWERS = [
+      ['panelAppReading', 'the dm app is reading this page for its video'],
+      ['panelAppHas', 'the dm app has it'],
+      ['panelAppDownloading', 'the dm app is downloading it'],
+    ];
+    const answered = (text) => {
+      const known = ANSWERS.find(([, english]) => english === text);
+      return known ? t(known[0], known[1]) : text;
+    };
+    const STYLE = ':host{all:initial;position:fixed;z-index:2147483647;display:none}'
       + '.bar{display:flex;font:600 13px system-ui,sans-serif;color:#fff;background:rgba(32,32,32,.94);'
       + 'border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden}'
       + 'button{all:unset;cursor:pointer;padding:6px 10px;font:inherit;color:inherit}'
@@ -453,7 +464,7 @@
       const title = ruled || document.title.trim()
         || (document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '').trim();
       try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title, ...extra.fields }); } catch (e) { reply = { ok: false, said: t('panelUpdated', 'dm was updated: reload this page to use it') }; }
-      said(reply?.ok ? t('panelSent', 'Sent to dm') + '. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || t('panelNotTaken', 'dm could not take it')));
+      said(reply?.ok ? t('panelSent', 'Sent to dm') + '. ' + (extra.label ? extra.label + ': ' : '') + answered(reply.said || '') : (reply?.said || t('panelNotTaken', 'dm could not take it')));
       hideSoon(2500, true);
     };
     // What the page itself names for this player: Reddit's player element carries the address of
@@ -464,7 +475,9 @@
       for (let el = current, i = 0; el && i < 12; el = el.parentElement || (el.getRootNode && el.getRootNode().host) || null, i++) {
         const src = (el.localName === 'shreddit-player' || el.localName === 'shreddit-player-2') ? el.getAttribute('src') : null;
         if (src && /^https?:/i.test(src) && /[.]m3u8([?]|$)/i.test(src)) {
-          lines.push({ url: src, label: 'HLS stream, best quality', line: t('panelHls', 'HLS stream, best quality') });
+          // The label goes to the app in English, as the app's own lists name it; the panel shows
+          // the line, in the browser's language.
+          lines.push({ url: src, label: 'HLS stream, best quality', line: t('panelHls', 'HLS stream, best quality'), shown: true });
           break;
         }
       }
@@ -472,7 +485,7 @@
     };
     const choose = (choice) => finish({
       url: choice.url || '',
-      label: choice.label || '',
+      label: (choice.shown ? choice.line : choice.label) || '',
       fields: {
         ...(choice.quality ? { quality: choice.quality } : {}),
         ...(choice.label ? { label: choice.label } : {}),

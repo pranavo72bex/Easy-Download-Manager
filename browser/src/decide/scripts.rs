@@ -126,6 +126,17 @@ mod tests {
             let asked = format!("t('{}', '{}')", word.key, word.en);
             assert!(CONTENT.contains(&asked), "content.js does not say {asked}");
         }
+        // The background's answers, which it says in English, said in the browser's language as
+        // the full panel says them (`words::answered`), the English matched and its key asked.
+        for word in [
+            crate::words::PANEL_APP_READING,
+            crate::words::PANEL_APP_HAS,
+            crate::words::PANEL_APP_DOWNLOADING,
+        ] {
+            let pair = format!("['{}', '{}']", word.key, word.en);
+            assert!(CONTENT.contains(&pair), "content.js does not answer {pair}");
+        }
+        assert!(CONTENT.contains("answered(reply.said"));
         // No word of the catalog spelled out in content.js other than as `t`'s English, but the
         // HLS line's label, which goes to the app as the list's own name for it.
         let label = format!("label: '{}'", crate::words::PANEL_HLS.en);
@@ -133,9 +144,10 @@ mod tests {
         for word in crate::words::ALL {
             let spelled = format!("'{}'", word.en);
             let asked = format!("t('{}', {spelled})", word.key);
+            let answer = format!("['{}', {spelled}]", word.key);
             assert_eq!(
                 script.matches(&spelled).count(),
-                script.matches(&asked).count(),
+                script.matches(&asked).count() + script.matches(&answer).count(),
                 "content.js spells out {spelled} outside t()"
             );
         }
