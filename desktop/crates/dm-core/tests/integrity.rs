@@ -748,7 +748,8 @@ async fn a_failed_download_leaves_no_connection_still_fetching() {
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("")
                     .to_string();
-                let is_probe = range == "bytes=0-0" || range == "bytes=0-";
+                // The probe asks with no `If-Range`: it is how dm learns the validator.
+                let is_probe = !h.contains_key("if-range");
                 // Every non-probe data request is answered as another
                 // version of the file: a failure for good, retries included.
                 if !is_probe && range.starts_with("bytes=") {

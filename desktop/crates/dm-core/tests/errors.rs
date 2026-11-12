@@ -89,7 +89,8 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or_default()
                 .to_string();
-            if range != "bytes=0-0" && range != "bytes=0-" {
+            // The probe's: the file's first 8 MiB on several connections.
+            if !matches!(range.as_str(), "bytes=0-0" | "bytes=0-" | "bytes=0-8388607") {
                 counter.fetch_add(1, Ordering::SeqCst);
             }
             axum::response::Response::builder()
@@ -126,7 +127,8 @@ async fn a_file_too_large_for_the_drive_is_refused_before_it_is_fetched() {
             if headers
                 .get("range")
                 .and_then(|v| v.to_str().ok())
-                .is_some_and(|r| r != "bytes=0-0" && r != "bytes=0-")
+                // The probe's: the file's first 8 MiB on several connections.
+                .is_some_and(|r| !matches!(r, "bytes=0-0" | "bytes=0-" | "bytes=0-8388607"))
             {
                 counter.fetch_add(1, Ordering::SeqCst);
             }

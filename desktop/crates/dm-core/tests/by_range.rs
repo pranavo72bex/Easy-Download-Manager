@@ -60,9 +60,9 @@ fn asked(headers: &HeaderMap, total: usize) -> Option<(usize, usize)> {
     Some((a, b.parse::<usize>().unwrap_or(total - 1).min(total - 1)))
 }
 
-/// What a server was asked for: the first byte of each range that names its end. The probe's
-/// `bytes=0-` is not among them: dropped after its headers on a resume, it says nothing of what
-/// was fetched again.
+/// What a server was asked for: the first byte of each range that names its end, in the order
+/// asked. The probe's (`bytes=0-`, or the file's first part on several connections) is the first
+/// asked; dropped after its headers on a resume, it says nothing of what was fetched again.
 #[derive(Default)]
 struct Asked(Mutex<Vec<usize>>);
 
@@ -243,7 +243,8 @@ async fn a_paused_download_goes_on_from_its_range_files() {
         "the saved file is not the file that was served"
     );
     let asked_for = asked_for.0.lock().unwrap().clone();
-    for from in &asked_for {
+    // After the probe, which is asked before any range is.
+    for from in asked_for.iter().skip(1) {
         assert!(
             !kept.iter().any(|&(start, end)| (start..end).contains(from)),
             "asked again from {from}, inside what a range had: {kept:?}"

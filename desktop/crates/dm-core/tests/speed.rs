@@ -498,9 +498,12 @@ async fn the_probes_answer_is_range_0s_whoever_takes_range_0() {
         .unwrap();
         assert_eq!(std::fs::read(&done.path).unwrap(), *data, "round {round}");
         let asked = asked.lock().unwrap().clone();
+        // The probe is asked first, before any range: on several connections it names its end
+        // too (the file's first part), so it is told from range 0 by being first.
         let range_0_again = asked
             .iter()
-            .filter(|r| r.starts_with("bytes=0-") && r.as_str() != "bytes=0-")
+            .skip(1)
+            .filter(|r| r.starts_with("bytes=0-"))
             .count();
         assert_eq!(
             range_0_again, 0,

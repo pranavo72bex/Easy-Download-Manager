@@ -19,9 +19,18 @@ pub(super) use staged::*;
 /// An answer a range's attempt reads where it asks for none of its own.
 pub(super) enum Answer {
     /// The probe's, which runs from the file's first byte.
-    Probe(reqwest::Response),
+    Probe(First),
     /// The rest of one that brought the range before this one whole and goes on.
     Carried(Carried),
+}
+
+/// The probe's answer, for whichever connection takes range 0.
+pub(super) struct First {
+    /// The answer, its body not yet read.
+    pub(super) response: reqwest::Response,
+    /// The last byte it brings, where it was asked for the file's first part
+    /// only (`probe::FIRST_ASK`); `None` where it runs to the file's end.
+    pub(super) brings: Option<u64>,
 }
 
 /// A body as a range's attempt reads it.
@@ -277,7 +286,7 @@ pub(super) async fn run(
     workers: usize,
     helpers: usize,
     resumable: bool,
-    first_body: Option<reqwest::Response>,
+    first_body: Option<First>,
 ) -> Result<(), Error> {
     /* The probe's answer streams the file from byte 0: it is range 0's, for
      * whichever connection takes range 0. It was given to the first
@@ -986,8 +995,17 @@ pub(super) async fn fetch_segment(
         .then_some(wait.max(PACE_LEAST))
     };
     // Only a capped stream is asked again slice by slice; without a cap the
-    // ledger is not read here at all (it is a file, opened and read).
-    let sliced = job.chunk.is_some() && resumable;
+    // ledger is not read here at all (it is a file, opened and read). Nor is
+    // range 0 under the probe's answer where that was asked for the file's
+    // first part only: the rest of the range is asked for on, as a slice's is.
+    let first_part = matches!(
+        &answer,
+        Some(Answer::Probe(First {
+            brings: Some(_),
+            ..
+        }))
+    );
+    let sliced = resumable && (job.chunk.is_some() || first_part);
     let mut answer = answer;
     let outcome = loop {
         let before = if sliced { on_disk() } else { 0 };
@@ -1114,7 +1132,7 @@ pub(super) async fn attempt_segment(
         already
     };
     let (probe, carried) = match answer {
-        Some(Answer::Probe(res)) => (Some(res), None),
+        Some(Answer::Probe(first)) => (Some(first), None),
         Some(Answer::Carried(carried)) => (None, Some(carried)),
         None => (None, None),
     };
@@ -1149,6 +1167,8 @@ pub(super) async fn attempt_segment(
     let lead_n = if lead { (start - from) as usize } else { 0 };
     let probe = probe.filter(|_| from == 0 && already == 0);
     let is_probe_body = probe.is_some();
+    // Where the probe's answer stops short of the file's end: asked for its first part only.
+    let probe_brings = probe.as_ref().and_then(|first| first.brings);
 
     /* Where this request stops. Without a cap, at the range's end, as ever, or
      * where the server limits this download, past it over the ranges after it
@@ -1160,13 +1180,17 @@ pub(super) async fn attempt_segment(
     let asked_end = match job.chunk.filter(|_| resumable) {
         Some(cap) => end.min(from.saturating_add(cap.max(MIN_CHUNK)) - 1),
         None if probe.is_none() && !carried_on => reach_from(job, index, end).await,
-        None => end,
+        // The probe's first part ends where it ends, and the range is asked for on from there.
+        None => probe_brings.map_or(end, |brings| brings.min(end)),
     };
-    // The last byte the answer brings: what was asked; the probe's runs to the
-    // file's end; one read on, as far as its request asked.
+    // The last byte the answer brings: what was asked; the probe's to where it
+    // said it stops, or else to the file's end; one read on, as far as its
+    // request asked.
     let reach = match &carried {
         Some(carried) => carried.reach,
-        None if is_probe_body => job.size.map_or(u64::MAX, |size| size.saturating_sub(1)),
+        None if is_probe_body => {
+            probe_brings.unwrap_or_else(|| job.size.map_or(u64::MAX, |size| size.saturating_sub(1)))
+        }
         None => asked_end,
     };
     crate::lock(&job.live[index]).reach = reach;
@@ -1185,8 +1209,8 @@ pub(super) async fn attempt_segment(
             carried.out,
         )
     } else {
-        let (res, out) = if let Some(res) = probe {
-            (res, Out::sent(&job.limits))
+        let (res, out) = if let Some(first) = probe {
+            (first.response, Out::sent(&job.limits))
         } else {
             let mut request = get(
                 client,
