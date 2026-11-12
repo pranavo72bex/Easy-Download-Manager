@@ -1354,3 +1354,60 @@ fn the_text_size_is_one_of_four_stops_kept_and_stepped() {
     assert_eq!(TEXT_SIZE.percent(1.2), 120);
     assert_eq!(TEXT_SIZE.index(1.0), 2);
 }
+
+/// The side panel's width (gaps row U12): 200 for a new install and for a file from before it,
+/// so the window looks as it did; kept through a save and a load; a width dragged or typed past
+/// 150 or 400 held there, a fraction rounded to a whole point, and one that is no number read
+/// as the default with the rest of the file standing.
+#[test]
+fn the_side_panels_width_is_bounded_and_kept() {
+    assert_eq!(SIDEBAR_WIDTH.default, 200.0);
+    assert_eq!(Settings::default().sidebar_width, 200.0);
+    let old: Settings = serde_json::from_str("{}").unwrap();
+    assert_eq!(old.sidebar_width, 200.0, "a file from before it is 200");
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    let wide = Settings {
+        sidebar_width: 312.0,
+        ..Settings::default()
+    };
+    wide.save_to(&path).unwrap();
+    let (read, notice) = Settings::load_from(&path);
+    assert_eq!(read.sidebar_width, 312.0, "kept across launches");
+    assert_eq!(notice, None);
+
+    for (written, held) in [
+        ("150", 150.0),
+        ("400", 400.0),
+        ("10", 150.0),
+        ("-5", 150.0),
+        ("4000", 400.0),
+        ("250.6", 251.0),
+        ("\"wide\"", 200.0),
+        ("null", 200.0),
+    ] {
+        std::fs::write(
+            &path,
+            format!(r#"{{"sidebar_width": {written}, "connections": 3}}"#),
+        )
+        .unwrap();
+        let (read, _) = Settings::load_from(&path);
+        assert_eq!(read.sidebar_width, held, "{written}");
+        assert_eq!(
+            read.connections, 3,
+            "{written}: the rest of the file stands"
+        );
+    }
+
+    for odd in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        let odd = Settings {
+            sidebar_width: odd,
+            ..Settings::default()
+        };
+        assert_eq!(odd.clamped().sidebar_width, 200.0);
+    }
+    assert_eq!(SIDEBAR_WIDTH.held(149.4), 150.0);
+    assert_eq!(SIDEBAR_WIDTH.held(400.4), 400.0);
+    assert_eq!(SIDEBAR_WIDTH.held(222.2), 222.0);
+}

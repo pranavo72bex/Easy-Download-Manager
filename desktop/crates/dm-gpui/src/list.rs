@@ -175,6 +175,8 @@ pub struct Downloads {
     /// kept (`table.rs`).
     pub(crate) resizing: Option<(Column, f32)>,
     pub(crate) resize_kept: Option<std::time::Instant>,
+    /// The side panel's width as its edge is dragged (`sidebar.rs`), kept as `resize_kept` says.
+    pub(crate) panel_resizing: Option<f32>,
     /// The keyboard's place: the row last clicked or moved to, which the
     /// arrows, Home, End and the page keys move from (`keys.rs`).
     cursor: Option<dm_core::Id>,
@@ -375,6 +377,7 @@ impl Downloads {
             typed: (String::new(), None),
             resizing: None,
             resize_kept: None,
+            panel_resizing: None,
             menu: None,
             said: None,
             undo: Default::default(),
