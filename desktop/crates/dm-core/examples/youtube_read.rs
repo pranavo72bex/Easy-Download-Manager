@@ -28,10 +28,6 @@ async fn main() {
         std::process::exit(2);
     }
     let staging = tempfile::tempdir().expect("no temporary folder");
-    // Where a JavaScript engine is fetched (a system with none of its own and
-    // none installed), into a folder of this run's, as the app fetches it into
-    // its own.
-    dm_core::tools::set_folder(staging.path().join("tools"));
     let fetch_first = std::env::var_os("DM_FETCH_FIRST").is_some();
     let client = dm_core::client();
     for url in urls {

@@ -178,17 +178,17 @@ fn the_category_tree_filters_the_one_list() {
     });
     harness.run_steps(2);
 
-    // In progress is what is under way: the stalled download,
-    // not the one that failed.
+    // Unfinished is every download not finished: the stalled one and
+    // the one that failed (gaps row U1).
     harness.get_by_label_contains("Finished (1)").click();
     harness.run_steps(3);
     assert!(harness.query_by_label("file.zip").is_some());
     assert!(harness.query_by_label("stalled.bin").is_none());
-    harness.get_by_label_contains("Unfinished (1)").click();
+    harness.get_by_label_contains("Unfinished (2)").click();
     harness.run_steps(3);
     assert!(harness.query_by_label("stalled.bin").is_some());
     assert!(harness.query_by_label("file.zip").is_none());
-    assert!(harness.query_by_label("secret.zip").is_none());
+    assert!(harness.query_by_label("secret.zip").is_some());
     // Both archives, the failed one too, known by its name though the
     // server never said what it was.
     harness.get_by_label_contains("Archives (2)").click();

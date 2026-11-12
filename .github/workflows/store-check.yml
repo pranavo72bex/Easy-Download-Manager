@@ -21,13 +21,15 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
       - name: Packages
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb openbox xdotool x11-utils dbus-x11 \
             at-spi2-core python3-pyatspi libglib2.0-bin imagemagick \
-            libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri libxcursor1 libx11-xcb1 libxi6
+            libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri libxcursor1 libx11-xcb1 libxi6 \
+            libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libxcb1-dev libx11-xcb-dev libvulkan-dev mesa-vulkan-drivers
       - name: Edge
         run: |
           if ! command -v microsoft-edge-stable >/dev/null; then
@@ -62,12 +64,12 @@ jobs:
           ls /tmp/alone/Default/Extensions 2>/dev/null || true
       - name: dm
         working-directory: desktop
-        run: cargo build -p dm-desktop --locked
+        run: cargo build -p dm-gpui --locked
       - name: The check
         env:
           DM_STORE: "1"
           CHROMIUM: /usr/bin/microsoft-edge-stable
-          DM_BINARY: ${{ github.workspace }}/desktop/target/debug/dm-desktop
+          DM_BINARY: ${{ github.workspace }}/desktop/target/debug/dm-gpui
           DM_SHOTS: ${{ github.workspace }}/store-shots
         run: |
           export DISPLAY=:79

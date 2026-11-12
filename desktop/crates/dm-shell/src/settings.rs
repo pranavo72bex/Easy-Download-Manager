@@ -430,11 +430,6 @@ pub struct Settings {
     /// driver can draw black.
     #[serde(default)]
     pub mica: bool,
-    /// Fetch video tools (QuickJS) from their GitHub releases the first
-    /// time a video page needs them. Off, only tools the person installed
-    /// are used.
-    #[serde(default = "yes")]
-    pub fetch_tools: bool,
     /// Queues that start on their own each day at a time of their own.
     #[serde(default)]
     pub queue_starts: Vec<QueueStart>,
@@ -714,7 +709,6 @@ impl Default for Settings {
             drop_target: false,
             mica: false,
             offer_new_link: true,
-            fetch_tools: true,
             remux_ts: true,
             parts_dir: String::new(),
             on_complete: String::new(),

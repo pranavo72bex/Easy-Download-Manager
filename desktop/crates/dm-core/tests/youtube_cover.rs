@@ -10,11 +10,12 @@
 //! own case. Nothing is fetched to answer YouTube's checks: dm cuts the
 //! player script itself (`youtube/player.rs`).
 //!
-//! The JavaScript engine is a stand-in too: a shell script named as QuickJS
-//! (`DM_QJS`) that checks it was handed the player as dm cuts it, with dm's
-//! call, and answers the challenges these cases carry, or fails in the way
-//! the player script it was handed asks for. What is tested is what dm does
-//! with an engine's answer, not the cut itself (its own tests are in
+//! The JavaScript engine is a stand-in too: a shell script named as dm's
+//! engine host (`javascript::set_host`), which takes a request as the host
+//! does, checks it was handed the player as dm cuts it, with dm's call, and
+//! answers the challenges these cases carry, or fails in the way the player
+//! script it was handed asks for. What is tested is what dm does with an
+//! engine's answer, not the cut itself (its own tests are in
 //! `youtube/player.rs`).
 //!
 //! The stand-in is named by environment variables, which are the
@@ -61,7 +62,7 @@ impl Asked {
 
 struct StandIn {
     origin: String,
-    /// dm's tools folder and the stand-in engines.
+    /// The stand-in host, and the requests it was handed (`seen`).
     home: PathBuf,
     asked: Mutex<Vec<Asked>>,
     /// How many times each video's player API was asked.
@@ -70,24 +71,22 @@ struct StandIn {
 
 static STAND_IN: OnceLock<StandIn> = OnceLock::new();
 
-/// The stand-in engine. The program is its last argument (a Deno is
-/// given its flags first); it is kept beside itself as `.seen` and the
-/// arguments as `.args`, for the test to read.
+/// The stand-in host. It reads one request (JSON: the program and the call)
+/// from its input as dm's host does, keeps it in `$SEEN` for the test to
+/// read, and answers on a line of its own after the host's mark.
 const ENGINE: &str = r#"#!/bin/sh
-for last in "$@"; do :; done
-cp "$last" "$last.seen"
-printf '%s\n' "$*" > "$last.args"
-if ! grep -q 'console.log(__dm.solve(' "$last" || ! grep -q '"alr","yes"' "$last"; then
-  echo 'not the player as dm cuts it' >&2
-  exit 3
+seen="$SEEN/request-$$.json"
+cat > "$seen"
+answer() { printf 'dm-javascript-answer %s\n' "$1"; exit 0; }
+if ! grep -q '"call":"__dm.solve(' "$seen" || ! grep -q '\\"alr\\",\\"yes\\"' "$seen"; then
+  answer '{"error":"not the player as dm cuts it"}'
 fi
-if grep -q MARK_ERROR "$last"; then echo 'the player changed' >&2; exit 1; fi
-if grep -q MARK_NOJSON "$last"; then echo 'nothing useful'; exit 0; fi
-if grep -q MARK_NORESP "$last"; then echo '{}'; exit 0; fi
-if grep -q MARK_UNSOLVED "$last"; then echo '{"n":{"abc":"ABC","def":""},"sig":{}}'; exit 0; fi
-if grep -q MARK_EXIT "$last"; then printf 'first line\nit broke\n' >&2; exit 2; fi
-echo 'a line the player logs'
-echo '{"n":{"abc":"ABC","def":"DEF"},"sig":{"xyz":"XYZ"}}'
+if grep -q MARK_ERROR "$seen"; then answer '{"error":"the JavaScript stopped: the player changed"}'; fi
+if grep -q MARK_NOJSON "$seen"; then answer '{"answer":"nothing useful"}'; fi
+if grep -q MARK_NORESP "$seen"; then answer '{"answer":"{}"}'; fi
+if grep -q MARK_UNSOLVED "$seen"; then answer '{"answer":"{\"n\":{\"abc\":\"ABC\",\"def\":\"\"},\"sig\":{}}"}'; fi
+if grep -q MARK_EXIT "$seen"; then printf 'it broke\n' >&2; exit 2; fi
+answer '{"answer":"{\"n\":{\"abc\":\"ABC\",\"def\":\"DEF\"},\"sig\":{\"xyz\":\"XYZ\"}}"}'
 "#;
 
 /// The player script of a case that needs solving: the real one's shape,
@@ -142,13 +141,12 @@ fn stand_in() -> &'static StandIn {
         let home = build.join(format!("youtube-stand-in-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(&home).unwrap();
-        for name in ["qjs", "deno"] {
-            let path = home.join("engines").join(name);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(&path, ENGINE).unwrap();
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
+        let host = home.join("engines/host");
+        std::fs::create_dir_all(home.join("seen")).unwrap();
+        std::fs::create_dir_all(host.parent().unwrap()).unwrap();
+        std::fs::write(&host, ENGINE).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&host, std::fs::Permissions::from_mode(0o755)).unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -166,9 +164,11 @@ fn stand_in() -> &'static StandIn {
         let origin = format!("http://{}", rx.recv().unwrap());
         std::env::set_var("DM_NO_SECRET_STORE", "1");
         std::env::set_var("DM_YOUTUBE_HOST", &origin);
-        std::env::set_var("DM_QJS", home.join("engines/qjs"));
-        std::env::set_var("DM_DENO", "");
-        dm_core::tools::set_folder(home.join("tools"));
+        dm_core::javascript::set_host(Some(dm_core::javascript::Host {
+            program: host,
+            args: Vec::new(),
+            env: vec![("SEEN".into(), home.join("seen").display().to_string())],
+        }));
         StandIn {
             origin,
             home,
@@ -1060,27 +1060,26 @@ async fn n_values_and_a_cipher_are_unlocked_by_the_player() {
     );
     // The program the engine was handed: the player as dm cuts it, its
     // calls made while it loads left out, and every challenge asked.
-    let seen = std::fs::read_dir(staging.path())
+    let request = std::fs::read_dir(stand_in().home.join("seen"))
         .unwrap()
         .flatten()
-        .find(|e| e.file_name().to_string_lossy().ends_with(".js.seen"))
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .filter_map(|text| serde_json::from_str::<Value>(&text).ok())
+        .find(|r| {
+            let call = r["call"].as_str().unwrap_or_default();
+            ["\"abc\"", "\"def\"", "\"xyz\""]
+                .iter()
+                .all(|v| call.contains(v))
+        })
         .expect("the engine ran");
-    let program = std::fs::read_to_string(seen.path()).unwrap();
+    let program = request["program"].as_str().unwrap();
     assert!(program.contains(r#"a.set("alr","yes")"#));
     assert!(!program.contains("querySelector"));
-    let input = program
-        .lines()
-        .find(|l| l.starts_with("console.log(__dm.solve("))
-        .unwrap();
-    assert!(input.contains("\"abc\"") && input.contains("\"def\"") && input.contains("\"xyz\""));
-    // The program file itself is gone once the engine is done.
-    assert!(!std::fs::read_dir(staging.path())
-        .unwrap()
-        .flatten()
-        .any(|e| e.file_name().to_string_lossy().ends_with(".js")));
+    assert!(request["call"].as_str().unwrap().starts_with("__dm.solve("));
+    // No program is written to the disk for it.
+    assert_eq!(std::fs::read_dir(staging.path()).unwrap().count(), 0);
     // Nothing was fetched to answer the checks.
     assert!(asked_with("/ejs/").is_empty());
-    assert!(!stand_in().home.join("tools").exists());
 }
 
 /// A cipher with no `sp` puts its signature under `signature`.
@@ -1153,7 +1152,7 @@ async fn a_player_that_fails_fails_the_reading_with_its_words() {
         ("solverJunk1", "the answer was \"nothing useful\""),
         ("solverNone1", "no answer for the n value abc"),
         ("solverFail1", "no answer for the n value def"),
-        ("solverExit1", "the JavaScript stopped: it broke"),
+        ("solverExit1", "the JavaScript stopped its engine"),
         ("oddPlayer01", "YouTube's player is not as dm knows it"),
     ] {
         let why = failure(id).await;
@@ -1318,70 +1317,6 @@ async fn a_download_reads_through_its_proxy_and_as_a_part() {
 }
 
 // ---- The engine ----
-
-/// With no engine at all, and none that can be fetched, the reading says
-/// so and leaves no program behind.
-#[tokio::test]
-async fn with_no_engine_the_reading_says_so() {
-    let _env = ENV.write().await;
-    // Its own process under nextest: the stand-in is not there unless this
-    // test makes it.
-    stand_in();
-    let qjs = std::env::var_os("DM_QJS").unwrap();
-    std::env::set_var("DM_QJS", "");
-    let staging = tempdir();
-    let result = youtube::read(
-        &dm_core::client(),
-        &page("noEngine001"),
-        Quality::Best,
-        None,
-        false,
-        None,
-        staging.path(),
-    )
-    .await;
-    std::env::set_var("DM_QJS", qjs);
-    let why = result.unwrap_err().to_string();
-    assert!(
-        why.contains("no JavaScript engine to run it in")
-            && why.contains("QuickJS could not be fetched"),
-        "{why}"
-    );
-    assert_eq!(std::fs::read_dir(staging.path()).unwrap().count(), 0);
-}
-
-/// A Deno is preferred where there is one, and run with no permissions.
-#[tokio::test]
-async fn a_deno_is_run_with_no_permissions() {
-    let _env = ENV.write().await;
-    let deno = stand_in().home.join("engines/deno");
-    // No QuickJS beside it: the Deno is enough, and nothing is fetched.
-    let qjs = std::env::var_os("DM_QJS").unwrap();
-    std::env::set_var("DM_QJS", "");
-    std::env::set_var("DM_DENO", &deno);
-    let staging = tempdir();
-    let result = youtube::read(
-        &dm_core::client(),
-        &page("denoEngine1"),
-        Quality::Best,
-        None,
-        false,
-        None,
-        staging.path(),
-    )
-    .await;
-    std::env::set_var("DM_DENO", "");
-    std::env::set_var("DM_QJS", qjs);
-    result.unwrap();
-    let args = std::fs::read_dir(staging.path())
-        .unwrap()
-        .flatten()
-        .find(|e| e.file_name().to_string_lossy().ends_with(".js.args"))
-        .expect("the engine ran");
-    let args = std::fs::read_to_string(args.path()).unwrap();
-    assert!(args.starts_with("run --ext=js --no-code-cache --no-prompt --no-remote"));
-    assert!(args.contains("--no-npm"));
-}
 
 /// A player dm cannot cut is not run at all: no engine is started and no
 /// program is left behind.

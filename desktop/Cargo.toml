@@ -11,6 +11,21 @@ members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm
 # A patched copy, used through [patch.crates-io], not a member.
 exclude = ["vendor/winit", "vendor/egui-winit", "vendor/librqbit", "vendor/eframe", "vendor/gpui-pre-linux"]
 
+# The lints every dm crate keeps, in one place rather than pasted into each crate's root
+# (gaps row A1); each crate's `[lints] workspace = true` takes them. Clippy refuses warnings in
+# CI (`cargo clippy -- -D warnings`), so these hold.
+[workspace.lints.rust]
+# Every public item says what it is for (gaps row 27).
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+# From Google's Rust style guide: an `unsafe` block says why it is sound (`// SAFETY:`, on every
+# platform, Windows included), a string is built with `format!` rather than `+`, and a loop is a
+# loop rather than `for_each`.
+undocumented_unsafe_blocks = "warn"
+string_add = "warn"
+needless_for_each = "warn"
+
 [profile.release]
 opt-level = "z"
 lto = true

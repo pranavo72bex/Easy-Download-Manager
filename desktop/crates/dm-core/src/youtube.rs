@@ -1151,7 +1151,7 @@ async fn read_within(
             Some(text) => text,
             None => fetch_script().await?,
         };
-        let solved = solve(&script, &formats, staging).await?;
+        let solved = solve(&script, &formats).await?;
         for format in &mut formats {
             format.url = Some(unlocked(format, &solved)?);
             format.cipher = None;
@@ -1375,7 +1375,7 @@ fn plain_build(path: &str) -> Option<String> {
 /// Answers every `n` value and signature the formats carry, as reference A answers them: the
 /// player script cut down to what answers them (`player::program`), run in the computer's own
 /// JavaScript engine (`crate::javascript`).
-async fn solve(player_js: &str, formats: &[Format], staging: &Path) -> Result<Solved, Error> {
+async fn solve(player_js: &str, formats: &[Format]) -> Result<Solved, Error> {
     let mut ns = BTreeSet::new();
     let mut sigs = BTreeSet::new();
     let mut n_of = |address: &str| {
@@ -1406,7 +1406,7 @@ async fn solve(player_js: &str, formats: &[Format], staging: &Path) -> Result<So
     }
     let ns: Vec<&str> = ns.iter().map(String::as_str).collect();
     let sigs: Vec<&str> = sigs.iter().map(String::as_str).collect();
-    answer(player_js, &ns, &sigs, staging).await
+    answer(player_js, &ns, &sigs).await
 }
 
 /// What the player script `player_js` answers for `ns` (`n` values) and `sigs` (signatures),
@@ -1417,24 +1417,18 @@ pub async fn answers(
     player_js: &str,
     ns: &[&str],
     sigs: &[&str],
-    staging: &Path,
 ) -> Result<(HashMap<String, String>, HashMap<String, String>), Error> {
-    let solved = answer(player_js, ns, sigs, staging).await?;
+    let solved = answer(player_js, ns, sigs).await?;
     Ok((solved.n, solved.sig))
 }
 
 /// [`answers`], as the reading takes them.
-async fn answer(
-    player_js: &str,
-    ns: &[&str],
-    sigs: &[&str],
-    staging: &Path,
-) -> Result<Solved, Error> {
+async fn answer(player_js: &str, ns: &[&str], sigs: &[&str]) -> Result<Solved, Error> {
     let unanswered =
         |why: String| Error::Internal(format!("YouTube's checks were not answered: {why}"));
     let program = player::program(player_js).map_err(unanswered)?;
     let call = player::call(ns, sigs);
-    let output = crate::javascript::run(&program, &call, SOLVING, staging)
+    let output = crate::javascript::run(&program, &call, SOLVING)
         .await
         .map_err(unanswered)?;
     let answer: Value = serde_json::from_str(output.trim())

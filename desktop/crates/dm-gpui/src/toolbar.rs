@@ -75,6 +75,7 @@ pub fn toolbar(
         .border_color(theme.separator)
         .children(buttons.into_iter().map(|(command, words)| {
             let enabled = view.enabled(command);
+            let why_off = view.why_off(command);
             let words = if command == dm_shell::app::commands::Command::DownloadNow
                 && matches!(resume, "Retry" | "Start now")
             {
@@ -166,10 +167,18 @@ pub fn toolbar(
                     )
                 })
                 .when(worded, |b| b.child(screen.label(words)))
-                .when(!worded, |b| {
+                // Its words on hover where the button shows none, and why it is greyed where
+                // it is (gaps row U5).
+                .when(!worded || why_off.is_some(), |b| {
+                    let said = match why_off {
+                        Some(why) => format!("{words}: {why}"),
+                        None => words.to_string(),
+                    };
                     b.tooltip(move |window, cx| {
-                        gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(words))
-                            .build(window, cx)
+                        gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(
+                            said.clone(),
+                        ))
+                        .build(window, cx)
                     })
                 });
             div().flex().items_center().child(button).children(arrow)

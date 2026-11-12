@@ -135,6 +135,8 @@ const RUNNING: Duration = Duration::from_millis(250);
 /// window opens instead.
 const HIDDEN_WAIT: Duration = Duration::from_secs(10);
 
+mod commands;
+mod keys;
 mod later;
 mod questions;
 mod refresh;
@@ -169,6 +171,9 @@ pub struct Downloads {
     pub(crate) selected: std::collections::BTreeSet<dm_core::Id>,
     /// Where a ⇧-click's range starts: the row last clicked alone.
     anchor: Option<dm_core::Id>,
+    /// The keyboard's place: the row last clicked or moved to, which the
+    /// arrows, Home, End and the page keys move from (`keys.rs`).
+    cursor: Option<dm_core::Id>,
     /// The row menu, open where it was asked for.
     menu: Option<gpui::Point<gpui::Pixels>>,
     /// A sentence for the status bar, and when it was said: it stands for
@@ -354,6 +359,7 @@ impl Downloads {
             sort: None,
             selected: Default::default(),
             anchor: None,
+            cursor: None,
             menu: None,
             said: None,
             undo: Default::default(),
@@ -1309,6 +1315,7 @@ impl Downloads {
             language: settings.language.clone(),
             sorted_by: self.sort.and_then(|(column, _)| sort_command(column)),
             resume: dm_desktop_base::rows::resume_word(&self.chosen()),
+            off: self.commands_off(),
         };
         if self.menu_ticks.as_ref() != Some(&ticks) {
             crate::menus::set(cx, &ticks);
@@ -1618,23 +1625,6 @@ impl Downloads {
         }
     }
 
-    /// Whether `command` can be run now: the shell carries it out, and it
-    /// applies to the rows chosen (`commands::applies`), as the egui
-    /// window greys its buttons and menu items.
-    pub fn enabled(&self, command: dm_shell::app::commands::Command) -> bool {
-        if !crate::menus::carried_out(command) {
-            return false;
-        }
-        let chosen = self.chosen();
-        dm_shell::app::commands::applies(
-            command,
-            &chosen,
-            &self.rows,
-            false,
-            &dm_desktop_base::rows::Looks,
-        )
-    }
-
     /// The name the list shows for `row`: one not yet placed reads as the
     /// name it will get ("big (1).zip", not "big.zip").
     pub(crate) fn name_shown(&self, row: &Entry) -> String {
@@ -1803,6 +1793,7 @@ impl Downloads {
         dm_desktop_base::rows::set_retrying(read.snapshot.retrying);
         dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
         dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
+        dm_desktop_base::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
         let mut rows = read.snapshot.rows;
         // A finished row's size is its file's, read once from the disk.
         self.saved.apply(&mut rows);
@@ -1907,6 +1898,7 @@ impl Downloads {
             range,
         );
         self.selected = selected;
+        self.cursor = Some(id);
         // A ⇧-click keeps the anchor it ran from.
         if !range {
             self.anchor = anchor;
@@ -2068,6 +2060,7 @@ impl Downloads {
                 this.read();
                 this.selected = next.into_iter().collect();
                 this.anchor = next;
+                this.cursor = next;
                 if !failed.is_empty() {
                     this.say(dm_desktop_base::i18n::tf(
                         "Could not delete {}",
@@ -2117,25 +2110,12 @@ impl Downloads {
     /// Moves the choice one row up (`-1`) or down (`1`), as the arrow keys
     /// do, keeping the row on screen.
     pub fn step(&mut self, by: isize) {
-        let count = self.shown.len();
-        if count == 0 {
-            return;
-        }
-        let now = self
-            .anchor
-            .filter(|a| self.selected.contains(a))
-            .and_then(|a| self.position_of(a));
-        let to = match now {
-            Some(p) => (p as isize + by).clamp(0, count as isize - 1) as usize,
-            None if by < 0 => count - 1,
-            None => 0,
+        let step = if by < 0 {
+            dm_desktop_base::selection::Step::Up
+        } else {
+            dm_desktop_base::selection::Step::Down
         };
-        if let Some(id) = self.id_at(to) {
-            self.selected = [id].into();
-            self.anchor = Some(id);
-            self.scroll
-                .scroll_to_item(to, gpui::ScrollStrategy::Nearest);
-        }
+        self.step_by(step, false);
     }
 
     /// The id of the row at `position` in the list as shown.
@@ -2228,8 +2208,14 @@ impl Render for Downloads {
         // Resume's words in the menu bar follow the rows chosen (Retry,
         // Start now), however they were chosen: built again after this
         // frame where they changed.
+        // And what is greyed follows them, and the rows' states (gaps row U5).
         let resume = dm_desktop_base::rows::resume_word(&self.chosen());
-        if self.menu_ticks.as_ref().is_some_and(|t| t.resume != resume) {
+        let off = self.commands_off();
+        if self
+            .menu_ticks
+            .as_ref()
+            .is_some_and(|t| t.resume != resume || t.off != off)
+        {
             let me = cx.entity().downgrade();
             cx.defer(move |cx| {
                 let _ = me.update(cx, |this, cx| this.refresh_menus(cx));
@@ -2309,6 +2295,25 @@ impl Render for Downloads {
                     command => this.run(command, cx),
                 }
             }))
+            // Edit › Undo, Copy and Paste where no text field has the keys (a field's own come
+            // first, in its context): Undo puts back what Remove took off, Copy copies the chosen
+            // downloads' links, and Paste takes the links on the clipboard (gaps row U9).
+            .on_action(cx.listener(|this, _: &gpui_base::input::Undo, _, cx| {
+                this.undo_remove();
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &gpui_base::input::Copy, _, cx| {
+                use dm_shell::app::commands::Command;
+                if !this.bring_holder(cx) {
+                    this.run(Command::CopyLink, cx);
+                }
+            }))
+            .on_action(cx.listener(|this, _: &gpui_base::input::Paste, _, cx| {
+                use dm_shell::app::commands::Command;
+                if !this.bring_holder(cx) {
+                    this.run(Command::AddFromClipboard, cx);
+                }
+            }))
             .on_action(
                 cx.listener(|this, _: &crate::menus::SelectPrevious, _, cx| {
                     this.step(-1);
@@ -2317,6 +2322,25 @@ impl Render for Downloads {
             )
             .on_action(cx.listener(|this, _: &crate::menus::SelectNext, _, cx| {
                 this.step(1);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, m: &crate::menus::MoveInList, _, cx| {
+                use crate::menus::ListMove as M;
+                use dm_desktop_base::selection::Step;
+                let step = match m.to {
+                    M::Up => Step::Up,
+                    M::Down => Step::Down,
+                    M::First => Step::First,
+                    M::Last => Step::Last,
+                    M::PageUp => Step::PageUp(this.page()),
+                    M::PageDown => Step::PageDown(this.page()),
+                };
+                this.step_by(step, m.shift);
+                this.refresh_menus(cx);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &crate::menus::RowMenuByKey, _, cx| {
+                this.row_menu_by_key();
                 cx.notify();
             }))
             .bg(theme.background)

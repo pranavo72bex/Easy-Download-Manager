@@ -42,9 +42,6 @@
 //! The host is deliberately one-way past `download.started`: the extension
 //! catches and the application shows what happened.
 
-// Every public item says what it means: the types are the wire format the
-// extension and the app read (docs/gaps.md row 27).
-#![warn(missing_docs)]
 // Reads outside input: an index out of range here is a crash a server or
 // a file could cause, so every access is checked.
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
@@ -54,12 +51,6 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-// From Google's Rust style guide, checked in CI: an `unsafe` block says why it
-// is sound (`// SAFETY:`, on every platform, Windows included), and a string is
-// built with `format!` rather than `+`, and a loop is a loop rather than
-// `for_each`.
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![warn(clippy::string_add, clippy::needless_for_each)]
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

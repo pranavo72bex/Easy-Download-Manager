@@ -56,6 +56,26 @@ pub fn columns(view: &Downloads) -> Vec<Column> {
         .collect()
 }
 
+/// About how many letters Status shows at its least width: longer words are offered whole on
+/// hover.
+const STATUS_FITS: usize = 22;
+
+/// The most Status grows to, as a share of its least width.
+const STATUS_GROWS_TO: f32 = 2.0;
+
+/// A file's name split where a long one is cut: what goes before its extension, and the
+/// extension with its dot. The extension is kept whole, so a long name reads
+/// "A very long name of a fi….mp4" rather than losing what kind of file it is (gaps row U3).
+fn name_parts(name: &str) -> (&str, &str) {
+    match name.rfind('.') {
+        // Not a leading dot (".bashrc"), and an extension of a few letters, not a sentence.
+        Some(dot) if dot > 0 && name.len() - dot <= 8 && !name[dot..].contains(' ') => {
+            name.split_at(dot)
+        }
+        _ => (name, ""),
+    }
+}
+
 /// The file name's column never narrower than this: the other columns
 /// scroll sideways first, as a macOS list does.
 const NAME_AT_LEAST: f32 = 180.0;
@@ -82,9 +102,18 @@ fn cell(column: Column) -> gpui::Div {
         .overflow_hidden()
         .whitespace_nowrap()
         .text_ellipsis();
-    let cell = match width(column) {
-        Some(w) => cell.w(px(w)).flex_none(),
-        None => cell.flex_1().min_w(px(NAME_AT_LEAST)),
+    let cell = match (column, width(column)) {
+        // Status takes a share of what a wider window gives, up to twice its width, so a
+        // failure's words are read whole where there is room (gaps row U3); the name takes the
+        // rest, twice as much.
+        (Column::Status, Some(w)) => cell
+            .flex_grow(1.0)
+            .flex_shrink_0()
+            .flex_basis(px(w))
+            .min_w(px(w))
+            .max_w(px(w * STATUS_GROWS_TO)),
+        (_, Some(w)) => cell.w(px(w)).flex_none(),
+        (_, None) => cell.flex_1().flex_grow(2.0).min_w(px(NAME_AT_LEAST)),
     };
     if numeric(column) {
         cell.justify_end()
@@ -278,7 +307,29 @@ fn row_cells(
                             .flex_none()
                             .text_color(colour),
                     )
-                    .child(screen.label(name))
+                    .child({
+                        let (stem, extension) = name_parts(&name);
+                        let drawn = div()
+                            .flex()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .overflow_hidden()
+                                    .whitespace_nowrap()
+                                    .text_ellipsis()
+                                    .child(SharedString::from(stem.to_string())),
+                            )
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .whitespace_nowrap()
+                                    .child(SharedString::from(extension.to_string())),
+                            );
+                        // Read as the whole name, as it was one label.
+                        screen.mark(name.clone(), drawn)
+                    })
                     .into_any_element()
             }
             // Reference A's Q: a mark for a download in a queue.
@@ -293,10 +344,23 @@ fn row_cells(
                 let fraction = (row.state == State::Running)
                     .then(|| row.progress.fraction())
                     .flatten();
+                // The whole words on hover, and the engine's own where the row says them in
+                // plainer ones: a cut failure could not be read (gaps row U3).
+                let whole = match dm_desktop_base::rows::failure_as_said(row) {
+                    Some(raw) => format!("{said}\n{raw}"),
+                    None => said.clone(),
+                };
                 cell(column)
+                    .id(("status", row.id))
                     .flex_col()
                     .items_start()
                     .justify_center()
+                    .when(whole.chars().count() > STATUS_FITS, |c| {
+                        c.tooltip(move |window, cx| {
+                            gpui_component::tooltip::Tooltip::new(SharedString::from(whole.clone()))
+                                .build(window, cx)
+                        })
+                    })
                     .child(screen.label(said))
                     .when_some(fraction, |c, f| {
                         c.child(
@@ -514,6 +578,15 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_names_extension_is_kept_apart_to_stay_whole() {
+        assert_eq!(name_parts("A long film.mp4"), ("A long film", ".mp4"));
+        assert_eq!(name_parts("archive.tar.gz"), ("archive.tar", ".gz"));
+        assert_eq!(name_parts(".bashrc"), (".bashrc", ""));
+        assert_eq!(name_parts("no extension"), ("no extension", ""));
+        assert_eq!(name_parts("v1.2 of the talk"), ("v1.2 of the talk", ""));
+    }
 
     #[test]
     fn a_heading_dropped_on_another_takes_its_place() {

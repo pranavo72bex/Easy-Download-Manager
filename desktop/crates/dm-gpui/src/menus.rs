@@ -53,6 +53,14 @@ pub struct Ticks {
     /// Resume's words for the rows chosen, in English (Retry, Start now:
     /// `rows::resume_word`); none for Resume's own.
     pub resume: &'static str,
+    /// The commands that do not apply to the rows chosen now (`Downloads::enabled`): greyed in
+    /// the menus exactly when their toolbar buttons are (gaps row U5).
+    pub off: Vec<Command>,
+}
+
+thread_local! {
+    /// `Ticks::off` for the menus being built: `item` greys what it holds.
+    static OFF: std::cell::RefCell<Vec<Command>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// A command of dm's, as a menu item or a key runs it.
@@ -88,6 +96,39 @@ pub struct SelectPrevious;
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
 pub struct SelectNext;
+
+/// Home, End, Page Up and Page Down in the list, and with Shift the arrows too: the choice moved
+/// or, with `shift`, extended (`list/keys.rs`).
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct MoveInList {
+    /// Where to.
+    pub to: ListMove,
+    /// Whether the run from where it started is chosen.
+    pub shift: bool,
+}
+
+/// A move of the keyboard's place in the list.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ListMove {
+    /// One row up.
+    Up,
+    /// One row down.
+    Down,
+    /// The first row.
+    First,
+    /// The last row.
+    Last,
+    /// A screenful up.
+    PageUp,
+    /// A screenful down.
+    PageDown,
+}
+
+/// Shift+F10: the row menu at the keyboard's place.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct RowMenuByKey;
 
 /// A page of the project's, or the email that tells a friend: Help's
 /// topics, home page, support and Tell a friend, opened by the system.
@@ -275,7 +316,16 @@ pub fn bind_keys(cx: &mut App) {
         Run(Command::ToggleCategories),
         None,
     ));
-    bindings.push(KeyBinding::new("cmd-w", CloseWindow, None));
+    // ⌘W on macOS, Ctrl+W elsewhere: Close, as each system says it.
+    bindings.push(KeyBinding::new(
+        if cfg!(target_os = "macos") {
+            "cmd-w"
+        } else {
+            "ctrl-w"
+        },
+        CloseWindow,
+        None,
+    ));
     // View › Text size, from any window, as a browser's zoom: ⌘ on macOS
     // and Ctrl elsewhere with + (or =, the same key unshifted), − and 0.
     let (larger, smaller, normal): (&[&'static str], &'static str, &'static str) =
@@ -289,9 +339,41 @@ pub fn bind_keys(cx: &mut App) {
     }
     bindings.push(KeyBinding::new(smaller, crate::viewmenu::TextSmaller, None));
     bindings.push(KeyBinding::new(normal, crate::viewmenu::TextNormal, None));
-    bindings.push(KeyBinding::new("cmd-m", Minimize, None));
+    // Minimize is macOS's ⌘M; Windows and Linux have no key for it.
+    if cfg!(target_os = "macos") {
+        bindings.push(KeyBinding::new("cmd-m", Minimize, None));
+    }
+    // Undo, Copy and Paste for the list (`list.rs`): a text field's own bindings, in its
+    // context, come before these, so its text is copied and pasted as ever.
+    let (undo, copy, paste) = if cfg!(target_os = "macos") {
+        ("cmd-z", "cmd-c", "cmd-v")
+    } else {
+        ("ctrl-z", "ctrl-c", "ctrl-v")
+    };
+    bindings.push(KeyBinding::new(undo, gpui_base::input::Undo, None));
+    bindings.push(KeyBinding::new(copy, gpui_base::input::Copy, None));
+    bindings.push(KeyBinding::new(paste, gpui_base::input::Paste, None));
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
     bindings.push(KeyBinding::new("down", SelectNext, None));
+    // The rest of the list's keys, as the egui window has them (gaps row U6). A text field
+    // binds these in its own context, which GPUI puts first.
+    for (keys, to, shift) in [
+        ("home", ListMove::First, false),
+        ("end", ListMove::Last, false),
+        ("pageup", ListMove::PageUp, false),
+        ("pagedown", ListMove::PageDown, false),
+        ("shift-up", ListMove::Up, true),
+        ("shift-down", ListMove::Down, true),
+        ("shift-home", ListMove::First, true),
+        ("shift-end", ListMove::Last, true),
+        ("shift-pageup", ListMove::PageUp, true),
+        ("shift-pagedown", ListMove::PageDown, true),
+    ] {
+        bindings.push(KeyBinding::new(keys, MoveInList { to, shift }, None));
+    }
+    // Enter shows the chosen downloads' progress, as the egui window's list does.
+    bindings.push(KeyBinding::new("enter", Run(Command::ShowProgress), None));
+    bindings.push(KeyBinding::new("shift-f10", RowMenuByKey, None));
     cx.bind_keys(bindings);
     // The application's own actions, heard from any window: registered
     // once, here, as the menus are built again whenever the queues change.
@@ -323,7 +405,8 @@ fn item(command: Command) -> MenuItem {
     if command == Command::Quit {
         return MenuItem::action(t(command.label()), Quit);
     }
-    MenuItem::action(shown(command), Run(command)).disabled(!carried_out(command))
+    let off = OFF.with(|off| off.borrow().contains(&command));
+    MenuItem::action(shown(command), Run(command)).disabled(!carried_out(command) || off)
 }
 
 /// A command's words on its menu item: with "…" where it opens a dialog
@@ -415,6 +498,7 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
 
 /// Each of the menu bar's menus.
 fn bar(ticks: &Ticks) -> Bar {
+    OFF.with(|off| off.borrow_mut().clone_from(&ticks.off));
     let queues = &ticks.queues;
     use Command as C;
     // Start Queue and Stop Queue list the queues; the one clicked is started
@@ -494,7 +578,8 @@ fn bar(ticks: &Ticks) -> Bar {
     };
     file.items.insert(
         0,
-        MenuItem::action(t(resume), Run(C::DownloadNow)).disabled(!carried_out(C::DownloadNow)),
+        MenuItem::action(t(resume), Run(C::DownloadNow))
+            .disabled(!carried_out(C::DownloadNow) || ticks.off.contains(&C::DownloadNow)),
     );
     file.items.extend([
         MenuItem::separator(),
@@ -753,6 +838,20 @@ mod tests {
         assert!(state(&on, "Limit speed").0);
         assert!(state(&on, Command::SpeedLow.label()).0);
         assert!(!state(&on, Command::SpeedHigh.label()).0);
+    }
+
+    /// An item is greyed exactly while its command does not apply (gaps row U5).
+    #[test]
+    fn an_item_that_does_not_apply_now_is_greyed() {
+        let none_off = build(&Ticks::default());
+        assert!(!state(&none_off, Command::CopyLink.label()).1);
+        let off = build(&Ticks {
+            off: vec![Command::CopyLink, Command::StopDownload],
+            ..Default::default()
+        });
+        assert!(state(&off, Command::CopyLink.label()).1);
+        assert!(state(&off, Command::StopDownload.label()).1);
+        assert!(!state(&off, "Add URL…").1);
     }
 
     #[test]

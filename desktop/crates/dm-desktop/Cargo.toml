@@ -221,3 +221,6 @@ Section "un.dmUnregister"
   ExecWait '"$INSTDIR\\${MAINBINARYNAME}.exe" --unregister'
 SectionEnd
 """
+
+[lints]
+workspace = true

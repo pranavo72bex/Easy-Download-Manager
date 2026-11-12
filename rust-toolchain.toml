@@ -1,0 +1,9 @@
+# The Rust dm is built and checked with, the same on every computer and in CI (gaps row A1):
+# a new stable's lints or formatting no longer turn the gate red on a day nothing changed.
+# Raised by hand, in a change of its own that fixes what the new version finds.
+[toolchain]
+channel = "1.98.1"
+components = ["clippy", "rustfmt", "llvm-tools-preview"]
+# The extension (browser/) is built to WebAssembly.
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

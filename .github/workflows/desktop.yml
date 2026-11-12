@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           components: clippy, rustfmt
 
       # Only main saves the cache; a pull request restores main's rather
@@ -106,8 +106,9 @@ jobs:
         run: cargo nextest run --workspace --locked --profile ci
 
       # The log is the administrators' alone; the annotations are anyone's.
-      - name: Name the tests that failed
-        if: failure()
+      # Run on a pass too: a test that needed a retry is named as flaky.
+      - name: Name the tests that failed or needed a retry
+        if: always()
         shell: bash
         run: python3 ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml || python ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml
 
@@ -124,7 +125,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -207,7 +208,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -220,7 +221,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends patchelf file desktop-file-utils \
             libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
+            libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev \
+            libjavascriptcoregtk-4.1-0
 
       - name: cargo-packager
         run: cargo install cargo-packager --version 0.11.8 --locked
@@ -460,7 +462,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - name: Build the Chrome and Firefox zips
         working-directory: .

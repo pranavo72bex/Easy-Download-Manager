@@ -6782,3 +6782,77 @@ was the cost.
   it rather than being averaged with it; smoothing from then on, as before. Passes 20 runs of 20
   beside four copies of the queue tests.
 - **Dropped: a wider margin in the test**: it would pass a figure a person reads as wrong.
+
+## 2026-11-12: One gate command, a pinned Rust, the lints in one place (gaps row A1)
+
+- **`cargo xtask check`** (`desktop/xtask/src/check.rs`) runs what needs no window, for both
+  workspaces: formatting, clippy (desktop, browser on the host and as WebAssembly), cargo-deny's
+  licences, bans and sources (advisories stay with `audit.yml`: they need the database fetched),
+  the tests (nextest where installed, then doctests; else `cargo test`, doctests included). Every
+  step runs and the failures are listed at the end. **Dropped: a Python or shell script**: dm
+  already has three languages in its gate; xtask is Rust and runs anywhere cargo does.
+- **`rust-toolchain.toml` at the repository root** pins 1.98.1 with clippy, rustfmt, llvm-tools
+  and the wasm32 target, so `browser/` is pinned as well; the workflows name the same version.
+  Raised by hand in a change of its own.
+- **`[workspace.lints]`** holds `missing_docs` and the three clippy lints that were pasted into
+  six crate roots. They now reach each crate's tests too, which found two gaps (an undocumented
+  `unsafe` in the window tests, no crate docs on dm-desktop's binary). The `not(test)` denials of
+  `unwrap`, `expect` and `panic` stay in each crate's root: `[lints]` cannot exempt tests, and
+  clippy's `allow-*-in-tests` reach `#[test]` functions only, not an integration test's helpers.
+- **`clippy.toml`**: the version clippy may suggest for, and `dbg!` refused.
+- **Retries**: none, except the egui window's tests that wait on real downloads and row 195's
+  test, each named in `.config/nextest.toml`; `ci-failed-tests.py` now runs on a passing run too,
+  so a retried test is named as flaky where everyone can read it.
+- **CI builds the shipped window**: `ci.yml`'s hand-off check and `store-check.yml` build and
+  start `dm-gpui`, with GPUI's Linux libraries installed.
+
+## 2026-11-12: Nothing fetched and run: the computer's own JavaScript engine alone (gaps rows P1, D1)
+
+- **Removed**: `dm-core/src/tools.rs` (QuickJS fetched from a pinned GitHub release where a
+  computer had no engine), the lookups of an installed `deno` or `qjs`, the command-line engine
+  path in `javascript.rs` and `pac.rs` (with the hardening prelude only it needed), the setting
+  `fetch_tools`, Options › Downloads' "Get the video tools when needed" with its hint, the row's
+  "Getting ready for videos (first time only)…", and those words in the 12 catalogs. A settings
+  file that still names `fetch_tools` reads as before: the field is ignored.
+- **In its place**: the computer's own engine only, as on Windows and macOS already. On Linux the
+  .deb depends on `libjavascriptcoregtk-4.1-0 | libjavascriptcoregtk-6.0-1`, the .rpm on
+  `libjavascriptcoregtk-4.1.so.0`, the Arch package on `webkit2gtk-4.1`, and the AppImage
+  carries the library (cargo-packager's `appimage.libs`). With no engine the reading says which
+  package to install (`javascript::NO_ENGINE`).
+- **Tests**: what a test needs of an engine it now gets from a stand-in host
+  (`javascript::set_host` naming a script that speaks the host's protocol), not a stand-in
+  QuickJS: `youtube_cover.rs`, and `proxy.rs` where a Linux has no engine.
+- **Owed on Linux** (row P1 stays until then): the AppImage started on a system without WebKitGTK
+  reads a YouTube video, and `out-of-box-check.py` on a minimal Debian with github.com blocked.
+- **D1**: PRIVACY.md and README.md say what dm does now: nothing fetched to run.
+
+## 2026-11-12: The window's small dead ends (gaps rows U1, U3, U7, U9)
+
+- **U1**: Unfinished is every row not Completed (`places.rs`), so it and Finished add up to All.
+  Before, it held running, queued and schedule-held rows only, and said 0 beside 29 stopped or
+  failed ones.
+- **U7**: the shared row words (`rows::status_in`) say until when: the limit's wait and the
+  schedule's next opening (`rows::set_hold_times`, set by the GPUI window and `--headless` at each
+  read), and a retry's next try (`rows::next_try`, which only the egui window used, now in the
+  words for every window and the control port). Two new phrases, put into the 12 catalogs by
+  hand from each language's words for the waiting states (row 5's native readers to look at them).
+- **U9**: the list answers Edit's own Undo, Copy and Paste actions (`gpui_base::input`), bound to
+  ⌘ or Ctrl with Z, C and V for the window: a text field binds those in its own context, which
+  GPUI puts first, so its text is cut and pasted as ever (as ⌘A and the arrows already were).
+  **Dropped: a Command each** (menus, the control port's names, every list of commands): Edit's
+  items already were the place a person looks for them.
+- **U3**: Status grows with the window (a share of the room, up to twice its 150 points), shows
+  its whole words (and a failure's raw words) on hover where they run long, and a name is drawn
+  as its stem cut with an ellipsis and its extension whole, still read as one label by the
+  control port and screen readers (`Screen::mark`). **Dropped: columns a person can widen**
+  (row U4): a larger change, left to its row.
+- **U5** (after): the menus grey what does not apply (`Ticks::off`, from `Downloads::commands_off`,
+  the rows chosen read once for every command; the menu bar is built again only when that set
+  changes), and a greyed toolbar button says why (`Downloads::why_off`: none chosen where one would
+  do, the ones chosen not ones it acts on, or nothing in the list for it).
+- **U8**: "Delete file after" in the GPUI row menu (the four times, the shared one ticked) and in
+  Properties (a pop-up OK keeps), for rows that have or will have a file; Never stops the countdown.
+- **U6** (part): the egui window's stepping (`selection::stepped`, moved to dm-desktop-base for
+  both windows) drives the GPUI list's Home, End, page keys and Shift runs, from a keyboard place
+  of its own (`Downloads::cursor`) beside the click's anchor; the keys are window-wide bindings,
+  which a text field's own (in its context) come before, as ↑ and ↓ already were.

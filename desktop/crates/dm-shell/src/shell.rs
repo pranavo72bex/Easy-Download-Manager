@@ -414,10 +414,7 @@ pub struct Started {
 /// downloads back and applies the settings to it, and adds what `orders`
 /// names.
 pub async fn start(orders: &Orders) -> Started {
-    // Video tools (QuickJS), fetched into dm's own folder when needed.
-    dm_core::tools::set_folder(settings::home().join("tools"));
     let (mut saved, unreadable) = Settings::load();
-    dm_core::tools::allow_fetching(saved.fetch_tools);
     let mut notices: Vec<String> = unreadable.into_iter().collect();
 
     let client = match dm_core::client_with_timeout(&saved.proxy, saved.read_timeout()) {
@@ -596,7 +593,6 @@ pub async fn apply(
     queue.set_recheck_every(settings.recheck_every());
     queue.set_queue_limits(settings.queue_limit_map());
     queue.set_queue_starts(settings.queue_start_list());
-    dm_core::tools::allow_fetching(settings.fetch_tools);
     Ok(problems)
 }
 

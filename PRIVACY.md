@@ -11,21 +11,16 @@ click it: it fetches the release's `latest.json` from GitHub. That request
 carries nothing about you or your downloads; GitHub sees an address asking
 for a public file, as it does for any download.
 
-## Getting the tools for video sites
+## Video sites
 
-A video site's page (YouTube and the like) is downloaded with the external video tool, which
-needs a small JavaScript engine (QuickJS) for some sites; dm joins the picture
-and sound itself. If your computer has no the external video tool, dm fetches it and QuickJS the
-first time such a page needs them, from their GitHub releases, each checked
-against its published checksum (QuickJS, a pinned build, against the
-digest written into dm) before it is kept in dm's own folder. dm
-does the rest itself: joining picture and sound, subtitles, and live RTMP
-(RTMPS and RTMPT too), RTSP (RTSPS too) and MMS streams. an external video tool fetched
-this way is fetched afresh once a week while it is in use. These requests,
-like any download, carry nothing about you; GitHub sees an address asking
-for a public file. A recent the external video tool you installed yourself is used instead,
-and then it is not fetched. Options › Downloads › "Fetch the video helper"
-turns the fetching off altogether; then only an external video tool you installed is used.
+dm reads YouTube itself and fetches nothing to do it. The little JavaScript a
+YouTube video's checks need runs in your computer's own engine: Windows' own
+Chakra, macOS's JavaScriptCore, and on Linux WebKitGTK's JavaScriptCore, which
+dm's packages depend on and its AppImage carries. That engine is run with
+nothing of your computer in reach: no files, programs or network. dm does the
+rest itself too: joining picture and sound, subtitles, and live RTMP (RTMPS and
+RTMPT too), RTSP (RTSPS too) and MMS streams. No program is downloaded and run,
+and nothing installed on your computer is run in dm's place.
 
 ## What the extension handles
 
@@ -147,6 +142,5 @@ This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
 shipped code names any address but GitHub's. dm reaches GitHub only when
-you check for updates or open Help, or to fetch the external video tool and QuickJS when a
-video needs them and your computer has none. The two extension stores are
+you check for updates or open Help. The two extension stores are
 opened in your browser only when you click to add dm to it.

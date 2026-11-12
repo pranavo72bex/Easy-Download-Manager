@@ -16,13 +16,6 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-// From Google's Rust style guide, checked in CI: an `unsafe` block says why it
-// is sound (`// SAFETY:`, on every platform, Windows included), and a string is
-// built with `format!` rather than `+`, and a loop is a loop rather than
-// `for_each`.
-#![warn(missing_docs)]
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod aac;
 
 pub mod auth;
@@ -131,8 +124,6 @@ pub mod subtitles;
 #[cfg(test)]
 #[path = "../../../test-support/secrets.rs"]
 pub(crate) mod test_secrets;
-
-pub mod tools;
 
 pub use second_path::{
     interfaces, on_second, set_second_client, set_second_path, system_name, Interface,

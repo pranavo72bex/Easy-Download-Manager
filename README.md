@@ -534,9 +534,8 @@ how to open it). Once it is, this is the policy:
   authentication.
 
 Privacy: dm sends nothing about you anywhere. It reaches other computers
-only to fetch what you ask it to download, and, each with its own switch,
-to check GitHub for a new version (off until you turn it on) and to fetch
-the video helper from GitHub (on, and Options › Downloads turns it off).
+only to fetch what you ask it to download, and to check GitHub for a new
+version (off until you turn it on). No program is downloaded and run.
 See [PRIVACY.md](PRIVACY.md).
 
 ## License

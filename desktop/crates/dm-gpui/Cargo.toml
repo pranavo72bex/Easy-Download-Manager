@@ -67,7 +67,17 @@ depends = [
   # secret-tool: the saved logins, cookies and passwords go to the desktop's
   # Secret Service through it (dm-core/src/secretstore.rs).
   "libsecret-tools",
+  # WebKitGTK's JavaScriptCore: YouTube's checks and a proxy script run in it
+  # (dm-core/src/javascript.rs); nothing is fetched or run in its place
+  # (docs/gaps.md P1). The newer one where a system has only that.
+  "libjavascriptcoregtk-4.1-0 | libjavascriptcoregtk-6.0-1",
 ]
+
+# The AppImage carries WebKitGTK's JavaScriptCore, as a system it runs on may
+# have none (docs/gaps.md P1); the library is found under /usr/lib* on the
+# machine that builds it, which installs it first (.github/workflows/desktop.yml).
+[package.metadata.packager.appimage]
+libs = ["libjavascriptcoregtk-4.1.so.0"]
 
 [package.metadata.packager.macos]
 minimumSystemVersion = "11.0"
@@ -170,3 +180,6 @@ tempfile = "3"
 # The Windows program's icon and version (build.rs).
 [build-dependencies]
 embed-resource = "3"
+
+[lints]
+workspace = true

@@ -274,7 +274,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 34] = [
+pub const REASONS: [(&[&str], &str); 33] = [
     // First: the failure text of a row waiting for a fresh address also names
     // the refusal that expired it (`dm_core::LINK_EXPIRED`).
     (
@@ -325,10 +325,6 @@ pub const REASONS: [(&[&str], &str); 34] = [
     (
         &["certificate"],
         "the site's security certificate couldn't be checked, so dm didn't connect",
-    ),
-    (
-        &["video helper is not fetched"],
-        "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there",
     ),
     (
         &["cannot be reached (was its drive"],

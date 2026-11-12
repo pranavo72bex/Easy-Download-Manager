@@ -52,6 +52,9 @@ pub struct Properties {
     sums: Sums,
     zip: Option<ZipSlot>,
     says: Option<SharedString>,
+    /// "Delete file after" as chosen here, once it is (`None` leaves it be): OK keeps it, and
+    /// Never stops a countdown (gaps row U8).
+    delete_after: Option<Option<u64>>,
     /// A look again is due: a digest or a ZIP is still being read.
     polling: bool,
     done: bool,
@@ -85,6 +88,7 @@ impl Properties {
         );
         let description = self.note.read(cx).value().to_string();
         let (files, priorities) = (self.files.clone(), self.priorities.clone());
+        let delete_after = self.delete_after;
         // Off the window's thread: a new address for a running download
         // stops it first, and that is waited for (gaps row 183). A second
         // OK meanwhile is not taken; the window closes, or says why not,
@@ -95,6 +99,9 @@ impl Properties {
             let kept_row = row.clone();
             view.later(
                 move |backend| {
+                    if let Some(seconds) = delete_after {
+                        backend.set_delete_after(kept_row.id, seconds);
+                    }
                     row_edits::keep_properties(
                         backend,
                         &kept_row,
@@ -181,6 +188,15 @@ impl Properties {
 
     /// A priority picked for one of a torrent's files.
     fn pick(&mut self, pick: &Pick, cx: &mut Context<Self>) {
+        if pick.field == "delete-after" {
+            if let Some((_, seconds)) =
+                dm_desktop_base::file_info::delete_after_times().get(pick.index)
+            {
+                self.delete_after = Some(*seconds);
+                cx.notify();
+            }
+            return;
+        }
         if pick.field != "priority" {
             return;
         }
@@ -289,6 +305,8 @@ impl Render for Properties {
             )
         };
         let named = view.read(cx).name_shown(&row);
+        // A row that has, or will have, a file can be given a time to the Trash.
+        let has_file = !matches!(row.state, State::Failed(_) | State::Cancelled);
         let size = dm_desktop_base::rows::shown_size(&row)
             .map(format::bytes)
             .unwrap_or_default();
@@ -344,6 +362,7 @@ impl Render for Properties {
             t("Login"),
             t("Password"),
             t("Note"),
+            t("Delete file after"),
             t("Files"),
             "SHA-256",
             t("Check against"),
@@ -627,6 +646,27 @@ impl Render for Properties {
                         theme,
                     ))
                     .child(field_line("Note", width, &screen, &self.note, true, theme))
+                    .when(has_file, |d| {
+                        let times = dm_desktop_base::file_info::delete_after_times();
+                        let now = self.delete_after.unwrap_or(row.delete_after);
+                        let at = times.iter().position(|(_, s)| *s == now);
+                        let words = at
+                            .and_then(|i| times.get(i))
+                            .map_or(t("Never"), |(w, _)| *w);
+                        d.child(line(
+                            t("Delete file after"),
+                            width,
+                            &screen,
+                            popup::button(
+                                "delete-after",
+                                words.into(),
+                                times.iter().map(|(w, _)| SharedString::from(*w)).collect(),
+                                at,
+                                theme,
+                                &screen,
+                            ),
+                        ))
+                    })
                     .children(torrent)
                     .children(digest)
                     .children(contents)
@@ -781,6 +821,7 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
                     sums: Sums::default(),
                     zip: None,
                     says: None,
+                    delete_after: None,
                     polling: false,
                     done: false,
                     screen,

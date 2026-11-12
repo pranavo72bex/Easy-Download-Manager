@@ -1469,7 +1469,10 @@ fn a_retry_says_its_attempt() {
     until(&mut harness, "the row to say it retries", |app| {
         app.rows()
             .first()
-            .is_some_and(|r| dm_desktop::app::status_of(r) == "Connection dropped (retry 2 of 5)")
+            // With when it tries next, in the words themselves (gaps row U7).
+            .is_some_and(|r| {
+                dm_desktop::app::status_of(r).starts_with("Connection dropped (retry 2 of 5)")
+            })
     });
     // It says when it tries again, not only that it will.
     let mut said = false;

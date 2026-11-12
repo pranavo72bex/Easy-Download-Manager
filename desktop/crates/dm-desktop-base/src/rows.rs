@@ -118,6 +118,22 @@ pub fn set_limit_holds(now: bool) {
     LIMIT_HOLDS.with(|l| l.set(now));
 }
 
+thread_local! {
+    /// How long until the download limit allows more, and when a closed schedule opens ("23:00",
+    /// "Mon 01:00"), as the last refresh found them: a waiting row says until when (gaps row U7).
+    static HOLD_TIMES: std::cell::RefCell<(Option<std::time::Duration>, Option<String>)> =
+        const { std::cell::RefCell::new((None, None)) };
+}
+
+/// Until when waiting rows are held, for the statuses drawn next: the download limit's wait
+/// (`allowance`), and when the schedule opens where it is closed.
+pub fn set_hold_times(allowance: Option<std::time::Duration>, schedule: &dm_core::Schedule) {
+    let opens = (schedule.enabled && !schedule.open())
+        .then(|| crate::held::opens_next(schedule))
+        .flatten();
+    HOLD_TIMES.with(|h| *h.borrow_mut() = (allowance, opens));
+}
+
 /// The attempt, how many there may be (0 for no end) and why, for a row
 /// a range is being tried again for, as the last read found it.
 pub fn retrying(id: Id) -> Option<(u32, u32, String)> {
@@ -177,7 +193,7 @@ pub fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String
         State::Running if retrying(row.id).is_some() => match retrying(row.id) {
             Some((attempt, of, why)) => {
                 let cause = format::retry_cause(&why).map(words);
-                match (of > 0, cause) {
+                let said = match (of > 0, cause) {
                     (true, Some(cause)) => {
                         crate::i18n::fill(words("{} (retry {} of {})"), &[&cause, &attempt, &of])
                     }
@@ -188,6 +204,14 @@ pub fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String
                         crate::i18n::fill(words("{} (retry {})"), &[&cause, &attempt])
                     }
                     (false, None) => crate::i18n::fill(words("Retrying (attempt {})"), &[&attempt]),
+                };
+                // When it tries again, so a wait is not taken for a stall (gaps row U7).
+                match next_try(row.id) {
+                    Some(left) => format!(
+                        "{said} · {}",
+                        crate::i18n::fill(words("next try in {}"), &[&format::span(left)])
+                    ),
+                    None => said,
                 }
             }
             None => String::new(),
@@ -231,32 +255,28 @@ pub fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String
                 words("Finding peers… Windows may be asking whether dm may use the network: allow it in that window").into()
             }
             None if dm_core::is_torrent(&row.url) => words("Finding peers…").into(),
-            // The first video waits while dm fetches what it needs for
-            // videos, half a minute or so: said, so it does not read as
-            // stuck.
-            None if dm_core::tools::preparing() => {
-                let said = words("Getting ready for videos (first time only)…");
-                // With the bytes so far, in units alone, so half a minute
-                // of nothing moving is seen to move.
-                match dm_core::tools::preparing_progress() {
-                    Some((got, Some(total))) => {
-                        format!("{said} {} / {}", format::bytes(got), format::bytes(total))
-                    }
-                    Some((got, None)) => format!("{said} {}", format::bytes(got)),
-                    None => said.into(),
-                }
-            }
             None => words("Starting…").into(),
         },
         State::Queued => words("Queued").into(),
         // Held by the schedule or the download limit, not by a person: it
         // goes on by itself, which "Stopped" would not say.
         // Saying what for: "Waiting" alone read as stuck.
+        // And until when (gaps row U7).
         State::Paused if row.paused_by_schedule => {
+            let (allowance, opens) = HOLD_TIMES.with(|h| h.borrow().clone());
             if LIMIT_HOLDS.with(std::cell::Cell::get) {
-                words("Waiting for the download limit").into()
+                match allowance {
+                    Some(left) => crate::i18n::fill(
+                        words("Waiting for the download limit · more in {}"),
+                        &[&format::span(left)],
+                    ),
+                    None => words("Waiting for the download limit").into(),
+                }
             } else {
-                words("Waiting for the schedule").into()
+                match opens {
+                    Some(at) => crate::i18n::fill(words("Waiting for the schedule · starts {}"), &[&at]),
+                    None => words("Waiting for the schedule").into(),
+                }
             }
         }
         // Added for later: it waits for its queue to be started, and does
@@ -552,6 +572,43 @@ mod tests {
         assert!(set_looked(look_for(vec![(1, finished.path.clone())])));
         assert!(!gone(&finished));
         LOOKED.with(|l| *l.borrow_mut() = None);
+    }
+
+    /// A row held by the download limit or the schedule says until when (gaps row U7).
+    #[test]
+    fn a_held_row_says_until_when() {
+        use chrono::Datelike;
+        let held = row(State::Paused, true);
+        set_limit_holds(true);
+        set_hold_times(
+            Some(std::time::Duration::from_secs(90)),
+            &dm_core::Schedule::default(),
+        );
+        let said = status_in_english(&held);
+        assert!(
+            said.starts_with("Waiting for the download limit · more in "),
+            "{said}"
+        );
+        set_limit_holds(false);
+        // Open only three days on, an hour after midnight: closed now.
+        let today = chrono::Local::now().weekday().num_days_from_sunday();
+        let schedule = dm_core::Schedule {
+            enabled: true,
+            from: "01:00".into(),
+            to: "02:00".into(),
+            days: vec![((today + 3) % 7) as u8],
+            ..Default::default()
+        };
+        set_hold_times(None, &schedule);
+        let said = status_in_english(&held);
+        assert!(
+            said.starts_with("Waiting for the schedule · starts "),
+            "{said}"
+        );
+        assert!(said.ends_with(" 01:00"), "{said}");
+        // Where nothing says until when, the words as before.
+        set_hold_times(None, &dm_core::Schedule::default());
+        assert_eq!(status_in_english(&held), "Waiting for the schedule");
     }
 
     #[test]

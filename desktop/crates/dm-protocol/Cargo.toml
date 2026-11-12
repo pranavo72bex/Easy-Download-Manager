@@ -20,3 +20,6 @@ proptest = "1"
 # Only to check that the key in extension/manifest.json still yields the id
 # named here, the way Chrome derives it.
 sha2 = "0.11.0"
+
+[lints]
+workspace = true

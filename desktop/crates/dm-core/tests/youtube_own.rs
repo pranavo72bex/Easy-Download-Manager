@@ -327,7 +327,6 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
     let dir = tempdir();
     // The stand-in.
     std::env::set_var("DM_YOUTUBE_HOST", &origin);
-    dm_core::tools::set_folder(dir.path().join("tools"));
 
     let page = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
     let done = videopage::download_page(&client(), page, &options(dir.path()), None)

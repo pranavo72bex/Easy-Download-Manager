@@ -3,12 +3,11 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-// dm, with its window drawn in Rust.
-//
-// The same program as the Tauri one — the same startup, browser host, lock,
-// inbox and queue, all from dm-shell — with egui in place of a web view.
-// What lives here is only what a real desktop has and a test must not
-// touch: the tray, the login item, notifications, the clipboard.
+//! dm, with its window drawn in egui (the window before GPUI's).
+//!
+//! The same startup, browser host, lock, inbox and queue as the GPUI window, all from dm-shell.
+//! What lives here is only what a real desktop has and a test must not touch: the tray, the
+//! login item, notifications, the clipboard.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::atomic::{AtomicBool, Ordering};

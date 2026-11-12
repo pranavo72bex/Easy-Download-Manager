@@ -17,15 +17,12 @@
 // binary's does; the command-line modes attach to the terminal they were
 // started from (`dm_desktop_base::modes`).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-// As every dm crate: no unwrap, expect or panic in shipped code, an `unsafe`
-// block says why it is sound, a string is built with `format!`.
+// As every dm crate: no unwrap, expect or panic in shipped code (the rest of the
+// lints are the workspace's, `desktop/Cargo.toml` `[workspace.lints]`).
 #![cfg_attr(
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-#![warn(missing_docs)]
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![warn(clippy::string_add, clippy::needless_for_each)]
 
 mod about;
 mod actions;

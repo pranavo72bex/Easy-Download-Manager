@@ -391,6 +391,7 @@ cd browser && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                          # build the WebAssembly, dist/chrome, dist/firefox, the zips
 python3 scripts/chrome-check.py                # Chrome for Testing, handing off to a real dm
 
+cd desktop && cargo xtask check                # all of the gate that needs no window, both workspaces
 cd desktop && cargo test --workspace           # engine, protocol, shell and window tests
 cd desktop && cargo clippy --workspace --all-targets -- -D warnings
 python3 scripts/app-check.py                   # drives the built binary: lock, hand-off, proxy, schedule
@@ -460,13 +461,13 @@ desktop/
     javascript.rs         the computer's own JavaScript engine for that program: Windows' own
                           Chakra (chakra.dll; no JIT, no eval, memory and time capped), in a
                           process of its own, dm started as its host (--javascript-host);
-                          macOS's JavaScriptCore, and WebKitGTK's on Linux where installed (the
-                          same host, the JIT off); elsewhere an installed Deno, or QuickJS
+                          macOS's JavaScriptCore, and WebKitGTK's on Linux (the same host, the
+                          JIT off; the packages depend on it, the AppImage carries it); nothing
+                          else in its place
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
-    videopage.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old
-                          name), and the tools dm fetches and checks (QuickJS, where a system has
-                          no engine of its own and none installed)
+    videopage.rs          a video page's streams fetched and joined (the module keeps its old
+                          name)
     videopage/fetch.rs        a page's reading, its streams fetched by dm's engine
     videopage/choices.rs      the panel's list of qualities, from the page's own data
     videopage/page_data.rs    a YouTube watch page's own player data, read as that list

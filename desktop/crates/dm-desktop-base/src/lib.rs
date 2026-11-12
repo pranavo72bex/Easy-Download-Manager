@@ -33,11 +33,6 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-// As in dm-desktop: an `unsafe` block says why it is sound, a string is built
-// with `format!` rather than `+`, and a loop is a loop rather than `for_each`.
-#![warn(missing_docs)]
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod a11y_tree;
 pub mod add_url;
 pub mod asks;
@@ -76,6 +71,7 @@ pub mod row_edits;
 pub mod rows;
 pub mod save_to;
 pub mod scheduler;
+pub mod selection;
 pub mod signals;
 pub mod system_theme;
 pub mod taskbar;

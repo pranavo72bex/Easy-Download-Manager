@@ -19,9 +19,13 @@
 //!   licence header (`headers.rs`); `headers fix` writes the missing ones.
 //!
 //! Each is also a test, so `cargo test --workspace` runs them.
+//!
+//! - `check` runs everything that needs no window, both workspaces, in one command
+//!   (`check.rs`): formatting, lints, licences, the tests (and through them the checks above).
 
 #[cfg(test)]
 mod baseline;
+mod check;
 mod headers;
 
 use std::path::{Path, PathBuf};
@@ -29,6 +33,7 @@ use std::path::{Path, PathBuf};
 fn main() {
     let job = std::env::args().nth(1).unwrap_or_default();
     let result = match job.as_str() {
+        "check" => check::run(&root()),
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
         "privacy" => privacy().map(|()| "nothing phones home".to_string()),
@@ -42,7 +47,7 @@ fn main() {
             licence_headers().map(|()| "every source file carries its licence header".to_string())
         }
         _ => Err(
-            "usage: cargo xtask <scorecard|layers|privacy|parity|secrets|headers [fix]>"
+            "usage: cargo xtask <check|scorecard|layers|privacy|parity|secrets|headers [fix]>"
                 .to_string(),
         ),
     };

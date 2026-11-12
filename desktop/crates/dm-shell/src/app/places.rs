@@ -203,14 +203,11 @@ impl Places {
                 (None, custom) => *c == Category::Other && custom.is_none(),
             },
             Place::Custom(name) => self.placed(row, categories).1.as_deref() == Some(name.as_str()),
-            // What is under way: running, waiting its turn, or held by the
-            // schedule or the download limit. Not a failed row or one a
-            // person stopped, which the status bar does not count as
-            // downloading either.
-            Place::Unfinished => {
-                matches!(row.state, State::Running | State::Queued)
-                    || (row.state == State::Paused && row.paused_by_schedule)
-            }
+            // Every row not whole yet: running, waiting, stopped by a person
+            // or failed. So Unfinished and Finished add up to All: with only
+            // running and waiting rows, a list of 45 with 9 failed and 20
+            // stopped said Unfinished 0 (gaps row U1).
+            Place::Unfinished => row.state != State::Completed,
             Place::Finished => row.state == State::Completed,
             Place::Queue(name) => &row.queue == name,
         }
@@ -286,10 +283,14 @@ mod tests {
         assert_eq!(count(Place::All), 4);
         assert_eq!(
             count(Place::Unfinished),
-            2,
-            "running and queued, not a stopped one"
+            3,
+            "running, queued and stopped: every row not finished"
         );
         assert_eq!(count(Place::Finished), 1);
+        assert_eq!(
+            count(Place::Unfinished) + count(Place::Finished),
+            count(Place::All)
+        );
         assert_eq!(count(Place::Kind(Category::Videos)), 1);
         assert_eq!(count(Place::Kind(Category::Audio)), 1);
         assert_eq!(count(Place::Kind(Category::Other)), 1, "a .bin is Other");

@@ -40,15 +40,8 @@ async fn main() -> ExitCode {
         ns = vec!["ZdbaQ6n9tvTeTJ1Xu", "aBcDeFgHiJkLmNoP"];
         sigs = vec!["AOq0QJ8wRQIhAJ2bQ2dOTmZQqkLXvq0VvMcSiY8yZ7LKzJbLf3zuYJ3eAiB8Hc2hFJ2y5yQy"];
     }
-    let staging = match tempfile::tempdir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            eprintln!("no temporary folder: {e}");
-            return ExitCode::FAILURE;
-        }
-    };
     let started = std::time::Instant::now();
-    match dm_core::youtube::answers(&player, &ns, &sigs, staging.path()).await {
+    match dm_core::youtube::answers(&player, &ns, &sigs).await {
         Ok((n, sig)) => {
             for value in &ns {
                 println!(

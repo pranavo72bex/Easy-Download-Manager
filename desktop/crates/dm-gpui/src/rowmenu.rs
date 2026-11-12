@@ -103,6 +103,77 @@ pub fn menu(
             );
         }
     }
+    // "Delete file after", as the egui row menu had it: the file goes to the Trash, its row
+    // with it, that long after it finished; Never stops the countdown (gaps row U8). For the
+    // rows that have, or will have, a file: not a failed or cancelled one.
+    let targets: Vec<dm_core::Id> = view
+        .chosen()
+        .into_iter()
+        .filter(|r| {
+            !matches!(
+                r.state,
+                dm_core::State::Failed(_) | dm_core::State::Cancelled
+            )
+        })
+        .map(|r| r.id)
+        .collect();
+    if !targets.is_empty() {
+        let chosen = view.chosen();
+        let shared = chosen
+            .first()
+            .map(|r| r.delete_after)
+            .filter(|first| chosen.iter().all(|r| r.delete_after == *first));
+        items.push(
+            div()
+                .mx_2()
+                .my_1()
+                .h(px(1.0))
+                .bg(theme.separator)
+                .into_any_element(),
+        );
+        items.push(
+            div()
+                .mx_1()
+                .px_2()
+                .h(px(20.0))
+                .flex()
+                .items_center()
+                .text_size(px(crate::native::SMALL_TEXT))
+                .text_color(theme.muted)
+                .child(screen.label(t("Delete file after")))
+                .into_any_element(),
+        );
+        for (words, seconds) in dm_desktop_base::file_info::delete_after_times() {
+            let targets = targets.clone();
+            let on = shared == Some(seconds);
+            items.push(
+                div()
+                    .id(("delete-after", seconds.unwrap_or(0)))
+                    .role(Role::MenuItem)
+                    .aria_label(words)
+                    .mx_1()
+                    .px_2()
+                    .h(px(22.0))
+                    .rounded(px(4.0))
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .text_size(px(crate::native::TEXT))
+                    .hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.close_menu();
+                        for &id in &targets {
+                            view.backend.set_delete_after(id, seconds);
+                        }
+                        view.read();
+                        cx.notify();
+                    }))
+                    .child(div().w(px(14.0)).child(if on { "✓" } else { "" }))
+                    .child(screen.label(words))
+                    .into_any_element(),
+            );
+        }
+    }
     deferred(
         anchored().position(at).child(
             div()

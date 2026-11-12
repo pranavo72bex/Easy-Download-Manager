@@ -7,9 +7,9 @@
 """dm as a person meets it after installing it: nothing else on the computer.
 
 The real dm binary (dm-gpui), headless, with a dm home of its own made for
-this run (no tools fetched before), told to see only the tools it fetches
-itself (DM_ONLY_FETCHED_TOOLS, so nothing installed on this computer is
-used) and given the PATH a browser or the Dock gives an app. Real
+this run, and given the PATH a browser or the Dock gives an app. dm runs no
+program but itself: YouTube's checks are answered in the computer's own
+JavaScript engine. Real
 YouTube videos are handed to it through its inbox, as the browser's
 "Download video" panel hands them, at each kind of quality the panel
 offers. Each must finish as one file holding picture and sound at the
@@ -98,7 +98,7 @@ def main():
             "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
             "PATH": "/usr/bin:/bin",
         }
-    env.update({"DM_HOME": str(home), "DM_ONLY_FETCHED_TOOLS": "1"})
+    env.update({"DM_HOME": str(home)})
     app = subprocess.Popen([str(BINARY), "--headless"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -123,16 +123,9 @@ def main():
                 break
             time.sleep(3)
         listed = rows(home)
-        tools = sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else []
-        print(f"tools dm fetched for itself: {', '.join(tools) or 'none'}")
-        # dm's tools folder (dm-core's tools.rs): on Windows it stays empty, YouTube's checks
-        # being answered in Windows' own JavaScript engine (javascript.rs); elsewhere it holds
-        # QuickJS (qjs) and nothing else, until the system's own engine is used (gaps row 164).
-        if sys.platform == "win32":
-            check("dm fetched nothing: YouTube's checks ran in Windows' own engine", not tools, tools)
-        else:
-            check("dm fetched QuickJS, and nothing else", any(t.startswith("qjs") for t in tools)
-                  and all(t.startswith("qjs") for t in tools), tools)
+        # Nothing fetched to run (gaps row P1): dm keeps no tools folder at all.
+        check("dm fetched no program for itself", not (home / "tools").exists(),
+              sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else [])
         for n, (name, url, quality, (container, height)) in enumerate(CASES):
             print(name)
             row = listed[n] if n < len(listed) else None

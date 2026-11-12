@@ -1499,16 +1499,6 @@ fn downloads(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Contex
         |o| o.draft.on_complete.clone(),
     );
     p.labelled(t("Command"), true, command);
-    check(
-        p,
-        cx,
-        "fetch-tools",
-        t("Get the video tools when needed"),
-        s.fetch_tools,
-        true,
-        |s| s.fetch_tools = !s.fetch_tools,
-    );
-    p.hint(t("Downloaded from their official releases, checked, and kept up to date. Off: dm uses only tools you installed yourself."));
 }
 
 /* --------------------------------------------------------------- Advanced */

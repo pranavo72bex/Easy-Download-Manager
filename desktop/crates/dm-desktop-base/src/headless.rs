@@ -192,6 +192,7 @@ impl Headless {
         crate::rows::set_retrying(read.snapshot.retrying);
         crate::rows::set_swarms(read.snapshot.swarms);
         crate::rows::set_limit_holds(read.snapshot.allowance_spent);
+        crate::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
         self.rows = read.snapshot.rows;
         let mut categories = settings.categories();
         let before = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
