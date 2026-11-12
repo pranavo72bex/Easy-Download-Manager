@@ -33,7 +33,7 @@ use crate::zoom::px;
 /// The Scheduler window's view.
 pub struct Scheduler {
     view: WeakEntity<Downloads>,
-    draft: SchedulerDraft,
+    pub(crate) draft: SchedulerDraft,
     queues: Vec<String>,
     from: Entity<InputState>,
     to: Entity<InputState>,

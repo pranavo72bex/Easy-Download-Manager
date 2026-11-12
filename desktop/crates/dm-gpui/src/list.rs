@@ -221,6 +221,13 @@ pub struct Downloads {
     question_window: Option<gpui::AnyWindowHandle>,
     /// "Exit dm?" is being asked: Exit again does not ask twice.
     exit_asked: bool,
+    /// Exit was carried out (`quit`): what the window's tests read, as GPUI's test platform
+    /// ends nothing.
+    pub(crate) quit_asked: bool,
+    /// The queue ran dry at a read (`Session::ran_dry`, looked at once per read, as it asks):
+    /// When done's for the next tick. Looked at in the tick alone, a read between (after a
+    /// command, an add, Download details) took the change, and When done never fired.
+    pub(crate) ran_dry: bool,
     /// What the reads since the last tick detected (`tick.rs`).
     pub(crate) detected: Vec<dm_shell::app::detect::Detected>,
     /// Problems to show above the list, each until dismissed.
@@ -361,6 +368,7 @@ impl Downloads {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Downloads {
+        let last_limit = dm_shell::app::commands::remembered_limit(&backend.settings());
         let mut this = Downloads {
             backend,
             session: Session::default(),
@@ -395,6 +403,8 @@ impl Downloads {
             sheet_open: false,
             question_window: None,
             exit_asked: false,
+            quit_asked: false,
+            ran_dry: false,
             detected: Vec::new(),
             problems: Vec::new(),
             saved: Default::default(),
@@ -406,7 +416,9 @@ impl Downloads {
                     .placeholder(dm_desktop_base::i18n::t("Name, address or note"))
             }),
             filter_text: String::new(),
-            last_limit: 0,
+            // Limit speed turns back on at the limit last in force, kept across a restart,
+            // as the egui window's: from 0 it came back on at 1 KB/s.
+            last_limit,
             rechecked: Default::default(),
             menu_ticks: None,
             frame: window.window_bounds(),
@@ -1844,6 +1856,9 @@ impl Downloads {
         }
         changed |= moved;
         self.rows = rows;
+        if self.session.ran_dry(&self.rows) {
+            self.ran_dry = true;
+        }
         // Every row's finishing words where the rows are placed again, else
         // those of the rows that changed.
         self.keep_whens(&settings.language, moved, finished_at);

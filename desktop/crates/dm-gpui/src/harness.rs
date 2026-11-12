@@ -602,6 +602,45 @@ impl Harness {
         self.type_at(at, label, text);
     }
 
+    /// The menu item at `path` (`["Downloads", "Speed limiter", "Limit speed"]`) as the
+    /// window's menus show it now: whether it is ticked, and whether greyed.
+    pub(crate) fn menu_item(&mut self, path: &[&str]) -> (bool, bool) {
+        let ticks = self.view(|view| view.menu_ticks.clone().unwrap_or_default());
+        let menus: Vec<gpui::OwnedMenu> = crate::menus::window_menus(&ticks)
+            .into_iter()
+            .map(|menu| menu.owned())
+            .collect();
+        let same =
+            |name: &str, wanted: &str| name.trim_end_matches('…') == wanted.trim_end_matches('…');
+        let (first, rest) = path.split_first().expect("a menu's name");
+        let mut items = &menus
+            .iter()
+            .find(|menu| same(&menu.name, first))
+            .unwrap_or_else(|| panic!("no menu {first:?}"))
+            .items;
+        for (i, name) in rest.iter().enumerate() {
+            let last = i + 1 == rest.len();
+            let found = items.iter().find_map(|item| match item {
+                gpui::OwnedMenuItem::Submenu(sub) if !last && same(&sub.name, name) => {
+                    Some(Err(&sub.items))
+                }
+                gpui::OwnedMenuItem::Action {
+                    name: item,
+                    checked,
+                    disabled,
+                    ..
+                } if last && same(item, name) => Some(Ok((*checked, *disabled))),
+                _ => None,
+            });
+            match found {
+                Some(Ok(state)) => return state,
+                Some(Err(sub)) => items = sub,
+                None => panic!("no {name:?} in the menu at {path:?}"),
+            }
+        }
+        panic!("{path:?} is a menu, not an item")
+    }
+
     /// Types `text` into the field by the words `label` at `named`.
     fn type_at(&mut self, named: gpui::Bounds<gpui::Pixels>, label: &str, text: &str) {
         let (window, drawn) = self.front_dialog();

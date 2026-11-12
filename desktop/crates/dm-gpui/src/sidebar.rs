@@ -43,7 +43,7 @@ fn cut(name: f32, count: f32, wide: f32, factor: f32) -> bool {
 /// How wide `text` is drawn at `size` points (at 100%) in the window's interface font, in pixels
 /// on screen: laid out by the system's text shaper, which keeps what it laid out from one frame
 /// to the next, so a panel's dozen names cost little.
-fn drawn_width(text: &str, size: f32, window: &Window, cx: &gpui::App) -> f32 {
+pub(crate) fn drawn_width(text: &str, size: f32, window: &Window, cx: &gpui::App) -> f32 {
     if text.is_empty() {
         return 0.0;
     }

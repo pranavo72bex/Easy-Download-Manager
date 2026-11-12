@@ -356,6 +356,7 @@ impl Downloads {
                 });
             }
         }
+        self.quit_asked = true;
         cx.quit();
     }
 

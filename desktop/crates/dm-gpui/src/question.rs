@@ -64,6 +64,10 @@ pub struct Question {
     reword: Option<Reword>,
     /// Its words follow the list: room is kept for them.
     steady: bool,
+    /// The widest each button's words have been, in points at 100%: a steady question's
+    /// buttons keep that width, so one whose words grow shorter (Keep downloading, then
+    /// Stay) moves none beside it under the pointer.
+    widest: Vec<f32>,
     ticked: bool,
     answer: Option<Answer>,
     focus: FocusHandle,
@@ -134,6 +138,14 @@ impl Render for Question {
         self.screen.begin();
         let screen = self.screen.clone();
         let default = self.asked.default;
+        if steady {
+            self.widest.resize(self.asked.buttons.len(), 0.0);
+            for (i, words) in self.asked.buttons.iter().enumerate() {
+                let wide = crate::sidebar::drawn_width(words, native::TEXT, window, cx);
+                self.widest[i] = self.widest[i].max(wide);
+            }
+        }
+        let widest = self.widest.clone();
         let button = |i: usize, cx: &mut Context<Self>| {
             native::button(
                 ("button", i),
@@ -142,6 +154,10 @@ impl Render for Question {
                 theme,
                 &screen,
             )
+            // Its padding and border beside its widest words.
+            .when_some(widest.get(i), |b, wide| {
+                b.min_w(px((wide + 30.0).max(native::BUTTON_MIN)))
+            })
             .on_click(cx.listener(move |this, _, window, cx| this.answer(i, window, cx)))
             .into_any_element()
         };
@@ -349,6 +365,7 @@ pub fn ask(
                     asked,
                     reword,
                     steady,
+                    widest: Vec::new(),
                     ticked: false,
                     answer: Some(answer),
                     focus,
