@@ -16,6 +16,7 @@ use dm_core::{Entry, State};
 use dm_desktop_base::columns::Column;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
+use dm_shell::app::commands::Command;
 use gpui::{
     div, prelude::*, relative, uniform_list, AnyElement, Context, Role, SharedString, Window,
 };
@@ -418,17 +419,25 @@ fn spoken(
     .into()
 }
 
-/// One row's cells.
+/// The columns shown, in order, and the widths a person gave them.
+struct Layout<'a> {
+    columns: &'a [Column],
+    widths: &'a Widths,
+}
+
+/// One row's cells, its own `buttons` at the name's right end.
 fn row_cells(
     row: &Entry,
     view: &Downloads,
-    columns: &[Column],
+    layout: Layout<'_>,
     kind: Option<dm_core::Category>,
     theme: Theme,
     screen: &Screen,
-    widths: &Widths,
+    buttons: AnyElement,
 ) -> Vec<AnyElement> {
+    let Layout { columns, widths } = layout;
     let (names, whens) = (&view.shown_names, &view.whens);
+    let mut buttons = Some(buttons);
     columns
         .iter()
         .map(|&column| match column {
@@ -437,6 +446,8 @@ fn row_cells(
                 let name = shown_name(row, names);
                 cell(column, widths)
                     .gap_2()
+                    .relative()
+                    .children(buttons.take())
                     .child(
                         gpui::svg()
                             .path(picture)
@@ -690,8 +701,27 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                                     },
                                 )
                         })
+                        // Its own buttons at the name's right end, where
+                        // the pointer is on it or it is chosen (gaps row U13).
+                        .group(ROW_GROUP)
                         .children(row_cells(
-                            row, this, &columns, kind, theme, &screen, &widths,
+                            row,
+                            this,
+                            Layout {
+                                columns: &columns,
+                                widths: &widths,
+                            },
+                            kind,
+                            theme,
+                            &screen,
+                            row_buttons(
+                                row,
+                                chosen,
+                                if chosen { background } else { theme.background },
+                                original,
+                                cx,
+                            )
+                            .into_any_element(),
                         ))
                 })
                 .collect()
@@ -705,6 +735,75 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
         list.style().restrict_scroll_to_axis = Some(true);
         list
     })
+}
+
+/// The group a row's buttons show with when the pointer is over it.
+const ROW_GROUP: &str = "row";
+
+/// What a row's own buttons do, by how it stands: Stop on one under way, Open and Open folder
+/// on one finished, Resume on the rest, as the egui window showed them on the row under the
+/// pointer: each with its picture and the command's words for a screen reader and a script.
+fn row_actions(row: &Entry) -> Vec<(Command, &'static str, &'static str)> {
+    match row.state {
+        State::Running | State::Queued => {
+            vec![(Command::StopDownload, "icons/stop.svg", t("Stop download"))]
+        }
+        State::Completed => vec![
+            (Command::OpenFile, "icons/open.svg", t("Open")),
+            (
+                Command::OpenFolder,
+                "icons/place-folder.svg",
+                t("Open folder"),
+            ),
+        ],
+        _ => vec![(Command::DownloadNow, "icons/resume.svg", t("Resume"))],
+    }
+}
+
+/// A row's buttons, over its right end on `backdrop`: hidden until the pointer is over the row,
+/// shown on a chosen one. A press on one acts on that row alone and is the row's no more.
+fn row_buttons(
+    row: &Entry,
+    chosen: bool,
+    backdrop: gpui::Rgba,
+    theme: Theme,
+    cx: &mut Context<Downloads>,
+) -> impl IntoElement {
+    let id = row.id;
+    div()
+        .absolute()
+        .top_0()
+        .right(px(4.0))
+        .h_full()
+        .flex()
+        .items_center()
+        .gap_1()
+        .px_1()
+        .bg(backdrop)
+        .when(!chosen, |d| {
+            d.invisible().group_hover(ROW_GROUP, |s| s.visible())
+        })
+        .children(row_actions(row).into_iter().map(|(command, icon, words)| {
+            div()
+                .id((command.id(), id as usize))
+                .role(Role::Button)
+                .aria_label(words)
+                .size(px(18.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(4.0))
+                .bg(theme.control)
+                .hover(|s| s.bg(theme.stripe))
+                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(cx.listener(move |view, _, window, cx| {
+                    cx.stop_propagation();
+                    view.click_row(id, false, false);
+                    window.dispatch_action(Box::new(crate::menus::Run(command)), cx);
+                    cx.notify();
+                }))
+                .child(gpui::svg().path(icon).size(px(12.0)).text_color(theme.text))
+        }))
 }
 
 #[cfg(test)]

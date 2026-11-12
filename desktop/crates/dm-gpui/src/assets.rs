@@ -58,6 +58,8 @@ const ICONS: &[(&str, &[u8])] = icons!(
     "place-finished",
     "place-queue",
     "place-folder",
+    // A row's own Open button (gaps row U13).
+    "open",
 );
 
 /// The pictures compiled into dm.

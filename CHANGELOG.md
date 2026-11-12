@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A row has its own buttons again at the end of its name, under the pointer or when chosen: Stop while it downloads, Open and Open folder when finished, Resume otherwise.
 - The side panel's right-click menu is back: a category's Open folder and Add or edit categories…, Unfinished's Resume all and Stop All, Finished's Delete Completed, and a queue's Start Queue, Stop Queue and Scheduler….
 - dm's JavaScript helper (YouTube's player checks, proxy scripts) runs shut off from the computer by the system's own sandbox on macOS, Linux and Windows.
 - A name that a public page, playlist or redirect leads to, and that turns out to point inside your own network, is refused at the connection (DNS rebinding).
