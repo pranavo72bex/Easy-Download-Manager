@@ -756,7 +756,11 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                     let background = theme.selection;
                     let original = theme;
                     let theme = if chosen { theme.chosen() } else { theme };
-                    let draggable = crate::dragout::may_carry(row)
+                    // A finished row's file dragged out; and, in the list's own order, any
+                    // row dragged onto another to stand there (gaps row U39).
+                    let reorders = this.sort.is_none();
+                    let draggable = reorders
+                        || crate::dragout::may_carry(row)
                         || (chosen
                             && *chosen_finished.get_or_init(|| {
                                 this.rows.iter().any(|r| {
@@ -829,6 +833,18 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                                         dragged.payload(cx)
                                     },
                                 )
+                        })
+                        // A row dropped here takes this row's place (gaps row U39).
+                        .when(reorders, |r| {
+                            r.drag_over::<crate::dragout::DraggedRow>(move |style, _, _, _| {
+                                style.border_t_2().border_color(original.accent)
+                            })
+                            .on_drop(cx.listener(
+                                move |view, dragged: &crate::dragout::DraggedRow, _, cx| {
+                                    view.move_row(dragged.id, id);
+                                    cx.notify();
+                                },
+                            ))
                         })
                         // Its own buttons at the name's right end, where
                         // the pointer is on it or it is chosen (gaps row U13).

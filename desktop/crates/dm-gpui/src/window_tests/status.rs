@@ -106,3 +106,31 @@ fn the_file_doesnt_exist_offers_a_fresh_link() {
             .any(|d| d.starts_with("Update download link"))
     });
 }
+
+/// A row dragged onto another takes its place in the queue's order, which is kept; not while
+/// the list is sorted by a column (gaps row U39).
+#[test]
+fn a_row_dragged_onto_another_takes_its_place() {
+    let world = world();
+    let mut h = world.harness();
+    h.call(
+        "downloads.add",
+        serde_json::json!({
+            "urls": [world.url("file.zip"), world.url("other.pdf"), world.url("deep.pdf")],
+            "later": true,
+        }),
+    )
+    .unwrap();
+    h.until("three rows", |h| h.rows().len() == 3);
+    let names = |h: &mut crate::harness::Harness| -> Vec<String> {
+        h.rows().iter().map(dm_shell::app::names::name_of).collect()
+    };
+    assert_eq!(names(&mut h), ["file.zip", "other.pdf", "deep.pdf"]);
+    h.drag("deep.pdf", "file.zip");
+    h.until("deep.pdf first", |h| {
+        h.rows()
+            .first()
+            .is_some_and(|r| dm_shell::app::names::name_of(r) == "deep.pdf")
+    });
+    assert_eq!(names(&mut h), ["deep.pdf", "file.zip", "other.pdf"]);
+}

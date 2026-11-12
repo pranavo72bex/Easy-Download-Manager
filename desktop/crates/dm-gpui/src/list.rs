@@ -1651,6 +1651,19 @@ impl Downloads {
         self.opener_said.clone()
     }
 
+    /// The row of download `moved` put where the row of `onto` stands, in the queue's order
+    /// (gaps row U39): what a row dragged onto another does while the list is in its own order.
+    pub(crate) fn move_row(&mut self, moved: dm_core::Id, onto: dm_core::Id) {
+        if moved == onto || self.sort.is_some() {
+            return;
+        }
+        let at = |id| self.rows.iter().position(|r| r.id == id);
+        if let (Some(from), Some(to)) = (at(moved), at(onto)) {
+            self.backend.shift(moved, to as isize - from as isize);
+            self.read();
+        }
+    }
+
     /// Runs `command` on the row of download `id` alone, as its own menu would: a step a
     /// window over it offers (gaps row U10).
     pub(crate) fn run_on(

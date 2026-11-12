@@ -1131,6 +1131,55 @@ impl Harness {
         });
         self.step();
     }
+
+    /// The words `from` pressed, dragged onto the words `onto` in the same window, and let go
+    /// there, as a person drags a row or a heading.
+    pub(crate) fn drag(&mut self, from: &str, onto: &str) {
+        use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent};
+        let (window, start) = self.drawn(from, 0);
+        let (_, end) = self.drawn(onto, 0);
+        let (start, end) = (start.center(), end.center());
+        let none = Modifiers::default();
+        let send = |h: &mut Harness, event: gpui::PlatformInput| {
+            h.cx.update(|cx| {
+                let _ = window.update(cx, |_, window, cx| {
+                    window.dispatch_event(event, cx);
+                });
+            });
+            h.step();
+        };
+        send(
+            self,
+            gpui::PlatformInput::MouseDown(MouseDownEvent {
+                button: MouseButton::Left,
+                position: start,
+                modifiers: none,
+                click_count: 1,
+                first_mouse: false,
+            }),
+        );
+        // In steps, as a hand moves: the drag starts once the pointer has gone a few points.
+        for k in 1..=4 {
+            let at = start + (end - start) * (k as f32 / 4.0);
+            send(
+                self,
+                gpui::PlatformInput::MouseMove(MouseMoveEvent {
+                    position: at,
+                    pressed_button: Some(MouseButton::Left),
+                    modifiers: none,
+                }),
+            );
+        }
+        send(
+            self,
+            gpui::PlatformInput::MouseUp(MouseUpEvent {
+                button: MouseButton::Left,
+                position: end,
+                modifiers: none,
+                click_count: 1,
+            }),
+        );
+    }
 }
 
 #[cfg(test)]
