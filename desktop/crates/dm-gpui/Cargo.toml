@@ -176,6 +176,13 @@ windows-sys = { version = "0.61", features = [
 [dev-dependencies]
 # A home of its own for each run of the real binary (tests/quit.rs).
 tempfile = "3"
+# The window opened in GPUI's test platform and driven through its control-port methods, as
+# a script drives it (`src/harness.rs`).
+gpui = { package = "gpui-pre", version = "=0.3.12", features = ["test-support"] }
+# What the harness's downloads fetch from: a server on the loopback.
+axum = "0.8"
+futures-util = "0.3"
+tokio = { version = "1", features = ["full"] }
 
 # The Windows program's icon and version (build.rs).
 [build-dependencies]

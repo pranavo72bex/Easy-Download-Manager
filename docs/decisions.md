@@ -7039,3 +7039,23 @@ in main itself", and that Windows and Linux are only tested, with no coding ther
 - **Security** is checked again over the whole tree before the merge to `main`.
 - **When the code is finished**, `gpui-migration` is merged to `main` and the testing (the full
   gate, `human-qa.py`, Windows and Linux) is done there.
+
+## 2026-11-13: The GPUI window's tests drive it as a script does (egui removal)
+
+The egui window's 570 tests drove it through `egui_kittest`. The GPUI window had no tests of its
+own beyond pure functions: dm-gpui is a binary, with no library for a test crate to open.
+
+- **Harness**: `dm-gpui/src/harness.rs`, a test module. It opens the real `Downloads` in GPUI's
+  test platform (`gpui-pre`'s `test-support`, `TestAppContext`) over a real queue with a fake
+  system (`Fake`, as the egui harness's). A test asks it through the control port's own methods
+  (`ui.click`, `ui.texts`, `ui.windows`, `command.run`…), sent down the window's request
+  channel, a wake rung, and the test platform run until it parks. The words and where they are
+  drawn come from `screen.rs`'s record, as for a script. A test reads the view's state too
+  (`Harness::view`). One window opens, draws and answers in about 0.1 s.
+- **Why the port's methods**: they are what `human-qa.py` and the AI clients drive, so a test
+  ported this way checks the same path a person's script takes, and the egui tests' kittest
+  clicks map onto them one for one (`get_by_label(..).click()` to `click(..)`).
+- **Kept off in tests**: the system tray (`start_tray` returns under `cfg(test)`). The test
+  runner's threads are not the main thread, and muda refuses to make a tray there.
+- **Dropped, not ported**: what tests egui itself (its fonts, kittest's pictures). The egui
+  window's own font check goes (the GPUI window draws in the system's fonts).

@@ -281,6 +281,11 @@ impl Downloads {
     /// The tray made, its choices heard on the window's thread. Where the
     /// system will not make one, closing the window ends dm instead.
     pub(crate) fn start_tray(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // The window's tests (`harness.rs`) run off the main thread, where the system's tray
+        // cannot be made, and have no system to put one in.
+        if cfg!(test) {
+            return;
+        }
         let (asked, heard) = async_channel::unbounded::<Asked>();
         match Tray::new(asked) {
             Ok(tray) => {
