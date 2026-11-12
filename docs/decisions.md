@@ -7007,3 +7007,17 @@ compiled and linted for Windows by `scripts/windows-check.sh clippy` and for Lin
   request through uncounted, so dm saw three connections served at once and kept a third ranged
   request out, which the server held. Counting every connection, as nginx's `limit_conn` does,
   every run held exactly the first wave's four ranges and none twice; the test now asserts both.
+
+## 2026-11-12: The JavaScript host's sandbox (201) and names held to public addresses (200)
+
+- **201**: the host enters the system's wall after a first call has loaded the engine. macOS:
+  `sandbox_init` with a written profile (allow by default; deny network, process fork and exec,
+  file writes). The system's named "pure computation" profile was tried first: JavaScriptCore was
+  killed (SIGKILL) inside it. Linux: seccomp BPF written here (no crate), refusing with `EPERM`,
+  `clone3` with `ENOSYS` so the C library falls back to `clone`, whose `CLONE_THREAD` flag is
+  read; a kernel without seccomp is let be. Windows: low integrity and a one-process job;
+  Windows' own AppContainer was dropped, since it needs a profile registered for the program.
+- **200**: the resolver cannot know why a name is asked, so what judges an address
+  (`redirects::inward`) tells it: a public-looking name a public address leads to is held to
+  public addresses for ten minutes. The check and the connection read the same kept answer, so
+  the name cannot change between them.

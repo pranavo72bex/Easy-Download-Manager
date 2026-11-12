@@ -35,6 +35,8 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+mod sandbox;
+
 /// The most memory a program may take in Windows' own engine: the program that answers
 /// YouTube's checks takes about 30 MB.
 #[cfg(windows)]
@@ -100,7 +102,9 @@ pub fn host_main() -> i32 {
                     .and_then(serde_json::Value::as_u64)
                     .map_or(Duration::from_secs(30), Duration::from_millis);
                 match (text("program"), text("call")) {
-                    (Some(program), Some(call)) => here(program, call, within),
+                    (Some(program), Some(call)) => {
+                        shut_off().and_then(|()| here(program, call, within))
+                    }
                     _ => Err("the host's request names no program and call".into()),
                 }
             }
@@ -113,6 +117,13 @@ pub fn host_main() -> i32 {
     let mut out = std::io::stdout().lock();
     let written = writeln!(out, "{ANSWER}{said}").and_then(|()| out.flush());
     i32::from(written.is_err())
+}
+
+/// The host shut off from the computer before the script runs (`sandbox`): the engine loaded
+/// and a first call run first, so its libraries and data are open, then the system's wall.
+fn shut_off() -> Result<(), String> {
+    here("", "0", Duration::from_secs(10))?;
+    sandbox::enter()
 }
 
 /// [`run`], in this process, for the host.

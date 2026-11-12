@@ -619,7 +619,9 @@ def main():
                      if t.get("window") == "main" and t["text"].endswith(".zip")]
             tops = sorted({r[1] for r in names})
             pitch = min((b - a for a, b in zip(tops, tops[1:])), default=0)
-            return (names[0][3] - names[0][1] if names else 0, pitch)
+            # The tallest name: one at the list's edge is drawn clipped (2 points of a 29
+            # point row under Xvfb, 2026-11-12), which measured the zoom as shrinking.
+            return (max((r[3] - r[1] for r in names), default=0), pitch)
         medium = measures()
         human("ui.key", key="=", modifiers=held)
         human("ui.key", key="=", modifiers=held)
