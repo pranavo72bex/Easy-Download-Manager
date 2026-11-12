@@ -6771,3 +6771,14 @@ was the cost.
   backwards, so the probe's answer can run on through those refused.
 - **Measured** (`tests/limits.rs`): 32 MiB at 4 MiB/s a connection, two at once, a request a
   second with a burst of two, each answer 100 ms late: under 0.6 of one connection's 8 s.
+
+## 2026-11-12: The shown speed's first whole interval is its figure (gaps row 196)
+
+- **Found**: `speed::the_shown_speed_keeps_to_the_limit_from_the_first_second` failed once under
+  load at 408 KB/s against a 500 KB/s limit, then 437, 458, 472: each gap 0.7 of the one before,
+  the meter's smoothing (`progress::Meter`, three tenths of each 250 ms sample) coming up from a
+  first interval whose start went on the request. The limiter held; what a person saw lagged.
+- **Chosen**: the first interval that brings bytes is shown, and the next whole interval replaces
+  it rather than being averaged with it; smoothing from then on, as before. Passes 20 runs of 20
+  beside four copies of the queue tests.
+- **Dropped: a wider margin in the test**: it would pass a figure a person reads as wrong.
