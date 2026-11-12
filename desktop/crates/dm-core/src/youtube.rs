@@ -1046,6 +1046,11 @@ async fn read_within(
         .map(|path| format!("{origin}{path}"))
         .collect();
     let fetch_script = || async {
+        // Fetched once a session for every video it plays (gaps row Y13): a playlist's videos
+        // share one player.
+        if let Some(kept) = js_urls.iter().find_map(|url| kept_script(url)) {
+            return Ok(kept);
+        }
         let mut failed = None;
         for url in &js_urls {
             let answer = async {
@@ -1058,7 +1063,10 @@ async fn read_within(
                 text_capped(Error::refused_or(script).await?, PAGE_MOST).await
             };
             match answer.await {
-                Ok(text) => return Ok(text),
+                Ok(text) => {
+                    keep_script(url, &text);
+                    return Ok(text);
+                }
                 Err(e) => failed = Some(e),
             }
         }
@@ -1513,11 +1521,54 @@ pub async fn answers(
     Ok((solved.n, solved.sig))
 }
 
+/// How many player scripts, and their cut programs, are kept: the one in use and the one
+/// before it, a few megabytes each.
+const PLAYERS_KEPT: usize = 2;
+
+/// Player scripts fetched this session, by their address, newest last (gaps row Y13).
+static SCRIPTS: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+
+/// The cut programs of player scripts this session, by the script's own hash, newest last.
+static PROGRAMS: std::sync::Mutex<Vec<(u64, String)>> = std::sync::Mutex::new(Vec::new());
+
+fn kept_script(url: &str) -> Option<String> {
+    crate::lock(&SCRIPTS)
+        .iter()
+        .find(|(kept, _)| kept == url)
+        .map(|(_, text)| text.clone())
+}
+
+fn keep_script(url: &str, text: &str) {
+    let mut kept = crate::lock(&SCRIPTS);
+    kept.retain(|(old, _)| old != url);
+    kept.push((url.to_string(), text.to_string()));
+    let over = kept.len().saturating_sub(PLAYERS_KEPT);
+    kept.drain(..over);
+}
+
+/// `player_js` cut down to what answers YouTube's checks (`player::program`), cut once a
+/// session for each player rather than for every video.
+fn cut_program(player_js: &str) -> Result<String, String> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    player_js.hash(&mut hasher);
+    let key = hasher.finish();
+    if let Some((_, program)) = crate::lock(&PROGRAMS).iter().find(|(k, _)| *k == key) {
+        return Ok(program.clone());
+    }
+    let program = player::program(player_js)?;
+    let mut kept = crate::lock(&PROGRAMS);
+    kept.push((key, program.clone()));
+    let over = kept.len().saturating_sub(PLAYERS_KEPT);
+    kept.drain(..over);
+    Ok(program)
+}
+
 /// [`answers`], as the reading takes them.
 async fn answer(player_js: &str, ns: &[&str], sigs: &[&str]) -> Result<Solved, Error> {
     let unanswered =
         |why: String| Error::Internal(format!("YouTube's checks were not answered: {why}"));
-    let program = player::program(player_js).map_err(unanswered)?;
+    let program = cut_program(player_js).map_err(unanswered)?;
     let call = player::call(ns, sigs);
     let output = crate::javascript::run(&program, &call, SOLVING)
         .await
