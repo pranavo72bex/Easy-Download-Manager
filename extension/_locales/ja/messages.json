@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — ダウンロードマネージャー"
+  },
+  "extDescription": {
+    "message": "ダウンロードと動画を dm アプリに渡し、アプリがダウンロードします。アプリがなければブラウザーが保存します。"
+  },
+  "menuLink": {
+    "message": "リンクを dm でダウンロード"
+  },
+  "menuMedia": {
+    "message": "メディアを dm でダウンロード"
+  },
+  "menuAllLinks": {
+    "message": "すべてのリンクを dm でダウンロード"
+  },
+  "menuSelectedLinks": {
+    "message": "選択したリンクを dm でダウンロード"
+  },
+  "popupLooking": {
+    "message": "dm アプリを探しています…"
+  },
+  "popupCatch": {
+    "message": "ダウンロードを取り込む"
+  },
+  "popupPanelHere": {
+    "message": "このサイトで「動画をダウンロード」を表示"
+  },
+  "popupPanelOn": {
+    "message": "$SITE$ で「動画をダウンロード」を表示",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "このページには動画パネルがありません"
+  },
+  "popupCatchAllHere": {
+    "message": "このサイトのダウンロードをすべて取り込む"
+  },
+  "popupCatchAllOn": {
+    "message": "$SITE$ のダウンロードをすべて取り込む",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "このページには取り込むダウンロードがありません"
+  },
+  "popupPausedHere": {
+    "message": "このサイトでの取り込みを一時停止"
+  },
+  "popupPausedOn": {
+    "message": "$SITE$ での取り込みを一時停止",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "このページには一時停止するダウンロードがありません"
+  },
+  "popupCookiesHere": {
+    "message": "このサイトのサインイン情報をダウンロードと一緒に渡す"
+  },
+  "popupCookiesOn": {
+    "message": "$SITE$ のサインイン情報をダウンロードと一緒に渡す",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "このページから渡すサインイン情報はありません"
+  },
+  "popupOpen": {
+    "message": "dm を開く"
+  },
+  "popupGetApp": {
+    "message": "dm アプリを入手"
+  },
+  "popupNoAnswer": {
+    "message": "dm アプリが応答しませんでした"
+  },
+  "popupOpening": {
+    "message": "dm を開いています…"
+  },
+  "popupIsOpen": {
+    "message": "dm を開きました"
+  },
+  "popupConnected": {
+    "message": "dm $VERSION$ に接続しました",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "dm $VERSION$ に接続しました · dm アプリを更新してください。それまではブラウザーがダウンロードを保存します",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "$SITES$ 全体に設定されていたため、そちらも変更しました",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ と $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm はまだこのブラウザーに接続されていません。このコンピューターに dm アプリがまだない場合は、下の「dm アプリを入手」をクリックし、インストールして一度開いてください。インストール済みの場合は、dm を一度開いて（すでに開いている場合はもう一度開いて）接続させてから、このウィンドウを開き直してください。上級者向け: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm が応答しませんでした（$REASON$）。dm を開いて（すでに開いている場合はもう一度開いて）から、このウィンドウを開き直してください。それでも応答しない場合: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "動画をダウンロード"
+  },
+  "panelDownloadAudio": {
+    "message": "この音声をダウンロード"
+  },
+  "panelProtected": {
+    "message": "保護された動画"
+  },
+  "panelProtectedSaid": {
+    "message": "この動画はコピー保護されているため、サイト自身のプレーヤーでしか再生できません。dm は保護された動画をダウンロードしません。"
+  },
+  "panelThroughApp": {
+    "message": "このページ（dm アプリ経由）"
+  },
+  "panelHelp": {
+    "message": "dm はこの動画を dm アプリでダウンロードします。名前とフォルダーはアプリで選べます。ブラウザーに残すキー（dm のオプションで変更していなければ Alt）を押しながらクリックしたリンクはブラウザーに残ります。"
+  },
+  "panelDrag": {
+    "message": "ドラッグして移動"
+  },
+  "panelWhat": {
+    "message": "これは何？"
+  },
+  "panelHide": {
+    "message": "隠す"
+  },
+  "panelHideForNow": {
+    "message": "今は隠す"
+  },
+  "panelNeverOn": {
+    "message": "$SITE$ では表示しない",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "このサイト"
+  },
+  "panelReading": {
+    "message": "画質を読み込んでいます…"
+  },
+  "panelReadingSaid": {
+    "message": "dm がこのページの動画の画質を読み込んでいます。最大で 30 秒ほどかかることがあります。"
+  },
+  "panelTimedOut": {
+    "message": "dm が時間内に応答しませんでした。もう一度試すか、動画を右クリックして「メディアを dm でダウンロード」を選んでください。"
+  },
+  "panelSending": {
+    "message": "dm に送信しています…"
+  },
+  "panelNotTaken": {
+    "message": "dm が受け取れませんでした"
+  },
+  "panelUpdated": {
+    "message": "dm が更新されました。使うにはこのページを再読み込みしてください"
+  },
+  "panelSent": {
+    "message": "dm に送信しました"
+  },
+  "panelInBrowser": {
+    "message": "ブラウザーでダウンロード中"
+  },
+  "panelDownloadAll": {
+    "message": "すべてダウンロード"
+  },
+  "panelPart": {
+    "message": "一部"
+  },
+  "panelPartTo": {
+    "message": "終了"
+  },
+  "panelPartStart": {
+    "message": "一部の開始"
+  },
+  "panelPartEnd": {
+    "message": "一部の終了"
+  },
+  "panelFileQuality": {
+    "message": "$KIND$ ファイル、画質 $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "dm アプリがこのページの動画を読み込んでいます"
+  },
+  "panelAppHas": {
+    "message": "dm アプリが受け取りました"
+  },
+  "panelAppDownloading": {
+    "message": "dm アプリがダウンロードしています"
+  },
+  "panelNoAnswer": {
+    "message": "dm が応答しませんでした"
+  },
+  "panelFailed": {
+    "message": "dm が応答しませんでした。もう一度試すか、動画を右クリックして「メディアを dm でダウンロード」を選んでください。"
+  },
+  "panelHls": {
+    "message": "HLS ストリーム、最高画質"
+  },
+  "panelDownload": {
+    "message": "ダウンロード"
+  }
+}

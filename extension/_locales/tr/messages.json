@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — İndirme Yöneticisi"
+  },
+  "extDescription": {
+    "message": "İndirmeleri ve videoları dm uygulamasına verir, o da onları indirir. Uygulama yoksa tarayıcı onları tutar."
+  },
+  "menuLink": {
+    "message": "Bağlantıyı dm ile indir"
+  },
+  "menuMedia": {
+    "message": "Medyayı dm ile indir"
+  },
+  "menuAllLinks": {
+    "message": "Tüm bağlantıları dm ile indir"
+  },
+  "menuSelectedLinks": {
+    "message": "Seçili bağlantıları dm ile indir"
+  },
+  "popupLooking": {
+    "message": "dm uygulaması aranıyor…"
+  },
+  "popupCatch": {
+    "message": "İndirmeleri yakala"
+  },
+  "popupPanelHere": {
+    "message": "Bu sitede “Videoyu indir” göster"
+  },
+  "popupPanelOn": {
+    "message": "$SITE$ üzerinde “Videoyu indir” göster",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "Bu sayfada video paneli yok"
+  },
+  "popupCatchAllHere": {
+    "message": "Bu sitedeki her indirmeyi al"
+  },
+  "popupCatchAllOn": {
+    "message": "$SITE$ üzerindeki her indirmeyi al",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "Bu sayfadan alınacak indirme yok"
+  },
+  "popupPausedHere": {
+    "message": "Bu sitede yakalamayı duraklat"
+  },
+  "popupPausedOn": {
+    "message": "$SITE$ üzerinde yakalamayı duraklat",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "Bu sayfada duraklatılacak indirme yok"
+  },
+  "popupCookiesHere": {
+    "message": "Bu sitenin oturumunu indirmeleriyle birlikte ver"
+  },
+  "popupCookiesOn": {
+    "message": "$SITE$ oturumunu indirmeleriyle birlikte ver",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "Bu sayfadan verilecek oturum yok"
+  },
+  "popupOpen": {
+    "message": "dm'i aç"
+  },
+  "popupGetApp": {
+    "message": "dm uygulamasını edinin"
+  },
+  "popupNoAnswer": {
+    "message": "dm uygulaması yanıt vermedi"
+  },
+  "popupOpening": {
+    "message": "dm açılıyor…"
+  },
+  "popupIsOpen": {
+    "message": "dm açık"
+  },
+  "popupConnected": {
+    "message": "dm $VERSION$ ile bağlantı kuruldu",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "dm $VERSION$ ile bağlantı kuruldu · dm uygulamasını güncelleyin: o zamana kadar tarayıcı indirmelerini tutar",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "Bu, $SITES$ genelinin tamamı için ayarlanmıştı, bu yüzden orada da değiştirildi",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ ve $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm henüz bu tarayıcıya bağlı değil. Bu bilgisayarda henüz dm uygulaması yok mu? Aşağıdaki “dm uygulamasını edinin” düğmesine tıklayın, kurun ve bir kez açın. Zaten kurulu: bağlanabilmesi için dm'i bir kez açın (zaten açıksa yeniden açın), sonra bu pencereyi yeniden açın. Gelişmiş: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm yanıt vermedi ($REASON$). dm'i açın (zaten açıksa yeniden açın), sonra bu pencereyi yeniden açın. Hâlâ yanıt vermezse: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "Videoyu indir"
+  },
+  "panelDownloadAudio": {
+    "message": "Bu sesi indir"
+  },
+  "panelProtected": {
+    "message": "Korumalı video"
+  },
+  "panelProtectedSaid": {
+    "message": "Bu video kopyalamaya karşı korumalı, bu yüzden yalnızca sitenin kendi oynatıcısı oynatabilir. dm korumalı video indirmez."
+  },
+  "panelThroughApp": {
+    "message": "bu sayfa, dm uygulaması üzerinden"
+  },
+  "panelHelp": {
+    "message": "dm bu videoyu dm uygulamasıyla indirir; adını ve klasörünü orada seçersiniz. Tarayıcıda bırakma tuşu basılıyken (dm'in Seçenekler bölümünde değiştirilmediyse Alt) tıklanan bağlantı tarayıcıda kalır."
+  },
+  "panelDrag": {
+    "message": "Taşımak için sürükleyin"
+  },
+  "panelWhat": {
+    "message": "Bu nedir?"
+  },
+  "panelHide": {
+    "message": "Gizle"
+  },
+  "panelHideForNow": {
+    "message": "Şimdilik gizle"
+  },
+  "panelNeverOn": {
+    "message": "$SITE$ üzerinde asla",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "bu site"
+  },
+  "panelReading": {
+    "message": "Kaliteler okunuyor…"
+  },
+  "panelReadingSaid": {
+    "message": "dm bu sayfanın video kalitelerini okuyor; bu yarım dakikaya kadar sürebilir."
+  },
+  "panelTimedOut": {
+    "message": "dm zamanında yanıt vermedi. Yeniden deneyin ya da videoya sağ tıklayıp “Medyayı dm ile indir” seçeneğini seçin."
+  },
+  "panelSending": {
+    "message": "dm'e gönderiliyor…"
+  },
+  "panelNotTaken": {
+    "message": "dm bunu alamadı"
+  },
+  "panelUpdated": {
+    "message": "dm güncellendi: kullanmak için bu sayfayı yeniden yükleyin"
+  },
+  "panelSent": {
+    "message": "dm'e gönderildi"
+  },
+  "panelInBrowser": {
+    "message": "Tarayıcıda indiriliyor"
+  },
+  "panelDownloadAll": {
+    "message": "Tümünü indir"
+  },
+  "panelPart": {
+    "message": "Bölüm"
+  },
+  "panelPartTo": {
+    "message": "bitiş"
+  },
+  "panelPartStart": {
+    "message": "Bölüm başlangıcı"
+  },
+  "panelPartEnd": {
+    "message": "Bölüm bitişi"
+  },
+  "panelFileQuality": {
+    "message": "$KIND$ dosyası, kalite $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "dm uygulaması videosu için bu sayfayı okuyor"
+  },
+  "panelAppHas": {
+    "message": "dm uygulaması aldı"
+  },
+  "panelAppDownloading": {
+    "message": "dm uygulaması indiriyor"
+  },
+  "panelNoAnswer": {
+    "message": "dm yanıt vermedi"
+  },
+  "panelFailed": {
+    "message": "dm yanıt vermedi. Yeniden deneyin ya da videoya sağ tıklayıp “Medyayı dm ile indir” seçeneğini seçin."
+  },
+  "panelHls": {
+    "message": "HLS akışı, en iyi kalite"
+  },
+  "panelDownload": {
+    "message": "İndir"
+  }
+}

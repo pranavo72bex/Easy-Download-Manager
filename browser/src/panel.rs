@@ -8,6 +8,17 @@
 //! is visible enough to offer. The page script (`content.rs`, wasm only)
 //! draws it and asks these; they are tested on the host.
 
+use crate::words::{self, Word};
+
+/// The panel's buttons that [`BODY`] names in English, and the word each is
+/// named by in the browser's language once drawn: its selector, the
+/// attributes that carry the name, and the word.
+pub const NAMED: &[(&str, &[&str], Word)] = &[
+    (".grip", &["title"], words::PANEL_DRAG),
+    (".help", &["aria-label", "title"], words::PANEL_WHAT),
+    (".close", &["aria-label", "title"], words::PANEL_HIDE),
+];
+
 /// The panel's style, inside its shadow root.
 ///
 /// `:host { all: initial }` does not reset `direction`, which is inherited

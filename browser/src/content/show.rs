@@ -90,11 +90,15 @@ pub(super) fn show(element: &Element) -> bool {
             p.settled = false;
             follow_size_of(element);
             p.wrap.set_class_name("wrap");
-            p.title.set_text_content(Some(if protected {
-                decide::PROTECTED_TITLE
+            // A copy-protected player (one the page plays through the browser's DRM, EME) is
+            // offered nothing, and said so, rather than handed over to fail or come out
+            // scrambled.
+            let title = if protected {
+                words::PANEL_PROTECTED
             } else {
                 offer.title
-            }));
+            };
+            p.title.set_text_content(Some(&title.say()));
             if protected {
                 let _ = p.go.set_attribute("data-protected", "");
             } else {

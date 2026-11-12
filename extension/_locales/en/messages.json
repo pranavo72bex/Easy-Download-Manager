@@ -1,0 +1,327 @@
+{
+  "extName": {
+    "message": "dm — Download Manager",
+    "description": "The extension's name."
+  },
+  "extDescription": {
+    "message": "Hands downloads and videos to the dm app, which downloads them. With no app, the browser keeps them.",
+    "description": "The extension's description; the stores take 132 characters at most."
+  },
+  "menuLink": {
+    "message": "Download link with dm",
+    "description": "The menu item on a link."
+  },
+  "menuMedia": {
+    "message": "Download media with dm",
+    "description": "The menu item on a video or audio element."
+  },
+  "menuAllLinks": {
+    "message": "Download all links with dm",
+    "description": "The menu item on a page."
+  },
+  "menuSelectedLinks": {
+    "message": "Download selected links with dm",
+    "description": "The menu item on a selection."
+  },
+  "popupLooking": {
+    "message": "Looking for the dm app…",
+    "description": "The status line while the app is asked how it is."
+  },
+  "popupCatch": {
+    "message": "Catch downloads",
+    "description": "The switch that catches downloads at all."
+  },
+  "popupPanelHere": {
+    "message": "Show “Download video” on this site",
+    "description": "The panel's switch before the site is known."
+  },
+  "popupPanelOn": {
+    "message": "Show “Download video” on $SITE$",
+    "description": "The panel's switch for a site.",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "No video panel on this page",
+    "description": "The panel's switch on a page that is not a site."
+  },
+  "popupCatchAllHere": {
+    "message": "Take every download from this site",
+    "description": "The take-everything switch before the site is known."
+  },
+  "popupCatchAllOn": {
+    "message": "Take every download from $SITE$",
+    "description": "The take-everything switch for a site.",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "No downloads to take from this page",
+    "description": "The take-everything switch on a page that is not a site."
+  },
+  "popupPausedHere": {
+    "message": "Pause capturing on this site",
+    "description": "The pause switch before the site is known."
+  },
+  "popupPausedOn": {
+    "message": "Pause capturing on $SITE$",
+    "description": "The pause switch for a site.",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "No downloads to pause on this page",
+    "description": "The pause switch on a page that is not a site."
+  },
+  "popupCookiesHere": {
+    "message": "Hand over this site's sign-in with its downloads",
+    "description": "The sign-in switch before the site is known."
+  },
+  "popupCookiesOn": {
+    "message": "Hand over $SITE$'s sign-in with its downloads",
+    "description": "The sign-in switch for a site.",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "No sign-in to hand over from this page",
+    "description": "The sign-in switch on a page that is not a site."
+  },
+  "popupOpen": {
+    "message": "Open dm",
+    "description": "The button that brings the app up."
+  },
+  "popupGetApp": {
+    "message": "Get the dm app",
+    "description": "The link to the app's download page, with no app to open."
+  },
+  "popupNoAnswer": {
+    "message": "The dm app did not answer",
+    "description": "The status line when the app gave no answer and nothing said why."
+  },
+  "popupOpening": {
+    "message": "Opening dm…",
+    "description": "While Open dm is asked."
+  },
+  "popupIsOpen": {
+    "message": "dm is open",
+    "description": "Open dm worked."
+  },
+  "popupConnected": {
+    "message": "Connected to dm $VERSION$",
+    "description": "The status line for an app that answered.",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "Connected to dm $VERSION$ · update the dm app: until then the browser keeps its downloads",
+    "description": "The status line for an app too old to judge pages.",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "That was set for all of $SITES$, so it is changed there too",
+    "description": "A switch turned off on part of a site listed whole.",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ and $NEXT$",
+    "description": "Two sites, or a list and one more, said together.",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm isn't connected to this browser yet. No dm app on this computer yet? click Get the dm app below, install it and open it once. Already installed: open dm once (if it's already open, open it again) so it can connect, then reopen this popup. Advanced: $COMMAND$",
+    "description": "The status line when the browser finds no dm to talk to.",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm did not answer ($REASON$). Open dm (if it's already open, open it again), then reopen this popup. If it still does not answer: $COMMAND$",
+    "description": "The status line when dm is there and did not answer.",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "Download video",
+    "description": "The bar over a video, and its list's heading."
+  },
+  "panelDownloadAudio": {
+    "message": "Download this audio",
+    "description": "The bar over an audio player."
+  },
+  "panelProtected": {
+    "message": "Protected video",
+    "description": "The bar over a copy-protected player."
+  },
+  "panelProtectedSaid": {
+    "message": "This video is copy-protected, so only the site's own player can play it. dm does not download protected video.",
+    "description": "What a click on a copy-protected player's bar says."
+  },
+  "panelThroughApp": {
+    "message": "this page, through the dm app",
+    "description": "Where a player page's video comes from, on hover."
+  },
+  "panelHelp": {
+    "message": "dm downloads this video with the dm app, where you choose its name and folder. A link clicked with the keep key held (Alt unless changed in dm's Options) stays in the browser.",
+    "description": "What ? says."
+  },
+  "panelDrag": {
+    "message": "Drag to move",
+    "description": "The grip's tooltip."
+  },
+  "panelWhat": {
+    "message": "What is this?",
+    "description": "The ? button's name."
+  },
+  "panelHide": {
+    "message": "Hide",
+    "description": "The × button's name."
+  },
+  "panelHideForNow": {
+    "message": "Hide for now",
+    "description": "The × menu's first line."
+  },
+  "panelNeverOn": {
+    "message": "Never on $SITE$",
+    "description": "The × menu's second line.",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "this site",
+    "description": "The site, where the page's address names none."
+  },
+  "panelReading": {
+    "message": "Reading qualities…",
+    "description": "The bar while the app reads the video's qualities."
+  },
+  "panelReadingSaid": {
+    "message": "dm is reading this page's video qualities; this can take up to half a minute.",
+    "description": "The line under it, so a wait is not taken for a hang."
+  },
+  "panelTimedOut": {
+    "message": "dm did not answer in time. Try again, or right-click the video and choose Download media with dm.",
+    "description": "The app gave no list of qualities in time."
+  },
+  "panelSending": {
+    "message": "Sending to dm…",
+    "description": "The bar while the choice is handed to the app."
+  },
+  "panelNotTaken": {
+    "message": "dm could not take it",
+    "description": "The bar when the app refused it."
+  },
+  "panelUpdated": {
+    "message": "dm was updated: reload this page to use it",
+    "description": "The page's script is older than the extension it talks to."
+  },
+  "panelSent": {
+    "message": "Sent to dm",
+    "description": "The bar when the app took it."
+  },
+  "panelInBrowser": {
+    "message": "Downloading in the browser",
+    "description": "The bar when the browser is downloading it instead."
+  },
+  "panelDownloadAll": {
+    "message": "Download all",
+    "description": "The list's first line: every quality at once."
+  },
+  "panelPart": {
+    "message": "Part",
+    "description": "The list's \"Part\" line, before its start."
+  },
+  "panelPartTo": {
+    "message": "to",
+    "description": "The \"Part\" line, before its end."
+  },
+  "panelPartStart": {
+    "message": "Part start",
+    "description": "The name of the part's start box."
+  },
+  "panelPartEnd": {
+    "message": "Part end",
+    "description": "The name of the part's end box."
+  },
+  "panelFileQuality": {
+    "message": "$KIND$ file, quality $QUALITY$",
+    "description": "A quality line for a height the player named: \"MP4 file, quality 1080p HD\".",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "the dm app is reading this page for its video",
+    "description": "The background's answer for a page handed to the app to read."
+  },
+  "panelAppHas": {
+    "message": "the dm app has it",
+    "description": "The background's answer for a hand-off the app asks about first."
+  },
+  "panelAppDownloading": {
+    "message": "the dm app is downloading it",
+    "description": "The background's answer for a hand-off the app started."
+  },
+  "panelNoAnswer": {
+    "message": "dm did not answer",
+    "description": "The plain panel: the app gave no answer to the list of qualities."
+  },
+  "panelFailed": {
+    "message": "dm did not answer. Try again, or right-click the video and choose Download media with dm.",
+    "description": "The plain panel: asking for the list failed."
+  },
+  "panelHls": {
+    "message": "HLS stream, best quality",
+    "description": "The plain panel's line for the HLS playlist the page's own player names."
+  },
+  "panelDownload": {
+    "message": "Download",
+    "description": "The plain panel's line for a choice that names nothing."
+  }
+}

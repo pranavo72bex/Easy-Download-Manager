@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — Menedżer pobierania"
+  },
+  "extDescription": {
+    "message": "Przekazuje pobierane pliki i filmy do aplikacji dm, która je pobiera. Bez aplikacji przeglądarka je zachowuje."
+  },
+  "menuLink": {
+    "message": "Pobierz link za pomocą dm"
+  },
+  "menuMedia": {
+    "message": "Pobierz multimedia za pomocą dm"
+  },
+  "menuAllLinks": {
+    "message": "Pobierz wszystkie linki za pomocą dm"
+  },
+  "menuSelectedLinks": {
+    "message": "Pobierz zaznaczone linki za pomocą dm"
+  },
+  "popupLooking": {
+    "message": "Szukanie aplikacji dm…"
+  },
+  "popupCatch": {
+    "message": "Przechwytuj pobierania"
+  },
+  "popupPanelHere": {
+    "message": "Pokazuj „Pobierz wideo” na tej witrynie"
+  },
+  "popupPanelOn": {
+    "message": "Pokazuj „Pobierz wideo” na $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "Brak panelu wideo na tej stronie"
+  },
+  "popupCatchAllHere": {
+    "message": "Przejmuj każde pobieranie z tej witryny"
+  },
+  "popupCatchAllOn": {
+    "message": "Przejmuj każde pobieranie z $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "Brak pobierań do przejęcia z tej strony"
+  },
+  "popupPausedHere": {
+    "message": "Wstrzymaj przechwytywanie na tej witrynie"
+  },
+  "popupPausedOn": {
+    "message": "Wstrzymaj przechwytywanie na $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "Brak pobierań do wstrzymania na tej stronie"
+  },
+  "popupCookiesHere": {
+    "message": "Przekazuj logowanie tej witryny z jej pobieraniami"
+  },
+  "popupCookiesOn": {
+    "message": "Przekazuj logowanie $SITE$ z jej pobieraniami",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "Brak logowania do przekazania z tej strony"
+  },
+  "popupOpen": {
+    "message": "Otwórz dm"
+  },
+  "popupGetApp": {
+    "message": "Pobierz aplikację dm"
+  },
+  "popupNoAnswer": {
+    "message": "Aplikacja dm nie odpowiedziała"
+  },
+  "popupOpening": {
+    "message": "Otwieranie dm…"
+  },
+  "popupIsOpen": {
+    "message": "dm jest otwarty"
+  },
+  "popupConnected": {
+    "message": "Połączono z dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "Połączono z dm $VERSION$ · zaktualizuj aplikację dm: do tego czasu przeglądarka zachowuje swoje pobierania",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "To było ustawione dla całej witryny $SITES$, więc zmieniono to również tam",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ i $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm nie jest jeszcze połączony z tą przeglądarką. Nie masz jeszcze aplikacji dm na tym komputerze? Kliknij poniżej „Pobierz aplikację dm”, zainstaluj ją i otwórz raz. Już zainstalowana: otwórz dm raz (jeśli jest już otwarty, otwórz go ponownie), aby mógł się połączyć, a potem ponownie otwórz to okno. Zaawansowane: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm nie odpowiedział ($REASON$). Otwórz dm (jeśli jest już otwarty, otwórz go ponownie), a potem ponownie otwórz to okno. Jeśli nadal nie odpowiada: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "Pobierz wideo"
+  },
+  "panelDownloadAudio": {
+    "message": "Pobierz ten dźwięk"
+  },
+  "panelProtected": {
+    "message": "Chronione wideo"
+  },
+  "panelProtectedSaid": {
+    "message": "To wideo jest chronione przed kopiowaniem, więc może je odtworzyć tylko odtwarzacz tej witryny. dm nie pobiera chronionego wideo."
+  },
+  "panelThroughApp": {
+    "message": "ta strona, przez aplikację dm"
+  },
+  "panelHelp": {
+    "message": "dm pobiera to wideo za pomocą aplikacji dm, w której wybierasz jego nazwę i folder. Link kliknięty z przytrzymanym klawiszem pozostawiania (Alt, o ile nie zmieniono go w Opcjach dm) zostaje w przeglądarce."
+  },
+  "panelDrag": {
+    "message": "Przeciągnij, aby przesunąć"
+  },
+  "panelWhat": {
+    "message": "Co to jest?"
+  },
+  "panelHide": {
+    "message": "Ukryj"
+  },
+  "panelHideForNow": {
+    "message": "Ukryj na razie"
+  },
+  "panelNeverOn": {
+    "message": "Nigdy na $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "tej witrynie"
+  },
+  "panelReading": {
+    "message": "Odczytywanie jakości…"
+  },
+  "panelReadingSaid": {
+    "message": "dm odczytuje jakości wideo tej strony; może to potrwać do pół minuty."
+  },
+  "panelTimedOut": {
+    "message": "dm nie odpowiedział na czas. Spróbuj ponownie albo kliknij wideo prawym przyciskiem i wybierz „Pobierz multimedia za pomocą dm”."
+  },
+  "panelSending": {
+    "message": "Wysyłanie do dm…"
+  },
+  "panelNotTaken": {
+    "message": "dm nie mógł tego przejąć"
+  },
+  "panelUpdated": {
+    "message": "dm został zaktualizowany: odśwież tę stronę, aby go używać"
+  },
+  "panelSent": {
+    "message": "Wysłano do dm"
+  },
+  "panelInBrowser": {
+    "message": "Pobieranie w przeglądarce"
+  },
+  "panelDownloadAll": {
+    "message": "Pobierz wszystko"
+  },
+  "panelPart": {
+    "message": "Część"
+  },
+  "panelPartTo": {
+    "message": "do"
+  },
+  "panelPartStart": {
+    "message": "Początek części"
+  },
+  "panelPartEnd": {
+    "message": "Koniec części"
+  },
+  "panelFileQuality": {
+    "message": "Plik $KIND$, jakość $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "Aplikacja dm odczytuje tę stronę, aby znaleźć wideo"
+  },
+  "panelAppHas": {
+    "message": "Aplikacja dm to ma"
+  },
+  "panelAppDownloading": {
+    "message": "Aplikacja dm to pobiera"
+  },
+  "panelNoAnswer": {
+    "message": "dm nie odpowiedział"
+  },
+  "panelFailed": {
+    "message": "dm nie odpowiedział. Spróbuj ponownie albo kliknij wideo prawym przyciskiem i wybierz „Pobierz multimedia za pomocą dm”."
+  },
+  "panelHls": {
+    "message": "Strumień HLS, najlepsza jakość"
+  },
+  "panelDownload": {
+    "message": "Pobierz"
+  }
+}

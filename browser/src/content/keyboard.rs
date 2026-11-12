@@ -7,19 +7,26 @@
 
 use super::*;
 
-/// The line under the bar: what happened, or what ? says. Empty hides it.
-pub(super) fn say(p: &Panel, text: &str) {
-    // A line of its own starts with a capital: "the dm app has it" read
-    // as half a sentence. The words are the background's,
-    // shared with its notifications, where they follow a title.
-    // But dm's own name stays as it is written everywhere, lowercase
-    // ("Dm downloads this video…").
+/// `text` as a line of its own: starting with a capital, as "the dm app has
+/// it" read as half a sentence (the words are the background's, shared with
+/// its notifications, where they follow a title). But dm's own name stays as
+/// it is written everywhere, lowercase ("Dm downloads this video…"), and with
+/// a language's ending on it too ("dm은", "dm'i").
+pub(super) fn line_of(text: &str) -> String {
+    let named = text
+        .strip_prefix("dm")
+        .is_some_and(|rest| !rest.starts_with(|c: char| c.is_ascii_alphanumeric()));
     let mut chars = text.chars();
-    let text = match chars.next() {
-        _ if text.starts_with("dm ") => text.to_string(),
+    match chars.next() {
+        _ if named => text.to_string(),
         Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
         None => String::new(),
-    };
+    }
+}
+
+/// The line under the bar: what happened, or what ? says. Empty hides it.
+pub(super) fn say(p: &Panel, text: &str) {
+    let text = line_of(text);
     let text = text.as_str();
     p.sub.set_text_content(Some(text));
     if text.is_empty() {
@@ -54,14 +61,14 @@ pub(super) fn close_menu() {
     let Some(document) = document() else {
         return;
     };
-    let site = decide::site_of(&top_page()).unwrap_or_else(|| "this site".into());
+    let site = decide::site_of(&top_page()).unwrap_or_else(|| words::PANEL_THIS_SITE.say());
     let first = with_panel(|p| {
         p.settled = true;
         close_list(p);
         say(p, "");
         for (line, never) in [
-            ("Hide for now".to_string(), false),
-            (format!("Never on {site}"), true),
+            (words::PANEL_HIDE_FOR_NOW.say(), false),
+            (words::PANEL_NEVER_ON.with(&[&site]), true),
         ] {
             let Ok(item) = document.create_element("button") else {
                 continue;

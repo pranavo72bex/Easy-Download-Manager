@@ -31,6 +31,7 @@ use web_sys::{
 };
 
 use crate::decide::{self, Media, PANEL_MESSAGE};
+use crate::words;
 
 /// How long the panel waits after the pointer leaves before it goes, so the
 /// pointer can travel from the player to the panel.
@@ -44,9 +45,6 @@ use crate::panel::{self, Act, Focus, Key, BODY, STYLE};
 
 /// The panel's size as `panel_at` places it: the bar alone.
 const PANEL_SIZE: (f64, f64) = (240.0, 30.0);
-
-/// What ? says.
-const HELP: &str = "dm downloads this video with the dm app, where you choose its name and folder. A link clicked with the keep key held (Alt unless changed in dm's Options) stays in the browser.";
 
 struct Panel {
     host: HtmlElement,

@@ -6,16 +6,18 @@
 //! What a context menu click or the toolbar button hands over, and the page's links.
 
 use super::*;
+use crate::words::{self, Word};
 
-/// The context menu items: id, title, contexts.
-pub const MENUS: &[(&str, &str, &[&str])] = &[
-    (MENU_LINK, "Download link with dm", &["link"]),
-    (MENU_MEDIA, "Download media with dm", &["video", "audio"]),
+/// The context menu items: id, title, contexts. The titles are made in the
+/// browser's language ([`crate::words`]).
+pub const MENUS: &[(&str, Word, &[&str])] = &[
+    (MENU_LINK, words::MENU_LINK, &["link"]),
+    (MENU_MEDIA, words::MENU_MEDIA, &["video", "audio"]),
     // "Download all links" and "Download selected links".
-    (MENU_ALL_LINKS, "Download all links with dm", &["page"]),
+    (MENU_ALL_LINKS, words::MENU_ALL_LINKS, &["page"]),
     (
         MENU_SELECTED_LINKS,
-        "Download selected links with dm",
+        words::MENU_SELECTED_LINKS,
         &["selection"],
     ),
 ];

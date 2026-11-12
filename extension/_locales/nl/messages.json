@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — Downloadbeheerder"
+  },
+  "extDescription": {
+    "message": "Geeft downloads en video's door aan de dm-app, die ze downloadt. Zonder app houdt de browser ze."
+  },
+  "menuLink": {
+    "message": "Link downloaden met dm"
+  },
+  "menuMedia": {
+    "message": "Media downloaden met dm"
+  },
+  "menuAllLinks": {
+    "message": "Alle links downloaden met dm"
+  },
+  "menuSelectedLinks": {
+    "message": "Geselecteerde links downloaden met dm"
+  },
+  "popupLooking": {
+    "message": "De dm-app wordt gezocht…"
+  },
+  "popupCatch": {
+    "message": "Downloads opvangen"
+  },
+  "popupPanelHere": {
+    "message": "“Video downloaden” tonen op deze site"
+  },
+  "popupPanelOn": {
+    "message": "“Video downloaden” tonen op $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "Geen videopaneel op deze pagina"
+  },
+  "popupCatchAllHere": {
+    "message": "Elke download van deze site overnemen"
+  },
+  "popupCatchAllOn": {
+    "message": "Elke download van $SITE$ overnemen",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "Geen downloads om over te nemen van deze pagina"
+  },
+  "popupPausedHere": {
+    "message": "Opvangen op deze site pauzeren"
+  },
+  "popupPausedOn": {
+    "message": "Opvangen op $SITE$ pauzeren",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "Geen downloads om te pauzeren op deze pagina"
+  },
+  "popupCookiesHere": {
+    "message": "De aanmelding van deze site met de downloads meegeven"
+  },
+  "popupCookiesOn": {
+    "message": "De aanmelding van $SITE$ met de downloads meegeven",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "Geen aanmelding om mee te geven van deze pagina"
+  },
+  "popupOpen": {
+    "message": "dm openen"
+  },
+  "popupGetApp": {
+    "message": "De dm-app halen"
+  },
+  "popupNoAnswer": {
+    "message": "De dm-app heeft niet geantwoord"
+  },
+  "popupOpening": {
+    "message": "dm wordt geopend…"
+  },
+  "popupIsOpen": {
+    "message": "dm is geopend"
+  },
+  "popupConnected": {
+    "message": "Verbonden met dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "Verbonden met dm $VERSION$ · werk de dm-app bij: tot dan houdt de browser zijn downloads",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "Dat was ingesteld voor heel $SITES$, dus het is daar ook gewijzigd",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ en $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm is nog niet verbonden met deze browser. Nog geen dm-app op deze computer? Klik hieronder op “De dm-app halen”, installeer hem en open hem één keer. Al geïnstalleerd: open dm één keer (als het al open is, open het opnieuw) zodat het verbinding kan maken, en open dan dit venster opnieuw. Gevorderd: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm heeft niet geantwoord ($REASON$). Open dm (als het al open is, open het opnieuw) en open dan dit venster opnieuw. Als het nog steeds niet antwoordt: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "Video downloaden"
+  },
+  "panelDownloadAudio": {
+    "message": "Deze audio downloaden"
+  },
+  "panelProtected": {
+    "message": "Beveiligde video"
+  },
+  "panelProtectedSaid": {
+    "message": "Deze video is tegen kopiëren beveiligd, dus alleen de eigen speler van de site kan hem afspelen. dm downloadt geen beveiligde video."
+  },
+  "panelThroughApp": {
+    "message": "deze pagina, via de dm-app"
+  },
+  "panelHelp": {
+    "message": "dm downloadt deze video met de dm-app, waar je de naam en map kiest. Een link waarop je klikt terwijl je de bewaartoets ingedrukt houdt (Alt, tenzij gewijzigd in de Opties van dm), blijft in de browser."
+  },
+  "panelDrag": {
+    "message": "Sleep om te verplaatsen"
+  },
+  "panelWhat": {
+    "message": "Wat is dit?"
+  },
+  "panelHide": {
+    "message": "Verbergen"
+  },
+  "panelHideForNow": {
+    "message": "Voorlopig verbergen"
+  },
+  "panelNeverOn": {
+    "message": "Nooit op $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "deze site"
+  },
+  "panelReading": {
+    "message": "Kwaliteiten lezen…"
+  },
+  "panelReadingSaid": {
+    "message": "dm leest de videokwaliteiten van deze pagina; dit kan tot een halve minuut duren."
+  },
+  "panelTimedOut": {
+    "message": "dm heeft niet op tijd geantwoord. Probeer het opnieuw, of klik met de rechtermuisknop op de video en kies “Media downloaden met dm”."
+  },
+  "panelSending": {
+    "message": "Naar dm sturen…"
+  },
+  "panelNotTaken": {
+    "message": "dm kon het niet overnemen"
+  },
+  "panelUpdated": {
+    "message": "dm is bijgewerkt: laad deze pagina opnieuw om het te gebruiken"
+  },
+  "panelSent": {
+    "message": "Naar dm gestuurd"
+  },
+  "panelInBrowser": {
+    "message": "Downloaden in de browser"
+  },
+  "panelDownloadAll": {
+    "message": "Alles downloaden"
+  },
+  "panelPart": {
+    "message": "Deel"
+  },
+  "panelPartTo": {
+    "message": "tot"
+  },
+  "panelPartStart": {
+    "message": "Begin van het deel"
+  },
+  "panelPartEnd": {
+    "message": "Einde van het deel"
+  },
+  "panelFileQuality": {
+    "message": "$KIND$-bestand, kwaliteit $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "De dm-app leest deze pagina voor de video"
+  },
+  "panelAppHas": {
+    "message": "De dm-app heeft het"
+  },
+  "panelAppDownloading": {
+    "message": "De dm-app downloadt het"
+  },
+  "panelNoAnswer": {
+    "message": "dm heeft niet geantwoord"
+  },
+  "panelFailed": {
+    "message": "dm heeft niet geantwoord. Probeer het opnieuw, of klik met de rechtermuisknop op de video en kies “Media downloaden met dm”."
+  },
+  "panelHls": {
+    "message": "HLS-stream, beste kwaliteit"
+  },
+  "panelDownload": {
+    "message": "Downloaden"
+  }
+}

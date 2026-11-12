@@ -1447,7 +1447,7 @@ fn the_panel_is_for_real_players_only() {
     assert_eq!(
         offer(&video(640.0, 360.0, "https://cdn.e.com/v/clip.mp4")),
         Some(Offer {
-            title: "Download video",
+            title: crate::words::PANEL_DOWNLOAD_VIDEO,
             sub: "cdn.e.com".into(),
             page: false,
         })
@@ -1465,7 +1465,10 @@ fn the_panel_is_for_real_players_only() {
         width: 300.0,
         height: 40.0,
     };
-    assert_eq!(offer(&audio).map(|o| o.title), Some("Download this audio"));
+    assert_eq!(
+        offer(&audio).map(|o| o.title.en),
+        Some("Download this audio")
+    );
     assert!(offer(&Media {
         tag: "img".into(),
         ..audio
@@ -2468,7 +2471,7 @@ fn a_forms_body_goes_with_the_download_that_is_its_answer() {
 /// words, so leaving one out in Options leaves out that one (gaps row 86).
 #[test]
 fn the_menu_items_options_lists_are_the_ones_made() {
-    let made: Vec<(&str, &str)> = MENUS.iter().map(|(id, title, _)| (*id, *title)).collect();
+    let made: Vec<(&str, &str)> = MENUS.iter().map(|(id, title, _)| (*id, title.en)).collect();
     assert_eq!(made, dm_protocol::MENU_ITEMS.to_vec());
 }
 

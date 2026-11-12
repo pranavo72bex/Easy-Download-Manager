@@ -356,7 +356,12 @@
     let busy = false;
     let hideTimer = null;
     let lastScan = 0;
-    const STYLE = ':host{all:initial;position:fixed;z-index:2147483647;display:none}'
+    // A word in the browser's language from the extension's catalog (extension/_locales, keys
+    // as browser/src/words.rs names them), its English where the browser gives none.
+    const t = (key, english) => {
+      try { return ext.i18n.getMessage(key) || english; } catch { return english; }
+    };
+    const STYLE =':host{all:initial;position:fixed;z-index:2147483647;display:none}'
       + '.bar{display:flex;font:600 13px system-ui,sans-serif;color:#fff;background:rgba(32,32,32,.94);'
       + 'border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden}'
       + 'button{all:unset;cursor:pointer;padding:6px 10px;font:inherit;color:inherit}'
@@ -377,11 +382,11 @@
       const bar = document.createElement('div');
       bar.className = 'bar';
       const go = document.createElement('button');
-      go.textContent = 'Download video';
+      go.textContent = t('panelDownloadVideo', 'Download video');
       const close = document.createElement('button');
       close.className = 'x';
       close.textContent = '×';
-      close.setAttribute('aria-label', 'Hide');
+      close.setAttribute('aria-label', t('panelHide', 'Hide'));
       bar.append(go, close);
       const list = document.createElement('div');
       list.className = 'list';
@@ -438,7 +443,7 @@
     const srcOf = () => (current && (current.currentSrc || current.src)) || '';
     const finish = async (extra) => {
       parts.list.hidden = true;
-      said('Sending to dm…');
+      said(t('panelSending', 'Sending to dm…'));
       let reply;
       // The page's title, else its og:title, as reference A names a video (gaps row 124).
       let ruled = '';
@@ -447,8 +452,8 @@
       } catch { /* a selector the page cannot read */ }
       const title = ruled || document.title.trim()
         || (document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '').trim();
-      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title, ...extra.fields }); } catch (e) { reply = { ok: false, said: 'dm was updated: reload this page to use it' }; }
-      said(reply?.ok ? 'Sent to dm. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || 'dm could not take it'));
+      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title, ...extra.fields }); } catch (e) { reply = { ok: false, said: t('panelUpdated', 'dm was updated: reload this page to use it') }; }
+      said(reply?.ok ? t('panelSent', 'Sent to dm') + '. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || t('panelNotTaken', 'dm could not take it')));
       hideSoon(2500, true);
     };
     // What the page itself names for this player: Reddit's player element carries the address of
@@ -459,7 +464,7 @@
       for (let el = current, i = 0; el && i < 12; el = el.parentElement || (el.getRootNode && el.getRootNode().host) || null, i++) {
         const src = (el.localName === 'shreddit-player' || el.localName === 'shreddit-player-2') ? el.getAttribute('src') : null;
         if (src && /^https?:/i.test(src) && /[.]m3u8([?]|$)/i.test(src)) {
-          lines.push({ url: src, label: 'HLS stream, best quality', line: 'HLS stream, best quality' });
+          lines.push({ url: src, label: 'HLS stream, best quality', line: t('panelHls', 'HLS stream, best quality') });
           break;
         }
       }
@@ -477,11 +482,11 @@
     const ask = async () => {
       if (busy || !current) return;
       busy = true;
-      said('Reading qualities…');
+      said(t('panelReading', 'Reading qualities…'));
       try {
         const reply = await send({ type: 'dm.formats', src: srcOf() });
         said('');
-        if (!reply?.ok) { said(reply?.said || 'dm did not answer'); hideSoon(5000, true); return; }
+        if (!reply?.ok) { said(reply?.said || t('panelNoAnswer', 'dm did not answer')); hideSoon(5000, true); return; }
         const given = Array.isArray(reply.choices) ? reply.choices : [];
         const choices = [...playerLines().filter((l) => !given.some((g) => g.url === l.url)), ...given];
         if (choices.length === 0) await finish({ fields: {} });
@@ -490,14 +495,14 @@
           parts.list.textContent = '';
           for (const choice of choices) {
             const item = document.createElement('button');
-            item.textContent = choice.line || choice.label || 'Download';
+            item.textContent = choice.line || choice.label || t('panelDownload', 'Download');
             item.addEventListener('click', (event) => { if (pressed(event)) choose(choice); });
             parts.list.appendChild(item);
           }
           parts.list.hidden = false;
         }
       } catch (e) {
-        said('dm did not answer. Try again, or right-click the video and choose Download media with dm.');
+        said(t('panelFailed', 'dm did not answer. Try again, or right-click the video and choose Download media with dm.'));
         hideSoon(5000, true);
       } finally { busy = false; }
     };

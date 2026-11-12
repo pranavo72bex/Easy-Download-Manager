@@ -1,0 +1,263 @@
+{
+  "extName": {
+    "message": "dm — 下载管理器"
+  },
+  "extDescription": {
+    "message": "将下载和视频交给 dm 应用下载。没有应用时，由浏览器保留。"
+  },
+  "menuLink": {
+    "message": "使用 dm 下载链接"
+  },
+  "menuMedia": {
+    "message": "使用 dm 下载媒体"
+  },
+  "menuAllLinks": {
+    "message": "使用 dm 下载全部链接"
+  },
+  "menuSelectedLinks": {
+    "message": "使用 dm 下载选中的链接"
+  },
+  "popupLooking": {
+    "message": "正在查找 dm 应用…"
+  },
+  "popupCatch": {
+    "message": "捕获下载"
+  },
+  "popupPanelHere": {
+    "message": "在此网站上显示“下载视频”"
+  },
+  "popupPanelOn": {
+    "message": "在 $SITE$ 上显示“下载视频”",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "此页面没有视频面板"
+  },
+  "popupCatchAllHere": {
+    "message": "接管此网站的所有下载"
+  },
+  "popupCatchAllOn": {
+    "message": "接管 $SITE$ 的所有下载",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "此页面没有可接管的下载"
+  },
+  "popupPausedHere": {
+    "message": "暂停在此网站上捕获"
+  },
+  "popupPausedOn": {
+    "message": "暂停在 $SITE$ 上捕获",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "此页面没有可暂停的下载"
+  },
+  "popupCookiesHere": {
+    "message": "随下载一起交出此网站的登录信息"
+  },
+  "popupCookiesOn": {
+    "message": "随下载一起交出 $SITE$ 的登录信息",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "此页面没有可交出的登录信息"
+  },
+  "popupOpen": {
+    "message": "打开 dm"
+  },
+  "popupGetApp": {
+    "message": "获取 dm 应用"
+  },
+  "popupNoAnswer": {
+    "message": "dm 应用没有回应"
+  },
+  "popupOpening": {
+    "message": "正在打开 dm…"
+  },
+  "popupIsOpen": {
+    "message": "dm 已打开"
+  },
+  "popupConnected": {
+    "message": "已连接到 dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "已连接到 dm $VERSION$ · 请更新 dm 应用：在此之前，浏览器会保留它的下载",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "这是为整个 $SITES$ 设置的，因此那里也一并更改了",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ 和 $NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm 尚未连接到此浏览器。这台电脑上还没有 dm 应用？请点击下方的“获取 dm 应用”，安装后打开一次。已经安装：打开 dm 一次（如果已打开，请再打开一次）以便它连接，然后重新打开此窗口。高级：$COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm 没有回应（$REASON$）。请打开 dm（如果已打开，请再打开一次），然后重新打开此窗口。如果仍然没有回应：$COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "下载视频"
+  },
+  "panelDownloadAudio": {
+    "message": "下载此音频"
+  },
+  "panelProtected": {
+    "message": "受保护的视频"
+  },
+  "panelProtectedSaid": {
+    "message": "此视频受复制保护，只有网站自己的播放器才能播放。dm 不下载受保护的视频。"
+  },
+  "panelThroughApp": {
+    "message": "此页面，通过 dm 应用"
+  },
+  "panelHelp": {
+    "message": "dm 用 dm 应用下载此视频，你可以在应用中选择名称和文件夹。按住保留键（除非在 dm 的选项中更改，否则为 Alt）点击的链接会留在浏览器中。"
+  },
+  "panelDrag": {
+    "message": "拖动以移动"
+  },
+  "panelWhat": {
+    "message": "这是什么？"
+  },
+  "panelHide": {
+    "message": "隐藏"
+  },
+  "panelHideForNow": {
+    "message": "暂时隐藏"
+  },
+  "panelNeverOn": {
+    "message": "在 $SITE$ 上不再显示",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "此网站"
+  },
+  "panelReading": {
+    "message": "正在读取画质…"
+  },
+  "panelReadingSaid": {
+    "message": "dm 正在读取此页面的视频画质，最多可能需要半分钟。"
+  },
+  "panelTimedOut": {
+    "message": "dm 没有及时回应。请重试，或右键点击视频并选择“使用 dm 下载媒体”。"
+  },
+  "panelSending": {
+    "message": "正在发送到 dm…"
+  },
+  "panelNotTaken": {
+    "message": "dm 无法接收"
+  },
+  "panelUpdated": {
+    "message": "dm 已更新：请重新加载此页面以使用它"
+  },
+  "panelSent": {
+    "message": "已发送到 dm"
+  },
+  "panelInBrowser": {
+    "message": "正在浏览器中下载"
+  },
+  "panelDownloadAll": {
+    "message": "全部下载"
+  },
+  "panelPart": {
+    "message": "部分"
+  },
+  "panelPartTo": {
+    "message": "到"
+  },
+  "panelPartStart": {
+    "message": "部分开始"
+  },
+  "panelPartEnd": {
+    "message": "部分结束"
+  },
+  "panelFileQuality": {
+    "message": "$KIND$ 文件，画质 $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "dm 应用正在读取此页面以获取视频"
+  },
+  "panelAppHas": {
+    "message": "dm 应用已接收"
+  },
+  "panelAppDownloading": {
+    "message": "dm 应用正在下载"
+  },
+  "panelNoAnswer": {
+    "message": "dm 没有回应"
+  },
+  "panelFailed": {
+    "message": "dm 没有回应。请重试，或右键点击视频并选择“使用 dm 下载媒体”。"
+  },
+  "panelHls": {
+    "message": "HLS 流，最佳画质"
+  },
+  "panelDownload": {
+    "message": "下载"
+  }
+}

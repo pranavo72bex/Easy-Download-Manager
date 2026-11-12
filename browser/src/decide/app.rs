@@ -6,6 +6,7 @@
 //! What the extension knows of the app: the handshake and what to say when it is absent.
 
 use super::*;
+use crate::words;
 
 /// The name a hand-off is filed under. The host keeps only letters, digits,
 /// `-` and `_`, so that is all this uses.
@@ -55,15 +56,14 @@ pub fn takes_caught(hello: &Hello) -> Result<(), &'static str> {
     }
 }
 
-/// The toolbar popup's status line for an app that answered, and whether it
-/// is a warning.
+/// The toolbar popup's status line for an app that answered, in the
+/// browser's language, and whether it is a warning.
 pub fn status_line(hello: &Hello) -> (String, bool) {
-    let mut line = format!("Connected to dm {}", hello.engine_version);
+    let version = hello.engine_version.as_str();
     if !hello.judges_pages() {
-        line.push_str(" · update the dm app: until then the browser keeps its downloads");
-        return (line, true);
+        return (words::POPUP_CONNECTED_OLD.with(&[version]), true);
     }
-    (line, false)
+    (words::POPUP_CONNECTED.with(&[version]), false)
 }
 
 /// Whether the browser found no dm it may start: no host manifest, or one
@@ -89,50 +89,49 @@ pub fn not_connected(reason: &str) -> bool {
 /// that fixes it for this browser — or, for an app of a protocol version
 /// this extension cannot talk to, which side to update.
 pub fn absent_text(reason: &str, own_id: &str, firefox: bool) -> String {
-    absent_said(
-        reason,
-        own_id,
-        firefox,
-        "try again",
-        "get it from github.com/pranavo72bex/Easy-Download-Manager/releases",
-    )
-}
-
-/// [`absent_text`] for the toolbar popup, which is read again by opening it.
-pub fn absent_popup_text(reason: &str, own_id: &str, firefox: bool) -> String {
-    absent_said(
-        reason,
-        own_id,
-        firefox,
-        "reopen this popup",
-        "click Get the dm app below",
-    )
-}
-
-fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str, get: &str) -> String {
     if let Some(said) = reason.strip_prefix(MISMATCH) {
         return said.to_string();
     }
-    // The ids every registration allows need no naming.
-    let known = own_id == CHROME_EXTENSION_ID || own_id == EDGE_EXTENSION_ID;
-    let register = if firefox || known || own_id.is_empty() {
-        "dm-desktop --register".to_string()
-    } else {
-        format!("dm-desktop --register {own_id}")
-    };
+    let register = register_command(own_id, firefox);
     if not_connected(reason) {
         // Someone who added the extension from a store first has no app
         // yet: told where it is, before how to connect one.
         format!(
             "dm isn't connected to this browser yet. No dm app on this computer yet? \
-             {get}, install it and open it once. Already installed: open dm once (if it's \
-             already open, open it again) so it can connect, then {then}. Advanced: {register}"
+             get it from github.com/pranavo72bex/Easy-Download-Manager/releases, install it and \
+             open it once. Already installed: open dm once (if it's already open, open it again) \
+             so it can connect, then try again. Advanced: {register}"
         )
     } else {
         format!(
             "dm did not answer ({reason}). Open dm (if it's already open, open it again), \
-             then {then}. If it still does not answer: {register}"
+             then try again. If it still does not answer: {register}"
         )
+    }
+}
+
+/// [`absent_text`] for the toolbar popup, which is read again by opening it,
+/// in the browser's language.
+pub fn absent_popup_text(reason: &str, own_id: &str, firefox: bool) -> String {
+    if let Some(said) = reason.strip_prefix(MISMATCH) {
+        return said.to_string();
+    }
+    let register = register_command(own_id, firefox);
+    if not_connected(reason) {
+        words::POPUP_NOT_CONNECTED.with(&[&register])
+    } else {
+        words::POPUP_NOT_ANSWERING.with(&[reason, &register])
+    }
+}
+
+/// The command that registers dm with this browser. The ids every
+/// registration allows need no naming.
+fn register_command(own_id: &str, firefox: bool) -> String {
+    let known = own_id == CHROME_EXTENSION_ID || own_id == EDGE_EXTENSION_ID;
+    if firefox || known || own_id.is_empty() {
+        "dm-desktop --register".to_string()
+    } else {
+        format!("dm-desktop --register {own_id}")
     }
 }
 

@@ -200,18 +200,14 @@ pub fn covering(list: &[String], site: &str) -> Vec<String> {
 
 /// What a popup switch says when turning it off for `site` also turned it
 /// off for a wider site it was set for, or `None` when only `site`'s own
-/// entry went.
+/// entry went. In the browser's language, the sites said one after another
+/// as "a and b and c".
 pub fn wider_note(list: &[String], site: &str) -> Option<String> {
-    let wider: Vec<String> = covering(list, site)
+    let sites = covering(list, site)
         .into_iter()
         .filter(|s| s != site)
-        .collect();
-    (!wider.is_empty()).then(|| {
-        format!(
-            "That was set for all of {}, so it is changed there too",
-            wider.join(" and ")
-        )
-    })
+        .reduce(|first, next| crate::words::POPUP_AND.with(&[&first, &next]))?;
+    Some(crate::words::POPUP_WIDER.with(&[&sites]))
 }
 
 /// The list with `site` added (`off`) or taken out, sorted, once each.
