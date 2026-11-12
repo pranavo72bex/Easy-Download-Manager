@@ -379,6 +379,7 @@ impl Queue {
             total: slot.entry.progress.total,
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         drop(slots);
         self.kick();

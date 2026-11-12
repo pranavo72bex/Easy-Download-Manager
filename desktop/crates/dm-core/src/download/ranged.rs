@@ -52,6 +52,20 @@ pub(crate) fn watch(
     tokio::task::JoinHandle<()>,
     tokio::sync::oneshot::Sender<()>,
 ) {
+    watch_estimating(downloaded, total, None, tx)
+}
+
+/// [`watch`], with an estimate of the total that its fetch updates as it learns (`0`: none
+/// yet), used where the server states none: a stream's (gaps row Y22).
+pub(crate) fn watch_estimating(
+    downloaded: Arc<AtomicU64>,
+    total: Option<u64>,
+    estimate: Option<Arc<AtomicU64>>,
+    tx: tokio::sync::mpsc::Sender<Update>,
+) -> (
+    tokio::task::JoinHandle<()>,
+    tokio::sync::oneshot::Sender<()>,
+) {
     let (done_tx, mut done_rx) = tokio::sync::oneshot::channel();
 
     let handle = tokio::spawn(async move {
@@ -82,6 +96,12 @@ pub(crate) fn watch(
             };
 
             let now = Instant::now();
+            if let Some(estimate) = &estimate {
+                let about = estimate.load(Ordering::Relaxed);
+                if about > 0 {
+                    meter.set_total(Some(about), true);
+                }
+            }
             let progress = meter.sample(downloaded.load(Ordering::Relaxed), now - last);
             last = now;
 

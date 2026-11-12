@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A YouTube video's MP4 carries its title, its channel and its page's address, so a player or a music library shows them.
+- A stream (HLS or DASH) shows its size and time left while it downloads: exact where the manifest gives every piece's bytes, else marked "≈", from the pieces fetched so far or from the stream's bitrate and length.
 - GPUI window: the row menu answers the keyboard (the arrows move along it, Return carries out, Escape closes), and typing a name's first letters over the list chooses the next download whose name starts with them.
 - Security: while a script or AI assistant drives the window, a download it adds or moves goes into the download folder or below it, whichever dialog the folder was typed into.
 - Security (an audit of 2026-11-12, `docs/security-audit-2026-11-12.md`): a `magnet:` link opened on Windows can no longer carry options of its own after it (a folder to save into, "ask nothing"); a public page's "Download all links", a stream's playlist and a Metalink's mirror list can no longer send dm to addresses on the person's own computer or network, and a login written into a page's link is taken out; a script or AI assistant driving the window can no longer move the folders downloads go to; taking one file out of a remote ZIP is refused when it would unpack past 256 MB; a crash can no longer leave the control port's token to be read beside an old port; on Linux, the file an opener's errors go to is private to dm.

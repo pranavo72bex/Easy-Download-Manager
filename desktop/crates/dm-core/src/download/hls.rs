@@ -116,11 +116,27 @@ pub(super) async fn download_stream(
     let parts: Vec<PathBuf> = if fs::metadata(&gathered).await.is_ok() {
         vec![gathered]
     } else {
-        // No total: a playlist states none, and a bar that guessed one would
-        // be a bar that lies.
+        // A playlist states no size: the row shows one about, from the pieces fetched so far
+        // and how many there are, marked as such (gaps row Y22), rather than none at all.
         let downloaded = Arc::new(AtomicU64::new(0));
-        let meter = report.map(|tx| watch(Arc::clone(&downloaded), None, tx));
-        let outcome = fetch_segments(client, &listed, key.as_deref(), options, &downloaded).await;
+        let estimate = Arc::new(AtomicU64::new(0));
+        let meter = report.map(|tx| {
+            crate::download::ranged::watch_estimating(
+                Arc::clone(&downloaded),
+                None,
+                Some(Arc::clone(&estimate)),
+                tx,
+            )
+        });
+        let outcome = fetch_segments(
+            client,
+            &listed,
+            key.as_deref(),
+            options,
+            &downloaded,
+            Some(&estimate),
+        )
+        .await;
         if let Some((handle, finished)) = meter {
             let _ = finished.send(());
             let _ = handle.await;
@@ -709,10 +725,12 @@ pub(super) async fn fetch_segments(
     key: Option<&[u8]>,
     options: &Options,
     downloaded: &AtomicU64,
+    estimate: Option<&AtomicU64>,
 ) -> Result<(), Error> {
     // Workers taking the next unfetched index, rather than a stream of
     // futures: each worker is one plain future, which keeps this `Send`.
     let next = AtomicUsize::new(0);
+    let done = AtomicUsize::new(0);
     let worker = || async {
         loop {
             let index = next.fetch_add(1, Ordering::Relaxed);
@@ -720,6 +738,14 @@ pub(super) async fn fetch_segments(
                 return Ok::<(), Error>(());
             };
             fetch_one_segment(client, listed, key, options, downloaded, index, part).await?;
+            // The stream's size, about: what its pieces so far came to, as many times over as
+            // it has pieces (gaps row Y22). Surer with each piece; from the second.
+            let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if let Some(estimate) = estimate.filter(|_| finished >= 2) {
+                let so_far = downloaded.load(Ordering::Relaxed);
+                let pieces = listed.parts.len() as u64;
+                estimate.store(so_far / finished as u64 * pieces, Ordering::Relaxed);
+            }
         }
     };
     let at_once = options.connections.clamp(1, SEGMENTS_AT_ONCE);

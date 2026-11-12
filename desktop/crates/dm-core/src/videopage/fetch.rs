@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use super::{finish_dm, remove_staging};
+use super::{finish_dm_tagged, remove_staging};
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error};
 
@@ -226,6 +226,16 @@ struct Info {
     /// Subtitles asked for, by language.
     #[serde(default)]
     requested_subtitles: Option<HashMap<String, Subtitle>>,
+    /// The video's title, its channel, when it was published and its page: written into the
+    /// joined file (gaps row Y11).
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    uploader: Option<String>,
+    #[serde(default)]
+    upload_date: Option<String>,
+    #[serde(default)]
+    webpage_url: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, serde::Deserialize)]
@@ -570,7 +580,14 @@ async fn fetch(
     subtitles(client, read, &plan.produced, options).await;
     let found = crate::subtitles::beside(&plan.produced);
     let (files, texts): (Vec<PathBuf>, Vec<crate::subtitles::Subtitle>) = found.into_iter().unzip();
-    let outcome = finish_dm(&plan.produced, texts, options).await;
+    let info = &read.info;
+    let tags = crate::mp4mux::Tags {
+        title: info.title.clone().unwrap_or_default(),
+        artist: info.uploader.clone().unwrap_or_default(),
+        date: info.upload_date.clone().unwrap_or_default(),
+        source: info.webpage_url.clone().unwrap_or_default(),
+    };
+    let outcome = finish_dm_tagged(&plan.produced, texts, tags, options).await;
     for file in files {
         let _ = tokio::fs::remove_file(file).await;
     }
@@ -752,6 +769,7 @@ fn sum(latest: &[Option<crate::Progress>]) -> crate::Progress {
         total,
         speed,
         eta,
+        estimated: false,
     }
 }
 
@@ -933,6 +951,7 @@ mod tests {
             total,
             speed,
             eta: None,
+            estimated: false,
         };
         let one = sum(&[Some(p(100, Some(1000), 10.0)), None]);
         assert_eq!((one.downloaded, one.total), (100, None));
@@ -1174,6 +1193,7 @@ mod coverage_tests {
             total: Some(10),
             speed: 1.0,
             eta: None,
+            estimated: false,
         };
         tx.send(Update::Named {
             name: "x.f137.mp4".into(),

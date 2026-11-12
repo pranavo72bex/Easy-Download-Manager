@@ -783,6 +783,7 @@ pub async fn download_torrent(
                     total,
                     speed,
                     eta,
+                    estimated: false,
                 }))
                 .await;
             let swarm = Swarm::of(&stats, last_sent, dt);

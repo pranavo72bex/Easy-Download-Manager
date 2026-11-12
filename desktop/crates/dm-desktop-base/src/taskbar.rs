@@ -212,6 +212,7 @@ mod tests {
                 total,
                 speed: 0.0,
                 eta: None,
+                estimated: false,
             },
             filename: "f.bin".into(),
             finished_at,

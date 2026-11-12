@@ -6943,3 +6943,13 @@ was the cost.
   outside the download folder (or reaching out of it by `..`) is refused for `SCRIPT_ACTS_FOR`
   after a control client last acted (`control_api::folder_refused`, a process-wide mark set by
   `ScriptGuard::acted`).
+
+## 2026-11-12: A stream's size, about (gaps row Y22)
+
+- `hls.rs` said a bar that guessed a total would be a bar that lies. **Chosen instead**: a total
+  marked as an estimate (`Progress::estimated`, shown "≈ 120 MB" in the Size column), from what
+  the pieces so far came to times how many the playlist lists (from the second piece; surer with
+  each), or for DASH from each track's bitrate and playing time; exact (not marked) where the
+  manifest gives every piece's bytes. The meter takes a total that can change
+  (`Meter::set_total`, `ranged::watch_estimating`), so the time left follows it. A live
+  recording has no end, so no total.

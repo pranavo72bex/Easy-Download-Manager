@@ -322,7 +322,17 @@ async fn join_tracks(
     let joined = options.parts_dir.join(format!("joined.{extension}"));
     if !fs::metadata(&joined).await.is_ok_and(|m| m.len() > 0) {
         let downloaded = Arc::new(AtomicU64::new(0));
-        let meter = report.map(|tx| watch(Arc::clone(&downloaded), None, tx));
+        // The size where the manifest gives every piece's bytes; else about, from each track's
+        // bitrate and playing time (gaps row Y22).
+        let (exact, about) = size_of_tracks(tracks);
+        let meter = report.map(|tx| {
+            crate::download::ranged::watch_estimating(
+                Arc::clone(&downloaded),
+                exact,
+                about.map(|bytes| Arc::new(AtomicU64::new(bytes))),
+                tx,
+            )
+        });
         let fetched = fetch_tracks(client, tracks, options, &downloaded).await;
         if let Some((handle, finished)) = meter {
             let _ = finished.send(());
@@ -393,6 +403,31 @@ async fn join_mp4(files: Vec<PathBuf>, out: PathBuf, options: &Options) -> Resul
         }
         None => crate::mp4mux::join_async(files, out).await,
     }
+}
+
+/// The tracks' size: exact where every piece names its bytes, else about, from each track's
+/// bitrate and the pieces' playing time; `(None, None)` where neither is said.
+fn size_of_tracks(tracks: &[&crate::dash::Track]) -> (Option<u64>, Option<u64>) {
+    let ranged = tracks
+        .iter()
+        .all(|t| t.pieces.iter().all(|p| p.range.is_some()));
+    if ranged {
+        let bytes = tracks
+            .iter()
+            .flat_map(|t| &t.pieces)
+            .filter_map(|p| p.range)
+            .map(|(first, last)| last.saturating_sub(first) + 1)
+            .sum::<u64>();
+        return ((bytes > 0).then_some(bytes), None);
+    }
+    let about: u64 = tracks
+        .iter()
+        .map(|t| {
+            let millis: u64 = t.pieces.iter().map(|p| p.millis).sum();
+            t.bandwidth / 8 * millis / 1000
+        })
+        .sum();
+    (None, (about > 0).then_some(about))
 }
 
 /// Every piece of each track, then each track gathered into a file of its
@@ -519,6 +554,37 @@ async fn fetch_piece(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A manifest's size: exact from every piece's bytes, else about, from the bitrate and the
+    /// playing time (gaps row Y22).
+    #[test]
+    fn a_manifests_size_is_exact_from_its_ranges_else_about() {
+        use crate::dash::{Medium, Piece, Track};
+        let piece = |range, millis| Piece {
+            url: "https://cdn.example/v".into(),
+            range,
+            lock: None,
+            millis,
+        };
+        let track = |pieces| Track {
+            medium: Medium::Video,
+            id: "v".into(),
+            bandwidth: 8_000_000,
+            height: 720,
+            webm: false,
+            pieces,
+            indexed: None,
+        };
+        let ranged = track(vec![
+            piece(Some((0, 999)), 0),
+            piece(Some((1000, 2999)), 2000),
+        ]);
+        assert_eq!(size_of_tracks(&[&ranged]), (Some(3000), None));
+        let timed = track(vec![piece(None, 2000), piece(None, 2000)]);
+        assert_eq!(size_of_tracks(&[&timed]), (None, Some(4_000_000)));
+        let silent = track(vec![piece(None, 0)]);
+        assert_eq!(size_of_tracks(&[&silent]), (None, None));
+    }
     use crate::mp4mux::tests::{fragmented, plain};
     use axum::body::Body;
     use axum::http::{header, HeaderMap, StatusCode};

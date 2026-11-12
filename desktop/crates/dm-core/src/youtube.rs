@@ -1198,6 +1198,13 @@ async fn read_within(
         .pointer("/videoDetails/lengthSeconds")
         .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
     let mut reading = reading_json(id, &title, duration, &formats, &chosen, staging);
+    // The channel, written into the joined file with the title (gaps row Y11).
+    if let Some(author) = player
+        .pointer("/videoDetails/author")
+        .and_then(Value::as_str)
+    {
+        reading["uploader"] = json!(author);
+    }
     // The video's captions, for Options' "carry subtitles" to put inside it (gaps row Y6).
     let captions = captions_named(&player);
     if !captions.is_empty() {

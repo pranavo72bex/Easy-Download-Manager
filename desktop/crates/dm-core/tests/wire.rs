@@ -25,6 +25,7 @@ fn entry(state: State) -> Entry {
             total: Some(2048),
             speed: 1024.5,
             eta: Some(Duration::from_secs(90)),
+            estimated: false,
         },
         filename: "f.bin".into(),
         finished_at: None,

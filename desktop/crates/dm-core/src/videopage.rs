@@ -75,9 +75,21 @@ async fn parts_of(joined: &Path) -> Vec<PathBuf> {
 /// What dm does with a page's fetched streams: joins the picture and sound left
 /// apart, puts a transport stream into an MP4, carries the subtitles
 /// inside, and places the result.
+#[cfg(test)]
 async fn finish_dm(
     produced: &Path,
     texts: Vec<crate::subtitles::Subtitle>,
+    options: &Options,
+) -> Result<Finished, Error> {
+    finish_dm_tagged(produced, texts, crate::mp4mux::Tags::default(), options).await
+}
+
+/// [`finish_dm`], the joined MP4 carrying the video's title, channel, date and page (gaps row
+/// Y11).
+async fn finish_dm_tagged(
+    produced: &Path,
+    texts: Vec<crate::subtitles::Subtitle>,
+    tags: crate::mp4mux::Tags,
     options: &Options,
 ) -> Result<Finished, Error> {
     let produced = produced.to_path_buf();
@@ -103,12 +115,13 @@ async fn finish_dm(
             let joining = if webm {
                 crate::mkvmux::join_with_text_async(parts.clone(), texts, joined.clone()).await
             } else {
-                crate::mp4mux::join_cut_async(
+                crate::mp4mux::join_cut_tagged_async(
                     parts.clone(),
                     texts,
                     joined.clone(),
                     cut,
                     options.shape,
+                    tags,
                 )
                 .await
             };
@@ -127,12 +140,13 @@ async fn finish_dm(
             .map(|e| e.to_string_lossy().into_owned())
             .unwrap_or_else(|| "mp4".into());
         let cut_file = produced.with_extension(format!("dm-cut.{ext}"));
-        crate::mp4mux::join_cut_async(
+        crate::mp4mux::join_cut_tagged_async(
             vec![produced.clone()],
             texts,
             cut_file.clone(),
             Some(cut),
             options.shape,
+            tags,
         )
         .await
         .map_err(|why| Error::Internal(format!("the part could not be cut: {why}")))?;

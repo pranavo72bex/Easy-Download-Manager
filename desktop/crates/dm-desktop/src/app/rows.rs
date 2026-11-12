@@ -27,6 +27,7 @@ pub(super) mod status_tests {
                 total: None,
                 speed: 0.0,
                 eta: None,
+                estimated: false,
             },
             filename: "f.bin".into(),
             finished_at: None,

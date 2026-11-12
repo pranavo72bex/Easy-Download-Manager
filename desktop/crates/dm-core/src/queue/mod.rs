@@ -732,6 +732,7 @@ impl Queue {
                     total: None,
                     speed: 0.0,
                     eta: None,
+                    estimated: false,
                 },
                 filename: String::new(),
                 finished_at: None,

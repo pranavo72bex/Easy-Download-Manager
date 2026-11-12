@@ -374,7 +374,13 @@ pub fn needs_sign_in(reason: &str) -> bool {
 
 /// What the Size column says.
 pub fn size_of(entry: &Entry) -> String {
-    shown_size(entry).map(format::bytes).unwrap_or_default()
+    let size = shown_size(entry).map(format::bytes).unwrap_or_default();
+    // A stream's size from its pieces so far, not a server's word (gaps row Y22).
+    if entry.progress.estimated && entry.state != State::Completed && !size.is_empty() {
+        format!("≈ {size}")
+    } else {
+        size
+    }
 }
 
 /// The size the Size column shows: the file's, or what has arrived of one
@@ -609,6 +615,17 @@ mod tests {
         // Where nothing says until when, the words as before.
         set_hold_times(None, &dm_core::Schedule::default());
         assert_eq!(status_in_english(&held), "Waiting for the schedule");
+    }
+
+    /// An estimated size is shown as one while the download runs (gaps row Y22).
+    #[test]
+    fn an_estimated_size_is_shown_as_about() {
+        let mut running = row(State::Running, false);
+        running.progress.total = Some(10 * 1024 * 1024);
+        running.progress.estimated = true;
+        assert!(size_of(&running).starts_with("≈ "), "{}", size_of(&running));
+        running.progress.estimated = false;
+        assert!(!size_of(&running).starts_with('≈'));
     }
 
     #[test]

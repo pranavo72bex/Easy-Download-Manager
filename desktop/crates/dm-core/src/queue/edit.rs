@@ -340,6 +340,7 @@ impl Queue {
                         total: None,
                         speed: 0.0,
                         eta: None,
+                        estimated: false,
                     };
                     slot.entry_mut().path = replacing.clone().unwrap_or_default();
                     slot.entry_mut().replaces = replacing;

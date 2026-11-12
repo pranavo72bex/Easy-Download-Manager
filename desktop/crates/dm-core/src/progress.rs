@@ -22,6 +22,10 @@ pub struct Progress {
     pub speed: f64,
     /// `None` when there is nothing to base one on.
     pub eta: Option<Duration>,
+    /// `total` is an estimate, not the server's word: a stream's size from the pieces fetched
+    /// so far and how many it has (gaps row Y22). Shown as "≈".
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub estimated: bool,
 }
 
 impl Progress {
@@ -45,6 +49,8 @@ pub struct Meter {
     last_bytes: u64,
     speed: f64,
     total: Option<u64>,
+    /// Whether `total` is an estimate (`set_total`).
+    estimated: bool,
     /// How far the figure has come from its start: 0 before any byte moved, 1 after the first
     /// interval that brought some, 2 from then on. That first interval is partial, its start
     /// spent on the request before the first byte, so the next interval replaces its figure
@@ -66,8 +72,16 @@ impl Meter {
             last_bytes: started_at,
             speed: 0.0,
             total,
+            estimated: false,
             warm: 0,
         }
+    }
+
+    /// The total from now on, and whether it is an estimate: a stream's grows surer as its
+    /// pieces come (gaps row Y22).
+    pub fn set_total(&mut self, total: Option<u64>, estimated: bool) {
+        self.total = total;
+        self.estimated = estimated && total.is_some();
     }
 
     /// Records where the count has reached, `elapsed` since the last sample.
@@ -96,6 +110,7 @@ impl Meter {
             total: self.total,
             speed: self.speed,
             eta: self.eta(downloaded),
+            estimated: self.estimated,
         }
     }
 
@@ -123,6 +138,23 @@ mod tests {
 
     fn secs(n: f64) -> Duration {
         Duration::from_secs_f64(n)
+    }
+
+    /// A stream's estimated size is carried and marked, and gives a time left (gaps row Y22).
+    #[test]
+    fn an_estimated_total_is_marked_and_gives_a_time_left() {
+        let mut m = Meter::new(None, 0);
+        assert_eq!(m.sample(100, secs(1.0)).eta, None);
+        m.set_total(Some(1000), true);
+        let p = m.sample(200, secs(1.0));
+        assert!(p.estimated);
+        assert_eq!(p.total, Some(1000));
+        assert!(p.eta.is_some());
+        m.set_total(None, true);
+        assert!(
+            !m.sample(300, secs(1.0)).estimated,
+            "no total, nothing estimated"
+        );
     }
 
     #[test]
@@ -207,6 +239,7 @@ mod tests {
             total: None,
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         assert_eq!(p.fraction(), None);
 
@@ -215,6 +248,7 @@ mod tests {
             total: Some(1000),
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         assert_eq!(known.fraction(), Some(0.25));
     }
@@ -228,6 +262,7 @@ mod tests {
             total: Some(1000),
             speed: 0.0,
             eta: None,
+            estimated: false,
         };
         assert_eq!(p.fraction(), Some(1.0));
     }
