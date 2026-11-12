@@ -954,5 +954,7 @@
   "{} \u00b7 {} free": "{} · {} kosong",
   "+{} more||+{} more": "+{} lagi",
   "Reading\u2026 {} pages, {} files found": "Membaca… {} halaman, {} berkas ditemukan",
-  "Open the page": "Buka halamannya"
+  "Open the page": "Buka halamannya",
+  "Check now": "Periksa sekarang",
+  "Connected \u00b7 last heard {} ago": "Terhubung · terakhir terdengar {} lalu"
 }

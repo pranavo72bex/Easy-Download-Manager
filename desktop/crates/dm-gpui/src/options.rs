@@ -80,6 +80,9 @@ pub struct Options {
     focus: gpui::FocusHandle,
     done: bool,
     pub(crate) screen: Screen,
+    /// Each browser whose extension has talked to dm and when it was last heard from: read
+    /// once as Options opens and again by Check now, not at every frame (gaps row U24).
+    pub(crate) heard: Vec<(String, Option<u64>)>,
 }
 
 /// Whether `text` is a number as a number box holds one.
@@ -765,6 +768,7 @@ fn open_window(
                 focus,
                 done: false,
                 screen,
+                heard: dm_shell::host::browsers_heard(&dm_shell::settings::home()),
             });
             crate::native::close_is_cancel(&options, window, cx);
             cx.new(|cx| gpui_component::Root::new(options, window, cx))

@@ -954,5 +954,7 @@
   "{} \u00b7 {} free": "{} · {} frei",
   "+{} more||+{} more": "+{} weitere||+{} weitere",
   "Reading\u2026 {} pages, {} files found": "Wird gelesen… {} Seiten, {} Dateien gefunden",
-  "Open the page": "Seite öffnen"
+  "Open the page": "Seite öffnen",
+  "Check now": "Jetzt prüfen",
+  "Connected \u00b7 last heard {} ago": "Verbunden · zuletzt vor {}"
 }

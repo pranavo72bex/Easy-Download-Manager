@@ -1265,6 +1265,32 @@ fn each_browser_that_said_hello_is_noted_once() {
     assert_eq!(browsers_seen(home.path()), ["Microsoft Edge", "Firefox"]);
 }
 
+/// Each browser is kept with when it was last heard from, written again a minute on; a file
+/// from before, of names alone, still reads (gaps row U24).
+#[test]
+fn each_browser_is_kept_with_when_it_was_last_heard() {
+    let home = tempfile::tempdir().unwrap();
+    note_browser_at(home.path(), Some("Firefox"), 1_000);
+    note_browser_at(home.path(), Some("Firefox"), 1_030);
+    assert_eq!(
+        browsers_heard(home.path()),
+        [("Firefox".to_string(), Some(1_000))],
+        "written again within the minute"
+    );
+    note_browser_at(home.path(), Some("Firefox"), 1_100);
+    note_browser_at(home.path(), None, 1_100);
+    assert_eq!(
+        browsers_heard(home.path()),
+        [("Firefox".to_string(), Some(1_100))]
+    );
+    std::fs::write(home.path().join("browser.seen"), "Microsoft Edge\n").unwrap();
+    assert_eq!(
+        browsers_heard(home.path()),
+        [("Microsoft Edge".to_string(), None)]
+    );
+    assert_eq!(browsers_seen(home.path()), ["Microsoft Edge"]);
+}
+
 #[test]
 fn the_part_asked_for_in_the_panel_reaches_the_app_and_a_caught_download_has_none() {
     let dir = tempfile::tempdir().unwrap();

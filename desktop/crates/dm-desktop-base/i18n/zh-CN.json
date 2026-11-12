@@ -954,5 +954,7 @@
   "{} \u00b7 {} free": "{} · 可用 {}",
   "+{} more||+{} more": "还有 {} 条",
   "Reading\u2026 {} pages, {} files found": "正在读取… {} 个页面，找到 {} 个文件",
-  "Open the page": "打开页面"
+  "Open the page": "打开页面",
+  "Check now": "立即检查",
+  "Connected \u00b7 last heard {} ago": "已连接 · 上次联系于 {} 前"
 }

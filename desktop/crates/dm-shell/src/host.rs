@@ -671,32 +671,68 @@ fn mark_browser_seen(home: &Path) {
     note_browser(home, parent_browser().as_deref());
 }
 
-/// [`mark_browser_seen`] for a browser already named (or none).
+/// [`mark_browser_seen`] for a browser already named (or none), heard now.
 fn note_browser(home: &Path, browser: Option<&str>) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    note_browser_at(home, browser, now);
+}
+
+/// [`note_browser`] at `now`, in seconds since 1970: a line each, the browser's name and when
+/// it was last heard from (gaps row U24), written again only when that is a minute old or more.
+/// One that cannot be named is kept under no name.
+fn note_browser_at(home: &Path, browser: Option<&str>, now: u64) {
     let file = browser_seen_file(home);
-    let known = std::fs::read_to_string(&file).unwrap_or_default();
-    let fresh = browser.filter(|b| !known.lines().any(|line| line == *b));
-    if file.exists() && fresh.is_none() {
-        return;
+    let mut heard = browsers_heard_all(home);
+    let name = browser.unwrap_or("");
+    match heard.iter_mut().find(|(n, _)| n == name) {
+        Some((_, at)) if at.is_some_and(|at| now.saturating_sub(at) < 60) && file.exists() => {
+            return;
+        }
+        Some((_, at)) => *at = Some(now),
+        None => heard.push((name.to_string(), Some(now))),
     }
     let _ = std::fs::create_dir_all(home);
-    let mut text = known;
-    if let Some(name) = fresh {
-        text.push_str(name);
-        text.push('\n');
-    }
+    let text: String = heard
+        .iter()
+        .map(|(name, at)| match at {
+            Some(at) => format!("{name}\t{at}\n"),
+            None => format!("{name}\n"),
+        })
+        .collect();
     let _ = std::fs::write(file, text);
+}
+
+/// Every line of the file: a browser's name ("" for one not named) and when it was last heard
+/// from, where the file says (a file from before keeps names alone).
+fn browsers_heard_all(home: &Path) -> Vec<(String, Option<u64>)> {
+    std::fs::read_to_string(browser_seen_file(home))
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|line| match line.split_once('\t') {
+            Some((name, at)) => (name.trim().to_string(), at.trim().parse().ok()),
+            None => (line.trim().to_string(), None),
+        })
+        .collect()
 }
 
 /// The browsers whose extension has talked to this dm, by the names
 /// [`parent_browser`] gives ("Microsoft Edge", "Firefox", "Brave").
 pub fn browsers_seen(home: &Path) -> Vec<String> {
-    std::fs::read_to_string(browser_seen_file(home))
-        .unwrap_or_default()
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .map(str::to_string)
+    browsers_heard(home)
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect()
+}
+
+/// [`browsers_seen`], each with when it was last heard from (seconds since 1970) where that
+/// is known: what Options says beside "Connected" (gaps row U24).
+pub fn browsers_heard(home: &Path) -> Vec<(String, Option<u64>)> {
+    browsers_heard_all(home)
+        .into_iter()
+        .filter(|(name, _)| !name.is_empty())
         .collect()
 }
 

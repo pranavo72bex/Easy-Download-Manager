@@ -954,5 +954,7 @@
   "{} \u00b7 {} free": "{} · {} 남음",
   "+{} more||+{} more": "{}개 더",
   "Reading\u2026 {} pages, {} files found": "읽는 중… {}페이지, 파일 {}개 찾음",
-  "Open the page": "페이지 열기"
+  "Open the page": "페이지 열기",
+  "Check now": "지금 확인",
+  "Connected \u00b7 last heard {} ago": "연결됨 · 마지막 응답 {} 전"
 }

@@ -776,16 +776,41 @@ fn browser(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
     // or has a second browser: each browser with whether its extension has
     // talked to dm, and Add where it has not.
     p.words(t("Add dm to your browser:"));
-    let seen = dm_shell::host::browsers_seen(&dm_shell::settings::home());
+    // Read again on asking, as an extension added or removed meanwhile changes it.
+    p.add(
+        button(p, "check-browsers", t("Check now")).on_click(cx.listener(|o, _, _, cx| {
+            o.heard = dm_shell::host::browsers_heard(&dm_shell::settings::home());
+            cx.notify();
+        })),
+    );
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
     for (n, (name, page, family)) in dm_desktop_base::project::extension_browsers()
         .into_iter()
         .enumerate()
     {
-        let connected = seen.iter().any(|b| family.contains(&b.as_str()));
-        let state = if connected {
+        // When its extension last spoke to dm, so one removed since is not taken for one that
+        // is there (gaps row U24): "Connected" alone meant it ever had.
+        let heard = o
+            .heard
+            .iter()
+            .filter(|(b, _)| family.contains(&b.as_str()))
+            .map(|(_, at)| *at)
+            .max();
+        let state = if let Some(at) = heard {
+            let words = match at {
+                Some(at) => tf(
+                    "Connected · last heard {} ago",
+                    &[&dm_desktop_base::format::span(
+                        std::time::Duration::from_secs(now.saturating_sub(at).max(1)),
+                    )],
+                ),
+                None => t("Connected").to_string(),
+            };
             div()
                 .text_color(theme.success)
-                .child(screen.label(t("Connected")))
+                .child(screen.label(words))
                 .into_any_element()
         } else {
             button(p, ("add-extension", n), t("Add"))

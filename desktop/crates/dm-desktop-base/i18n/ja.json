@@ -954,5 +954,7 @@
   "{} \u00b7 {} free": "{} · 空き {}",
   "+{} more||+{} more": "他 {} 件",
   "Reading\u2026 {} pages, {} files found": "読み込み中… {} ページ、{} 件のファイル",
-  "Open the page": "ページを開く"
+  "Open the page": "ページを開く",
+  "Check now": "今すぐ確認",
+  "Connected \u00b7 last heard {} ago": "接続済み · 最終確認 {} 前"
 }

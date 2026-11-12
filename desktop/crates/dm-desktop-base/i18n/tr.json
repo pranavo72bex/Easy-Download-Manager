@@ -954,5 +954,7 @@
   "{} \u00b7 {} free": "{} · {} boş",
   "+{} more||+{} more": "+{} daha",
   "Reading\u2026 {} pages, {} files found": "Okunuyor… {} sayfa, {} dosya bulundu",
-  "Open the page": "Sayfayı aç"
+  "Open the page": "Sayfayı aç",
+  "Check now": "Şimdi denetle",
+  "Connected \u00b7 last heard {} ago": "Bağlı · son duyulma {} önce"
 }

@@ -933,3 +933,32 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     assert_eq!(saved["dialup"]["connection"], "Office VPN");
     assert_eq!(saved["dialup"]["attempts"], 3);
 }
+
+/// A browser whose extension has spoken to dm is said to be connected with when it was last
+/// heard from, read as Options opens and again by Check now (gaps row U24).
+#[test]
+fn options_says_when_each_browser_was_last_heard_from() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    let seen = dm_shell::settings::home().join("browser.seen");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    std::fs::write(&seen, format!("Firefox\t{}\n", now - 125)).unwrap();
+    open_options(&mut h);
+    tab(&mut h, "Browser");
+    h.until("Firefox heard two minutes ago", |h| {
+        h.shows("Connected · last heard 2m 5s ago") || h.shows("Connected · last heard 2m 6s ago")
+    });
+    // Heard again since: Check now reads it again.
+    std::fs::write(&seen, format!("Firefox\t{}\n", now - 3)).unwrap();
+    h.click("Check now");
+    h.until("Firefox heard just now", |h| {
+        h.texts().iter().any(|t| {
+            t.starts_with("Connected · last heard ") && t.ends_with("s ago") && !t.contains('m')
+        })
+    });
+    let _ = std::fs::remove_file(&seen);
+}
