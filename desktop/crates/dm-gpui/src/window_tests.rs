@@ -8,4 +8,5 @@
 
 mod asks;
 mod choices;
+mod downloads;
 mod zip;
