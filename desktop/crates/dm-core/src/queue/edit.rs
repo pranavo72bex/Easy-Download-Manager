@@ -246,7 +246,10 @@ impl Queue {
                     why = Some("The torrent's files are not known yet.");
                     return false;
                 }
-                for (file, on) in slot.entry_mut().torrent_files.iter_mut().zip(&wanted) {
+                for (file, on) in Arc::make_mut(&mut slot.entry_mut().torrent_files)
+                    .iter_mut()
+                    .zip(&wanted)
+                {
                     file.wanted = *on;
                 }
                 true
@@ -279,7 +282,10 @@ impl Queue {
                     why = Some("The torrent's files are not known yet.");
                     return false;
                 }
-                for (file, p) in slot.entry_mut().torrent_files.iter_mut().zip(&priorities) {
+                for (file, p) in Arc::make_mut(&mut slot.entry_mut().torrent_files)
+                    .iter_mut()
+                    .zip(&priorities)
+                {
                     file.priority = *p;
                 }
                 true

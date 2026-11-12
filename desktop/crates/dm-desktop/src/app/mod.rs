@@ -580,6 +580,8 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
     words.extend(format::NEXT_STEPS.iter().map(|(_, step)| *step));
     words.extend(format::RETRY_CAUSES);
+    // What a download may say of itself on its row (`rows::note_in`).
+    words.extend(dm_core::NOTES);
     for place in [
         Place::All,
         Place::Unfinished,

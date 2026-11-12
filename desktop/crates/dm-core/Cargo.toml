@@ -34,7 +34,7 @@ futures-util = "0.3"
 thiserror = "2"
 # The shell sends these straight into a webview; deriving here beats
 # maintaining a parallel set of near-identical types in the GUI crate.
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 # The queue is written to disk so a restart does not lose it.
 serde_json = "1"
 # Already in the tree via reqwest's url dependency; named so the hand-rolled

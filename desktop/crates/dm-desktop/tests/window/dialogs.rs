@@ -2784,7 +2784,8 @@ fn a_torrents_file_is_given_a_priority_in_properties() {
             wanted: true,
             priority: dm_core::TorrentPriority::Normal,
         })
-        .collect();
+        .collect::<Vec<_>>()
+        .into();
     let stored = world.dir.path().join("torrent-queue.json");
     std::fs::write(&stored, serde_json::to_string(&vec![torrent]).unwrap()).unwrap();
     let mut harness = world.harness();

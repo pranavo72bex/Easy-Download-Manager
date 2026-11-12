@@ -103,6 +103,9 @@ pub struct Plan {
     pub video: Option<Track>,
     /// The sound track to fetch, where it is listed apart from the picture.
     pub audio: Option<Track>,
+    /// Whether a taller picture than the one taken for the best was listed copy-protected, and
+    /// passed over: the row says so (`download::NOTES`, gaps row Y19).
+    pub protected_above: bool,
 }
 
 impl Plan {
@@ -775,7 +778,37 @@ pub fn plan(
             "that manifest lists no picture or sound dm can fetch".into(),
         ));
     }
-    Ok(Plan { video, audio })
+    let protected_above = quality == Quality::Best
+        && video
+            .as_ref()
+            .is_some_and(|v| v.height < protected_tallest(&root));
+    Ok(Plan {
+        video,
+        audio,
+        protected_above,
+    })
+}
+
+/// The tallest picture the manifest lists copy-protected (`ContentProtection` on its set or
+/// itself); 0 for none.
+fn protected_tallest(root: &Node) -> u32 {
+    let Some(period) = root.children("Period").next() else {
+        return 0;
+    };
+    period
+        .children("AdaptationSet")
+        .flat_map(|set| {
+            let set_protected = set.child("ContentProtection").is_some();
+            set.children("Representation")
+                .filter(move |rep| set_protected || rep.child("ContentProtection").is_some())
+                .map(move |rep| {
+                    let h = rep.num("height").or_else(|| set.num("height")).unwrap_or(0);
+                    let w = rep.num("width").or_else(|| set.num("width")).unwrap_or(0);
+                    (if w > 0 && w < h { w } else { h }) as u32
+                })
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

@@ -912,5 +912,7 @@
  "Menu": "메뉴",
  "Choose a download first": "먼저 다운로드를 선택하세요",
  "Not for the downloads chosen": "선택한 다운로드에는 쓸 수 없음",
- "Nothing in the list for it now": "지금은 목록에 해당 항목이 없음"
+ "Nothing in the list for it now": "지금은 목록에 해당 항목이 없음",
+ "higher qualities are copy-protected, so the best one that is not was taken": "더 높은 화질은 복제 방지되어 있어 보호되지 않은 것 중 가장 좋은 것을 받았습니다",
+ "{} pieces of the live stream were gone before dm could fetch them": "라이브 스트림의 조각 {}개가 dm이 받기 전에 사라졌습니다"
 }

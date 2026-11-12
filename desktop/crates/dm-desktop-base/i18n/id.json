@@ -912,5 +912,7 @@
  "Menu": "Menu",
  "Choose a download first": "Pilih unduhan terlebih dahulu",
  "Not for the downloads chosen": "Tidak untuk unduhan yang dipilih",
- "Nothing in the list for it now": "Saat ini tidak ada yang cocok di daftar"
+ "Nothing in the list for it now": "Saat ini tidak ada yang cocok di daftar",
+ "higher qualities are copy-protected, so the best one that is not was taken": "kualitas yang lebih tinggi dilindungi dari penyalinan, jadi yang terbaik yang tidak dilindungi diambil",
+ "{} pieces of the live stream were gone before dm could fetch them": "{} bagian siaran langsung hilang sebelum dm sempat mengambilnya"
 }

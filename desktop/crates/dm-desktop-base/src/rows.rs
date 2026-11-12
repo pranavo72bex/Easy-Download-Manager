@@ -185,6 +185,37 @@ pub fn status_in_english(row: &Entry) -> String {
 /// What the Status column says, each word through `words` (the language in
 /// force, or English for the control port).
 pub fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
+    let state = state_in(row, words);
+    // What the download said of itself (`Entry::said`), after its state (gaps rows Y19, Y23).
+    match note_in(&row.said, words) {
+        Some(note) if !state.is_empty() => format!("{state} · {note}"),
+        Some(note) => note,
+        None => state,
+    }
+}
+
+/// A download's note (`dm_core::NOTES`, a number in it where its template has `{}`) in the
+/// language `words` gives; `None` for none, or one no template matches.
+pub fn note_in(said: &str, words: fn(&'static str) -> &'static str) -> Option<String> {
+    if said.is_empty() {
+        return None;
+    }
+    dm_core::NOTES
+        .iter()
+        .find_map(|&template| match template.split_once("{}") {
+            None => (said == template).then(|| words(template).to_string()),
+            Some((before, after)) => {
+                let number = said.strip_prefix(before)?.strip_suffix(after)?;
+                number
+                    .chars()
+                    .all(|c| c.is_ascii_digit())
+                    .then(|| crate::i18n::fill(words(template), &[&number]))
+            }
+        })
+}
+
+/// The row's own state in words, without its note.
+fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     match &row.state {
         // Said while a range waits to be tried again: the bar drops back
         // and climbs, which read as a fault.
@@ -626,6 +657,21 @@ mod tests {
         assert!(size_of(&running).starts_with("≈ "), "{}", size_of(&running));
         running.progress.estimated = false;
         assert!(!size_of(&running).starts_with('≈'));
+    }
+
+    /// A download's note follows its state, its number kept (gaps rows Y19, Y23).
+    #[test]
+    fn a_downloads_note_follows_its_state() {
+        let mut done = row(State::Completed, false);
+        done.said = dm_core::NOTES[0].into();
+        assert_eq!(
+            status_in_english(&done),
+            format!("Complete · {}", dm_core::NOTES[0])
+        );
+        done.said = dm_core::NOTES[1].replace("{}", "3");
+        assert!(status_in_english(&done).ends_with(&dm_core::NOTES[1].replace("{}", "3")));
+        done.said = "something no template says".into();
+        assert_eq!(status_in_english(&done), "Complete");
     }
 
     #[test]

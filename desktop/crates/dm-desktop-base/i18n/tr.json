@@ -912,5 +912,7 @@
  "Menu": "Menü",
  "Choose a download first": "Önce bir indirme seçin",
  "Not for the downloads chosen": "Seçilen indirmeler için değil",
- "Nothing in the list for it now": "Şu anda listede buna uygun bir şey yok"
+ "Nothing in the list for it now": "Şu anda listede buna uygun bir şey yok",
+ "higher qualities are copy-protected, so the best one that is not was taken": "daha yüksek kaliteler kopya korumalı, bu yüzden korumasız en iyisi alındı",
+ "{} pieces of the live stream were gone before dm could fetch them": "canlı yayının {} parçası dm alamadan önce kayboldu"
 }

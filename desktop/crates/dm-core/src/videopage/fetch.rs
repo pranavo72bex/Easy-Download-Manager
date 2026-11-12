@@ -740,6 +740,10 @@ fn merge_progress(
                 retrying @ Update::Retrying { .. } => {
                     let _ = report.send(retrying).await;
                 }
+                // A stream's note is the row's.
+                note @ Update::Note(_) => {
+                    let _ = report.send(note).await;
+                }
                 Update::Named { .. }
                 | Update::Validator(_)
                 | Update::Swarm(_)

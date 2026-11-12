@@ -337,6 +337,7 @@ fn a_track_is_known_by_its_height_or_codec_and_subtitles_are_left_out() {
     let sound_only = super::Plan {
         video: None,
         audio: plan.audio.clone(),
+        protected_above: false,
     };
     assert!(sound_only.signature().starts_with("dash - a:"));
 }

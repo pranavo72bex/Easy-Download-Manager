@@ -191,6 +191,7 @@ pub(super) async fn record_live(
         .clone()
         .map(|tx| watch(Arc::clone(&downloaded), None, tx));
     let mut written: Option<u64> = None;
+    let mut missed: u64 = 0;
     let mut init_written = false;
     let mut keys: std::collections::HashMap<String, Vec<u8>> = std::collections::HashMap::new();
     let mut filename = String::new();
@@ -259,6 +260,15 @@ pub(super) async fn record_live(
             if part.init {
                 init_written = true;
             } else {
+                // Pieces the playlist moved past before dm fetched them: the recording has a gap
+                // there, which the row says (gaps row Y23).
+                if let Some(last) = written.filter(|last| part.sequence > last + 1) {
+                    missed += part.sequence - last - 1;
+                    if let Some(tx) = &report {
+                        let said = crate::download::NOTES[1].replace("{}", &missed.to_string());
+                        let _ = tx.send(Update::Note(said)).await;
+                    }
+                }
                 written = Some(part.sequence);
             }
         }
@@ -714,8 +724,8 @@ pub(super) async fn keep_only_parts_of(parts_dir: &Path, rendition: &str) -> Res
 ///
 /// A segment is a few seconds of video, so one at a time a stream spends
 /// most of its time waiting a round trip per segment rather than carrying
-/// bytes (on a distant server the link sat idle between them). Up to
-/// [`SEGMENTS_AT_ONCE`] are under way together, each into its own part named
+/// bytes (on a distant server the link sat idle between them). As many are under way together
+/// as Connections per file says (that setting's own bounds hold it), each into its own part named
 /// by its index, so arrival order does not matter: the parts are joined by
 /// index afterwards, as before. The first failure is the stream's, and the
 /// segments still under way are dropped with it.
@@ -748,13 +758,12 @@ pub(super) async fn fetch_segments(
             }
         }
     };
-    let at_once = options.connections.clamp(1, SEGMENTS_AT_ONCE);
+    // Connections per file, as a file's ranges take them: a fixed eight held a stream there
+    // whatever the setting said (gaps row Y23).
+    let at_once = options.connections.max(1);
     futures_util::future::try_join_all((0..at_once).map(|_| worker())).await?;
     Ok(())
 }
-
-/// The most segments of one stream fetched at once.
-const SEGMENTS_AT_ONCE: usize = 8;
 
 async fn fetch_one_segment(
     client: &reqwest::Client,

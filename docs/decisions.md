@@ -6953,3 +6953,21 @@ was the cost.
   manifest gives every piece's bytes. The meter takes a total that can change
   (`Meter::set_total`, `ranged::watch_estimating`), so the time left follows it. A live
   recording has no end, so no total.
+
+## 2026-11-12: Small rows: S15, Y19's extension half, Y23's cap
+
+- **S15**: `Entry::torrent_files` is an `Arc<Vec<_>>` (serde's `rc`), so a row copied on write
+  (`Arc::make_mut` in `Slot::entry_mut`, four times a second while it runs and a list read
+  earlier holds it) shares the file list; editing a file's choice or priority copies the list
+  alone. The queue file is written as before.
+- **Y19** (extension): `decide::protection` judges as `dm-core` does: any `ContentProtection`
+  scheme but the bare `mp4protection:2011` marker, and any key (`#EXT-X-KEY` or
+  `#EXT-X-SESSION-KEY`) with a format other than `identity` or an address that is not a web one.
+- **Y23**: HLS takes Connections per file at once (the setting's bounds hold it), not eight.
+- **Next for Y19 and Y23**: a note a running download puts on its row (`Update::Note`), for
+  "higher qualities are protected" and for live segments the playlist dropped before dm got them.
+- **The row's note** (`download::Update::Note`, `Entry::said`, `dm_core::NOTES`): a download
+  sends one of a fixed list of English notes (a number where its template has `{}`); the queue
+  keeps it on the row, finished or not, and the Status column says it after the state in the
+  person's language (`rows::note_in`). Used for Y19 (`dash::Plan::protected_above`) and Y23 (a
+  live playlist's sequence numbers that skip).

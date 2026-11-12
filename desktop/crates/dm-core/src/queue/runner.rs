@@ -406,11 +406,16 @@ impl Queue {
                             crate::download::Update::Validator(validator) => {
                                 slot.entry_mut().validator = Some(validator);
                             }
+                            crate::download::Update::Note(said) => {
+                                if slot.entry.said != said {
+                                    slot.entry_mut().said = said;
+                                }
+                            }
                             crate::download::Update::Files(files) => {
                                 let merged =
                                     crate::torrent::merged_files(&slot.entry.torrent_files, files);
-                                if merged != slot.entry.torrent_files {
-                                    slot.entry_mut().torrent_files = merged;
+                                if merged != *slot.entry.torrent_files {
+                                    slot.entry_mut().torrent_files = Arc::new(merged);
                                 }
                             }
                             // Kept for the window, not saved: a stopped

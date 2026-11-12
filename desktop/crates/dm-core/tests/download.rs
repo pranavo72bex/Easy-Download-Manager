@@ -644,6 +644,7 @@ async fn progress_is_reported_while_the_file_arrives() {
                 dm_core::Update::Validator(_)
                 | dm_core::Update::Retrying { .. }
                 | dm_core::Update::Swarm(_)
+                | dm_core::Update::Note(_)
                 | dm_core::Update::Files(_) => {}
             }
         }

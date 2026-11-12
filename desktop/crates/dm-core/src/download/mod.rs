@@ -739,6 +739,13 @@ pub async fn download(
     Ok(finished)
 }
 
+/// Every note a download may put on its row ([`Update::Note`]), so the window has each in
+/// every language; a note with a number says it as `{}`.
+pub const NOTES: [&str; 2] = [
+    "higher qualities are copy-protected, so the best one that is not was taken",
+    "{} pieces of the live stream were gone before dm could fetch them",
+];
+
 /// What the engine tells a caller while a download is in flight.
 ///
 /// The name is sent as well as the byte counts because it is learned by the
@@ -766,6 +773,11 @@ pub enum Update {
     Files(Vec<crate::torrent::TorrentFile>),
     /// The server's ETag or Last-Modified for the file being fetched.
     Validator(String),
+    /// Something the download wants its row to say beside its state, in English as one of
+    /// [`NOTES`] says it (the window says it in the person's language): higher qualities passed
+    /// over as protected, a live stream's pieces gone before they were fetched (gaps rows Y19,
+    /// Y23).
+    Note(String),
     /// A range failed and is about to be tried again: attempt `attempt`
     /// (the first try is 1) of `of`, 0 being "keep trying". Over once bytes
     /// arrive again.

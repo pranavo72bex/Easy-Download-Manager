@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download can say something of itself on its row: a DASH video whose higher qualities are copy-protected says the best one that is not was taken, and a live recording says how many pieces the stream dropped before dm could fetch them.
+- An HLS stream fetches as many pieces at once as Connections per file says, where it stopped at eight.
+- Lighter with torrents of many files: a running torrent's row no longer copies its whole file list four times a second.
+- The browser extension tells a copy-protected stream as dm's engine does: ClearKey and protection schemes it does not know are protected, a master playlist's session key is read, and HLS's own SAMPLE-AES encryption is not taken for copy protection.
 - A YouTube video's MP4 carries its title, its channel and its page's address, so a player or a music library shows them.
 - A stream (HLS or DASH) shows its size and time left while it downloads: exact where the manifest gives every piece's bytes, else marked "≈", from the pieces fetched so far or from the stream's bitrate and length.
 - GPUI window: the row menu answers the keyboard (the arrows move along it, Return carries out, Escape closes), and typing a name's first letters over the list chooses the next download whose name starts with them.

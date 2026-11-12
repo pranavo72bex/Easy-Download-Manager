@@ -28,6 +28,14 @@ pub(super) async fn download_dash(
         options.container.as_deref(),
     )?;
 
+    // The best taken was below a quality passed over as copy-protected: the row says so.
+    if plan.protected_above {
+        if let Some(tx) = &report {
+            let _ = tx
+                .send(Update::Note(crate::download::NOTES[0].into()))
+                .await;
+        }
+    }
     let tracks: Vec<&Track> = plan.video.iter().chain(plan.audio.iter()).collect();
     // WebM where it was asked for and every track is one; else an MP4,
     // which takes a WebM picture or sound too. Sound alone is an `.m4a`.

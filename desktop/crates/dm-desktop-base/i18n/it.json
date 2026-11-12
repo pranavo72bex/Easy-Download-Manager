@@ -912,5 +912,7 @@
  "Menu": "Menu",
  "Choose a download first": "Scegli prima un download",
  "Not for the downloads chosen": "Non per i download scelti",
- "Nothing in the list for it now": "Ora non c’è nulla nell’elenco per questo"
+ "Nothing in the list for it now": "Ora non c’è nulla nell’elenco per questo",
+ "higher qualities are copy-protected, so the best one that is not was taken": "le qualità più alte sono protette da copia, quindi è stata presa la migliore non protetta",
+ "{} pieces of the live stream were gone before dm could fetch them": "{} parti della diretta erano sparite prima che dm potesse scaricarle"
 }

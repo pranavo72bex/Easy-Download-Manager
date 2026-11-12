@@ -244,9 +244,15 @@ pub struct Entry {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fresh_link: bool,
     /// A torrent's files, once its metadata is known, each with whether it
-    /// is fetched (Properties).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub torrent_files: Vec<crate::torrent::TorrentFile>,
+    /// is fetched (Properties). Shared: a row is copied each time it changes while a list read
+    /// earlier still holds it, four times a second while it downloads, and a torrent's list of
+    /// thousands of files was copied with it every time (gaps row S15).
+    #[serde(default, skip_serializing_if = "no_files")]
+    pub torrent_files: std::sync::Arc<Vec<crate::torrent::TorrentFile>>,
+    /// What the download said of itself beside its state (`download::Update::Note`), in
+    /// English; kept with the row once it finishes.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub said: String,
     /// The form this download is the answer to, sent again to fetch it. Held
     /// in memory only: a form can hold what a person typed.
     #[serde(skip)]
@@ -417,6 +423,11 @@ struct Slot {
     /// This row's own speed limit (`Entry::speed_limit`), chained to the
     /// shared one while it runs, so a change reaches it at once.
     own_limit: crate::limit::Limiter,
+}
+
+/// Whether a row lists no torrent files (`Entry::torrent_files`), left out of the queue file.
+fn no_files(files: &std::sync::Arc<Vec<crate::torrent::TorrentFile>>) -> bool {
+    files.is_empty()
 }
 
 impl Slot {
@@ -766,7 +777,8 @@ impl Queue {
                 stalled: String::new(),
                 fresh_link: false,
                 title_hint: None,
-                torrent_files: Vec::new(),
+                torrent_files: Default::default(),
+                said: String::new(),
                 post: None,
                 posted: false,
             }),

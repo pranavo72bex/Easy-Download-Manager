@@ -246,7 +246,8 @@ mod tests {
             stalled: String::new(),
             fresh_link: false,
             title_hint: None,
-            torrent_files: Vec::new(),
+            torrent_files: Default::default(),
+            said: String::new(),
             post: None,
             posted: false,
         }
