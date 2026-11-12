@@ -469,14 +469,18 @@ fn allow_mcp(harness: &mut Harness<'_, DmApp>, on: bool) {
     harness.state_mut().apply_settings(wanted).unwrap();
 }
 
-/// Options › General › Let AI assistants use dm over MCP: on unless unticked,
-/// asked afresh with every request, and said plainly when it refuses.
+/// Options › General › Let AI assistants use dm over MCP: off in a new install
+/// (gaps row F7), asked afresh with every request, and said plainly when it refuses.
 #[test]
 fn ai_assistants_are_answered_only_while_the_setting_is_on() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
-    assert!(harness.state().applied.allow_mcp, "on unless turned off");
+    assert!(
+        !dm_shell::Settings::default().allow_mcp,
+        "off in a new install"
+    );
+    allow_mcp(&mut harness, true);
     let (to_window, requests) = std::sync::mpsc::channel();
     harness.state_mut().attach_control(requests);
     let token = "f".repeat(64);
@@ -537,6 +541,8 @@ fn a_port_opened_for_assistants_alone_refuses_other_clients() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
+    // Assistants let in: off in a new install (gaps row F7).
+    allow_mcp(&mut harness, true);
     harness.state_mut().restrict_control_to_assistants(true);
     let (to_window, requests) = std::sync::mpsc::channel();
     harness.state_mut().attach_control(requests);

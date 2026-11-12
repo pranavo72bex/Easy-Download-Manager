@@ -229,10 +229,8 @@ pub async fn list_choices_fast(
     proxy: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Option<Vec<Choice>> {
-    if !page_data::is_watch_page(url) {
-        return None;
-    }
-    page_data::fetch_choices(url, proxy, sign_in)
+    let watch = page_data::watch_address(url)?;
+    page_data::fetch_choices(&watch, proxy, sign_in)
         .await
         .map(with_mp3)
 }

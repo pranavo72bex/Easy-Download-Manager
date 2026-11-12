@@ -475,7 +475,7 @@ pub fn finder(home: &Path, port: Option<String>, token_file: Option<String>) -> 
             .unwrap_or_else(|| home.join("control.token"));
         match (port, std::fs::read_to_string(&token)) {
             (Some(port), Ok(token)) => Ok((port, token.trim().to_string())),
-            _ => Err("no running dm to talk to — start dm with --control 0 first".to_string()),
+            _ => Err("no running dm to talk to: in dm, tick Options › General › Allow AI assistants to control dm (MCP), or start dm with --control 0".to_string()),
         }
     })
 }

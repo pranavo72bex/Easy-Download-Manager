@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- AI assistants (MCP) are off in a new install, as everything else in dm that listens is: Options › General › "Allow AI assistants to control dm (MCP)" turns them on. A dm that already had the switch keeps it as it was.
+- The browser's video panel lists the qualities of a YouTube player embedded in another site's page, and of `/live/`, `youtube-nocookie.com` and YouTube Music addresses.
+- Lighter at rest: dm keeps an idle connection to a server ten seconds after a download rather than ninety, and builds its TLS settings once.
 - The command line takes `--quiet`: every link after it starts with nothing asked, whatever Options says about showing Download details.
 - A file can be checked against a SHA-1 (40 digits) or CRC-32 (8 digits) digest, beside MD5, SHA-256 and SHA-512.
 - Lighter while downloading: no timer is made for each piece of a file that arrives, and the queue looks itself over once a second when nothing has changed, where it looked twenty times a second (it still starts the next download the moment one ends).

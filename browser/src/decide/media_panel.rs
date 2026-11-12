@@ -442,8 +442,9 @@ pub fn panel_target(click: &PanelClick, tab_url: &str, private: bool) -> Result<
     menu_target(&menu, private)
 }
 
-/// The video's id in a YouTube watch or Shorts address: the pages whose
-/// own player lists its qualities for the panel. `None` elsewhere.
+/// The video's id in a YouTube watch, Shorts, embed or live address, on YouTube, its no-cookie
+/// host or YouTube Music: the pages whose own player lists its qualities for the panel, an
+/// embedded player on another site's page included (gaps row Y12). `None` elsewhere.
 pub fn youtube_video_id(url: &str) -> Option<String> {
     let rest = url
         .strip_prefix("https://")
@@ -452,15 +453,18 @@ pub fn youtube_video_id(url: &str) -> Option<String> {
     let host = host
         .strip_prefix("www.")
         .or_else(|| host.strip_prefix("m."))
+        .or_else(|| host.strip_prefix("music."))
         .unwrap_or(host);
-    if host != "youtube.com" {
+    if host != "youtube.com" && host != "youtube-nocookie.com" {
         return None;
     }
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
     let id = if path == "watch" {
         query.split('&').find_map(|pair| pair.strip_prefix("v="))?
     } else {
-        path.strip_prefix("shorts/")?
+        ["shorts/", "embed/", "live/"]
+            .iter()
+            .find_map(|kind| path.strip_prefix(kind))?
             .split(['/', '?', '#'])
             .next()?
     };

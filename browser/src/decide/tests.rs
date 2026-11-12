@@ -1796,6 +1796,18 @@ fn youtubes_player_answers_for_watch_and_shorts_pages_alone() {
         youtube_video_id("https://m.youtube.com/shorts/abc-_123?x=1").as_deref(),
         Some("abc-_123")
     );
+    for embedded in [
+        "https://www.youtube.com/embed/jNQXAC9IVRw?autoplay=1",
+        "https://www.youtube-nocookie.com/embed/jNQXAC9IVRw",
+        "https://www.youtube.com/live/jNQXAC9IVRw",
+        "https://music.youtube.com/watch?v=jNQXAC9IVRw",
+    ] {
+        assert_eq!(
+            youtube_video_id(embedded).as_deref(),
+            Some("jNQXAC9IVRw"),
+            "{embedded}"
+        );
+    }
     assert_eq!(
         youtube_video_id("https://www.youtube.com/playlist?list=PL1"),
         None

@@ -239,9 +239,10 @@ pub struct Settings {
     pub allow_command_line: bool,
     /// Let an AI assistant use dm over MCP (`dm-desktop mcp`): its requests
     /// are answered only while this is on, and it opens the control port at
-    /// start as `allow_command_line` does. On unless turned off, also for a
-    /// settings file written before it existed.
-    #[serde(default = "default_true")]
+    /// start as `allow_command_line` does. Off in a new install, by dm's own
+    /// rule that nothing listens unless turned on (gaps row F7); a settings
+    /// file that already says either keeps it.
+    #[serde(default)]
     pub allow_mcp: bool,
     /// A folder dm reads every few seconds for links saved there: a `.url`,
     /// a `.webloc`, a text file of links or a `.torrent` is added, then
@@ -492,10 +493,6 @@ pub const RECENT_URLS: usize = 20;
 /// couple of minutes without a network (`retry::backoff`).
 fn default_text_size() -> f32 {
     TEXT_SIZE.default
-}
-
-fn default_true() -> bool {
-    true
 }
 
 fn default_attempts() -> u32 {
@@ -754,7 +751,7 @@ impl Default for Settings {
             start_while_asking: false,
             start_on_login: true,
             allow_command_line: false,
-            allow_mcp: true,
+            allow_mcp: false,
             watch_folder: String::new(),
             peer_blocklist: String::new(),
             torrent_share: false,

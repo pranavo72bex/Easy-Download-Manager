@@ -6893,3 +6893,18 @@ was the cost.
 - **F3**: `--quiet` before links asks nothing for them (`Request::quiet`, read by
   `handoff::next`). `docs/parity.md` names the switches the code reads.
 - **F5** (part): SHA-1 and CRC-32 by length or by name, with crates the build already had.
+
+## 2026-11-12: AI assistants off by default; embedded YouTube players; TLS made once (gaps rows F7, Y12, S14)
+
+- **F7**, the recommended option taken (the maintainer's standing word to take it): `allow_mcp`
+  is off in a new install, as dm's rule has it that nothing listens unless turned on
+  (2026-11-01, above). A settings file that names the switch keeps its value; one written before
+  the switch existed now reads it as off. `dm mcp` with no dm to talk to says where to turn it on.
+  **Dropped: turned on by the first `dm mcp`**: a program an assistant starts would then turn on
+  what the person never did.
+- **Y12**: an embed, live, no-cookie or YouTube Music address is read as its video's watch page
+  (`page_data::watch_address`); the extension's player list takes the same forms, so a YouTube
+  player embedded in another site's page lists its qualities.
+- **S14** (part): `rtmp::tls_config` is made once (`OnceLock`); every client clones it. Idle
+  connections kept 10 s (`pool_idle_timeout`). **Not done: two idle a host**: eight connections a
+  file reused for the next file of a batch would then be made again.

@@ -61,7 +61,10 @@ fn person_window_with(
 }
 
 fn person_window(world: &World) -> (Harness<'static, DmApp>, mpsc::Sender<Request>) {
-    person_window_with(world, 1100.0, world.settings())
+    // As a person who lets AI assistants in: off in a new install (gaps row F7).
+    let mut settings = world.settings();
+    settings.allow_mcp = true;
+    person_window_with(world, 1100.0, settings)
 }
 
 /// One painted pass, given first the step of a script that waits for it,

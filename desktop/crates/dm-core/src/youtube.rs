@@ -436,12 +436,14 @@ fn walk(data: &Value, seen: &mut dyn FnMut(&str, &Value)) {
     }
 }
 
-/// The video's id in a watch, short, shorts, embed or live address.
+/// The video's id in a watch, short, shorts, embed or live address, on YouTube, its
+/// no-cookie host or YouTube Music.
 pub fn video_id(url: &str) -> Option<String> {
     let parsed = url::Url::parse(url.trim()).ok()?;
     let host = parsed.host_str()?.to_ascii_lowercase();
     let host = host.strip_prefix("www.").unwrap_or(&host);
     let host = host.strip_prefix("m.").unwrap_or(host);
+    let host = host.strip_prefix("music.").unwrap_or(host);
     let id = match host {
         "youtu.be" => parsed.path().trim_start_matches('/').to_string(),
         "youtube.com" | "youtube-nocookie.com" => {

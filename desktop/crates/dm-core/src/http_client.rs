@@ -89,6 +89,11 @@ pub fn builder_with(
          * read that stalls this long is a dead connection, and the retry
          * policy already knows what to do with one of those. */
         .connect_timeout(std::time::Duration::from_secs(20))
+        // An idle connection, its buffers grown by a download, kept ten seconds
+        // for the next request to the same server rather than reqwest's ninety
+        // (gaps row S14): long enough for the next file of a batch, short
+        // enough that dm at rest holds none of them.
+        .pool_idle_timeout(std::time::Duration::from_secs(10))
         .read_timeout(read_timeout.max(std::time::Duration::from_secs(1)))
         .user_agent(USER_AGENT)
 }
