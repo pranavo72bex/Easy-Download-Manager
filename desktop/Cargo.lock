@@ -2407,6 +2407,7 @@ dependencies = [
  "async-channel",
  "axum",
  "block2 0.6.2",
+ "chrono",
  "dm-core",
  "dm-desktop-base",
  "dm-protocol",

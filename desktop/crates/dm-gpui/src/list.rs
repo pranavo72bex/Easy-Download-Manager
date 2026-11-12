@@ -191,6 +191,9 @@ pub struct Downloads {
     /// A sentence for the status bar, and when it was said: it stands for
     /// a while, as the egui window's does.
     pub(crate) said: Option<(String, std::time::Instant)>,
+    /// Whether `said` says a queue waits for the schedule, so the status bar does not say it
+    /// twice (`statusbar::parts`).
+    pub(crate) said_schedule_wait: bool,
     /// What finished or failed last, said aloud to a screen reader from the status bar and not
     /// drawn (`a11y::heard`, gaps row U23), and when.
     pub(crate) heard: Option<(String, std::time::Instant)>,
@@ -385,6 +388,7 @@ impl Downloads {
             panel_resizing: None,
             menu: None,
             said: None,
+            said_schedule_wait: false,
             heard: None,
             undo: Default::default(),
             asks: Default::default(),
@@ -1289,6 +1293,7 @@ impl Downloads {
                         &[&n, &name],
                     )
                 });
+                self.said_schedule_wait = n > 0 && !lets;
                 if queue == dm_core::RECHECK_QUEUE {
                     dm_shell::app::commands::recheck(&self.backend, self.rechecked.clone());
                 }
@@ -2098,6 +2103,7 @@ impl Downloads {
     /// Says `sentence` in the status bar.
     pub fn say(&mut self, sentence: String) {
         self.said = Some((sentence, std::time::Instant::now()));
+        self.said_schedule_wait = false;
     }
 
     /// Sorts by `column`: up, then the other way on a second click, then

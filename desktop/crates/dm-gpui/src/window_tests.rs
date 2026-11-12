@@ -8,4 +8,5 @@
 
 mod asks;
 mod find;
+mod status;
 mod undo;

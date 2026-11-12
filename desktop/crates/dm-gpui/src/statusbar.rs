@@ -61,10 +61,28 @@ pub fn parts(view: &Downloads) -> Vec<String> {
         ));
     }
     // A sentence said a moment ago, as the egui window says its own.
+    let mut said_wait = false;
     if let Some((said, at)) = &view.said {
         if at.elapsed() < SAID_FOR {
             parts.push(format!("· {said}"));
+            said_wait = view.said_schedule_wait;
         }
+    }
+    // What holds the downloads back, so a queue that does nothing is not taken for a broken
+    // one: the download limit spent, or the schedule shut (gaps row U37).
+    let settings = &view.drawn;
+    if let Some(wait) = view.backend.allowance_spent() {
+        parts.push(tf(
+            "· download limit of {} MB reached, held for {}",
+            &[&settings.limit_mb, &dm_desktop_base::format::span(wait)],
+        ));
+    } else if !said_wait && dm_shell::app::schedule::holds_waiting(&settings.schedule, &view.rows) {
+        parts.push(
+            match dm_desktop_base::held::opens_next(&settings.schedule) {
+                Some(at) => tf("· waiting for the schedule (opens at {})", &[&at]),
+                None => t("· waiting for the schedule").to_string(),
+            },
+        );
     }
     let limit = view.drawn.speed_limit;
     parts.push(if limit > 0 {
