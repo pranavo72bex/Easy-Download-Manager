@@ -303,10 +303,20 @@ fn a_queues_start_time_is_set_in_options() {
     // Scrolled to, as a person scrolls to it.
     h.reveal("Add a start time");
     h.click("Add a start time");
-    h.fill("Starts at (HH:MM)", "x");
-    h.until_shown("Not a time");
-    h.fill("Starts at (HH:MM)", "23:45");
-    h.until("the time taken", |h| !h.shows("Not a time"));
+    // Chosen from its hour and minute pop-ups, which hold only times (gaps row U32).
+    for (field, index) in [("start-hour", 23), ("start-minute", 45)] {
+        h.dialog(|o: &mut Options, _, cx| {
+            crate::options_pages::pick(
+                o,
+                &crate::popup::Pick {
+                    field,
+                    item: 0,
+                    index,
+                },
+            );
+            cx.notify();
+        });
+    }
     ok(&mut h);
     assert_eq!(
         kept(&mut h).queue_start_list(),

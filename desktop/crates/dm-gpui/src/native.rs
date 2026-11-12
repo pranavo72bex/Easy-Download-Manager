@@ -503,6 +503,17 @@ pub fn time_picker(
     theme: Theme,
     screen: &Screen,
 ) -> Div {
+    time_picker_of(fields, 0, time, theme, screen)
+}
+
+/// [`time_picker`] for row `item` of a list of them (Options' queue start times).
+pub fn time_picker_of(
+    fields: (&'static str, &'static str),
+    item: usize,
+    time: &str,
+    theme: Theme,
+    screen: &Screen,
+) -> Div {
     use dm_desktop_base::scheduler::{hour_choices, minute_choices, time_parts};
     let hour12 = dm_desktop_base::region::system().is_some_and(|r| r.hour12);
     let (h, m) = time_parts(time);
@@ -512,8 +523,9 @@ pub fn time_picker(
         .flex()
         .items_center()
         .gap(px(4.0))
-        .child(crate::popup::button(
+        .child(crate::popup::button_of(
             fields.0,
+            item,
             hours[h as usize].clone(),
             hours,
             Some(h as usize),
@@ -521,8 +533,9 @@ pub fn time_picker(
             screen,
         ))
         .child(screen.label(":"))
-        .child(crate::popup::button(
+        .child(crate::popup::button_of(
             fields.1,
+            item,
             minutes[m as usize].clone(),
             minutes,
             Some(m as usize),

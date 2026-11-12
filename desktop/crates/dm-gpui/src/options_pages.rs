@@ -290,6 +290,12 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
     let s = &mut o.draft;
     let i = pick.index;
     match pick.field {
+        // A queue's start time, hour or minute (gaps row U32).
+        "start-hour" | "start-minute" => {
+            if let Some(start) = s.queue_starts.get_mut(pick.item) {
+                native::time_picked(&mut start.at, pick.field == "start-hour", i);
+            }
+        }
         "language" => {
             if let Some((code, _)) = dm_desktop_base::i18n::LANGUAGES.get(i) {
                 s.language = code.to_string();
@@ -1541,18 +1547,15 @@ fn downloads(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Contex
             theme,
             &screen,
         );
-        let at = input(
-            o,
-            window,
-            cx,
-            &format!("queue_starts.{i}.at"),
-            "Starts at (HH:MM)",
-            70.0,
-            true,
-            false,
-            move |o| o.draft.queue_starts[i].at.clone(),
+        // Hour and minute pop-ups, which hold only times (gaps row U32): typed, a wrong one
+        // was said only beside it.
+        let at = native::time_picker_of(
+            ("start-hour", "start-minute"),
+            i,
+            &o.draft.queue_starts[i].at,
+            theme,
+            &screen,
         );
-        let bad = !dm_core::is_time(&o.draft.queue_starts[i].at);
         let delete = button(p, ("delete-start", i), t("Delete start time")).on_click(cx.listener(
             move |o, _, _, cx| {
                 if i < o.draft.queue_starts.len() {
@@ -1570,11 +1573,8 @@ fn downloads(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Contex
                 .gap(px(native::LABEL_GAP))
                 .child(screen.label(t("Queue")))
                 .child(pick)
-                .child(screen.label(t("Starts at (HH:MM)")))
+                .child(screen.label(t("Start at")))
                 .child(at)
-                .when(bad, |d| {
-                    d.child(native::note(t("Not a time"), theme.warning, &screen))
-                })
                 .child(delete),
         );
     }
