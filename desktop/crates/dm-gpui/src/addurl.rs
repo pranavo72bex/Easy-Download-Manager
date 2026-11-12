@@ -59,8 +59,12 @@ impl AddUrl {
         let decided = decide(&typed, self.authorize, &login, &password, &settings, &rows);
         if let Next::Says(words) = decided.next {
             self.says = Some(words.into());
-            // The address keeps the keyboard, to be put right.
-            self.address.update(cx, |a, cx| a.focus(window, cx));
+            // The address keeps the keyboard, to be put right, chosen: what is typed next
+            // replaces it, as in the egui window.
+            self.address.update(cx, |a, cx| {
+                a.focus(window, cx);
+                a.select_all(window, cx);
+            });
             cx.notify();
             return;
         }

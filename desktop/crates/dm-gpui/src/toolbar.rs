@@ -170,6 +170,21 @@ pub fn toolbar(
                     )
                 })
                 .when(worded, |b| b.child(screen.label(words)))
+                // As wide as the widest of its words, so the buttons after it stay put when
+                // Resume becomes Retry or Start now (as the egui window's did): the others
+                // take room under it, unseen and unread.
+                .when(
+                    worded && command == dm_shell::app::commands::Command::DownloadNow,
+                    |b| {
+                        b.child(
+                            div().h(px(0.0)).overflow_hidden().invisible().children(
+                                ["Resume", "Retry", "Start now"]
+                                    .into_iter()
+                                    .map(|word| div().whitespace_nowrap().child(t(word))),
+                            ),
+                        )
+                    },
+                )
                 // Its words on hover where the button shows none, and why it is greyed where
                 // it is (gaps row U5).
                 .when(!worded || why_off.is_some(), |b| {
