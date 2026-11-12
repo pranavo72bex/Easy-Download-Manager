@@ -24,6 +24,9 @@ use crate::screen::{Screen, Screens};
 use crate::theme::Theme;
 use crate::zoom::px;
 
+/// The height kept for Add URL's warning, one line of it (gaps row U44).
+const WARNING_LINE: f32 = 18.0;
+
 /// The Add URL window's view.
 pub struct AddUrl {
     view: WeakEntity<Downloads>,
@@ -190,14 +193,18 @@ impl Render for AddUrl {
                             native::field(&self.password, "Password", theme),
                         ))
                     })
-                    .when_some(self.says.clone(), |d, says| {
-                        d.child(native::row(
-                            None,
-                            width,
-                            &screen,
-                            native::note(says, theme.warning, &screen),
-                        ))
-                    })
+                    // The warning's line kept whether or not it says anything, so OK stays under
+                    // the pointer as a warning appears (gaps row U44): it moved down a line.
+                    .child(native::row(
+                        None,
+                        width,
+                        &screen,
+                        div().min_h(px(WARNING_LINE)).children(
+                            self.says
+                                .clone()
+                                .map(|says| native::note(says, theme.warning, &screen)),
+                        ),
+                    ))
                     // The default rightmost, Cancel beside it, as on a Mac.
                     .child(native::buttons(
                         Vec::new(),

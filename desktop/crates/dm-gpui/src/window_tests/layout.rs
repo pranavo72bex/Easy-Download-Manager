@@ -384,9 +384,8 @@ fn long_status_text_wraps_and_stays_on_screen() {
     }
 }
 
-/// Add URL's warning is said, and Download details shows the size once the server says it.
-/// (The egui window's Add URL also kept OK where it was as the warning appeared; the GPUI
-/// dialog grows to fit it and OK moves down a line: gaps row U44.)
+/// Add URL's warning is said and OK stays where it was, under the pointer (gaps row U44), and
+/// Download details shows the size once the server says it.
 #[test]
 fn dialogs_keep_their_place_and_show_the_size() {
     // Add URL saves its addresses.
@@ -397,8 +396,10 @@ fn dialogs_keep_their_place_and_show_the_size() {
     h.until_shown("Address");
     let two = format!("{}{}", world.url("a.zip"), world.url("b.zip"));
     h.type_text(&two);
+    let ok = h.bounds_of("OK");
     h.click("OK");
     h.until("the warning", |h| h.shows_part("two links"));
+    assert_eq!(h.bounds_of("OK"), ok, "OK moved as the warning appeared");
     h.close_dialogs();
     let url = world.url("file.zip");
     h.act(|_, cx| crate::details::open(cx.entity().downgrade(), vec![url], cx));
