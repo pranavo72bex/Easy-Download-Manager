@@ -8,4 +8,5 @@
 
 mod asks;
 mod commands;
+mod dialogs;
 mod find;

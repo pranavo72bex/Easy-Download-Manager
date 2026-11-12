@@ -143,10 +143,19 @@ fn input(
 ) -> AnyElement {
     let theme = Theme::of(window.appearance());
     let field = o.field(key, value, masked, window, cx);
+    let not_a_number = o.not_numbers.contains(key);
+    let screen = o.screen.clone();
     div()
         .w(px(width))
         .flex_none()
         .child(native::field_if(&field, name, on, theme))
+        .when(not_a_number, |d| {
+            d.child(native::note(
+                t("Numbers only: the one before was kept"),
+                theme.warning,
+                &screen,
+            ))
+        })
         .into_any_element()
 }
 

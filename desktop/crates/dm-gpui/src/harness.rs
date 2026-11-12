@@ -268,6 +268,13 @@ impl Harness {
     /// Add URL, the address typed, OK, then Download details' `button` ("Start now",
     /// "Download later"): a download added as a person adds one.
     pub(crate) fn add_url(&mut self, url: &str, button: &str) {
+        self.add_url_open(url);
+        self.click(button);
+    }
+
+    /// Add URL, the address typed, OK: Download details open for it, asked again where the
+    /// address is listed already ("Download again").
+    pub(crate) fn add_url_open(&mut self, url: &str) {
         self.click("Add URL");
         self.until_shown("Address");
         self.type_text(url);
@@ -281,7 +288,6 @@ impl Harness {
             self.click("Download again");
             self.until("Download details", |h| h.dialog_open("Download details"));
         }
-        self.click(button);
     }
 
     /// Whether a dialog called `title` is open.
@@ -314,6 +320,39 @@ impl Harness {
         });
         self.wakes.send(Wake::Now);
         self.cx.run_until_parked();
+        // What a window asked to do on its next frame is done (the test platform draws no
+        // frames of its own), and a window made another size (a dialog grown to what it
+        // holds, `fit`) is laid out at it, as the system tells a window of its new size: the
+        // test platform's windows take the size and tell nobody.
+        for _ in 0..3 {
+            self.cx.update(|cx| {
+                for handle in cx.windows() {
+                    let _ = handle.update(cx, |_, window, cx| window.simulate_next_frame(cx));
+                }
+            });
+            self.cx.run_until_parked();
+            let resized: Vec<_> = self.cx.update(|cx| {
+                cx.windows()
+                    .into_iter()
+                    .filter_map(|handle| {
+                        handle
+                            .update(cx, |_, window, _| {
+                                let size = window.bounds().size;
+                                (size != window.viewport_size()).then_some((handle, size))
+                            })
+                            .ok()
+                            .flatten()
+                    })
+                    .collect()
+            });
+            if resized.is_empty() {
+                break;
+            }
+            for (handle, size) in resized {
+                self.cx.simulate_window_resize(handle, size);
+            }
+            self.cx.run_until_parked();
+        }
     }
 
     /// Asks the window `method` with `params`, as the control port does, and its answer.
@@ -398,7 +437,11 @@ impl Harness {
         );
         self.press_at(window, beside, 1);
         self.key("a", &["cmd"]);
-        self.type_text(text);
+        if text.is_empty() {
+            self.key("backspace", &[]);
+        } else {
+            self.type_text(text);
+        }
     }
 
     /// Clicks (`clicks` 2: double-clicks) the words `text` as a person's pointer does, not a

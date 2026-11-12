@@ -283,6 +283,10 @@ impl Render for Series {
 /// Opens Add numbered series.
 pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
     cx.defer(move |cx| {
+        // Asked for again while open: the one open, as it stands.
+        if crate::screen::bring_named(t("Add numbered series"), cx) {
+            return;
+        }
         let bounds = Bounds::centered(None, size(px(520.0), px(300.0)), cx);
         let opened = crate::screen::open_window(
             cx,

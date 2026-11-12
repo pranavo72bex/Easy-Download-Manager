@@ -70,7 +70,7 @@ impl Links {
             cx.notify();
             return;
         }
-        let (items, _sizes) =
+        let (items, sizes) =
             match self
                 .d
                 .adds(later, &settings.download_dir, &settings.categories())
@@ -85,7 +85,7 @@ impl Links {
         let queue = self.d.queue_or_main();
         self.done = true;
         let _ = self.view.update(cx, |view, cx| {
-            match view.add_items(items, cx) {
+            match view.add_items_sized(items, &sizes, cx) {
                 Ok(n) => view.say(added_words(n, later, &queue)),
                 Err(e) => view.say(e),
             }
