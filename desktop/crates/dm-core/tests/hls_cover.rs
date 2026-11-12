@@ -433,8 +433,48 @@ async fn a_picture_and_sound_dm_cannot_join_are_said_to_be_beyond_it() {
     assert!(why.contains("carries its sound separately"), "{why}");
 }
 
+/// A live picture whose sound is a pair dm cannot join (both transport
+/// streams) is recorded as the picture alone, and the sound's segments are
+/// not fetched.
 #[tokio::test]
-async fn a_live_picture_with_its_sound_apart_is_recorded_as_the_picture() {
+async fn a_live_picture_with_sound_apart_dm_cannot_join_is_recorded_as_the_picture() {
+    let mut site = Site::live(Live {
+        segments: 2,
+        ..Live::default()
+    });
+    site.files = Arc::new(HashMap::from([
+        (
+            "/master.m3u8".to_string(),
+            b"#EXTM3U\n\
+              #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"en\",DEFAULT=YES,URI=\"sound.m3u8\"\n\
+              #EXT-X-STREAM-INF:BANDWIDTH=1000,AUDIO=\"aud\"\n\
+              live.m3u8\n"
+                .to_vec(),
+        ),
+        ("/sound.m3u8".to_string(), media(&["a0.ts"], true)),
+    ]));
+    let addr = site.serve().await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/master.m3u8"),
+        &options(dir.path()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(std::fs::read(&done.path).unwrap(), segments(0..2));
+    assert!(
+        !site.asked().iter().any(|(p, _)| p.starts_with("/a0")),
+        "the sound was fetched: {:?}",
+        site.asked()
+    );
+}
+
+/// A live picture and sound that read as a pair dm joins but whose bytes
+/// cannot be joined (the picture is not a real transport stream): the
+/// picture is kept alone, as recorded, and the sound's file is gone.
+#[tokio::test]
+async fn a_live_pair_that_cannot_be_joined_keeps_the_picture() {
     let mut site = Site::live(Live {
         segments: 2,
         ..Live::default()
@@ -449,6 +489,7 @@ async fn a_live_picture_with_its_sound_apart_is_recorded_as_the_picture() {
                 .to_vec(),
         ),
         ("/sound.m3u8".to_string(), media(&["a0.aac"], true)),
+        ("/a0.aac".to_string(), packed_sound(0)),
     ]));
     let addr = site.serve().await;
     let dir = tempdir();
@@ -461,10 +502,170 @@ async fn a_live_picture_with_its_sound_apart_is_recorded_as_the_picture() {
     .unwrap();
     assert_eq!(std::fs::read(&done.path).unwrap(), segments(0..2));
     assert!(
-        !site.asked().iter().any(|(p, _)| p.ends_with(".aac")),
-        "the sound was fetched: {:?}",
+        site.asked().iter().any(|(p, _)| p == "/a0.aac"),
+        "the sound was not recorded: {:?}",
         site.asked()
     );
+    let left: Vec<String> = std::fs::read_dir(dir.path().join("parts"))
+        .map(|listing| {
+            listing
+                .filter_map(Result::ok)
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|name| name.starts_with("live."))
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(left.is_empty(), "left behind: {left:?}");
+}
+
+/// Real H.264 picture segments in a transport stream, for a live stand-in.
+const PICTURES: [&[u8]; 3] = [
+    include_bytes!("fixtures/media/hls/h264/seg0.ts"),
+    include_bytes!("fixtures/media/hls/h264/seg1.ts"),
+    include_bytes!("fixtures/media/hls/h264/seg2.ts"),
+];
+
+/// One second of packed AAC sound for segment `index`: an ID3 tag stating
+/// when it starts in the 90 kHz clock, then 44.1 kHz stereo AAC-LC frames
+/// of 300 bytes.
+fn packed_sound(index: usize) -> Vec<u8> {
+    let mut sound = b"ID3\x04\x00\x00\x00\x00\x00\x4f".to_vec();
+    sound.extend_from_slice(b"PRIV\x00\x00\x00\x35\x00\x00");
+    sound.extend_from_slice(b"com.apple.streaming.transportStreamTimestamp\0");
+    sound.extend_from_slice(&(index as u64 * 90_000).to_be_bytes());
+    for _ in 0..43 {
+        let mut frame = vec![0xff, 0xf1, 0x50, 0x80, 0x25, 0x80 | 0x1f, 0xfc];
+        frame.resize(300, 7);
+        sound.extend(frame);
+    }
+    sound
+}
+
+/// A live playlist of `count` one-second segments named `name{n}.{ext}`,
+/// at ask `ask`: one more segment out at each ask, the latest three
+/// listed, and the end tag once all are out.
+fn live_media(ask: usize, count: usize, name: &str, ext: &str) -> String {
+    let out = (ask + 1).min(count);
+    let first = out.saturating_sub(3);
+    let mut text = format!(
+        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:{first}\n"
+    );
+    for n in first..out {
+        text.push_str(&format!("#EXTINF:1.0,\n{name}{n}.{ext}\n"));
+    }
+    if out == count {
+        text.push_str("#EXT-X-ENDLIST\n");
+    }
+    text
+}
+
+/// A live stream whose master keeps the sound in a playlist of its own:
+/// both playlists grow a segment at each ask and then end. Both are
+/// recorded, each segment fetched once, and joined into one MP4 with a
+/// picture track and a sound track.
+#[tokio::test]
+async fn a_live_stream_with_its_sound_apart_is_recorded_with_its_sound() {
+    #[derive(Clone, Default)]
+    struct Paired {
+        picture_asks: Arc<AtomicUsize>,
+        sound_asks: Arc<AtomicUsize>,
+        asked: Arc<Mutex<Vec<String>>>,
+    }
+    async fn answer(State(site): State<Paired>, uri: Uri, headers: HeaderMap) -> Response {
+        let path = uri.path().to_string();
+        site.asked.lock().unwrap().push(path.clone());
+        let probe = headers.contains_key("range");
+        let playlist = |text: String| {
+            Response::builder()
+                .header("content-type", "application/vnd.apple.mpegurl")
+                .body(Body::from(text))
+                .unwrap()
+        };
+        // A probe asks with a range; only the playlist's own asks count.
+        let ask = |asks: &AtomicUsize| {
+            if probe {
+                asks.load(Ordering::SeqCst)
+            } else {
+                asks.fetch_add(1, Ordering::SeqCst)
+            }
+        };
+        match path.as_str() {
+            "/lp/master.m3u8" => playlist(
+                "#EXTM3U\n\
+                 #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"en\",DEFAULT=YES,URI=\"sound.m3u8\"\n\
+                 #EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,AUDIO=\"aud\"\n\
+                 picture.m3u8\n"
+                    .to_string(),
+            ),
+            "/lp/picture.m3u8" => playlist(live_media(ask(&site.picture_asks), 3, "v", "ts")),
+            "/lp/sound.m3u8" => playlist(live_media(ask(&site.sound_asks), 3, "a", "aac")),
+            _ => {
+                let n = |prefix: &str, ext: &str| {
+                    path.strip_prefix(prefix)
+                        .and_then(|rest| rest.strip_suffix(ext))
+                        .and_then(|n| n.parse::<usize>().ok())
+                };
+                if let Some(picture) = n("/lp/v", ".ts").and_then(|n| PICTURES.get(n)) {
+                    return Response::builder()
+                        .header("content-type", "video/mp2t")
+                        .body(Body::from(picture.to_vec()))
+                        .unwrap();
+                }
+                if let Some(n) = n("/lp/a", ".aac").filter(|n| *n < 3) {
+                    return Response::new(Body::from(packed_sound(n)));
+                }
+                status(StatusCode::NOT_FOUND)
+            }
+        }
+    }
+
+    let site = Paired::default();
+    let addr = common::serve(
+        axum::Router::new()
+            .fallback(answer)
+            .with_state(site.clone()),
+    )
+    .await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/lp/master.m3u8"),
+        &options(dir.path()),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(done.path.file_name().unwrap(), "lp.mp4");
+    let data = std::fs::read(&done.path).unwrap();
+    assert_eq!(&data[4..8], b"ftyp");
+    assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+    assert!(data.windows(4).any(|w| w == b"avc1"), "no picture track");
+    assert!(data.windows(4).any(|w| w == b"mp4a"), "no sound track");
+    assert!(data.windows(4).any(|w| w == b"soun"), "no sound handler");
+    // Recorded as it went: each playlist asked for again as it grew, and
+    // every segment of both fetched once.
+    let asked = site.asked.lock().unwrap().clone();
+    for playlist in ["/lp/picture.m3u8", "/lp/sound.m3u8"] {
+        let asks = asked.iter().filter(|p| *p == playlist).count();
+        assert!(asks >= 3, "{playlist} asked {asks} times: {asked:?}");
+    }
+    for n in 0..3 {
+        for segment in [format!("/lp/v{n}.ts"), format!("/lp/a{n}.aac")] {
+            let times = asked.iter().filter(|p| **p == segment).count();
+            assert_eq!(times, 1, "{segment} fetched {times} times: {asked:?}");
+        }
+    }
+    // Nothing left in the parts folder but what the engine keeps there.
+    let parts = std::fs::read_dir(dir.path().join("parts"))
+        .map(|listing| {
+            listing
+                .filter_map(Result::ok)
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|name| name.starts_with("live."))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    assert!(parts.is_empty(), "left behind: {parts:?}");
 }
 
 #[tokio::test]
@@ -735,6 +936,75 @@ async fn a_live_recording_paused_before_anything_arrives_says_it_has_nothing() {
     let why = internal(download(&client(), &format!("http://{addr}/live.m3u8"), &opts).await);
     stop.await.unwrap();
     assert_eq!(why, "the live stream sent nothing to record");
+}
+
+/// A live playlist that moves past segments before dm fetched them: the
+/// ones still listed are recorded, and the row is told how many were gone.
+#[tokio::test]
+async fn live_segments_gone_before_they_were_fetched_are_told_on_the_row() {
+    async fn answer(
+        State(asks): State<Arc<AtomicUsize>>,
+        uri: Uri,
+        headers: HeaderMap,
+    ) -> Response {
+        let path = uri.path().to_string();
+        if path == "/gap.m3u8" {
+            // The first asks (the one that resolves it and the recording's
+            // first) list segments 0 and 1; the next lists 5 and 6, ended.
+            // A probe asks with a range and is not counted.
+            let ask = if headers.contains_key("range") {
+                asks.load(Ordering::SeqCst)
+            } else {
+                asks.fetch_add(1, Ordering::SeqCst)
+            };
+            let text = if ask < 2 {
+                "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n\
+                 #EXTINF:1.0,\nseg0.ts\n#EXTINF:1.0,\nseg1.ts\n"
+            } else {
+                "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:5\n\
+                 #EXTINF:1.0,\nseg5.ts\n#EXTINF:1.0,\nseg6.ts\n#EXT-X-ENDLIST\n"
+            };
+            return Response::builder()
+                .header("content-type", "application/vnd.apple.mpegurl")
+                .body(Body::from(text))
+                .unwrap();
+        }
+        match path
+            .strip_prefix("/seg")
+            .and_then(|rest| rest.strip_suffix(".ts"))
+            .and_then(|n| n.parse::<usize>().ok())
+        {
+            Some(n) => Response::new(Body::from(segment(n))),
+            None => status(StatusCode::NOT_FOUND),
+        }
+    }
+    let addr = common::serve(
+        axum::Router::new()
+            .fallback(answer)
+            .with_state(Arc::new(AtomicUsize::new(0))),
+    )
+    .await;
+    let dir = tempdir();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+    let done = download_reporting(
+        &client(),
+        &format!("http://{addr}/gap.m3u8"),
+        &options(dir.path()),
+        Some(tx),
+    )
+    .await
+    .unwrap();
+    let mut recorded = segments(0..2);
+    recorded.extend(segments(5..7));
+    assert_eq!(std::fs::read(&done.path).unwrap(), recorded);
+    let mut notes = Vec::new();
+    while let Ok(update) = rx.try_recv() {
+        if let Update::Note(note) = update {
+            notes.push(note);
+        }
+    }
+    let said = dm_core::NOTES[1].replace("{}", "3");
+    assert_eq!(notes, vec![said]);
 }
 
 #[tokio::test]

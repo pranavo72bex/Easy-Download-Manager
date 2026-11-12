@@ -26,8 +26,8 @@ pub(super) async fn download_stream(
             )
             .await;
         }
-        Resolved::Live(playlist) => {
-            return record_live(client, &playlist, url, options, report).await
+        Resolved::Live(playlist, sound) => {
+            return record_live(client, &playlist, sound.as_deref(), url, options, report).await
         }
         Resolved::Beyond(why) => {
             return Err(Error::Internal(format!(
@@ -173,111 +173,89 @@ pub(super) async fn download_stream(
 /// pace its segments come (half their length), each segment not yet
 /// written fetched once, by its sequence number, decrypted where it is
 /// scrambled, and added to one growing file, so what is recorded is never
-/// more than a segment behind. It ends when the playlist says the stream
-/// has, or when the person stops it, which keeps what was recorded rather
-/// than pausing: a live stream cannot be resumed from where it was.
+/// more than a segment behind. Where the master keeps the sound in a
+/// playlist of its own (`sound`), that playlist is recorded the same way
+/// into a file of its own, asked for in the same rounds just after the
+/// picture's, and the two are joined into one MP4 when the recording ends.
+/// It ends when the picture's playlist says the stream has, or when the
+/// person stops it, which keeps what was recorded rather than pausing: a
+/// live stream cannot be resumed from where it was.
 pub(super) async fn record_live(
     client: &reqwest::Client,
     playlist: &str,
+    sound: Option<&str>,
     named_from: &str,
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
     fs::create_dir_all(&options.parts_dir).await?;
-    let recording = options.parts_dir.join("live.recording");
-    let mut out = tokio::io::BufWriter::new(fs::File::create(&recording).await?);
+    let sound_file = options.parts_dir.join("live.sound");
+    let mut picture = LiveTrack::open(playlist, options.parts_dir.join("live.recording")).await?;
+    let mut heard = match sound {
+        Some(url) => Some(LiveTrack::open(url, sound_file.clone()).await?),
+        None => None,
+    };
     let downloaded = Arc::new(AtomicU64::new(0));
     let meter = report
         .clone()
         .map(|tx| watch(Arc::clone(&downloaded), None, tx));
-    let mut written: Option<u64> = None;
-    let mut missed: u64 = 0;
-    let mut init_written = false;
-    let mut keys: std::collections::HashMap<String, Vec<u8>> = std::collections::HashMap::new();
     let mut filename = String::new();
-    let mut misses = 0u32;
+    // Pieces of the picture the row has been told were missed.
+    let mut told: u64 = 0;
     let ended = loop {
-        let fetched = match fetch_playlist(client, playlist, options).await {
-            Ok(fetched) => fetched,
-            Err(e @ (Error::Paused | Error::Cancelled)) => break Err(e),
-            // A playlist that does not answer once is asked again; one that
-            // stops answering ends the recording with what it has.
-            Err(_) if misses < 5 && written.is_some() => {
-                misses += 1;
-                tokio::time::sleep(Duration::from_secs(2)).await;
-                continue;
+        let round = picture
+            .round(client, named_from, options.quality, options, &downloaded)
+            .await;
+        // Pieces the playlist moved past before dm fetched them: the recording has a gap
+        // there, which the row says (gaps row Y23).
+        if picture.missed > told {
+            told = picture.missed;
+            if let Some(tx) = &report {
+                let said = crate::download::NOTES[1].replace("{}", &told.to_string());
+                let _ = tx.send(Update::Note(said)).await;
             }
+        }
+        let round = match round {
+            Ok(round) => round,
             Err(e) => break Err(e),
         };
-        misses = 0;
-        let (text, landed) = fetched;
-        let listed = stream::media_playlist(&text, &landed, named_from, options.quality)?;
         if filename.is_empty() {
-            filename = listed.filename.clone();
-            if let Some(tx) = &report {
-                let _ = tx
-                    .send(Update::Named {
-                        name: filename.clone(),
-                        category: category::classify(&filename, None),
-                    })
-                    .await;
+            if let Some(name) = &picture.named {
+                filename = name.clone();
+                if let Some(tx) = &report {
+                    let _ = tx
+                        .send(Update::Named {
+                            name: filename.clone(),
+                            category: category::classify(&filename, None),
+                        })
+                        .await;
+                }
             }
         }
-        for part in &listed.parts {
-            let wanted = if part.init {
-                !init_written
-            } else {
-                written.is_none_or(|last| part.sequence > last)
-            };
-            if !wanted {
-                continue;
-            }
-            let body = match retry::run_up_to(&options.control, options.tries(), || {
-                fetch_segment_range(client, &part.url, part.range, options)
-            })
-            .await
+        /* The sound just after the picture, so it is taken at least as far
+         * as the picture got, on the picture's last round too. A sound
+         * playlist that fails five rounds running is left where it got to,
+         * and the picture goes on without it. */
+        if let Some(track) = heard.as_mut().filter(|t| !t.done) {
+            match track
+                .round(client, named_from, Quality::Best, options, &downloaded)
+                .await
             {
-                Ok(body) => body,
-                // Asked for again with the playlist on the next round, or
-                // the stop that ended it seen there.
-                Err(_) => break,
-            };
-            let bytes = match &listed.key {
-                Some(declared) if !part.init => {
-                    if !keys.contains_key(&declared.uri) {
-                        let key = fetch_capped(client, &declared.uri, 1024, options)
-                            .await?
-                            .body;
-                        keys.insert(declared.uri.clone(), key);
-                    }
-                    let key = keys.get(&declared.uri).map(Vec::as_slice).unwrap_or(&[]);
-                    stream::decrypt(key, &stream::iv_for(declared, part.sequence), &body)?
+                Ok(Round::Ended) => track.done = true,
+                Ok(_) => {}
+                Err(e @ (Error::Paused | Error::Cancelled)) => break Err(e),
+                Err(_) => {
+                    track.misses += 1;
+                    track.done = track.misses > 5;
                 }
-                _ => body,
-            };
-            out.write_all(&bytes).await?;
-            downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);
-            if part.init {
-                init_written = true;
-            } else {
-                // Pieces the playlist moved past before dm fetched them: the recording has a gap
-                // there, which the row says (gaps row Y23).
-                if let Some(last) = written.filter(|last| part.sequence > last + 1) {
-                    missed += part.sequence - last - 1;
-                    if let Some(tx) = &report {
-                        let said = crate::download::NOTES[1].replace("{}", &missed.to_string());
-                        let _ = tx.send(Update::Note(said)).await;
-                    }
-                }
-                written = Some(part.sequence);
             }
         }
-        out.flush().await?;
-        if !stream::is_live(&text) {
-            break Ok(());
-        }
-        // Half a segment's length, so a new one is not left waiting long.
-        let pause = Duration::from_millis(stream::target_duration(&text) * 500);
+        let pause = match round {
+            Round::Ended => break Ok(()),
+            // A playlist that did not answer is asked again shortly.
+            Round::Missed => Duration::from_secs(2),
+            Round::More(pause) => pause,
+        };
         if let Err(stop) = or_stop(&options.control, async {
             tokio::time::sleep(pause).await;
             Ok(())
@@ -287,8 +265,18 @@ pub(super) async fn record_live(
             break Err(stop);
         }
     };
-    out.flush().await?;
-    drop(out);
+    let flushed = picture.out.flush().await;
+    let picture_at = picture.path.clone();
+    let recorded = picture.written.is_some();
+    drop(picture);
+    // The sound is joined only where some of it was written whole.
+    let sound_at = match heard {
+        Some(mut track) => {
+            let whole = track.out.flush().await.is_ok();
+            (whole && track.written.is_some()).then(|| track.path.clone())
+        }
+        None => None,
+    };
     if let Some((handle, finished)) = meter {
         let _ = finished.send(());
         let _ = handle.await;
@@ -296,28 +284,43 @@ pub(super) async fn record_live(
     match ended {
         Ok(()) | Err(Error::Paused) => {}
         Err(Error::Cancelled) => {
-            let _ = fs::remove_file(&recording).await;
+            let _ = fs::remove_file(&picture_at).await;
+            let _ = fs::remove_file(&sound_file).await;
             return Err(Error::Cancelled);
         }
         // Whatever stopped it, what was recorded is kept where there is any.
-        Err(e) if written.is_none() => return Err(e),
+        Err(e) if !recorded => {
+            let _ = fs::remove_file(&sound_file).await;
+            return Err(e);
+        }
         Err(_) => {}
     }
-    if written.is_none() {
+    if !recorded {
+        let _ = fs::remove_file(&sound_file).await;
         return Err(Error::Internal(
             "the live stream sent nothing to record".into(),
         ));
     }
+    flushed?;
     // Stopped by the person: the recording is finished, not paused, so
     // placing it must not wait on the stop that ended it.
     let placing = Options {
         control: crate::control::Control::new(),
         ..options.clone()
     };
-    let parts = vec![recording];
-    let (parts, filename) = match remux_ts(&filename, &parts, &placing).await {
+    let joined = match &sound_at {
+        Some(sound) => join_live(&picture_at, sound, &filename, &placing).await,
+        None => None,
+    };
+    let (parts, filename) = match joined {
         Some((mp4, name)) => (vec![mp4], name),
-        None => (parts, filename),
+        None => {
+            let parts = vec![picture_at];
+            match remux_ts(&filename, &parts, &placing).await {
+                Some((mp4, name)) => (vec![mp4], name),
+                None => (parts, filename),
+            }
+        }
     };
     let (path, bytes, category) = finish(&filename, None, &parts, &placing).await?;
     Ok(Finished {
@@ -329,6 +332,181 @@ pub(super) async fn record_live(
         verified: false,
         mirrors: 1,
     })
+}
+
+/// What one round of asking a live playlist came to.
+enum Round {
+    /// Taken as far as it goes; more is to come, worth asking for after
+    /// this long.
+    More(Duration),
+    /// The playlist says the stream has ended: everything in it is taken.
+    Ended,
+    /// The playlist did not answer this time; it is asked again.
+    Missed,
+}
+
+/// One playlist of a live stream being recorded: where it is asked for,
+/// the file its segments are added to, and how far it has got.
+struct LiveTrack {
+    playlist: String,
+    path: PathBuf,
+    out: tokio::io::BufWriter<fs::File>,
+    /// The sequence number of the last segment written.
+    written: Option<u64>,
+    init_written: bool,
+    /// Each key fetched once, by its address.
+    keys: std::collections::HashMap<String, Vec<u8>>,
+    /// Rounds in a row the playlist did not answer.
+    misses: u32,
+    /// Segments the playlist moved past before they were fetched.
+    missed: u64,
+    /// Asked for no more: its playlist ended, or stopped answering.
+    done: bool,
+    /// The name its first playlist gave the recording.
+    named: Option<String>,
+}
+
+impl LiveTrack {
+    async fn open(playlist: &str, path: PathBuf) -> Result<Self, Error> {
+        let out = tokio::io::BufWriter::new(fs::File::create(&path).await?);
+        Ok(LiveTrack {
+            playlist: playlist.to_string(),
+            path,
+            out,
+            written: None,
+            init_written: false,
+            keys: std::collections::HashMap::new(),
+            misses: 0,
+            missed: 0,
+            done: false,
+            named: None,
+        })
+    }
+
+    /// The playlist asked for once, and each segment in it not yet written
+    /// fetched and added to the file. A playlist that does not answer once
+    /// is a miss, asked again; one that stops answering (five misses), or
+    /// fails before anything was recorded, is the error that ends it. A
+    /// segment that cannot be had ends the round, and is asked for again
+    /// with the playlist on the next.
+    async fn round(
+        &mut self,
+        client: &reqwest::Client,
+        named_from: &str,
+        quality: Quality,
+        options: &Options,
+        downloaded: &AtomicU64,
+    ) -> Result<Round, Error> {
+        let (text, landed) = match fetch_playlist(client, &self.playlist, options).await {
+            Ok(fetched) => fetched,
+            Err(e @ (Error::Paused | Error::Cancelled)) => return Err(e),
+            Err(_) if self.misses < 5 && self.written.is_some() => {
+                self.misses += 1;
+                return Ok(Round::Missed);
+            }
+            Err(e) => return Err(e),
+        };
+        self.misses = 0;
+        let listed = stream::media_playlist(&text, &landed, named_from, quality)?;
+        if self.named.is_none() {
+            self.named = Some(listed.filename.clone());
+        }
+        for part in &listed.parts {
+            let wanted = if part.init {
+                !self.init_written
+            } else {
+                self.written.is_none_or(|last| part.sequence > last)
+            };
+            if !wanted {
+                continue;
+            }
+            let Ok(body) = retry::run_up_to(&options.control, options.tries(), || {
+                fetch_segment_range(client, &part.url, part.range, options)
+            })
+            .await
+            else {
+                break;
+            };
+            let bytes = match &listed.key {
+                Some(declared) if !part.init => {
+                    if !self.keys.contains_key(&declared.uri) {
+                        let key = fetch_capped(client, &declared.uri, 1024, options)
+                            .await?
+                            .body;
+                        self.keys.insert(declared.uri.clone(), key);
+                    }
+                    let key = self
+                        .keys
+                        .get(&declared.uri)
+                        .map(Vec::as_slice)
+                        .unwrap_or(&[]);
+                    stream::decrypt(key, &stream::iv_for(declared, part.sequence), &body)?
+                }
+                _ => body,
+            };
+            self.out.write_all(&bytes).await?;
+            downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);
+            if part.init {
+                self.init_written = true;
+            } else {
+                if let Some(last) = self
+                    .written
+                    .filter(|last| part.sequence > last.saturating_add(1))
+                {
+                    self.missed += part.sequence - last - 1;
+                }
+                self.written = Some(part.sequence);
+            }
+        }
+        self.out.flush().await?;
+        if !stream::is_live(&text) {
+            return Ok(Round::Ended);
+        }
+        // Half a segment's length, so a new one is not left waiting long.
+        Ok(Round::More(Duration::from_millis(
+            stream::target_duration(&text) * 500,
+        )))
+    }
+}
+
+/// A live picture and its sound, each recorded into a file of its own,
+/// joined into one MP4 beside them: a transport stream with packed AAC by
+/// the transport-stream muxer, fragmented MP4 by the MP4 muxer. With the
+/// name the joined file is placed under. `None` where they cannot be
+/// joined: the picture is then kept alone, as a recording cannot be asked
+/// for again.
+async fn join_live(
+    picture: &Path,
+    sound: &Path,
+    filename: &str,
+    options: &Options,
+) -> Option<(PathBuf, String)> {
+    let joined = options.parts_dir.join("live.joined.mp4");
+    let _ = fs::remove_file(&joined).await;
+    let (picture_owned, sound_owned) = (picture.to_path_buf(), sound.to_path_buf());
+    let made = if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
+        crate::tsmux::join_packed_async(picture_owned, sound_owned, joined.clone()).await
+    } else {
+        crate::mp4mux::join_async(vec![picture_owned, sound_owned], joined.clone()).await
+    };
+    let _ = fs::remove_file(sound).await;
+    if made.is_ok() && fs::metadata(&joined).await.is_ok_and(|m| m.len() > 0) {
+        let _ = fs::remove_file(picture).await;
+        return Some((joined, format!("{}.mp4", media_stem(filename))));
+    }
+    let _ = fs::remove_file(&joined).await;
+    None
+}
+
+/// A recording's name without its `.ts`, `.mp4` or `.m4a`, in any case.
+fn media_stem(name: &str) -> &str {
+    let lower = name.to_ascii_lowercase();
+    for extension in [".ts", ".mp4", ".m4a"] {
+        if lower.ends_with(extension) {
+            return name.get(..name.len() - extension.len()).unwrap_or(name);
+        }
+    }
+    name
 }
 
 /// What the stream's first segment is, from its first few kilobytes; see
@@ -569,8 +747,10 @@ pub(super) fn ts_stem(name: &str) -> &str {
 /// A stream as resolved: dm's to assemble, or a shape it hands on.
 pub(super) enum Resolved {
     Own(stream::Stream, String),
-    /// A live stream, recorded as it goes: its media playlist's address.
-    Live(String),
+    /// A live stream, recorded as it goes: its media playlist's address,
+    /// and its sound's where the master keeps that in a playlist of its own
+    /// that dm can join to the picture.
+    Live(String, Option<String>),
     /// Why dm does not assemble it itself (`stream::beyond_dm`).
     Beyond(&'static str),
     /// A picture and its sound as two playlists of fragmented MP4, which dm
@@ -630,7 +810,7 @@ pub(super) async fn resolve_stream(
             return Ok(Resolved::Beyond(why));
         }
         if stream::is_live(&media) {
-            return Ok(Resolved::Live(chosen.url));
+            return Ok(Resolved::Live(chosen.url, None));
         }
         let listed = stream::media_playlist(&media, &media_landed, url, quality)?;
         return Ok(Resolved::Own(listed, chosen.url));
@@ -642,7 +822,7 @@ pub(super) async fn resolve_stream(
         return Err(Error::Internal("that playlist lists no media".into()));
     }
     if stream::is_live(&text) {
-        return Ok(Resolved::Live(url.to_string()));
+        return Ok(Resolved::Live(url.to_string(), None));
     }
     let listed = stream::media_playlist(&text, &landed, url, quality)?;
     Ok(Resolved::Own(listed, url.to_string()))
@@ -666,7 +846,8 @@ async fn resolve_pair(
         return Ok(Resolved::Beyond(why));
     }
     if stream::is_live(media) {
-        return Ok(Resolved::Live(rendition.to_string()));
+        let sound = live_sound(client, name_from, media, media_landed, sound_url, options).await?;
+        return Ok(Resolved::Live(rendition.to_string(), sound));
     }
     let (sound, sound_landed) = fetch_playlist(client, sound_url, options).await?;
     if stream::beyond_dm(None, None, &sound, &sound_landed).is_some() || stream::is_live(&sound) {
@@ -674,12 +855,7 @@ async fn resolve_pair(
     }
     let picture = stream::media_playlist(media, media_landed, name_from, options.quality)?;
     let sound = stream::media_playlist(&sound, &sound_landed, name_from, Quality::Best)?;
-    // Fragmented MP4 on both sides, scrambled or not, whole or cut by byte
-    // ranges; or a transport-stream picture with packed AAC sound. Any other
-    // mix is still beyond.
-    let fragmented = |s: &stream::Stream| s.container == "mp4";
-    let packed = picture.container == "ts" && sound.container == "aac";
-    if !((fragmented(&picture) && fragmented(&sound)) || packed) {
+    if !joinable(&picture, &sound) {
         return Ok(Resolved::Beyond(APART));
     }
     Ok(Resolved::Pair(
@@ -687,6 +863,43 @@ async fn resolve_pair(
         Box::new(sound),
         format!("{rendition}\n{sound_url}"),
     ))
+}
+
+/// Whether dm joins this picture and sound into one file: fragmented MP4 on
+/// both sides, scrambled or not, whole or cut by byte ranges; or a
+/// transport-stream picture with packed AAC sound. Any other mix is beyond.
+fn joinable(picture: &stream::Stream, sound: &stream::Stream) -> bool {
+    let fragmented = |s: &stream::Stream| s.container == "mp4";
+    let packed = picture.container == "ts" && sound.container == "aac";
+    (fragmented(picture) && fragmented(sound)) || packed
+}
+
+/// The sound a live picture is recorded with: `sound_url`, where its
+/// playlist reads and it and the picture are a pair dm joins. `None` where
+/// not, and the picture is recorded alone: a recording with no sound is
+/// still the stream's picture, where refusing it would leave nothing.
+async fn live_sound(
+    client: &reqwest::Client,
+    name_from: &str,
+    media: &str,
+    media_landed: &str,
+    sound_url: &str,
+    options: &Options,
+) -> Result<Option<String>, Error> {
+    let (sound, sound_landed) = match fetch_playlist(client, sound_url, options).await {
+        Ok(fetched) => fetched,
+        Err(e @ (Error::Paused | Error::Cancelled)) => return Err(e),
+        Err(_) => return Ok(None),
+    };
+    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some() {
+        return Ok(None);
+    }
+    let picture = stream::media_playlist(media, media_landed, name_from, options.quality);
+    let sound = stream::media_playlist(&sound, &sound_landed, name_from, Quality::Best);
+    Ok(match (picture, sound) {
+        (Ok(picture), Ok(sound)) if joinable(&picture, &sound) => Some(sound_url.to_string()),
+        _ => None,
+    })
 }
 
 /// A playlist's text and the address it was finally served from, which
