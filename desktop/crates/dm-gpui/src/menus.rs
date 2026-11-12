@@ -450,6 +450,18 @@ fn menu(title: &'static str, groups: &[&[Command]]) -> Menu {
 /// The menu bar.
 pub fn set(cx: &mut App, ticks: &Ticks) {
     cx.set_menus(build(ticks));
+    // The Dock icon's menu on macOS, as Mail's and Music's have one: what is wanted without
+    // the window in front (PLATFORM_GAP_ANALYSIS item 28). Windows' Jump List is dm's own
+    // (`jumplist.rs`), so not there.
+    if cfg!(target_os = "macos") {
+        cx.set_dock_menu(dock_menu());
+    }
+}
+
+/// The Dock icon's menu: add a download, resume or stop them all.
+fn dock_menu() -> Vec<MenuItem> {
+    use Command as C;
+    vec![item(C::AddUrl), item(C::ResumeAll), item(C::StopAll)]
 }
 
 /// The window's menus' titles, in English, in their order: what the top bar
@@ -863,6 +875,20 @@ mod tests {
         assert!(state(&off, Command::CopyLink.label()).1);
         assert!(state(&off, Command::StopDownload.label()).1);
         assert!(!state(&off, "Add URL…").1);
+    }
+
+    /// The Dock's menu offers adding a download and resuming or stopping them all.
+    #[test]
+    fn the_dock_menu_adds_resumes_and_stops() {
+        let names: Vec<String> = dock_menu()
+            .iter()
+            .filter_map(|item| match item {
+                MenuItem::Action { name, .. } => Some(name.to_string()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(names.len(), 3);
+        assert!(names[0].starts_with("Add URL"), "{names:?}");
     }
 
     #[test]

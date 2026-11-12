@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- macOS: dm's Dock icon has a menu: Add URL, Resume all and Stop all.
 - A download can say something of itself on its row: a DASH video whose higher qualities are copy-protected says the best one that is not was taken, and a live recording says how many pieces the stream dropped before dm could fetch them.
 - An HLS stream fetches as many pieces at once as Connections per file says, where it stopped at eight.
 - Lighter with torrents of many files: a running torrent's row no longer copies its whole file list four times a second.
