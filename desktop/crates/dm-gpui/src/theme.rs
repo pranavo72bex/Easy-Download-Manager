@@ -83,14 +83,51 @@ impl Theme {
             appearance,
             WindowAppearance::Dark | WindowAppearance::VibrantDark
         );
-        if cfg!(windows) {
+        let own = if cfg!(windows) {
             windows(dark)
         } else if cfg!(target_os = "macos") {
             macos(dark)
         } else {
             gnome(dark)
+        };
+        match dm_desktop_base::accent::system() {
+            Some(accent) => own.with_accent(&accent, dark),
+            None => own,
         }
     }
+
+    /// These colours with the system's accent where buttons and the selection take it, as the
+    /// system's own programs draw them (gaps row U33): in the light look its darker shade, in
+    /// the dark look its lighter one. An accent that would leave the words on it hard to read
+    /// (under 4.5 to 1) keeps dm's own.
+    pub fn with_accent(self, accent: &dm_desktop_base::accent::Palette, dark: bool) -> Theme {
+        let [r, g, b] = if dark { accent.light1 } else { accent.dark1 };
+        let shade = rgb(u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b));
+        let readable = |words: Rgba| words_on(words, shade) >= 4.5;
+        if readable(self.on_accent) && readable(self.on_selection) {
+            Theme {
+                accent: shade,
+                selection: shade,
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+}
+
+/// WCAG's contrast of `words` laid over the opaque `back`.
+fn words_on(words: Rgba, back: Rgba) -> f32 {
+    let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let on = |f: f32, b: f32| byte(f * words.a + b * (1.0 - words.a));
+    dm_desktop_base::contrast::ratio(
+        [
+            on(words.r, back.r),
+            on(words.g, back.g),
+            on(words.b, back.b),
+        ],
+        [byte(back.r), byte(back.g), byte(back.b)],
+    )
 }
 
 /// macOS's: AppKit's colours, measured on its own windows.
@@ -358,6 +395,20 @@ mod tests {
             );
         }
         assert!(faint.is_empty(), "too faint: {faint:#?}");
+        // A deep purple accent is taken by every look; a yellow one, which white words cannot
+        // be read on, keeps dm's own (gaps row U33).
+        let purple = dm_desktop_base::accent::from_one([0x88, 0x17, 0x98]);
+        let yellow = dm_desktop_base::accent::from_one([0xff, 0xee, 0x00]);
+        for dark in [false, true] {
+            for own in [windows(dark), gnome(dark), macos(dark)] {
+                let taken = own.with_accent(&purple, dark);
+                if contrast(own.on_accent, taken.accent) >= 4.5 {
+                    assert_ne!(taken.accent, own.accent, "dark {dark}");
+                }
+                let kept = own.with_accent(&yellow, false);
+                assert!(kept.accent == own.accent || contrast(own.on_accent, kept.accent) >= 4.5);
+            }
+        }
         // No system's own colours pass for a chosen row's, which the list's pictures follow.
         for dark in [false, true] {
             for theme in [windows(dark), gnome(dark), macos(dark)] {

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Buttons and the selection follow the system's accent colour (Windows, macOS, and Linux desktops that say one), unless it would make their words hard to read.
 - A row can be dragged onto another to take its place in the queue's order, while the list is in its own order (not sorted by a column).
 - A failed download's window offers the next step as a button beside Retry (Choose another folder…, Update download link, Open the page, Move/Rename, Options), and "The file doesn't exist" offers Update download link.
 - Side panel: the Grabber's saved searches are listed as projects, a click opening the Grabber filled in; a group (All Downloads, Queues, Grabber projects) shuts and opens from its heading, and stays so.

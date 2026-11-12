@@ -34,6 +34,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 pub mod a11y_tree;
+pub mod accent;
 pub mod add_url;
 pub mod asks;
 pub mod autostart;
