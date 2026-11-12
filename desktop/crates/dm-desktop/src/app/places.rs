@@ -206,22 +206,11 @@ impl DmApp {
     /// time, back in the queue's order. Kept in the settings, so the list
     /// is sorted the same way at the next launch.
     pub fn sort_by(&mut self, column: Column) {
-        // Up, down, then the queue's own order again: a list once sorted
-        // could not go back to it, where rows are dragged into another
-        // order.
-        self.sort = match self.sort {
-            Some((c, true)) if c == column => Some((c, false)),
-            Some((c, false)) if c == column => None,
-            _ => Some((column, true)),
-        };
+        // Up, down, then the queue's own order again, as the GPUI window
+        // sorts (`dm_desktop_base::columns::next_sort`).
+        self.sort = dm_desktop_base::columns::next_sort(self.sort, column);
         let mut wanted = self.applied.clone();
-        match self.sort {
-            Some((column, ascending)) => {
-                wanted.sort_column = column.key().to_string();
-                wanted.sort_ascending = ascending;
-            }
-            None => wanted.sort_column = String::new(),
-        }
+        dm_desktop_base::columns::keep_sort(&mut wanted, self.sort);
         if let Err(e) = self.apply_settings(wanted) {
             self.said = e.into();
         }

@@ -239,18 +239,15 @@ impl Window {
         self.app.logic(ctx);
         if self.app.applied.language != self.tray_language {
             self.tray_language = self.app.applied.language.clone();
-            if let Some((icon, items, limiter)) = &self.icon {
-                let [show, limit, scheduler, quit, tooltip] = tray_words();
-                for (item, word) in items.iter().zip([show, scheduler, quit]) {
-                    item.set_text(word);
-                }
-                limiter.set_text(limit);
-                let _ = icon.set_tooltip(Some(tooltip));
+            if let Some(tray) = &self.icon {
+                tray.relabel();
+                // The tooltip said again below, in these words.
+                self.tray_tip.clear();
             }
         }
         // The tray's tooltip: how many downloads and how fast, else what dm
         // is doing there.
-        if let Some((icon, _, _)) = &self.icon {
+        if let Some(TrayMade { icon, .. }) = &self.icon {
             let tip = self
                 .app
                 .tray_activity()
@@ -260,12 +257,10 @@ impl Window {
                 self.tray_tip = tip;
             }
         }
-        // The tray's limiter item is ticked while a limit is in force.
-        if let Some((_, _, limiter)) = &self.icon {
-            let on = self.app.applied.speed_limit > 0;
-            if limiter.is_checked() != on {
-                limiter.set_checked(on);
-            }
+        // The tray's limiter item is ticked while a limit is in force, and
+        // the preset in force with it.
+        if let Some(tray) = &self.icon {
+            tray.tick(self.app.applied.speed_limit);
         }
         // Program › Exit, as the tray's Quit does; and a logout, `kill` or
         // a service manager stopping dm, which ask the same.

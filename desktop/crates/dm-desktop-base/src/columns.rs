@@ -118,6 +118,41 @@ impl Column {
     }
 }
 
+/// The list's sort: the column and whether up; none for the order the
+/// downloads were added in (the queue's own).
+pub type Sort = Option<(Column, bool)>;
+
+/// The sort after a heading's click or View › Sort by's choice of `column`:
+/// up, then the other way, then back in the order the downloads were added
+/// (a list once sorted could not go back to it, where rows are dragged into
+/// another order). Another column starts again at up.
+#[must_use]
+pub fn next_sort(now: Sort, column: Column) -> Sort {
+    match now {
+        Some((c, true)) if c == column => Some((c, false)),
+        Some((c, false)) if c == column => None,
+        _ => Some((column, true)),
+    }
+}
+
+/// The sort kept in `settings`, so the list is sorted the same way at the
+/// next launch: the column's key and which way, or no key for none.
+pub fn keep_sort(settings: &mut dm_shell::settings::Settings, sort: Sort) {
+    match sort {
+        Some((column, ascending)) => {
+            settings.sort_column = column.key().to_string();
+            settings.sort_ascending = ascending;
+        }
+        None => settings.sort_column.clear(),
+    }
+}
+
+/// The sort `settings` keep: what [`keep_sort`] wrote, read back at launch.
+#[must_use]
+pub fn kept_sort(settings: &dm_shell::settings::Settings) -> Sort {
+    Column::from_key(&settings.sort_column).map(|c| (c, settings.sort_ascending))
+}
+
 /// How two rows compare under a column, for sorting.
 pub fn compare(column: Column, a: &Entry, b: &Entry) -> std::cmp::Ordering {
     match column {
@@ -168,5 +203,43 @@ pub fn compare(column: Column, a: &Entry, b: &Entry) -> std::cmp::Ordering {
         Column::Description => a.description.cmp(&b.description),
         Column::Referrer => a.referrer.cmp(&b.referrer),
         Column::Folder => crate::rows::folder_of(a).cmp(&crate::rows::folder_of(b)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A heading or View › Sort by sorts up, then down, then back in the
+    /// order the downloads were added (gaps row U29).
+    #[test]
+    fn a_third_choice_puts_the_list_back_in_the_order_added() {
+        let up = next_sort(None, Column::Size);
+        assert_eq!(up, Some((Column::Size, true)));
+        let down = next_sort(up, Column::Size);
+        assert_eq!(down, Some((Column::Size, false)));
+        assert_eq!(next_sort(down, Column::Size), None);
+        // Another column starts at up, whichever way the list was sorted.
+        assert_eq!(next_sort(down, Column::Name), Some((Column::Name, true)));
+    }
+
+    /// The sort is kept in the settings and read back as it was; settings
+    /// saved before it was kept load with the list in the order added.
+    #[test]
+    fn the_sort_kept_is_the_sort_read_back() {
+        let mut settings = dm_shell::settings::Settings::default();
+        assert_eq!(kept_sort(&settings), None);
+        for sort in [
+            Some((Column::Rate, false)),
+            Some((Column::Name, true)),
+            None,
+        ] {
+            keep_sort(&mut settings, sort);
+            assert_eq!(kept_sort(&settings), sort);
+        }
+        let old: dm_shell::settings::Settings =
+            serde_json::from_str("{}").expect("settings with nothing in them load");
+        assert_eq!(kept_sort(&old), None);
+        assert!(old.sort_ascending);
     }
 }

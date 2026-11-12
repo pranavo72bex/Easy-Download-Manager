@@ -205,8 +205,8 @@ pub fn header(
                 .aria_label(column.title())
                 .hover(|s| s.bg(theme.stripe))
                 .on_click(cx.listener(move |view, _, _, cx| {
-                    view.sort_by(column);
-                    // View › Sort by's tick follows.
+                    // Kept in the settings; View › Sort by's tick follows.
+                    view.sort_by(column, cx);
                     view.refresh_menus(cx);
                     cx.notify();
                 }))
