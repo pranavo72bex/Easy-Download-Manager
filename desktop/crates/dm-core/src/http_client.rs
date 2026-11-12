@@ -100,6 +100,41 @@ pub fn builder_with(
         .user_agent(USER_AGENT)
 }
 
+/// A client that speaks HTTP/2 from its first byte, for a server that refuses HTTP/1.1 (gaps
+/// row F9): every other server keeps HTTP/1.1, whose ranges are connections of their own
+/// ([`builder_with`]'s pin). Over it a download's ranges share one connection, which is all
+/// such a server offers.
+// As `client`: only a build without a TLS backend fails here.
+#[allow(clippy::expect_used)]
+pub fn http2_client() -> reqwest::Client {
+    builder()
+        .http2_prior_knowledge()
+        .build()
+        .expect("a client with no TLS backend cannot be built")
+}
+
+/// Whether `why` is a server refusing HTTP/1.1: it answered 505, closed on an HTTP/1.1 request
+/// (an HTTP/2-only server sends its own preface or a GOAWAY), or would agree only on HTTP/2 in
+/// the TLS handshake.
+pub fn refuses_http1(why: &str) -> bool {
+    let why = why.to_ascii_lowercase();
+    [
+        "505",
+        "http version not supported",
+        "invalid http version",
+        "noapplicationprotocol",
+        "no application protocol",
+        "connection closed before message completed",
+        // An HTTP/2 server's own preface, read as an HTTP/1.1 answer.
+        "unexpectedmessage",
+        "unexpected message",
+        "parse(version)",
+        "goaway",
+    ]
+    .iter()
+    .any(|said| why.contains(said))
+}
+
 /// A client configured the way a download manager wants one.
 // The one `expect` dm ships: rustls is compiled in, so the only way this
 // fails is a build without a TLS backend, which is a build bug.

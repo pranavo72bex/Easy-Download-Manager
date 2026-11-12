@@ -811,7 +811,16 @@ pub async fn download_reporting(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    let mut done = fetched(client, url, options, report).await?;
+    let mut done = match fetched(client, url, options, report.clone()).await {
+        // A server that refuses HTTP/1.1 is asked again over HTTP/2, the whole download over
+        // it (gaps row F9); every other one keeps HTTP/1.1, a connection per range.
+        Err(why)
+            if url.starts_with("http") && crate::http_client::refuses_http1(&why.to_string()) =>
+        {
+            fetched(&crate::http_client::http2_client(), url, options, report).await?
+        }
+        other => other?,
+    };
     // Its sound as an MP3, where that was asked for: an M4A (or an MP4's
     // sound) read by the system's decoder and encoded by dm (`mp3`).
     let ext = done

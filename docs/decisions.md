@@ -7099,3 +7099,14 @@ fetches, and patched in dm's tree (`dm:` marks, `desktop/vendor/README.md`). Wri
 to be kept behind one crate of its own (`dm-torrent`, with gaps row A6) so it can be replaced piece
 by piece, and brought to upstream 9.1.0 (a bencode recursion limit, a bounds fix, a listener panic)
 as upstream source plus one patch; both are the row's remaining work.
+
+## 2026-11-13: HTTP/2 where a server refuses HTTP/1.1 (gaps row F9)
+
+Taken at the maintainer's word of 2026-11-12, the row's recommendation. The client stays pinned to
+HTTP/1.1 (each range a connection of its own: the 2026-11-09 entry's reason holds), and where the
+first request is refused in a way only an HTTP/2-only server refuses (505, an HTTP/2 preface or
+GOAWAY read as an answer, a TLS handshake that offers only `h2`; `http_client::refuses_http1`), the
+download is asked again from the start over a client that speaks HTTP/2 from its first byte
+(`http2_client`), its ranges sharing that one connection. reqwest's `http2` feature is the `h2`
+crate, in Rust. That client goes out directly: a server that refuses HTTP/1.1 behind a proxy dm was
+told to use is not reached. Test: `dm-core/tests/http2_only.rs`, a server that speaks HTTP/2 alone.

@@ -18,7 +18,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util
 # 0.13, as the torrent library has it, so one reqwest is built; its TLS is
 # handed the same rustls set-up as the stream protocols (`tls_backend`):
 # ring and the public roots, as 0.12's `rustls-tls` had it.
-reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider", "system-proxy", "socks"] }
+reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider", "system-proxy", "socks", "http2"] }
 # FTP through a SOCKS proxy: the handshake, after which the connection is a
 # plain one. HTTP CONNECT is a few lines and is written here.
 tokio-socks = "0.5"
@@ -112,6 +112,9 @@ libc = "0.2"
 proptest = "1"
 tokio = { version = "1", features = ["full"] }
 axum = "0.8"
+# A server that speaks HTTP/2 alone (tests/http2_only.rs), as axum::serve speaks both.
+hyper = { version = "1", features = ["server", "http2"] }
+hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
 rand = "0.8"
 # Cleans up after itself. The hand-rolled version left a directory of
 # downloaded parts behind on every run.
