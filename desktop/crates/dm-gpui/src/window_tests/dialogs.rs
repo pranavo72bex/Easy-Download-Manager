@@ -3,12 +3,19 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The dialogs: what each offers, and that what a person chooses in it is what is done.
+//! The dialogs: what each offers, and that what a person chooses in it is what is done. Moved
+//! from the egui window's tests. Not moved: Find's Close button (the GPUI window's Find is the
+//! top bar's search box, `docs/decisions.md` 2026-11-10, with no dialog to close), and two of
+//! egui's own drawing (no field outlined in egui's selection stroke; a dialog with egui's
+//! deepest shadow standing whole inside the main window, where a GPUI dialog is a window of
+//! its own). Waiting on the GPUI window: Browse…, Import and Export with no system chooser
+//! taking a typed path (gaps row U41), and a saved Grabber search under Grabber projects in the
+//! side panel (gaps row U40).
 
 use dm_core::State;
 use dm_shell::host::Request;
 
-use crate::harness::world::{payload, world, World};
+use crate::harness::world::{payload, world, World, PAYLOAD};
 use crate::harness::Harness;
 
 fn finished(h: &mut Harness) -> bool {
@@ -23,8 +30,7 @@ fn all_finished(h: &mut Harness) -> bool {
 /// `text` on the clipboard: the system's, which Add links from clipboard reads, and the one
 /// the clipboard's watch reads (the fake system's).
 fn clip(h: &mut Harness, text: &str) {
-    h.cx
-        .write_to_clipboard(gpui::ClipboardItem::new_string(text.to_string()));
+    h.cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.to_string()));
     *h.fake.clipboard.lock().unwrap() = Some(text.to_string());
 }
 
@@ -182,7 +188,12 @@ fn a_pages_links_open_the_download_links_dialog() {
     assert_eq!(rows[0].state, State::Paused, "for later: not started");
     assert_eq!(rows[0].referrer, world.url("page.html"));
     // The size the dialog showed is on the row, though nothing was fetched.
-    assert_eq!(rows[0].progress.total, None);
+    assert_eq!(rows[0].progress.downloaded, 0);
+    assert_eq!(
+        rows[0].progress.total,
+        Some(PAYLOAD as u64),
+        "the size the dialog showed was lost"
+    );
     h.until("the size the dialog showed, in the list", |h| {
         h.shows("256.0 KB")
     });
@@ -298,7 +309,10 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     h.until("File properties", |h| h.dialog_open("File properties"));
     h.until_a_persons_moment();
     h.person_click("Open", 1);
-    assert!(h.fake.opened.lock().unwrap().is_empty(), "nothing to open yet");
+    assert!(
+        h.fake.opened.lock().unwrap().is_empty(),
+        "nothing to open yet"
+    );
     h.close_dialogs();
 
     // A finished one: Properties, whose Open runs the file.
@@ -353,21 +367,25 @@ fn download_details_offers_the_folder_last_used_for_that_kind() {
     let shown = folder.display().to_string();
     details(&mut h, vec![world.url("file.zip")]);
     named(&mut h, "file.zip");
-    assert!(!h.shows(&shown));
+    assert!(!h.shows_in_dialog(&shown));
     h.type_into("Save to folder", &shown);
     h.click("Add for later");
     h.until("the folder kept for archives", |h| {
-        h.view(|v| v.backend.settings().last_folders.get("Archives").cloned()) == Some(shown.clone())
+        h.view(|v| v.backend.settings().last_folders.get("Archives").cloned())
+            == Some(shown.clone())
     });
     // A document is not an archive.
     details(&mut h, vec![world.url("other.pdf")]);
     named(&mut h, "other.pdf");
-    assert!(!h.shows(&shown), "an archive's folder offered for a PDF");
+    assert!(
+        !h.shows_in_dialog(&shown),
+        "an archive's folder offered for a PDF"
+    );
     h.click("Cancel");
     // The next archive is offered it.
     details(&mut h, vec![world.url("file.zip")]);
     named(&mut h, "file.zip");
-    h.until("the folder offered", |h| h.shows(&shown));
+    h.until("the folder offered", |h| h.shows_in_dialog(&shown));
     // Its own folder chosen again: forgotten.
     h.type_into("Save to folder", "");
     h.click("Add for later");
@@ -480,7 +498,9 @@ fn properties_change_the_description_and_refresh_an_expired_address() {
     h.type_into("Note", "fixed link");
     h.type_into("Address", &world.url("file.zip"));
     h.click("OK");
-    h.until("the row changed", |h| h.rows()[0].description == "fixed link");
+    h.until("the row changed", |h| {
+        h.rows()[0].description == "fixed link"
+    });
     let row = h.rows()[0].clone();
     assert!(row.url.ends_with("/file.zip"), "{}", row.url);
     // Not yet named by a server, the row goes by its new address's name.
@@ -517,7 +537,10 @@ fn the_series_error_from_start_goes_when_the_range_is_fixed() {
     let backwards = "The range runs backwards.";
     h.until_shown(backwards);
     h.click("Start now");
-    assert!(h.shows(backwards), "Start said nothing of a backwards range");
+    assert!(
+        h.shows(backwards),
+        "Start said nothing of a backwards range"
+    );
     h.type_into("To", "9");
     h.until("the count of addresses", |h| h.shows_part("5 addresses"));
     assert!(!h.shows(backwards), "the old error still stands");
@@ -603,7 +626,10 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     h.until("the search to come back again", |h| {
         h.shows_part("found nothing new")
     });
-    assert!(h.rows().is_empty(), "found again after the list was cleared");
+    assert!(
+        h.rows().is_empty(),
+        "found again after the list was cleared"
+    );
 
     h.click("Delete search");
     h.until("the search deleted", |h| {
@@ -664,7 +690,10 @@ fn an_address_already_in_the_list_is_asked_about_before_it_is_added_again() {
     // to show it.
     h.click("Resume it");
     h.until("the question to go", |h| !h.shows("Already in the list"));
-    assert!(h.view(|v| v.selected.contains(&id)), "the row was not shown");
+    assert!(
+        h.view(|v| v.selected.contains(&id)),
+        "the row was not shown"
+    );
     assert_eq!(h.rows().len(), 1);
 
     // Asked again, and this time wanted again: the usual dialog follows.
@@ -684,7 +713,9 @@ fn download_details_category_picks_the_folder() {
     h.click("As its type says");
     h.click("Documents");
     h.until("the Documents folder", |h| {
-        h.texts().iter().any(|t| t.ends_with("Documents") && t.contains('/'))
+        h.texts()
+            .iter()
+            .any(|t| t.ends_with("Documents") && t.contains('/'))
     });
     h.click("Start now");
     h.until("it to complete", finished);
@@ -706,7 +737,9 @@ fn move_rename_moves_several_finished_files_together() {
     let mut h = world.harness();
     h.add_url(&world.url("file.zip"), "Start now");
     h.add_url(&world.url("other.pdf"), "Start now");
-    h.until("both to complete", |h| h.rows().len() == 2 && all_finished(h));
+    h.until("both to complete", |h| {
+        h.rows().len() == 2 && all_finished(h)
+    });
     h.command("file.select_all");
     h.command("file.move_rename");
     h.until_shown("Moves 2 finished files.");
@@ -845,6 +878,12 @@ fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
     h.click("Options");
     h.until("Options", |h| h.dialog_open("Options"));
     let watch = "Offer to download links I copy";
+    // Lower on General than the window shows: scrolled to, as a person scrolls.
+    h.call(
+        "ui.scroll",
+        serde_json::json!({ "text": "Language", "lines": 10 }),
+    )
+    .unwrap();
     h.until_shown(watch);
     h.click(watch);
     h.click("OK");
@@ -1152,20 +1191,17 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
     h.until_shown("A download with this name exists. This one will be numbered.");
 }
 
-/// Behind Options the toolbar and the places take no clicks (B42), and a progress window
-/// takes none under it either.
+/// Behind Options the toolbar and the places take no clicks (B42: Options holds the dm window).
+/// The egui window's progress window, drawn inside the dm window, took none either; the GPUI
+/// window's is a window of its own beside dm's (B42), which Options does not hold.
 #[test]
 fn the_window_behind_a_dialog_takes_no_clicks() {
     let world = world();
     let mut h = world.harness();
-    h.view(|v| v.backend.add(&world.url("stalled.bin"))).unwrap();
+    h.view(|v| v.backend.add(&world.url("stalled.bin")))
+        .unwrap();
     h.until("it to run", |h| {
         h.rows().iter().any(|r| r.state == State::Running)
-    });
-    let id = h.rows()[0].id;
-    h.act(|view, cx| view.show_progress(id, cx));
-    h.until("the progress window", |h| {
-        h.dialog_names().iter().any(|d| d == "Download progress")
     });
     h.command("downloads.options");
     h.until("Options", |h| h.dialog_open("Options"));
@@ -1184,15 +1220,16 @@ fn the_window_behind_a_dialog_takes_no_clicks() {
         before,
         "a place was picked behind Options"
     );
-    // A progress window behind Options takes none either.
-    h.click("Stop download");
+    // Nor the toolbar's Stop.
+    h.select("stalled.bin");
+    h.click("Stop");
     for _ in 0..10 {
         h.until("a wake", |_| true);
     }
     assert_eq!(
         h.rows()[0].state,
         State::Running,
-        "Stop download worked behind Options"
+        "Stop worked behind Options"
     );
 }
 
@@ -1229,8 +1266,14 @@ fn a_list_that_cannot_be_written_keeps_its_dialog_open() {
     let path = world.dir.path().join("no such folder").join("list.dmlist");
     h.choose_ahead(&path);
     h.command("program.export");
-    h.until("Export to say", |h| h.said().contains("could not be written"));
-    assert!(h.said().contains(&path.display().to_string()), "{}", h.said());
+    h.until("Export to say", |h| {
+        h.said().contains("could not be written")
+    });
+    assert!(
+        h.said().contains(&path.display().to_string()),
+        "{}",
+        h.said()
+    );
 }
 
 /// Several links copied at once are all offered, through the dialog that lists them; only the
@@ -1315,7 +1358,8 @@ fn a_number_box_says_when_what_was_typed_is_not_a_number() {
     let said = "Numbers only: the one before was kept";
     h.type_into(label, "abc");
     assert!(!h.shows(said), "said while still typing");
-    h.key("tab", &[]);
+    // Left for another box (Attempts', which holds 15).
+    h.person_click("15", 1);
     h.until("the box to say so", |h| h.shows(said));
     h.click("OK");
     h.until("Options to close", |h| !h.dialog_open("Options"));
@@ -1409,6 +1453,58 @@ fn the_default_double_click_opens_a_finished_file_and_shows_progress_for_one_sti
     );
 }
 
+/// The close button asks once whether dm keeps running in the tray, and what is chosen is
+/// kept: Keep running goes to the tray, Exit quits, and neither is asked again. The window's
+/// tests make no tray, so the close button would end dm at once (`close_asked`): the question
+/// is asked as the close button asks it where there is one.
+#[test]
+fn the_close_question_is_asked_once_and_the_answer_is_kept() {
+    let world = world();
+    let mut h = world.harness();
+    assert_eq!(h.view(|v| v.backend.settings().on_close), "ask");
+    let question = "Keep running in the tray?";
+    h.act(|view, cx| view.ask_close(cx));
+    h.until_shown(question);
+    h.click("Keep running");
+    h.until("the window sent to the tray", |h| h.view(|v| v.hidden));
+    assert!(!h.shows(question));
+    assert_eq!(h.view(|v| v.backend.settings().on_close), "tray");
+
+    // The other answer, from a fresh question.
+    h.act(|view, cx| view.show_main(cx));
+    h.settings_to(|s| s.on_close = "ask".into());
+    h.act(|view, cx| view.ask_close(cx));
+    h.until_shown(question);
+    h.click("Exit");
+    h.until("Exit to quit", |_| crate::question::is_quitting());
+    assert_eq!(h.view(|v| v.backend.settings().on_close), "exit");
+}
+
+/// The welcome is three steps: the browser, where downloads go, and Done. The folder shown is
+/// the one in force, and a change is kept on Done. A folder a script typed is kept only from a
+/// person's Done: settings that say where files go are a person's to change (gaps row 199).
+#[test]
+fn the_welcome_confirms_where_downloads_go_and_ends_with_done() {
+    let world = world();
+    let mut h = world.harness();
+    let was = h.view(|v| v.backend.settings().download_dir);
+    h.act(|view, cx| view.welcome(cx));
+    h.until("the welcome", |h| h.dialog_open("Add dm to your browser"));
+    h.until_shown("Download folder");
+    let shown = was.display().to_string();
+    assert!(h.shows_in_dialog(&shown), "not the folder in force");
+    let elsewhere = world.dir.path().join("elsewhere");
+    h.person_click(&shown, 1);
+    h.key("a", &["cmd"]);
+    h.type_text(&elsewhere.display().to_string());
+    h.until_a_persons_moment();
+    h.person_click("Done", 1);
+    h.until("the welcome to close", |h| {
+        !h.dialog_open("Add dm to your browser")
+    });
+    assert_eq!(h.view(|v| v.backend.settings().download_dir), elsewhere);
+}
+
 /// `--new-download` (the taskbar jump list's New download), left in the inbox, opens Add URL;
 /// with nothing left, nothing opens.
 #[test]
@@ -1460,7 +1556,8 @@ fn a_part_can_be_made_vertical_or_square() {
     assert!(!h.shows("Vertical 9:16"));
     h.click("From 0:04");
     h.until_shown("Vertical 9:16");
-    h.type_into("part:to".trim_start_matches("part:"), "0:09");
+    // The part's "to", behind Add for later's "to" its queue.
+    h.type_into_nth("to", 1, "0:09");
     h.click("Vertical 9:16");
     h.click("Add for later");
     h.until("the row", |h| !h.rows().is_empty());
@@ -1484,7 +1581,8 @@ fn a_part_can_be_saved_as_a_gif() {
     assert!(!h.shows("GIF"));
     h.click("From 0:04");
     h.until_shown("GIF");
-    h.type_into("part:to".trim_start_matches("part:"), "0:09");
+    // The part's "to", behind Add for later's "to" its queue.
+    h.type_into_nth("to", 1, "0:09");
     h.click("GIF");
     h.click("Add for later");
     h.until("the row", |h| !h.rows().is_empty());
@@ -1531,7 +1629,15 @@ fn a_part_asked_for_in_the_browsers_panel_fills_download_details() {
         assert!(h.shows(to), "{:?}", h.texts());
         assert!(h.shows("Only a part of the video"));
         h.click("Cancel");
-        h.until("it to close", |h| h.dialogs().is_empty());
+        // A second hand-off from the site cancelled asks whether to leave the site to the
+        // browser: not this test's.
+        h.until("it to close", |h| {
+            h.dialogs().is_empty() || h.shows("Keep handing them over")
+        });
+        if h.shows("Keep handing them over") {
+            h.click("Keep handing them over");
+            h.until("the question to go", |h| !h.shows("Keep handing them over"));
+        }
     }
     // No part asked for: the dialog is as it was, the part's ends not shown.
     h.hand(Request {
@@ -1575,7 +1681,10 @@ fn a_part_asked_for_opens_download_details_where_it_is_off() {
     h.until("the video added at once", |h| {
         h.rows().iter().any(|r| r.url.ends_with("/file.zip"))
     });
-    assert!(!h.dialog_open("Download details"), "asked, with nothing typed");
+    assert!(
+        !h.dialog_open("Download details"),
+        "asked, with nothing typed"
+    );
 }
 
 /// With "Take a copied link at once" on, a link copied opens its Download details with no bar
@@ -1650,8 +1759,9 @@ fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
     assert!(!h.shows("photo.jpg"));
     h.click("Hide repeated files");
 
-    // Edit opens the listed link's name and address: other.pdf, renamed.
-    let edit_other = 1;
+    // Edit opens the listed link's name and address: other.pdf's, the last row's, whose Edit
+    // is the nearest the front, renamed.
+    let edit_other = 0;
     h.call(
         "ui.click",
         serde_json::json!({ "text": "Edit", "nth": edit_other }),

@@ -114,6 +114,8 @@ pub(crate) struct Harness {
     wakes: crate::wakes::Wakes,
     /// When GPUI's clock was last moved on (`step`).
     clock: std::time::Instant,
+    /// The windows open at the last step: one opened since is put in front (`step`).
+    seen: Vec<AnyWindowHandle>,
 }
 
 impl Harness {
@@ -181,6 +183,7 @@ impl Harness {
             asks,
             wakes,
             clock: std::time::Instant::now(),
+            seen: Vec::new(),
         }
     }
 
@@ -316,10 +319,30 @@ impl Harness {
     /// hands them to none, and a question waits for the main window in front.
     fn step(&mut self) {
         let main = self.window;
-        self.cx.update(|cx| {
-            if cx.active_window().is_none() {
-                let _ = main.update(cx, |_, window, _| window.activate_window());
+        let seen = std::mem::take(&mut self.seen);
+        self.seen = self.cx.update(|cx| {
+            let open = cx.windows();
+            // A dialog opened since is in front, as the system makes a new window the one with
+            // the keys (its Tab walks its own controls); one closed hands them back.
+            let dialogs: Vec<AnyWindowHandle> = crate::screen::Screens::all(cx)
+                .into_iter()
+                .filter(|(_, _, dialog)| *dialog)
+                .map(|(handle, _, _)| handle)
+                .collect();
+            let new = open
+                .iter()
+                .rev()
+                .find(|w| dialogs.contains(w) && !seen.contains(w));
+            match new {
+                Some(dialog) => {
+                    let _ = dialog.update(cx, |_, window, _| window.activate_window());
+                }
+                None if cx.active_window().is_none_or(|a| !open.contains(&a)) => {
+                    let _ = main.update(cx, |_, window, _| window.activate_window());
+                }
+                None => {}
             }
+            open
         });
         // GPUI's test clock stands still unless moved: moved on by the time that really
         // passed, the window's own timers (its redraw while a download runs, a progress
@@ -437,7 +460,13 @@ impl Harness {
     /// its field just right of it), selects what it holds and types `text` over it, as a
     /// person replaces a field's words.
     pub(crate) fn type_into(&mut self, label: &str, text: &str) {
-        let (window, at) = self.drawn(label);
+        self.type_into_nth(label, 0, text);
+    }
+
+    /// [`Harness::type_into`] beside the `nth` label of these words, nearest the front first
+    /// (a part's "to" behind Add for later's "to" its queue).
+    pub(crate) fn type_into_nth(&mut self, label: &str, nth: usize, text: &str) {
+        let (window, at) = self.drawn(label, nth);
         let beside = gpui::point(
             at.origin.x + at.size.width + gpui::px(16.0),
             at.origin.y + at.size.height / 2.0,
@@ -454,7 +483,7 @@ impl Harness {
     /// Clicks (`clicks` 2: double-clicks) the words `text` as a person's pointer does, not a
     /// script's: what runs a downloaded file takes a person's click alone.
     pub(crate) fn person_click(&mut self, text: &str, clicks: usize) {
-        let (window, at) = self.drawn(text);
+        let (window, at) = self.drawn(text, 0);
         self.press_at(window, at.center(), clicks);
     }
 
@@ -526,20 +555,36 @@ impl Harness {
         self.step();
     }
 
-    /// Where the words `text` were drawn, nearest the front first, and in which window.
-    fn drawn(&mut self, text: &str) -> (gpui::AnyWindowHandle, gpui::Bounds<gpui::Pixels>) {
+    /// Whether `words` are on screen in a dialog's window, not the main window's.
+    pub(crate) fn shows_in_dialog(&mut self, words: &str) -> bool {
+        let texts = self.call("ui.texts", Value::Null).unwrap();
+        texts["texts"].as_array().is_some_and(|all| {
+            all.iter()
+                .any(|t| t["text"] == words && t["window"] == "dialog")
+        })
+    }
+
+    /// Where the `nth` piece of text saying `text` was drawn, nearest the front first, and in
+    /// which window.
+    fn drawn(
+        &mut self,
+        text: &str,
+        nth: usize,
+    ) -> (gpui::AnyWindowHandle, gpui::Bounds<gpui::Pixels>) {
         self.step();
         let found = self.cx.update(|cx| {
             crate::screen::Screens::all(cx)
                 .into_iter()
-                .find_map(|(handle, screen, _)| {
+                .flat_map(|(handle, screen, _)| {
                     screen
                         .drawn()
                         .into_iter()
                         .rev()
-                        .find(|d| d.text.as_ref() == text)
-                        .map(|d| (handle, d.bounds))
+                        .filter(|d| d.text.as_ref() == text)
+                        .map(move |d| (handle, d.bounds))
+                        .collect::<Vec<_>>()
                 })
+                .nth(nth)
         });
         found.unwrap_or_else(|| panic!("nothing on screen says {text:?}: {:?}", self.texts()))
     }
