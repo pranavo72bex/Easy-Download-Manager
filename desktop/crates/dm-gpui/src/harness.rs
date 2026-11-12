@@ -162,6 +162,8 @@ pub(crate) struct Harness {
     pub(crate) fake: Arc<Fake>,
     asks: mpsc::Sender<dm_desktop_base::control::Request>,
     wakes: crate::wakes::Wakes,
+    /// When GPUI's clock was last moved on (`step`).
+    clock: std::time::Instant,
 }
 
 impl Harness {
@@ -228,6 +230,7 @@ impl Harness {
             fake,
             asks,
             wakes,
+            clock: std::time::Instant::now(),
         }
     }
 
@@ -364,7 +367,44 @@ impl Harness {
                 let _ = main.update(cx, |_, window, _| window.activate_window());
             }
         });
+        // GPUI's test clock stands still unless moved: moved on by the time that really
+        // passed, the window's own timers (its redraw while a download runs, a progress
+        // window's look at the pieces) fire as they would.
+        let now = std::time::Instant::now();
+        self.cx.executor().advance_clock(now - self.clock);
+        self.clock = now;
         self.wakes.send(Wake::Now);
+        self.cx.run_until_parked();
+        // The test platform has no frame loop: each window's next-frame work (a dialog grown
+        // to fit what it shows, `fit.rs`) is run here, as the display's next frame runs it.
+        self.cx.update(|cx| {
+            for handle in cx.windows() {
+                let _ = handle.update(cx, |_, window, cx| window.simulate_next_frame(cx));
+            }
+        });
+        self.cx.run_until_parked();
+        // A window that asked for another size (a dialog grown to fit what it shows, `fit.rs`)
+        // is told it has it, as the system tells it: the test platform keeps the size it was
+        // asked for and says nothing.
+        let resized: Vec<(AnyWindowHandle, gpui::Size<gpui::Pixels>)> = self.cx.update(|cx| {
+            cx.windows()
+                .into_iter()
+                .filter_map(|handle| {
+                    handle
+                        .update(cx, |_, window, _| {
+                            let asked = window.bounds().size;
+                            (asked != window.viewport_size()).then_some((handle, asked))
+                        })
+                        .ok()
+                        .flatten()
+                })
+                .collect()
+        });
+        for (handle, size) in resized {
+            self.cx.simulate_window_resize(handle, size);
+        }
+        // And every window drawn again, as a display's refresh does.
+        self.cx.update(|cx| cx.refresh_windows());
         self.cx.run_until_parked();
     }
 

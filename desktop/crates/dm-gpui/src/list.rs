@@ -191,6 +191,9 @@ pub struct Downloads {
     /// A sentence for the status bar, and when it was said: it stands for
     /// a while, as the egui window's does.
     pub(crate) said: Option<(String, std::time::Instant)>,
+    /// Whether `said` says a queue waits for the schedule, so the status bar does not say it
+    /// twice (`statusbar::parts`).
+    pub(crate) said_schedule_wait: bool,
     /// What finished or failed last, said aloud to a screen reader from the status bar and not
     /// drawn (`a11y::heard`, gaps row U23), and when.
     pub(crate) heard: Option<(String, std::time::Instant)>,
@@ -393,6 +396,7 @@ impl Downloads {
             panel_resizing: None,
             menu: None,
             said: None,
+            said_schedule_wait: false,
             heard: None,
             undo: Default::default(),
             asks: Default::default(),
@@ -929,13 +933,17 @@ impl Downloads {
             _ => {}
         }
         if dm_shell::app::commands::is_verb(command) {
+            // Undo stands until the next command that changes the list (gaps row U14).
+            self.undo.forget();
+            // What Delete Completed takes off, kept for its Undo (B24).
+            let kept = (command == Command::DeleteCompleted).then(|| self.backend.clearable_rows());
             // Off the window's thread: Stop on ten thousand chosen rows is
             // ten thousand changes to the queue (gaps row 183).
             let queue = self.current_queue();
             let ids: Vec<dm_core::Id> = chosen.iter().map(|r| r.id).collect();
             self.later(
                 move |backend| dm_shell::app::commands::verb(command, backend, &chosen, &queue),
-                move |this, ran, cx| this.verb_done(command, &ids, ran, cx),
+                move |this, ran, cx| this.verb_done(command, &ids, ran, kept, cx),
                 cx,
             );
             return;
@@ -951,11 +959,16 @@ impl Downloads {
         command: dm_shell::app::commands::Command,
         chosen: &[dm_core::Id],
         ran: Option<dm_shell::app::commands::Ran>,
+        kept: Option<Vec<(usize, Entry)>>,
         cx: &mut Context<Self>,
     ) {
         use dm_shell::app::commands::Command;
         self.read();
         if let Some(dm_shell::app::commands::Ran::Cleared(n)) = ran {
+            // Undo puts them back, as it does what Remove took off (B24, gaps row U14).
+            if n > 0 && self.undo.keep(kept.unwrap_or_default()) > 0 {
+                self.undo_expires(cx);
+            }
             self.say(dm_desktop_base::i18n::tn(
                 "Deleted {} completed or cancelled download from the list.||Deleted {} completed or cancelled downloads from the list.",
                 n as u64,
@@ -1292,6 +1305,7 @@ impl Downloads {
                         &[&n, &name],
                     )
                 });
+                self.said_schedule_wait = n > 0 && !lets;
                 if queue == dm_core::RECHECK_QUEUE {
                     dm_shell::app::commands::recheck(&self.backend, self.rechecked.clone());
                 }
@@ -1948,6 +1962,7 @@ impl Downloads {
             self.backend.remove_many(&ids);
             let n = self.undo.keep(rows);
             if n > 0 {
+                self.undo_expires(cx);
                 self.say(dm_desktop_base::i18n::tn(
                     "Removed {} download from the list.||Removed {} downloads from the list.",
                     n as u64,
@@ -2064,6 +2079,17 @@ impl Downloads {
         );
     }
 
+    /// Draws the window again once Undo's time is over, so a lapsed Undo is not left drawn
+    /// while nothing else wakes the window (gaps row U14).
+    fn undo_expires(&mut self, cx: &mut Context<Self>) {
+        let over = dm_shell::app::backend::UNDO_FOR + std::time::Duration::from_millis(50);
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(over).await;
+            let _ = this.update(cx, |_, cx| cx.notify());
+        })
+        .detach();
+    }
+
     /// Puts back the rows the last Remove took off, while Undo is on offer.
     pub fn undo_remove(&mut self) {
         if let Some(ids) = self.undo.put_back(&self.backend) {
@@ -2092,6 +2118,7 @@ impl Downloads {
     /// Says `sentence` in the status bar.
     pub fn say(&mut self, sentence: String) {
         self.said = Some((sentence, std::time::Instant::now()));
+        self.said_schedule_wait = false;
     }
 
     /// Sorts by `column`: up, then the other way on a second click, then
