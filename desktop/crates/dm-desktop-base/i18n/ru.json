@@ -950,5 +950,6 @@
   "Keep {}": "Оставить {}",
   "Save as HTML": "Сохранить как HTML",
   "Don't download": "Не скачивать",
-  "When this download is done": "Когда эта загрузка завершится"
+  "When this download is done": "Когда эта загрузка завершится",
+  "{} \u00b7 {} free": "{} · свободно {}"
 }

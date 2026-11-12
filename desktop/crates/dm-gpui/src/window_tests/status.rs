@@ -32,3 +32,17 @@ fn a_shut_schedule_is_said_to_hold_the_downloads() {
             .any(|t| t.starts_with("· waiting for the schedule (opens at "))
     });
 }
+
+/// Download details says what it knows of the size: the size beside what the folder has free
+/// once the server has said, not a dash (gaps row U17).
+#[test]
+fn download_details_says_the_size_beside_the_room_left() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url_open(&world.url("file.zip"));
+    h.until("the size beside the room left", |h| {
+        h.texts()
+            .iter()
+            .any(|t| t.starts_with("256.0 KB · ") && t.ends_with(" free"))
+    });
+}

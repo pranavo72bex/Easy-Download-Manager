@@ -950,5 +950,6 @@
   "Keep {}": "{} olarak bırak",
   "Save as HTML": "HTML olarak kaydet",
   "Don't download": "İndirme",
-  "When this download is done": "Bu indirme bittiğinde"
+  "When this download is done": "Bu indirme bittiğinde",
+  "{} \u00b7 {} free": "{} · {} boş"
 }

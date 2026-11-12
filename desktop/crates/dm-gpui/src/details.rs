@@ -90,6 +90,9 @@ pub struct Details {
     part_to: Entity<InputState>,
     /// What the server said, once it has; `None` while it is asked.
     probed: Option<Probed>,
+    /// The folder last asked how much it has free, and its answer: asked again only when the
+    /// folder changes, not at every frame (gaps row U17).
+    free: Option<(String, Option<u64>)>,
     /// The folder this kind of file went to last has been offered.
     folder_offered: bool,
     /// "Always save here without asking" is ticked.
@@ -595,10 +598,42 @@ impl Render for Details {
         let queue_at = self.queues.iter().position(|q| *q == self.queue);
         let queue_words = SharedString::from(dm_desktop_base::i18n::name(&self.queue));
 
-        let size_words: SharedString = match self.probed.as_ref().and_then(|p| p.size) {
-            Some(size) => format::bytes(size).into(),
-            None if page => t("Known once the video starts").into(),
-            None => "—".into(),
+        // "Checking…" while the server is asked, then the size beside what the folder has free
+        // (in the warning colour where it will not fit), or that it is unknown (gaps row U17).
+        let folder_now = self.folder.read(cx).value().trim().to_string();
+        if self
+            .free
+            .as_ref()
+            .is_none_or(|(asked, _)| *asked != folder_now)
+        {
+            let dir = if folder_now.is_empty() {
+                self.settings.download_dir.clone()
+            } else {
+                std::path::PathBuf::from(&folder_now)
+            };
+            // The folder may not be made yet: what holds it is asked.
+            let there = dir
+                .ancestors()
+                .find(|d| d.is_dir())
+                .map(std::path::Path::to_path_buf)
+                .unwrap_or(dir);
+            self.free = Some((folder_now, dm_core::free_space(&there)));
+        }
+        let free = self.free.as_ref().and_then(|(_, free)| *free);
+        let size = self.probed.as_ref().and_then(|p| p.size);
+        let will_not_fit = matches!((size, free), (Some(size), Some(free)) if size > free);
+        let size_words: SharedString = match (&self.probed, size) {
+            (None, _) if !page => t("Checking…").into(),
+            (_, Some(size)) => match free {
+                Some(free) => tf(
+                    "{} · {} free",
+                    &[&format::bytes(size), &format::bytes(free)],
+                )
+                .into(),
+                None => format::bytes(size).into(),
+            },
+            _ if page => t("Known once the video starts").into(),
+            _ => t("unknown").into(),
         };
         // A form as macOS lays one out: the labels right-aligned in a
         // column of their own, every control (and what is said of one) in a
@@ -1012,7 +1047,11 @@ impl Render for Details {
                         d.child(row(
                             "Size",
                             div()
-                                .text_color(theme.muted)
+                                .text_color(if will_not_fit {
+                                    theme.warning
+                                } else {
+                                    theme.muted
+                                })
                                 .child(screen.label(size_words))
                                 .into_any_element(),
                         ))
@@ -1310,6 +1349,7 @@ fn open_now(
                     part_from,
                     part_to,
                     probed: None,
+                    free: None,
                     folder_offered: false,
                     always_here: false,
                     queue: dm_core::MAIN_QUEUE.into(),

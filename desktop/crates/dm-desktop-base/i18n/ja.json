@@ -950,5 +950,6 @@
   "Keep {}": "{} のままにする",
   "Save as HTML": "HTML として保存",
   "Don't download": "ダウンロードしない",
-  "When this download is done": "このダウンロードが終わったら"
+  "When this download is done": "このダウンロードが終わったら",
+  "{} \u00b7 {} free": "{} · 空き {}"
 }

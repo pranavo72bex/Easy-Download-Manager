@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Download details says "Checking…" while it asks the server, then the size beside the room the folder has left, marked when it will not fit.
 - A download's progress window has "When this download is done": open it, open its folder, or exit, sleep, hibernate or turn off (after the usual cancellable countdown).
 - YouTube: the clients dm asks YouTube's player as can be changed by the served rules, without a new version, and the next is tried where one is refused.
 - Undo stays 15 seconds (until the next command that changes the list), is a button, goes away on time, and puts back what Delete Completed took off too.

@@ -950,5 +950,6 @@
   "Keep {}": "Garder {}",
   "Save as HTML": "Enregistrer en HTML",
   "Don't download": "Ne pas télécharger",
-  "When this download is done": "Quand ce téléchargement est terminé"
+  "When this download is done": "Quand ce téléchargement est terminé",
+  "{} \u00b7 {} free": "{} · {} libres"
 }
