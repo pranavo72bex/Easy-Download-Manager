@@ -621,14 +621,21 @@ def differing(a, b):
 
 # ---------------------------------------------------------------- the walk
 
+def starting(words):
+    """A button picked from a question's words: the one that starts with `words` ("Use ", whose
+    button names the file)."""
+    return lambda texts: next((t for t in texts if t.startswith(words)), words.strip())
+
+
 def answer(dm, title, button, seconds=40):
-    """Waits for the question `title`, returns the words on it, and presses `button`."""
+    """Waits for the question `title`, returns the words on it, and presses `button` (its words,
+    or a function picking them from the question's, as `starting`)."""
     end = time.time() + seconds
     while time.time() < end:
         if title in dm.dialogs():
             pause(0.5)
             said = dm.dialog_texts()
-            dm.click(button)
+            dm.click(button(said) if callable(button) else button)
             return said
         time.sleep(0.25)
     return None
@@ -642,8 +649,10 @@ def drain(dm, seconds, buttons, said):
         for title in dm.dialogs():
             if title in buttons:
                 pause(0.4)
-                said.setdefault(title, []).append(dm.dialog_texts())
-                dm.click(buttons[title])
+                texts = dm.dialog_texts()
+                said.setdefault(title, []).append(texts)
+                button = buttons[title]
+                dm.click(button(texts) if callable(button) else button)
         time.sleep(0.25)
 
 
@@ -710,7 +719,7 @@ def walk(dm, origin):
     # The questions a server's answer raises (B39, B41) are answered as a person does,
     # as they come: each blocks the window until it is.
     questions = {}
-    asked = {"Name sent by the server": "Yes", "The file doesn't exist": "OK"}
+    asked = {"Name sent by the server": starting("Use "), "The file doesn't exist": "OK"}
     for url in (f"{origin}/go/target", f"{files}/report", f"{files}/missing.bin"):
         dm.add(url)
         drain(dm, 4, asked, questions)
@@ -828,15 +837,15 @@ def walk(dm, origin):
     named = [t for t in questions.get("Name sent by the server", [])
              if "The name to save the file was report, but the server sent Report 2026.pdf" in " ".join(t)
              and "Save the file with the name received from the server?" in " ".join(t)]
-    check("B39", "a server's name that differs from the address's is asked about, Yes and No offered",
-          bool(named) and "Yes" in named[0] and "No" in named[0],
+    check("B39", "a server's name that differs from the address's is asked about, Use and Keep offered",
+          bool(named) and "Use Report 2026.pdf" in named[0] and "Keep report" in named[0],
           f"{len(questions.get('Name sent by the server', []))} question(s): {questions.get('Name sent by the server', [])}"[:600])
-    check("B39", "Yes saves it under the server's name",
+    check("B39", "Use saves it under the server's name",
           pathlib.Path(report["path"]).name == "Report 2026.pdf", pathlib.Path(report["path"]).name)
     dm.add(f"{files}/second")
-    said = answer(dm, "Name sent by the server", "No")
+    said = answer(dm, "Name sent by the server", starting("Keep "))
     second = dm.wait("files/second", {"completed", "failed"}, 60)
-    check("B39", "No saves it under the address's name",
+    check("B39", "Keep saves it under the address's name",
           said is not None and bool(second) and second["state"]["kind"] == "completed"
           and pathlib.Path(second["path"]).name == "second",
           pathlib.Path(second["path"]).name if second and second.get("path") else str(second and second["state"]))
@@ -847,18 +856,18 @@ def walk(dm, origin):
     pause(3)
     check("B41", "it does not come back for the same row", "The file doesn't exist" not in dm.dialogs(), "")
     dm.add(f"{files}/pageyes.zip")
-    said = answer(dm, "Web page instead of the file", "Yes")
+    said = answer(dm, "Web page instead of the file", "Save as HTML")
     page = dm.wait("pageyes.zip", {"completed", "failed"}, 60)
     saved = pathlib.Path(page["path"]) if page and page.get("path") else None
-    check("B40", "a web page for a file is asked about; Yes saves it as an HTML page",
-          said is not None and "Yes" in said and "No" in said and saved is not None
+    check("B40", "a web page for a file is asked about; Save as HTML saves it as an HTML page",
+          said is not None and "Save as HTML" in said and "Don't download" in said and saved is not None
           and saved.name == "pageyes.html" and saved.read_bytes().startswith(b"<html>"),
           saved.name if saved else str(page and page["state"]))
     dm.add(f"{files}/pageno.zip")
-    said = answer(dm, "Web page instead of the file", "No")
+    said = answer(dm, "Web page instead of the file", "Don't download")
     pause(2)
     left = list((WORK / "home" / "downloads").rglob("pageno*"))
-    check("B40", "No removes the row and keeps nothing",
+    check("B40", "Don't download removes the row and keeps nothing",
           said is not None and dm.row("pageno.zip") is None and not left,
           f"row kept: {dm.row('pageno.zip') is not None}, files: {left}")
 

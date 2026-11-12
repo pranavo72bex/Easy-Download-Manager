@@ -238,7 +238,7 @@ pub struct Downloads {
     /// The top bar's search box: the words that narrow the list.
     pub(crate) filter: gpui::Entity<gpui_component::input::InputState>,
     /// Its words, as last typed.
-    filter_text: String,
+    pub(crate) filter_text: String,
     /// The speed limit before the limiter was turned off, for turning it on.
     last_limit: u64,
     /// The Recheck queue's counts, once a check of it is done.
@@ -1190,30 +1190,24 @@ impl Downloads {
         });
     }
 
-    /// Find next (`forward`) or previous: the next row shown whose name
-    /// holds the search box's words, going round the list
-    /// (`dm_desktop_base::find`), chosen and brought into view.
+    /// Find next (`forward`) or previous: the next row the search box shows (it narrows by name,
+    /// address or note), going round the list, chosen and brought into view (gaps row U30, B48).
     pub fn find_step(&mut self, forward: bool) {
         use dm_desktop_base::i18n::tf;
-        let needle = self.filter_text.trim().to_lowercase();
-        if needle.is_empty() {
+        if self.filter_text.trim().is_empty() {
             return;
         }
-        let names: Vec<String> = self
-            .shown
-            .iter()
-            .map(|&i| dm_shell::app::names::name_of(&self.rows[i]))
-            .collect();
         let from = self
             .shown
             .iter()
             .position(|&i| self.selected.contains(&self.rows[i].id));
-        match dm_desktop_base::find::next_match(&names, from, &needle, forward) {
+        match dm_desktop_base::find::step(self.shown.len(), from, forward) {
             Some(at) => {
                 let row = &self.rows[self.shown[at]];
+                let name = dm_shell::app::names::name_of(row);
                 self.selected = std::collections::BTreeSet::from([row.id]);
                 self.scroll.scroll_to_item(at, gpui::ScrollStrategy::Center);
-                self.say(tf("Found {}.", &[&names[at]]));
+                self.say(tf("Found {}.", &[&name]));
             }
             None => self.say(tf("Nothing is called “{}”.", &[&self.filter_text])),
         }

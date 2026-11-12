@@ -437,10 +437,7 @@ fn main() {
         if let Some((item, backend, wake)) = login_item {
             item.follow(&backend, wake);
         }
-        // dm's menus in the system's menu bar, and every command's keys.
-        menus::bind_keys(cx);
-        view.update(cx, |view, cx| view.refresh_menus(cx));
-        heard_anywhere(view.downgrade(), cx);
+        wire(&view, cx);
         // The commands themselves are the list's (`Downloads`' root element
         // handles `menus::Run`), reached through the window's own dispatch,
         // as a key or the menu bar sends them: the list keeps the keyboard.
@@ -454,15 +451,24 @@ fn main() {
     });
 }
 
-/// What is heard from any window in front, a dialog's too: Quit, as in every macOS program
-/// (the main window's view ends dm), and View › Text size and its keys, as the egui window's
-/// zoom was (kept by the list, which keeps the settings).
-pub(crate) fn heard_anywhere(view: gpui::WeakEntity<list::Downloads>, cx: &mut App) {
+/// What the application hears beside the window, once the main window is made: dm's menus in
+/// the system's menu bar and every command's key, Quit and View › Text size from any window in
+/// front. Run by `main` and by the window's tests (`harness.rs`), which start it as dm does.
+fn wire(view: &gpui::Entity<list::Downloads>, cx: &mut App) {
+    // dm's menus in the system's menu bar, and every command's keys.
+    menus::bind_keys(cx);
+    view.update(cx, |view, cx| view.refresh_menus(cx));
+    // Quit is heard from any window in front (a dialog's too), as in
+    // every macOS program: the main window's view ends dm.
+    let view = view.downgrade();
     let text_view = view.clone();
     cx.on_action(move |_: &menus::Quit, cx| match view.upgrade() {
         Some(view) => view.update(cx, |view, cx| view.ask_quit(cx)),
         None => cx.quit(),
     });
+    // View › Text size and its keys, heard from any window in front, a
+    // dialog's too, as the egui window's zoom was: kept by the list,
+    // which keeps the settings.
     let text_size = move |up: Option<bool>| {
         let view = text_view.clone();
         move |cx: &mut App| {

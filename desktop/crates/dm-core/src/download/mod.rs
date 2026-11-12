@@ -1763,9 +1763,11 @@ mod tests {
         assert!(!into.exists(), "a short file was left under the name");
     }
 
-    /// A Cancel stops the join of a file's parts part-way, within a second, and leaves no file
-    /// under the name (gaps row 185). The parts are sparse: only what the join wrote before it
-    /// stopped is on the disk.
+    /// A Cancel stops the join of a file's parts part-way and leaves no file under the name (gaps
+    /// row 185). The parts are sparse: only what the join wrote before it stopped is on the disk.
+    /// Part-way is told by the parts the join never reached, still there: a bound in time broke
+    /// under the load of the whole workspace's run, where one 32 MiB piece took over a second
+    /// (gaps row S19).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_cancel_stops_a_join_part_way() {
         use std::time::Duration;
@@ -1791,12 +1793,17 @@ mod tests {
             "the join was over before it could be cancelled"
         );
         options.control.cancel();
-        let outcome = tokio::time::timeout(Duration::from_secs(1), joining)
+        // Only against a join that never stops: the whole 2 GiB is far more than this takes.
+        let outcome = tokio::time::timeout(Duration::from_secs(60), joining)
             .await
-            .expect("the join went on for a second after the cancel")
+            .expect("the join went on for a minute after the cancel")
             .unwrap();
         assert!(matches!(outcome, Err(Error::Cancelled)), "{outcome:?}");
         assert!(!into.exists(), "a part-joined file was left under the name");
+        assert!(
+            parts.last().is_some_and(|last| last.exists()),
+            "the join went on to the last part after the cancel"
+        );
     }
 
     #[test]

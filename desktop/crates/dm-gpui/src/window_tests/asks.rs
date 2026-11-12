@@ -16,24 +16,24 @@ fn finished(h: &mut Harness) -> bool {
 }
 
 #[test]
-fn a_name_the_server_sent_is_asked_about_and_yes_keeps_it() {
+fn a_name_the_server_sent_is_asked_about_and_use_keeps_it() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("named"), "Start now");
     h.until_shown("Name sent by the server");
-    h.click("Yes");
+    h.click("Use report-2026.pdf");
     h.until("it to finish", finished);
     assert_eq!(h.rows()[0].filename, "report-2026.pdf");
     assert!(!h.shows("Name sent by the server"));
 }
 
 #[test]
-fn a_name_the_server_sent_is_given_up_for_the_addresss_on_no() {
+fn a_name_the_server_sent_is_given_up_for_the_addresss_on_keep() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("named"), "Start now");
     h.until_shown("Name sent by the server");
-    h.click("No");
+    h.click("Keep named");
     h.until("it to finish under the address's name", |h| {
         h.rows()
             .iter()
@@ -43,25 +43,25 @@ fn a_name_the_server_sent_is_given_up_for_the_addresss_on_no() {
 }
 
 #[test]
-fn a_web_page_for_a_file_is_saved_as_html_on_yes() {
+fn a_web_page_for_a_file_is_saved_as_html_on_save_as_html() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("pagefile.zip"), "Start now");
     h.until_shown("Web page instead of the file");
-    h.click("Yes");
+    h.click("Save as HTML");
     h.until("the page to be saved", finished);
     assert_eq!(h.rows()[0].filename, "pagefile.html");
 }
 
-/// A page typed into Add URL is asked about as a page for a file is (B40), not refused: Yes
-/// saves it as HTML (gaps row 136).
+/// A page typed into Add URL is asked about as a page for a file is (B40), not refused: Save
+/// as HTML saves it (gaps row 136).
 #[test]
-fn a_typed_web_page_is_asked_about_and_saved_as_html_on_yes() {
+fn a_typed_web_page_is_asked_about_and_saved_as_html_on_save_as_html() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("article"), "Start now");
     h.until_shown("Web page instead of the file");
-    h.click("Yes");
+    h.click("Save as HTML");
     h.until("the page to be saved", finished);
     let row = h.rows()[0].clone();
     assert!(row.filename.ends_with(".html"), "{}", row.filename);
@@ -72,12 +72,12 @@ fn a_typed_web_page_is_asked_about_and_saved_as_html_on_yes() {
 }
 
 #[test]
-fn a_web_page_for_a_file_leaves_nothing_on_no() {
+fn a_web_page_for_a_file_leaves_nothing_on_dont_download() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("pagefile.zip"), "Start now");
     h.until_shown("Web page instead of the file");
-    h.click("No");
+    h.click("Don't download");
     h.until("the row to go", |h| h.rows().is_empty());
 }
 

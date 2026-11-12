@@ -713,11 +713,13 @@ fn the_queue_arrows_start_and_stop_the_queue_chosen() {
 fn every_column_is_reached_at_the_default_window_size() {
     let world = world();
     let mut h = world.harness();
-    h.window
-        .update(&mut h.cx, |_, window, _| {
+    let main = h.window;
+    h.cx.update(|cx| {
+        main.update(cx, |_, window, _| {
             window.resize(gpui::size(gpui::px(960.0), gpui::px(660.0)))
         })
-        .unwrap();
+    })
+    .unwrap();
     h.add_url(&world.url("file.zip"), "Add for later");
     h.until("the row", |h| !h.rows().is_empty());
     let folder = |h: &mut Harness| {

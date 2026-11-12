@@ -945,5 +945,9 @@
  "Delete the file?": "删除该文件？",
  "{} parts of the stream in another format, such as an advert, were left out": "已略去 {} 段其他格式的内容（如广告）",
  "{} finished.": "{} 已完成。",
- "{} failed: {}": "{} 失败：{}"
+ "{} failed: {}": "{} 失败：{}",
+  "Use {}": "使用 {}",
+  "Keep {}": "保留 {}",
+  "Save as HTML": "另存为 HTML",
+  "Don't download": "不下载"
 }

@@ -8,7 +8,7 @@
 
 use std::sync::{mpsc, Arc};
 
-use gpui::{TestAppContext, WindowHandle};
+use gpui::{AnyWindowHandle, AppContext as _, Entity, TestAppContext};
 use serde_json::Value;
 
 use crate::list::Downloads;
@@ -105,7 +105,8 @@ impl dm_shell::app::platform::Platform for Fake {
 /// The window, opened, and how to ask it things.
 pub(crate) struct Harness {
     pub(crate) cx: TestAppContext,
-    pub(crate) window: WindowHandle<Downloads>,
+    pub(crate) window: AnyWindowHandle,
+    view: Entity<Downloads>,
     /// What dm asked of the system; read by the tests ported from the egui window's.
     #[allow(dead_code)]
     pub(crate) fake: Arc<Fake>,
@@ -145,28 +146,35 @@ impl Harness {
         let (wakes, woken) = crate::wakes::pair();
         let mut cx = TestAppContext::single();
         cx.update(gpui_component::init);
-        // The keys a launch binds: ⌘N, ⌘⇧N, Delete…
-        cx.update(crate::menus::bind_keys);
         crate::screen::record();
-        let window = cx.add_window(|window, cx| {
-            Downloads::new(
-                backend,
-                woken,
-                Some(asked),
-                false,
-                Default::default(),
-                false,
-                window,
-                cx,
-            )
+        // As `main` opens it: the list in gpui-component's root, then what the application
+        // hears beside it (`wire`: the keys, the menus, Quit and the text size).
+        let made = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let kept = std::rc::Rc::clone(&made);
+        let window = cx.add_window(move |window, cx| {
+            let view = cx.new(|cx| {
+                Downloads::new(
+                    backend,
+                    woken,
+                    Some(asked),
+                    false,
+                    Default::default(),
+                    false,
+                    window,
+                    cx,
+                )
+            });
+            *kept.borrow_mut() = Some(view.clone());
+            gpui_component::Root::new(view, window, cx)
         });
-        // What a launch hears from any window (Quit), and its menus.
-        let view = window.root(&mut cx).unwrap().downgrade();
-        cx.update(|cx| crate::heard_anywhere(view, cx));
+        let view: Entity<Downloads> = made.borrow_mut().take().unwrap();
+        cx.update(|cx| crate::wire(&view, cx));
+        let window: AnyWindowHandle = window.into();
         cx.run_until_parked();
         Harness {
             cx,
             window,
+            view,
             fake,
             asks,
             wakes,
@@ -175,9 +183,7 @@ impl Harness {
 
     /// `read` of the window's own state.
     pub(crate) fn view<R>(&mut self, read: impl FnOnce(&mut Downloads) -> R) -> R {
-        self.window
-            .update(&mut self.cx, |view, _, _| read(view))
-            .unwrap()
+        self.view.update(&mut self.cx, |view, _| read(view))
     }
 
     /// Every piece of text on screen, in every window, nearest the front first.
@@ -336,10 +342,7 @@ impl Harness {
         &mut self,
         act: impl FnOnce(&mut Downloads, &mut gpui::Context<Downloads>) -> R,
     ) -> R {
-        let done = self
-            .window
-            .update(&mut self.cx, |view, _, cx| act(view, cx))
-            .unwrap();
+        let done = self.view.update(&mut self.cx, act);
         self.step();
         done
     }
@@ -462,7 +465,7 @@ impl Harness {
     /// Every dialog's window closed, as its close button closes it, and a menu the port opened.
     pub(crate) fn close_dialogs(&mut self) {
         let _ = self.call("ui.key", serde_json::json!({ "key": "escape" }));
-        let main: gpui::AnyWindowHandle = self.window.into();
+        let main = self.window;
         self.cx.update(|cx| {
             for window in cx.windows() {
                 if window != main {

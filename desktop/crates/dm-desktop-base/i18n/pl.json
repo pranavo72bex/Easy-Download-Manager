@@ -945,5 +945,9 @@
  "Delete the file?": "Usunąć plik?",
  "{} parts of the stream in another format, such as an advert, were left out": "Pominięto części strumienia w innym formacie, np. reklamy: {}",
  "{} finished.": "Ukończono: {}.",
- "{} failed: {}": "Nie powiodło się: {}: {}"
+ "{} failed: {}": "Nie powiodło się: {}: {}",
+  "Use {}": "Użyj {}",
+  "Keep {}": "Zachowaj {}",
+  "Save as HTML": "Zapisz jako HTML",
+  "Don't download": "Nie pobieraj"
 }
