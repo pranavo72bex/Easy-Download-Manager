@@ -621,3 +621,6 @@ mod i18n_check;
 
 #[cfg(test)]
 mod harness;
+
+#[cfg(test)]
+mod window_tests;

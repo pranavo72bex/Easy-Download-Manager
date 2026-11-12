@@ -14,6 +14,8 @@ use serde_json::Value;
 use crate::list::Downloads;
 use dm_desktop_base::boot::Wake;
 
+pub(crate) mod world;
+
 /// Every test's settings file and queue live here, never in the real home.
 pub(crate) fn home() -> &'static std::path::Path {
     static HOME: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
@@ -106,23 +108,31 @@ pub(crate) struct Harness {
     pub(crate) fake: Arc<Fake>,
     asks: mpsc::Sender<dm_desktop_base::control::Request>,
     wakes: crate::wakes::Wakes,
-    _runtime: tokio::runtime::Runtime,
 }
 
 impl Harness {
-    /// The window over an empty list, its settings `settings`.
-    pub(crate) fn new(settings: dm_shell::Settings) -> Harness {
-        // A folder of its own in the test home, for its parts.
-        let dir = tempfile::tempdir_in(home()).unwrap().keep();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let fake = Arc::new(Fake::default());
+    /// The window over `settings` with its queue on `runtime`, the system `fake` and its parts
+    /// in `dir`, as a launch that read them would open it.
+    pub(crate) fn open(
+        runtime: tokio::runtime::Handle,
+        fake: Arc<Fake>,
+        dir: &std::path::Path,
+        settings: dm_shell::Settings,
+    ) -> Harness {
         let queue = dm_core::Queue::new(
             dm_core::client(),
             settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
-            1,
+            settings.concurrency,
         );
+        // The schedules and limits as a launch puts them on the queue (`shell::start`).
+        queue.set_schedule(settings.schedule.clone());
+        queue.set_queue_schedules(settings.queue_schedules.clone());
+        queue.set_allowance(settings.allowance());
+        queue.set_recheck_every(settings.recheck_every());
+        queue.set_queue_limits(settings.queue_limit_map());
+        queue.set_queue_starts(settings.queue_start_list());
         let backend = dm_shell::app::backend::Backend::new(
-            runtime.handle().clone(),
+            runtime,
             queue,
             settings,
             Vec::new(),
@@ -152,7 +162,6 @@ impl Harness {
             fake,
             asks,
             wakes,
-            _runtime: runtime,
         }
     }
 
@@ -188,6 +197,84 @@ impl Harness {
         }
     }
 
+    /// Types `text` into the field that has the keyboard, as a person types.
+    pub(crate) fn type_text(&mut self, text: &str) {
+        if let Err(why) = self.call("ui.type", serde_json::json!({ "text": text })) {
+            panic!("{text:?} could not be typed: {why}");
+        }
+    }
+
+    /// Presses `key` (`"enter"`, `"escape"`, `"a"`…), with `modifiers` (`"cmd"`, `"shift"`…).
+    #[allow(dead_code)]
+    pub(crate) fn key(&mut self, key: &str, modifiers: &[&str]) {
+        let asked = serde_json::json!({ "key": key, "modifiers": modifiers });
+        if let Err(why) = self.call("ui.key", asked) {
+            panic!("{key} could not be pressed: {why}");
+        }
+    }
+
+    /// Wakes the window (it reads the list, runs its tick, answers and draws) until `done`
+    /// says so, or fails after ten seconds.
+    pub(crate) fn until(&mut self, what: &str, mut done: impl FnMut(&mut Harness) -> bool) {
+        self.until_within(what, std::time::Duration::from_secs(10), &mut done);
+    }
+
+    /// [`Harness::until`], failing after `most`.
+    pub(crate) fn until_within(
+        &mut self,
+        what: &str,
+        most: std::time::Duration,
+        done: &mut dyn FnMut(&mut Harness) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + most;
+        loop {
+            self.step();
+            if done(self) {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "timed out waiting for {what}; on screen: {:?}",
+                self.texts()
+            );
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+    }
+
+    /// Waits until `words` are on screen.
+    pub(crate) fn until_shown(&mut self, words: &str) {
+        self.until(words, |h| h.shows(words));
+    }
+
+    /// The rows of the list, as the window last read them.
+    pub(crate) fn rows(&mut self) -> Vec<dm_core::Entry> {
+        self.view(|view| view.rows.iter().map(|r| (**r).clone()).collect())
+    }
+
+    /// Add URL, the address typed, OK, then Download details' `button` ("Start now",
+    /// "Download later"): a download added as a person adds one.
+    pub(crate) fn add_url(&mut self, url: &str, button: &str) {
+        self.click("Add URL");
+        self.until_shown("Address");
+        self.type_text(url);
+        self.click("OK");
+        // An address already in the list is asked about first; a test adding the same file
+        // twice means it.
+        self.until("Download details or Already in the list", |h| {
+            h.dialog_open("Download details") || h.shows("Already in the list")
+        });
+        if self.shows("Already in the list") {
+            self.click("Download again");
+            self.until("Download details", |h| h.dialog_open("Download details"));
+        }
+        self.click(button);
+    }
+
+    /// Whether a dialog called `title` is open.
+    pub(crate) fn dialog_open(&mut self, title: &str) -> bool {
+        self.dialogs().iter().any(|d| d == title)
+    }
+
     /// The dialogs open, by title.
     pub(crate) fn dialogs(&mut self) -> Vec<String> {
         let windows = self.call("ui.windows", Value::Null).unwrap();
@@ -199,6 +286,20 @@ impl Harness {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// One wake of the window, run until it parks. As the system does when a dialog closes,
+    /// the main window is given the keys again where no window has them: the test platform
+    /// hands them to none, and a question waits for the main window in front.
+    fn step(&mut self) {
+        let main = self.window;
+        self.cx.update(|cx| {
+            if cx.active_window().is_none() {
+                let _ = main.update(cx, |_, window, _| window.activate_window());
+            }
+        });
+        self.wakes.send(Wake::Now);
+        self.cx.run_until_parked();
     }
 
     /// Asks the window `method` with `params`, as the control port does, and its answer.
@@ -213,8 +314,7 @@ impl Harness {
             })
             .unwrap();
         for _ in 0..100 {
-            self.wakes.send(Wake::Now);
-            self.cx.run_until_parked();
+            self.step();
             if let Ok(answered) = answer.try_recv() {
                 return answered;
             }
@@ -231,7 +331,8 @@ mod tests {
     /// Add URL opens its dialog.
     #[test]
     fn the_window_opens_and_a_click_opens_add_url() {
-        let mut h = Harness::new(dm_shell::Settings::default());
+        let world = world::world();
+        let mut h = world.harness();
         assert!(h.shows("Nothing queued"), "{:?}", h.texts());
         assert!(h.view(|view| view.rows.is_empty()));
         h.click("Add URL");
