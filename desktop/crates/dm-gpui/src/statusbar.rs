@@ -149,6 +149,13 @@ pub fn statusbar(
                     .role(Role::Button)
                     .aria_label(t("Undo"))
                     .ml_2()
+                    // A button, not words in the line (gaps row U14).
+                    .px_2()
+                    .rounded_sm()
+                    .border_1()
+                    .border_color(theme.separator)
+                    .cursor_pointer()
+                    .hover(|s| s.bg(theme.stripe))
                     .text_color(theme.selection)
                     .on_click(cx.listener(|view, _, _, cx| {
                         view.undo_remove();

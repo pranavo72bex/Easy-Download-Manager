@@ -81,7 +81,7 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 |---|---|---|---|
 | B23 | Selects a finished download and clicks Delete | It leaves the list at once, without a question; its file stays; the window says "Removed 1 download from the list." with Undo, and Undo puts the row back | **differs**: reference A asks every time. dm asks only when something would be lost (B38); kept until the maintainer decides |
 | B38 | Selects a stopped, unfinished download and clicks Delete | dm asks first, "Remove an unfinished download": "This download isn't finished. Removing it discards what was downloaded.", Yes, remove / Keep it. Keep it leaves it as it was; Yes, remove takes it off the list | same |
-| B24 | Clicks Delete Completed | Finished rows leave the list, the window says "Deleted N …", every file stays | not documented |
+| B24 | Clicks Delete Completed | Finished rows leave the list, the window says "Deleted N …", every file stays; Undo, a button beside it (and Cmd/Ctrl-Z), puts them back for 15 s or until the next command that changes the list, as after Remove (added 2026-11-12 at the maintainer's word, gaps row U14) | not documented |
 
 ## How the window looks
 

@@ -264,6 +264,11 @@ impl Backend {
         self.block_on(self.queue.finished_rows(ids))
     }
 
+    /// Every row Delete Completed would take off, with where it stands, for Undo.
+    pub fn clearable_rows(&self) -> Vec<(usize, Entry)> {
+        self.block_on(self.queue.clearable_rows())
+    }
+
     /// Rows taken off the list put back where they were.
     pub fn put_back(&self, rows: Vec<(usize, Entry)>) {
         self.block_on(self.queue.put_back(rows));
@@ -1250,8 +1255,9 @@ mod set_url_tests {
     }
 }
 
-/// How long after downloads were taken off the list Undo puts them back.
-pub const UNDO_FOR: std::time::Duration = std::time::Duration::from_secs(5);
+/// How long after downloads were taken off the list Undo puts them back: long enough to see the
+/// sentence and reach the button (gaps row U14), unless another command changes the list first.
+pub const UNDO_FOR: std::time::Duration = std::time::Duration::from_secs(15);
 
 /// Finished rows taken off the list, kept for [`UNDO_FOR`] so Undo can put
 /// them back where they were.
@@ -1284,6 +1290,11 @@ impl Undo {
             }
             None => false,
         }
+    }
+
+    /// Undo is no longer on offer: another command changed the list.
+    pub fn forget(&mut self) {
+        self.0 = None;
     }
 
     /// Whether anything is kept, on offer or not yet put away.
