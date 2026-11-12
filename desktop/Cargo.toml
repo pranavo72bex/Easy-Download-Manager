@@ -35,8 +35,9 @@ strip = true
 # Built for speed where the work is the CPU's: dm's engine with its MP3, GIF
 # and resampling code ("z" made it three times as slow), digests, unpacking,
 # TLS, AAC decoding and drawing. The rest waits on the network or the window
-# and is built for size. Not dm-desktop: with LTO its setting becomes the
-# whole program's (at 3 the binary was 27 MB). docs/decisions.md, 2026-11-06.
+# and is built for size. Not dm-gpui or dm-desktop: with LTO a binary's
+# setting becomes the whole program's (dm-desktop at 3 was 27 MB).
+# docs/decisions.md, 2026-11-06 and 2026-11-12 (gaps row S12).
 [profile.release.package.dm-core]
 opt-level = 3
 [profile.release.package.symphonia-codec-aac]
@@ -53,6 +54,40 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.ring]
 opt-level = 3
+# The HTTP stack every byte of a download passes through: the connection's
+# reading (hyper), the runtime that wakes for each piece (tokio) and TLS's
+# records (rustls). At 3 a 512 MiB download over plain HTTP took 5 % fewer
+# instructions and 10 % less CPU for 329 KB of binary; rustls's share is not
+# measured yet (gaps row S12).
+[profile.release.package.hyper]
+opt-level = 3
+[profile.release.package.tokio]
+opt-level = 3
+[profile.release.package.rustls]
+opt-level = 3
+# The shipped window's drawing: GPUI's frame (gpui-pre), its layout (taffy)
+# and each system's window, renderer and text. On macOS the window is
+# gpui-pre-macos and the Metal renderer and the text are gpui-pre-apple; on
+# Linux the window is gpui-pre-linux and the renderer and text gpui-pre-wgpu;
+# on Windows all three are gpui-pre-windows. Not gpui-component or GPUI's
+# small helper crates (sum-tree and the like): the 2026-11-11 trial that had
+# them grew the binary 11 % for nothing measured.
+[profile.release.package.gpui-pre]
+opt-level = 3
+[profile.release.package.taffy]
+opt-level = 3
+[profile.release.package.gpui-pre-macos]
+opt-level = 3
+[profile.release.package.gpui-pre-apple]
+opt-level = 3
+[profile.release.package.gpui-pre-linux]
+opt-level = 3
+[profile.release.package.gpui-pre-wgpu]
+opt-level = 3
+[profile.release.package.gpui-pre-windows]
+opt-level = 3
+# The egui window's drawing, only while that window is still built (gaps G9):
+# they go with it. dm-gpui's build has neither crate.
 [profile.release.package.epaint]
 opt-level = 3
 [profile.release.package.egui]
