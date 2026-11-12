@@ -153,7 +153,7 @@ pub struct Downloads {
     /// The control port's requests, answered on this thread.
     requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
     /// The port was opened only for AI assistants.
-    assistants_only: bool,
+    pub(crate) assistants_only: bool,
     /// Where the list is scrolled, and where it is on screen.
     pub(crate) scroll: UniformListScrollHandle,
     /// The words on screen, where the last frame laid them out.
@@ -172,7 +172,7 @@ pub struct Downloads {
     /// and sorted, as a person expects of a selection.
     pub(crate) selected: std::collections::BTreeSet<dm_core::Id>,
     /// Where a ⇧-click's range starts: the row last clicked alone.
-    anchor: Option<dm_core::Id>,
+    pub(crate) anchor: Option<dm_core::Id>,
     /// A column's width as its heading's edge is dragged, and when the drag's width was last
     /// kept (`table.rs`).
     pub(crate) resizing: Option<(Column, f32)>,
@@ -181,7 +181,7 @@ pub struct Downloads {
     pub(crate) panel_resizing: Option<f32>,
     /// The keyboard's place: the row last clicked or moved to, which the
     /// arrows, Home, End and the page keys move from (`keys.rs`).
-    cursor: Option<dm_core::Id>,
+    pub(crate) cursor: Option<dm_core::Id>,
     /// The row menu, open where it was asked for.
     menu: Option<gpui::Point<gpui::Pixels>>,
     /// The keyboard's place in the open row menu, by entry (`rowmenu::entries`).
@@ -225,7 +225,7 @@ pub struct Downloads {
     /// their parent only for a `Dialog`, which a question is not there.
     question_window: Option<gpui::AnyWindowHandle>,
     /// "Exit dm?" is being asked: Exit again does not ask twice.
-    exit_asked: bool,
+    pub(crate) exit_asked: bool,
     /// Exit was carried out (`quit`): what the window's tests read, as GPUI's test platform
     /// ends nothing.
     pub(crate) quit_asked: bool,
@@ -273,15 +273,15 @@ pub struct Downloads {
     /// When the saved searches were last looked at.
     pub(crate) searches_checked: Option<std::time::Instant>,
     /// Each progress window open, by its download.
-    progress_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
+    pub(crate) progress_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
     /// Progress windows a person closed: not opened again by themselves.
     progress_closed: std::collections::HashSet<dm_core::Id>,
     /// The downloads "Download complete" lists.
     pub(crate) complete: std::collections::BTreeSet<dm_core::Id>,
     /// "Download complete", while it is open.
-    complete_window: Option<gpui::AnyWindowHandle>,
+    pub(crate) complete_window: Option<gpui::AnyWindowHandle>,
     /// Each download's File properties window, while open.
-    properties_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
+    pub(crate) properties_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
     /// When a control client last acted: a file is not run, nor the update
     /// installed, by a script's click a moment ago (gaps row 159 f).
     pub(crate) scripted: dm_shell::app::control_api::ScriptGuard,
@@ -1599,7 +1599,9 @@ impl Downloads {
                 self.complete.insert(*id);
             }
         }
-        if show && !self.complete.is_empty() && self.complete_window.is_none() {
+        // Not over "Exit dm?" while it asks, with Open folder where Exit was about to be
+        // pressed: it opens once the question is answered (`ask_quit`).
+        if show && !self.complete.is_empty() && self.complete_window.is_none() && !self.exit_asked {
             let me = cx.entity().downgrade();
             cx.defer(move |cx| {
                 let handle = crate::complete::open(me.clone(), cx);
@@ -2365,6 +2367,15 @@ impl Render for Downloads {
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &crate::menus::Confirm, window, cx| {
+                // Return in the search box is the box's own (Find next): passed on to its field,
+                // whose binding comes after this one. Taken here, it opened the chosen row's
+                // progress window and never found the next.
+                if gpui::Focusable::focus_handle(this.filter.read(cx), cx)
+                    .contains_focused(window, cx)
+                {
+                    cx.propagate();
+                    return;
+                }
                 if this.menu_open() {
                     this.confirm_menu(window, cx);
                 } else {

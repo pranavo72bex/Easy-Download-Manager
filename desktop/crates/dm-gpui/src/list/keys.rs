@@ -15,13 +15,15 @@ use super::*;
 impl Downloads {
     /// A right-click on the row at `position`, at `at`: the row is chosen
     /// if it was not (a right-click on a chosen row keeps the choice), and
-    /// the row menu opens there.
+    /// the row menu opens there. The keyboard's place moves to it, as the egui window's does:
+    /// the arrows and Shift go on from the row clicked.
     pub fn open_menu(&mut self, id: dm_core::Id, at: gpui::Point<gpui::Pixels>) {
         if self.position_of(id).is_some() {
             if !self.selected.contains(&id) {
                 self.selected = [id].into();
                 self.anchor = Some(id);
             }
+            self.cursor = Some(id);
             self.menu = Some(at);
             self.menu_at = None;
         }

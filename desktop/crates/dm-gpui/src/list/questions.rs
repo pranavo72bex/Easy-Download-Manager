@@ -296,6 +296,9 @@ impl Downloads {
                 view.exit_asked = false;
                 if button == EXIT {
                     view.quit(cx);
+                } else {
+                    // What finished while it asked, listed now.
+                    view.finished(&[], cx);
                 }
             });
         });
