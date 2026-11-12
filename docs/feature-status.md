@@ -563,7 +563,10 @@ of them.
       (`extract.rs`): every entry judged before any is written (paths that
       leave the folder, links, devices, passwords, repeated names, size and
       ratio limits), always a new folder, the archive kept, nothing run.
-      Deflate and Stored only
+      ZIP: Deflate and Stored only. A tar, plain or gzipped, and a 7z
+      (Copy, LZMA, LZMA2, solid, by dm's own decoders in
+      `extract/sevenz/lzma.rs`) under the same rules; other 7z methods,
+      passwords and RAR are refused
 - [x] Watched folder — Options › Downloads: links saved there (`.url`,
       `.webloc`, text, `.torrent`) are added and the file moved to `done`
       (`app/watch.rs`)

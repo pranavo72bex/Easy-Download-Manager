@@ -140,7 +140,7 @@ pub fn sum_of(sums: &Sums, algorithm: dm_core::Algorithm) -> Option<Result<Strin
     dm_core::lock(sums).get(algorithm.name()).cloned().flatten()
 }
 
-/// Extracts the finished ZIP at `path` (fetched from `url`, which it is
+/// Extracts the finished archive (ZIP, tar or 7z) at `path` (fetched from `url`, which it is
 /// checked against) into a new folder beside it, or inside `into`, on a
 /// thread of its own, once a turn at the computer's heavy work is free
 /// (`dm_core::heavy`); nothing in it is opened or run. `done` is given what
