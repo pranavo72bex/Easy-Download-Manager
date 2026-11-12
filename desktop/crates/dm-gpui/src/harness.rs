@@ -1131,6 +1131,115 @@ impl Harness {
         });
         self.step();
     }
+
+    /// The control port opened on the loopback over this window with `token`, as `--control`
+    /// opens it (`port::open`), and its number: what the window answers is answered as the
+    /// harness steps it, the list and pause, resume and cancel by id on the port's own thread.
+    /// `assistants_only`: opened because AI assistants are allowed, for them alone.
+    pub(crate) fn open_port(&mut self, token: &str, assistants_only: bool) -> u16 {
+        let backend = self.view(|view| {
+            view.assistants_only = assistants_only;
+            view.backend.clone()
+        });
+        dm_desktop_base::control::listen_reading(
+            0,
+            token.into(),
+            self.asks.clone(),
+            || {},
+            Some(crate::port::reads(backend, assistants_only)),
+        )
+        .unwrap()
+    }
+
+    /// Where the words `text` were drawn, nearest the front first, in whichever window.
+    pub(crate) fn bounds_of(&mut self, text: &str) -> gpui::Bounds<gpui::Pixels> {
+        self.drawn(text, 0).1
+    }
+
+    /// The main window made `width` by `height`, as a person's drag of its corner makes it.
+    pub(crate) fn resize(&mut self, width: f32, height: f32) {
+        let main = self.window;
+        self.cx
+            .update(|cx| {
+                main.update(cx, |_, window, _| {
+                    window.resize(gpui::size(gpui::px(width), gpui::px(height)))
+                })
+            })
+            .unwrap();
+        self.step();
+    }
+
+    /// The pointer pressed at `from` in the main window and moved to `to` in eight moves, held
+    /// down, as a person drags; let go there where `release`. Left held, what is being
+    /// dragged can be read (`cx.has_active_drag`) before [`Harness::release`].
+    pub(crate) fn drag(
+        &mut self,
+        from: gpui::Point<gpui::Pixels>,
+        to: gpui::Point<gpui::Pixels>,
+        release: bool,
+    ) {
+        use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, PlatformInput};
+        let main = self.window;
+        let none = Modifiers::default();
+        let send = |cx: &mut TestAppContext, event: PlatformInput| {
+            cx.update(|cx| {
+                let _ = main.update(cx, |_, window, cx| window.dispatch_event(event, cx));
+            });
+        };
+        send(
+            &mut self.cx,
+            PlatformInput::MouseMove(MouseMoveEvent {
+                position: from,
+                pressed_button: None,
+                modifiers: none,
+            }),
+        );
+        send(
+            &mut self.cx,
+            PlatformInput::MouseDown(MouseDownEvent {
+                button: MouseButton::Left,
+                position: from,
+                modifiers: none,
+                click_count: 1,
+                first_mouse: false,
+            }),
+        );
+        self.step();
+        for step in 1..=8 {
+            let at = from + (to - from) * (step as f32 / 8.0);
+            send(
+                &mut self.cx,
+                PlatformInput::MouseMove(MouseMoveEvent {
+                    position: at,
+                    pressed_button: Some(MouseButton::Left),
+                    modifiers: none,
+                }),
+            );
+            self.step();
+        }
+        if release {
+            self.release(to);
+        }
+    }
+
+    /// The pointer held down since [`Harness::drag`] let go at `at` in the main window.
+    pub(crate) fn release(&mut self, at: gpui::Point<gpui::Pixels>) {
+        let main = self.window;
+        self.cx.update(|cx| {
+            let _ = main.update(cx, |_, window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::MouseUp(gpui::MouseUpEvent {
+                        button: gpui::MouseButton::Left,
+                        position: at,
+                        modifiers: gpui::Modifiers::default(),
+                        click_count: 1,
+                    }),
+                    cx,
+                )
+            });
+        });
+        self.step();
+    }
 }
 
 #[cfg(test)]

@@ -48,7 +48,7 @@ pub fn open(
 /// 176). Answered as the window answers it: who may ask as the application
 /// says (`control_api::refused`), each finished row by its file's size on
 /// disk (`SavedSizes`, as the window's read gives it).
-fn reads(backend: Backend, assistants_only: bool) -> Reads {
+pub(crate) fn reads(backend: Backend, assistants_only: bool) -> Reads {
     let saved = Mutex::new(dm_shell::app::snapshot::SavedSizes::default());
     Arc::new(move |method, params, via_mcp| {
         // How many times the main window has been drawn: what a test of

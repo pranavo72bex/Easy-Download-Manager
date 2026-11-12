@@ -24,13 +24,14 @@ cd ../browser && cargo test                     # the extension's decisions, on 
 ```
 
 - The engine's tests run against a real HTTP server on loopback and a real
-  queue, and a loopback BitTorrent swarm. The older egui window's tests (kept
-  until gaps row G9) click every control through its accessibility tree
-  (`crates/dm-desktop/tests/window.rs`, which indexes `tests/window/`:
-  `support.rs` is the fake system and shared helpers, the rest are grouped by
-  what they check). The GPUI window, the one shipped, has its unit tests in
-  `crates/dm-gpui` and is driven whole through the control port by
-  `scripts/human-qa.py` and `scripts/app-check.py`.
+  queue, and a loopback BitTorrent swarm. The GPUI window, the one shipped, is
+  opened in GPUI's test platform over a real queue and driven through the
+  control port's methods (`crates/dm-gpui/src/harness.rs`; the tests in
+  `src/window_tests/`, grouped by what they check: `cargo test -p dm-gpui
+  window_tests`), and driven whole by `scripts/human-qa.py` and
+  `scripts/app-check.py`. The older egui window's own tests went to it, file by
+  file; its cover tests (`crates/dm-desktop/tests/*_cover.rs`) still share
+  `tests/window/support.rs` until gaps row G9.
 - Every reader of outside input (names, headers, playlists, archives, the
   control protocol) has a property test in `tests/fuzz.rs`; `PROPTEST_CASES=200000
   cargo test --release -p dm-core --test fuzz` hunts deeper.

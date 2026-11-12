@@ -9,9 +9,12 @@
 mod asks;
 mod choices;
 mod commands;
+mod control;
 mod dialogs;
 mod downloads;
 mod find;
+mod keyboard;
+mod layout;
 mod lists;
 mod options;
 mod second_network;

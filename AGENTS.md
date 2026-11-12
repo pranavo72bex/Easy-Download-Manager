@@ -77,7 +77,7 @@ extension that hands it the browser's downloads.
 | File | What it says |
 |---|---|
 | `docs/parity.md` | Every behaviour, its status, and the test or run that proves it |
-| `crates/dm-desktop/tests/window.rs` (indexing `tests/window/`) | The egui window's every menu item, toolbar button and row-menu item clicked by its name and checked for what it does (until G9); the GPUI window is held by `scripts/human-qa.py` and the control port's checks |
+| `crates/dm-gpui/src/window_tests/` (with `src/harness.rs`) | The GPUI window's every menu item, toolbar button and row-menu item clicked by its name and checked for what it does, through the control port's methods in GPUI's test platform; and whole by `scripts/human-qa.py` |
 | `docs/zoo.md` | Thirty-one server behaviours and what dm does with each (generated; floor only rises) |
 | `docs/scorecard.md` | The counts of all of the above, by area (generated) |
 | `docs/how-it-works.md` | How the app and the extension fit together, and how to build them |
@@ -124,7 +124,7 @@ python3 scripts/readme-shots.py           # the README's pictures, of the GPUI w
 ./target/debug/dm-gpui --headless --control 0   # no window, for scripts and agents
 ./target/debug/dm-gpui mcp                 # MCP tools for an AI client, relayed to a running dm
 ./target/debug/dm-gpui list | status N | pause N | resume N | cancel N   # the command line, against a running dm
-cd desktop && cargo test -p dm-desktop --test window   # the older egui window, through its accessibility tree (until G9)
+cd desktop && cargo test -p dm-gpui window_tests   # the window, driven through the control port's methods
 ./target/debug/dm-desktop --control 0      # the older egui window, the same flags
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home
 cargo test -p dm-core --test zoo -- --nocapture   # the server zoo; DM_RAISE_FLOOR=1 after a fix
