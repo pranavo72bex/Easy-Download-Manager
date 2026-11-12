@@ -175,10 +175,15 @@ impl Quality {
 }
 
 fn join(base: &str, relative: &str) -> Result<String, Error> {
-    Url::parse(base)
+    let joined = Url::parse(base)
         .and_then(|base| base.join(relative.trim()))
         .map(|joined| joined.to_string())
-        .map_err(|e| Error::Internal(format!("a stream listed an address dm cannot read: {e}")))
+        .map_err(|e| Error::Internal(format!("a stream listed an address dm cannot read: {e}")))?;
+    // A public playlist may not send dm inside, as a redirect may not (`redirects::named_inside`).
+    if crate::redirects::named_inside(base, &joined) {
+        return Err(Error::Internal(crate::http_client::INWARD_REDIRECT.into()));
+    }
+    Ok(joined)
 }
 
 /// Reads `ATTR=VALUE` pairs off an `#EXT-X-` tag, honouring quoted values.

@@ -481,7 +481,9 @@ pub(super) async fn assemble(
             (!lead.is_empty()).then(|| (seam.saturating_sub(lead.len() as u64), lead))
         })
         .collect();
+    crate::finish_trace::mark("assembling");
     let on_disk = leads_on_disk(job, &segments, &leads).await;
+    crate::finish_trace::mark("leads read");
     // A slice whose bytes are not on disk proves nothing.
     let dishonest = leads
         .iter()
@@ -538,6 +540,7 @@ pub(super) async fn assemble(
         .await?
         .set_len(length)
         .await?;
+    crate::finish_trace::mark("held to its length");
     finish(&name, info.content_type.as_deref(), &[staged], options).await
 }
 
@@ -590,8 +593,10 @@ pub(crate) async fn finish(
         chosen.as_deref().or(titled.as_deref()).unwrap_or(name),
     )
     .await?;
+    crate::finish_trace::mark("named");
 
     let bytes = join_parts(parts, &path, &options.control).await?;
+    crate::finish_trace::mark("placed");
 
     // Cancelled during the join: what it produced is not wanted either.
     if options.control.wanted() == crate::control::Wanted::Cancel {

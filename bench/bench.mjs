@@ -306,10 +306,14 @@ async function whenWhole(dir, names, size, timeoutMs, t0) {
       try { if (fs.statSync(path.join(dir, n)).size === size) doneAt.set(n, Date.now()); } catch {}
     }
     if (doneAt.size === names.length) return Math.max(...doneAt.values());
-    await sleep(100);
+    await sleep(DONE_POLL_MS);
   }
   return null;
 }
+
+// How often a finished file is looked for: 100 ms, as reference A's runs were measured; less
+// with BENCH_DONE_POLL_MS, to see a finish shorter than the look (gaps row 177).
+const DONE_POLL_MS = Number(process.env.BENCH_DONE_POLL_MS) || 100;
 
 async function runRefa(urls, names, size, dir, timeoutMs, queue, gate) {
   await refaUp();

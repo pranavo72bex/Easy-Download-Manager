@@ -551,6 +551,31 @@ fn options_apply_to_the_link_after_them() {
     assert!(got.start_queue);
 }
 
+/// Words after a `magnet:` link a protocol launch hands dm are the link's, never options: a
+/// split link cannot ask nothing, choose a folder or add another download (security audit,
+/// 2026-11-12).
+#[test]
+fn a_magnet_launch_is_one_link_whatever_follows_it() {
+    let launched = one_link_launch(argv(&[
+        "magnet:?xt=urn:btih:x\"",
+        "--quiet",
+        "--save-to",
+        "/tmp",
+        "https://evil.example/a.bat",
+    ]));
+    assert_eq!(launched.len(), 1);
+    let got = orders(&launched);
+    assert_eq!(got.downloads.len(), 1);
+    assert!(got.downloads[0].url.starts_with("magnet:"));
+    assert!(!got.downloads[0].quiet);
+    assert_eq!(got.downloads[0].save_dir, None);
+    // Options before a link are read as ever.
+    assert_eq!(
+        one_link_launch(argv(&["--quiet", "magnet:?xt=urn:btih:x"])).len(),
+        2
+    );
+}
+
 /// `--quiet` has every link after it added with nothing asked; links before it ask as Options
 /// says (gaps row F3).
 #[test]

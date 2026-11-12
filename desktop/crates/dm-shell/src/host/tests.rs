@@ -1361,3 +1361,38 @@ fn a_forms_answer_is_taken_without_asking_and_its_form_goes_with_it() {
     };
     assert!(crate::shell::posted("https://e.com/api", Some(&bad)).is_none());
 }
+
+/// A page's links are taken without logins written into them, and none inside this computer or
+/// its network where the page is public; an inside page's own inside links are kept (security
+/// audit, 2026-11-12).
+#[test]
+fn a_public_pages_links_inside_are_dropped_and_logins_taken_out() {
+    let page = "https://evil.example/list.html";
+    assert_eq!(page_link(page, "http://192.168.1.1/apply.cgi?x=1"), None);
+    let (user, password) = (
+        crate::test_secrets::secret("router-user"),
+        crate::test_secrets::secret("router-password"),
+    );
+    assert_eq!(
+        page_link(page, &format!("http://{user}:{password}@192.168.1.1/a")),
+        None
+    );
+    assert_eq!(page_link(page, "http://169.254.169.254/latest/"), None);
+    assert_eq!(page_link(page, "file:///etc/passwd"), None);
+    assert_eq!(
+        page_link(
+            page,
+            &format!(" https://{user}:{password}@files.example/a.zip ")
+        )
+        .as_deref(),
+        Some("https://files.example/a.zip")
+    );
+    assert_eq!(
+        page_link(page, "https://files.example/b.zip").as_deref(),
+        Some("https://files.example/b.zip")
+    );
+    assert_eq!(
+        page_link("http://nas.local/", "http://nas.local/c.iso").as_deref(),
+        Some("http://nas.local/c.iso")
+    );
+}

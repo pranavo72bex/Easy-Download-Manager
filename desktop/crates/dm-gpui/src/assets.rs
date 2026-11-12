@@ -51,6 +51,13 @@ const ICONS: &[(&str, &[u8])] = icons!(
     "sidebar",
     // The floating drop target's.
     "drop",
+    // The side panel's places that are not a kind: All, Unfinished, Finished, a queue, a
+    // person's own category.
+    "place-all",
+    "place-unfinished",
+    "place-finished",
+    "place-queue",
+    "place-folder",
 );
 
 /// The pictures compiled into dm.

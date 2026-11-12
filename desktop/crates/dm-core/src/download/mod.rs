@@ -1138,7 +1138,12 @@ async fn fetch_reporting(
      * names. */
     if metalink::is_metalink(url, info.content_type.as_deref()) {
         first_response = None;
-        let listed = fetch_metalink(client, &info.final_url, options).await?;
+        let mut listed = fetch_metalink(client, &info.final_url, options).await?;
+        // A public mirror list's mirrors inside are passed over, as a redirect there would be
+        // refused (`redirects::named_inside`, security audit 2026-11-12).
+        listed
+            .mirrors
+            .retain(|mirror| !crate::redirects::named_inside(&info.final_url, mirror));
         let (mirrors, agreed) =
             or_stop(&options.control, agreeing_mirrors(client, &listed)).await?;
 
@@ -1303,6 +1308,7 @@ async fn fetch_reporting(
         first_response,
     )
     .await;
+    crate::finish_trace::mark("run returned");
     // The next file from a server that turned requests away opens no more than it served at once.
     if job.limits.limited() && job.sources.len() == 1 {
         crate::agents::remember_ceiling(&job.sources[0].url, job.together.most());
@@ -1374,7 +1380,9 @@ async fn fetch_reporting(
         checksum,
         ..options.clone()
     };
+    crate::finish_trace::mark("reported");
     let assembled = assemble(&job, &info, options).await;
+    crate::finish_trace::mark("assembled");
     // Placed, or never to be: the staged file is let go of, in the background once it is placed.
     release_staged(&job, assembled.is_err()).await;
     /* Bytes that differ across a seam when asked for a second time: the

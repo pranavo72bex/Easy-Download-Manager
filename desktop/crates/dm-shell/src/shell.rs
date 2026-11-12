@@ -97,9 +97,30 @@ fn is_host_manifest(arg: &str) -> bool {
         && path.file_name().is_some_and(|name| name == HOST_MANIFEST)
 }
 
-/// This process's arguments, less its own name.
+/// This process's arguments, less its own name, as a protocol launch is taken
+/// ([`one_link_launch`]).
 pub fn args() -> Vec<String> {
-    std::env::args().skip(1).collect()
+    one_link_launch(std::env::args().skip(1).collect())
+}
+
+/// A launch whose first word is a `magnet:` link is the system handing dm that
+/// one link (the `magnet:` handler is registered as `"<dm>" "%1"`): every word
+/// after it is part of the link, never an option. On Windows a link holding a
+/// `"` and spaces, passed on unescaped by the program that opened it, was split
+/// into words that dm read as `--quiet`, `--save-to FOLDER` and another link, so
+/// a file of a page's choosing was saved into a folder of its choosing with
+/// nothing asked (security audit, 2026-11-12).
+pub fn one_link_launch(args: Vec<String>) -> Vec<String> {
+    match args.first() {
+        Some(first)
+            if first
+                .get(..7)
+                .is_some_and(|s| s.eq_ignore_ascii_case("magnet:")) =>
+        {
+            vec![args.join(" ")]
+        }
+        _ => args,
+    }
 }
 
 /// Whether this launch was the login item's, which opens nothing.
@@ -911,30 +932,39 @@ fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Result<(), St
 }
 
 /// A file an opener's stderr goes to, removed when read or dropped.
+///
+/// In dm's own home, which only this account can enter, made new (never a file or link already
+/// there) and handed to the opener as the same open file: in the shared temporary folder,
+/// another account could have put a link at its name first, and dm truncated what it pointed at
+/// and wrote the opener's words into it (security audit, 2026-11-12).
 #[cfg(all(unix, not(target_os = "macos")))]
-struct OpenerSays(PathBuf);
+struct OpenerSays(PathBuf, std::fs::File);
 
 #[cfg(all(unix, not(target_os = "macos")))]
 impl OpenerSays {
     fn new() -> Option<Self> {
+        use std::os::unix::fs::OpenOptionsExt;
         use std::sync::atomic::{AtomicU64, Ordering};
         static NEXT: AtomicU64 = AtomicU64::new(0);
-        let name = format!(
-            "dm-opener-{}-{}.txt",
+        let dir = settings::home();
+        std::fs::create_dir_all(&dir).ok()?;
+        let path = dir.join(format!(
+            ".opener-{}-{}.txt",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
-        );
-        let path = std::env::temp_dir().join(name);
-        std::fs::File::create(&path).ok()?;
-        Some(Self(path))
+        ));
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .append(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)
+            .ok()?;
+        Some(Self(path, file))
     }
 
     fn stdio(&self) -> Option<std::process::Stdio> {
-        std::fs::OpenOptions::new()
-            .append(true)
-            .open(&self.0)
-            .ok()
-            .map(std::process::Stdio::from)
+        self.1.try_clone().ok().map(std::process::Stdio::from)
     }
 
     /// Its last few lines, which is where an opener says why.

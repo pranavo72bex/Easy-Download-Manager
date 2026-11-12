@@ -582,6 +582,7 @@ pub(super) async fn run(
             }
         }
     }
+    crate::finish_trace::mark("connections ended");
     // Nothing is left for it to let in.
     if let Some(grower) = grower {
         grower.abort();
@@ -1023,10 +1024,12 @@ pub(super) async fn fetch_segment(
          * (`run`), as a check sent beside a range's request took the request the server would
          * have taken. */
         Ok(onward) if resumable => {
+            crate::finish_trace::mark("a range whole");
             if job.limits.limited() {
                 job.limits.check_later(index);
             } else {
                 check_seams(client, job, index, false).await;
+                crate::finish_trace::mark("its seams checked");
             }
             Ok(onward)
         }

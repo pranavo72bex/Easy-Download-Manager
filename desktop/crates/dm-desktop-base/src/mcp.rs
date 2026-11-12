@@ -465,15 +465,19 @@ pub fn serve(
 pub fn finder(home: &Path, port: Option<String>, token_file: Option<String>) -> Finder {
     let home = home.to_path_buf();
     Box::new(move || {
-        let port = port
-            .clone()
-            .or_else(|| std::fs::read_to_string(home.join("control.port")).ok())
-            .and_then(|p| p.trim().parse::<u16>().ok());
+        // The token before the port: dm removes the port file before it writes a new token and
+        // writes the port once bound, so a token read first is never sent to a port left by a
+        // crash that someone else may now hold (security audit, 2026-11-12).
         let token = token_file
             .clone()
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| home.join("control.token"));
-        match (port, std::fs::read_to_string(&token)) {
+        let token = std::fs::read_to_string(&token);
+        let port = port
+            .clone()
+            .or_else(|| std::fs::read_to_string(home.join("control.port")).ok())
+            .and_then(|p| p.trim().parse::<u16>().ok());
+        match (port, token) {
             (Some(port), Ok(token)) => Ok((port, token.trim().to_string())),
             _ => Err("no running dm to talk to: in dm, tick Options › General › Allow AI assistants to control dm (MCP), or start dm with --control 0".to_string()),
         }

@@ -87,6 +87,15 @@ pub fn fresh_token(home: &Path) -> std::io::Result<String> {
     getrandom::fill(&mut bytes).map_err(|e| std::io::Error::other(e.to_string()))?;
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     std::fs::create_dir_all(home)?;
+    // A port file a crash left names a port anyone on this computer may now hold: gone before
+    // the new token is written, so a client never reads the new token beside the old port and
+    // hands it to whoever holds it (security audit, 2026-11-12). The port is written again once
+    // it is bound (`write_port`); a client reads the token first (`mcp::finder`). This dm is the
+    // only one (`dm_shell::instance`), so the file is no other's.
+    match std::fs::remove_file(home.join("control.port")) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+        _ => {}
+    }
     dm_core::write_atomic(&home.join("control.token"), token.as_bytes())?;
     Ok(token)
 }
@@ -461,6 +470,22 @@ pub fn forget_port(home: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A new token takes away the port file a crash left, so the two are never read as a pair
+    /// that sends the new token to an old port (security audit, 2026-11-12).
+    #[test]
+    fn a_new_token_takes_away_a_port_file_left_behind() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(home.path().join("control.port"), "41234").unwrap();
+        let token = fresh_token(home.path()).unwrap();
+        assert!(!home.path().join("control.port").exists());
+        assert_eq!(
+            std::fs::read_to_string(home.path().join("control.token")).unwrap(),
+            token
+        );
+        // And with none there, as at a first start.
+        fresh_token(home.path()).unwrap();
+    }
 
     #[test]
     fn the_port_file_goes_as_dm_quits_unless_another_dm_wrote_it() {

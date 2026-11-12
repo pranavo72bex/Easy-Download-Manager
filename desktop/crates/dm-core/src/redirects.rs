@@ -240,9 +240,44 @@ pub(crate) fn inward(to: &Url, previous: &[Url]) -> bool {
     !previous.is_empty() && inside(to) && !previous.iter().any(inside)
 }
 
+/// Whether `to`, an address that what was fetched from `from` names (a playlist's segment, key
+/// or map, a DASH piece, a Metalink mirror, a page's link), would take dm from a public address
+/// to one inside, as [`inward`] judges a redirect. Those addresses are requested as first hops,
+/// which `inward` never judged, so a public playlist naming `http://192.168.1.1/…` sent dm there
+/// with the page's Referer and any cookies held for that host (security audit, 2026-11-12).
+/// Either not an address: not judged inside.
+pub fn named_inside(from: &str, to: &str) -> bool {
+    match (Url::parse(from.trim()), Url::parse(to.trim())) {
+        (Ok(from), Ok(to)) => inward(&to, &[from]),
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What a public playlist, manifest, mirror list or page names inside is judged inside; what
+    /// an inside one names, or a public address, is not.
+    #[test]
+    fn an_address_a_public_document_names_inside_is_judged_inside() {
+        let public = "https://cdn.example/live/index.m3u8";
+        for inside in [
+            "http://192.168.1.1/cgi?reboot",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1:8080/x",
+            "http://router.local/apply",
+            "http://[::1]/x",
+        ] {
+            assert!(named_inside(public, inside), "{inside}");
+        }
+        assert!(!named_inside(public, "https://cdn.example/seg1.ts"));
+        assert!(!named_inside(
+            "http://192.168.1.5/index.m3u8",
+            "http://192.168.1.5/seg1.ts"
+        ));
+        assert!(!named_inside("not an address", "http://127.0.0.1/"));
+    }
 
     /// A public address may not send dm inward; an inside one may go on
     /// to another inside address, and public to public is anyone's.

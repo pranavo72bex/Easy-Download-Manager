@@ -6908,3 +6908,33 @@ was the cost.
 - **S14** (part): `rtmp::tls_config` is made once (`OnceLock`); every client clones it. Idle
   connections kept 10 s (`pool_idle_timeout`). **Not done: two idle a host**: eight connections a
   file reused for the next file of a batch would then be made again.
+
+## 2026-11-12: Where `fast`'s 90 ms after the last byte goes (gaps row 177)
+
+- **A trace of the finish** (`dm-core/src/finish_trace.rs`): `DM_FINISH_TRACE=<file>` appends
+  each stage's name and wall-clock milliseconds (a range whole, its seams checked, the
+  connections ended, assembled, named, placed). Off, a stage costs one look at a value read once.
+  The benchmark's poll for the finished file is `BENCH_DONE_POLL_MS` (100 by default, as
+  reference A was measured).
+- **Found**: three `fast` runs, polled every 5 ms: 79 to 93 ms after the server's last write,
+  of which dm's own finish, from its last read to the file renamed into place, is 1 to 2 ms. The
+  ranges end over 46 to 63 ms, the last ones as what the server had already written drains from
+  its 1 MiB writes and the sockets' buffers. **Not done**: a harness that times the last byte as
+  dm received it (TCP does not say), or ranges cut to end closer together; both are row 177's.
+
+## 2026-11-12: A security audit, as Cloudflare's skill runs one (quick profile)
+
+- Four hunters, one a boundary (the browser hand-off, local IPC, a hostile server, programs run
+  and files touched), then a verifier that had not found it for every candidate, re-reading every
+  cited line; findings only with a boundary and a result. Report:
+  `docs/security-audit-2026-11-12.md`. Seven candidates, all confirmed (three medium, three low,
+  and the ZIP cap), all fixed with a test each; what is left is rows 199 to 201.
+- **The `magnet:` fix is at the launch, not in the registry**: `one_link_launch` makes a launch
+  whose first word is a `magnet:` link that link alone, for every reader of the arguments (the
+  options, `--control`, `--headless`, the modes). **Dropped (for now): registering
+  `"<dm>" --open "%1"`**: it changes the keys every installed dm wrote, for the same effect.
+- **Inside addresses are judged where a document names them** (`redirects::named_inside`), with
+  the judgement a redirect already had: from a public document to an inside address is refused;
+  inside to inside, or public to public, is not.
+- **A script's settings change keeps the folders** (`keep_places_of`), as it kept the programs;
+  an imported settings file does not, as a person moving dm brings their folders.

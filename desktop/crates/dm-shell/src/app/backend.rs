@@ -363,7 +363,10 @@ impl Backend {
         by_script: bool,
     ) -> (Result<Settings, String>, crate::settings::KeptPrograms) {
         let kept = if by_script {
-            wanted.keep_programs_of(&self.settings())
+            let mine = self.settings();
+            let mut kept = wanted.keep_programs_of(&mine);
+            kept.folders = wanted.keep_places_of(&mine);
+            kept
         } else {
             Default::default()
         };
@@ -949,6 +952,30 @@ mod settings_from_tests {
         let (now, kept) = backend.set_settings_from(wanted, false);
         assert!(!kept.command);
         assert_eq!(now.unwrap().on_complete, "echo done");
+    }
+
+    /// Where downloads go is a person's to set too: a script moving the download folder into a
+    /// startup folder keeps the one in force and says it did; a person's change sets it
+    /// (security audit, 2026-11-12).
+    #[test]
+    fn a_scripts_settings_change_keeps_the_folders_a_persons_sets_them() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let backend = backend(&runtime, dir.path());
+        let before = backend.settings().download_dir;
+        let elsewhere = dir.path().join("LaunchAgents");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        let mut wanted = backend.settings();
+        wanted.download_dir = elsewhere.clone();
+        wanted.categorize = !wanted.categorize;
+        let (now, kept) = backend.set_settings_from(wanted.clone(), true);
+        assert!(kept.folders);
+        let now = now.unwrap();
+        assert_eq!(now.download_dir, before);
+        assert_ne!(now.categorize, wanted.categorize);
+        let (now, kept) = backend.set_settings_from(wanted, false);
+        assert!(!kept.folders);
+        assert_eq!(now.unwrap().download_dir, elsewhere);
     }
 }
 

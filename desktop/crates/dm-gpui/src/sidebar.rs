@@ -22,6 +22,19 @@ use crate::zoom::px;
 /// The side panel's width, in points.
 pub const WIDTH: f32 = 200.0;
 
+/// A place's picture and its colour beside its name, as Finder's and Mail's sidebars have one:
+/// each kind its row's own (`kind_picture`), and a picture of what the others hold.
+fn picture(place: &Place) -> (&'static str, gpui::Rgba) {
+    match place {
+        Place::All => ("icons/place-all.svg", gpui::rgb(0x2b6cc4)),
+        Place::Kind(kind) => crate::list::kind_picture(Some(*kind)),
+        Place::Custom(_) => ("icons/place-folder.svg", gpui::rgb(0x5b8bd0)),
+        Place::Unfinished => ("icons/place-unfinished.svg", gpui::rgb(0xd9822b)),
+        Place::Finished => ("icons/place-finished.svg", gpui::rgb(0x3d8b37)),
+        Place::Queue(_) => ("icons/place-queue.svg", gpui::rgb(0x7f8c8d)),
+    }
+}
+
 /// Every place the panel lists, in order, with its heading where a group
 /// starts.
 fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> {
@@ -87,6 +100,7 @@ pub fn sidebar(
                 .map(|(i, (heading, place, label))| {
                     let count = view.places.count(&place, &view.rows, &categories);
                     let chosen = place == view.place;
+                    let (icon, colour) = picture(&place);
                     let heading = heading.map(|h| {
                         div()
                             // A source list's section heading: small,
@@ -120,7 +134,27 @@ pub fn sidebar(
                                 view.choose(place.clone());
                                 cx.notify();
                             }))
-                            .child(screen.label(label))
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .min_w_0()
+                                    .child(
+                                        gpui::svg()
+                                            .path(icon)
+                                            .size(px(16.0))
+                                            .flex_none()
+                                            // In the selection's own colour where chosen, as
+                                            // the words are.
+                                            .text_color(if chosen {
+                                                theme.on_selection
+                                            } else {
+                                                colour
+                                            }),
+                                    )
+                                    .child(screen.label(label)),
+                            )
                             .child(
                                 div()
                                     .text_size(px(crate::native::SMALL_TEXT))

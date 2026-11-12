@@ -632,6 +632,8 @@ impl Downloads {
             Some("The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again")
         } else if kept.proxy_script {
             Some("The proxy script was not changed: a script was driving the window a moment ago; set it again")
+        } else if kept.folders {
+            Some("The folders downloads go to were not changed: a script was driving the window a moment ago; set them again")
         } else {
             None
         };

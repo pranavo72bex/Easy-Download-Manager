@@ -609,6 +609,44 @@ impl Settings {
         }
         kept
     }
+
+    /// Puts back `mine`'s value of every setting that says where a download is written: the
+    /// download folder, the parts folder, sorting by kind and each kind's folder, and each
+    /// site's own folder. For a script driving the window: an assistant set the download folder
+    /// to `~/Library/LaunchAgents` or a Startup folder in Options, then added a download, which
+    /// the control port's rule (a download "into the download folder or below it") let through
+    /// against the new folder (security audit, 2026-11-12). Not for a settings file imported: a
+    /// person moving dm to another computer brings their folders. Says whether any was put back.
+    pub fn keep_places_of(&mut self, mine: &Settings) -> bool {
+        let folders = |s: &Settings| -> Vec<(String, String)> {
+            s.site_rules
+                .iter()
+                .map(|r| (r.host.clone(), r.folder.clone()))
+                .collect()
+        };
+        let changed = self.download_dir != mine.download_dir
+            || self.parts_dir != mine.parts_dir
+            || self.categorize != mine.categorize
+            || self.category_folders != mine.category_folders
+            || folders(self) != folders(mine);
+        if changed {
+            self.download_dir.clone_from(&mine.download_dir);
+            self.parts_dir.clone_from(&mine.parts_dir);
+            self.categorize = mine.categorize;
+            self.category_folders.clone_from(&mine.category_folders);
+            // A site's speed may be the script's; its folder is put back, and a site rule the
+            // person did not have writes nowhere of its own.
+            for rule in &mut self.site_rules {
+                rule.folder = mine
+                    .site_rules
+                    .iter()
+                    .find(|r| r.host == rule.host)
+                    .map(|r| r.folder.clone())
+                    .unwrap_or_default();
+            }
+        }
+        changed
+    }
 }
 
 /// Which settings that run something [`Settings::keep_programs_of`] changed back.
@@ -620,6 +658,9 @@ pub struct KeptPrograms {
     pub schedule: bool,
     /// The proxy script.
     pub proxy_script: bool,
+    /// Where downloads go: the download folder, the parts folder, the kinds' folders, sorting
+    /// into them, a site's own folder (a script's change alone, `keep_places_of`).
+    pub folders: bool,
 }
 
 /// One entry in Options › Sign-ins.

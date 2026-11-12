@@ -181,6 +181,29 @@ pub fn ring(home: &Path) {
     }
 }
 
+/// A link a page named, as dm takes it from a page's "Download all links": a web address dm
+/// can download, with no login written into it, and not one inside this computer or its
+/// network where the page is out on the internet. The dialog asks each link's server for its
+/// name and size as it opens, so a public page listing a router's address with a login written
+/// into it had dm send that request, signed in, from the person's computer (security audit, 2026-11-12).
+/// `None` for a link not taken.
+pub fn page_link(page: &str, link: &str) -> Option<String> {
+    let link = link.trim();
+    let mut parsed = url::Url::parse(link).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https" | "ftp") || !dm_core::accepted(link) {
+        return None;
+    }
+    if dm_core::redirects::named_inside(page, link) {
+        return None;
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        let _ = parsed.set_username("");
+        let _ = parsed.set_password(None);
+        return Some(parsed.to_string());
+    }
+    Some(link.to_string())
+}
+
 /// Writes a request where the app will find it.
 ///
 /// Whole then moved, so the app cannot read a half-written file — it polls a
@@ -726,8 +749,7 @@ pub fn answer(
         })) => {
             let links: Vec<String> = urls
                 .into_iter()
-                .map(|u| u.trim().to_string())
-                .filter(|u| dm_core::accepted(u))
+                .filter_map(|u| page_link(&page, &u))
                 .take(2000)
                 .collect();
             if links.is_empty() {

@@ -298,10 +298,17 @@ impl Context<'_> {
 }
 
 fn join(base: &str, relative: &str) -> Result<String, Error> {
-    Url::parse(base)
+    let joined = Url::parse(base)
         .and_then(|b| b.join(relative.trim()))
         .map(|u| u.to_string())
-        .map_err(|e| Error::Internal(format!("a manifest listed an address dm cannot read: {e}")))
+        .map_err(|e| {
+            Error::Internal(format!("a manifest listed an address dm cannot read: {e}"))
+        })?;
+    // A public manifest may not send dm inside, as a redirect may not (`redirects::named_inside`).
+    if crate::redirects::named_inside(base, &joined) {
+        return Err(Error::Internal(crate::http_client::INWARD_REDIRECT.into()));
+    }
+    Ok(joined)
 }
 
 /// `$Number%05d$`-style substitution. `$$` is a dollar sign. Unknown
