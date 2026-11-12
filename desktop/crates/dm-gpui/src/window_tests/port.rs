@@ -68,9 +68,7 @@ fn a_script_reads_the_screen_clicks_types_and_presses_keys_as_a_person() {
     h.until("Add URL to open", |h| h.dialog_open("Add URL"));
 
     // Typed where the keyboard is: Add URL's address field.
-    let typed = h
-        .call("ui.type", json!({ "text": "héllo-typed" }))
-        .unwrap();
+    let typed = h.call("ui.type", json!({ "text": "héllo-typed" })).unwrap();
     assert_eq!(typed["typed"], 11);
     h.until("the words typed", |h| h.shows_part("héllo-typed"));
 
@@ -259,7 +257,13 @@ fn the_selection_and_the_place_shown_are_set_and_read_back() {
     assert_eq!(picked, json!({ "selected": [one] }));
     assert!(h.view(|view| view.selected.contains(&one)));
 
-    for place in ["all", "unfinished", "finished", "kind:videos", "queue:Main queue"] {
+    for place in [
+        "all",
+        "unfinished",
+        "finished",
+        "kind:videos",
+        "queue:Main queue",
+    ] {
         let said = h.call("ui.place", json!({ "place": place })).unwrap();
         assert_eq!(said["place"], place);
     }
@@ -370,7 +374,10 @@ fn downloads_are_paused_resumed_and_cancelled_by_id_and_what_cannot_be_is_said()
         )
         .unwrap();
     assert_eq!(said["done"], json!([gone]), "a failed one is tried again");
-    assert_eq!(why(&said, running).as_deref(), Some("it is not paused or failed"));
+    assert_eq!(
+        why(&said, running).as_deref(),
+        Some("it is not paused or failed")
+    );
     assert_eq!(why(&said, 99999).as_deref(), Some("no such download"));
 
     let said = h
@@ -378,7 +385,9 @@ fn downloads_are_paused_resumed_and_cancelled_by_id_and_what_cannot_be_is_said()
         .unwrap();
     assert_eq!(said["done"], json!([running]));
     assert_eq!(why(&said, done).as_deref(), Some("it is not running"));
-    h.until("it to pause", |h| state_of(h, running) == Some(State::Paused));
+    h.until("it to pause", |h| {
+        state_of(h, running) == Some(State::Paused)
+    });
 
     let said = h
         .call("downloads.resume", json!({ "ids": [running] }))
@@ -392,7 +401,9 @@ fn downloads_are_paused_resumed_and_cancelled_by_id_and_what_cannot_be_is_said()
         .unwrap();
     assert_eq!(said["done"], json!([running]));
     assert_eq!(why(&said, done).as_deref(), Some("it is already settled"));
-    h.until("the cancel", |h| state_of(h, running) == Some(State::Cancelled));
+    h.until("the cancel", |h| {
+        state_of(h, running) == Some(State::Cancelled)
+    });
     // And the window shows it.
     h.until("the row to say so", |h| {
         h.rows()
@@ -415,8 +426,11 @@ fn a_download_the_schedule_holds_is_not_resumed_over_the_port() {
         ..dm_core::Schedule::default()
     };
     let mut h = world.harness_with(settings);
-    h.call("downloads.add", json!({ "urls": [world.url("stalled.bin")] }))
-        .unwrap();
+    h.call(
+        "downloads.add",
+        json!({ "urls": [world.url("stalled.bin")] }),
+    )
+    .unwrap();
     let id = id_of(&mut h, "stalled.bin");
     h.until("the schedule to hold it", |h| {
         h.view(|view| {
@@ -425,9 +439,7 @@ fn a_download_the_schedule_holds_is_not_resumed_over_the_port() {
                 .is_some_and(|r| r.state == State::Paused && r.paused_by_schedule)
         })
     });
-    let said = h
-        .call("downloads.resume", json!({ "ids": [id] }))
-        .unwrap();
+    let said = h.call("downloads.resume", json!({ "ids": [id] })).unwrap();
     assert_eq!(said["done"], json!([]));
     assert_eq!(
         said["skipped"][0]["why"],
@@ -516,7 +528,10 @@ fn the_port_sets_the_limit_adds_where_downloads_may_go_and_answers_a_batch() {
     assert_eq!(said["added"], 1);
     let clip = id_of(&mut h, "clip.mp4");
     assert!(
-        h.view(|view| view.backend.row(clip)).unwrap().span.is_some(),
+        h.view(|view| view.backend.row(clip))
+            .unwrap()
+            .span
+            .is_some(),
         "the part was not kept"
     );
 
@@ -544,7 +559,10 @@ fn assistants_are_answered_only_while_options_lets_them_and_a_port_for_them_alon
     let _file = settings_file();
     let world = world();
     let mut h = harness(&world);
-    assert_eq!(h.call_as_assistant("queue.list", json!({})).unwrap(), json!([]));
+    assert_eq!(
+        h.call_as_assistant("queue.list", json!({})).unwrap(),
+        json!([])
+    );
     h.settings_to(|s| s.allow_mcp = false);
     let refused = h.call_as_assistant("queue.list", json!({})).unwrap_err();
     assert!(refused.contains("turned off"), "{refused}");
@@ -555,7 +573,10 @@ fn assistants_are_answered_only_while_options_lets_them_and_a_port_for_them_alon
     let refused = h.call("queue.list", json!({})).unwrap_err();
     assert!(refused.contains("AI assistants only"), "{refused}");
     let unknown = h.call_as_assistant("nonsense", json!({})).unwrap_err();
-    assert!(unknown.contains("no method is called nonsense"), "{unknown}");
+    assert!(
+        unknown.contains("no method is called nonsense"),
+        "{unknown}"
+    );
 }
 
 /// The JSON-RPC line `dm mcp` is sent for the tool `name`.
@@ -572,13 +593,16 @@ fn an_assistant_drives_the_window_through_its_tools() {
     let world = world();
     let mut h = harness(&world);
     let secret = "t".repeat(64);
-    let port =
-        dm_desktop_base::control::listen(0, secret.clone(), h.requests(), || {}).unwrap();
+    let port = dm_desktop_base::control::listen(0, secret.clone(), h.requests(), || {}).unwrap();
     let url = world.url("tooled.bin");
     let client = std::thread::spawn(move || {
         let mut control = dm_desktop_base::mcp::Control::connect(port, &secret).unwrap();
         let lines = [
-            tool(1, "dm_add_downloads", json!({ "urls": [url], "later": true })),
+            tool(
+                1,
+                "dm_add_downloads",
+                json!({ "urls": [url], "later": true }),
+            ),
             tool(2, "dm_screen", json!({})),
             tool(3, "dm_click", json!({ "text": "Add URL" })),
             tool(4, "dm_click", json!({ "text": "Open" })),
@@ -586,8 +610,7 @@ fn an_assistant_drives_the_window_through_its_tools() {
         ];
         let input: String = lines.iter().map(|l| format!("{l}\n")).collect();
         let mut out = Vec::new();
-        dm_desktop_base::mcp::serve(std::io::Cursor::new(input), &mut out, &mut control)
-            .unwrap();
+        dm_desktop_base::mcp::serve(std::io::Cursor::new(input), &mut out, &mut control).unwrap();
         String::from_utf8(out)
             .unwrap()
             .lines()
@@ -606,7 +629,11 @@ fn an_assistant_drives_the_window_through_its_tools() {
     assert!(text(2).contains("\"clicked\":\"Add URL\""), "{}", said[2]);
     assert_eq!(said[3]["result"]["isError"], true);
     assert!(text(3).contains("runs a downloaded file"), "{}", said[3]);
-    assert!(text(4).contains("Add URL"), "the dialog is open: {}", said[4]);
+    assert!(
+        text(4).contains("Add URL"),
+        "the dialog is open: {}",
+        said[4]
+    );
     h.until("Add URL", |h| h.dialog_open("Add URL"));
     assert_eq!(h.rows().len(), 1);
 }

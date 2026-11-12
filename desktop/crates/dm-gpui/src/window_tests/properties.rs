@@ -53,11 +53,10 @@ fn properties_of_a_failed_download_copies_its_details() {
     h.until("the details copied", |h| {
         h.said() == "Copied the details of 1 download."
     });
-    let copied = h
-        .cx
-        .read_from_clipboard()
-        .and_then(|c| c.text())
-        .unwrap_or_default();
+    let copied =
+        h.cx.read_from_clipboard()
+            .and_then(|c| c.text())
+            .unwrap_or_default();
     assert!(copied.contains("State: failed"), "{copied}");
     assert!(h.dialog_open("File properties"), "Copy details closed it");
     h.click("Cancel");
@@ -77,7 +76,10 @@ fn properties_refuse_an_address_dm_cannot_fetch_and_close_with_their_row() {
     h.click("OK");
     h.until("the refusal", |h| h.shows_part("dm can download"));
     assert!(h.dialog_open("File properties"));
-    assert_eq!(h.view(|view| view.backend.row(row.id)).unwrap().url, row.url);
+    assert_eq!(
+        h.view(|view| view.backend.row(row.id)).unwrap().url,
+        row.url
+    );
 
     h.view(|view| view.backend.remove(row.id));
     h.until("Properties of a row that is gone to close", |h| {

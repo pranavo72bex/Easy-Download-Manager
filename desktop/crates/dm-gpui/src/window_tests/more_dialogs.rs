@@ -60,7 +60,10 @@ fn a_new_address_that_is_no_link_is_said_and_cancel_closes() {
     h.until("the dialog to close", |h| {
         !h.dialog_open("Update download link")
     });
-    assert_eq!(h.view(|view| view.backend.row(row.id)).unwrap().url, row.url);
+    assert_eq!(
+        h.view(|view| view.backend.row(row.id)).unwrap().url,
+        row.url
+    );
 }
 
 /// About opens the project's privacy page.

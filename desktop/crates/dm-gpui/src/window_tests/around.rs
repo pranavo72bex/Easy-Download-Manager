@@ -218,7 +218,10 @@ fn sorted_by_status_the_rows_go_in_the_order_of_their_state() {
     });
     h.click("Status");
     h.until("the sort by status", |h| {
-        h.view(|view| view.sort.is_some_and(|(c, _)| c == dm_desktop_base::columns::Column::Status))
+        h.view(|view| {
+            view.sort
+                .is_some_and(|(c, _)| c == dm_desktop_base::columns::Column::Status)
+        })
     });
     let order: Vec<&'static str> = h.view(|view| {
         if view.sort.is_some_and(|(_, ascending)| !ascending) {

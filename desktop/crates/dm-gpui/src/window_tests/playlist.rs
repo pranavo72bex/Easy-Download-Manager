@@ -56,7 +56,11 @@ fn a_playlist_lists_its_videos_ticked_and_start_now_takes_the_ticked_ones() {
     assert!(h.shows_part("Second"));
     assert!(h.shows_part("Closing · 1:02:05"), "{:?}", h.texts());
 
-    let second = h.texts().into_iter().find(|t| t.contains("Second")).unwrap();
+    let second = h
+        .texts()
+        .into_iter()
+        .find(|t| t.contains("Second"))
+        .unwrap();
     h.click(&second);
     h.click("Start now");
     h.until("the window to close", |h| !h.dialog_open("Playlist"));

@@ -38,11 +38,8 @@ fn about_opens_in_a_window_of_its_own_over_the_main_window_and_closes_with_its_b
     h.until("About's words", |h| {
         h.shows_in_dialog("A free download manager, written in Rust.")
     });
-    let main = h.cx.update(|cx| {
-        h.window
-            .update(cx, |_, window, _| window.bounds())
-            .unwrap()
-    });
+    let main =
+        h.cx.update(|cx| h.window.update(cx, |_, window, _| window.bounds()).unwrap());
     let about = dialog_windows(&mut h);
     assert_eq!(about.len(), 1);
     let (handle, at) = about[0];
@@ -76,7 +73,11 @@ fn properties_of_two_downloads_open_in_windows_of_their_own() {
         h.run(Command::Properties);
     }
     h.until("two Properties", |h| {
-        h.dialogs().iter().filter(|d| *d == "File properties").count() == 2
+        h.dialogs()
+            .iter()
+            .filter(|d| *d == "File properties")
+            .count()
+            == 2
     });
     let places: Vec<_> = dialog_windows(&mut h)
         .into_iter()
@@ -86,6 +87,10 @@ fn properties_of_two_downloads_open_in_windows_of_their_own() {
     assert_ne!(places[0], places[1], "both Properties at one place");
     h.click("Cancel");
     h.until("one Properties left", |h| {
-        h.dialogs().iter().filter(|d| *d == "File properties").count() == 1
+        h.dialogs()
+            .iter()
+            .filter(|d| *d == "File properties")
+            .count()
+            == 1
     });
 }

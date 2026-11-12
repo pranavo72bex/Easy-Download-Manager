@@ -1133,7 +1133,11 @@ impl Harness {
     }
 
     /// [`Harness::call`] as an AI assistant's client asks it, through `dm mcp`.
-    pub(crate) fn call_as_assistant(&mut self, method: &str, params: Value) -> Result<Value, String> {
+    pub(crate) fn call_as_assistant(
+        &mut self,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, String> {
         let (reply, answer) = mpsc::channel();
         self.asks
             .send(dm_desktop_base::control::Request {

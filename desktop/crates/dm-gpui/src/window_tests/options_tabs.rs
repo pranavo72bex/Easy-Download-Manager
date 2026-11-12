@@ -41,7 +41,9 @@ fn a_settings_file_that_cannot_be_written_or_read_is_said() {
     h.scroll_to("Save settings to a file…");
     crate::services::choose_ahead(world.dir.path().to_path_buf());
     h.click("Save settings to a file…");
-    h.until("the refusal to write", |h| h.shows_part("could not be written"));
+    h.until("the refusal to write", |h| {
+        h.shows_part("could not be written")
+    });
 
     let junk = world.dir.path().join("junk.json");
     std::fs::write(&junk, "this is not settings").unwrap();
