@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- DASH: a live stream is recorded until it ends or is stopped, and a stream of several periods is saved as one file, an advert in another format left out and said.
 - dm is built with one crypto library, all in Rust: the torrent engine no longer brings a second one written in C (and the cmake needed to build it), nor a web server.
 - A row has its own buttons again at the end of its name, under the pointer or when chosen: Stop while it downloads, Open and Open folder when finished, Resume otherwise.
 - The side panel's right-click menu is back: a category's Open folder and Add or edit categories…, Unfinished's Resume all and Stop All, Finished's Delete Completed, and a queue's Start Queue, Stop Queue and Scheduler….
