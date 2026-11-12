@@ -438,6 +438,21 @@ impl Queue {
             .collect()
     }
 
+    /// Every row Delete Completed would take off (finished or cancelled), with where it stands,
+    /// for Undo to put back.
+    pub async fn clearable_rows(&self) -> Vec<(usize, Entry)> {
+        let slots = self.inner.slots.lock().await;
+        let order = self.inner.order.lock().await;
+        order
+            .iter()
+            .enumerate()
+            .filter_map(|(at, id)| {
+                let entry = &slots.get(id)?.entry;
+                entry.state.clearable().then(|| (at, Entry::clone(entry)))
+            })
+            .collect()
+    }
+
     /// Puts rows taken off the list back, each where it was (or at the end
     /// of a shorter list). A row whose number is in use again is left out.
     pub async fn put_back(&self, rows: Vec<(usize, Entry)>) {
