@@ -479,8 +479,15 @@ class Dm:
     def reveal(self, text, turns=14):
         """Turns the list's wheel until `text` is drawn: a row added below the last
         one in view is not on screen for a person either."""
-        for _ in range(turns):
+        for turn in range(turns):
             if any(text == t or text in t for t in self.texts()):
+                # Found by turning: it is the row at the list's bottom edge,
+                # partly under the sideways scroll bar in a small window
+                # (Linux, 2026-11-13: a double-click there hit the bar). A
+                # person turns on a little to see it whole.
+                if turn:
+                    self.call("ui.scroll", text="Complete", lines=3)
+                    pause(0.4)
                 return True
             self.call("ui.scroll", text="Complete", lines=6)
             pause(0.4)
@@ -1438,7 +1445,11 @@ def walk(dm, origin):
         sys.platform, ["xclip", "-selection", "clipboard"])
     links = "\n".join(f"{files}/{n}" for n in ("clip-a.bin", "clip-b.bin"))
     try:
-        copied = subprocess.run(put, input=links.encode(), timeout=10).returncode == 0
+        # xclip stays on to serve the clipboard: kept off this script's
+        # output, or the Linux session's tee waited on it for ever and the
+        # pictures never came back (gaps row Q2).
+        copied = subprocess.run(put, input=links.encode(), timeout=10,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     except (OSError, subprocess.SubprocessError):
         copied = False
     dm.call("command.run", id="program.add_from_clipboard")
