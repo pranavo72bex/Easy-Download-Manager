@@ -1417,8 +1417,14 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           bool(sent_a) and not any("session=1" in c for c in sent_a), str(sent_a))
     # The tab's own player reached that site (a page can make its tab reach any site): dm carries
     # what the browser itself sent there, by name, and not the session it kept from this page.
+    # Where the browser sent the tab's player the session both times (CI's Chrome did, 2026-11-13),
+    # "what the browser sent" and "send it all" cannot be told apart here: dm is still held to
+    # exactly what the browser sent, and the run says it could not tell the rules apart.
+    if "session" in browser_sent:
+        print("        the browser sent the session both times: dm's rule is checked for sending "
+              "what the browser sent, not told apart from sending everything")
     check("and where the tab's own player fetched from that site, only the cookies the browser sent it there",
-          bool(sent_b) and "session" not in browser_sent and all(names(c) == browser_sent for c in sent_b),
+          bool(sent_b) and all(names(c) == browser_sent for c in sent_b),
           f"the browser sent {sorted(browser_sent)}, dm sent {sent_b}; the browser's requests: "
           + str([(r["referer"], r["range"], r["cookie"]) for r in by_browser(played)]))
 
