@@ -886,14 +886,18 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
 /// The group a row's buttons show with when the pointer is over it.
 const ROW_GROUP: &str = "row";
 
-/// What a row's own buttons do, by how it stands: Stop on one under way, Open and Open folder
-/// on one finished, Resume on the rest, as the egui window showed them on the row under the
-/// pointer: each with its picture and the command's words for a screen reader and a script.
+/// What a row's own buttons do, by how it stands, as the egui window showed them on the row
+/// under the pointer: Stop on one under way, Resume on one paused, Retry on one failed, Open and
+/// Open folder on one finished; Details (its progress window) on one not finished; Delete where
+/// it can act, on one stopped or finished, never one still writing its file. Each with its
+/// picture and the command's words for a screen reader and a script.
 fn row_actions(row: &Entry) -> Vec<(Command, &'static str, &'static str)> {
-    match row.state {
+    let mut actions = match row.state {
         State::Running | State::Queued => {
             vec![(Command::StopDownload, "icons/stop.svg", t("Stop download"))]
         }
+        State::Paused => vec![(Command::DownloadNow, "icons/resume.svg", t("Resume"))],
+        State::Failed(_) => vec![(Command::DownloadNow, "icons/resume.svg", t("Retry"))],
         State::Completed => vec![
             (Command::OpenFile, "icons/open.svg", t("Open")),
             (
@@ -902,8 +906,15 @@ fn row_actions(row: &Entry) -> Vec<(Command, &'static str, &'static str)> {
                 t("Open folder"),
             ),
         ],
-        _ => vec![(Command::DownloadNow, "icons/resume.svg", t("Resume"))],
+        State::Cancelled => Vec::new(),
+    };
+    if !matches!(row.state, State::Completed | State::Cancelled) {
+        actions.push((Command::ShowProgress, "icons/details.svg", t("Details")));
     }
+    if !matches!(row.state, State::Running | State::Queued) {
+        actions.push((Command::Remove, "icons/delete.svg", t("Delete")));
+    }
+    actions
 }
 
 /// A row's buttons, over its right end on `backdrop`: hidden until the pointer is over the row,
@@ -944,7 +955,14 @@ fn row_buttons(
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_click(cx.listener(move |view, _, window, cx| {
                     cx.stop_propagation();
-                    view.click_row(id, false, false);
+                    // Delete on one of several chosen rows deletes them all, as the egui
+                    // window's did; every other button acts on its own row.
+                    if !(command == Command::Remove
+                        && view.selected.len() > 1
+                        && view.selected.contains(&id))
+                    {
+                        view.click_row(id, false, false);
+                    }
                     window.dispatch_action(Box::new(crate::menus::Run(command)), cx);
                     cx.notify();
                 }))
@@ -975,6 +993,34 @@ mod tests {
         assert_eq!(cell.role(), Role::Cell);
         assert_eq!(cell.label(), Some("1.5 MB"));
         assert_eq!(cell.column_index(), Some(2));
+    }
+
+    /// A row's own buttons by how it stands, as the egui window's on the row under the pointer:
+    /// Details on one not finished, Delete on one that is not writing its file.
+    #[test]
+    fn a_rows_buttons_follow_its_state() {
+        let of = |state: State| -> Vec<Command> {
+            let mut row: Entry = serde_json::from_value(serde_json::json!({
+                "id": 1,
+                "url": "http://example.com/f.bin",
+                "state": {"kind": "queued"},
+                "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
+                "filename": "f.bin",
+            }))
+            .unwrap();
+            row.state = state;
+            row_actions(&row).into_iter().map(|(c, _, _)| c).collect()
+        };
+        use Command::*;
+        assert_eq!(of(State::Running), [StopDownload, ShowProgress]);
+        assert_eq!(of(State::Queued), [StopDownload, ShowProgress]);
+        assert_eq!(of(State::Paused), [DownloadNow, ShowProgress, Remove]);
+        assert_eq!(
+            of(State::Failed("gone".into())),
+            [DownloadNow, ShowProgress, Remove]
+        );
+        assert_eq!(of(State::Completed), [OpenFile, OpenFolder, Remove]);
+        assert_eq!(of(State::Cancelled), [Remove]);
     }
 
     #[test]

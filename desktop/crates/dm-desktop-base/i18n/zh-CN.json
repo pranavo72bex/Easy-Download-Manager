@@ -902,5 +902,7 @@
  "Connected · last heard {} ago": "已连接 · 上次联系于 {} 前",
  "Find a setting": "查找设置",
  "No setting says “{}”.": "没有设置包含“{}”。",
- "Download complete — {}": "下载完成 — {}"
+ "Download complete — {}": "下载完成 — {}",
+ "Details": "详细信息",
+ "Hover a download and press Details to watch its progress.": "将鼠标移到下载上，点击“详细信息”查看进度。"
 }

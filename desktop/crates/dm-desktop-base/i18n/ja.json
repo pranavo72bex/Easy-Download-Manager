@@ -902,5 +902,7 @@
  "Connected · last heard {} ago": "接続済み · 最終確認 {} 前",
  "Find a setting": "設定を検索",
  "No setting says “{}”.": "「{}」を含む設定はありません。",
- "Download complete — {}": "ダウンロード完了 — {}"
+ "Download complete — {}": "ダウンロード完了 — {}",
+ "Details": "詳細",
+ "Hover a download and press Details to watch its progress.": "ダウンロードにポインターを合わせて「詳細」を押すと進行状況を確認できます。"
 }

@@ -902,5 +902,7 @@
  "Connected · last heard {} ago": "Bağlı · son duyulma {} önce",
  "Find a setting": "Ayar bul",
  "No setting says “{}”.": "“{}” geçen ayar yok.",
- "Download complete — {}": "İndirme tamamlandı — {}"
+ "Download complete — {}": "İndirme tamamlandı — {}",
+ "Details": "Ayrıntılar",
+ "Hover a download and press Details to watch its progress.": "Bir indirmenin üzerine gelin ve ilerlemesini izlemek için Ayrıntılar’a basın."
 }

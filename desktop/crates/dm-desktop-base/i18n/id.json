@@ -902,5 +902,7 @@
  "Connected · last heard {} ago": "Terhubung · terakhir terdengar {} lalu",
  "Find a setting": "Cari pengaturan",
  "No setting says “{}”.": "Tidak ada pengaturan yang memuat “{}”.",
- "Download complete — {}": "Unduhan selesai — {}"
+ "Download complete — {}": "Unduhan selesai — {}",
+ "Details": "Detail",
+ "Hover a download and press Details to watch its progress.": "Arahkan kursor ke unduhan dan tekan Detail untuk melihat kemajuannya."
 }

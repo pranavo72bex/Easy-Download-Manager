@@ -32,6 +32,8 @@ const ICONS: &[(&str, &[u8])] = icons!(
     "stop-all",
     "delete",
     "delete-completed",
+    // A row's own Details button (its progress window).
+    "details",
     "options",
     "scheduler",
     "start-queue",

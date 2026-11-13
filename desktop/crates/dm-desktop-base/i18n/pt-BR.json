@@ -902,5 +902,7 @@
  "Connected · last heard {} ago": "Conectado · último contato há {}",
  "Find a setting": "Encontrar um ajuste",
  "No setting says “{}”.": "Nenhum ajuste diz “{}”.",
- "Download complete — {}": "Download concluído — {}"
+ "Download complete — {}": "Download concluído — {}",
+ "Details": "Detalhes",
+ "Hover a download and press Details to watch its progress.": "Passe o cursor sobre um download e clique em Detalhes para ver o progresso."
 }

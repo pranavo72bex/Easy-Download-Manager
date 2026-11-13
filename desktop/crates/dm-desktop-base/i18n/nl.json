@@ -902,5 +902,7 @@
  "Connected · last heard {} ago": "Verbonden · laatst gehoord {} geleden",
  "Find a setting": "Instelling zoeken",
  "No setting says “{}”.": "Geen instelling bevat ‘{}’.",
- "Download complete — {}": "Download voltooid — {}"
+ "Download complete — {}": "Download voltooid — {}",
+ "Details": "Details",
+ "Hover a download and press Details to watch its progress.": "Wijs een download aan en klik op Details om de voortgang te volgen."
 }

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A row's own buttons are the egui window's again: Resume on a paused row, Retry on a failed one, Details (its progress window) on one not finished, and Delete on one stopped or finished; with the progress window off, a started download says once that Details shows its progress.
 - YouTube's checks and proxy configuration scripts run in dm's own JavaScript interpreter, written in Rust as part of dm, in place of the computer's engine (JavaScriptCore, Chakra): dm no longer needs WebKitGTK's JavaScriptCore on Linux, and runs no JavaScript engine of anyone else's.
 - The side panel's group headings (All Downloads, Queues) show a drawn arrow: up while the group is open, to close it, down while it is shut, to open it, where a font's `⌄` and `›` sat at odd heights.
 - A 404 (or any failure) from an address with "505" in it, a port such as 50587 among them, fails as it is, where dm took it for a server refusing HTTP/1.1 and kept asking it again over HTTP/2.

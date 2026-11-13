@@ -64,6 +64,7 @@ impl Downloads {
         // fullscreen app) is said once they are not.
         self.backend.platform.tick();
         self.big_download_hint();
+        self.details_hint();
         self.take_handed(cx);
         self.countdown_tick(cx);
         self.delete_due_files();
@@ -299,6 +300,23 @@ impl Downloads {
         self.say(t("This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.").into());
         let mut wanted = settings;
         Hint::BigDownload.mark(&mut wanted);
+        if let Err(e) = self.backend.set_settings(wanted) {
+            self.say(e);
+        }
+    }
+
+    /// A download under way while its progress window does not open by itself: said once,
+    /// ever, where its progress is (the row's Details button), as the egui window said it,
+    /// and only where nothing else is being said.
+    pub(crate) fn details_hint(&mut self) {
+        use dm_shell::app::hints::Hint;
+        let settings = self.backend.settings();
+        if !Hint::Details.due(&settings, &self.rows, self.said.is_none()) {
+            return;
+        }
+        self.say(t("Hover a download and press Details to watch its progress.").into());
+        let mut wanted = settings;
+        Hint::Details.mark(&mut wanted);
         if let Err(e) = self.backend.set_settings(wanted) {
             self.say(e);
         }

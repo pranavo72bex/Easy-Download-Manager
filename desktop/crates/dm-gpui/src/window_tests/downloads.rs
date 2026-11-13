@@ -1603,6 +1603,27 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
     assert!(h.said().is_empty(), "said a second time");
 }
 
+/// With the progress window off, a started download says once, ever, that its row's Details
+/// shows its progress; with something else being said, it waits its turn.
+#[test]
+fn a_started_download_says_once_where_its_progress_is() {
+    let world = world();
+    let mut h = world.harness_with(Settings {
+        hinted_details: false,
+        ..world.settings()
+    });
+    h.add_url(&world.url("stalled.bin"), "Start now");
+    h.until("it to run", running);
+    h.until("the hint", |h| h.said().contains("press Details"));
+    assert!(h.view(|view| view.backend.settings()).hinted_details);
+    // Said, so not said again.
+    h.view(|view| {
+        view.said = None;
+        view.details_hint();
+    });
+    assert!(h.said().is_empty(), "said a second time");
+}
+
 /// Describing the window to a script (`ui.inspect`) with a long list took time that grew with
 /// the square of the list (7 s at 5 000 rows): each row's name looked through every other row
 /// for its namesakes. Added in one call, 3 000 links are also checked against the list once,
