@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A stream's segments are written to the disk as they arrive, not held in memory first: a stream of large segments no longer grows dm by their size.
 - A YouTube video's file carries its picture as its cover, its chapters (from the description's list), and the day it was published, beside its title and channel; a WebM says its title, channel, day and page as Matroska tags, and an MP3 its cover.
 - Fewer wake-ups at rest: on Windows the keep-awake looks at the queue when it changes, and on Linux the dark or light choice is heard from the desktop portal as it changes and the tray item is registered again when a panel starts, where each looked every five seconds (Linux ran `gdbus` each time).
 - The engine's one-off requests (a playlist's page, a video's reading) share one connection pool made at start, where each built a client of its own.

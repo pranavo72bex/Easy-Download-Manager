@@ -1012,13 +1012,24 @@ async fn fetch_one_segment(
 
     let staging = done.with_extension("partial");
     let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
+    // One in the clear is written as it comes, not held whole first (gaps row Y17).
+    let key = part.key.as_ref().filter(|_| !part.init);
+    if key.is_none() {
+        let written = retry::run_up_to(&options.control, options.tries(), || {
+            fetch_segment_to(client, &part.url, part.range, options, &staging)
+        })
+        .await?;
+        downloaded.fetch_add(written, Ordering::Relaxed);
+        fs::rename(&staging, &done).await?;
+        return Ok(());
+    }
     let fetched = retry::run_up_to(&options.control, options.tries(), || {
         fetch_segment_range(client, &part.url, part.range, options)
     })
     .await?;
 
     // Decrypted with its own key, where it has one (the initialisation segment never does).
-    let bytes = match part.key.as_ref().filter(|_| !part.init) {
+    let bytes = match key {
         Some(declared) => {
             let key = keys.get(&declared.uri).map(Vec::as_slice).unwrap_or(&[]);
             stream::decrypt(key, &stream::iv_for(declared, part.sequence), &fetched)?
@@ -1049,6 +1060,56 @@ pub(super) async fn fetch_segment_range(
     /// otherwise be an allocation of a terabyte.
     const HINT_CAP: u64 = 32 * 1024 * 1024;
 
+    let res = open_segment(client, url, range, options).await?;
+    let hint = res.content_length().unwrap_or(0).min(HINT_CAP);
+    let mut body = Vec::with_capacity(hint as usize);
+    read_segment(res, url, range, options, Sink::Memory(&mut body)).await?;
+    Ok(body)
+}
+
+/// [`fetch_segment_range`] written to `path` as it comes, from its start, rather than held
+/// (gaps row Y17): a segment in the clear, which needs no decrypting whole. Its length.
+pub(super) async fn fetch_segment_to(
+    client: &reqwest::Client,
+    url: &str,
+    range: Option<(u64, u64)>,
+    options: &Options,
+    path: &Path,
+) -> Result<u64, Error> {
+    use tokio::io::AsyncWriteExt as _;
+    let res = open_segment(client, url, range, options).await?;
+    let mut file = tokio::io::BufWriter::with_capacity(256 * 1024, fs::File::create(path).await?);
+    let written = read_segment(res, url, range, options, Sink::File(&mut file)).await?;
+    file.flush().await?;
+    file.get_mut().sync_data().await?;
+    Ok(written)
+}
+
+/// Where a segment's bytes go as they come: held, or written to its file.
+enum Sink<'a> {
+    Memory(&'a mut Vec<u8>),
+    File(&'a mut tokio::io::BufWriter<fs::File>),
+}
+
+impl Sink<'_> {
+    async fn put(&mut self, chunk: &[u8]) -> Result<(), Error> {
+        use tokio::io::AsyncWriteExt as _;
+        match self {
+            Sink::Memory(body) => body.extend_from_slice(chunk),
+            Sink::File(file) => file.write_all(chunk).await?,
+        }
+        Ok(())
+    }
+}
+
+/// A segment's request, sent: its range asked for where it is cut by one, and an answer that
+/// does not honour it refused.
+async fn open_segment(
+    client: &reqwest::Client,
+    url: &str,
+    range: Option<(u64, u64)>,
+    options: &Options,
+) -> Result<reqwest::Response, Error> {
     let mut request = get(
         client,
         url,
@@ -1065,19 +1126,31 @@ pub(super) async fn fetch_segment_range(
             "{url} did not honour the byte range this stream is cut by"
         )));
     }
-    let hint = res.content_length().unwrap_or(0).min(HINT_CAP);
-    let mut body = Vec::with_capacity(hint as usize);
+    Ok(res)
+}
+
+/// A segment's body, each chunk put in `sink` as it comes, under the speed limit; its length,
+/// which must be the range's where it is cut by one.
+async fn read_segment(
+    res: reqwest::Response,
+    url: &str,
+    range: Option<(u64, u64)>,
+    options: &Options,
+    mut sink: Sink<'_>,
+) -> Result<u64, Error> {
+    let mut length = 0u64;
     let mut chunks = res.bytes_stream();
     while let Some(chunk) = next_or_stop(&mut chunks, &options.control).await? {
         let chunk = chunk?;
         // A segment is seconds of video. One that keeps coming is not one,
-        // and is not held in memory until the process runs out.
-        if body.len() + chunk.len() > SEGMENT_CAP {
+        // and is not held, in memory or on the disk, until there is no room.
+        if length + chunk.len() as u64 > SEGMENT_CAP as u64 {
             return Err(Error::Internal(format!(
                 "{url} is far larger than a stream's segment should be"
             )));
         }
-        body.extend_from_slice(&chunk);
+        sink.put(&chunk).await?;
+        length += chunk.len() as u64;
         or_stop(&options.control, async {
             options.limiter.take(chunk.len() as u64).await;
             Ok(())
@@ -1085,13 +1158,13 @@ pub(super) async fn fetch_segment_range(
         .await?;
     }
     if let Some((first, last)) = range {
-        if body.len() as u64 != last - first + 1 {
+        if length != last - first + 1 {
             return Err(Error::Internal(format!(
                 "{url} answered a byte range with the wrong number of bytes"
             )));
         }
     }
-    Ok(body)
+    Ok(length)
 }
 
 /// A file name with the span it holds before its extension:

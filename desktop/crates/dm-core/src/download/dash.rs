@@ -697,6 +697,16 @@ async fn fetch_piece(
     options.control.check()?;
     let staging = done.with_extension("partial");
     let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
+    // One in the clear is written as it comes, not held whole first (gaps row Y17).
+    if piece.lock.is_none() {
+        let written = retry::run_up_to(&options.control, options.tries(), || {
+            hls::fetch_segment_to(client, &piece.url, piece.range, options, &staging)
+        })
+        .await?;
+        downloaded.fetch_add(written, Ordering::Relaxed);
+        fs::rename(&staging, &done).await?;
+        return Ok(());
+    }
     let body = retry::run_up_to(&options.control, options.tries(), || {
         hls::fetch_segment_range(client, &piece.url, piece.range, options)
     })
@@ -1416,6 +1426,110 @@ pub(super) mod tests {
             "{said:?}"
         );
         assert_eq!(done.path.file_name().unwrap(), "show.mp4");
+    }
+
+    /// A track that is one whole file of 96 MiB is fetched in ranged pieces of 8 MiB, each a
+    /// part file of its own: stopped part-way, the next run fetches only the pieces it has not
+    /// got, not the file from its start (gaps row Y17). Its mdat holds the sound's samples, then
+    /// bytes nothing refers to, so the file is a real sound file of that size.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_one_file_track_stopped_part_way_goes_on_from_its_pieces() {
+        let dir = tempfile::tempdir().unwrap();
+        let (audio, _) = plain(dir.path(), "a.m4a", 7, 200);
+        let mut audio = std::fs::read(audio).unwrap();
+        // The mdat is last: grown by 96 MiB its header says so.
+        const MORE: usize = 96 * 1024 * 1024;
+        let mdat = audio.windows(4).rposition(|w| w == b"mdat").unwrap() - 4;
+        let size = u32::from_be_bytes(audio[mdat..mdat + 4].try_into().unwrap()) as usize + MORE;
+        audio[mdat..mdat + 4].copy_from_slice(&(size as u32).to_be_bytes());
+        audio.resize(audio.len() + MORE, 0);
+        let total = audio.len() as u64;
+        let served = Arc::new(AtomicU64::new(0));
+        let mpd = r#"<MPD type="static" mediaPresentationDuration="PT0.2S"><Period>
+            <AdaptationSet mimeType="audio/mp4"><Representation id="a" bandwidth="1">
+            <BaseURL>a.m4a</BaseURL></Representation></AdaptationSet></Period></MPD>"#;
+        let audio = Arc::new(audio);
+        let counted = Arc::clone(&served);
+        let app = axum::Router::new()
+            .route("/show/sound.mpd", get(move || async move { mpd }))
+            .route(
+                "/show/a.m4a",
+                get(move |headers: HeaderMap| {
+                    let (audio, counted) = (Arc::clone(&audio), Arc::clone(&counted));
+                    async move {
+                        let (a, b) = headers
+                            .get(header::RANGE)
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|v| v.strip_prefix("bytes="))
+                            .and_then(|v| v.split_once('-'))
+                            .and_then(|(a, b)| {
+                                Some((a.parse::<usize>().ok()?, b.parse::<usize>().ok()?))
+                            })
+                            .unwrap_or((0, audio.len() - 1));
+                        let b = b.min(audio.len() - 1);
+                        counted.fetch_add((b + 1 - a) as u64, Ordering::SeqCst);
+                        // Slow enough to be stopped part-way: 2 ms a MiB.
+                        tokio::time::sleep(std::time::Duration::from_millis(
+                            ((b + 1 - a) >> 20) as u64 * 2,
+                        ))
+                        .await;
+                        Response::builder()
+                            .status(StatusCode::PARTIAL_CONTENT)
+                            .header(
+                                header::CONTENT_RANGE,
+                                format!("bytes {a}-{b}/{}", audio.len()),
+                            )
+                            .body(Body::from(audio[a..=b].to_vec()))
+                            .unwrap()
+                    }
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let url = format!("http://{addr}/show/sound.mpd");
+
+        let first = options(dir.path());
+        let (control, parts) = (first.control.clone(), first.parts_dir.clone());
+        let pieces = |parts: &Path| {
+            std::fs::read_dir(parts).map_or(0, |d| {
+                d.flatten()
+                    .filter(|e| {
+                        let name = e.file_name().to_string_lossy().into_owned();
+                        name.starts_with("part-") && !name.ends_with(".partial")
+                    })
+                    .count()
+            })
+        };
+        let watching = {
+            let parts = parts.clone();
+            tokio::spawn(async move {
+                while pieces(&parts) < 3 {
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                }
+                control.pause();
+            })
+        };
+        let stopped = crate::download::download(&crate::reqwest_defaults(), &url, &first).await;
+        watching.abort();
+        assert!(stopped.is_err(), "the first run was meant to be stopped");
+        let kept = pieces(&parts);
+        assert!((3..12).contains(&kept), "{kept} pieces kept of 12");
+        let before = served.load(Ordering::SeqCst);
+
+        let done =
+            crate::download::download(&crate::reqwest_defaults(), &url, &options(dir.path()))
+                .await
+                .unwrap();
+        assert_eq!(done.path.file_name().unwrap(), "sound.m4a");
+        let again = served.load(Ordering::SeqCst) - before;
+        // What was kept is not asked for again: at most what was missing, and a piece or two
+        // under way when it stopped.
+        let missing = total - kept as u64 * ONE_FILE_PIECE;
+        assert!(
+            again <= missing + 4 * ONE_FILE_PIECE,
+            "the second run fetched {again} bytes where {missing} were missing"
+        );
     }
 
     #[tokio::test]
