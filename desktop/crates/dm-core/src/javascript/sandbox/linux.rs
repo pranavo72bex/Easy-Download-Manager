@@ -21,11 +21,13 @@ const ARCH: u32 = 0xC000_003E;
 #[cfg(target_arch = "aarch64")]
 const ARCH: u32 = 0xC000_00B7;
 
-// The kernel's BPF, as `linux/filter.h` and `linux/bpf_common.h` spell it.
-const LD_W_ABS: u16 = 0x00 | 0x00 | 0x20;
-const JMP_JEQ_K: u16 = 0x05 | 0x10 | 0x00;
-const JMP_JSET_K: u16 = 0x05 | 0x40 | 0x00;
-const RET_K: u16 = 0x06 | 0x00;
+// The kernel's BPF, as `linux/filter.h` and `linux/bpf_common.h` spell it: each the class, the
+// operation and the source added up (`BPF_LD | BPF_W | BPF_ABS` is 0x00 + 0x00 + 0x20), written
+// as the sum, an OR with nothing in it being refused by the warnings' check.
+const LD_W_ABS: u16 = 0x20;
+const JMP_JEQ_K: u16 = 0x15;
+const JMP_JSET_K: u16 = 0x45;
+const RET_K: u16 = 0x06;
 
 const RET_ALLOW: u32 = 0x7fff_0000;
 const RET_ERRNO: u32 = 0x0005_0000;

@@ -1,0 +1,40 @@
+name: Windows, chosen window tests
+
+# Started by hand (Actions › this workflow › Run workflow, or
+# `gh workflow run windows-tests.yml -f filter=dialogs --ref <branch>`): the
+# dm-gpui tests whose names hold `filter`, on Windows, one at a time and with
+# everything they print, so a test that fails on Windows alone can be read and
+# fixed from a computer that is not Windows.
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: Part of the tests' names (empty for all of dm-gpui)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: dm-gpui tests on Windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop
+          key: windows-tests
+      - name: The chosen tests
+        working-directory: desktop
+        env:
+          FILTER: ${{ inputs.filter }}
+        run: cargo test -p dm-gpui --locked -- $env:FILTER --nocapture --test-threads=1
