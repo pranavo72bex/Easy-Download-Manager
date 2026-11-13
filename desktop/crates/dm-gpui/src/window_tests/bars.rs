@@ -155,12 +155,11 @@ fn start_queue_under_a_shut_schedule_and_stop_queue() {
         }
     });
     h.run(Command::StartQueue);
-    assert!(
+    // Said once the queue has looked at the schedule (a step later on a busy machine).
+    h.until("the queue to wait for the schedule", |h| {
         h.said()
-            .ends_with("is waiting for the schedule; it starts by itself when the schedule opens."),
-        "{}",
-        h.said()
-    );
+            .ends_with("is waiting for the schedule; it starts by itself when the schedule opens.")
+    });
     h.run(Command::StopQueue);
     assert!(
         h.said().starts_with("Stopped 1 download in "),

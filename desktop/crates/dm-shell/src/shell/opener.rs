@@ -12,7 +12,8 @@ mod macos;
 pub(super) use macos::{open, reveal, short_form};
 #[cfg(all(unix, not(target_os = "macos")))]
 mod unix;
-#[cfg(all(unix, not(target_os = "macos")))]
+// The tests' alone: the unix opener calls it within its own file.
+#[cfg(all(test, unix, not(target_os = "macos")))]
 pub(crate) use unix::linux_open_in;
 #[cfg(all(unix, not(target_os = "macos")))]
 pub(super) use unix::{open, reveal, short_form};
