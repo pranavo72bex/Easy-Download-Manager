@@ -211,7 +211,10 @@ pub(crate) async fn run(program: &str, call: &str, within: Duration) -> Result<S
             .unwrap_or_else(|_| Err("dm's JavaScript interpreter stopped".into()));
         match own {
             Ok(answer) => return Ok(answer),
-            Err(why) if !system_engine_here() => return Err(why),
+            // `DM_JS_ONLY` set: dm-js alone, to show what it answers by itself.
+            Err(why) if !system_engine_here() || std::env::var_os("DM_JS_ONLY").is_some() => {
+                return Err(why)
+            }
             Err(_) => {}
         }
     }
