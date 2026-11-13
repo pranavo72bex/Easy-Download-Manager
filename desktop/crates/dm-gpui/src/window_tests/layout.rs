@@ -270,8 +270,15 @@ fn five_hundred_rows_draw_inside_a_frame_budget() {
     let per_frame = frame(&mut h);
     println!("500 rows: {per_frame:?} a frame");
     // Windows' runners draw without a GPU (WARP, the system's software adapter): 87 to 125 ms
-    // there, where a computer with a GPU draws in a fraction of it.
-    let budget = if cfg!(windows) { 160 } else { 100 };
+    // there, where a computer with a GPU draws in a fraction of it. Linux's runners too (Mesa's
+    // software Vulkan): 104 to 167 ms (2026-11-13), where a Mac takes 44.
+    let budget = if cfg!(windows) {
+        160
+    } else if cfg!(target_os = "linux") {
+        200
+    } else {
+        100
+    };
     assert!(
         per_frame < Duration::from_millis(budget),
         "{per_frame:?} a frame"

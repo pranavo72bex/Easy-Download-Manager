@@ -48,7 +48,8 @@ pub(super) fn done<C: x11rb::connection::RequestConnection>(
 pub fn hide(window: &Window) {
     use x11rb::protocol::xproto::ConnectionExt;
     let unmapped = x_window(window).map(|id| on_x(|x| done(x.unmap_window(id))));
-    if !matches!(unmapped, Some(Ok(()))) {
+    // GPUI's test platform has no X window, and no minimize either (Linux CI, 2026-11-13).
+    if !matches!(unmapped, Some(Ok(()))) && !cfg!(test) {
         window.minimize_window();
     }
 }

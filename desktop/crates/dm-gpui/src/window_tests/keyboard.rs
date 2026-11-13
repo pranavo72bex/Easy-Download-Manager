@@ -673,11 +673,11 @@ fn remove_says_one_thing_enter_keeps_and_the_next_row_is_selected() {
     h.until("the question", |h| h.shows("Yes, remove"));
     h.click("Yes, remove");
     h.until("the row gone", |h| h.rows().len() == 2);
-    assert_eq!(
-        h.view(|view| view.selected.clone()),
-        [ids[2]].into(),
-        "the selection was lost"
-    );
+    // The next row is chosen once the removal is read back, a wake after the row went on a
+    // slow computer (Windows CI, 2026-11-13: checked at once, the selection was still empty).
+    h.until("the next row chosen", |h| {
+        h.view(|view| view.selected.clone()) == [ids[2]].into()
+    });
 }
 
 /// Enter answers "Already in the list" with the answer that changes nothing — Show it — since
