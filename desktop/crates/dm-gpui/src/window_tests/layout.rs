@@ -403,7 +403,9 @@ fn dialogs_keep_their_place_and_show_the_size() {
     h.close_dialogs();
     let url = world.url("file.zip");
     h.act(|_, cx| crate::details::open(cx.entity().downgrade(), vec![url], cx));
-    h.until("the size in Download details", |h| h.shows_part("256.0 KB"));
+    h.until("the size in Download details", |h| {
+        h.shows_part(&dm_desktop_base::format::bytes(256 * 1024))
+    });
 }
 
 /// The columns follow the window's width until one is dragged: kept from the first draw, a

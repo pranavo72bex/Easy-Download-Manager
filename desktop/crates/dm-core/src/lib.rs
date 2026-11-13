@@ -156,6 +156,11 @@ pub use agents::*;
 pub use error::*;
 pub use files::*;
 pub use http_client::*;
+
+/// A kilobyte as this computer's own file manager counts one (gaps row U34): 1,000 bytes on macOS
+/// and Linux (Finder, GNOME Files, Dolphin), 1,024 on Windows (Explorer). Sizes are shown in it
+/// and speed limits typed in KB/s mean it, so a limit and the speed shown beside it agree.
+pub const KB: u64 = if cfg!(windows) { 1024 } else { 1000 };
 pub use processes::*;
 
 pub use category::{

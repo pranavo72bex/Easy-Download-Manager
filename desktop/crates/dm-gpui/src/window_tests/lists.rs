@@ -669,7 +669,10 @@ fn a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder() {
     h.type_text(&world.url("file.zip"));
     h.click("OK");
     h.until("Download details' size", |h| {
-        h.dialog_open("Download details") && h.texts().iter().any(|t| t.starts_with("256.0 KB"))
+        h.dialog_open("Download details")
+            && h.texts()
+                .iter()
+                .any(|t| t.starts_with(&dm_desktop_base::format::bytes(256 * 1024)))
     });
     h.click("Add for later");
     h.until("the row", |h| h.rows().len() == 1);

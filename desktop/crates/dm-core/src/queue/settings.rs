@@ -197,7 +197,9 @@ impl Queue {
             slot.entry_mut().speed_limit = kb_per_second;
             slot.own_limit.clone()
         };
-        limiter.set_rate(kb_per_second.saturating_mul(1024)).await;
+        limiter
+            .set_rate(kb_per_second.saturating_mul(crate::KB))
+            .await;
         self.save().await;
     }
 }

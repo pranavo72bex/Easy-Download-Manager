@@ -751,8 +751,8 @@ mod tests {
         let mut row = paused(false);
         row.state = State::Running;
         assert_eq!(status_in_english(&row), "Starting…");
-        row.progress.downloaded = 3 * 1024 * 1024;
-        row.progress.speed = 2048.0;
+        row.progress.downloaded = 3 * dm_core::KB * dm_core::KB;
+        row.progress.speed = 2.0 * dm_core::KB as f64;
         assert_eq!(status_in_english(&row), "3.0 MB · 2.0 KB/s");
         // Nothing arriving just now: what has arrived alone.
         row.progress.speed = 0.0;

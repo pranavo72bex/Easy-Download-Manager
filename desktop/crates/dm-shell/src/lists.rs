@@ -638,8 +638,8 @@ pub async fn within_sizes(
         .into_iter()
         .filter(|(_, size)| {
             size.is_none_or(|bytes| {
-                (min_kb == 0 || bytes >= min_kb.saturating_mul(1024))
-                    && (max_kb == 0 || bytes <= max_kb.saturating_mul(1024))
+                (min_kb == 0 || bytes >= min_kb.saturating_mul(dm_core::KB))
+                    && (max_kb == 0 || bytes <= max_kb.saturating_mul(dm_core::KB))
             })
         })
         .map(|(file, _)| file)

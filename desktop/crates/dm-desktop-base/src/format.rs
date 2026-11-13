@@ -17,7 +17,8 @@ pub fn bytes(n: u64) -> String {
 
 /// [`bytes`] with the computer's regional decimal mark, where it has one.
 pub fn bytes_marked(n: u64, regional: Option<char>) -> String {
-    const K: f64 = 1024.0;
+    // Counted as this computer's file manager counts (gaps row U34).
+    let k = dm_core::KB as f64;
     let f = n as f64;
     // The units in the language in force: Russian's КБ and МБ, French's
     // Ko and Mo; the status bar said КБ/с beside a list saying KB/s. And
@@ -29,7 +30,7 @@ pub fn bytes_marked(n: u64, regional: Option<char>) -> String {
         .as_deref()
         .unwrap_or_else(|| unit(crate::i18n::t("unit:.")));
     let number = |value: f64, places: usize| format!("{value:.places$}").replace('.', mark);
-    if n < 1024 {
+    if n < dm_core::KB {
         return format!("{n} {}", unit(crate::i18n::t("unit:B")));
     }
     // Each unit with its places; the unit chosen once the number is
@@ -40,15 +41,15 @@ pub fn bytes_marked(n: u64, regional: Option<char>) -> String {
         ("unit:GB", 2),
         ("unit:TB", 2),
     ];
-    let mut value = f / K;
+    let mut value = f / k;
     let mut at = 0;
     while at + 1 < units.len() {
         let places = units[at].1;
         let scale = 10f64.powi(places as i32);
-        if (value * scale).round() / scale < K {
+        if (value * scale).round() / scale < k {
             break;
         }
-        value /= K;
+        value /= k;
         at += 1;
     }
     let (word, places) = units[at];

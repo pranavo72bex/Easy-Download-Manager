@@ -174,7 +174,12 @@ fn a_pages_links_open_the_download_links_dialog() {
     );
     // Each link's server is asked for its kind and size.
     h.until("the links to be checked", |h| {
-        h.shows("Archives") && h.texts().iter().filter(|t| *t == "256.0 KB").count() >= 2
+        h.shows("Archives")
+            && h.texts()
+                .iter()
+                .filter(|t| **t == dm_desktop_base::format::bytes(256 * 1024))
+                .count()
+                >= 2
     });
     // "Hide HTML files" is on by default: the page is not offered.
     assert!(!h.shows("next.html"), "{:?}", h.texts());
@@ -195,7 +200,7 @@ fn a_pages_links_open_the_download_links_dialog() {
         "the size the dialog showed was lost"
     );
     h.until("the size the dialog showed, in the list", |h| {
-        h.shows("256.0 KB")
+        h.shows(&dm_desktop_base::format::bytes(256 * 1024))
     });
 
     // Only the types typed are listed, and only those are added.

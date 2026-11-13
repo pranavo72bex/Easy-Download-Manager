@@ -492,7 +492,7 @@ fn the_speed_presets_set_and_lift_the_limit() {
         h.click(item);
         h.until(item, |h| kept(h).speed_limit == kb);
         let in_force = world.runtime.block_on(queue.speed_limit());
-        assert_eq!(in_force, kb * 1024, "{item} not in force");
+        assert_eq!(in_force, kb * dm_core::KB, "{item} not in force");
     }
 }
 
@@ -614,7 +614,7 @@ fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
     if minute < 23 * 60 + 59 {
         h.until(
             &format!("the slow limit in force in its hours (day {weekday})"),
-            |h| h.view(|view| view.session.limit_in_force()) == Some(64 * 1024),
+            |h| h.view(|view| view.session.limit_in_force()) == Some(64 * dm_core::KB),
         );
     }
 }

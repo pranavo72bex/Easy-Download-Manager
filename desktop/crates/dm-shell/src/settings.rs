@@ -1173,14 +1173,14 @@ impl Settings {
     /// The download limit, in the engine's units.
     pub fn allowance(&self) -> dm_core::quota::Allowance {
         dm_core::quota::Allowance {
-            bytes: self.limit_mb.saturating_mul(1024 * 1024),
+            bytes: self.limit_mb.saturating_mul(dm_core::KB * dm_core::KB),
             period: std::time::Duration::from_secs(self.limit_hours.max(1) * 3600),
         }
     }
 
     /// The speed ceiling in bytes a second, which is what the engine counts.
     pub fn speed_limit_bytes(&self) -> u64 {
-        self.speed_limit.saturating_mul(1024)
+        self.speed_limit.saturating_mul(dm_core::KB)
     }
 
     /// The speed limit in force now, in bytes a second: the lower of the
@@ -1197,7 +1197,7 @@ impl Settings {
         if !self.slow_hours.open_at(weekday, minute) {
             return normal;
         }
-        let slow = self.slow_hours.limit.saturating_mul(1024);
+        let slow = self.slow_hours.limit.saturating_mul(dm_core::KB);
         if normal == 0 {
             slow
         } else {

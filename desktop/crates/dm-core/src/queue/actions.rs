@@ -467,7 +467,8 @@ impl Queue {
                     continue;
                 }
                 let id = entry.id;
-                let own_limit = crate::limit::Limiter::new(entry.speed_limit.saturating_mul(1024));
+                let own_limit =
+                    crate::limit::Limiter::new(entry.speed_limit.saturating_mul(crate::KB));
                 slots.insert(
                     id,
                     Slot {

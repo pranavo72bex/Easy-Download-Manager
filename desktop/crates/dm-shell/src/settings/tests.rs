@@ -570,7 +570,7 @@ fn the_speed_limit_is_read_in_the_unit_the_engine_counts() {
         speed_limit: 500,
         ..Default::default()
     };
-    assert_eq!(settings.speed_limit_bytes(), 500 * 1024);
+    assert_eq!(settings.speed_limit_bytes(), 500 * dm_core::KB);
     assert_eq!(Settings::default().speed_limit_bytes(), 0, "no limit");
 }
 
@@ -1048,25 +1048,29 @@ fn the_slow_hours_lower_the_limit_in_their_hours_only() {
     };
     assert_eq!(
         s.speed_limit_bytes_at(1, 23 * 60),
-        100 * 1024,
+        100 * dm_core::KB,
         "in its hours"
     );
     assert_eq!(
         s.speed_limit_bytes_at(2, 3 * 60),
-        100 * 1024,
+        100 * dm_core::KB,
         "past midnight"
     );
-    assert_eq!(s.speed_limit_bytes_at(2, 12 * 60), 1000 * 1024, "outside");
+    assert_eq!(
+        s.speed_limit_bytes_at(2, 12 * 60),
+        1000 * dm_core::KB,
+        "outside"
+    );
     // No speed limit the rest of the day: the slow one alone in its hours.
     s.speed_limit = 0;
-    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 100 * 1024);
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 100 * dm_core::KB);
     assert_eq!(s.speed_limit_bytes_at(1, 12 * 60), 0);
     // A speed limit lower than the slow one stands.
     s.speed_limit = 50;
-    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * 1024);
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * dm_core::KB);
     // Off, or with a time that is not one, never.
     s.slow_hours.enabled = false;
-    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * 1024);
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * dm_core::KB);
     s.speed_limit = 0;
     s.slow_hours.enabled = true;
     s.slow_hours.from = "25:00".into();

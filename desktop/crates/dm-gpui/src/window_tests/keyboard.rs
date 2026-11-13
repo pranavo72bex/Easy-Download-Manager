@@ -470,7 +470,7 @@ fn the_complete_window_scrolls_cuts_long_names_and_closes_on_escape() {
         if named(&mut h).is_some_and(|r| r[3] <= f32::from(close.top())) {
             break;
         }
-        h.scroll("256.0 KB", 3.0);
+        h.scroll(&dm_desktop_base::format::bytes(256 * 1024), 3.0);
     }
     let at = named(&mut h).expect("the long name never came in sight");
     assert!(

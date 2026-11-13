@@ -41,9 +41,12 @@ fn download_details_says_the_size_beside_the_room_left() {
     let mut h = world.harness();
     h.add_url_open(&world.url("file.zip"));
     h.until("the size beside the room left", |h| {
-        h.texts()
-            .iter()
-            .any(|t| t.starts_with("256.0 KB · ") && t.ends_with(" free"))
+        h.texts().iter().any(|t| {
+            t.starts_with(&format!(
+                "{} · ",
+                dm_desktop_base::format::bytes(256 * 1024)
+            )) && t.ends_with(" free")
+        })
     });
 }
 

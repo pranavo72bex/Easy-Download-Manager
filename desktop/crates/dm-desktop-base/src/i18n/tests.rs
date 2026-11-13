@@ -347,17 +347,45 @@ fn a_file_called_like_a_built_in_name_is_shown_as_it_is() {
     // computer's regional formats say nothing.
     crate::region::pin(None);
     in_language("de", || {
-        assert_eq!(crate::format::bytes(3_984_588), "3,8 MB")
+        assert_eq!(
+            crate::format::bytes(3_984_588),
+            if dm_core::KB == 1024 {
+                "3,8 MB"
+            } else {
+                "4,0 MB"
+            }
+        )
     });
     in_language("ru", || {
-        assert_eq!(crate::format::bytes(3_984_588), "3,8 МБ")
+        assert_eq!(
+            crate::format::bytes(3_984_588),
+            if dm_core::KB == 1024 {
+                "3,8 МБ"
+            } else {
+                "4,0 МБ"
+            }
+        )
     });
     in_language("en", || {
-        assert_eq!(crate::format::bytes(3_984_588), "3.8 MB")
+        assert_eq!(
+            crate::format::bytes(3_984_588),
+            if dm_core::KB == 1024 {
+                "3.8 MB"
+            } else {
+                "4.0 MB"
+            }
+        )
     });
     // And the computer's mark where it has one, whatever the language.
     in_language("en", || {
-        assert_eq!(crate::format::bytes_marked(3_984_588, Some(',')), "3,8 MB")
+        assert_eq!(
+            crate::format::bytes_marked(3_984_588, Some(',')),
+            if dm_core::KB == 1024 {
+                "3,8 MB"
+            } else {
+                "4,0 MB"
+            }
+        )
     });
 }
 

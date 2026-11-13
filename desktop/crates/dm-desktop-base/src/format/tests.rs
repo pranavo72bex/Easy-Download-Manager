@@ -183,18 +183,30 @@ fn common_failures_have_plain_reasons() {
 #[test]
 fn sizes_read_the_way_the_web_window_read_them() {
     crate::region::pin(None);
+    // Counted as this computer's file manager counts (gaps row U34): in 1,024s on Windows, in
+    // 1,000s on macOS and Linux.
+    let k = dm_core::KB;
     assert_eq!(bytes(512), "512 B");
-    assert_eq!(bytes(1536), "1.5 KB");
+    assert_eq!(bytes(k + k / 2), "1.5 KB");
     // Rounded up to the next unit, not "1024.0 KB".
-    assert_eq!(bytes(1024 * 1024 - 1), "1.0 MB");
-    assert_eq!(bytes(1024 * 1024 - 60), "1023.9 KB");
-    assert_eq!(bytes(1023 * 1024), "1023.0 KB");
-    assert_eq!(bytes(1024 * 1024 * 1024 - 1), "1.00 GB");
-    assert_eq!(bytes(5 * 1024 * 1024), "5.0 MB");
-    assert_eq!(bytes(3 * 1024 * 1024 * 1024), "3.00 GB");
-    assert_eq!(bytes(1023 * 1024 * 1024 * 1024), "1023.00 GB");
-    assert_eq!(bytes(3 * 1024 * 1024 * 1024 * 1024), "3.00 TB");
-    assert_eq!(rate(2048.0), "2.0 KB/s");
+    assert_eq!(bytes(k * k - 1), "1.0 MB");
+    assert_eq!(
+        bytes(k * k - 60),
+        if k == 1024 { "1023.9 KB" } else { "999.9 KB" }
+    );
+    assert_eq!(bytes(k * k * k - 1), "1.00 GB");
+    // A file macOS's Finder calls 100.7 MB is said so, not 96.0 MB.
+    if k == 1000 {
+        assert_eq!(bytes(100_700_000), "100.7 MB");
+    }
+    assert_eq!(bytes(5 * k * k), "5.0 MB");
+    assert_eq!(bytes(3 * k * k * k), "3.00 GB");
+    assert_eq!(
+        bytes((k - 1) * k * k * k),
+        if k == 1024 { "1023.00 GB" } else { "999.00 GB" }
+    );
+    assert_eq!(bytes(3 * k * k * k * k), "3.00 TB");
+    assert_eq!(rate(2.0 * k as f64), "2.0 KB/s");
 }
 
 #[test]

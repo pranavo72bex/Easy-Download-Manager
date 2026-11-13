@@ -970,7 +970,7 @@ async fn share_until(
     let connect = swarm_proxy(proxy.as_deref()).map_err(|e| e.to_string())?;
     let proxied = connect.is_some();
     let private = proxied || no_public_discovery;
-    let upload_bps = u32::try_from(share.upload_kbps.saturating_mul(1024))
+    let upload_bps = u32::try_from(share.upload_kbps.saturating_mul(crate::KB))
         .ok()
         .and_then(NonZeroU32::new);
     let session = Session::new_with_opts(

@@ -136,7 +136,7 @@ impl Queue {
             entry.progress.speed = 0.0;
             entry.progress.eta = None;
             order.push(entry.id);
-            let own_limit = crate::limit::Limiter::new(entry.speed_limit.saturating_mul(1024));
+            let own_limit = crate::limit::Limiter::new(entry.speed_limit.saturating_mul(crate::KB));
             slots.insert(
                 entry.id,
                 Slot {

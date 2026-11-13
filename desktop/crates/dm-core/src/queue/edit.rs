@@ -177,7 +177,7 @@ impl Queue {
         }
         if let Some(limiter) = own_limit {
             limiter
-                .set_rate(with.speed_limit.saturating_mul(1024))
+                .set_rate(with.speed_limit.saturating_mul(crate::KB))
                 .await;
         }
         Some(id)
