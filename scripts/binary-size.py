@@ -8,6 +8,7 @@
 
     python3 scripts/binary-size.py BINARY            # compare, and say so
     python3 scripts/binary-size.py BINARY --record   # make BINARY's size the recorded one
+    python3 scripts/binary-size.py BINARY --as=macos-x86_64   # another machine's build
 
 The sizes are in scripts/binary-size.json, one for each system and processor. CI runs this
 after each release build and fails only when the binary grew by more than 10%: a size moves a
@@ -41,7 +42,9 @@ def main():
         sys.exit(f"no binary at {binary}")
     size = binary.stat().st_size
     sizes = json.loads(RECORDED.read_text()) if RECORDED.exists() else {}
-    key = system()
+    # A build for another machine than this one (the Intel Mac's, made on Apple silicon) is
+    # held to that machine's size: `--as=macos-x86_64`.
+    key = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--as=")), None) or system()
     if "--record" in sys.argv:
         sizes[key] = size
         RECORDED.write_text(json.dumps(dict(sorted(sizes.items())), indent=1) + "\n")

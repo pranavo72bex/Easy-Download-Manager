@@ -201,13 +201,27 @@ jobs:
             artifact: macos
             # The GPUI window.
             crate: dm-gpui
+          # Intel Macs (gaps row R3): built for x86_64 on the same Apple
+          # silicon runner, a .dmg of its own (dm_<version>_x64.dmg), which
+          # the update check offers an Intel Mac (`update::installer_in`).
+          - name: macOS Intel (app, dmg)
+            os: macos-latest
+            formats: app,dmg
+            artifact: macos-x64
+            crate: dm-gpui
+            target: x86_64-apple-darwin
+            size-key: macos-x86_64
 
     runs-on: ${{ matrix.os }}
+    # Where cargo puts the build: under the target's own folder when one is named.
+    env:
+      OUT: ${{ matrix.target && format('target/{0}/release', matrix.target) || 'target/release' }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -252,7 +266,8 @@ jobs:
           export CARGO_BUILD_RUSTFLAGS
           # This crate's packages alone: without -p, cargo-packager packages every
           # crate of the workspace that has packager settings.
-          cargo packager --release -p ${{ matrix.crate }} --formats ${{ matrix.formats }}
+          cargo packager --release -p ${{ matrix.crate }} --formats ${{ matrix.formats }} \
+            ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
         # This step's own: the check below was put between its run and its env,
         # and took the signing secrets from it.
         env:
@@ -267,7 +282,7 @@ jobs:
         working-directory: desktop
         shell: bash
         run: |
-          found=$(strings target/release/${{ matrix.crate }} | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
+          found=$(strings "$OUT/${{ matrix.crate }}" | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
           echo "paths of this runner in the binary: $found"
           test "$found" = 0
 
@@ -279,10 +294,11 @@ jobs:
         working-directory: .
         shell: bash
         run: |
-          binary=desktop/target/release/${{ matrix.crate }}
+          binary="desktop/$OUT/${{ matrix.crate }}"
           if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
           py=python3; command -v python3 >/dev/null || py=python
-          "$py" scripts/binary-size.py "$binary" | tee -a "$GITHUB_STEP_SUMMARY"
+          # A cross build is held to its own system's size, not the runner's.
+          "$py" scripts/binary-size.py "$binary" ${{ matrix.size-key && format('--as={0}', matrix.size-key) || '' }} | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Fedora, openSUSE and their kin: the same binary, laid out as the
       # Arch package is (desktop/packaging/nfpm.yaml).
@@ -300,7 +316,7 @@ jobs:
       # is never renamed over it.
       - name: Name the installers dm
         shell: bash
-        working-directory: desktop/target/release/bundle
+        working-directory: desktop/${{ env.OUT }}/bundle
         run: |
           for f in ${{ matrix.crate }}_*; do
             [ -e "$f" ] || continue
@@ -339,6 +355,7 @@ jobs:
             desktop/target/release/bundle/*-setup.exe
             desktop/target/release/bundle/*-portable.zip
             desktop/target/release/bundle/*.dmg
+            desktop/${{ env.OUT }}/bundle/*.dmg
           if-no-files-found: error
 
   installed:
@@ -355,6 +372,9 @@ jobs:
           - { os: ubuntu-22.04-arm, artifact: linux-arm64 }
           - { os: windows-latest, artifact: windows }
           - { os: macos-latest, artifact: macos }
+          # The Intel build run where it can be: under Rosetta on the Apple
+          # silicon runner, as many Intel apps run on a person's Mac.
+          - { os: macos-latest, artifact: macos-x64, rosetta: true }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -440,6 +460,10 @@ jobs:
           python scripts/portable-check.py $exe.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Rosetta, for the Intel build
+        if: matrix.rosetta
+        run: sudo softwareupdate --install-rosetta --agree-to-license
+
       - name: The macOS app, from the dmg
         if: runner.os == 'macOS'
         run: |
@@ -448,6 +472,10 @@ jobs:
           hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dm" "$dmg"
           cp -R "$RUNNER_TEMP/dm/dm.app" "$RUNNER_TEMP/"
           hdiutil detach "$RUNNER_TEMP/dm"
+          # The Intel build is Intel's alone, not Apple silicon's run by mistake.
+          if [ "${{ matrix.rosetta }}" = true ]; then
+            test "$(lipo -archs "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-gpui")" = x86_64
+          fi
           python3 scripts/smoke.py "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-gpui"
           rm -rf "$RUNNER_TEMP/dm.app"
 
