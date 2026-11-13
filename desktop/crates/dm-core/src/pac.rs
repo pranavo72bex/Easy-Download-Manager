@@ -446,11 +446,11 @@ mod tests {
         );
     }
 
-    /// In Windows' own engine: an ordinary script answers, and one reaching for a way to make
-    /// code from text fails, never answering DIRECT.
-    #[cfg(windows)]
+    /// In dm's own interpreter: an ordinary script answers, `eval` and `import` are not there,
+    /// and code a script makes from text (`Function`) runs inside the same interpreter, reaching
+    /// nothing more than the script itself (Windows' Chakra had it switched off instead).
     #[tokio::test]
-    async fn in_windows_own_engine_a_script_answers_and_cannot_make_code() {
+    async fn in_dm_js_a_script_answers_and_made_code_reaches_nothing_more() {
         let ok = evaluate_here(
             "function FindProxyForURL(u,h){return shExpMatch(h,'*.corp')&&isInNet('10.1.2.3','10.0.0.0','255.0.0.0')?'PROXY p:8080':'DIRECT';}",
             "http://a.corp/",
@@ -466,32 +466,40 @@ mod tests {
                 port: 8080
             }]
         );
-        for reach in [
-            "function FindProxyForURL(){return (function(){}).constructor('return \"DIRECT\"')();}",
-            "function FindProxyForURL(){return Object.constructor('return \"DIRECT\"')();}",
-            "function FindProxyForURL(){return (async function(){}).constructor.name;}",
+        for refused in [
             "function FindProxyForURL(){return eval('\"DIRECT\"');}",
             "function FindProxyForURL(){return import('os');}",
+            "function FindProxyForURL(){return require('fs');}",
         ] {
             assert!(
-                evaluate_here(reach, "http://a/", "a").await.is_err(),
-                "{reach}"
+                evaluate_here(refused, "http://a/", "a").await.is_err(),
+                "{refused}"
             );
         }
+        let made = evaluate_here(
+            "function FindProxyForURL(){return (function(){}).constructor('return \"PROXY q:1\"')();}",
+            "http://a/",
+            "a",
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            made,
+            [Hop::Via {
+                kind: crate::proxy::Kind::Http,
+                host: "q".into(),
+                port: 1
+            }]
+        );
     }
 
-    /// In the computer's own engine, where it has one (JavaScriptCore on macOS, WebKitGTK's on
-    /// Linux): an ordinary script answers, and one that imports is refused before it runs.
-    #[cfg(not(windows))]
+    /// In dm's own interpreter (dm-js): an ordinary script answers, and one that imports is
+    /// refused before it runs.
     #[tokio::test]
-    async fn in_the_computers_own_engine_a_script_answers_and_an_import_is_refused() {
+    async fn in_dm_js_a_script_answers_and_an_import_is_refused() {
         let script = "import * as os from 'qjs:os'; function FindProxyForURL(){return 'DIRECT';}";
         let why = evaluate_here(script, "http://a/", "a").await.unwrap_err();
         assert!(why.contains("import a module"), "{why}");
-        if !crate::javascript::system_engine_here() {
-            eprintln!("not run further: {}", crate::javascript::NO_ENGINE);
-            return;
-        }
         let ok = evaluate_here(
             "function FindProxyForURL(u,h){return shExpMatch(h,'*.corp')&&isInNet('10.1.2.3','10.0.0.0','255.0.0.0')?'PROXY p:8080; DIRECT':'DIRECT';}",
             "http://a.corp/",

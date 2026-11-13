@@ -43,10 +43,6 @@ depends:
   # desktop's Secret Service (gaps row 39): Fedora's libsecret, openSUSE's
   # libsecret-tools.
   - /usr/bin/secret-tool
-  # WebKitGTK's JavaScriptCore, which YouTube's checks and a proxy script run in
-  # (dm-core/src/javascript.rs); nothing is fetched or run in its place
-  # (docs/gaps.md P1). Named by library, as above.
-  - libjavascriptcoregtk-4.1.so.0()(64bit)
 
 # A font for names in Chinese, Japanese and Korean: dm draws in the
 # computer's own fonts (gap 116), and a system with none showed such names

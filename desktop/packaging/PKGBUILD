@@ -14,9 +14,7 @@ license=('GPL-3.0-or-later')
 # tray is a StatusNotifier item over the session D-Bus. It links X11 through
 # xcb, xkbcommon and FreeType, and opens Vulkan, or GL through EGL, and
 # Wayland at run time.
-# WebKitGTK's JavaScriptCore runs YouTube's checks and a proxy script (dm-core's javascript.rs);
-# nothing is fetched or run in its place (docs/gaps.md P1).
-depends=('hicolor-icon-theme' 'libxcb' 'libxkbcommon-x11' 'freetype2' 'fontconfig' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'xdg-utils' 'libsecret' 'webkit2gtk-4.1')
+depends=('hicolor-icon-theme' 'libxcb' 'libxkbcommon-x11' 'freetype2' 'fontconfig' 'vulkan-icd-loader' 'libglvnd' 'wayland' 'xdg-utils' 'libsecret')
 # fontconfig's headers, which GPUI's text builds against.
 makedepends=('rust' 'cargo' 'pkgconf' 'git' 'fontconfig')
 optdepends=('noto-fonts-cjk: names in Chinese, Japanese and Korean')

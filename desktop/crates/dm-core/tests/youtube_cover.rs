@@ -1184,7 +1184,7 @@ async fn a_player_that_fails_fails_the_reading_with_its_words() {
         ("solverJunk1", "the answer was \"nothing useful\""),
         ("solverNone1", "no answer for the n value abc"),
         ("solverFail1", "no answer for the n value def"),
-        ("solverExit1", "the JavaScript stopped its engine"),
+        ("solverExit1", "ended without an answer"),
         ("oddPlayer01", "YouTube's player is not as dm knows it"),
     ] {
         let why = failure(id).await;

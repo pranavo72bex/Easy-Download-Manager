@@ -14,8 +14,8 @@ echo "== what dm needs, as make doctor sees it"
 make doctor || true
 
 echo
-echo "== WebKitGTK's JavaScriptCore runs dm's JavaScript (gaps row 164)"
-(cd desktop && DM_REQUIRE_JSC=1 cargo test -p dm-core --lib javascript::)
+echo "== dm's own JavaScript (dm-js, gaps row F15)"
+(cd desktop && cargo test -p dm-js)
 
 echo
 echo "== the client, without a desktop tray host"

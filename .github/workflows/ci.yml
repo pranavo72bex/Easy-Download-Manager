@@ -78,6 +78,11 @@ jobs:
             libnss3 libgbm1 libxkbcommon0 libxkbcommon-x11-0 libxdamage1 libxfixes3 libxrandr2 \
             libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+          # What the window draws with where there is no GPU: Mesa's software Vulkan
+          # (lavapipe), as store-check.yml has it. Without it the dm the native host starts
+          # for a page's links never opened, and none was queued (gaps row C1; the egui
+          # window drew with OpenGL, which llvmpipe gave it).
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libgl1-mesa-dri libegl1
           # What the window (dm-gpui, GPUI) builds against.
           sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
             libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev

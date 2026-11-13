@@ -17,9 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # there is a driver, else GL through EGL (Mesa), and Wayland's client.
       libxkbcommon-x11-0 libxkbcommon0 libvulkan1 libegl1 libgl1-mesa-dri \
       libwayland-client0 libwayland-egl1 \
-      # WebKitGTK's JavaScriptCore, which dm's .deb recommends: YouTube's checks
-      # and a proxy script run in it, nothing fetched (gaps row 164).
-      libjavascriptcoregtk-4.1-0 \
       # What the window (dm-gpui, GPUI) builds against.
       libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
       libxcb1-dev libx11-xcb-dev libvulkan-dev \

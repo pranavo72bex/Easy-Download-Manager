@@ -470,12 +470,10 @@ desktop/
     youtube.rs            a YouTube page read by dm itself (the player API; the player's checks
                           answered by youtube/player.rs, the player cut down to what answers
                           them, as reference A does), and a playlist page's videos
-    javascript.rs         the computer's own JavaScript engine for that program: Windows' own
-                          Chakra (chakra.dll; no JIT, no eval, memory and time capped), in a
-                          process of its own, dm started as its host (--javascript-host);
-                          macOS's JavaScriptCore, and WebKitGTK's on Linux (the same host, the
-                          JIT off; the packages depend on it, the AppImage carries it); nothing
-                          else in its place
+    javascript.rs         that program (and a proxy script) run in dm's own JavaScript
+                          interpreter, the crate dm-js (lexer, parser, interpreter, built-in
+                          objects, patterns; a time limit, a thread of its own); a test may
+                          put a stand-in program in its place
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
     videopage.rs          a video page's streams fetched and joined (the module keeps its old

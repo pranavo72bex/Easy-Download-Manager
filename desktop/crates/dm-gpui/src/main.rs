@@ -159,15 +159,7 @@ fn open_question(cx: &mut App) -> Option<WindowHandle<Question>> {
 const OWN_FLAGS: [&str; 2] = ["--accessibility", "--churn"];
 
 fn main() {
-    // As the egui binary: dm-core's JavaScript host, then a portable copy's
-    // home, before any thread starts.
-    let mut raw = std::env::args_os().skip(1);
-    if let (Some(flag), None) = (raw.next(), raw.next()) {
-        if flag == dm_core::javascript::HOST_FLAG {
-            std::process::exit(dm_core::javascript::host_main());
-        }
-    }
-    dm_core::javascript::host_is_this_program();
+    // A portable copy's home, before any thread starts.
     dm_shell::settings::enter_portable();
 
     let all = dm_shell::shell::args();

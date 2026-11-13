@@ -7142,3 +7142,30 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   catalogs.
 - **Not rewritten**: the comments in dm-gpui that say a behaviour is "as the egui window's"; they
   say where it came from (row A20).
+
+## 2026-11-13: dm's own JavaScript interpreter in place of the computer's engine (gaps rows F15, 201, P1, P2)
+
+- **Asked**: the maintainer, 2026-11-13: "secury 201 we can do it by porting it to rust". Row
+  F15's own route, set aside earlier for its size, chosen.
+- **Made**: the crate `dm-js`, of no dependencies: a lexer and parser, a tree-walking
+  interpreter (scopes, closures, prototypes, classes, destructuring, exceptions, promises and
+  `await`), the built-in objects YouTube's player uses (typed arrays, `DataView`, `Date`, `Map`,
+  `Proxy`, `BigInt`, …) and a backtracking engine for JavaScript's patterns. A run has a time
+  limit, a call depth and a thread of its own (`dm_js::evaluate`); nothing of the computer is in
+  reach, and `Date` has no clock (a fixed moment, UTC).
+- **Checked**: on YouTube's live player (3,065,866 bytes) it gave the same `n` and signature
+  answers as JavaScriptCore, in 0.75 s; with dm-js alone, live videos were read and their
+  streams accepted by YouTube on macOS (four), Linux (three, Debian 12) and Windows (the
+  windows-check.yml runner; a second video met YouTube's bot check on the runner's address).
+- **Removed**: the computer's engines (`javascript/chakra.rs`, `jsc.rs`), the host process
+  (`--javascript-host`, `host_main`) and its OS sandbox (`javascript/sandbox/`: seatbelt,
+  seccomp, Windows' low integrity), which row 201 asked for because those engines were not
+  Rust; the Linux packages' dependency on WebKitGTK's JavaScriptCore (.deb, .rpm, Arch, the
+  AppImage's carried library) and the build images'. A test may still put a stand-in program in
+  dm-js's place (`javascript::set_host`).
+- **Ruled out**: an engine crate (Boa and the like: third party); keeping the computer's engine
+  behind dm-js (two engines to keep, and the sandbox with them).
+- **Owed**: generators are refused in words (YouTube's player defines them but dm does not call
+  them); dm-js runs in dm's own process, so a script's memory has no limit of its own beyond
+  the time limit (a typed array or string is held to 1e9 elements).
+

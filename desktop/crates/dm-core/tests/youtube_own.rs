@@ -177,18 +177,10 @@ fn text(status: StatusCode, kind: &str, body: String) -> Response {
         .unwrap()
 }
 
-/// Whether a JavaScript engine the reader can answer the player's checks in is here: the
-/// computer's own (Windows', macOS's, WebKitGTK's on Linux), or an installed one.
+/// Whether a JavaScript engine the reader can answer the player's checks in is here: dm-js,
+/// always (gaps row F15).
 fn an_engine_is_here() -> bool {
-    dm_core::javascript::system_engine_here()
-        || ["deno", "qjs"].iter().any(|program| {
-            std::process::Command::new(program)
-                .arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .is_ok()
-        })
+    true
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -358,7 +350,7 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
     );
     // Nothing was fetched to answer the checks: no tool and no script.
     assert!(
-        !dir.path().join("tools").exists() || !dm_core::javascript::system_engine_here(),
+        !dir.path().join("tools").exists(),
         "a tool was fetched where the computer has an engine of its own"
     );
 

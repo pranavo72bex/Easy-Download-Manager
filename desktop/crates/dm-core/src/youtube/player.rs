@@ -896,10 +896,9 @@ g.Vx(om);
         );
     }
 
-    /// Whether an engine is here to run a program in: the computer's own (Windows', macOS's), or
-    /// an installed one.
+    /// Whether an engine is here to run a program in: dm-js, always.
     fn an_engine_is_here() -> bool {
-        crate::javascript::system_engine_here()
+        true
     }
 
     #[tokio::test]
@@ -1016,29 +1015,39 @@ document.body.appendChild(null);})(_yt_player);
         .unwrap_err();
         assert!(why.contains("no answer for sig xyz"), "{why}");
     }
-    /// The live player (a file named by `DM_JS_PLAYER`, YouTube's `base.js`) answers the same
-    /// in dm's own interpreter as in the computer's engine (gaps row F15, stage 5).
+    /// The live player (a file named by `DM_JS_PLAYER`, YouTube's `base.js`) answers both
+    /// checks in dm's own interpreter: each `n` and signature given back changed (gaps row F15,
+    /// which on 2026-11-13 found its answers the same as JavaScriptCore's).
     #[tokio::test]
-    async fn the_live_player_answers_the_same_in_dm_js() {
+    async fn the_live_player_answers_in_dm_js() {
         let Some(path) = std::env::var_os("DM_JS_PLAYER") else {
             eprintln!("DM_JS_PLAYER not set: not run");
             return;
         };
         let player = std::fs::read_to_string(path).unwrap();
         let program = program(&player).unwrap();
-        let asked = call(
-            &["qx4bZJdOsBf7pXcM", "AAAAAAAAAAAAAAAA"],
-            &["AOq0QJ8wRQIhAJOPkbz9cO6FpXmDfaA8n3qYhRjM2iVxw7BtZuS1LP5mAiAF0eHgYpTr9rkSvCdLa3UzNjXqWs6Ei2Jf1oKbwcBmQ=="],
-        );
+        let (n, sig) = ("qx4bZJdOsBf7pXcM", "AOq0QJ8wRQIhAJOPkbz9cO6FpXmDfaA8n3qYhRjM2iVxw7BtZuS1LP5mAiAF0eHgYpTr9rkSvCdLa3UzNjXqWs6Ei2Jf1oKbwcBmQ==");
         let started = std::time::Instant::now();
-        let own = dm_js::evaluate(&program, &asked, std::time::Duration::from_secs(60));
-        eprintln!("dm-js: {:?} in {:?}", own, started.elapsed());
-        if !an_engine_is_here() {
-            return;
-        }
-        let system =
-            crate::javascript::run(&program, &asked, std::time::Duration::from_secs(60)).await;
-        eprintln!("system: {system:?}");
-        assert_eq!(own, system);
+        let got = crate::javascript::run(
+            &program,
+            &call(&[n], &[sig]),
+            std::time::Duration::from_secs(60),
+        )
+        .await
+        .unwrap();
+        eprintln!("dm-js: {got} in {:?}", started.elapsed());
+        let answer: serde_json::Value = serde_json::from_str(&got).unwrap();
+        let (got_n, got_sig) = (
+            answer["n"][n].as_str().unwrap(),
+            answer["sig"][sig].as_str().unwrap(),
+        );
+        assert!(
+            !got_n.is_empty() && !got_n.ends_with(n),
+            "n not answered: {got_n}"
+        );
+        assert!(
+            got_sig != sig && got_sig.len() + 4 >= sig.len(),
+            "signature not answered: {got_sig}"
+        );
     }
 }

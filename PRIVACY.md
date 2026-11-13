@@ -14,10 +14,9 @@ for a public file, as it does for any download.
 ## Video sites
 
 dm reads YouTube itself and fetches nothing to do it. The little JavaScript a
-YouTube video's checks need runs in your computer's own engine: Windows' own
-Chakra, macOS's JavaScriptCore, and on Linux WebKitGTK's JavaScriptCore, which
-dm's packages depend on and its AppImage carries. That engine is run with
-nothing of your computer in reach: no files, programs or network. dm does the
+YouTube video's checks need runs in dm's own interpreter, written in Rust as
+part of dm: no engine of your computer's or of anyone else's is used. It runs
+with nothing of your computer in reach: no files, programs, network or clock. dm does the
 rest itself too: joining picture and sound, subtitles, and live RTMP (RTMPS and
 RTMPT too), RTSP (RTSPS too) and MMS streams. No program is downloaded and run,
 and nothing installed on your computer is run in dm's place.

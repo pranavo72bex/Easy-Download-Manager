@@ -6,8 +6,7 @@
 # human-qa.py on Debian 12 (scripts/linux-human-qa.sh): Chromium in Edge's
 # place (Edge for Linux is x86_64 only), an X server, a window manager, a
 # session bus with a keyring, ImageMagick for the dialogs' pictures, and the
-# libraries the .deb depends on, so a build of the checkout runs here too
-# (JavaScriptCore among them: without it YouTube's video was refused, B35).
+# libraries the .deb depends on, so a build of the checkout runs here too.
 # The window's Linux baseline pictures (docs/behaviour-baseline/gpui/linux) are
 # drawn in this image: its fonts and screen are part of what they show.
 FROM debian:12
@@ -18,6 +17,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libgl1-mesa-dri xdg-utils libsecret-tools \
       libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 libxkbcommon-x11-0 \
       libwayland-client0 libwayland-egl1 libegl1 libgl1 \
-      libjavascriptcoregtk-4.1-0 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /work

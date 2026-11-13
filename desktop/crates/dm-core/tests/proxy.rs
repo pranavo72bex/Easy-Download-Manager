@@ -286,28 +286,9 @@ async fn a_socks5_proxy_carries_the_download_and_resolves_its_name() {
 /// stand-in host that answers as the script below would (DIRECT for `localhost`, the proxy for the
 /// rest), so the test needs nothing installed.
 fn script_engine(dir: &std::path::Path, proxy: &str) {
+    // dm-js runs the script as written on every system (gaps row F15): no stand-in needed.
+    let _ = (dir, proxy);
     dm_core::pac::forget_all();
-    if cfg!(windows) || dm_core::javascript::system_engine_here() {
-        return;
-    }
-    let host = dir.join("host.sh");
-    std::fs::write(
-        &host,
-        format!(
-            "#!/bin/sh\nif grep -q '//localhost:'; then a=DIRECT; else a='PROXY {proxy}'; fi\nprintf 'dm-javascript-answer {{\"answer\":\"%s\"}}\\n' \"$a\"\n"
-        ),
-    )
-    .unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&host, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
-    dm_core::javascript::set_host(Some(dm_core::javascript::Host {
-        program: host,
-        args: Vec::new(),
-        env: Vec::new(),
-    }));
 }
 
 #[tokio::test]
