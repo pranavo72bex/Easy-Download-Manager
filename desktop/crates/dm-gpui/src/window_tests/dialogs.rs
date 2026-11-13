@@ -1533,6 +1533,7 @@ fn the_welcome_confirms_where_downloads_go_and_ends_with_done() {
 /// with nothing left, nothing opens.
 #[test]
 fn a_new_download_order_opens_add_url_and_brings_the_window_forward() {
+    let _inbox = crate::harness::inbox();
     let world = world();
     let mut h = world.harness();
     for _ in 0..3 {

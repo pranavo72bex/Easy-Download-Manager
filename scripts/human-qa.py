@@ -1015,12 +1015,17 @@ def walk(dm, origin):
     dm.wait("ui.bin", {"running"}, 20)
     pause(3)
     dm.reveal("ui.bin")
-    dm.call("ui.click", text="ui.bin", double=True)
+    before = (dm.row("ui.bin") or {}).get("state", {}).get("kind")
+    clicked = dm.call("ui.click", text="ui.bin", double=True)
     pause(1.5)
     titles = [w.get("title", "") for w in (dm.windows().get("dialogs") or [])]
     first = next((t for t in titles if "ui.bin" in t), "")
+    # What it was and where the click went, for a failure on one system alone
+    # (Linux, gaps row Q1).
     check("B46", "a double-click on a running download opens its progress window",
-          bool(first) and "File properties" not in titles, f"{titles}")
+          bool(first) and "File properties" not in titles,
+          f"{titles}; the row was {before}; the click: {clicked}; "
+          f"the window said {[t for t in dm.texts() if 'ui.bin' in t or '%' in t][:8]}")
     check("B46", "its title starts with how far it is",
           bool(re.match(r"^\d+% ", first)), f"{first!r}")
     pause(3)

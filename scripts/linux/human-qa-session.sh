@@ -39,7 +39,10 @@ status=0
 # shellcheck disable=SC2016
 DM_BINARY="/usr/bin/$binary" DM_QA_EDGE=/usr/bin/chromium \
   dbus-run-session -- sh -c 'eval "$(printf "\n" | gnome-keyring-daemon --unlock --components=secrets 2>/dev/null)"
-    python3 -u scripts/human-qa.py "$@"' qa "$@" 2>&1 | tee /shots/human-qa.txt || true
+    python3 -u scripts/human-qa.py "$@"; s=$?
+    # xclip stays on to serve what a check put on the clipboard, holding
+    # this output open: tee then waited for ever (gaps row Q2).
+    pkill -x xclip || true; exit $s' qa "$@" 2>&1 | tee /shots/human-qa.txt || true
 # human-qa.py's full record (each browser check's own words, dm's stderr)
 # comes back with the screenshots: a check that stops part-way says why there.
 mkdir -p /shots/record && cp /tmp/dm-human-qa/*.txt /shots/record/ 2>/dev/null || true

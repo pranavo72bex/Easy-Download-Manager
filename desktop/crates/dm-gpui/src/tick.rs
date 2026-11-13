@@ -34,11 +34,16 @@ impl Downloads {
         }
         let home = dm_shell::settings::home();
         // `--new-download` and `--when-done`, left in the inbox by this
-        // launch or a later one.
-        if dm_shell::app::session::new_download_asked(&home) {
+        // launch or a later one. In the tests, only by a window whose test
+        // holds the inbox, the home being every test's (`harness::Inbox`).
+        let reads_inbox = crate::reads_inbox();
+        if reads_inbox && dm_shell::app::session::new_download_asked(&home) {
             crate::addurl::open(cx.entity().downgrade(), cx);
         }
-        if let Some(wanted) = dm_shell::app::session::when_done_asked(&home) {
+        if let Some(wanted) = reads_inbox
+            .then(|| dm_shell::app::session::when_done_asked(&home))
+            .flatten()
+        {
             // As the menu greys them: only what this computer can do.
             if wanted.possible(dm_desktop_base::power::available) {
                 self.run(dm_shell::app::commands::when_done_command(wanted), cx);

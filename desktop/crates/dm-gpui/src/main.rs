@@ -635,6 +635,19 @@ mod i18n_check;
 #[cfg(test)]
 mod harness;
 
+/// Whether the window looks in dm's inbox at its ticks: always, but in the tests only a window
+/// whose test holds it (`harness::Inbox`), the home being every test's.
+#[cfg(test)]
+fn reads_inbox() -> bool {
+    harness::reads_inbox()
+}
+
+/// Whether the window looks in dm's inbox at its ticks: always.
+#[cfg(not(test))]
+fn reads_inbox() -> bool {
+    true
+}
+
 #[cfg(test)]
 mod window_tests;
 

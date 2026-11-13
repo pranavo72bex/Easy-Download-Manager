@@ -73,6 +73,7 @@ fn the_command_line_pauses_resumes_and_cancels_by_number_and_leaves_the_selectio
 /// every test window's, and another window that took it first is left as it was.
 #[test]
 fn the_command_lines_when_done_is_taken_up() {
+    let _inbox = crate::harness::inbox();
     let world = world();
     let mut h = world.harness();
     h.command("downloads.when_done.sleep");

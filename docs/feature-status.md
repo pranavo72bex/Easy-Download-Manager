@@ -649,3 +649,5 @@ of them.
 
 - macOS (Apple M1, debug build of main after U34): `python3 scripts/human-qa.py` holds 66 of 66 rows, Edge's 70 browser checks among them.
 - Linux (Debian 12 container under X, `sh scripts/linux-human-qa.sh`): 61 of 66; B25, B46, B53, B35 and B36 are gaps rows Q1 to Q3.
+- Rerun after the fixes (same day): macOS 66 of 66, Linux 66 of 66, `cargo test --workspace` 2,259 passed. Found and fixed on the way:
+  B46/B53 on Linux, the list's sideways scroll bar (always shown on Windows and Linux) lay over the last row and took the double-click; B35/B36, the QA container had no JavaScriptCore (the .deb brings it; the image now has it); B14/B41/B54/B55 on macOS, a 404 from a server on port 50587 was read as a 505 (`refuses_http1` matched "505" in the address) and asked again over HTTP/2; the Linux session hung on a leftover `xclip`, so its pictures never came back (the Linux baselines are now saved); a window test was flaky because every test's window took orders from one shared inbox (`harness::Inbox`).

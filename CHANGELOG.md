@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A 404 (or any failure) from an address with "505" in it, a port such as 50587 among them, fails as it is, where dm took it for a server refusing HTTP/1.1 and kept asking it again over HTTP/2.
+- Windows and Linux: the list's last row is no longer under the sideways scroll bar, which hid its foot and took a click meant for it.
 - Sizes and speeds are counted as the computer's own file manager counts them: in 1,000s on macOS and Linux (a 100.7 MB file says 100.7 MB, as Finder does), in 1,024s on Windows; speed limits typed in KB/s mean the same unit.
 - The Scheduler and the Speed limiter take times from hour and minute pop-ups in your clock, and the Scheduler's date from day, month and year pop-ups, so a wrong one cannot be entered.
 - A server that speaks HTTP/2 alone is downloaded: dm asks it again over HTTP/2 when HTTP/1.1 is refused, keeping HTTP/1.1 (a connection per range) everywhere else.

@@ -168,7 +168,12 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     cc.check("YouTube: its click is taken by the app", bool(said), str(cc.panel(tab)))
     got = cc.wait_for(lambda: [p for p in engine_dl.rglob("*")
                                if p.is_file() and p.suffix in (".mp4", ".webm", ".mkv")], 240)
-    cc.check("YouTube: the video lands in dm's folder, fetched by dm itself", bool(got), str(got))
+    # Where it did not land, dm's own rows say how far it got (Linux, gaps row Q3).
+    rows = [] if got else [(r.get("url", "")[:90], r.get("state"), r.get("path"))
+                           for r in cc.queue_rows(engine_home)
+                           if "youtube" in r.get("url", "") or "googlevideo" in r.get("url", "")]
+    cc.check("YouTube: the video lands in dm's folder, fetched by dm itself", bool(got),
+             f"{got}; dm's rows: {rows}" if not got else str(got))
     played = cc.plays(got[0]) if got else None
     cc.check("YouTube: the downloaded video is whole (media_check)", bool(played and played[0] > 0 and played[1]),
              f"{played[0]}s, {played[1]}p" if played else "not a playable video")

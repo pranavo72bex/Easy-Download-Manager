@@ -2372,6 +2372,18 @@ impl Render for Downloads {
                                                     .flex()
                                                     .flex_col()
                                                     .when(!empty, |list| list.h_full())
+                                                    // The rows end above the sideways bar
+                                                    // where it is always shown: over them, it
+                                                    // hid the last row's foot and took a click
+                                                    // on it (Linux, gaps row Q1).
+                                                    .when(
+                                                        !empty
+                                                            && scrollbar_mode()
+                                                                == gpui_base::ScrollbarMode::Always,
+                                                        |list| {
+                                                            list.pb(gpui_base::Scrollbar::width())
+                                                        },
+                                                    )
                                                     .w_full()
                                                     .min_w(crate::zoom::px(
                                                         crate::table::least_width(self),

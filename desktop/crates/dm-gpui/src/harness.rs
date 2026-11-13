@@ -64,6 +64,36 @@ pub(crate) fn settings_file() -> SettingsFile {
     SettingsFile(Some(guard))
 }
 
+/// dm's inbox (`--when-done`, `--new-download` left there), held by a test that leaves an
+/// order in it: every test's window shares the one home, and each looked in the inbox at its
+/// ticks, so another test's window took the order (and acted on it) under load. Only a window
+/// on the thread that holds it looks (`reads_inbox`).
+pub(crate) struct Inbox(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
+
+static INBOX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+thread_local! {
+    static HOLDS_INBOX: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+impl Drop for Inbox {
+    fn drop(&mut self) {
+        HOLDS_INBOX.with(|h| h.set(false));
+    }
+}
+
+/// The inbox, held (see [`Inbox`]).
+pub(crate) fn inbox() -> Inbox {
+    let guard = INBOX.lock().unwrap_or_else(|e| e.into_inner());
+    HOLDS_INBOX.with(|h| h.set(true));
+    Inbox(guard)
+}
+
+/// Whether this thread's window looks in the inbox: only a test's that holds it.
+pub(crate) fn reads_inbox() -> bool {
+    HOLDS_INBOX.with(std::cell::Cell::get)
+}
+
 /// The settings file as it was last written.
 pub(crate) fn saved_settings() -> Value {
     let path = dm_shell::Settings::path();
