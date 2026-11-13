@@ -1529,10 +1529,14 @@ def edge(script, *args):
     # The check writes its lines in the encoding this run reads them in: with UTF-8 mode on
     # here (`python -X utf8`) and not in it, its "—" came in as a byte UTF-8 refuses, and the
     # run ended there (Windows, 2026-11-08).
-    utf8 = ["-X", "utf8"] if sys.flags.utf8_mode else []
-    run = subprocess.run([sys.executable, *utf8, "-u", str(ROOT / "scripts" / script), *args],
-                         env=dict(os.environ, CHROME_PATH=EDGE, DM_BINARY=str(BINARY)),
-                         capture_output=True, text=True)
+    # Both ends UTF-8 always: read in the system's code page (Windows-1252), the check's "—"
+    # came in as "â€”", no line split into its name and detail, and every row whose check
+    # says a detail was "not run" though it passed (Windows, 2026-11-13: B26, B27, B30 to B35,
+    # B59).
+    run = subprocess.run([sys.executable, "-X", "utf8", "-u", str(ROOT / "scripts" / script), *args],
+                         env=dict(os.environ, CHROME_PATH=EDGE, DM_BINARY=str(BINARY),
+                                  PYTHONIOENCODING="utf-8"),
+                         capture_output=True, encoding="utf-8", errors="replace")
     (WORK / f"edge-{script}.txt").write_text(run.stdout + run.stderr)
     said = {}
     for line in run.stdout.splitlines():

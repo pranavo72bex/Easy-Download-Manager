@@ -349,18 +349,33 @@ class Dm {
     const portFile = path.join(this.home, 'control.port');
     for (let i = 0; i < 400; i++) { if (fs.existsSync(portFile) && fs.readFileSync(portFile, 'utf8').trim()) break; await sleep(50); }
     if (!fs.existsSync(portFile)) throw new Error(`dm wrote no control port into ${this.home} within 20 s`);
-    this.sock = net.connect(Number(fs.readFileSync(portFile, 'utf8')), '127.0.0.1');
+    this.port = Number(fs.readFileSync(portFile, 'utf8'));
+    this.token = fs.readFileSync(path.join(this.home, 'control.token'), 'utf8').trim();
+    await this.connect();
+    this.ready = Date.now();
+  }
+  // dm cuts a control connection that says nothing for 300 s (`control.rs`), and reference A's
+  // batch run lasts longer than that: the next request went into the cut socket, its error was
+  // ignored, and the harness waited for an answer for ever (2026-11-13, Windows). A cut
+  // connection is made again, and authenticated, before the next request.
+  async connect() {
+    this.sock = net.connect(this.port, '127.0.0.1');
+    this.open = true;
     this.sock.on('error', () => {});
+    this.sock.on('close', () => { this.open = false; });
     this.buf = ''; this.waiters = [];
     this.sock.on('data', (d) => {
       this.buf += d; let i;
       while ((i = this.buf.indexOf('\n')) >= 0) { const l = this.buf.slice(0, i); this.buf = this.buf.slice(i + 1); const w = this.waiters.shift(); if (w) w(JSON.parse(l)); }
     });
     await new Promise((r) => this.sock.once('connect', r));
-    await this.call('auth', { token: fs.readFileSync(path.join(this.home, 'control.token'), 'utf8').trim() });
-    this.ready = Date.now();
+    await this.send('auth', { token: this.token });
   }
-  call(method, params = {}) { return new Promise((r) => { this.waiters.push(r); this.sock.write(JSON.stringify({ id: 1, method, params }) + '\n'); }); }
+  send(method, params = {}) { return new Promise((r) => { this.waiters.push(r); this.sock.write(JSON.stringify({ id: 1, method, params }) + '\n'); }); }
+  async call(method, params = {}) {
+    if (!this.open) await this.connect();
+    return this.send(method, params);
+  }
   async rows() { return (await this.call('queue.list')).result || []; }
   stop() { try { this.proc.kill(); } catch {} }
 }
