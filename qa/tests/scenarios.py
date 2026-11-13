@@ -386,7 +386,7 @@ def basic_auth():
 
 
 def native_host(dm, *messages):
-    """Speaks to dm as the browser does: dm-desktop started as the native host."""
+    """Speaks to dm as the browser does: dm started as the native host."""
     frames = b"".join(struct.pack("<I", len(m)) + m for m in (json.dumps(x).encode() for x in messages))
     run = subprocess.run([str(BINARY), "chrome-extension://fojpndfjodldkfbamkofdmnfedgjjejo/"],
                          input=frames, capture_output=True, timeout=60, env={**os.environ, "DM_HOME": str(dm.home)})

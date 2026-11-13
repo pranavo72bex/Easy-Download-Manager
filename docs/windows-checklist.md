@@ -76,12 +76,12 @@ release.
 
 15. **Portable.** Download `dm_…_x64-portable.zip` from the release, unzip it
     to a folder (a USB stick, say), and exit the installed dm if there is one.
-    Double-click `dm-desktop.exe` in the unzipped folder. *Expect:* a `dm-data`
+    Double-click `dm-gpui.exe` in the unzipped folder. *Expect:* a `dm-data`
     folder appears next to it, the installed dm's list is not shown, and
     nothing new is under `%LOCALAPPDATA%\dm-engine`. (CI runs
     `scripts/portable-check.py` on the zip headless; this is the same on a real
     desktop with the window.) Then, in a Command Prompt in that folder, run
-    `dm-desktop.exe --register` and *expect* the browser extension to hand a
+    `dm-gpui.exe --register` and *expect* the browser extension to hand a
     download to this copy.
 16. **Narrator.** Turn on Narrator (Ctrl+Win+Enter) and Tab through the toolbar.
     *Expect:* each button's name is read out. Turn Narrator off.

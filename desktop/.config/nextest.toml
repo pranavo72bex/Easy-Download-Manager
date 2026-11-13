@@ -20,12 +20,6 @@ path = "junit.xml"
 # Tried again, and reported as flaky (scripts/ci-failed-tests.py names each in
 # the run's annotations, passing run or not), only these:
 #
-# The egui window's tests that wait on real downloads: they met a shared
-# two-core runner's timing now and then, never alone.
-[[profile.ci.overrides]]
-filter = "package(dm-desktop) & binary(window)"
-retries = 2
-
 # The outage's turns, timed to the tenth of a second on a starved runtime
 # (docs/gaps.md row 195, open until ten whole runs in a row pass).
 [[profile.ci.overrides]]

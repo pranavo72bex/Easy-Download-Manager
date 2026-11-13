@@ -11,12 +11,10 @@
 #   DM_DEB=dm_0.9.0_arm64.deb sh scripts/linux-human-qa.sh   # a .deb at hand
 #   sh scripts/linux-human-qa.sh                             # a build of the checkout
 #   sh scripts/linux-human-qa.sh --save-baseline             # the window's Linux pictures
-#   DM_WINDOW=egui sh scripts/linux-human-qa.sh              # the egui window, not the GPUI one
 #
 # A build of the checkout is the GPUI window (dm-gpui), checked against its
-# pictures in docs/behaviour-baseline/gpui/linux; DM_WINDOW=egui builds and
-# checks the egui window (dm-desktop) instead (scripts/linux/window.sh). A
-# .deb is checked with the window it installs.
+# pictures in docs/behaviour-baseline/gpui/linux. A .deb is checked with the
+# window it installs.
 # DM_RELEASE downloads that release's .deb for Docker's own architecture and
 # its Chrome extension zip with `gh` (a draft too, for whoever may see it),
 # into a folder of their own, and checks each against the release's
@@ -30,7 +28,7 @@
 # (linux/human-distro.sh runs Edge under emulation). Nobody watches the X
 # display: the screen is pictured every ten seconds, and the pictures and
 # human-qa.py's words come back into DM_SHOTS (./human-shots/linux-qa).
-# The window's pictures are compared with docs/behaviour-baseline/linux,
+# The window's pictures are compared with docs/behaviour-baseline/gpui/linux,
 # which --save-baseline writes from this image; look at them before keeping
 # them. Streamed in, not mounted, for the reason linux-check.sh gives.
 set -e
@@ -93,8 +91,7 @@ rm -rf "$SHOTS" && mkdir -p "$SHOTS"
 docker run --rm -v "$volume":/shots dm-human-qa tar -C /shots -cf - . | tar -xf - -C "$SHOTS"
 # The window checked, as the session found it (a .deb's own).
 [ -f "$SHOTS/binary" ] && binary=$(cat "$SHOTS/binary")
-pictures=docs/behaviour-baseline/linux
-[ "$binary" = dm-gpui ] && pictures=docs/behaviour-baseline/gpui/linux
+pictures=docs/behaviour-baseline/gpui/linux
 case " $* " in *" --save-baseline "*)
   mkdir -p "$pictures"
   cp "$SHOTS"/baseline/*.png "$pictures"/

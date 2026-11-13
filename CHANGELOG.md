@@ -8,6 +8,7 @@ the browser extension (`v*` tags) are versioned separately.
 - The Scheduler and the Speed limiter take times from hour and minute pop-ups in your clock, and the Scheduler's date from day, month and year pop-ups, so a wrong one cannot be entered.
 - A server that speaks HTTP/2 alone is downloaded: dm asks it again over HTTP/2 when HTTP/1.1 is refused, keeping HTTP/1.1 (a connection per range) everywhere else.
 - HLS: a stream whose encryption key changes part-way is downloaded, each piece with its own key, where it was refused.
+- The older egui window is gone from the source: its crate, its fonts (Inter, Selawik, the Fluent icon font) and its patched winit, egui-winit and eframe. dm's window is the GPUI one on every system, as it has been in every package since 2026-11-11; the installers' icons and `Info.plist` now live with it. A Windows build in Docker (`make build-windows`) is no longer offered: the window's release build needs Windows.
 - A download that finishes with its progress window open turns that window into Download complete, with Open and Open folder, rather than opening a second window.
 - The browser's toast after a hand-off says "Sent to dm" (in the browser's language), says several sent together in one, and is not posted when dm's own window comes forward to ask.
 - Options has a Find a setting field: the settings of every page that say what is typed, under their page's name.

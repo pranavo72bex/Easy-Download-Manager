@@ -526,19 +526,25 @@ async fn dump(cx: &mut gpui::AsyncApp, churn: bool) {
 
 #[cfg(test)]
 mod tests {
-    /// The release tools read dm's version from the egui crate's manifest
-    /// (the Makefile's `APP_VERSION`, the workflows); macOS's package and
-    /// its update check are this crate's: one number, or a release names
+    /// The release tools read dm's version from this crate's manifest (the
+    /// Makefile's `APP_VERSION`, the workflows), and so do the packages and
+    /// About; `--version`, the native host's hello, the support block and the
+    /// User-Agent are the other crates': one number, or a release names
     /// itself twice.
     #[test]
     fn this_window_carries_the_version_dm_is_released_under() {
-        let manifest = include_str!("../../dm-desktop/Cargo.toml");
-        let released = manifest
-            .lines()
-            .find_map(|line| line.strip_prefix("version = \""))
-            .and_then(|rest| rest.strip_suffix('"'))
-            .unwrap_or_default();
-        assert_eq!(env!("CARGO_PKG_VERSION"), released);
+        for manifest in [
+            include_str!("../../dm-desktop-base/Cargo.toml"),
+            include_str!("../../dm-shell/Cargo.toml"),
+            include_str!("../../dm-core/Cargo.toml"),
+        ] {
+            let released = manifest
+                .lines()
+                .find_map(|line| line.strip_prefix("version = \""))
+                .and_then(|rest| rest.strip_suffix('"'))
+                .unwrap_or_default();
+            assert_eq!(env!("CARGO_PKG_VERSION"), released);
+        }
     }
 
     /// The language chosen is in force before the window and the tray are

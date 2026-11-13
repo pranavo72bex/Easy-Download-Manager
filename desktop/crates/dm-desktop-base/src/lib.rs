@@ -5,8 +5,7 @@
 
 //! What dm's desktop program does that is not drawing, with no window
 //! toolkit, so that any window can use it: `boot`, dm started as every
-//! window starts it, and the rest below. `dm_desktop` re-exports each
-//! module at its old path.
+//! window starts it, and the rest below.
 //!
 //! The system's services: `quiet` (whether the person is busy), `awake`
 //! (no sleep while a download runs), `wake` (the schedule's wake timer),

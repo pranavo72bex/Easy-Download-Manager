@@ -44,7 +44,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "chrome"
 BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-gpui"))
 # The name dm's window gives itself on the accessibility bus: its binary's
-# (dm-gpui, or dm-desktop for the egui window), or as DM_ATSPI_APP says.
+# (dm-gpui), or as DM_ATSPI_APP says.
 DM_APP = os.environ.get("DM_ATSPI_APP") or BINARY.name
 CHROMIUM = os.environ.get("CHROMIUM", "/usr/bin/chromium")
 SHOTS = pathlib.Path(os.environ.get("DM_SHOTS") or tempfile.mkdtemp(prefix="dm-human-shots-"))

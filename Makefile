@@ -39,8 +39,7 @@ SHELL := /bin/sh
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 UNAME := $(shell uname -s)
-# The window dm ships, on every system: GPUI (docs/gaps.md G9). The egui
-# window is built only by the targets that compare the two (app-egui).
+# dm's window, on every system: GPUI (desktop/crates/dm-gpui).
 WINDOW := dm-gpui
 VERSION := $(shell sed -n 's/.*"version": "\([^"]*\)".*/\1/p' extension/manifest.json | head -1)
 
@@ -100,7 +99,7 @@ DIM  := $(shell test -t 1 && tput dim 2>/dev/null)
 OFF  := $(shell test -t 1 && tput sgr0 2>/dev/null)
 
 .PHONY: help install client extension register unregister uninstall test doctor app clean \
-        run run-release build build-macos build-linux build-windows build-extension app-egui \
+        run run-release build build-macos build-linux build-windows build-extension \
         devices analyze format qa qa-docker
 
 help:
@@ -112,7 +111,7 @@ help:
 	@echo "  $(BOLD)make build$(OFF)           installers for every platform this computer can build"
 	@echo "  make build-macos     dm.app and the .dmg                   (on a Mac)"
 	@echo "  make build-linux     .deb, AppImage and .rpm               (on Linux, or with Docker)"
-	@echo "  make build-windows   the portable .zip                     (with Docker)"
+	@echo "  make build-windows   how the installer and .zip are built  (on Windows)"
 	@echo "  make build-extension the browser extension's zips"
 	@echo "  make devices         which of those this computer can build"
 	@echo "  make test            every test"
@@ -201,7 +200,7 @@ ifeq ($(UNAME),Linux)
 	@install -d "$(PREFIX)/share/applications" "$(PREFIX)/share/icons/hicolor/128x128/apps"
 	@sed 's|^Exec=.*|Exec=$(BINDIR)/dm %u|' desktop/packaging/dm.desktop \
 	  > "$(PREFIX)/share/applications/dm.desktop"
-	@install -m 644 desktop/crates/dm-desktop/icons/128x128.png \
+	@install -m 644 desktop/crates/$(WINDOW)/icons/128x128.png \
 	  "$(PREFIX)/share/icons/hicolor/128x128/apps/dm.png"
 	@echo "installed a menu entry and an icon"
 endif
@@ -225,16 +224,6 @@ ifeq ($(UNAME),Darwin)
 	@echo "installed $(APPDIR)/dm.app"
 	@echo "$(DIM)unsigned, so the first launch is right-click → Open$(OFF)"
 endif
-
-# The macOS bundle with the egui window, which dm shipped on macOS until the
-# GPUI window held the contract (docs/gaps.md G9), for comparing the two;
-# built into the same place as `make app`'s, not installed.
-app-egui:
-	@command -v cargo-packager >/dev/null 2>&1 || { \
-	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/dm-desktop && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p dm-desktop
-	@echo
-	@echo "built desktop/target/release/bundle/"
 
 # -------------------------------------------------------------- extension
 
@@ -263,7 +252,7 @@ extension:
 # refuses such a path rather than write a manifest that cannot work).
 # EXT_ID adds a store build's id; the unpacked Chrome build and Firefox's
 # need none.
-REGISTRAR = $(firstword $(wildcard $(BINDIR)/dm $(APPDIR)/dm.app/Contents/MacOS/dm-gpui $(APPDIR)/dm.app/Contents/MacOS/dm-desktop) $(BINARY))
+REGISTRAR = $(firstword $(wildcard $(BINDIR)/dm $(APPDIR)/dm.app/Contents/MacOS/$(WINDOW)) $(BINARY))
 
 register:
 	@test -x "$(REGISTRAR)" || { \
@@ -336,11 +325,7 @@ else ifeq ($(HAVE_DOCKER),yes)
 else
 	@echo "$(DIM)Linux skipped: needs Linux or a running Docker$(OFF)"
 endif
-ifeq ($(HAVE_DOCKER),yes)
-	@$(MAKE) --no-print-directory build-windows
-else
-	@echo "$(DIM)Windows skipped: needs a running Docker$(OFF)"
-endif
+	@echo "$(DIM)Windows skipped: built on Windows (make build-windows says how)$(OFF)"
 	@echo
 	@echo "$(BOLD)built$(OFF)"
 	@find $(BUILD) -maxdepth 2 -type f -o -maxdepth 2 -name '*.app' | sort | sed 's|^|  |'
@@ -378,10 +363,14 @@ else
 endif
 	@ls $(BUILD)/linux | sed 's|^|  $(BUILD)/linux/|'
 
+# The window's release build compiles its Direct3D shaders with the Windows
+# SDK's fxc.exe, which only a build on Windows has (docs/decisions.md,
+# 2026-11-11), so no other computer makes it, in Docker or not.
 build-windows:
-	@test "$(HAVE_DOCKER)" = yes || { echo "the Windows build needs Docker running (or a Windows machine, as CI)"; exit 1; }
-	@echo "$(BOLD)Windows$(OFF) (x86_64), in Docker: the portable .zip"
-	@sh scripts/windows-build.sh $(BUILD)/windows
+	@echo "the Windows installer and portable .zip are built on Windows: CI's desktop"
+	@echo "workflow, or on a Windows computer with cargo-packager, from desktop/crates/$(WINDOW):"
+	@echo "  cargo packager --release -p $(WINDOW) --formats nsis"
+	@exit 1
 
 build-extension:
 	@echo "$(BOLD)the browser extension$(OFF): Chrome, Edge, Brave and Firefox zips"
@@ -398,8 +387,7 @@ devices:
 	@if [ "$(UNAME)" = Linux ]; then printf '  %-10s yes  make build-linux\n' Linux; \
 	 elif [ "$(HAVE_DOCKER)" = yes ]; then printf '  %-10s yes  make build-linux (in Docker)\n' Linux; \
 	 else printf '  %-10s no   start Docker\n' Linux; fi
-	@if [ "$(HAVE_DOCKER)" = yes ]; then printf '  %-10s yes  make build-windows (in Docker; the installer is CI'"'"'s)\n' Windows; \
-	 else printf '  %-10s no   start Docker\n' Windows; fi
+	@printf '  %-10s no   on Windows, or CI\n' Windows
 	@printf '  %-10s yes  make build-extension\n' extension
 
 # Like `flutter analyze`: what CI refuses, before CI refuses it.

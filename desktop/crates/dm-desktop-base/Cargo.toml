@@ -9,10 +9,9 @@ edition = "2021"
 publish = false
 description = "dm — what the desktop program does that is not drawing: the system's services, the control port, the command line"
 
-# Everything of the desktop program that no window toolkit draws, so that a
-# second window (docs/migration/GPUI_MIGRATION_PLAN.md) can use it without
-# depending on the egui one. `cargo xtask layers` forbids it every window
-# crate.
+# Everything of the desktop program that no window toolkit draws, kept apart
+# from the window (dm-gpui) so it is tested without one. `cargo xtask layers`
+# forbids it every window crate.
 [lib]
 name = "dm_desktop_base"
 path = "src/lib.rs"

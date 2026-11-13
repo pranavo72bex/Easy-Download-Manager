@@ -38,10 +38,10 @@ produces the most portable binary.
 
 ```sh
 cd desktop
-cargo build --release -p dm-desktop      # ~8 MB binary in target/release
+cargo build --release -p dm-gpui         # the window, in target/release
 cargo test --workspace                   # the workspace's tests; no display needed
 ```
 
 The engine (`crates/dm-core`) has no idea a window exists and is tested
-without one, and the window's tests render offscreen, so the whole suite runs
-with no display.
+without one, and the window's tests run in GPUI's test platform, so the whole
+suite runs with no display.

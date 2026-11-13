@@ -22,10 +22,6 @@ state change ──► Queue::save ──► Queue::on_change ──► changes:
                                                        Downloads::tick, then drawn again only where something shown changed
 ```
 
-The older egui window (`dm-desktop`, until gaps row G9) is told the same way;
-its subscriber asks for a repaint after 250 ms and its `logic()` reads on that
-frame.
-
 ## Policies
 
 - **What is told, and what is read.** A change is told as a mark and a wake-up,

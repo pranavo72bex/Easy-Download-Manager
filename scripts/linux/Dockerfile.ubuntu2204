@@ -7,12 +7,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config curl file ca-certificates \
       xvfb xauth x11-utils dbus procps python3 \
-      libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
-      # What winit opens at run time, as the .deb declares: GTK brought
-      # these along until the tray moved to D-Bus.
-      libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 \
+      # What the window opens at run time, as the .deb declares: Vulkan where
+      # there is a driver, else GL through EGL (Mesa), and Wayland's client.
+      libxkbcommon-x11-0 libxkbcommon0 libvulkan1 libegl1 libgl1-mesa-dri \
       libwayland-client0 libwayland-egl1 \
-      # What the GPUI window (dm-gpui, Linux's since 2026-11-11) builds against.
+      # What the window (dm-gpui, GPUI) builds against.
       libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
       libxcb1-dev libx11-xcb-dev libvulkan-dev \
     && rm -rf /var/lib/apt/lists/*

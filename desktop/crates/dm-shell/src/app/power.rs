@@ -6,7 +6,7 @@
 //! What dm does when the queue runs dry (Downloads › When done), as the
 //! application decides it: the choice and its words. Carrying it out on this
 //! computer (the system's sleep, shut down and hibernate) is the desktop's
-//! (`dm-desktop` `power.rs`), which a presentation of its own implements.
+//! (`dm_desktop_base::power`), which a presentation of its own implements.
 
 /// The action taken when the last download settles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

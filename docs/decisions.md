@@ -7110,3 +7110,35 @@ download is asked again from the start over a client that speaks HTTP/2 from its
 (`http2_client`), its ranges sharing that one connection. reqwest's `http2` feature is the `h2`
 crate, in Rust. That client goes out directly: a server that refuses HTTP/1.1 behind a proxy dm was
 told to use is not reached. Test: `dm-core/tests/http2_only.rs`, a server that speaks HTTP/2 alone.
+## 2026-11-13: The egui window removed (G9, A2, A3)
+
+At the maintainer's word of 2026-11-12 (above): the `dm-desktop` crate, its fonts (Inter,
+Selawik, the Fluent icon font), its vendored `winit`, `egui-winit` and `eframe`, kittest, the
+egui baseline pictures, `make app-egui`, `DM_WINDOW=egui` and `scripts/tabular-digits.py` are
+gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 1,151 packages to
+1,022.
+
+- **What dm-gpui borrowed moved into it**: `icons/` (the installers', the tray's and the Windows
+  program's icon) and `macos/Info.plist`. Its `Cargo.toml` is where the Makefile, the workflows
+  and the Arch and rpm packages read dm's version; the test that held it to the egui crate's
+  now holds it to dm-core's, dm-shell's and dm-desktop-base's, which `--version`, the native
+  host's hello and the User-Agent print.
+- **Names kept from the egui window's program**: the .deb's `/usr/bin/dm-desktop`, which runs
+  dm-gpui; the NSIS installer taking away an earlier `dm-desktop.exe`; the login item and
+  registration code that recognise an old `dm-desktop` entry; `--help`'s and the extension
+  popup's `dm-desktop --register`. They are what an installed dm and its users already have;
+  the program's own name is row A4's.
+- **No Windows build in Docker**: `scripts/windows-build.sh` built the egui window's portable zip,
+  as the GPUI window's release build needs the Windows SDK's `fxc.exe` (2026-11-11). It is gone,
+  and `make build-windows` says where the Windows packages are built (CI, or a Windows computer).
+  `scripts/windows-check.sh` (a `cargo xwin check`) stays.
+- **Catalog words**: the catalog check read the egui crate's source too, which hid that the GPUI
+  window hands many labels to `t` from its own lists (an Options field's `("proxy.port",
+  "Port")`, the menus' titles, `check("hide-html", "Hide HTML files", …)`, the side panel's
+  headings). Read alone, it called 94 words unsaid, 40 of them said. The check now counts a
+  literal of the window's source that a catalog translates as a word it says; the 54 left,
+  which nothing in dm-gpui, dm-desktop-base or dm-shell names (the egui window's key names,
+  Find what, Small, Medium and Large, its column and row menus' words), are out of all 13
+  catalogs.
+- **Not rewritten**: the comments in dm-gpui that say a behaviour is "as the egui window's"; they
+  say where it came from (row A20).

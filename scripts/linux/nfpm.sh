@@ -35,7 +35,7 @@ fi
 cd "$(dirname "$0")/../.."
 # nfpm reads the binary from where nfpm.yaml says; it does not expand
 # variables in a source path.
-# A folder of its own, so the egui window's build beside it is left alone.
+# A folder of its own, so the release build beside it is left alone.
 mkdir -p desktop/target/release/nfpm
 if ! cmp -s "$BINARY" desktop/target/release/nfpm/dm; then
   cp "$BINARY" desktop/target/release/nfpm/dm

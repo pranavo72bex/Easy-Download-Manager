@@ -46,11 +46,10 @@ extension that hands it the browser's downloads.
   rows and their reads, `tick.rs` what each wake does, `table.rs`,
   `menus.rs`, `toolbar.rs`, `sidebar.rs`, one file per dialog such as
   `addurl.rs`, `details.rs`, `options.rs`, and `port.rs` with `probe.rs` for
-  the control port). `cargo packager -p dm-gpui` there builds the installers.
-  `crates/dm-desktop` is the older window, drawn with egui, still built and
-  tested until gaps row G9 removes it; new window work goes to `dm-gpui`. It
-  re-exports each of the base crate's modules at its old path; inside it,
-  `src/app/` is the window's state, `src/dialogs/` one file per dialog.
+  the control port). `cargo packager -p dm-gpui` there builds the installers,
+  from its `icons/` and `macos/Info.plist`; its `Cargo.toml` holds dm's
+  version. The older egui window (`crates/dm-desktop`) was removed with its
+  fonts and vendored patches on 2026-11-13 (gaps row G9).
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
   by both sides.
@@ -125,7 +124,6 @@ python3 scripts/readme-shots.py           # the README's pictures, of the GPUI w
 ./target/debug/dm-gpui mcp                 # MCP tools for an AI client, relayed to a running dm
 ./target/debug/dm-gpui list | status N | pause N | resume N | cancel N   # the command line, against a running dm
 cd desktop && cargo test -p dm-gpui window_tests   # the window, driven through the control port's methods
-./target/debug/dm-desktop --control 0      # the older egui window, the same flags
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home
 cargo test -p dm-core --test zoo -- --nocapture   # the server zoo; DM_RAISE_FLOOR=1 after a fix
 PROPTEST_CASES=200000 cargo test --release -p dm-core --test fuzz   # a deep fuzz hunt
@@ -162,7 +160,7 @@ the frozen standard that reference A was measured against.
   clippies, the crates' tests, `scripts/chrome-check.py`, then
   `scripts/human-qa.py` whole.
 - A browser check's first hand-over can be slow: Windows' virus scanner reads
-  each fresh copy of `dm-desktop.exe` the first time it runs. chrome-check
+  each fresh copy of `dm-gpui.exe` the first time it runs. chrome-check
   asks the host for a hello before its first click, and a failed check prints
   what the extension said since the check before.
 - `%RANDOM%` in a `.bat` is the same in every `cmd.exe` started in the same

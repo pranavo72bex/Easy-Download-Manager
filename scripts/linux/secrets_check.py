@@ -34,7 +34,7 @@ import tempfile
 import threading
 import time
 
-BINARY = os.environ.get("DM_BINARY") or "dm-desktop"
+BINARY = os.environ.get("DM_BINARY") or "dm-gpui"
 # Made up afresh for each run, never written in the repository (a secret scanner reads its history),
 # and never printed: a check that fails names the file, not what it found there.
 LOGIN = ("jo", secrets.token_urlsafe(18))

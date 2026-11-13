@@ -6,7 +6,7 @@
 
 """Smoke test of an installed dm, the same on Linux, Windows and macOS:
 
-    python3 scripts/smoke.py /path/to/installed/dm-desktop
+    python3 scripts/smoke.py /path/to/installed/dm-gpui
 
 What a release's installer has to get right before anything else: the
 installed binary starts, answers a browser as its native host, opens its

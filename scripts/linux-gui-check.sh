@@ -8,7 +8,6 @@
 #
 #   sh scripts/linux-gui-check.sh
 #   DM_ORCA=1 sh scripts/linux-gui-check.sh    # with Orca, a real screen reader
-#   DM_WINDOW=egui sh scripts/linux-gui-check.sh  # the egui window, not the GPUI one
 #
 # Builds the client in the Debian image linux-check.sh uses, then runs
 # scripts/linux/gui.py under Xvfb with a window manager (openbox), a

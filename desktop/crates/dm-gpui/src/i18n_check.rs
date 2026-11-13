@@ -52,38 +52,39 @@ fn rust_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 /// at run time ([`run_time_words`]).
 fn wanted() -> BTreeSet<String> {
     let mut keys = BTreeSet::new();
-    // The GPUI window's source and what it says through dm-desktop-base; and, while it is
-    // still in the tree, the egui window's, whose words the catalogs keep until it goes.
+    // Every catalog's words, for the literals the window keeps in its own lists
+    // and hands to `t` as a value (below).
+    let known: BTreeSet<String> = CATALOGS
+        .iter()
+        .flat_map(|(_, text)| catalog(text).into_keys())
+        .collect();
+    // The window's source and what it says through dm-desktop-base.
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let base = here.join("../dm-desktop-base/src");
     assert!(base.is_dir(), "{} is not there", base.display());
-    let egui = here.join("../dm-desktop/src");
     let files = rust_files(&here.join("src"))
         .into_iter()
-        .chain(rust_files(&base))
-        .chain(if egui.is_dir() {
-            rust_files(&egui)
-        } else {
-            Vec::new()
-        });
-    if egui.is_dir() {
-        // The egui window's text sizes, chosen at run time (`dialogs/controls.rs`).
-        keys.extend(["Small", "Medium", "Large"].map(String::from));
-    }
+        .chain(rust_files(&base));
     for file in files {
         let text = std::fs::read_to_string(file).unwrap();
         // The window's source, not its tests' made-up strings.
         let text = text.split("#[cfg(test)]").next().unwrap_or_default();
-        // `words` words a status; `window` titles a dialog; `Said::new` is a
-        // status-line sentence; `primary` is a dialog's main button.
+        // A label the window keeps beside its setting, its menu or its control and
+        // translates where it draws it (an Options field's `("proxy.port", "Port")`, the
+        // menus' titles, a tick box's `check("hide-html", "Hide HTML files", …)`): a
+        // literal of the source a catalog has a translation for is a word it says.
+        keys.extend(
+            code_literals(text)
+                .into_iter()
+                .filter(|literal| known.contains(literal)),
+        );
+        // `words` words a status; `Said::new` is a status-line sentence.
         for opener in [
             "t(",
             "tf(",
             "words(",
-            "window(ctx,",
             "Said::new(",
             "Said::naming(",
-            "primary(ui,",
             "tn(",
             "Said::counting(",
             "Said::counting_naming(",
@@ -149,6 +150,56 @@ fn run_time_words() -> Vec<&'static str> {
     words.extend(dm_core::NOTES);
     words.extend(dm_shell::app::places::place_menu_words());
     words
+}
+
+/// Every string literal of `text` outside its `//` comments, in lists too; a
+/// `'"'` is a character, not the start of one.
+fn code_literals(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '/' if chars.peek() == Some(&'/') => {
+                for c in chars.by_ref() {
+                    if c == '\n' {
+                        break;
+                    }
+                }
+            }
+            '\'' => {
+                // A character: '"', '\"' or any other, up to its closing quote.
+                let mut ahead = chars.clone();
+                let first = ahead.next();
+                let closes = match first {
+                    Some('\\') => ahead.next().is_some() && ahead.next() == Some('\''),
+                    Some(_) => ahead.next() == Some('\''),
+                    None => false,
+                };
+                if closes {
+                    chars = ahead;
+                }
+            }
+            '"' => {
+                let mut literal = String::new();
+                while let Some(c) = chars.next() {
+                    match c {
+                        '\\' => match chars.next() {
+                            Some('n') => literal.push('\n'),
+                            // A line that goes on: its next line's indent is not in it.
+                            Some('\n') => while chars.next_if(|c| c.is_whitespace()).is_some() {},
+                            Some(other) => literal.push(other),
+                            None => {}
+                        },
+                        '"' => break,
+                        c => literal.push(c),
+                    }
+                }
+                found.push(literal);
+            }
+            _ => {}
+        }
+    }
+    found
 }
 
 fn catalog(text: &str) -> HashMap<String, String> {

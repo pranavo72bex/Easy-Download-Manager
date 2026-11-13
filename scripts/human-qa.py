@@ -28,24 +28,19 @@ DM_QA_EDGE name others. The download folder and dm's home are made under
 On Linux, `sh scripts/linux-human-qa.sh` runs it in a Debian container on an X
 display, against a release's own .deb and extension or a build of the
 checkout, with Chromium in Edge's place; its window pictures are compared
-with docs/behaviour-baseline/linux, drawn in that container.
+with docs/behaviour-baseline/gpui/linux, drawn in that container.
 """
 import hashlib, json, os, pathlib, re, shutil, signal, socket, struct, subprocess, sys, threading, time, traceback, zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTRACT = ROOT / "docs" / "behaviour-contract.md"
 BASELINE = ROOT / "docs" / "behaviour-baseline"
-# One set of pictures for each system whose fonts and window frames differ: the
-# set for this one where there is one, else the first.
-BASELINE_SET = {"win32": BASELINE / "windows", "linux": BASELINE / "linux"}.get(sys.platform, BASELINE)
-# The window dm ships, on every system: GPUI (docs/gaps.md G9).
+# The window dm ships, on every system: GPUI (desktop/crates/dm-gpui).
 SHIPPED = "dm-gpui"
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug"
                       / (SHIPPED + (".exe" if sys.platform == "win32" else "")))
-# The GPUI window (docs/gaps.md G7) has pictures of its own, beside the egui
-# window's, until it is the window dm ships (D3, D5).
-if BINARY.name.startswith("dm-gpui"):
-    BASELINE_SET = BASELINE / "gpui" / {"win32": "windows", "linux": "linux"}.get(sys.platform, "macos")
+# One set of pictures for each system whose fonts and window frames differ.
+BASELINE_SET = BASELINE / "gpui" / {"win32": "windows", "linux": "linux"}.get(sys.platform, "macos")
 EDGE = os.environ.get("DM_QA_EDGE") or {
     "darwin": "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
     "linux": "/usr/bin/microsoft-edge",
@@ -516,8 +511,8 @@ class Dm:
 
     def open_add_url(self):
         # In front first, as a person brings it before adding a link: a
-        # window behind the browser draws no frames on macOS, and the egui
-        # window's clicks and keys wait for one (B10 and B63, 2026-11-10).
+        # window behind the browser draws no frames on macOS (B10 and B63,
+        # 2026-11-10).
         self.call("ui.window", to="shown")
         # macOS brings the app forward on its own time, after dm asked: an
         # Add URL opened before that was put behind the main window (B01,
@@ -1388,9 +1383,7 @@ def walk(dm, origin):
     # B52: the tray's Speed menu has Settings…, which the tray cannot be driven
     # here to click: its menu is built from the same command as Downloads ›
     # Speed limiter › Settings…, which a person tries by hand in the tray.
-    # The tray of the window driven: the GPUI window's has its own.
-    crate = "dm-gpui" if BINARY.name.startswith("dm-gpui") else "dm-desktop"
-    tray_src = (ROOT / "desktop" / "crates" / crate / "src" / "tray.rs").read_text(encoding="utf-8")
+    tray_src = (ROOT / "desktop" / "crates" / SHIPPED / "src" / "tray.rs").read_text(encoding="utf-8")
     check("B52", "the tray's Speed menu is built with the limiter's Settings… command",
           "Command::SpeedLimiterSettings" in tray_src, "tray.rs does not name the command")
 
@@ -1411,31 +1404,27 @@ def walk(dm, origin):
     dm.call("ui.key", key="0", modifiers=held)
     pause(0.8)
     back = sizes()
-    gpui = BINARY.name.startswith("dm-gpui")
     check("B66", "Ctrl (Cmd) with + draws the list larger at once, kept; with 0 back to 100%",
-          medium > 0 and larger >= medium * 1.1 and back == medium and (kept == 1.2 or not gpui),
+          medium > 0 and larger >= medium * 1.1 and back == medium and kept == 1.2,
           f"{medium} -> {larger} -> {back}, kept {kept}")
-    if gpui:
-        dm.click("Options")
-        for _ in range(40):
-            if "Options" in dm.dialogs():
-                break
-            time.sleep(0.1)
-        pause(0.8)
-        words = dm.dialog_texts()
-        dm.click("80%")
-        pause(1.0)
-        picked = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
-        smaller = sizes()
-        dm.click("100%")
-        pause(1.0)
-        dm.click("Cancel")
-        pause(0.6)
-        check("B66", "Options › General › Appearance has the scale's four stops; 80% is in force at once and kept",
-              all(w in words for w in ("Text size", "60%", "80%", "100%", "120%")) and picked == 0.8
-              and 0 < smaller < medium, f"{words[:12]} / {picked} / {smaller}")
-    else:
-        check("B66", "the egui window keeps its own Text size (Small, Medium, Large)", True)
+    dm.click("Options")
+    for _ in range(40):
+        if "Options" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    words = dm.dialog_texts()
+    dm.click("80%")
+    pause(1.0)
+    picked = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
+    smaller = sizes()
+    dm.click("100%")
+    pause(1.0)
+    dm.click("Cancel")
+    pause(0.6)
+    check("B66", "Options › General › Appearance has the scale's four stops; 80% is in force at once and kept",
+          all(w in words for w in ("Text size", "60%", "80%", "100%", "120%")) and picked == 0.8
+          and 0 < smaller < medium, f"{words[:12]} / {picked} / {smaller}")
 
     # B67 (issue #32): Links on the clipboard has Save to, as Download links
     # has it: each file to its category's folder unless one category or one
@@ -1486,8 +1475,6 @@ def walk(dm, origin):
             check("B25", f"{name}: saved as the baseline", True)
             continue
         was = BASELINE_SET / f"{name}.png"
-        if not was.exists() and not BINARY.name.startswith("dm-gpui"):
-            was = BASELINE / f"{name}.png"
         share = differing(was, now) if was.exists() and now.exists() else None
         if not now.exists():
             # macOS pictures a dialog's window from the screen, which needs the Screen Recording

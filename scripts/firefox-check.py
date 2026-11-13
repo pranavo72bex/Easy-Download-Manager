@@ -25,7 +25,7 @@ keys: Firefox runs with a window, and the parent process's console is only
 read, to see which item the keys have reached. `scripts/linux-firefox-check.sh`
 runs it in a Linux container.
 
-`native` needs a built dm (desktop/target/debug/dm-desktop, or DM_BINARY).
+`native` needs a built dm (desktop/target/debug/dm-gpui, or DM_BINARY).
 Firefox reads host manifests only from the real home directory, so for the
 length of the check dm's manifest there is replaced by one naming a copy of
 the binary in a temporary DM_HOME, and the original — if there was one — is
@@ -498,7 +498,7 @@ def main():
         engine_home, engine_dl = work / "dm-home", work / "dm-downloads"
         engine_home.mkdir()
         engine_dl.mkdir()
-        host = engine_home / "dm-desktop"
+        host = engine_home / common.BINARY.name
         shutil.copy2(common.BINARY, host)
         (engine_home / "settings.json").write_text(json.dumps({
             "download_dir": str(engine_dl), "categorize": False,

@@ -49,8 +49,7 @@ grep -q "rows hold$" /shots/human-qa.txt && ! grep -q "failing or not checked" /
 # --save-baseline: the pictures come back with the screenshots, and which
 # window's they are.
 echo "$binary" > /shots/binary
-pictures=docs/behaviour-baseline/linux
-[ "$binary" = dm-gpui ] && pictures=docs/behaviour-baseline/gpui/linux
+pictures=docs/behaviour-baseline/gpui/linux
 if [ -d "$pictures" ]; then
   mkdir -p /shots/baseline && cp "$pictures"/*.png /shots/baseline/ 2>/dev/null || true
 fi

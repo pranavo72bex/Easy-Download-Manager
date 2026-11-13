@@ -6,7 +6,7 @@
 
 """A portable dm keeps everything beside itself.
 
-    python3 scripts/portable-check.py path/to/dm-desktop[.exe]
+    python3 scripts/portable-check.py path/to/dm-gpui[.exe]
 
 Copies the program into a folder of its own with an empty file named
 `portable` beside it (what the Windows portable zip holds), starts it with no

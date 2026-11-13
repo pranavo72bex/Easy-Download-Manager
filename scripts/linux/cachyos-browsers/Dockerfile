@@ -12,7 +12,9 @@
 FROM --platform=linux/amd64 rust:1-slim-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config python3 zip curl ca-certificates \
-      libxkbcommon-x11-0 libx11-dev libxcursor-dev libxi-dev libxkbcommon-dev libwayland-dev \
+      # What the window (GPUI) builds against.
+      libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+      libxcb1-dev libx11-xcb-dev libvulkan-dev \
     && rm -rf /var/lib/apt/lists/*
 ENV CARGO_TARGET_DIR=/target CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0
 COPY browser/Cargo.lock /tmp/browser.lock
@@ -22,7 +24,7 @@ RUN rustup target add wasm32-unknown-unknown \
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,id=dm-amd64-registry,target=/usr/local/cargo/registry --mount=type=cache,id=dm-amd64-target,target=/target \
-    cd desktop && cargo build -p dm-desktop --locked && cp /target/debug/dm-desktop /usr/local/bin/dm-desktop
+    cd desktop && cargo build -p dm-gpui --locked && cp /target/debug/dm-gpui /usr/local/bin/dm-gpui
 RUN --mount=type=cache,id=dm-amd64-registry,target=/usr/local/cargo/registry \
     env -u CARGO_TARGET_DIR sh scripts/package.sh && mkdir -p /out && cp -R dist /out/dist
 
@@ -31,7 +33,7 @@ ARG BRAVE=1.98.62
 # pacman's own sandbox and free-space check do not work under emulation.
 RUN sed -i '/^CheckSpace/d; s/^\[options\]/[options]\nDisableSandbox/' /etc/pacman.conf \
  && pacman -Sy --noconfirm --needed python xorg-server-xvfb xorg-xauth mesa gtk3 libxkbcommon-x11 libxcb \
-      xcb-util-cursor fontconfig ttf-dejavu libx11 libxcursor libxrandr libxi libxinerama libglvnd wayland \
+      xcb-util-cursor fontconfig freetype2 vulkan-icd-loader ttf-dejavu libx11 libxcursor libxrandr libxi libxinerama libglvnd wayland \
       curl unzip libarchive nss alsa-lib at-spi2-core libcups libdrm pango cairo libxcomposite \
       libxdamage libxfixes libxext libxshmfence dbus libsecret procps-ng ffmpeg firefox \
  && pacman -Scc --noconfirm
@@ -46,8 +48,8 @@ RUN f=$(curl -fsSL https://packages.microsoft.com/repos/edge/dists/stable/main/b
         | awk '/^Package: microsoft-edge-stable$/{p=1} p&&/^Filename:/{print $2; p=0}' | sort -V | tail -1) \
  && curl -fsSL -o /tmp/e.deb "https://packages.microsoft.com/repos/edge/$f" \
  && cd /tmp && bsdtar -xf e.deb data.tar.xz && bsdtar -xf data.tar.xz -C / && rm -f e.deb data.tar.xz
-COPY --from=build /usr/local/bin/dm-desktop /usr/local/bin/dm-desktop
+COPY --from=build /usr/local/bin/dm-gpui /usr/local/bin/dm-gpui
 COPY --from=build /out/dist /repo/dist
 COPY scripts /repo/scripts
-ENV DM_BINARY=/usr/local/bin/dm-desktop DM_FIREFOX_CACHE=/opt/ff
+ENV DM_BINARY=/usr/local/bin/dm-gpui DM_FIREFOX_CACHE=/opt/ff
 WORKDIR /repo

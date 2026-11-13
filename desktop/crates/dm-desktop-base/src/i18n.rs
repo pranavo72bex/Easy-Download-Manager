@@ -16,9 +16,9 @@
 //! Only scripts the window draws correctly are offered: Latin, Cyrillic,
 //! and Chinese, Japanese and Korean (in the computer's own fonts, which the
 //! window's `theme::cover` finds). Right-to-left and joined scripts
-//! (Arabic, Hindi) need text shaping the egui window does not do, and would
-//! be drawn wrong. The list to pick from is drawn by the window
-//! (`dm_desktop::i18n::pick`).
+//! (Arabic, Hindi) need text shaping dm's window was not made for, and would
+//! be drawn wrong. The list to pick from is drawn by the window (Options ›
+//! General).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};

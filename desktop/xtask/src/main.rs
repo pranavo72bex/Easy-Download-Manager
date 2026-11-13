@@ -133,7 +133,8 @@ fn fuzz_targets(root: &Path) -> Vec<(String, usize)> {
         "desktop/crates/dm-core/tests/fuzz.rs",
         "desktop/crates/dm-shell/tests/fuzz.rs",
         "desktop/crates/dm-protocol/tests/fuzz.rs",
-        "desktop/crates/dm-desktop/tests/fuzz.rs",
+        "desktop/crates/dm-desktop-base/tests/fuzz.rs",
+        "desktop/crates/dm-gpui/src/window_tests/fuzz.rs",
         "browser/tests/fuzz.rs",
     ];
     files
@@ -315,7 +316,6 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
-        "desktop/crates/dm-desktop/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
         "browser/Cargo.toml",
     ]
@@ -341,12 +341,7 @@ fn layers() -> Result<(), String> {
             // What the desktop program does that is not drawing: any window
             // may use it, so it uses none.
             "dm-desktop-base" => (&["dm-core", "dm-protocol", "dm-shell"], true, false),
-            "dm-desktop" => (
-                &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
-                false,
-                false,
-            ),
-            // The GPUI window (docs/gaps.md G6): never the egui one.
+            // The window.
             "dm-gpui" => (
                 &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
                 false,
@@ -382,7 +377,6 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-desktop-base/src",
-        "desktop/crates/dm-desktop/src",
         "desktop/crates/dm-gpui/src",
         "browser/src",
     ] {
@@ -466,14 +460,26 @@ fn privacy() -> Result<(), String> {
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-desktop-base/src",
-        "desktop/crates/dm-desktop/src",
         "desktop/crates/dm-gpui/src",
         "browser/src",
         "extension",
     ] {
         for file in walk(&root.join(dir)) {
-            // A module's tests live in its `tests.rs`, or start at #[cfg(test)].
-            if file.file_name().is_some_and(|n| n == "tests.rs") {
+            // A module's tests live in its `tests.rs`, or start at #[cfg(test)]; the
+            // window's tests and their harness are test modules of their own
+            // (`dm-gpui/src/window_tests`, `harness`), whose files hold no #[cfg(test)].
+            let test_only = file.components().any(|c| {
+                [
+                    "tests.rs",
+                    "window_tests",
+                    "window_tests.rs",
+                    "harness",
+                    "harness.rs",
+                ]
+                .iter()
+                .any(|t| c.as_os_str() == *t)
+            });
+            if test_only {
                 continue;
             }
             let Ok(text) = std::fs::read_to_string(&file) else {
@@ -911,7 +917,7 @@ mod tests {
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(&file, "#[test]\nfn a() {}\n#[test]\nfn b() {}\n").unwrap();
         let counted = fuzz_targets(&dir.0);
-        assert_eq!(counted.len(), 5);
+        assert_eq!(counted.len(), 6);
         assert_eq!(
             counted[0],
             ("desktop/crates/dm-core/tests/fuzz.rs".into(), 2)

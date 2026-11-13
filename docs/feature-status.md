@@ -53,7 +53,7 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
 - [x] The tray's Speed menu has Settings… (contract row B52); the Downloads menu's Speed limiter On/Off and Settings… already existed
 - [x] A running download's Connections section names each piece's own speed (contract row B53), and a failed download's window and Properties say one next step under the reason where the reason stops at what went wrong (row B54). Written 2026-11-01, not yet built or run.
 - [x] The browser panel's video list takes a part of the video: a "Part" line (start and end) whose times reach Download details filled in (contract row B59). Evidence: unit tests (`dm-protocol` `a_start_carries_the_part_of_a_video_and_an_older_one_has_none`, `dm-shell` host `the_part_asked_for_in_the_panel_reaches_the_app...`, `browser` `the_panels_part_line_hands_over_a_time_and_nothing_else`) and the window test `a_part_asked_for_in_the_browsers_panel_fills_download_details`. Run on real pages on Windows in Microsoft Edge, 2026-11-08 (`scripts/part-check.py`, the part 0:02 to 0:06): the hls.js demo playing Mux's HLS test stream, through the Part line, gave a 10.0 s file (a transport stream is joined at the pieces the part overlaps); dash.js's player of Akamai's DASH Big Buck Bunny, through the Part line and through Download details, gave 4.0 s; W3C's media page playing a plain MP4, whose file the panel hands without a list, gave 4.0 s through Download details; each with picture and sound. A page whose player loaded one stream gets it at once from the panel, its part set in Download details, which opens for it. Not cut: a WebM DASH pair is joined at its nearest pieces, not trimmed; a plain MP4 whose server gives no ranges or no length is refused (gaps row 45, closed). Found on the way and fixed: a part typed was dropped where Download details was off.
-- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `desktop/crates/dm-desktop/src/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
+- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `desktop/crates/dm-desktop-base/src/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
 - [x] Site rules served by the app (gaps rows 68, 69): `Rules::parse`, `Rules::newest`, `answers_for` (`dm-protocol/src/rules.rs` tests), the shipped and the home `rules.json` (`dm-shell/src/host/served.rs` tests, `host/tests.rs` `a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them`), the extension's merge (`browser/src/decide/excluded.rs` and `rules.rs` tests) and the answer reader (`browser/src/decide/answers.rs` tests). The update check fetches a `rules` entry of `latest.json` (`dm-desktop/src/update.rs` `rules_in`, `fetch_rules`; `dm-shell` `served::adopt`; tests in both). Written, not yet built or tested; no site has a rule yet.
 - [x] Find previous, Shift-F3, in the Downloads menu beside Find next, wrapping round from the first row to the last (`app/search.rs` `next_match`, five unit tests; `tests/window/lists.rs`; contract row B48)
 - [x] HTTP/HTTPS downloading
@@ -221,10 +221,14 @@ and is not carried over.
       shipped on macOS since its .dmg held the behaviour contract
       (64 of 64, 2026-11-10), on Windows and Linux since 2026-11-11 (gaps G9), held to
       `scripts/human-qa.py`. The older egui window (`desktop/crates/dm-desktop`,
-      which replaced a Tauri web-view window on 2026-10-11) is still built
-      and tested until G9 removes it; its `tests/window.rs` drives every
-      control through its accessibility tree against a real queue on
-      loopback
+      which replaced a Tauri web-view window on 2026-10-11) was removed on
+      2026-11-13 with its fonts (Inter, Selawik, the Fluent icon font), its
+      three vendored patches (winit, egui-winit, eframe) and its scripts and
+      targets (gaps G9, A3), once every test of it had been ported to the
+      GPUI window's harness, moved to a shared crate or dropped (A2). The
+      installers' icons and `Info.plist` moved into `dm-gpui`, whose
+      `Cargo.toml` now holds dm's version. Evidence: `cargo tree` has no
+      egui, eframe or winit; `cargo test --workspace` passes
 - [x] The window's scale (issue #32, 2026-11-11): Options › General ›
       Appearance's Text size slider with four stops, 60, 80, 100 (the
       default) and 120 percent, the percentage beside it; View › Text size ›
@@ -232,8 +236,8 @@ and is not carried over.
       stops. Everything the GPUI window draws goes through one scale
       (`dm-gpui` `zoom.rs`), so words, rows, controls, pictures and every
       dialog's window grow together, at once; kept in `settings.json`
-      (`text_size`), the egui window's Small, Medium and Large read as 80, 100
-      and 120. Contract row B66. Checked on macOS over the control port;
+      (`text_size`), the older egui window's Small, Medium and Large read as
+      80, 100 and 120. Contract row B66. Checked on macOS over the control port;
       Linux and Windows owed
 - [x] Save to for links added together (issue #32, 2026-11-11): Links on
       the clipboard and Download links share one Save to (`dm-desktop-base`
@@ -383,8 +387,10 @@ and is not carried over.
       container — one normally, none with `--hidden`; on this Mac the shell
       may not script System Events, so there it says "not checked" rather
       than "ok", which it used to
-- [x] Window tests — `desktop/crates/dm-desktop/tests/window.rs`, in CI:
-      the window driven through its accessibility tree against a real queue,
+- [x] Window tests — `desktop/crates/dm-gpui/src/window_tests/` (ported
+      from the egui window's `tests/window.rs`), in CI: the window opened in
+      GPUI's test platform and driven through its control port's methods
+      against a real queue,
       checking downloads land byte-exact, each row's buttons act on that row,
       settings are applied and saved (and put back when they cannot be),
       the clipboard watcher, 500 rows, and that every control has a name a
@@ -471,7 +477,7 @@ and is not carried over.
       `scripts/smoke.py` passed against the installed binary: native host,
       the window (on Mesa's software OpenGL), headless, a byte-exact
       download; the uninstaller removed it. And the whole of `app-check.py`
-      passes against the real `dm-desktop.exe` there (`windows-check.yml`,
+      passed against the real `dm-desktop.exe`, the egui window's program, there (`windows-check.yml`,
       2026-10-21), which found and fixed a native host that held the
       browser's pipes open through the dm it started. `scripts/windows-check.sh`
       compiles it from this Mac. Unchecked: a whole `human-qa.py` run on an

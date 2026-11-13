@@ -46,7 +46,7 @@ import traceback
 import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
 MIN_FREE_GB = float(os.environ.get("DM_STRESS_MIN_FREE_GB", "8"))
 MAX_SERVE_GB = float(os.environ.get("DM_STRESS_MAX_SERVE_GB", "3"))     # per phase
 MB = 1024 * 1024
@@ -2442,7 +2442,7 @@ def main():
         return
     names = [a for a in args if not a.startswith("-")] or list(PHASES)
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: (cd desktop && cargo build -p dm-desktop)")
+        sys.exit(f"no dm at {BINARY}: (cd desktop && cargo build -p dm-gpui)")
     root = pathlib.Path(tempfile.mkdtemp(prefix="dm-stress-"))
     server, base = start_server()
     ctx = {"root": root, "base": base, "server": server}
