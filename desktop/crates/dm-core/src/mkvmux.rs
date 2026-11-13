@@ -39,6 +39,14 @@ const TIMECODE_SCALE: u32 = 0x2A_D7B1;
 const DURATION: u32 = 0x4489;
 const MUXING_APP: u32 = 0x4D80;
 const WRITING_APP: u32 = 0x5741;
+const TITLE: u32 = 0x7BA9;
+const TAGS: u32 = 0x1254_C367;
+const TAG: u32 = 0x7373;
+const TARGETS: u32 = 0x63C0;
+const TARGET_TYPE_VALUE: u32 = 0x68CA;
+const SIMPLE_TAG: u32 = 0x67C8;
+const TAG_NAME: u32 = 0x45A3;
+const TAG_STRING: u32 = 0x4487;
 const TRACKS: u32 = 0x1654_AE6B;
 const TRACK_ENTRY: u32 = 0xAE;
 const TRACK_NUMBER: u32 = 0xD7;
@@ -530,6 +538,17 @@ pub fn join_with_text(
     texts: &[crate::subtitles::Subtitle],
     out: &Path,
 ) -> Result<u64, String> {
+    join_tagged(inputs, texts, out, &crate::mp4mux::Tags::default())
+}
+
+/// [`join_with_text`], the file saying its title in its Info and its artist, date and page in
+/// Matroska's Tags, as players read them (gaps row Y11).
+pub fn join_tagged(
+    inputs: &[PathBuf],
+    texts: &[crate::subtitles::Subtitle],
+    out: &Path,
+    tags: &crate::mp4mux::Tags,
+) -> Result<u64, String> {
     let mut read = Vec::new();
     let mut webm = Vec::new();
     for (i, path) in inputs.iter().enumerate() {
@@ -563,7 +582,7 @@ pub fn join_with_text(
         std::fs::write(&scratch, &data).map_err(|e| format!("subtitles: {e}"))?;
         sources.push(scratch.clone());
     }
-    let joined = join_read(&read, &sources, out);
+    let joined = join_read(&read, &sources, out, tags);
     let _ = std::fs::remove_file(&scratch);
     joined
 }
@@ -605,7 +624,12 @@ fn line_up(read: &mut [Input], webm: &[bool]) {
     }
 }
 
-fn join_read(read: &[Input], inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
+fn join_read(
+    read: &[Input],
+    inputs: &[PathBuf],
+    out: &Path,
+    tags: &crate::mp4mux::Tags,
+) -> Result<u64, String> {
     // Pictures first, then sound, then subtitles; each numbered afresh.
     let mut order: Vec<(usize, &TrackIn)> = read
         .iter()
@@ -672,7 +696,7 @@ fn join_read(read: &[Input], inputs: &[PathBuf], out: &Path) -> Result<u64, Stri
         .map(|p| Positioned::open(p))
         .collect::<Result<_, _>>()
         .map_err(|e| format!("an input could not be read: {e}"))?;
-    write(out, &order, &placed, &mut files, webm, has_video)
+    write(out, &order, &placed, &mut files, webm, has_video, tags)
 }
 
 /// [`join`], off the async runtime.
@@ -686,9 +710,46 @@ pub async fn join_with_text_async(
     texts: Vec<crate::subtitles::Subtitle>,
     out: PathBuf,
 ) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || join_with_text(&inputs, &texts, &out))
+    join_tagged_async(inputs, texts, out, crate::mp4mux::Tags::default()).await
+}
+
+/// [`join_tagged`], off the async runtime.
+pub async fn join_tagged_async(
+    inputs: Vec<PathBuf>,
+    texts: Vec<crate::subtitles::Subtitle>,
+    out: PathBuf,
+    tags: crate::mp4mux::Tags,
+) -> Result<u64, String> {
+    tokio::task::spawn_blocking(move || join_tagged(&inputs, &texts, &out, &tags))
         .await
         .map_err(|e| format!("joining stopped: {e}"))?
+}
+
+/// Matroska's Tags for the whole file (target 50, the album or film): its title, artist, date
+/// and page as simple tags, by the names Matroska gives them; `None` with nothing to say.
+fn tags_element(tags: &crate::mp4mux::Tags) -> Option<Vec<u8>> {
+    let simple: Vec<u8> = [
+        ("TITLE", &tags.title),
+        ("ARTIST", &tags.artist),
+        ("DATE_RELEASED", &tags.date),
+        ("URL", &tags.source),
+    ]
+    .into_iter()
+    .filter(|(_, value)| !value.trim().is_empty())
+    .flat_map(|(name, value)| {
+        let body = [
+            element(TAG_NAME, name.as_bytes()),
+            element(TAG_STRING, value.trim().as_bytes()),
+        ]
+        .concat();
+        element(SIMPLE_TAG, &body)
+    })
+    .collect();
+    if simple.is_empty() {
+        return None;
+    }
+    let targets = element(TARGETS, &uint_element(TARGET_TYPE_VALUE, 50));
+    Some(element(TAGS, &element(TAG, &[targets, simple].concat())))
 }
 
 fn write(
@@ -698,6 +759,7 @@ fn write(
     files: &mut [Positioned],
     webm: bool,
     has_video: bool,
+    tags: &crate::mp4mux::Tags,
 ) -> Result<u64, String> {
     let wrote = |e: std::io::Error| format!("{} could not be written: {e}", out.display());
     let mut w = BufWriter::with_capacity(1 << 20, File::create(out).map_err(wrote)?);
@@ -740,6 +802,12 @@ fn write(
             element(DURATION, &duration.to_be_bytes()),
             element(MUXING_APP, b"dm"),
             element(WRITING_APP, b"dm"),
+            // Its title, as players show it.
+            if tags.title.trim().is_empty() {
+                Vec::new()
+            } else {
+                element(TITLE, tags.title.trim().as_bytes())
+            },
         ]
         .concat(),
     );
@@ -757,6 +825,11 @@ fn write(
     let tracks = element(TRACKS, &entries);
     w.write_all(&tracks).map_err(wrote)?;
     let mut at = tracks_at + tracks.len() as u64;
+    // Its words, before the first cluster, where a reader meets them as it reads the head.
+    if let Some(said) = tags_element(tags) {
+        w.write_all(&said).map_err(wrote)?;
+        at += said.len() as u64;
+    }
 
     // Clusters: a new one at a picture's key frame a second or more in, or
     // before a block's offset would outgrow its 16 bits.

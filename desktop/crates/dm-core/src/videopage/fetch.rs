@@ -253,6 +253,19 @@ struct Info {
     upload_date: Option<String>,
     #[serde(default)]
     webpage_url: Option<String>,
+    /// Its picture's address, written into the file as its cover (gaps row Y11).
+    #[serde(default)]
+    thumbnail: Option<String>,
+    /// Its chapters, written into the file.
+    #[serde(default)]
+    chapters: Option<Vec<Chapter>>,
+}
+
+/// A chapter of a video: where it starts, in seconds, and its name.
+#[derive(Debug, Clone, serde::Deserialize)]
+struct Chapter {
+    start_time: f64,
+    title: String,
 }
 
 #[derive(Debug, Default, Clone, serde::Deserialize)]
@@ -601,8 +614,16 @@ async fn fetch(
     let tags = crate::mp4mux::Tags {
         title: info.title.clone().unwrap_or_default(),
         artist: info.uploader.clone().unwrap_or_default(),
-        date: info.upload_date.clone().unwrap_or_default(),
+        date: info.upload_date.as_deref().map(iso_day).unwrap_or_default(),
         source: info.webpage_url.clone().unwrap_or_default(),
+        cover: cover(client, info.thumbnail.as_deref(), options).await,
+        chapters: info
+            .chapters
+            .iter()
+            .flatten()
+            .filter(|c| c.start_time.is_finite() && c.start_time >= 0.0)
+            .map(|c| ((c.start_time * 1000.0) as u64, c.title.trim().to_string()))
+            .collect(),
     };
     let outcome = finish_dm_tagged(&plan.produced, texts, tags, options).await;
     for file in files {
@@ -680,6 +701,40 @@ async fn fetch_part(
     crate::clip::fetch_part(client, &source, span, options, report)
         .await
         .map(|_| ())
+}
+
+/// A day as a reading writes it (`20050423`) as tags write one (`2005-04-23`); anything else
+/// as it is.
+fn iso_day(day: &str) -> String {
+    match (day.get(..4), day.get(4..6), day.get(6..8)) {
+        (Some(y), Some(m), Some(d)) if day.len() == 8 && day.bytes().all(|b| b.is_ascii_digit()) => {
+            format!("{y}-{m}-{d}")
+        }
+        _ => day.to_string(),
+    }
+}
+
+/// The video's picture, for its cover (gaps row Y11): from YouTube's picture server alone
+/// (`https`, `*.ytimg.com`), 2 MiB at most, a JPEG or a PNG; else none, and the video is not
+/// the worse for it.
+async fn cover(client: &reqwest::Client, address: Option<&str>, options: &Options) -> Vec<u8> {
+    let Some(address) = address else {
+        return Vec::new();
+    };
+    let ours = url::Url::parse(address).is_ok_and(|u| {
+        u.scheme() == "https"
+            && u.host_str()
+                .is_some_and(|h| h == "i.ytimg.com" || h.ends_with(".ytimg.com"))
+    });
+    if !ours {
+        return Vec::new();
+    }
+    // Ten seconds at most: a picture is not worth holding the finished video back.
+    let fetching = crate::download::fetch_capped(client, address, 2 * 1024 * 1024, options);
+    match tokio::time::timeout(std::time::Duration::from_secs(10), fetching).await {
+        Ok(Ok(got)) if crate::mp4mux::picture_kind(&got.body).is_some() => got.body.to_vec(),
+        _ => Vec::new(),
+    }
 }
 
 /// The subtitles the reading names, fetched and left beside the video
@@ -814,6 +869,14 @@ fn interned(agent: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+
+    /// A reading's day is written as tags write one (gaps row Y11).
+    #[test]
+    fn a_readings_day_is_written_as_tags_write_one() {
+        assert_eq!(super::iso_day("20050423"), "2005-04-23");
+        assert_eq!(super::iso_day("2005"), "2005");
+        assert_eq!(super::iso_day("2005042x"), "2005042x");
+    }
     use super::*;
 
     fn read(json: &str) -> Read {

@@ -172,6 +172,14 @@ pub fn id3(tags: &crate::mp4mux::Tags) -> Vec<u8> {
     if source.starts_with("https://") || source.starts_with("http://") {
         frame(b"WOAS", source.as_bytes().to_vec());
     }
+    // Its picture, as the front cover (type 3), where it is a JPEG or a PNG (gaps row Y11).
+    if let Some(kind) = crate::mp4mux::picture_kind(&tags.cover) {
+        let mut body = vec![0u8]; // the description's encoding: Latin-1, and it is empty
+        body.extend_from_slice(kind.as_bytes());
+        body.extend_from_slice(&[0, 3, 0]);
+        body.extend_from_slice(&tags.cover);
+        frame(b"APIC", body);
+    }
     if frames.is_empty() {
         return Vec::new();
     }
@@ -871,6 +879,8 @@ mod tests {
             artist: "jawed".into(),
             date: String::new(),
             source: "https://www.youtube.com/watch?v=jNQXAC9IVRw".into(),
+            cover: b"\x89PNG\r\n\x1a\n a picture".to_vec(),
+            ..Default::default()
         };
         let header = id3(&tags);
         assert_eq!(&header[..5], b"ID3\x04\x00");
@@ -880,6 +890,9 @@ mod tests {
         assert_eq!(size, header.len() - 10);
         let text = String::from_utf8_lossy(&header);
         assert!(text.contains("TIT2") && text.contains("Me at the zoo"));
+        // Its picture as the front cover (gaps row Y11).
+        assert!(text.contains("APIC"));
+        assert!(header.windows(12).any(|w| w == b"image/png\x00\x03\x00"));
         assert!(text.contains("TPE1") && text.contains("jawed"));
         assert!(text.contains("WOAS") && !text.contains("TDRC"));
         assert!(id3(&crate::mp4mux::Tags::default()).is_empty());

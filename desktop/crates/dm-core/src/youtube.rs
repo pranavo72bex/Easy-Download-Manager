@@ -28,8 +28,11 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+mod chapters;
 mod itags;
 mod player;
+
+use chapters::{chapters_in, largest_thumbnail, publish_date};
 use crate::stream::Quality;
 use crate::Error;
 
@@ -1345,6 +1348,27 @@ async fn read_within(
         .and_then(Value::as_str)
     {
         reading["uploader"] = json!(author);
+    }
+    // Its picture, the largest the player names, and the chapters its description lists,
+    // written into the file (gaps row Y11).
+    if let Some(picture) = largest_thumbnail(&player) {
+        reading["thumbnail"] = json!(picture);
+    }
+    if let Some(day) = publish_date(&page) {
+        reading["upload_date"] = json!(day);
+    }
+    let chapters = player
+        .pointer("/videoDetails/shortDescription")
+        .and_then(Value::as_str)
+        .map(chapters_in)
+        .unwrap_or_default();
+    if !chapters.is_empty() {
+        reading["chapters"] = Value::Array(
+            chapters
+                .into_iter()
+                .map(|(start, title)| json!({ "start_time": start, "title": title }))
+                .collect(),
+        );
     }
     // The video's captions, for Options' "carry subtitles" to put inside it (gaps row Y6).
     let captions = captions_named(&player);

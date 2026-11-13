@@ -130,6 +130,23 @@ pub struct Tags {
     pub date: String,
     /// Where it came from: its page's address.
     pub source: String,
+    /// Its picture (the video's thumbnail), JPEG or PNG as the site served it: an MP4's
+    /// `covr`, an MP3's `APIC`.
+    pub cover: Vec<u8>,
+    /// Its chapters, each where it starts (milliseconds) and its name, in order: an MP4's
+    /// `chpl`, as players read Nero's.
+    pub chapters: Vec<(u64, String)>,
+}
+
+/// A picture's kind by its first bytes, as a tag names it: JPEG, PNG or neither.
+pub fn picture_kind(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else {
+        None
+    }
 }
 
 /// The words an MP4 or M4A says of itself (`moov/udta/meta/ilst`), as [`join_cut_tagged`]
@@ -173,17 +190,28 @@ pub fn tags_of(path: &Path) -> Tags {
     let Some(moov) = moov_of(path) else {
         return Tags::default();
     };
-    let ilst = read::child(&moov, b"udta")
+    let udta = read::child(&moov, b"udta");
+    let chapters = udta
+        .and_then(|udta| read::child(udta, b"chpl"))
+        .map(read_chapters)
+        .unwrap_or_default();
+    let ilst = udta
         .and_then(|udta| read::child(udta, b"meta"))
         .and_then(|meta| meta.get(4..))
         .and_then(|meta| read::child(meta, b"ilst"));
     let Some(ilst) = ilst else {
-        return Tags::default();
+        return Tags {
+            chapters,
+            ..Tags::default()
+        };
     };
-    let said = |key: &[u8; 4]| {
+    let data = |key: &[u8; 4]| {
         read::child(ilst, key)
             .and_then(|item| read::child(item, b"data"))
             .and_then(|data| data.get(8..))
+    };
+    let said = |key: &[u8; 4]| {
+        data(key)
             .map(|text| String::from_utf8_lossy(text).into_owned())
             .unwrap_or_default()
     };
@@ -192,7 +220,31 @@ pub fn tags_of(path: &Path) -> Tags {
         artist: said(b"\xa9ART"),
         date: said(b"\xa9day"),
         source: said(b"\xa9cmt"),
+        cover: data(b"covr").map(<[u8]>::to_vec).unwrap_or_default(),
+        chapters,
     }
+}
+
+/// A `chpl`'s chapters (its body, after the box's header): version and flags, four bytes
+/// kept, a count, then each start in 100 ns and its name, a byte long and the name. What
+/// runs past the box is left out.
+fn read_chapters(body: &[u8]) -> Vec<(u64, String)> {
+    let mut chapters = Vec::new();
+    let (Some(&count), Some(mut rest)) = (body.get(8), body.get(9..)) else {
+        return chapters;
+    };
+    for _ in 0..count {
+        let (Some(start), Some(&length)) = (rest.get(..8), rest.get(8)) else {
+            break;
+        };
+        let Some(name) = rest.get(9..9 + usize::from(length)) else {
+            break;
+        };
+        let start = u64::from_be_bytes(start.try_into().unwrap_or_default());
+        chapters.push((start / 10_000, String::from_utf8_lossy(name).into_owned()));
+        rest = rest.get(9 + usize::from(length)..).unwrap_or_default();
+    }
+    chapters
 }
 
 /// What a fragmented stream's initialisation piece says that a later one must
@@ -570,8 +622,9 @@ pub(crate) mod tests {
             .all(|s| s.duration == 1024 && s.sync));
     }
 
-    /// A joined file carries its title, artist, date and page in `udta/meta/ilst`, as players
-    /// read them; with none to say, no `udta` (gaps row Y11).
+    /// A joined file carries its title, artist, date, page and picture in `udta/meta/ilst`, and
+    /// its chapters in `udta/chpl`, as players read them; with none to say, no `udta` (gaps row
+    /// Y11).
     #[test]
     fn a_joined_file_carries_its_title_and_artist() {
         let dir = tempfile::tempdir().unwrap();
@@ -582,6 +635,8 @@ pub(crate) mod tests {
             artist: "jawed".into(),
             date: String::new(),
             source: "https://www.youtube.com/watch?v=jNQXAC9IVRw".into(),
+            cover: b"\xff\xd8\xff\xe0 a picture".to_vec(),
+            chapters: vec![(0, "Intro".into()), (61_500, "Élephants".into())],
         };
         let out = dir.path().join("tagged.mp4");
         join_cut_tagged(
@@ -604,6 +659,9 @@ pub(crate) mod tests {
         };
         assert_eq!(said(b"\xa9nam"), "Me at the zoo");
         assert_eq!(said(b"\xa9ART"), "jawed");
+        let cover = read::child(read::child(ilst, b"covr").unwrap(), b"data").unwrap();
+        assert_eq!(&cover[..4], &13u32.to_be_bytes(), "named a JPEG");
+        assert!(read::child(read::child(moov, b"udta").unwrap(), b"chpl").is_some());
         assert!(
             read::child(ilst, b"\xa9day").is_none(),
             "an empty word is left out"

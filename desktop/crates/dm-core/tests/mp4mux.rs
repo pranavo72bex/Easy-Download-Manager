@@ -1455,3 +1455,38 @@ async fn a_file_with_no_index_or_boxes_that_do_not_add_up_gives_no_part() {
     let why = got.unwrap_err().to_string();
     assert!(why.contains("do not add up"), "{why}");
 }
+
+/// A WebM dm joins says its title in its Info and its artist, date and page in Matroska's Tags,
+/// before its first cluster, and still plays as the inputs did (gaps row Y11).
+#[test]
+fn a_joined_webm_says_its_title_artist_and_page() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let dir = tempfile::tempdir().unwrap();
+    let picture = fixtures.join("webm/picture.f247.webm");
+    let sound = fixtures.join("webm/sound.f251.webm");
+    let webm = dir.path().join("tagged.webm");
+    let tags = dm_core::mp4mux::Tags {
+        title: "Me at the zoo".into(),
+        artist: "jawed".into(),
+        date: "2005-04-23".into(),
+        source: "https://www.youtube.com/watch?v=jNQXAC9IVRw".into(),
+        ..Default::default()
+    };
+    dm_core::mkvmux::join_tagged(&[picture.clone(), sound.clone()], &[], &webm, &tags).unwrap();
+    let data = std::fs::read(&webm).unwrap();
+    let at = |what: &[u8]| data.windows(what.len()).position(|w| w == what);
+    let cluster = at(&[0x1F, 0x43, 0xB6, 0x75]).unwrap();
+    for said in [
+        &b"Me at the zoo"[..],
+        b"ARTIST",
+        b"jawed",
+        b"DATE_RELEASED",
+        b"2005-04-23",
+        b"https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    ] {
+        let found = at(said).unwrap_or_else(|| panic!("{} not said", String::from_utf8_lossy(said)));
+        assert!(found < cluster, "{} after the first cluster", String::from_utf8_lossy(said));
+    }
+    let ours = read_webm(&webm);
+    assert_eq!(ours.tracks.len(), 2, "the picture and the sound, as before");
+}

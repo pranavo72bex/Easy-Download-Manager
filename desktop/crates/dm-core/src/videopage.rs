@@ -128,7 +128,8 @@ async fn finish_dm_tagged(
                 "mp4"
             });
             let joining = if webm || mkv {
-                crate::mkvmux::join_with_text_async(parts.clone(), texts, joined.clone()).await
+                crate::mkvmux::join_tagged_async(parts.clone(), texts, joined.clone(), tags)
+                    .await
             } else {
                 crate::mp4mux::join_cut_tagged_async(
                     parts.clone(),
@@ -190,14 +191,15 @@ async fn finish_dm_tagged(
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
-    // An MP4 or M4A of one stream is written again with the video's words in it too (its title
-    // and channel, gaps rows Y11 and Y25), as a joined one is.
-    let tagged =
-        tags != crate::mp4mux::Tags::default() && ["mp4", "m4v", "m4a"].contains(&kind.as_str());
+    // An MP4, M4A or WebM of one stream is written again with the video's words in it too (its
+    // title and channel, gaps rows Y11 and Y25), as a joined one is.
+    let tagged = tags != crate::mp4mux::Tags::default()
+        && ["mp4", "m4v", "m4a", "webm", "mkv"].contains(&kind.as_str());
     if (!texts.is_empty() && ["mp4", "m4v", "webm", "mkv"].contains(&kind.as_str())) || tagged {
         let with = produced.with_extension(format!("dm-subtitles.{kind}"));
         let written = if kind == "webm" || kind == "mkv" {
-            crate::mkvmux::join_with_text_async(vec![produced.clone()], texts, with.clone()).await
+            crate::mkvmux::join_tagged_async(vec![produced.clone()], texts, with.clone(), tags)
+                .await
         } else {
             crate::mp4mux::join_cut_tagged_async(
                 vec![produced.clone()],

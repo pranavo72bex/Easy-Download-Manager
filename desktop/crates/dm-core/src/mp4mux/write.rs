@@ -408,11 +408,20 @@ pub(super) fn moov(
 }
 
 /// The file's own words about itself, as iTunes and every player after it read them: a `udta`
-/// holding a `meta` whose `ilst` has the title (`©nam`), the artist (`©ART`), the date (`©day`)
-/// and where it came from (`©cmt`), each a UTF-8 `data` box (gaps row Y11). `None` with nothing
-/// to say.
+/// holding a `meta` whose `ilst` has the title (`©nam`), the artist (`©ART`), the date (`©day`),
+/// where it came from (`©cmt`), each a UTF-8 `data` box, and its picture (`covr`, JPEG or PNG);
+/// and beside the `meta`, its chapters as Nero's `chpl`, which players read (gaps row Y11).
+/// `None` with nothing to say.
 fn user_data(tags: &super::Tags) -> Option<Vec<u8>> {
-    let items: Vec<Vec<u8>> = [
+    let item = |key: &[u8; 4], kind: u32, value: &[u8]| {
+        let mut data = Vec::new();
+        data.extend_from_slice(&kind.to_be_bytes());
+        data.extend_from_slice(&0u32.to_be_bytes()); // no locale
+        data.extend_from_slice(value);
+        let data = boxed(b"data", &[&data]);
+        boxed(key, &[&data])
+    };
+    let mut items: Vec<Vec<u8>> = [
         (*b"\xa9nam", &tags.title),
         (*b"\xa9ART", &tags.artist),
         (*b"\xa9day", &tags.date),
@@ -420,17 +429,17 @@ fn user_data(tags: &super::Tags) -> Option<Vec<u8>> {
     ]
     .into_iter()
     .filter(|(_, value)| !value.trim().is_empty())
-    .map(|(key, value)| {
-        let mut data = Vec::new();
-        data.extend_from_slice(&1u32.to_be_bytes()); // UTF-8 text
-        data.extend_from_slice(&0u32.to_be_bytes()); // no locale
-        data.extend_from_slice(value.trim().as_bytes());
-        let data = boxed(b"data", &[&data]);
-        boxed(&key, &[&data])
-    })
+    .map(|(key, value)| item(&key, 1, value.trim().as_bytes())) // 1: UTF-8 text
     .collect();
+    // 13 a JPEG, 14 a PNG; a picture of any other kind is not written.
+    match super::picture_kind(&tags.cover) {
+        Some("image/jpeg") => items.push(item(b"covr", 13, &tags.cover)),
+        Some("image/png") => items.push(item(b"covr", 14, &tags.cover)),
+        _ => {}
+    }
+    let chapters = chapter_list(&tags.chapters);
     if items.is_empty() {
-        return None;
+        return chapters.map(|chpl| boxed(b"udta", &[&chpl]));
     }
     let item_refs: Vec<&[u8]> = items.iter().map(Vec::as_slice).collect();
     let ilst = boxed(b"ilst", &item_refs);
@@ -443,7 +452,31 @@ fn user_data(tags: &super::Tags) -> Option<Vec<u8>> {
     hdlr.push(0);
     let hdlr = full(b"hdlr", 0, 0, &hdlr);
     let meta = full(b"meta", 0, 0, &[hdlr, ilst].concat());
-    Some(boxed(b"udta", &[&meta]))
+    match chapters {
+        Some(chpl) => Some(boxed(b"udta", &[&meta, &chpl])),
+        None => Some(boxed(b"udta", &[&meta])),
+    }
+}
+
+/// Nero's chapter list (`chpl`, version 1): four bytes kept, a count (255 at most, as it holds
+/// one byte), then each start in 100 ns and its name, cut to 255 bytes at a character's end.
+fn chapter_list(chapters: &[(u64, String)]) -> Option<Vec<u8>> {
+    if chapters.is_empty() {
+        return None;
+    }
+    let chapters = chapters.get(..chapters.len().min(255)).unwrap_or_default();
+    let mut body = vec![0u8; 4];
+    body.push(chapters.len() as u8);
+    for (start, name) in chapters {
+        body.extend_from_slice(&start.saturating_mul(10_000).to_be_bytes());
+        let mut end = name.len().min(255);
+        while !name.is_char_boundary(end) {
+            end -= 1;
+        }
+        body.push(end as u8);
+        body.extend_from_slice(name.as_bytes().get(..end).unwrap_or_default());
+    }
+    Some(full(b"chpl", 1, 0, &body))
 }
 
 pub(crate) fn write_output(
