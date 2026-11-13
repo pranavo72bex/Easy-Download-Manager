@@ -155,6 +155,8 @@ pub fn start(
     // runtime, so it never holds the threads the writes need. A smaller pool would queue writes
     // behind one another under the most connections dm runs.
     let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("dm could not start: {e}"))?;
+    // One client for the engine's one-off requests, on this one runtime (gaps row S14).
+    dm_core::share_one_client();
     crate::signals::on_signal(&runtime, {
         let wake = Arc::clone(&wake);
         move || wake(Wake::Now)

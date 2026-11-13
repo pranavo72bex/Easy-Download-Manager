@@ -142,11 +142,28 @@ pub fn refuses_http1(why: &str) -> bool {
     .any(|said| why.contains(said))
 }
 
-/// A client configured the way a download manager wants one.
+/// A client configured the way a download manager wants one: the program's one shared client
+/// where [`share_one_client`] has made it, so the one-off requests (a playlist's page, a
+/// video's reading, a checksum file) share its connections, DNS answers and TLS sessions
+/// rather than each building its own (gaps row S14); else a new one.
+pub fn client() -> reqwest::Client {
+    SHARED.get().cloned().unwrap_or_else(fresh_client)
+}
+
+/// The shared client [`client`] hands out, once made.
+static SHARED: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+
+/// Makes the one client [`client`] hands out from now on, for a program with one runtime: dm
+/// itself at its start. Not for tests, each with a runtime of its own: a pooled connection
+/// lives on the runtime that opened it, and is dead to the next.
+pub fn share_one_client() {
+    let _ = SHARED.set(fresh_client());
+}
+
 // The one `expect` dm ships: rustls is compiled in, so the only way this
 // fails is a build without a TLS backend, which is a build bug.
 #[allow(clippy::expect_used)]
-pub fn client() -> reqwest::Client {
+fn fresh_client() -> reqwest::Client {
     builder()
         .build()
         .expect("a client with no TLS backend cannot be built")

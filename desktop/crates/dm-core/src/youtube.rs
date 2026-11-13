@@ -1047,11 +1047,12 @@ pub async fn read_for(
     options: &crate::download::Options,
     staging: &Path,
 ) -> Result<String, Error> {
-    let mut builder = crate::builder();
-    if let Some(proxy) = options.proxy_for(url) {
-        builder = builder.proxy(reqwest::Proxy::all(proxy)?);
-    }
-    let client = builder.build()?;
+    // Through the proxy named, a client of its own; else the program's shared one (gaps row
+    // S14), not a new one for every video read.
+    let client = match options.proxy_for(url) {
+        Some(proxy) => crate::builder().proxy(reqwest::Proxy::all(proxy)?).build()?,
+        None => crate::client(),
+    };
     // A part is cut from MP4 streams, whose pieces are indexed; a WebM
     // line picked in the panel gives way to the MP4 at that height.
     let part = options.span.is_some();

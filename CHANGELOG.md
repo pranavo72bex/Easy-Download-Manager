@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The engine's one-off requests (a playlist's page, a video's reading) share one connection pool made at start, where each built a client of its own.
 - Keyboard: Ctrl+Tab and Ctrl+Shift+Tab move through Options' pages, the arrows move along its page tabs and between radio buttons; buttons turn lighter or darker under the pointer and more so when pressed.
 - Keyboard: F10 opens the window's first menu (Tasks) under its title, and the keyboard's Menu key opens the chosen row's menu, as Shift+F10 does.
 - Download details shows the Save to folder with your home folder as `~` and, where it is too long, cut in its middle, so the folder it ends in stays in sight; typing in it shows it whole. A folder typed with `~` is checked for its free room and names in your home folder.
