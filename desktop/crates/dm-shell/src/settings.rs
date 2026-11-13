@@ -1529,6 +1529,23 @@ pub fn full_path(typed: &str) -> Option<PathBuf> {
     }
 }
 
+/// A folder as dm writes it into a field a person reads: the home folder as `~` on macOS and
+/// Linux, where people know it, so a long path keeps its own end in sight (gaps row U17);
+/// [`full_path`] reads it back. As it is on Windows, where `~` means nothing to Explorer.
+pub fn home_short(path: &str) -> String {
+    if cfg!(windows) {
+        return path.to_string();
+    }
+    let Some(home) = dirs::home_dir() else {
+        return path.to_string();
+    };
+    match std::path::Path::new(path).strip_prefix(&home) {
+        Ok(rest) if rest.as_os_str().is_empty() => "~".into(),
+        Ok(rest) => format!("~/{}", rest.display()),
+        Err(_) => path.to_string(),
+    }
+}
+
 /// A folder for one download, as a full path: `~` is the home folder, and a
 /// relative one is taken against `base` — the folder of the command that
 /// asked, which a running dm handed the request does not share (a Dock

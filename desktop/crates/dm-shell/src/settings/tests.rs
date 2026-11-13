@@ -1415,3 +1415,18 @@ fn the_side_panels_width_is_bounded_and_kept() {
     assert_eq!(SIDEBAR_WIDTH.held(400.4), 400.0);
     assert_eq!(SIDEBAR_WIDTH.held(222.2), 222.0);
 }
+
+/// The home folder is written as `~` where dm fills a folder in, and read back whole (gaps row
+/// U17); a folder elsewhere, or one only beginning with the home's letters, is left as it is.
+#[cfg(not(windows))]
+#[test]
+fn a_folder_in_home_is_written_with_a_tilde_and_read_back() {
+    let home = dirs::home_dir().unwrap();
+    let inside = home.join("Downloads").join("Films");
+    assert_eq!(home_short(&inside.display().to_string()), "~/Downloads/Films");
+    assert_eq!(full_path("~/Downloads/Films"), Some(inside));
+    assert_eq!(home_short(&home.display().to_string()), "~");
+    let beside = format!("{}2/x", home.display());
+    assert_eq!(home_short(&beside), beside);
+    assert_eq!(home_short("/tmp/x"), "/tmp/x");
+}

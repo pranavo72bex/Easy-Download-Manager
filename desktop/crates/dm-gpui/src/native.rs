@@ -106,7 +106,7 @@ pub fn button(
 
 /// A one-line text field, as tall as the other controls, its text 6 points
 /// in, as the system's.
-pub fn field(input: &Entity<InputState>, name: &'static str, theme: Theme) -> impl IntoElement {
+pub fn field(input: &Entity<InputState>, name: &'static str, theme: Theme) -> Div {
     field_if(input, name, true, theme)
 }
 
@@ -117,7 +117,7 @@ pub fn field_if(
     name: &'static str,
     on: bool,
     theme: Theme,
-) -> impl IntoElement {
+) -> Div {
     let field = Input::new(input)
         .aria_label(dm_desktop_base::i18n::t(name))
         .disabled(!on);
@@ -168,6 +168,46 @@ pub fn field_if(
             .left_0()
             .size_full(),
         )
+}
+
+/// A field that holds a folder: while it is not being typed in, it shows the path with the
+/// home folder as `~` and cut in its middle where it is too long, so both where it starts and
+/// the folder it ends in stay in sight (gaps row U17). Typing in it shows it whole, as it is.
+pub fn path_field(
+    input: &Entity<InputState>,
+    name: &'static str,
+    typing: bool,
+    theme: Theme,
+    cx: &gpui::App,
+) -> impl IntoElement {
+    let value = input.read(cx).value().to_string();
+    let shown = (!typing && !value.trim().is_empty())
+        .then(|| SharedString::from(dm_shell::settings::home_short(value.trim())));
+    field(input, name, theme).when_some(shown, |d, shown| {
+        d.child(
+            div()
+                .absolute()
+                .top(px(1.0))
+                .bottom(px(1.0))
+                .left(px(1.0))
+                .right(px(1.0))
+                .rounded(px(RADIUS))
+                .bg(theme.field)
+                .px(px(5.0))
+                .flex()
+                .items_center()
+                .overflow_hidden()
+                .text_size(px(TEXT))
+                .text_color(theme.text)
+                .child(
+                    div()
+                        .w_full()
+                        .whitespace_nowrap()
+                        .text_ellipsis_middle()
+                        .child(shown),
+                ),
+        )
+    })
 }
 
 /// A form's row: `label` right-aligned in a column `label_width` wide, its

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Download details shows the Save to folder with your home folder as `~` and, where it is too long, cut in its middle, so the folder it ends in stays in sight; typing in it shows it whole. A folder typed with `~` is checked for its free room and names in your home folder.
 - A row's own buttons are the egui window's again: Resume on a paused row, Retry on a failed one, Details (its progress window) on one not finished, and Delete on one stopped or finished; with the progress window off, a started download says once that Details shows its progress.
 - YouTube's checks and proxy configuration scripts run in dm's own JavaScript interpreter, written in Rust as part of dm, in place of the computer's engine (JavaScriptCore, Chakra): dm no longer needs WebKitGTK's JavaScriptCore on Linux, and runs no JavaScript engine of anyone else's.
 - The side panel's group headings (All Downloads, Queues) show a drawn arrow: up while the group is open, to close it, down while it is shut, to open it, where a font's `⌄` and `›` sat at odd heights.

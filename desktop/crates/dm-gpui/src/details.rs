@@ -624,7 +624,8 @@ impl Render for Details {
             let dir = if folder_now.is_empty() {
                 self.settings.download_dir.clone()
             } else {
-                std::path::PathBuf::from(&folder_now)
+                dm_shell::settings::full_path(&folder_now)
+                    .unwrap_or_else(|| std::path::PathBuf::from(&folder_now))
             };
             // The folder may not be made yet: what holds it is asked.
             let there = dir
@@ -1012,10 +1013,12 @@ impl Render for Details {
                             .flex()
                             .items_center()
                             .gap(px(native::LABEL_GAP))
-                            .child(div().flex_1().min_w_0().child(native::field(
+                            .child(div().flex_1().min_w_0().child(native::path_field(
                                 &self.folder,
                                 "Save to folder",
+                                gpui::Focusable::focus_handle(self.folder.read(cx), cx).is_focused(window),
                                 theme,
+                                cx,
                             )))
                             .child(
                                 native::button(

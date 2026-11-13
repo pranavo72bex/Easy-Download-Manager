@@ -77,7 +77,8 @@ pub fn default_folder_words(settings: &Settings) -> String {
 /// the download folder.
 pub fn folder_for(settings: &Settings, typed: &str, url: &str, name: &str) -> PathBuf {
     if !typed.trim().is_empty() {
-        PathBuf::from(typed.trim())
+        // `~` typed, or written by the field (gaps row U17), is the home folder.
+        dm_shell::settings::full_path(typed).unwrap_or_else(|| PathBuf::from(typed.trim()))
     } else if let Some(rule) = settings
         .site_rule_for(url)
         .filter(|rule| !rule.folder.is_empty())
@@ -487,6 +488,22 @@ mod clash_tests {
         // Its own, with another row still waiting for the name: numbered.
         let more = [mine[0].clone(), row(8, "other.pdf", "queued", "")];
         assert_eq!(clash(&more, Some(7)), Some(Clash::Listed));
+    }
+
+    /// A folder typed with `~`, as Download details shows one (gaps row U17), is the home
+    /// folder's, for the name it takes and the room it has, as it is for the download itself.
+    #[test]
+    fn a_folder_typed_with_a_tilde_is_in_the_home_folder() {
+        let home = dm_shell::settings::full_path("~").unwrap();
+        let settings = Settings::default();
+        assert_eq!(
+            folder_for(&settings, "~/Films", "https://e.com/a.mp4", "a.mp4"),
+            home.join("Films")
+        );
+        assert_eq!(
+            folder_for(&settings, " /tmp/x ", "https://e.com/a.mp4", "a.mp4"),
+            PathBuf::from("/tmp/x")
+        );
     }
 }
 
