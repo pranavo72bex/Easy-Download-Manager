@@ -465,8 +465,21 @@ fn privacy() -> Result<(), String> {
         "extension",
     ] {
         for file in walk(&root.join(dir)) {
-            // A module's tests live in its `tests.rs`, or start at #[cfg(test)].
-            if file.file_name().is_some_and(|n| n == "tests.rs") {
+            // A module's tests live in its `tests.rs`, or start at #[cfg(test)]; the
+            // window's tests and their harness are test modules of their own
+            // (`dm-gpui/src/window_tests`, `harness`), whose files hold no #[cfg(test)].
+            let test_only = file.components().any(|c| {
+                [
+                    "tests.rs",
+                    "window_tests",
+                    "window_tests.rs",
+                    "harness",
+                    "harness.rs",
+                ]
+                .iter()
+                .any(|t| c.as_os_str() == *t)
+            });
+            if test_only {
                 continue;
             }
             let Ok(text) = std::fs::read_to_string(&file) else {

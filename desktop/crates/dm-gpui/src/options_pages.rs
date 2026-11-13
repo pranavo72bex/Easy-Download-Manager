@@ -23,6 +23,8 @@ use crate::screen::Screen;
 use crate::theme::Theme;
 use crate::zoom::px;
 
+mod dialup;
+
 /// A field for a number.
 const NUMBER: f32 = 90.0;
 /// A field for a name or an address.
@@ -350,7 +352,7 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
         "dialup-connection" => {
             if i == 0 {
                 s.dialup.connection.clear();
-            } else if let Some(found) = known_connections().get(i - 1) {
+            } else if let Some(found) = dialup::known_connections().get(i - 1) {
                 s.dialup.connection = found.clone();
             }
         }
@@ -1979,7 +1981,7 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
     // window's, in reference A's words and order (contract B43). Windows
     // only: the connections are the ones Windows knows.
     if cfg!(windows) {
-        dialup(o, p, window, cx);
+        dialup::dialup(o, p, window, cx);
     }
     p.section(t("BitTorrent"));
     let blocklist = input(
@@ -2215,122 +2217,6 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
     ));
 }
 
-/// The connections Windows knows (none elsewhere), read again at most every
-/// two seconds: the page is drawn every frame it is open.
-fn known_connections() -> Vec<String> {
-    static READ: std::sync::Mutex<Option<(std::time::Instant, Vec<String>)>> =
-        std::sync::Mutex::new(None);
-    let mut read = dm_core::lock(&READ);
-    match &*read {
-        Some((at, names)) if at.elapsed() < std::time::Duration::from_secs(2) => names.clone(),
-        _ => {
-            let names = dm_shell::dialup::connections();
-            *read = Some((std::time::Instant::now(), names.clone()));
-            names
-        }
-    }
-}
-
-/// Advanced's Dial Up / VPN section (Windows), as the egui window's:
-/// reference A's switch, then the connection with its sign-in, then the
-/// redials, which wait for a connection chosen.
-fn dialup(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
-    let (theme, screen) = (p.theme, p.screen.clone());
-    let dial = o.draft.dialup.clone();
-    p.section(t("Dial Up / VPN"));
-    check(
-        p,
-        cx,
-        "dialup-enabled",
-        t("Use Windows Dial Up / VPN Networking"),
-        dial.enabled,
-        true,
-        |s| s.dialup.enabled = !s.dialup.enabled,
-    );
-    let on = dial.enabled;
-    let known = known_connections();
-    let choices: Vec<SharedString> = std::iter::once(t("None").into())
-        .chain(known.iter().map(|name| SharedString::from(name.clone())))
-        .collect();
-    let (now, chosen) = if dial.connection.is_empty() {
-        (t("None").to_string(), Some(0))
-    } else {
-        (
-            dial.connection.clone(),
-            known
-                .iter()
-                .position(|name| *name == dial.connection)
-                .map(|i| i + 1),
-        )
-    };
-    p.labelled(
-        t("Connection"),
-        on,
-        popup::button(
-            "dialup-connection",
-            now.into(),
-            choices,
-            chosen,
-            theme,
-            &screen,
-        ),
-    );
-    let chosen_one = on && !dial.connection.is_empty();
-    for (key, words, masked) in [
-        ("dialup.username", "User name", false),
-        ("dialup.password", "Password", true),
-    ] {
-        let field = input(
-            o,
-            window,
-            cx,
-            key,
-            words,
-            200.0,
-            chosen_one,
-            masked,
-            move |o| match key {
-                "dialup.username" => o.draft.dialup.username.clone(),
-                _ => o.draft.dialup.password.clone(),
-            },
-        );
-        p.labelled(t(words), chosen_one, field);
-    }
-    check(
-        p,
-        cx,
-        "dialup-save-password",
-        t("Save password"),
-        dial.save_password,
-        chosen_one,
-        |s| s.dialup.save_password = !s.dialup.save_password,
-    );
-    for (key, words) in [
-        ("dialup.attempts", "Redial attempts (zero if endlessly)"),
-        (
-            "dialup.wait_seconds",
-            "Time between redial attempts (seconds)",
-        ),
-    ] {
-        let field = input(
-            o,
-            window,
-            cx,
-            key,
-            words,
-            NUMBER,
-            chosen_one,
-            false,
-            move |o| match key {
-                "dialup.attempts" => o.draft.dialup.attempts.to_string(),
-                _ => o.draft.dialup.wait_seconds.to_string(),
-            },
-        );
-        p.labelled(t(words), chosen_one, field);
-    }
-    p.note(t("A connection Windows knows (Settings › Network & internet › Dial-up or VPN). A download waits while dm connects it, and stops if it does not come up. With no user name or password here, dm uses the ones Windows keeps; without Save password, the one typed is forgotten when dm closes."));
-}
-
 /// Who opens magnet links and `.torrent` files on this computer (Windows),
 /// as the egui window's Browser page says it: each with a button that makes
 /// it dm where it is not, and one that gives it back to the program that
@@ -2530,7 +2416,7 @@ fn sign_ins(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
 
 #[cfg(test)]
 mod tests {
-    use super::known_connections;
+    use super::dialup::known_connections;
 
     #[test]
     fn the_connections_known_are_read_again_only_after_a_while() {
