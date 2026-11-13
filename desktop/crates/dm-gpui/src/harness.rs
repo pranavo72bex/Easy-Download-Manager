@@ -315,6 +315,16 @@ impl Harness {
     /// Presses `key` (`"enter"`, `"escape"`, `"a"`…), with `modifiers` (`"cmd"`, `"shift"`…).
     #[allow(dead_code)]
     pub(crate) fn key(&mut self, key: &str, modifiers: &[&str]) {
+        // "cmd" is the system's command key, as the tests mean it: Ctrl on Windows and Linux,
+        // where the Windows or Super key selected nothing and opened nothing (Windows CI,
+        // 2026-11-13: a field typed into kept its old text beside the new).
+        let modifiers: Vec<&str> = modifiers
+            .iter()
+            .map(|m| match *m {
+                "cmd" if !cfg!(target_os = "macos") => "ctrl",
+                other => other,
+            })
+            .collect();
         let asked = serde_json::json!({ "key": key, "modifiers": modifiers });
         if let Err(why) = self.call("ui.key", asked) {
             panic!("{key} could not be pressed: {why}");
