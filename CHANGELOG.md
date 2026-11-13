@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Keyboard: Ctrl+Tab and Ctrl+Shift+Tab move through Options' pages, the arrows move along its page tabs and between radio buttons; buttons turn lighter or darker under the pointer and more so when pressed.
 - Keyboard: F10 opens the window's first menu (Tasks) under its title, and the keyboard's Menu key opens the chosen row's menu, as Shift+F10 does.
 - Download details shows the Save to folder with your home folder as `~` and, where it is too long, cut in its middle, so the folder it ends in stays in sight; typing in it shows it whole. A folder typed with `~` is checked for its free room and names in your home folder.
 - A row's own buttons are the egui window's again: Resume on a paused row, Retry on a failed one, Details (its progress window) on one not finished, and Delete on one stopped or finished; with the progress window off, a started download says once that Details shows its progress.

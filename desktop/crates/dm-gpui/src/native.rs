@@ -101,6 +101,15 @@ pub fn button(
                 .border_1()
                 .border_color(theme.control_border)
         })
+        // Answering the pointer: lighter or darker under it, more so pressed (gaps row U2).
+        .hover(move |s| {
+            let face = if default { theme.accent } else { theme.control };
+            s.bg(theme.answering(face, crate::theme::HOVERED))
+        })
+        .active(move |s| {
+            let face = if default { theme.accent } else { theme.control };
+            s.bg(theme.answering(face, crate::theme::PRESSED))
+        })
         .child(screen.label(words))
 }
 
@@ -354,9 +363,21 @@ pub fn radio(
         .role(Role::RadioButton)
         .aria_label(words.clone())
         .off_where_greyed()
-        // Reached by Tab, chosen by Space, its place ringed (gaps row U2).
+        // Reached by Tab, chosen by Space, its place ringed (gaps row U2); the arrows move
+        // to the radio before or after it, as in the system's groups of them.
         .tab_index(0)
         .focus(move |s| s.bg(theme.stripe))
+        .on_key_down(|event: &gpui::KeyDownEvent, window, cx| {
+            if event.keystroke.modifiers.modified() {
+                return;
+            }
+            match event.keystroke.key.as_str() {
+                "up" | "left" => window.focus_prev(cx),
+                "down" | "right" => window.focus_next(cx),
+                _ => return,
+            }
+            cx.stop_propagation();
+        })
         .aria_toggled(if on {
             gpui::Toggled::True
         } else {

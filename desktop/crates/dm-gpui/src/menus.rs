@@ -150,6 +150,16 @@ pub struct FocusPrevious;
 #[action(namespace = dm, no_json)]
 pub struct RowMenuByKey;
 
+/// Ctrl+Tab: Options' next page (gaps row U2).
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct NextPage;
+
+/// Ctrl+Shift+Tab: Options' page before.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct PreviousPage;
+
 /// F10: the window's first menu (Tasks) opened under its title, as a desktop's menu bar opens
 /// from the keyboard (gaps row U6).
 #[derive(Clone, PartialEq, Default, Action)]
@@ -410,6 +420,9 @@ pub fn bind_keys(cx: &mut App) {
     // The keyboard's Menu key, on Windows and Linux keyboards, as a right-click (gaps row U6).
     bindings.push(KeyBinding::new("menu", RowMenuByKey, None));
     bindings.push(KeyBinding::new("f10", MenuBarByKey, None));
+    // A tab view's next and previous page, on every system (Options).
+    bindings.push(KeyBinding::new("ctrl-tab", NextPage, None));
+    bindings.push(KeyBinding::new("ctrl-shift-tab", PreviousPage, None));
     // Tab and Shift+Tab walk a window's controls (gaps row U2), from a text field too: its own
     // indenting, bound in its context, is for a code editor, not a form, and this binding of the
     // same context, made after it, comes first.

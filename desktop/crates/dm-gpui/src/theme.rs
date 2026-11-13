@@ -134,7 +134,25 @@ impl Theme {
             self.accent
         }
     }
+
+    /// A control's face under the pointer (`amount` 0.08) or pressed (0.16): moved that far
+    /// toward the text's colour, so lighter on a dark window and darker on a light one, as
+    /// the system's buttons answer (gaps row U2).
+    pub fn answering(self, face: Rgba, amount: f32) -> Rgba {
+        let mix = |a: f32, b: f32| a + (b - a) * amount;
+        Rgba {
+            r: mix(face.r, self.text.r),
+            g: mix(face.g, self.text.g),
+            b: mix(face.b, self.text.b),
+            a: face.a,
+        }
+    }
 }
+
+/// Under the pointer and pressed, as [`Theme::answering`] moves a face.
+pub const HOVERED: f32 = 0.08;
+/// Pressed.
+pub const PRESSED: f32 = 0.16;
 
 /// WCAG's contrast of `words` laid over the opaque `back`.
 fn words_on(words: Rgba, back: Rgba) -> f32 {

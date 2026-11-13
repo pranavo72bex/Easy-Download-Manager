@@ -124,3 +124,23 @@ fn sign_ins_add_and_delete_a_login() {
     });
     h.close_dialogs();
 }
+
+/// Ctrl+Tab and Ctrl+Shift+Tab move through Options' pages, round the end, as a tab view's
+/// keys do (gaps row U2).
+#[test]
+fn ctrl_tab_moves_from_page_to_page() {
+    let world = world();
+    let mut h = world.harness();
+    options_at(&mut h, "General");
+    let page = |h: &mut Harness| h.dialog(|o: &mut Options, _, _| o.tab);
+    h.key("tab", &["ctrl"]);
+    h.until("the next page", |h| {
+        page(h) == dm_desktop_base::options::Tab::FileTypes
+    });
+    h.key("tab", &["ctrl", "shift"]);
+    h.until("back", |h| page(h) == dm_desktop_base::options::Tab::General);
+    h.key("tab", &["ctrl", "shift"]);
+    h.until("round to the last", |h| {
+        page(h) == dm_desktop_base::options::Tab::SiteLogins
+    });
+}
