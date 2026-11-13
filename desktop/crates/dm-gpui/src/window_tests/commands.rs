@@ -494,7 +494,14 @@ fn every_menu_item_clicked_does_what_it_says() {
     let rows = h.rows().len();
     h.choose_ahead(&list);
     press(&mut h, &["Tasks", "Import"]);
-    h.until("Tasks › Import", |h| h.said().starts_with("Imported"));
+    // A row of the list still there (under load a download the list kept may not have
+    // finished or gone yet) is asked about: kept once, the others come back.
+    h.until("Tasks › Import", |h| {
+        if h.shows("Skip them") {
+            h.click("Skip them");
+        }
+        h.said().starts_with("Imported")
+    });
     h.until("the rows imported", |h| h.rows().len() > rows);
 
     // With nothing downloading, Exit quits; with something, it asks.

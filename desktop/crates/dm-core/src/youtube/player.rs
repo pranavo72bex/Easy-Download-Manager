@@ -1016,4 +1016,29 @@ document.body.appendChild(null);})(_yt_player);
         .unwrap_err();
         assert!(why.contains("no answer for sig xyz"), "{why}");
     }
+    /// The live player (a file named by `DM_JS_PLAYER`, YouTube's `base.js`) answers the same
+    /// in dm's own interpreter as in the computer's engine (gaps row F15, stage 5).
+    #[tokio::test]
+    async fn the_live_player_answers_the_same_in_dm_js() {
+        let Some(path) = std::env::var_os("DM_JS_PLAYER") else {
+            eprintln!("DM_JS_PLAYER not set: not run");
+            return;
+        };
+        let player = std::fs::read_to_string(path).unwrap();
+        let program = program(&player).unwrap();
+        let asked = call(
+            &["qx4bZJdOsBf7pXcM", "AAAAAAAAAAAAAAAA"],
+            &["AOq0QJ8wRQIhAJOPkbz9cO6FpXmDfaA8n3qYhRjM2iVxw7BtZuS1LP5mAiAF0eHgYpTr9rkSvCdLa3UzNjXqWs6Ei2Jf1oKbwcBmQ=="],
+        );
+        let started = std::time::Instant::now();
+        let own = dm_js::evaluate(&program, &asked, std::time::Duration::from_secs(60));
+        eprintln!("dm-js: {:?} in {:?}", own, started.elapsed());
+        if !an_engine_is_here() {
+            return;
+        }
+        let system =
+            crate::javascript::run(&program, &asked, std::time::Duration::from_secs(60)).await;
+        eprintln!("system: {system:?}");
+        assert_eq!(own, system);
+    }
 }

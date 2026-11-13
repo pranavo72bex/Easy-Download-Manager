@@ -3,9 +3,16 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The computer's own JavaScript engine, for the little JavaScript dm runs: the program that
-//! answers YouTube's player checks (`youtube::player`), and a proxy configuration script
-//! (`pac::evaluate_here`).
+//! The JavaScript dm runs: the program that answers YouTube's player checks
+//! (`youtube::player`), and a proxy configuration script (`pac::evaluate_here`).
+//!
+//! dm's own interpreter answers first (`dm_js`, gaps row F15): Rust, in dm's own process, with
+//! nothing of the computer in its reach and a time limit. On YouTube's live player it gives the
+//! same answers as the computer's engine. Where it cannot answer, the computer's own engine
+//! below still does, as it did before (`DM_SYSTEM_JS` set asks it alone), until dm-js has run
+//! long enough on its own for that engine and its sandbox to go (rows F15, 201).
+//!
+//! The computer's own engine:
 //!
 //! On Windows it is Windows' own Chakra (`chakra.dll`, part of Windows 10 and 11), as reference
 //! A runs its YouTube pieces in Windows' own JScript engine: nothing is fetched or shipped for
@@ -190,6 +197,24 @@ pub fn system_engine_here() -> bool {
 /// has: that is how a test of what dm does with an answer runs where no engine is.
 pub(crate) async fn run(program: &str, call: &str, within: Duration) -> Result<String, String> {
     let host = crate::lock(&HOST).clone();
+    // A test's stand-in host answers in place of any engine (what it is asked is made up).
+    let stand_in = host
+        .as_ref()
+        .is_some_and(|host| std::env::current_exe().map_or(true, |me| me != host.program));
+    // dm's own interpreter first (gaps row F15): Rust, in this process, nothing of the computer
+    // in its reach. Where it cannot answer, the computer's engine below still does, as before;
+    // `DM_SYSTEM_JS` set asks the computer's engine alone (to set the two side by side).
+    if !stand_in && std::env::var_os("DM_SYSTEM_JS").is_none() {
+        let (p, c) = (program.to_string(), call.to_string());
+        let own = tokio::task::spawn_blocking(move || dm_js::evaluate(&p, &c, within))
+            .await
+            .unwrap_or_else(|_| Err("dm's JavaScript interpreter stopped".into()));
+        match own {
+            Ok(answer) => return Ok(answer),
+            Err(why) if !system_engine_here() => return Err(why),
+            Err(_) => {}
+        }
+    }
     #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     if let Some(host) = host {
         let stand_in = std::env::current_exe().map_or(true, |me| me != host.program);

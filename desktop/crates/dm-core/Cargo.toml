@@ -8,6 +8,8 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# dm's own JavaScript interpreter (gaps row F15).
+dm-js = { path = "../dm-js" }
 # Already in the tree through reqwest; named for its chunk type.
 bytes = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }

@@ -2022,6 +2022,7 @@ dependencies = [
  "chrono",
  "crc32fast",
  "dirs 7.0.0",
+ "dm-js",
  "flate2",
  "futures-util",
  "getrandom 0.4.3",
