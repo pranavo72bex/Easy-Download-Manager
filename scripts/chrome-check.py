@@ -841,8 +841,13 @@ def devtools(profile):
 
 
 def targets(base):
-    with urllib.request.urlopen(f"{base}/json/list", timeout=10) as reply:
-        return json.load(reply)
+    # A browser still starting can hold DevTools' list past the wait (CI, 2026-11-13: the
+    # whole check ended on one slow answer): none yet, and `wait_for` asks again.
+    try:
+        with urllib.request.urlopen(f"{base}/json/list", timeout=10) as reply:
+            return json.load(reply)
+    except (TimeoutError, urllib.error.URLError, ConnectionError):
+        return []
 
 
 def open_tab(base, url):
