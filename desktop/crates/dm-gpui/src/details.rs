@@ -1013,13 +1013,16 @@ impl Render for Details {
                             .flex()
                             .items_center()
                             .gap(px(native::LABEL_GAP))
-                            .child(div().flex_1().min_w_0().child(native::path_field(
-                                &self.folder,
-                                "Save to folder",
-                                gpui::Focusable::focus_handle(self.folder.read(cx), cx).is_focused(window),
-                                theme,
-                                cx,
-                            )))
+                            .child(
+                                div().flex_1().min_w_0().child(native::path_field(
+                                    &self.folder,
+                                    "Save to folder",
+                                    gpui::Focusable::focus_handle(self.folder.read(cx), cx)
+                                        .is_focused(window),
+                                    theme,
+                                    cx,
+                                )),
+                            )
                             .child(
                                 native::button(
                                     "browse",

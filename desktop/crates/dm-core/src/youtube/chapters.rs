@@ -45,7 +45,10 @@ pub(super) fn chapters_in(description: &str) -> Vec<(u64, String)> {
         let Some(start) = seconds(clock.trim_start_matches('(').trim_end_matches(')')) else {
             continue;
         };
-        let name = rest.trim().trim_start_matches(['-', '–', '—', ':', '|']).trim();
+        let name = rest
+            .trim()
+            .trim_start_matches(['-', '–', '—', ':', '|'])
+            .trim();
         if name.is_empty() {
             continue;
         }
@@ -98,9 +101,15 @@ mod tests {
                 (3723, "Élephants".to_string())
             ]
         );
-        assert!(chapters_in("0:10 a\n0:20 b\n0:30 c").is_empty(), "not from 0:00");
+        assert!(
+            chapters_in("0:10 a\n0:20 b\n0:30 c").is_empty(),
+            "not from 0:00"
+        );
         assert!(chapters_in("0:00 a\n0:20 b").is_empty(), "two");
-        assert!(chapters_in("0:00 a\n0:20 b\n0:10 c").is_empty(), "going back");
+        assert!(
+            chapters_in("0:00 a\n0:20 b\n0:10 c").is_empty(),
+            "going back"
+        );
         assert!(chapters_in("no list here").is_empty());
         let player = json!({"videoDetails": {"thumbnail": {"thumbnails": [
             {"url": "https://i.ytimg.com/vi/x/default.jpg", "width": 120},

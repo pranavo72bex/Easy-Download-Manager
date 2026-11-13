@@ -121,12 +121,7 @@ pub fn field(input: &Entity<InputState>, name: &'static str, theme: Theme) -> Di
 
 /// A field that takes no typing while `on` is false, greyed as the
 /// system greys one.
-pub fn field_if(
-    input: &Entity<InputState>,
-    name: &'static str,
-    on: bool,
-    theme: Theme,
-) -> Div {
+pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme: Theme) -> Div {
     let field = Input::new(input)
         .aria_label(dm_desktop_base::i18n::t(name))
         .disabled(!on);

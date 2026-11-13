@@ -138,7 +138,9 @@ fn ctrl_tab_moves_from_page_to_page() {
         page(h) == dm_desktop_base::options::Tab::FileTypes
     });
     h.key("tab", &["ctrl", "shift"]);
-    h.until("back", |h| page(h) == dm_desktop_base::options::Tab::General);
+    h.until("back", |h| {
+        page(h) == dm_desktop_base::options::Tab::General
+    });
     h.key("tab", &["ctrl", "shift"]);
     h.until("round to the last", |h| {
         page(h) == dm_desktop_base::options::Tab::SiteLogins

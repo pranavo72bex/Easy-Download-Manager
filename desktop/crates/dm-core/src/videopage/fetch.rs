@@ -707,7 +707,9 @@ async fn fetch_part(
 /// as it is.
 fn iso_day(day: &str) -> String {
     match (day.get(..4), day.get(4..6), day.get(6..8)) {
-        (Some(y), Some(m), Some(d)) if day.len() == 8 && day.bytes().all(|b| b.is_ascii_digit()) => {
+        (Some(y), Some(m), Some(d))
+            if day.len() == 8 && day.bytes().all(|b| b.is_ascii_digit()) =>
+        {
             format!("{y}-{m}-{d}")
         }
         _ => day.to_string(),

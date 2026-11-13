@@ -128,8 +128,7 @@ async fn finish_dm_tagged(
                 "mp4"
             });
             let joining = if webm || mkv {
-                crate::mkvmux::join_tagged_async(parts.clone(), texts, joined.clone(), tags)
-                    .await
+                crate::mkvmux::join_tagged_async(parts.clone(), texts, joined.clone(), tags).await
             } else {
                 crate::mp4mux::join_cut_tagged_async(
                     parts.clone(),

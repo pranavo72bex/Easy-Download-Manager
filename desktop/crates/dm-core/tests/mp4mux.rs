@@ -1484,8 +1484,13 @@ fn a_joined_webm_says_its_title_artist_and_page() {
         b"2005-04-23",
         b"https://www.youtube.com/watch?v=jNQXAC9IVRw",
     ] {
-        let found = at(said).unwrap_or_else(|| panic!("{} not said", String::from_utf8_lossy(said)));
-        assert!(found < cluster, "{} after the first cluster", String::from_utf8_lossy(said));
+        let found =
+            at(said).unwrap_or_else(|| panic!("{} not said", String::from_utf8_lossy(said)));
+        assert!(
+            found < cluster,
+            "{} after the first cluster",
+            String::from_utf8_lossy(said)
+        );
     }
     let ours = read_webm(&webm);
     assert_eq!(ours.tracks.len(), 2, "the picture and the sound, as before");

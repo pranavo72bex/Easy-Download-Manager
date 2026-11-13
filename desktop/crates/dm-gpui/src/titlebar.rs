@@ -337,7 +337,9 @@ impl Downloads {
 
     /// F10: the first menu, under its title.
     pub(crate) fn menu_bar_by_key(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let x = TITLES_AT.with(|at| at.borrow().first().copied()).unwrap_or(px(CONTROLS_AT));
+        let x = TITLES_AT
+            .with(|at| at.borrow().first().copied())
+            .unwrap_or(px(CONTROLS_AT));
         self.open_window_menu(0, x, window, cx);
     }
 }

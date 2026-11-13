@@ -3183,8 +3183,21 @@ async fn a_row_that_is_not_downloading_has_no_speed_or_time_left() {
     assert_eq!(row.progress.eta, None, "a paused row kept its time left");
 
     q.resume(id).await;
-    q.run().await;
-    let row = q.get(id).await.unwrap();
+    // The runner spawned above may still be looking at the queue (it waits up to a second
+    // between looks), and a second `run` returns at once while one runs: it is waited for by
+    // the row, not by `run` (Windows CI, 2026-11-13: `run` came back with the row Queued).
+    tokio::spawn({
+        let q = q.clone();
+        async move { q.run().await }
+    });
+    let mut row = q.get(id).await.unwrap();
+    for _ in 0..300 {
+        if row.state == DownloadState::Completed {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        row = q.get(id).await.unwrap();
+    }
     assert_eq!(row.state, DownloadState::Completed);
     assert_eq!(row.progress.speed, 0.0, "a finished row kept its speed");
     assert_eq!(row.progress.eta, None, "a finished row kept its time left");

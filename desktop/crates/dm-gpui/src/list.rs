@@ -2291,9 +2291,11 @@ impl Render for Downloads {
                 this.refresh_menus(cx);
                 cx.notify();
             }))
-            .on_action(cx.listener(|this, _: &crate::menus::MenuBarByKey, window, cx| {
-                this.menu_bar_by_key(window, cx);
-            }))
+            .on_action(
+                cx.listener(|this, _: &crate::menus::MenuBarByKey, window, cx| {
+                    this.menu_bar_by_key(window, cx);
+                }),
+            )
             .on_action(cx.listener(|this, _: &crate::menus::RowMenuByKey, _, cx| {
                 this.row_menu_by_key();
                 cx.notify();

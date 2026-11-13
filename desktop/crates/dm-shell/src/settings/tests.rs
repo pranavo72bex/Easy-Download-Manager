@@ -1423,7 +1423,10 @@ fn the_side_panels_width_is_bounded_and_kept() {
 fn a_folder_in_home_is_written_with_a_tilde_and_read_back() {
     let home = dirs::home_dir().unwrap();
     let inside = home.join("Downloads").join("Films");
-    assert_eq!(home_short(&inside.display().to_string()), "~/Downloads/Films");
+    assert_eq!(
+        home_short(&inside.display().to_string()),
+        "~/Downloads/Films"
+    );
     assert_eq!(full_path("~/Downloads/Films"), Some(inside));
     assert_eq!(home_short(&home.display().to_string()), "~");
     let beside = format!("{}2/x", home.display());

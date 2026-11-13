@@ -221,9 +221,13 @@ fn menus_open_from_the_keyboard() {
     h.key("escape", &[]);
     h.until("the row menu shut", |h| h.view(|view| !view.menu_open()));
     h.key("menu", &[]);
-    h.until("the row menu by the Menu key", |h| h.view(|view| view.menu_open()));
+    h.until("the row menu by the Menu key", |h| {
+        h.view(|view| view.menu_open())
+    });
     h.key("escape", &[]);
-    h.until("the row menu shut again", |h| h.view(|view| !view.menu_open()));
+    h.until("the row menu shut again", |h| {
+        h.view(|view| !view.menu_open())
+    });
     h.key("f10", &[]);
     h.until("the first of the window's menus", |h| {
         h.view(|view| view.bar_menu_opened == Some(0))

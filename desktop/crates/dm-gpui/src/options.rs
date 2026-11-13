@@ -564,29 +564,34 @@ impl Render for Options {
                 .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
                 // On the pages' strip, the arrows move from page to page, the keyboard's
                 // place with them, as a tab view's do (gaps row U2).
-                .on_key_down(cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
-                    let by = match event.keystroke.key.as_str() {
-                        "left" | "up" => -1,
-                        "right" | "down" => 1,
-                        _ => return,
-                    };
-                    if event.keystroke.modifiers.modified() {
-                        return;
-                    }
-                    cx.stop_propagation();
-                    let at = options::TABS.iter().position(|(t, _)| *t == tab).unwrap_or(0);
-                    let last = options::TABS.len() - 1;
-                    // Not round the end, where the next place to go is another control.
-                    if (by < 0 && at == 0) || (by > 0 && at == last) {
-                        return;
-                    }
-                    this.step_page(by, cx);
-                    if by > 0 {
-                        window.focus_next(cx);
-                    } else {
-                        window.focus_prev(cx);
-                    }
-                }))
+                .on_key_down(
+                    cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
+                        let by = match event.keystroke.key.as_str() {
+                            "left" | "up" => -1,
+                            "right" | "down" => 1,
+                            _ => return,
+                        };
+                        if event.keystroke.modifiers.modified() {
+                            return;
+                        }
+                        cx.stop_propagation();
+                        let at = options::TABS
+                            .iter()
+                            .position(|(t, _)| *t == tab)
+                            .unwrap_or(0);
+                        let last = options::TABS.len() - 1;
+                        // Not round the end, where the next place to go is another control.
+                        if (by < 0 && at == 0) || (by > 0 && at == last) {
+                            return;
+                        }
+                        this.step_page(by, cx);
+                        if by > 0 {
+                            window.focus_next(cx);
+                        } else {
+                            window.focus_prev(cx);
+                        }
+                    }),
+                )
         });
         let restore = !options::tab_settings(self.tab).is_empty();
         crate::native::dialog("options", t("Options"), theme, cx)

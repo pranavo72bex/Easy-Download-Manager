@@ -32,9 +32,9 @@ mod chapters;
 mod itags;
 mod player;
 
-use chapters::{chapters_in, largest_thumbnail, publish_date};
 use crate::stream::Quality;
 use crate::Error;
+use chapters::{chapters_in, largest_thumbnail, publish_date};
 
 /// The TV client this reads with today: its answers carry plain
 /// addresses and want no proof-of-origin token.
@@ -1053,7 +1053,9 @@ pub async fn read_for(
     // Through the proxy named, a client of its own; else the program's shared one (gaps row
     // S14), not a new one for every video read.
     let client = match options.proxy_for(url) {
-        Some(proxy) => crate::builder().proxy(reqwest::Proxy::all(proxy)?).build()?,
+        Some(proxy) => crate::builder()
+            .proxy(reqwest::Proxy::all(proxy)?)
+            .build()?,
         None => crate::client(),
     };
     // A part is cut from MP4 streams, whose pieces are indexed; a WebM
