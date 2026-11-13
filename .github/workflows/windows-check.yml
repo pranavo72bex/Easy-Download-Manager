@@ -39,11 +39,12 @@ jobs:
           DM_BINARY: ${{ github.workspace }}\desktop\target\release\dm-gpui.exe
           PYTHONUNBUFFERED: "1"
         run: python scripts/app-check.py
-      - name: Out of the box, nothing installed
-        # QuickJS, fetched by dm's own code from GitHub, checked, and run
-        # on Windows: what dm falls back on where Windows has no engine of
-        # its own (YouTube's checks and proxy scripts run in Windows' own).
+      - name: YouTube read by dm's own JavaScript alone
+        # dm-js (gaps row F15), with Windows' own Chakra kept out (DM_JS_ONLY): live
+        # videos read and the first kilobyte of each chosen stream asked for, as a download
+        # asks it.
         working-directory: desktop
         env:
-          DM_NETWORK_TESTS: "1"
-        run: cargo test -p dm-core --test tools --locked -- --nocapture
+          DM_JS_ONLY: "1"
+          DM_FETCH_FIRST: "1"
+        run: cargo run --release -p dm-core --example youtube_read --locked -- "https://www.youtube.com/watch?v=jNQXAC9IVRw" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
