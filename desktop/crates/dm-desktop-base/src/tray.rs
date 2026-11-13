@@ -164,12 +164,17 @@ mod sni {
         check(&connection, register).unwrap_or(false)
     }
 
-    /// Every few seconds, for as long as dm runs: the tray item stays
-    /// registered with whatever watcher there is.
+    /// For as long as dm runs, the tray item stays registered with whatever watcher there is:
+    /// registered again each time the watcher's name is taken (a panel started after dm, or
+    /// restarted), as the bus says it is (`NameOwnerChanged`), not looked at every few seconds
+    /// (gaps row S18). Where the bus will not say, looked at every few seconds as before.
     pub fn keep_registered() {
         let _ = std::thread::Builder::new()
             .name("dm-tray-watch".into())
             .spawn(|| {
+                if let Ok(connection) = Connection::session() {
+                    let _ = follow_the_watcher(&connection);
+                }
                 let mut connection = None;
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(5));
@@ -181,6 +186,28 @@ mod sni {
                     }
                 }
             });
+    }
+
+    /// Registers the tray item again with each new owner of the watcher's name, for as long
+    /// as the bus is there to say so.
+    fn follow_the_watcher(connection: &Connection) -> zbus::Result<()> {
+        let bus = DBusProxy::new(connection)?;
+        let owners = bus.receive_name_owner_changed_with_args(&[(0, WATCHER)])?;
+        for changed in owners {
+            let Ok(args) = changed.args() else { continue };
+            if args.new_owner().is_some() {
+                // A watcher that has just taken its name may drop a registration before it
+                // answers calls (`shown`): asked again, half a second, then 1, 2 and 4 s later,
+                // until it lists the item.
+                for wait in [0, 500, 1_000, 2_000, 4_000] {
+                    std::thread::sleep(std::time::Duration::from_millis(wait));
+                    if check(connection, true).unwrap_or(false) {
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Whether a call ran out of the connection's time (`method_timeout`).

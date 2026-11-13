@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fewer wake-ups at rest: on Windows the keep-awake looks at the queue when it changes, and on Linux the dark or light choice is heard from the desktop portal as it changes and the tray item is registered again when a panel starts, where each looked every five seconds (Linux ran `gdbus` each time).
 - The engine's one-off requests (a playlist's page, a video's reading) share one connection pool made at start, where each built a client of its own.
 - Keyboard: Ctrl+Tab and Ctrl+Shift+Tab move through Options' pages, the arrows move along its page tabs and between radio buttons; buttons turn lighter or darker under the pointer and more so when pressed.
 - Keyboard: F10 opens the window's first menu (Tasks) under its title, and the keyboard's Menu key opens the chosen row's menu, as Shift+F10 does.

@@ -10,11 +10,6 @@
 //! systems leave sleep to their own power settings, so there this does
 //! nothing.
 
-use std::time::Duration;
-
-/// How often the queue is looked at.
-const EVERY: Duration = Duration::from_secs(5);
-
 /// What the queue's busyness last asked of the system, so the system is
 /// told only when that changes.
 #[derive(Default)]
@@ -33,12 +28,18 @@ impl Keeper {
     }
 }
 
-/// Holds the system awake while `busy` says a download is running. Looked at
-/// every few seconds on a thread of its own: the setting belongs to the
-/// thread that made it and lasts as long as the thread does.
+/// Holds the system awake while `busy` says a download is running. Looked at on a thread of
+/// its own each time the queue changes (`changes::subscribe`), not every few seconds (gaps row
+/// S18): the setting belongs to the thread that made it and lasts as long as the thread does.
 pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
     #[cfg(windows)]
     {
+        // One nudge waiting at most: changes that come while the queue is being looked at are
+        // one more look, not one each.
+        let (nudge, nudged) = std::sync::mpsc::sync_channel::<()>(1);
+        dm_shell::app::changes::subscribe(move || {
+            let _ = nudge.try_send(());
+        });
         let _ = std::thread::Builder::new()
             .name("dm-awake".into())
             .spawn(move || {
@@ -47,12 +48,14 @@ pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
                     if let Some(hold) = keeper.step(busy()) {
                         win::hold(hold);
                     }
-                    std::thread::sleep(EVERY);
+                    if nudged.recv().is_err() {
+                        return;
+                    }
                 }
             });
     }
     #[cfg(not(windows))]
-    let _ = (busy, EVERY);
+    let _ = busy;
 }
 
 #[cfg(windows)]
