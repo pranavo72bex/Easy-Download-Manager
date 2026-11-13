@@ -391,6 +391,12 @@ pub struct Settings {
     /// Whether `sort_column` runs from the smallest up.
     #[serde(default = "yes")]
     pub sort_ascending: bool,
+    /// View › Categories: the side panel shown, kept for the next launch (gaps row U29).
+    #[serde(default = "yes")]
+    pub show_categories: bool,
+    /// View › Toolbar: the toolbar shown, kept for the next launch.
+    #[serde(default = "yes")]
+    pub show_toolbar: bool,
     /// Toolbar buttons taken off, by command id.
     pub toolbar_hidden: Vec<String>,
     /// Sign-ins: a user and password used for downloads from a
@@ -866,6 +872,8 @@ impl Default for Settings {
             shut_groups: Vec::new(),
             sort_column: String::new(),
             sort_ascending: true,
+            show_categories: true,
+            show_toolbar: true,
             toolbar_hidden: Vec::new(),
             site_logins: Vec::new(),
             catch: dm_protocol::CatchRules::default(),

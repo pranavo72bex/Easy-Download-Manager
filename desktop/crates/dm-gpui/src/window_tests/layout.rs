@@ -691,3 +691,41 @@ fn the_queue_columns_heading_is_named_and_sorts() {
         matches!(h.view(|view| view.sort), Some((Column::Queue, _)))
     });
 }
+
+/// A heading sorts up, then down, then back to the order added; the sort and View's Categories
+/// and Toolbar are kept, and a window started with what was kept shows the list as it was left
+/// (gaps row U29).
+#[test]
+fn the_sort_and_what_is_shown_come_back_after_a_restart() {
+    let world = world();
+    let mut h = world.harness();
+    let sort = |h: &mut Harness| h.view(|view| view.sort);
+    h.click("Size");
+    h.until("sorted up", |h| sort(h) == Some((Column::Size, true)));
+    h.click("Size");
+    h.until("sorted down", |h| sort(h) == Some((Column::Size, false)));
+    h.run(dm_shell::app::commands::Command::ToggleCategories);
+    h.run(dm_shell::app::commands::Command::ToggleToolbar);
+    let kept = h.view(|view| view.backend.settings());
+    assert_eq!(kept.sort_column, Column::Size.key());
+    assert!(!kept.sort_ascending);
+    assert!(
+        !kept.show_categories && !kept.show_toolbar,
+        "the toggles were not kept"
+    );
+
+    // Started again with what was kept.
+    let mut again = world.harness_with(kept);
+    again.view(|view| {
+        assert_eq!(view.sort, Some((Column::Size, false)));
+        assert!(!view.show_sidebar && !view.show_toolbar);
+    });
+
+    // A third click: the order added, kept so.
+    h.click("Size");
+    h.until("the order added", |h| sort(h).is_none());
+    assert!(h
+        .view(|view| view.backend.settings())
+        .sort_column
+        .is_empty());
+}

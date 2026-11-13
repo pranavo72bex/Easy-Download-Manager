@@ -154,8 +154,11 @@ mod later;
 mod questions;
 mod refresh;
 mod removal;
+mod sorting;
+
 use refresh::clicked;
 use refresh::{needs_drawing, placed_alike, NAMES_EVERY};
+use sorting::sort_command;
 
 /// The main window's view: the application, and the rows it last read.
 pub struct Downloads {
@@ -499,6 +502,9 @@ impl Downloads {
         // The sort the person left the list in.
         let settings = this.backend.settings();
         this.sort = dm_desktop_base::columns::kept_sort(&settings);
+        // And the side panel and toolbar as they were left (gaps row U29).
+        this.show_sidebar = settings.show_categories;
+        this.show_toolbar = settings.show_toolbar;
         // The taskbar button's jump list (Windows): Add URL and the folder.
         dm_desktop_base::jumplist::publish(
             dm_desktop_base::i18n::t("Add URL"),
@@ -808,11 +814,13 @@ impl Downloads {
             }
             Command::ToggleCategories => {
                 self.show_sidebar = !self.show_sidebar;
+                self.keep_shown(cx);
                 cx.notify();
                 return;
             }
             Command::ToggleToolbar => {
                 self.show_toolbar = !self.show_toolbar;
+                self.keep_shown(cx);
                 cx.notify();
                 return;
             }
@@ -1961,36 +1969,6 @@ impl Downloads {
         self.said = Some((sentence, std::time::Instant::now()));
         self.said_schedule_wait = false;
     }
-
-    /// Sorts by `column`: up, then the other way on a second click, then
-    /// back in the order the downloads were added, as the egui window's
-    /// header does; kept in the settings, so the list comes back sorted so
-    /// after a restart (gaps row U29).
-    pub fn sort_by(&mut self, column: Column, cx: &mut Context<Self>) {
-        self.sort = dm_desktop_base::columns::next_sort(self.sort, column);
-        self.reshow();
-        let mut wanted = self.backend.settings();
-        dm_desktop_base::columns::keep_sort(&mut wanted, self.sort);
-        if let Err(e) = self.apply_settings(wanted, cx) {
-            self.say(e);
-        }
-    }
-}
-
-/// The command that sorts by `column`, for View › Sort by's tick; none for
-/// a column the menu does not sort by.
-fn sort_command(column: Column) -> Option<dm_shell::app::commands::Command> {
-    use dm_shell::app::commands::Command;
-    Some(match column {
-        Column::Name => Command::SortByName,
-        Column::Size => Command::SortBySize,
-        Column::Status => Command::SortByStatus,
-        Column::TimeLeft => Command::SortByTimeLeft,
-        Column::Rate => Command::SortByRate,
-        Column::LastTry => Command::SortByDate,
-        Column::Description => Command::SortByDescription,
-        _ => return None,
-    })
 }
 
 /// A row's picture of its file's kind, and the kind's colour (B45): told
