@@ -725,12 +725,13 @@ fn the_second_network_says_how_to_use_a_phone_step_by_step() {
     h.reveal("How to use your phone");
     assert!(!h.shows_part("Turn on its hotspot"));
     h.click("How to use your phone");
+    // Each scrolled to where the page runs past the window (Windows' longer lines).
     for step in [
-        "1. Connect your phone",
-        "2. Turn on its hotspot",
-        "3. Choose it above",
+        "1. Connect your phone to this computer with its USB cable. If it asks whether to trust this computer, say yes.",
+        "2. Turn on its hotspot: on an iPhone, Settings › Personal Hotspot; on Android, USB tethering.",
+        "3. Choose it above. Keep Wi-Fi as this computer's own connection, so only downloads use the phone's data.",
     ] {
-        h.until(step, |h| h.shows_part(step));
+        h.reveal(step);
     }
     h.click("Cancel");
 }
@@ -922,11 +923,15 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     ] {
         h.reveal(name);
     }
-    // A connection Windows knows, as its pop-up gives it (this computer may know none).
+    // Its fields wait for the switch and a connection, as a person finds them: switched on, a
+    // connection Windows knows chosen (as its pop-up gives it: this computer may know none),
+    // filled in, and switched off again, which keeps what was typed.
+    h.click("Use Windows Dial Up / VPN Networking");
     h.dialog(|o: &mut Options, _, _| o.draft.dialup.connection = "Office VPN".into());
     h.fill("User name", "me");
     h.fill("Redial attempts (zero if endlessly)", "3");
     h.fill("Time between redial attempts (seconds)", "10");
+    h.click("Use Windows Dial Up / VPN Networking");
     ok(&mut h);
     let s = kept(&mut h);
     assert!(!s.dialup.enabled, "a new dm dials nothing");

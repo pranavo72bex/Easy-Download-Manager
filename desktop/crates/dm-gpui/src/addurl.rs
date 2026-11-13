@@ -199,11 +199,16 @@ impl Render for AddUrl {
                         None,
                         width,
                         &screen,
-                        div().min_h(px(WARNING_LINE)).children(
-                            self.says
-                                .clone()
-                                .map(|says| native::note(says, theme.warning, &screen)),
-                        ),
+                        // Its line exactly the room kept: the font's own line was 1.5 points
+                        // taller on Windows, and OK still moved by that.
+                        div()
+                            .min_h(px(WARNING_LINE))
+                            .line_height(px(WARNING_LINE))
+                            .children(
+                                self.says
+                                    .clone()
+                                    .map(|says| native::note(says, theme.warning, &screen)),
+                            ),
                     ))
                     // The default rightmost, Cancel beside it, as on a Mac.
                     .child(native::buttons(

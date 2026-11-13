@@ -830,6 +830,10 @@ impl Render for Details {
                 "Part",
                 div()
                     .flex()
+                    // The offer of a link's moment onto a second line where the line is full:
+                    // Windows' wider letters pushed "From 0:34" past the dialog's edge, out of
+                    // sight and reach. Not the part's fields, which keep each to its words.
+                    .when(!self.part, |d| d.flex_wrap())
                     .items_center()
                     .gap(px(native::LABEL_GAP))
                     .child(

@@ -164,7 +164,16 @@ impl Render for Complete {
                                                     .child(screen.label(size)),
                                             ),
                                     )
-                                    .child(native::note(row.path.clone(), theme.muted, &screen))
+                                    // Its place on one line, cut short as its name is: a long path
+                                    // wrapped over five lines (Windows' C:\Users\…), and the
+                                    // window showed two files where it holds three.
+                                    .child(
+                                        native::note(row.path.clone(), theme.muted, &screen)
+                                            .min_w_0()
+                                            .whitespace_nowrap()
+                                            .overflow_hidden()
+                                            .text_ellipsis(),
+                                    )
                                     .child(
                                         div()
                                             .flex()

@@ -447,9 +447,17 @@ fn the_complete_window_scrolls_cuts_long_names_and_closes_on_escape() {
             .count()
     };
     // Several at a time, not one (its own window shows three at its first size).
+    let shown = h.call("ui.texts", serde_json::Value::Null).unwrap();
+    let rows: Vec<_> = shown["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["window"] == "dialog")
+        .map(|t| format!("{} {}", t["text"], t["rect"]))
+        .collect();
     assert!(
         folders(&mut h) >= 3,
-        "only {} files in view",
+        "only {} files in view, in {size:?}: {rows:?}",
         folders(&mut h)
     );
     // The first to finish is listed last: the wheel over the list brings it above Close, its

@@ -739,7 +739,7 @@ fn download_details_category_picks_the_folder() {
     h.until("the Documents folder", |h| {
         h.texts()
             .iter()
-            .any(|t| t.ends_with("Documents") && t.contains('/'))
+            .any(|t| t.ends_with("Documents") && t.contains(std::path::MAIN_SEPARATOR))
     });
     h.click("Start now");
     h.until("it to complete", finished);
@@ -902,13 +902,9 @@ fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
     h.click("Options");
     h.until("Options", |h| h.dialog_open("Options"));
     let watch = "Offer to download links I copy";
-    // Lower on General than the window shows: scrolled to, as a person scrolls.
-    h.call(
-        "ui.scroll",
-        serde_json::json!({ "text": "Language", "lines": 10 }),
-    )
-    .unwrap();
-    h.until_shown(watch);
+    // Lower on General than the window shows: scrolled to, as a person scrolls, as far as it
+    // takes (Windows' General has more above it).
+    h.reveal(watch);
     h.click(watch);
     h.click("OK");
     h.until("the watch on", |h| {

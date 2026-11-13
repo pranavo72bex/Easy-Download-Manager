@@ -70,6 +70,11 @@ pub struct Question {
     /// buttons keep that width, so one whose words grow shorter (Keep downloading, then
     /// Stay) moves none beside it under the pointer.
     widest: Vec<f32>,
+    /// The tallest its words have been laid out, in points: a steady question keeps that room,
+    /// so words that take fewer lines (one download left, then none) move no button up under
+    /// the pointer. Three lines' room alone was not enough where the words wrap sooner
+    /// (Windows' wider letters: a fourth line, then Exit 8 points higher).
+    tallest: std::rc::Rc<std::cell::Cell<f32>>,
     ticked: bool,
     answer: Option<Answer>,
     focus: FocusHandle,
@@ -148,6 +153,8 @@ impl Render for Question {
             }
         }
         let widest = self.widest.clone();
+        let tallest = self.tallest.clone();
+        let room = px((3.0 * native::SMALL_TEXT * 1.4).max(tallest.get()));
         let button = |i: usize, cx: &mut Context<Self>| {
             native::button(
                 ("button", i),
@@ -199,30 +206,48 @@ impl Render for Question {
                             .child(screen.label(self.asked.title.clone())),
                     )
                     .child(
+                        // The words' height as laid out, kept as the room they keep.
                         div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(6.0))
-                            .text_size(px(native::SMALL_TEXT))
-                            // A question whose words change as it stands
-                            // keeps room for three lines, so its buttons do
-                            // not move under a pointer on its way to one.
-                            .when(steady, |d| d.min_h(px(3.0 * native::SMALL_TEXT * 1.4)))
-                            .children(self.asked.lines.iter().cloned().map(|l| screen.label(l)))
-                            .when_some(self.asked.named.clone(), |d, named| {
-                                d.child(
-                                    div()
-                                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                                        .child(screen.label(named)),
-                                )
+                            .on_children_prepainted({
+                                let tallest = tallest.clone();
+                                move |placed, _, _| {
+                                    if let Some(words) = placed.first() {
+                                        let high = f32::from(words.size.height);
+                                        if high > tallest.get() {
+                                            tallest.set(high);
+                                        }
+                                    }
+                                }
                             })
-                            .when_some(self.asked.detail.clone(), |d, detail| {
-                                d.child(
-                                    div()
-                                        .font_family(crate::native::mono(cx))
-                                        .child(screen.label(detail)),
-                                )
-                            }),
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(6.0))
+                                    .text_size(px(native::SMALL_TEXT))
+                                    // A question whose words change as it stands
+                                    // keeps room for three lines, or the most its words
+                                    // have taken, so its buttons do not move under a
+                                    // pointer on its way to one.
+                                    .when(steady, |d| d.min_h(room))
+                                    .children(
+                                        self.asked.lines.iter().cloned().map(|l| screen.label(l)),
+                                    )
+                                    .when_some(self.asked.named.clone(), |d, named| {
+                                        d.child(
+                                            div()
+                                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                .child(screen.label(named)),
+                                        )
+                                    })
+                                    .when_some(self.asked.detail.clone(), |d, detail| {
+                                        d.child(
+                                            div()
+                                                .font_family(crate::native::mono(cx))
+                                                .child(screen.label(detail)),
+                                        )
+                                    }),
+                            ),
                     )
                     .when_some(self.asked.toggle.clone(), |d, toggle| {
                         d.child(
@@ -375,6 +400,7 @@ pub fn ask(
                     reword,
                     steady,
                     widest: Vec::new(),
+                    tallest: Default::default(),
                     answer: Some(answer),
                     focus,
                     closing: false,

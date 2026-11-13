@@ -134,6 +134,16 @@ impl Render for DraggedFile {
 mod tests {
     use super::*;
 
+    /// A file in a folder `d` at the top of the disk: on Windows, of drive C (`/d/a.zip` is not
+    /// a whole path there, and is rightly not carried).
+    fn at(name: &str) -> String {
+        if cfg!(windows) {
+            format!("C:\\d\\{name}")
+        } else {
+            format!("/d/{name}")
+        }
+    }
+
     fn row(id: Id, state: State, path: &str) -> Entry {
         serde_json::from_value(serde_json::json!({
             "id": id,
@@ -149,29 +159,29 @@ mod tests {
     #[test]
     fn a_chosen_row_carries_every_chosen_finished_file_in_the_lists_order() {
         let rows = [
-            row(3, State::Completed, "/d/c.zip"),
-            row(1, State::Completed, "/d/a.zip"),
-            row(2, State::Running, "/d/b.zip"),
-            row(4, State::Completed, "/d/d.zip"),
+            row(3, State::Completed, &at("c.zip")),
+            row(1, State::Completed, &at("a.zip")),
+            row(2, State::Running, &at("b.zip")),
+            row(4, State::Completed, &at("d.zip")),
         ];
         let chosen = BTreeSet::from([1, 2, 3]);
         let files = files_of(rows.iter(), &chosen, 2, |_| false);
         assert_eq!(
             files,
-            [PathBuf::from("/d/c.zip"), PathBuf::from("/d/a.zip")]
+            [PathBuf::from(at("c.zip")), PathBuf::from(at("a.zip"))]
         );
     }
 
     #[test]
     fn a_row_outside_the_selection_carries_its_own_file_alone() {
         let rows = [
-            row(1, State::Completed, "/d/a.zip"),
-            row(2, State::Completed, "/d/b.zip"),
+            row(1, State::Completed, &at("a.zip")),
+            row(2, State::Completed, &at("b.zip")),
         ];
         let chosen = BTreeSet::from([1]);
         assert_eq!(
             files_of(rows.iter(), &chosen, 2, |_| false),
-            [PathBuf::from("/d/b.zip")]
+            [PathBuf::from(at("b.zip"))]
         );
     }
 
@@ -179,7 +189,7 @@ mod tests {
     fn a_file_gone_unfinished_or_without_a_full_path_is_not_carried() {
         let rows = [
             row(1, State::Completed, "/d/gone.zip"),
-            row(2, State::Failed("refused".into()), "/d/b.zip"),
+            row(2, State::Failed("refused".into()), &at("b.zip")),
             row(3, State::Completed, "relative.zip"),
             row(4, State::Completed, ""),
         ];
