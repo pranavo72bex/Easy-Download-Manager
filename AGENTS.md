@@ -82,6 +82,7 @@ extension that hands it the browser's downloads.
 | `docs/zoo.md` | Thirty-one server behaviours and what dm does with each (generated; floor only rises) |
 | `docs/scorecard.md` | The counts of all of the above, by area (generated) |
 | `docs/how-it-works.md` | How the app and the extension fit together, and how to build them |
+| `docs/glossary.md` | What the code's words mean (row, queue, range, part, piece, host), and the name to use |
 | `CLAUDE.md` | The feature checklist and the working rules for a coding agent |
 
 **Wired is not working.** A control that calls a command proves the call,
