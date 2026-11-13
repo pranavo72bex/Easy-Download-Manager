@@ -275,6 +275,9 @@ pub struct Downloads {
     /// What the menu bar was last built with (its queues and ticks); none
     /// builds it again.
     pub(crate) menu_ticks: Option<crate::menus::Ticks>,
+    /// The window menu last opened, by its place in the bar: what a test reads, as the
+    /// system's menu itself is not the window's to see.
+    pub(crate) bar_menu_opened: Option<usize>,
     /// The main window's frame as it last stood, kept as dm quits for the
     /// next start (`frame.rs`).
     frame: gpui::WindowBounds,
@@ -446,6 +449,7 @@ impl Downloads {
             last_limit,
             rechecked: Default::default(),
             menu_ticks: None,
+            bar_menu_opened: None,
             frame: window.window_bounds(),
             display: window.display(cx).map(|d| u64::from(d.id())),
             search_results: Default::default(),
@@ -2286,6 +2290,9 @@ impl Render for Downloads {
                 this.step_by(step, m.shift);
                 this.refresh_menus(cx);
                 cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &crate::menus::MenuBarByKey, window, cx| {
+                this.menu_bar_by_key(window, cx);
             }))
             .on_action(cx.listener(|this, _: &crate::menus::RowMenuByKey, _, cx| {
                 this.row_menu_by_key();

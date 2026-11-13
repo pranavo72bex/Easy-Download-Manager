@@ -121,6 +121,8 @@ fn key_name(name: &str) -> Option<String> {
             "end" => "end",
             "pageup" => "pageup",
             "pagedown" => "pagedown",
+            // The keyboard's Menu (application) key.
+            "menu" | "contextmenu" | "apps" => "menu",
             "comma" => ",",
             "period" => ".",
             other if other.chars().count() == 1 => return Some(other.to_string()),

@@ -281,18 +281,65 @@ fn menu_title(
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(
             cx.listener(move |view, event: &gpui::ClickEvent, window, cx| {
-                let ticks = view.menu_ticks.clone().unwrap_or_default();
-                if let Some(menu) = crate::menus::window_menus(&ticks).into_iter().nth(index) {
-                    let x = event.position().x - px(10.0);
-                    NativeMenu::from(menu).show(
-                        point(x.max(px(0.0)), gpui::px(height()) - px(4.0)),
-                        window,
-                        cx,
-                    );
-                }
+                view.open_window_menu(index, event.position().x - px(10.0), window, cx);
             }),
         )
         .child(screen.label(name))
+        // Where it starts, for F10 to open its menu under it.
+        .child(
+            gpui::canvas(
+                move |bounds, _, _| {
+                    TITLES_AT.with(|at| {
+                        let mut at = at.borrow_mut();
+                        if at.len() <= index {
+                            at.resize(index + 1, px(0.0));
+                        }
+                        at[index] = bounds.origin.x;
+                    });
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .size_full(),
+        )
+}
+
+thread_local! {
+    /// Where each menu title starts in the window, as last drawn.
+    static TITLES_AT: std::cell::RefCell<Vec<gpui::Pixels>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+impl Downloads {
+    /// The window's menu `index` opened at `x`, under the bar: by a click on its title, or by
+    /// F10 for the first, under its title (gaps row U6).
+    pub(crate) fn open_window_menu(
+        &mut self,
+        index: usize,
+        x: gpui::Pixels,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let ticks = self.menu_ticks.clone().unwrap_or_default();
+        let Some(menu) = crate::menus::window_menus(&ticks).into_iter().nth(index) else {
+            return;
+        };
+        self.bar_menu_opened = Some(index);
+        // The test platform has no menus of the system's to show.
+        if cfg!(test) {
+            return;
+        }
+        NativeMenu::from(menu).show(
+            point(x.max(px(0.0)), gpui::px(height()) - px(4.0)),
+            window,
+            cx,
+        );
+    }
+
+    /// F10: the first menu, under its title.
+    pub(crate) fn menu_bar_by_key(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let x = TITLES_AT.with(|at| at.borrow().first().copied()).unwrap_or(px(CONTROLS_AT));
+        self.open_window_menu(0, x, window, cx);
+    }
 }
 
 /// The room the window's own buttons take: on Windows, where the bar is the

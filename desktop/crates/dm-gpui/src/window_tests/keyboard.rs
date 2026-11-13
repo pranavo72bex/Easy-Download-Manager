@@ -200,7 +200,7 @@ fn closing_a_dialog_gives_the_keyboard_back_to_its_opener() {
 }
 
 /// Shift+F10 opens the menu of the row with the keyboard's place, as on any desktop, under the
-/// row. (F10 opening the first menu of the menu bar is owed: gaps row U6.)
+/// row; so does the keyboard's Menu key, and F10 opens the window's first menu (gaps row U6).
 #[test]
 fn menus_open_from_the_keyboard() {
     // What is measured here grows with the text size another test may set.
@@ -218,6 +218,16 @@ fn menus_open_from_the_keyboard() {
         props.left() >= row.left() - gpui::px(30.0) && props.top() >= row.top(),
         "the menu at {props:?} is not under the row at {row:?}"
     );
+    h.key("escape", &[]);
+    h.until("the row menu shut", |h| h.view(|view| !view.menu_open()));
+    h.key("menu", &[]);
+    h.until("the row menu by the Menu key", |h| h.view(|view| view.menu_open()));
+    h.key("escape", &[]);
+    h.until("the row menu shut again", |h| h.view(|view| !view.menu_open()));
+    h.key("f10", &[]);
+    h.until("the first of the window's menus", |h| {
+        h.view(|view| view.bar_menu_opened == Some(0))
+    });
 }
 
 #[test]
