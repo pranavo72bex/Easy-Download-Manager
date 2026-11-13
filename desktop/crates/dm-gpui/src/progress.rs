@@ -305,6 +305,10 @@ impl Render for Progress {
             )
         };
         crate::screen::set_title(window, &heading, cx);
+        // Known by that name to a script once finished, as the Download complete window was.
+        if row.state == State::Completed {
+            crate::screen::Screens::named(window.window_handle(), "Download complete", cx);
+        }
         let p = &row.progress;
         let running = row.state == State::Running;
         let width = native::label_width(&[
