@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The side panel's group headings (All Downloads, Queues) show a drawn arrow: up while the group is open, to close it, down while it is shut, to open it, where a font's `⌄` and `›` sat at odd heights.
 - A 404 (or any failure) from an address with "505" in it, a port such as 50587 among them, fails as it is, where dm took it for a server refusing HTTP/1.1 and kept asking it again over HTTP/2.
 - Windows and Linux: the list's last row is no longer under the sideways scroll bar, which hid its foot and took a click meant for it.
 - Sizes and speeds are counted as the computer's own file manager counts them: in 1,000s on macOS and Linux (a 100.7 MB file says 100.7 MB, as Finder does), in 1,024s on Windows; speed limits typed in KB/s mean the same unit.

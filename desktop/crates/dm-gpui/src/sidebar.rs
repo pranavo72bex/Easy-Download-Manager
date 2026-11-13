@@ -229,8 +229,20 @@ fn group_heading(
                 .aria_label(t(heading))
                 .cursor_pointer()
                 .child(screen.label(t(heading)))
-                // Shut, it says so: an arrow toward the words, as a source list's does.
-                .child(div().child(if shut { "›" } else { "⌄" }))
+                // An arrow drawn as the panel's other icons are, not a character of the font
+                // (`⌄` and `›` sat at odd heights): up while the group is open, to close it, and
+                // down while it is shut, to open it (the maintainer, 2026-11-13).
+                .child(
+                    gpui::svg()
+                        .path(if shut {
+                            "icons/chevron-down.svg"
+                        } else {
+                            "icons/chevron-up.svg"
+                        })
+                        .size(px(10.0))
+                        .flex_none()
+                        .text_color(theme.muted),
+                )
                 .on_click(cx.listener(move |view, _, _, cx| {
                     view.toggle_group(heading);
                     cx.notify();

@@ -22,6 +22,9 @@ macro_rules! icons {
 
 /// Every picture, by the path a view asks for.
 const ICONS: &[(&str, &[u8])] = icons!(
+    // A side-panel group's heading: open (up, to close it) or shut (down, to open it).
+    "chevron-up",
+    "chevron-down",
     // The toolbar's.
     "add",
     "resume",
