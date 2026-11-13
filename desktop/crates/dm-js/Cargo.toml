@@ -1,0 +1,16 @@
+[package]
+name = "dm-js"
+version = "0.9.0"
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
+description = "dm's own JavaScript interpreter: the little JavaScript dm runs (YouTube's player checks, a proxy configuration script), with nothing of the computer in reach"
+
+# Nothing: the language, its objects and its patterns are dm's own (gaps row F15), so
+# no engine of the system or of anyone else runs what a web page sent.
+[dependencies]
+
+[lints]
+workspace = true

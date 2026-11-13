@@ -334,8 +334,10 @@ fn layers() -> Result<(), String> {
         let (may, no_gui, no_sockets): (&[&str], bool, bool) = match c.name.as_str() {
             // The words both sides speak; nothing else.
             "dm-protocol" => (&[], true, true),
+            // dm's own JavaScript: the language alone, no window and no sockets (gaps row F15).
+            "dm-js" => (&[], true, true),
             // The engine: no window, no browser.
-            "dm-core" => (&[], true, false),
+            "dm-core" => (&["dm-js"], true, false),
             // Around the window but not the window.
             "dm-shell" => (&["dm-core", "dm-protocol"], true, false),
             // What the desktop program does that is not drawing: any window
