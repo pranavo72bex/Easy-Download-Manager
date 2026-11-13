@@ -973,6 +973,31 @@ impl Harness {
             .map(|d| d.bounds)
     }
 
+    /// Scrolls the page of the dialog in front, as a wheel over it does, until words holding
+    /// `part` are in sight: down first, then back up. For what is said in a sentence that the
+    /// test names by its start (a step of a how-to), lower than a short window shows.
+    pub(crate) fn reveal_part(&mut self, part: &str) {
+        for lines in [3.0, -3.0] {
+            for _ in 0..60 {
+                if self.shows_part(part) {
+                    return;
+                }
+                let (window, drawn) = self.front_dialog();
+                let mut ys: Vec<_> = drawn.iter().map(|d| d.bounds.center()).collect();
+                ys.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+                let Some(&at) = ys.get(ys.len() / 2) else {
+                    break;
+                };
+                self.wheel(window, at, lines);
+            }
+        }
+        assert!(
+            self.shows_part(part),
+            "{part:?} never came in sight: {:?}",
+            self.texts()
+        );
+    }
+
     /// Scrolls the page of the dialog in front, as a wheel over it does, until `words` are on
     /// it: down first, then back up.
     pub(crate) fn reveal(&mut self, words: &str) {

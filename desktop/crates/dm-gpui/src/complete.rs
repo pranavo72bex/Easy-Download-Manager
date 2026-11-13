@@ -164,7 +164,21 @@ impl Render for Complete {
                                                     .child(screen.label(size)),
                                             ),
                                     )
-                                    .child(native::note(row.path.clone(), theme.muted, &screen))
+                                    // On Windows on one line, cut as the name is: its
+                                    // folders (C:\Users\…\AppData\Local\…) took two lines at
+                                    // its larger type, and a long name five, so the list
+                                    // showed two files where it shows three.
+                                    .child(
+                                        native::note(row.path.clone(), theme.muted, &screen).when(
+                                            cfg!(windows),
+                                            |d| {
+                                                d.min_w_0()
+                                                    .whitespace_nowrap()
+                                                    .overflow_hidden()
+                                                    .text_ellipsis()
+                                            },
+                                        ),
+                                    )
                                     .child(
                                         div()
                                             .flex()

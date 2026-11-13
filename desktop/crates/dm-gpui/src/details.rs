@@ -830,6 +830,11 @@ impl Render for Details {
                 "Part",
                 div()
                     .flex()
+                    // Onto a second line where the window is too narrow for the moment's
+                    // words and its button: on Windows, at its larger type, "From 0:34" stood
+                    // past the window's edge, out of sight and out of reach. Only while it is
+                    // offered: the part's own from and to fit on the line.
+                    .when(!part, |d| d.flex_wrap())
                     .items_center()
                     .gap(px(native::LABEL_GAP))
                     .child(

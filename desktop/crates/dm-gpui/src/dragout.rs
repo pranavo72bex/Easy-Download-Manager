@@ -134,6 +134,14 @@ impl Render for DraggedFile {
 mod tests {
     use super::*;
 
+    /// `path` as a full path on this system: `/d/a.zip`, on Windows `C:/d/a.zip`.
+    fn full(path: &str) -> String {
+        match path.strip_prefix('/') {
+            Some(rest) if cfg!(windows) => format!("C:/{rest}"),
+            _ => path.to_string(),
+        }
+    }
+
     fn row(id: Id, state: State, path: &str) -> Entry {
         serde_json::from_value(serde_json::json!({
             "id": id,
@@ -141,7 +149,7 @@ mod tests {
             "state": serde_json::to_value(state).unwrap(),
             "progress": {"downloaded": 10, "total": 10, "speed": 0.0, "eta": null},
             "filename": "f",
-            "path": path,
+            "path": full(path),
         }))
         .unwrap()
     }
@@ -158,7 +166,10 @@ mod tests {
         let files = files_of(rows.iter(), &chosen, 2, |_| false);
         assert_eq!(
             files,
-            [PathBuf::from("/d/c.zip"), PathBuf::from("/d/a.zip")]
+            [
+                PathBuf::from(full("/d/c.zip")),
+                PathBuf::from(full("/d/a.zip"))
+            ]
         );
     }
 
@@ -171,7 +182,7 @@ mod tests {
         let chosen = BTreeSet::from([1]);
         assert_eq!(
             files_of(rows.iter(), &chosen, 2, |_| false),
-            [PathBuf::from("/d/b.zip")]
+            [PathBuf::from(full("/d/b.zip"))]
         );
     }
 

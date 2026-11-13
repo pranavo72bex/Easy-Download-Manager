@@ -730,7 +730,8 @@ fn the_second_network_says_how_to_use_a_phone_step_by_step() {
         "2. Turn on its hotspot",
         "3. Choose it above",
     ] {
-        h.until(step, |h| h.shows_part(step));
+        // Lower than Options shows on Windows, where it opens shorter: scrolled to.
+        h.reveal_part(step);
     }
     h.click("Cancel");
 }
@@ -922,11 +923,18 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     ] {
         h.reveal(name);
     }
+    // The fields take words only with the switch on and a connection chosen, as reference A's
+    // are greyed: turned on, filled, and off again to be saved off.
+    let switch = "Use Windows Dial Up / VPN Networking";
+    h.reveal(switch);
+    h.click(switch);
     // A connection Windows knows, as its pop-up gives it (this computer may know none).
     h.dialog(|o: &mut Options, _, _| o.draft.dialup.connection = "Office VPN".into());
     h.fill("User name", "me");
     h.fill("Redial attempts (zero if endlessly)", "3");
     h.fill("Time between redial attempts (seconds)", "10");
+    h.reveal(switch);
+    h.click(switch);
     ok(&mut h);
     let s = kept(&mut h);
     assert!(!s.dialup.enabled, "a new dm dials nothing");

@@ -154,19 +154,18 @@ fn start_queue_under_a_shut_schedule_and_stop_queue() {
             ..dm_core::Schedule::default()
         }
     });
+    // Start and Stop Queue run off the window's thread and speak once done (gaps row 183):
+    // waited for, as a person waits for the status bar. Read at once, beside the suite's other
+    // tests on Windows the status bar was still empty.
     h.run(Command::StartQueue);
-    assert!(
+    h.until("Start Queue's words", |h| {
         h.said()
-            .ends_with("is waiting for the schedule; it starts by itself when the schedule opens."),
-        "{}",
-        h.said()
-    );
+            .ends_with("is waiting for the schedule; it starts by itself when the schedule opens.")
+    });
     h.run(Command::StopQueue);
-    assert!(
-        h.said().starts_with("Stopped 1 download in "),
-        "{}",
-        h.said()
-    );
+    h.until("Stop Queue's words", |h| {
+        h.said().starts_with("Stopped 1 download in ")
+    });
     h.settings_to(|s| s.schedule = dm_core::Schedule::default());
 }
 

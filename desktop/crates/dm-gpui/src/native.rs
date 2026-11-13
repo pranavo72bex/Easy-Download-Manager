@@ -39,6 +39,15 @@ pub const TEXT: f32 = pick(13.0, 14.0, 14.0);
 /// The small system font's size: what is said under a control, a dialog's
 /// informative text (macOS's `smallSystemFontSize`, WinUI's caption).
 pub const SMALL_TEXT: f32 = pick(11.0, 12.0, 12.0);
+/// The room kept for one line of [`SMALL_TEXT`] whose words come and go, so what is under it
+/// stays where it was (gaps row U44). On Windows GPUI lays a line of it out 19.5 points tall:
+/// with 18 kept, Add URL's OK moved 1.5 points as its warning appeared, and with 1.4 lines of
+/// type a line "Exit dm?"'s buttons moved 8 as its words grew shorter. macOS and Linux keep
+/// what they had.
+pub const SMALL_LINE: f32 = pick(18.0, 19.5, 18.0);
+/// The same for a question's lines (`question.rs`): 1.4 lines of type a line, as before, on
+/// macOS and Linux.
+pub const QUESTION_LINE: f32 = pick(SMALL_TEXT * 1.4, 19.5, SMALL_TEXT * 1.4);
 /// A regular control's height: a text field, a push button, a pop-up.
 pub const CONTROL: f32 = pick(24.0, 32.0, 34.0);
 /// From the window's edges to what it holds.

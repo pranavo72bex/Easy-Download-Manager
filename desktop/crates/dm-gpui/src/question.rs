@@ -207,7 +207,7 @@ impl Render for Question {
                             // A question whose words change as it stands
                             // keeps room for three lines, so its buttons do
                             // not move under a pointer on its way to one.
-                            .when(steady, |d| d.min_h(px(3.0 * native::SMALL_TEXT * 1.4)))
+                            .when(steady, |d| d.min_h(px(3.0 * native::QUESTION_LINE)))
                             .children(self.asked.lines.iter().cloned().map(|l| screen.label(l)))
                             .when_some(self.asked.named.clone(), |d, named| {
                                 d.child(

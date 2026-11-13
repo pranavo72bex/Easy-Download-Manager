@@ -25,7 +25,7 @@ use crate::theme::Theme;
 use crate::zoom::px;
 
 /// The height kept for Add URL's warning, one line of it (gaps row U44).
-const WARNING_LINE: f32 = 18.0;
+const WARNING_LINE: f32 = native::SMALL_LINE;
 
 /// The Add URL window's view.
 pub struct AddUrl {
