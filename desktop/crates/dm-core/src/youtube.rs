@@ -30,11 +30,14 @@ use serde_json::{json, Value};
 
 mod chapters;
 mod itags;
+mod kept;
 mod player;
 
 use crate::stream::Quality;
 use crate::Error;
 use chapters::{chapters_in, largest_thumbnail, publish_date};
+pub use kept::set_kept_players;
+use kept::{cut_program, keep_script, kept_script};
 
 /// The TV client this reads with today: its answers carry plain
 /// addresses and want no proof-of-origin token.
@@ -1649,49 +1652,6 @@ pub async fn answers(
 ) -> Result<(HashMap<String, String>, HashMap<String, String>), Error> {
     let solved = answer(player_js, ns, sigs).await?;
     Ok((solved.n, solved.sig))
-}
-
-/// How many player scripts, and their cut programs, are kept: the one in use and the one
-/// before it, a few megabytes each.
-const PLAYERS_KEPT: usize = 2;
-
-/// Player scripts fetched this session, by their address, newest last (gaps row Y13).
-static SCRIPTS: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
-
-/// The cut programs of player scripts this session, by the script's own hash, newest last.
-static PROGRAMS: std::sync::Mutex<Vec<(u64, String)>> = std::sync::Mutex::new(Vec::new());
-
-fn kept_script(url: &str) -> Option<String> {
-    crate::lock(&SCRIPTS)
-        .iter()
-        .find(|(kept, _)| kept == url)
-        .map(|(_, text)| text.clone())
-}
-
-fn keep_script(url: &str, text: &str) {
-    let mut kept = crate::lock(&SCRIPTS);
-    kept.retain(|(old, _)| old != url);
-    kept.push((url.to_string(), text.to_string()));
-    let over = kept.len().saturating_sub(PLAYERS_KEPT);
-    kept.drain(..over);
-}
-
-/// `player_js` cut down to what answers YouTube's checks (`player::program`), cut once a
-/// session for each player rather than for every video.
-fn cut_program(player_js: &str) -> Result<String, String> {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    player_js.hash(&mut hasher);
-    let key = hasher.finish();
-    if let Some((_, program)) = crate::lock(&PROGRAMS).iter().find(|(k, _)| *k == key) {
-        return Ok(program.clone());
-    }
-    let program = player::program(player_js)?;
-    let mut kept = crate::lock(&PROGRAMS);
-    kept.push((key, program.clone()));
-    let over = kept.len().saturating_sub(PLAYERS_KEPT);
-    kept.drain(..over);
-    Ok(program)
 }
 
 /// [`answers`], as the reading takes them.
