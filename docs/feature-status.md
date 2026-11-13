@@ -644,3 +644,8 @@ of them.
       on real pages in the final QA (gaps row 64).
       The external video tool was used here until 2026-10-31, when it was removed
       (`docs/decisions.md`).
+
+## Human QA, 2026-11-13
+
+- macOS (Apple M1, debug build of main after U34): `python3 scripts/human-qa.py` holds 66 of 66 rows, Edge's 70 browser checks among them.
+- Linux (Debian 12 container under X, `sh scripts/linux-human-qa.sh`): 61 of 66; B25, B46, B53, B35 and B36 are gaps rows Q1 to Q3.
