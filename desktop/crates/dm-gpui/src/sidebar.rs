@@ -239,7 +239,8 @@ fn group_heading(
                         } else {
                             "icons/chevron-up.svg"
                         })
-                        .size(px(10.0))
+                        // The heading's text size, its ink in the middle of the line.
+                        .size(px(12.0))
                         .flex_none()
                         .text_color(theme.muted),
                 )
