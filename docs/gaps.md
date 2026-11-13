@@ -37,6 +37,28 @@ What reference A does comes from four folders of local notes. They are listed in
 reach dm only as black-box items in `docs/engine-local/requirements.md`, and a run of both apps
 must prove each one.
 
+## Paused (2026-11-13, evening): where to pick up
+
+The partial rows were worked one at a time (tested, committed, pushed to main) and then paused at
+the maintainer's word ("we will do the tasks later"). Closed this session: F5, U12, U13, U17, U6,
+S14, S18, Y11, Y17, C1, U29, S1, S21; part-done: U2, Y13, A21 (each row says what is left).
+Every other PARTIAL or OPEN row below is as it stood.
+
+Before the next release:
+
+1. Main's Desktop CI green: a7408d59 fixed the three window tests that failed on the runners and
+   was still running when this was written; `gh run list --branch main` first. `grow.rs`
+   `a_server_that_shares_one_rate_keeps_eight` failed once on macOS CI (11 connections where it
+   allows 9) and passed elsewhere: watch for it again before loosening it.
+2. `python3 scripts/human-qa.py` whole, in a visible window, on macOS and on the Windows laptop:
+   this session changed the window (row buttons, keys, Download details' folder, View's kept
+   toggles) and the engine (streams written as they come, tags and covers, the shared client).
+
+Next, when the rows are taken up again, the quickest first: A10's `second_path.rs` split (one file
+for each system; drafted and undone because it was not yet checked on Windows and Linux:
+`scripts/windows-check.sh clippy` and the Linux image), then Y3, S5 and Y16 (each more than an
+hour), then the rows that need the Windows laptop, a phone or a person.
+
 ## State (2026-11-09)
 
 The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
