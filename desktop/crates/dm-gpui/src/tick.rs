@@ -24,6 +24,14 @@ impl Downloads {
     /// One wake's work after the read (`Downloads::read`), on the main
     /// window's thread.
     pub(crate) fn tick(&mut self, cx: &mut Context<Self>) {
+        // At rest, the heap's freed pages back to the system (gaps row 175).
+        if !self
+            .rows
+            .iter()
+            .any(|r| matches!(r.state, dm_core::State::Running))
+        {
+            dm_core::memory::give_back();
+        }
         // Windows' High Contrast turned on, off or to another theme: every
         // window drawn again in its colours (`theme.rs`), not only the one in
         // front when it next draws.
