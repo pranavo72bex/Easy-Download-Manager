@@ -52,7 +52,7 @@ for a later release, at the maintainer's word of that day.
 
 Seen once on CI at aaa042f2 and passed on its re-run (watch for them again):
 `hls_memory` `a_streams_segment_is_written_as_it_comes` on Linux (188 MB at its most for a 160 MB
-segment) and `window_tests::commands::the_queue_arrows_start_and_stop_the_queue_chosen` on Windows.
+segment); `window_tests::commands::the_queue_arrows_start_and_stop_the_queue_chosen` failed twice on Windows, reading the status line before it was said, and now waits for it.
 
 Before the next release (as it stood on 2026-11-13):
 

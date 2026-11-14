@@ -697,21 +697,25 @@ fn the_queue_arrows_start_and_stop_the_queue_chosen() {
     // the list of queues is Night.
     h.call("ui.place", serde_json::json!({ "place": "all" }))
         .unwrap();
+    // Each line waited for, not read at once: a slow runner says it a moment after the click
+    // (Windows', 2026-11-14, read it empty).
     press(&mut h, &["Downloads", "Start Queue", "Night"]);
-    assert_eq!(
-        h.said(),
-        "Started 1 download in Night.",
-        "the list did not start the queue chosen"
-    );
+    h.until("the list to start the queue chosen", |h| {
+        h.said() == "Started 1 download in Night."
+    });
     h.until("the Night queue's download to complete", |h| {
         h.rows().iter().all(|r| r.state == State::Completed)
     });
     // Stop Queue's list on Night: nothing is left there to stop.
     press(&mut h, &["Downloads", "Stop Queue", "Night"]);
-    assert_eq!(h.said(), "Stopped 0 downloads in Night.");
+    h.until("Stop Queue on Night", |h| {
+        h.said() == "Stopped 0 downloads in Night."
+    });
     // The choice was for that one command: the button itself acts on the list's queue again.
     h.click("Start Queue");
-    assert_eq!(h.said(), "Nothing in Main queue was waiting to start.");
+    h.until("the button on the Main queue", |h| {
+        h.said() == "Nothing in Main queue was waiting to start."
+    });
 }
 
 /// At the window's smallest usual size (960 by 660) the columns run past its right edge, and
