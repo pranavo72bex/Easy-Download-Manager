@@ -1,6 +1,6 @@
 [package]
 name = "dm-catcher"
-version = "3.3.0"
+version = "3.4.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
 description = "dm's browser extension: catches downloads and hands them to the app"

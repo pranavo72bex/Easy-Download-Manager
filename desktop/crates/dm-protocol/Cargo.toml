@@ -1,6 +1,6 @@
 [package]
 name = "dm-protocol"
-version = "0.9.0"
+version = "0.10.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
 # Never published: its paths to the other crates are this repository's

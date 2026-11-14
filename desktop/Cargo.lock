@@ -2010,7 +2010,7 @@ dependencies = [
 
 [[package]]
 name = "dm-core"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "aes 0.9.3",
  "axum",
@@ -2063,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "dm-desktop-base"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "auto-launch",
  "chrono",
@@ -2089,7 +2089,7 @@ dependencies = [
 
 [[package]]
 name = "dm-gpui"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "arboard",
  "async-channel",
@@ -2126,11 +2126,11 @@ dependencies = [
 
 [[package]]
 name = "dm-js"
-version = "0.9.0"
+version = "0.10.0"
 
 [[package]]
 name = "dm-protocol"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "proptest",
  "serde",
@@ -2140,7 +2140,7 @@ dependencies = [
 
 [[package]]
 name = "dm-shell"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -10666,7 +10666,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "toml 1.1.5+spec-1.1.0",
 ]

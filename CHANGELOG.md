@@ -3,8 +3,9 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## Unreleased
+## App 0.10.0, extension 3.4.0
 
+- HLS: a stream whose sound is a transport stream of its own beside a transport-stream picture is downloaded as one MP4, where it was refused; a stream whose clock starts again part-way (an advert break) keeps its sound in step.
 - YouTube: where the player's checks cannot be answered for one client's addresses, the next client is asked, and dm asks for fresh site rules at once (where update checks are on) rather than waiting for the weekly look.
 - At rest, dm gives the memory it has freed back to the system (macOS and Linux), at most every 30 seconds.
 - View › Categories and View › Toolbar are kept for the next start, as the list's sort is.
