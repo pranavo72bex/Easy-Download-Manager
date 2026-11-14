@@ -66,6 +66,7 @@ mod limit;
 
 pub mod live;
 
+pub mod heap;
 #[cfg(target_os = "macos")]
 pub mod memory;
 

@@ -506,6 +506,41 @@ pub fn served_player_clients() -> Vec<PlayerClient> {
     crate::lock(&SERVED_CLIENTS).clone()
 }
 
+/// The player scripts whose checks were not answered this run, by id, and how many of them the
+/// window has been handed (gaps row Y3).
+static UNSOLVED: std::sync::Mutex<(Vec<String>, usize)> = std::sync::Mutex::new((Vec::new(), 0));
+
+/// The id of the player script at `path` (`/s/player/<id>/…`), noted as one whose checks were
+/// not answered, once.
+fn note_unsolved(path: Option<&str>) {
+    let Some(player) = path
+        .and_then(|p| p.strip_prefix("/s/player/"))
+        .and_then(|p| p.split('/').next())
+        .filter(|id| !id.is_empty())
+    else {
+        return;
+    };
+    let mut held = crate::lock(&UNSOLVED);
+    if !held.0.iter().any(|seen| seen == player) {
+        held.0.push(player.to_string());
+    }
+}
+
+/// Every player script whose checks were not answered this run, by id, in the order met.
+pub fn unsolved_players() -> Vec<String> {
+    crate::lock(&UNSOLVED).0.clone()
+}
+
+/// The next player not yet handed on whose checks were not answered: for the window to ask
+/// for fresh site rules once for each, out of the weekly turn (gaps row Y3).
+pub fn take_unsolved_player() -> Option<String> {
+    let mut held = crate::lock(&UNSOLVED);
+    let (all, handed) = &mut *held;
+    let next = all.get(*handed).cloned()?;
+    *handed += 1;
+    Some(next)
+}
+
 /// The TV client this reads with today: its answers carry plain addresses and want no
 /// proof-of-origin token.
 fn own_client() -> PlayerClient {
@@ -539,8 +574,9 @@ fn player_clients() -> Vec<PlayerClient> {
 }
 
 /// The player's answer for video `id`, asked as each of `clients` in turn until one answers
-/// with a video that plays: a client YouTube stops serving (an error, or a status but OK) is
-/// passed over for the next. The last one's reason where none does.
+/// with a video that plays, the last one's reason where none does: the turn `read_within`
+/// takes, without the streams (which a client is also passed over for), for its tests.
+#[cfg(test)]
 async fn ask_player(
     client: &reqwest::Client,
     origin: &str,
@@ -1230,84 +1266,112 @@ async fn read_within(
         script = Some(text);
     }
 
-    let player = ask_player(client, &origin, id, &facts, &player_clients()).await?;
-    if player
-        .pointer("/videoDetails/isLive")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
-        // Recorded from YouTube's own HLS playlist of it, where the player names one, by the
-        // engine's live recording (gaps row Y5); refused, as before, where it names none.
-        let live = player
-            .pointer("/streamingData/hlsManifestUrl")
-            .and_then(Value::as_str)
-            .filter(|u| u.starts_with("https://"));
-        let Some(live) = live else {
-            return Err(Error::Internal("a live stream".into()));
+    // Each client in turn until one answers with streams dm can fetch: a client YouTube
+    // stops serving, or whose addresses this player's checks could not be answered for
+    // (gaps row Y3), is passed over for the next.
+    let mut failed = None;
+    let mut found = None;
+    for asked_as in &player_clients() {
+        let player = match ask_player_as(client, &origin, id, &facts, asked_as).await {
+            Ok(player) => player,
+            Err(e) => {
+                failed = Some(e);
+                continue;
+            }
         };
-        let title = player
-            .pointer("/videoDetails/title")
-            .and_then(Value::as_str)
-            .unwrap_or("live");
-        return Ok(json!({
-            "id": id,
-            "title": title,
-            "extractor": "youtube",
-            "extractor_key": "Youtube",
-            "webpage_url": format!("https://www.youtube.com/watch?v={id}"),
-            "is_live": true,
-            "url": live,
-            "protocol": "m3u8_native",
-            "ext": "mp4",
-            "filename": staging
-                .join(format!("{} [{id}].mp4", safe_title(title)))
-                .display()
-                .to_string(),
-            "read_by": "dm",
-        })
-        .to_string());
-    }
-    // The picture and the sound apart (`adaptiveFormats`), as a player
-    // `bv+ba` takes them; the formats with both in one file only where
-    // there is nothing apart, and then one alone (a picture with its own
-    // sound and a sound beside it made a file with two sound tracks).
-    let streams_at = |at: &str| -> Vec<Format> {
-        player
-            .pointer(at)
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Format::of)
-            .collect()
-    };
-    let mut formats = streams_at("/streamingData/adaptiveFormats");
-    let muxed = formats.is_empty();
-    if muxed {
-        formats = streams_at("/streamingData/formats");
-    }
-    set_dubs_aside(&mut formats);
-    if formats.is_empty() {
-        return Err(Error::Internal(
-            "the player names no stream dm can fetch".into(),
-        ));
-    }
-
-    // The solver, for the `n` value every address carries and the cipher
-    // some are locked behind.
-    let needs = formats
-        .iter()
-        .any(|f| f.cipher.is_some() || f.url.as_deref().is_some_and(has_n));
-    if needs {
-        let script = match script {
-            Some(text) => text,
-            None => fetch_script().await?,
-        };
-        let solved = solve(&script, &formats).await?;
-        for format in &mut formats {
-            format.url = Some(unlocked(format, &solved)?);
-            format.cipher = None;
+        if player
+            .pointer("/videoDetails/isLive")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            // Recorded from YouTube's own HLS playlist of it, where the player names one, by the
+            // engine's live recording (gaps row Y5); refused, as before, where it names none.
+            let live = player
+                .pointer("/streamingData/hlsManifestUrl")
+                .and_then(Value::as_str)
+                .filter(|u| u.starts_with("https://"));
+            let Some(live) = live else {
+                return Err(Error::Internal("a live stream".into()));
+            };
+            let title = player
+                .pointer("/videoDetails/title")
+                .and_then(Value::as_str)
+                .unwrap_or("live");
+            return Ok(json!({
+                "id": id,
+                "title": title,
+                "extractor": "youtube",
+                "extractor_key": "Youtube",
+                "webpage_url": format!("https://www.youtube.com/watch?v={id}"),
+                "is_live": true,
+                "url": live,
+                "protocol": "m3u8_native",
+                "ext": "mp4",
+                "filename": staging
+                    .join(format!("{} [{id}].mp4", safe_title(title)))
+                    .display()
+                    .to_string(),
+                "read_by": "dm",
+            })
+            .to_string());
         }
+        // The picture and the sound apart (`adaptiveFormats`), as a player
+        // `bv+ba` takes them; the formats with both in one file only where
+        // there is nothing apart, and then one alone (a picture with its own
+        // sound and a sound beside it made a file with two sound tracks).
+        let streams_at = |at: &str| -> Vec<Format> {
+            player
+                .pointer(at)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Format::of)
+                .collect()
+        };
+        let mut formats = streams_at("/streamingData/adaptiveFormats");
+        let muxed = formats.is_empty();
+        if muxed {
+            formats = streams_at("/streamingData/formats");
+        }
+        set_dubs_aside(&mut formats);
+        if formats.is_empty() {
+            failed = Some(Error::Internal(
+                "the player names no stream dm can fetch".into(),
+            ));
+            continue;
+        }
+
+        // The solver, for the `n` value every address carries and the cipher
+        // some are locked behind.
+        let needs = formats
+            .iter()
+            .any(|f| f.cipher.is_some() || f.url.as_deref().is_some_and(has_n));
+        if needs {
+            if script.is_none() {
+                script = Some(fetch_script().await?);
+            }
+            let solved = match solve(script.as_deref().unwrap_or_default(), &formats).await {
+                Ok(solved) => solved,
+                // Not answered for this client's addresses: the player's id noted (the window
+                // asks for fresh rules by it) and the next client asked, whose answer may want
+                // no answer, or one this player gives.
+                Err(e) => {
+                    note_unsolved(js_path.as_deref());
+                    failed = Some(e);
+                    continue;
+                }
+            };
+            for format in &mut formats {
+                format.url = Some(unlocked(format, &solved)?);
+                format.cipher = None;
+            }
+        }
+        found = Some((player, formats, muxed));
+        break;
     }
+    let (player, formats, muxed) = found.ok_or_else(|| {
+        failed.unwrap_or_else(|| Error::Internal("no client to ask YouTube's player as".into()))
+    })?;
 
     // A part is cut from MP4 streams alone (their pieces are indexed): a
     // height only WebM has gives way to the tallest MP4.

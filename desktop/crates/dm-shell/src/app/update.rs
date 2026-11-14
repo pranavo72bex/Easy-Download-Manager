@@ -298,6 +298,29 @@ pub fn check(
     });
 }
 
+/// Asks in the background, with the application's client, for the site rules the release
+/// manifest names, and keeps them where newer (`fetch_rules`), with no update offered: for a
+/// YouTube player whose checks dm could not answer (`dm_core::youtube::take_unsolved_player`),
+/// whose fix may be in newer rules, out of the weekly turn (gaps row Y3). Any failure keeps the
+/// rules in force and says nothing: the reading has already said why it failed.
+pub fn fresh_rules(backend: &crate::app::backend::Backend) {
+    let client = backend.client();
+    backend.runtime.spawn(async move {
+        let Ok(res) = dm_core::redirects::send(client.get(ENDPOINT)).await else {
+            return;
+        };
+        if !res.status().is_success() {
+            return;
+        }
+        let Ok(text) = res.text().await else {
+            return;
+        };
+        if let Some(entry) = rules_in(&text, RELEASES) {
+            let _ = fetch_rules(&client, &entry, &crate::settings::home()).await;
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

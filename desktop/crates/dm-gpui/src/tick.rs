@@ -30,7 +30,7 @@ impl Downloads {
             .iter()
             .any(|r| matches!(r.state, dm_core::State::Running))
         {
-            dm_core::memory::give_back();
+            dm_core::heap::give_back();
         }
         // Windows' High Contrast turned on, off or to another theme: every
         // window drawn again in its colours (`theme.rs`), not only the one in

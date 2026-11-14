@@ -297,7 +297,7 @@ fn player_script(path: &str) -> Response {
         "solverErr01" => "MARK_ERROR",
         "solverJunk1" => "MARK_NOJSON",
         "solverNone1" => "MARK_NORESP",
-        "solverFail1" => "MARK_UNSOLVED",
+        "solverFail1" | "solveNext01" => "MARK_UNSOLVED",
         "solverExit1" => "MARK_EXIT",
         // A player whose shape dm does not know: its timestamp is read, but
         // no function in it deciphers a signature.
@@ -448,6 +448,16 @@ fn player(id: &str, call: usize, origin: &str) -> Response {
             }
             ok(Some("Needs solving"), streams)
         }
+        // Each reading's first client (odd asks) has addresses with an `n` the player gives
+        // no answer for; the next client's (even asks) want none.
+        "solveNext01" if call % 2 == 0 => ok(Some("Next client"), plain_streams()),
+        "solveNext01" => ok(
+            Some("Needs solving"),
+            vec![
+                video(137, MP4, (1920, 1080, 30), 8000, &format!("{r}/v?n=abc")),
+                audio(140, M4A, 130_000, 500, &format!("{r}/a?n=def")),
+            ],
+        ),
         "cipherNoUrl" | "cipherNoSig" | "sigUnknown1" => {
             let cipher = match id {
                 "cipherNoUrl" => "s=xyz&sp=sig".to_string(),
@@ -1193,6 +1203,48 @@ async fn a_player_that_fails_fails_the_reading_with_its_words() {
             "{id}: {why}"
         );
     }
+}
+
+/// A player whose checks are not answered for one client's addresses passes the reading on to
+/// the next client, notes the player's id once and hands it to the window once, for fresh
+/// rules (gaps row Y3). Held alone: the served clients are the process's.
+#[tokio::test]
+async fn a_player_not_answered_for_one_client_passes_on_to_the_next_and_is_noted() {
+    let _env = ENV.write().await;
+    stand_in();
+    youtube::set_player_clients(vec![youtube::PlayerClient {
+        name: "SERVED".into(),
+        version: "1.0".into(),
+        id: "9".into(),
+        agent: "served agent".into(),
+        context: Vec::new(),
+    }]);
+    let read = reading("solveNext01", Quality::Best, None).await;
+    let again = reading("solveNext01", Quality::Best, None).await;
+    youtube::set_player_clients(Vec::new());
+    again.expect("read again by the next client");
+    let read = read.expect("the next client's streams want no answer");
+    assert_eq!(read["title"], "Next client");
+    assert!(
+        youtube::unsolved_players().contains(&"solveNext01".to_string()),
+        "{:?}",
+        youtube::unsolved_players()
+    );
+    // Met twice: noted and handed on once.
+    assert_eq!(
+        youtube::unsolved_players()
+            .iter()
+            .filter(|id| *id == "solveNext01")
+            .count(),
+        1
+    );
+    let handed: Vec<String> = std::iter::from_fn(youtube::take_unsolved_player).collect();
+    assert_eq!(
+        handed.iter().filter(|id| *id == "solveNext01").count(),
+        1,
+        "{handed:?}"
+    );
+    assert!(youtube::take_unsolved_player().is_none());
 }
 
 /// The TV client names no title: the page's own `<title>` is used without
