@@ -292,7 +292,7 @@ fn five_hundred_rows_draw_inside_a_frame_budget() {
     let filtered = frame(&mut h);
     println!("500 rows, narrowed: {filtered:?} a frame");
     assert!(
-        filtered < Duration::from_millis(100),
+        filtered < Duration::from_millis(budget),
         "{filtered:?} a frame"
     );
 }

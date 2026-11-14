@@ -1120,31 +1120,43 @@ async fn an_empty_playlist_fails_instead_of_being_watched_for_ever() {
 }
 
 /// A distant server answers each segment a round trip late. Fetched one at a
-/// time, forty of them wait forty round trips; together, a few.
+/// time, forty of them wait forty round trips; together, a few. The server
+/// counts the segments it is asked for at once, so a slow runner's clock
+/// cannot pass or fail it.
 #[tokio::test]
 async fn segments_from_a_distant_server_are_fetched_together_and_joined_in_order() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     const COUNT: usize = 40;
     const LATE: std::time::Duration = std::time::Duration::from_millis(100);
     let piece = |i: usize| vec![(i % 251) as u8; 8 * 1024];
-    let app = axum::Router::new().fallback(move |uri: Uri| async move {
-        let path = uri.path().to_string();
-        if path.ends_with("/index.m3u8") {
-            let list: String = (0..COUNT)
-                .map(|i| format!("#EXTINF:4.0,\nseg{i}.ts\n"))
-                .collect();
-            return Response::new(Body::from(format!(
+    let now = Arc::new(AtomicUsize::new(0));
+    let most = Arc::new(AtomicUsize::new(0));
+    let (now_in, most_in) = (now.clone(), most.clone());
+    let app = axum::Router::new().fallback(move |uri: Uri| {
+        let (now, most) = (now_in.clone(), most_in.clone());
+        async move {
+            let path = uri.path().to_string();
+            if path.ends_with("/index.m3u8") {
+                let list: String = (0..COUNT)
+                    .map(|i| format!("#EXTINF:4.0,\nseg{i}.ts\n"))
+                    .collect();
+                return Response::new(Body::from(format!(
                 "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n{list}#EXT-X-ENDLIST\n"
             )));
+            }
+            let index = path
+                .rsplit('/')
+                .next()
+                .and_then(|f| f.strip_prefix("seg"))
+                .and_then(|f| f.strip_suffix(".ts"))
+                .and_then(|n| n.parse::<usize>().ok())
+                .unwrap();
+            let at_once = now.fetch_add(1, Ordering::SeqCst) + 1;
+            most.fetch_max(at_once, Ordering::SeqCst);
+            tokio::time::sleep(LATE).await;
+            now.fetch_sub(1, Ordering::SeqCst);
+            Response::new(Body::from(piece(index)))
         }
-        let index = path
-            .rsplit('/')
-            .next()
-            .and_then(|f| f.strip_prefix("seg"))
-            .and_then(|f| f.strip_suffix(".ts"))
-            .and_then(|n| n.parse::<usize>().ok())
-            .unwrap();
-        tokio::time::sleep(LATE).await;
-        Response::new(Body::from(piece(index)))
     });
     let addr = common::serve(app).await;
     let dir = tempdir();
@@ -1164,8 +1176,9 @@ async fn segments_from_a_distant_server_are_fetched_together_and_joined_in_order
         want,
         "wrong order or a lost byte"
     );
+    let most = most.load(Ordering::SeqCst);
     assert!(
-        took < LATE * (COUNT as u32) / 2,
-        "segments were fetched one at a time: {took:?}"
+        most >= 4,
+        "segments were fetched one at a time: at most {most} at once, {took:?}"
     );
 }
