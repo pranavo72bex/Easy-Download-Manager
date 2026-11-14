@@ -263,6 +263,11 @@ jobs:
           # (shellcheck SC2155, which failed the packaging lint).
           CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
           export CARGO_BUILD_RUSTFLAGS
+          # A named target (the Intel Mac's) for the packager's own
+          # beforePackagingCommand too, which has no --target: without it that
+          # build was the runner's arm64 one, in target/release, and the
+          # packager found nothing in target/<target>/release to put in dm.app.
+          if [ -n "${{ matrix.target }}" ]; then export CARGO_BUILD_TARGET=${{ matrix.target }}; fi
           # This crate's packages alone: without -p, cargo-packager packages every
           # crate of the workspace that has packager settings.
           cargo packager --release -p ${{ matrix.crate }} --formats ${{ matrix.formats }} \
