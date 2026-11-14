@@ -29,7 +29,7 @@ optdepends=('noto-fonts-cjk: names in Chinese, Japanese and Korean')
 options=('!debug' '!lto')
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/desktop-v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('2bd2f56db304c014f8c0ed860874474b82005aac8992f77f6c24007da2d37fcd')
 
 # The name GitHub gives the extracted tag archive, which is the repository
 # name and not the package name.
