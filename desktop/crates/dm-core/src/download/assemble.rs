@@ -735,7 +735,7 @@ mod tests {
         assert!(parts.iter().all(|p| !p.exists()));
         // The blocking join of one part: renamed, then cut. (A copy across drives, where no
         // rename can be made, is held by the same spans but cannot be made here.)
-        let parts = vec![make("d", b"ddZZ"), make("e", b"eeeQ")];
+        let parts = [make("d", b"ddZZ"), make("e", b"eeeQ")];
         let into = dir.join("copied");
         let bytes = copy_parts_blocking(&parts[1..], Some(&[3]), &into, &control).unwrap();
         assert_eq!(bytes, 3);

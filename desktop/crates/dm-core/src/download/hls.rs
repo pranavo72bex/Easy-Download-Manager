@@ -492,6 +492,9 @@ async fn join_live(
     let (picture_owned, sound_owned) = (picture.to_path_buf(), sound.to_path_buf());
     let made = if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
         crate::tsmux::join_packed_async(picture_owned, sound_owned, joined.clone()).await
+    } else if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_transport_stream(sound)
+    {
+        crate::tsmux::join_ts_async(picture_owned, sound_owned, joined.clone()).await
     } else {
         crate::mp4mux::join_async(vec![picture_owned, sound_owned], joined.clone()).await
     };
@@ -873,11 +876,13 @@ async fn resolve_pair(
 
 /// Whether dm joins this picture and sound into one file: fragmented MP4 on
 /// both sides, scrambled or not, whole or cut by byte ranges; or a
-/// transport-stream picture with packed AAC sound. Any other mix is beyond.
+/// transport-stream picture with packed AAC sound or a transport stream's. Any other mix is
+/// beyond.
 fn joinable(picture: &stream::Stream, sound: &stream::Stream) -> bool {
     let fragmented = |s: &stream::Stream| s.container == "mp4";
-    let packed = picture.container == "ts" && sound.container == "aac";
-    (fragmented(picture) && fragmented(sound)) || packed
+    // Packed AAC, or a transport stream of its own (gaps row Y16).
+    let transport = picture.container == "ts" && matches!(sound.container.as_str(), "aac" | "ts");
+    (fragmented(picture) && fragmented(sound)) || transport
 }
 
 /// The sound a live picture is recorded with: `sound_url`, where its

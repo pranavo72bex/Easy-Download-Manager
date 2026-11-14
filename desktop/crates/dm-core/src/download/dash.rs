@@ -484,6 +484,10 @@ async fn join_tracks(
             if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
                 crate::tsmux::join_packed_async(picture.clone(), sound.clone(), partial.clone())
                     .await
+            } else if crate::tsmux::is_transport_stream(picture)
+                && crate::tsmux::is_transport_stream(sound)
+            {
+                crate::tsmux::join_ts_async(picture.clone(), sound.clone(), partial.clone()).await
             } else {
                 join_mp4(files.clone(), partial.clone(), options).await
             }

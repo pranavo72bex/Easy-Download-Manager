@@ -32,6 +32,15 @@ const PACKET: usize = 188;
 const TIMESCALE: u32 = 90_000;
 /// PTS and DTS are 33 bits and wrap.
 const WRAP: i64 = 1 << 33;
+/// A stream's clock leaping ahead by more than this is a discontinuity, not time that passed:
+/// ten seconds, where a picture follows the one before it within a fraction of one.
+const JUMP: i64 = 10 * TIMESCALE as i64;
+/// Or going back by more than this: half a second. A picture is decoded after the one before
+/// it, and a sound frame played after it, so their clocks never go back; a few frames' slack.
+const JUMP_BACK: i64 = TIMESCALE as i64 / 2;
+/// How far after the last picture the first one past a discontinuity is put: a frame at 30 a
+/// second.
+const STEP: i64 = TIMESCALE as i64 / 30;
 
 const H264: u8 = 0x1b;
 const HEVC: u8 = 0x24;
@@ -106,7 +115,18 @@ struct Elementary {
     adts: Vec<u8>,
     sound: Option<Sound>,
     first_pts: Option<i64>,
+    /// The last PTS, as the samples carry it (moved on by `shift`).
     last_pts: Option<i64>,
+    /// The last PTS as the stream stamped it, carried past a wrap: what the next is unwrapped
+    /// against.
+    raw_last: Option<i64>,
+    /// When the last PES is decoded (its DTS, else its PTS), moved on by `shift`: what a
+    /// discontinuity is told by.
+    last_at: Option<i64>,
+    /// Added to every timestamp from a discontinuity on (`take_pes`): an HLS stream's
+    /// `EXT-X-DISCONTINUITY` (an advert, another encoder) starts its clock afresh, which read
+    /// as it is put pictures back in time (gaps row Y16).
+    shift: i64,
 }
 
 /// Puts the transport stream at `input` into an MP4 at `out`, with scratch
@@ -141,7 +161,9 @@ mod tracks;
 
 use demux::*;
 pub(crate) use headers::*;
-pub use packed::{is_packed_aac, is_transport_stream, join_packed, join_packed_async};
+pub use packed::{
+    is_packed_aac, is_transport_stream, join_packed, join_packed_async, join_ts, join_ts_async,
+};
 use samples::*;
 pub(crate) use sound::*;
 use tracks::*;

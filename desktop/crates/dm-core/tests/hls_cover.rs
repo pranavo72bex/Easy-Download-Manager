@@ -417,16 +417,54 @@ async fn a_picture_and_sound_dm_cannot_join_are_said_to_be_beyond_it() {
     let why = internal(download(&client(), &master(addr), &options(dir.path())).await);
     assert!(why.contains("carries its sound separately"), "{why}");
 
-    // Both transport streams: not a pair dm joins.
-    let site = site_of(&paired(media(&["v0.ts"], true), media(&["a0.ts"], true)));
+    // A transport-stream picture with fragmented MP4 sound: not a pair dm joins.
+    let site = site_of(&paired(media(&["v0.ts"], true), media(&["a0.m4s"], true)));
     let addr = site.serve().await;
     let why = internal(download(&client(), &master(addr), &options(dir.path())).await);
     assert!(why.contains("carries its sound separately"), "{why}");
 }
 
-/// A live picture whose sound is a pair dm cannot join (both transport
-/// streams) is recorded as the picture alone, and the sound's segments are
-/// not fetched.
+/// A transport-stream picture whose sound is a playlist of transport-stream segments of its own
+/// is fetched as two tracks and joined into one MP4 (gaps row Y16), where it was refused.
+#[tokio::test]
+async fn a_transport_stream_picture_with_transport_stream_sound_is_joined_into_an_mp4() {
+    let stream = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/media/mp4mux/stream.ts"
+    ))
+    .unwrap();
+    let mut files = paired(media(&["v0.ts"], true), media(&["a0.ts"], true));
+    files.push(("/p/v0.ts".into(), stream.clone()));
+    files.push(("/p/a0.ts".into(), stream));
+    let site = site_of(&files);
+    let addr = site.serve().await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/p/master.m3u8"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the pair is joined");
+    let name = done
+        .path
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert!(name.ends_with(".mp4"), "{name}");
+    let joined = std::fs::read(&done.path).unwrap();
+    assert_eq!(&joined[4..8], b"ftyp", "not an MP4");
+    // Two tracks: a picture and a sound.
+    let tracks = joined.windows(4).filter(|w| *w == b"trak").count();
+    assert_eq!(tracks, 2, "tracks in the file");
+    let asked = site.asked();
+    assert!(asked.iter().any(|(p, _)| p == "/p/a0.ts"), "{asked:?}");
+}
+
+/// A live picture whose sound is a pair dm cannot join (a transport-stream
+/// picture, fragmented MP4 sound) is recorded as the picture alone, and the
+/// sound's segments are not fetched.
 #[tokio::test]
 async fn a_live_picture_with_sound_apart_dm_cannot_join_is_recorded_as_the_picture() {
     let mut site = Site::live(Live {
@@ -442,7 +480,7 @@ async fn a_live_picture_with_sound_apart_dm_cannot_join_is_recorded_as_the_pictu
               live.m3u8\n"
                 .to_vec(),
         ),
-        ("/sound.m3u8".to_string(), media(&["a0.ts"], true)),
+        ("/sound.m3u8".to_string(), media(&["a0.m4s"], true)),
     ]));
     let addr = site.serve().await;
     let dir = tempdir();

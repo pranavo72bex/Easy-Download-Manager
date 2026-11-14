@@ -220,10 +220,24 @@ pub(super) fn take_pes(stream: &mut Elementary, pes: &[u8]) -> Result<(), String
     let Some(data) = pes.get(9 + header..) else {
         return Ok(());
     };
-    let pts = pts.map(|p| unwrap(p, stream.last_pts));
-    let dts = dts.map(|d| unwrap(d, pts.or(stream.last_pts)));
+    let raw_pts = pts.map(|p| unwrap(p, stream.raw_last));
+    let raw_dts = dts.map(|d| unwrap(d, raw_pts.or(stream.raw_last)));
+    // A clock started afresh (a discontinuity): what follows is moved on to go on a frame after
+    // the last, where it would have gone back in time or leapt ahead.
+    if let (Some(p), Some(last)) = (raw_pts, stream.last_at) {
+        let at = raw_dts.unwrap_or(p) + stream.shift;
+        if at - last > JUMP || last - at > JUMP_BACK {
+            stream.shift += last + STEP - at;
+        }
+    }
+    let pts = raw_pts.map(|p| p + stream.shift);
+    let dts = raw_dts.map(|d| d + stream.shift);
+    if let Some(p) = raw_pts {
+        stream.raw_last = Some(p);
+    }
     if let Some(p) = pts {
         stream.last_pts = Some(p);
+        stream.last_at = Some(dts.unwrap_or(p));
     }
     if PICTURES.contains(&stream.kind) {
         take_picture(stream, data, pts, dts)

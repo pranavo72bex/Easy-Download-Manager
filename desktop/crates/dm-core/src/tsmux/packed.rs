@@ -55,6 +55,70 @@ pub async fn join_packed_async(ts: PathBuf, aac: PathBuf, out: PathBuf) -> Resul
         .map_err(|e| format!("the remux stopped: {e}"))?
 }
 
+/// Puts the picture of the transport stream at `picture` and the sound of the one at `sound`
+/// into one MP4 at `out`: an HLS master whose sound is a playlist of transport-stream segments
+/// of its own (gaps row Y16). Both are stamped by the same 90 kHz clock, so they keep the
+/// distance apart they were served with. Sound inside the picture's stream, and a picture inside
+/// the sound's, are dropped. Scratch files beside `out` are gone when it returns; returns its
+/// length.
+pub fn join_ts(picture: &Path, sound: &Path, out: &Path) -> Result<u64, String> {
+    let scratch = |what: &str| {
+        let mut name = out.as_os_str().to_owned();
+        name.push(format!(".{what}"));
+        PathBuf::from(name)
+    };
+    let scratch_sound = |what: &str| scratch(&format!("sound-{what}"));
+    let mut streams = read_ts(picture, &scratch)?;
+    let heard = read_ts(sound, &scratch_sound);
+    let result = (|| {
+        let heard = heard?;
+        let keep = |streams: Vec<Elementary>, picture: bool| -> Vec<Elementary> {
+            streams
+                .into_iter()
+                .filter(|s| {
+                    let keep = PICTURES.contains(&s.kind) == picture;
+                    if !keep {
+                        let _ = std::fs::remove_file(&s.path);
+                    }
+                    keep
+                })
+                .collect()
+        };
+        streams = keep(std::mem::take(&mut streams), true);
+        let heard = keep(heard, false);
+        let found = |streams: &[Elementary]| streams.iter().any(|s| !s.samples.is_empty());
+        if !found(&streams) {
+            for s in &heard {
+                let _ = std::fs::remove_file(&s.path);
+            }
+            return Err(
+                "its picture's transport stream holds no picture dm can put into an MP4".into(),
+            );
+        }
+        if !found(&heard) {
+            for s in &heard {
+                let _ = std::fs::remove_file(&s.path);
+            }
+            return Err(
+                "its sound's transport stream holds no sound dm can put into an MP4".into(),
+            );
+        }
+        streams.extend(heard);
+        build(&mut streams, out)
+    })();
+    for stream in &streams {
+        let _ = std::fs::remove_file(&stream.path);
+    }
+    result
+}
+
+/// [`join_ts`], off the async runtime.
+pub async fn join_ts_async(picture: PathBuf, sound: PathBuf, out: PathBuf) -> Result<u64, String> {
+    tokio::task::spawn_blocking(move || join_ts(&picture, &sound, &out))
+        .await
+        .map_err(|e| format!("the remux stopped: {e}"))?
+}
+
 /// Whether the file at `path` starts as packed AAC does: an ID3 tag or an
 /// ADTS frame.
 pub fn is_packed_aac(path: &Path) -> bool {

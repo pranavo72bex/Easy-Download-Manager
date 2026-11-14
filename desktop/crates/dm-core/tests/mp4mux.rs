@@ -924,6 +924,146 @@ fn plain_files_join_the_same_way() {
     check(false);
 }
 
+/// A transport-stream picture with its sound in a transport stream of its own (gaps row Y16):
+/// the picture of one and the sound of the other, here the same stream twice, held to the stream
+/// as `to_mp4` is, and no scratch file left.
+#[test]
+fn a_transport_stream_picture_and_a_transport_stream_sound_join_into_one_mp4() {
+    let dir = tempfile::tempdir().unwrap();
+    let ts = media("stream.ts");
+    let out = dir.path().join("joined.mp4");
+    dm_core::tsmux::join_ts(&ts, &ts, &out).unwrap();
+    let left: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("joined.mp4."))
+        .collect();
+    assert!(left.is_empty(), "scratch files left: {left:?}");
+    check_ts_against(&ts, &out, "avc1", "mp4a");
+    // What is not a transport stream on the sound's side is refused, and leaves nothing.
+    let page = dir.path().join("page.ts");
+    std::fs::write(&page, vec![b'x'; 188 * 1200]).unwrap();
+    let refused = dir.path().join("refused.mp4");
+    assert!(dm_core::tsmux::join_ts(&ts, &page, &refused).is_err());
+    let left: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("refused.mp4"))
+        .collect();
+    assert!(left.is_empty(), "left behind: {left:?}");
+}
+
+/// `ts` with every PES timestamp moved back by `by` ticks of the 90 kHz clock: a segment cut
+/// after an `EXT-X-DISCONTINUITY`, whose encoder started its clock afresh.
+fn restamped(ts: &[u8], by: i64) -> Vec<u8> {
+    let mut out = ts.to_vec();
+    let put = |b: &mut [u8], value: i64| {
+        let v = value.rem_euclid(1 << 33);
+        b[0] = (b[0] & 0xf1) | ((((v >> 30) & 7) as u8) << 1);
+        b[1] = (v >> 22) as u8;
+        b[2] = (b[2] & 0x01) | ((((v >> 15) & 0x7f) as u8) << 1);
+        b[3] = (v >> 7) as u8;
+        b[4] = (b[4] & 0x01) | (((v & 0x7f) as u8) << 1);
+    };
+    let get = |b: &[u8]| {
+        (i64::from(b[0] >> 1 & 7) << 30)
+            | (i64::from(b[1]) << 22)
+            | (i64::from(b[2] >> 1) << 15)
+            | (i64::from(b[3]) << 7)
+            | i64::from(b[4] >> 1)
+    };
+    for packet in out.chunks_mut(188) {
+        let start = packet[1] & 0x40 != 0;
+        let control = packet[3] >> 4 & 3;
+        if !start || control & 1 == 0 {
+            continue;
+        }
+        let at = if control & 2 != 0 {
+            5 + usize::from(packet[4])
+        } else {
+            4
+        };
+        let pes = &mut packet[at..];
+        if pes.len() < 19 || pes[..3] != [0, 0, 1] || !matches!(pes[3], 0xc0..=0xef) {
+            continue;
+        }
+        let flags = pes[7];
+        if flags & 0x80 != 0 {
+            let v = get(&pes[9..14]);
+            put(&mut pes[9..14], v - by);
+        }
+        if flags & 0x40 != 0 {
+            let v = get(&pes[14..19]);
+            put(&mut pes[14..19], v - by);
+        }
+    }
+    out
+}
+
+/// A transport stream whose clock starts afresh part-way (an HLS `EXT-X-DISCONTINUITY`: an
+/// advert, another encoder) goes on in time across the reset: every picture after the one
+/// before it, the whole as long as its pictures play, the sound beside it (gaps row Y16).
+#[test]
+fn a_stream_whose_clock_starts_again_part_way_plays_on_in_order() {
+    let dir = tempfile::tempdir().unwrap();
+    let segment = |n: usize| std::fs::read(media(&format!("hls/segment{n}.ts"))).unwrap();
+    let first_stamp = |ts: &Path| {
+        read_ts(ts)
+            .iter()
+            .flat_map(|(_, pes)| pes.iter().filter_map(|p| p.pts))
+            .min()
+            .unwrap()
+    };
+    let probe = dir.path().join("probe.ts");
+    std::fs::write(&probe, segment(2)).unwrap();
+    // The last two segments' clock started again near nothing.
+    let back = first_stamp(&probe) - 1_000;
+    let mut joined = Vec::new();
+    for n in 0..4 {
+        let bytes = segment(n);
+        joined.extend(if n >= 2 {
+            restamped(&bytes, back)
+        } else {
+            bytes
+        });
+    }
+    let ts = dir.path().join("reset.ts");
+    std::fs::write(&ts, &joined).unwrap();
+    let out = dir.path().join("reset.mp4");
+    dm_core::tsmux::to_mp4(&ts, &out).unwrap();
+    let mp4 = read_mp4(&out);
+    let video = mp4.track("vide");
+    assert!(
+        video.samples.windows(2).all(|w| w[1].dts > w[0].dts),
+        "a picture decoded before the one before it"
+    );
+    assert!(
+        video.samples.iter().all(|s| s.duration < video.timescale),
+        "a picture held for a second or more"
+    );
+    let (pictures, sound) = (video.seconds(), mp4.track("soun").seconds());
+    assert!((pictures - 2.0).abs() < 0.2, "pictures last {pictures}s");
+    assert!(
+        (pictures - sound).abs() < 0.2,
+        "pictures {pictures}s, sound {sound}s"
+    );
+    // Picture and sound start as far apart as in the same segments with no reset: the
+    // reset's early stamps are not taken for the picture's start.
+    let plain = dir.path().join("plain.ts");
+    std::fs::write(&plain, (0..4).flat_map(segment).collect::<Vec<u8>>()).unwrap();
+    let plain_out = dir.path().join("plain.mp4");
+    dm_core::tsmux::to_mp4(&plain, &plain_out).unwrap();
+    let apart =
+        |mp4: &Mp4| mp4.track("vide").start(mp4.timescale) - mp4.track("soun").start(mp4.timescale);
+    let (ours, theirs) = (apart(&mp4), apart(&read_mp4(&plain_out)));
+    assert!(
+        (ours - theirs).abs() < 0.002,
+        "picture after sound by {ours}s, with no reset {theirs}s"
+    );
+}
+
 fn check_ts(segmented: bool) {
     let dir = tempfile::tempdir().unwrap();
     let ts = if segmented {
