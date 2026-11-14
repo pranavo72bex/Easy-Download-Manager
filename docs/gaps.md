@@ -54,6 +54,18 @@ Seen once on CI at aaa042f2 and passed on its re-run (watch for them again):
 `hls_memory` `a_streams_segment_is_written_as_it_comes` on Linux (188 MB at its most for a 160 MB
 segment); `window_tests::commands::the_queue_arrows_start_and_stop_the_queue_chosen` failed twice on Windows, reading the status line before it was said, and now waits for it.
 
+Windows CI on 2026-11-14 (97ce58de to de16912a), each passing on its re-run, to fix after 0.10.0:
+- `shutdown.rs` `quitting_with_twenty_downloads_running_stops_them_within_two_seconds_and_they_resume_whole`
+  failed in 3 of 6 Desktop runs. Three times at line 209: bytes the loopback held when dm let go
+  went past `held_by_buffers` (5,293,312 against 5,242,880; Windows' buffers hold more than the
+  128 KiB a connection measured on macOS), the files whole. Once at line 145, all 20 runs still
+  going at the 2 s deadline, in the same run as `slow_disk.rs:120` (memory grew 15.5 MB while the
+  disk held it back): a loaded runner is the guess, not checked. Line 209's allowance is now
+  256 KiB a connection on Windows (128 elsewhere); line 145's failure now prints each row's state
+  and bytes at the deadline. Next time it fails, read that before changing the 2 s.
+- `limits.rs:374` `connections_a_server_turns_away_step_aside_at_once` on macOS CI: 1.73 s where
+  1.5 s is allowed (about 1 s here).
+
 Before the next release (as it stood on 2026-11-13):
 
 1. Main's Desktop CI green: a7408d59 fixed the three window tests that failed on the runners and

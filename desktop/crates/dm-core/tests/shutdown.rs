@@ -142,7 +142,18 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
     let asked = Instant::now();
     let left = first.shut_down(Duration::from_secs(2)).await;
     let took = asked.elapsed();
-    assert_eq!(left, 0, "{left} runs were still going at the deadline");
+    // What each row was doing when the deadline came, said with the failure:
+    // on Windows CI all 20 were once still going after 2 s (2026-11-14).
+    let at_deadline: Vec<_> = first
+        .list()
+        .await
+        .iter()
+        .map(|r| (r.state.clone(), r.progress.downloaded))
+        .collect();
+    assert_eq!(
+        left, 0,
+        "{left} runs were still going at the deadline, after {took:?}: {at_deadline:?}"
+    );
     assert!(took < Duration::from_secs(2), "the shutdown took {took:?}");
     let rows = first.list().await;
     assert!(
@@ -200,7 +211,10 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
     // 90 KiB a connection, 3.6 MB in all, 2026-11-12), so up to 128 KiB a
     // connection. After: what the restart asks again, the seams included,
     // which is dm's own and held to 48 KiB a connection.
-    let held_by_buffers = DOWNLOADS * CONNECTIONS * 128 * 1024;
+    // Windows' loopback holds more: 5,293,312 bytes for the 40 connections
+    // on its CI runner (about 132 KiB each, 2026-11-14), so 256 KiB there.
+    let per_connection = if cfg!(windows) { 256 } else { 128 } * 1024;
+    let held_by_buffers = DOWNLOADS * CONNECTIONS * per_connection;
     let allowed = DOWNLOADS * CONNECTIONS * 48 * 1024;
     println!(
         "{twice} bytes fetched twice: {before} before the restart (at most {held_by_buffers}), \
