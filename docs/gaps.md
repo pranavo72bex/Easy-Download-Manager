@@ -78,7 +78,8 @@ with updated UI … fix it"):
 - Browser bar (`bars.rs`): at Windows' first width (840) "Add dm to your browser:" was cut to
   "Add dm…". The label now wraps whole onto a second line (`line_clamp(2)`), and the bar's
   buttons take a least width of 80 (`BAR_BUTTON_MIN`, the macOS and Linux value) in place of
-  Windows' 120. macOS and Linux are unchanged, as their least width was already 80.
+  Windows' 120. The label's wrap reaches Linux too: at its first width (900) it was cut to
+  "Add dm to your bro…" and now wraps whole (Linux `empty-window.png` redrawn).
 - Download details (`native::path_field`): an empty Save to folder shows its hint cut in the
   middle, in the muted colour, as a typed folder is (U17), so "(sorted by kind)" stays in sight.
 - The three Windows B25 pictures redrawn with `--save-baseline` and looked at.
@@ -87,7 +88,12 @@ with updated UI … fix it"):
   B36 68 of 68 and 70 of 70). Log: `D:/t/qa-run4.log`.
 
 Left, in order:
-1. On the Mac: check that the macOS and Linux B25 pictures are unchanged by the two fixes.
+1. Done on the Mac (2026-11-14, at 9267b3c4): `cargo test --workspace` 2301 passed, clippy
+   `-D warnings` clean, the extension's 169 tests, `chrome-check.py` 92 of 92; `human-qa.py`
+   65 of 66 on macOS and on Linux (`linux-human-qa.sh`), B25 alone failing on the two fixes'
+   own change: macOS `download-details.png` (the empty folder's hint cut in the middle, 1.47%)
+   and Linux `empty-window.png` (the bar's label wrapped whole, 4.57%), both looked at and
+   saved as the baselines. Main's Desktop CI green on all three systems.
 2. Release installer: `cargo packager --release -p dm-gpui --formats nsis --out-dir
    D:/dm-target/release/bundle` (about 25 min). Then one whole QA run against it.
 3. `window_tests::commands::every_menu_item_clicked_does_what_it_says` failed in two of three
@@ -101,7 +107,8 @@ Left, in order:
 4. `cargo test --workspace` on Windows (2026-11-14, before aaa042f2) stopped at `dm-core`:
    `each_part_is_joined_no_further_than_its_span` got "Access is denied" from `join_parts`.
    aaa042f2 (the join opens a renamed range to write, not to append) is the fix for it; not
-   yet run on Windows after it, nor the crates after `dm-core`. Run on the Mac's final pass.
+   yet run on Windows after it, nor the crates after `dm-core`. Passed on the Mac's final pass
+   and on Windows CI (the Desktop run at 9267b3c4).
 
 Builds on this laptop: `CARGO_INCREMENTAL=0`. D: filled (398 GB in `D:/dm-target/debug`, 138
 of it the incremental cache) and the linker failed with LNK1180.

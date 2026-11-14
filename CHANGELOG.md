@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.10.0, extension 3.4.0
 
+- Windows: the browser bar's "Add dm to your browser:" wraps whole onto a second line at the window's first width, where it was cut to "Add dm…", and an empty Save to folder in Download details shows its hint cut in the middle, so "(sorted by kind)" stays in sight.
+- quinn-udp 0.5.16 (RUSTSEC-2026-0538: 0.5.15's receive loop could spin after a truncated datagram).
 - HLS: a stream whose sound is a transport stream of its own beside a transport-stream picture is downloaded as one MP4, where it was refused; a stream whose clock starts again part-way (an advert break) keeps its sound in step.
 - YouTube: where the player's checks cannot be answered for one client's addresses, the next client is asked, and dm asks for fresh site rules at once (where update checks are on) rather than waiting for the weekly look.
 - At rest, dm gives the memory it has freed back to the system (macOS and Linux), at most every 30 seconds.
