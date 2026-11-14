@@ -964,8 +964,15 @@ fn options_says_when_each_browser_was_last_heard_from() {
     std::fs::write(&seen, format!("Firefox\t{}\n", now - 125)).unwrap();
     open_options(&mut h);
     tab(&mut h, "Browser");
+    // Two minutes and some seconds: a slow runner takes seconds to open Options (2m 17s on
+    // Windows' runner, 2026-11-14), where a fast one says 2m 5s.
     h.until("Firefox heard two minutes ago", |h| {
-        h.shows("Connected · last heard 2m 5s ago") || h.shows("Connected · last heard 2m 6s ago")
+        h.texts().iter().any(|t| {
+            t.strip_prefix("Connected · last heard 2m ")
+                .and_then(|rest| rest.strip_suffix("s ago"))
+                .and_then(|seconds| seconds.parse::<u32>().ok())
+                .is_some_and(|seconds| (5..60).contains(&seconds))
+        })
     });
     // Heard again since: Check now reads it again.
     std::fs::write(&seen, format!("Firefox\t{}\n", now - 3)).unwrap();

@@ -44,7 +44,17 @@ the maintainer's word ("we will do the tasks later"). Closed this session: F5, U
 S14, S18, Y11, Y17, C1, U29, S1, S21; part-done: U2, Y13, A21 (each row says what is left).
 Every other PARTIAL or OPEN row below is as it stood.
 
-Before the next release:
+0.10.0 (extension 3.4.0), checked on 2026-11-14 at aaa042f2: `cargo test --workspace` 2301
+passed, clippy `-D warnings` clean, the extension's 166 tests, `chrome-check.py` 92 of 92,
+`human-qa.py` 66 of 66 rows on macOS and 66 of 66 on Linux (`linux-human-qa.sh`, a build of the
+checkout); Windows' `human-qa.py` on the laptop by the maintainer. The rows still open below wait
+for a later release, at the maintainer's word of that day.
+
+Seen once on CI at aaa042f2 and passed on its re-run (watch for them again):
+`hls_memory` `a_streams_segment_is_written_as_it_comes` on Linux (188 MB at its most for a 160 MB
+segment) and `window_tests::commands::the_queue_arrows_start_and_stop_the_queue_chosen` on Windows.
+
+Before the next release (as it stood on 2026-11-13):
 
 1. Main's Desktop CI green: a7408d59 fixed the three window tests that failed on the runners and
    was still running when this was written; `gh run list --branch main` first. `grow.rs`
