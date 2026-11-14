@@ -189,11 +189,14 @@ pub(super) fn copy_parts_blocking(
     };
     let renamed = rest.len() < parts.len();
     let out = if renamed {
-        let out = std::fs::OpenOptions::new().append(true).open(into)?;
+        // Opened to write, not to append: a handle that only appends may not change the file's
+        // length on Windows ("Access is denied"), and the cut needs to.
+        let mut out = std::fs::OpenOptions::new().write(true).open(into)?;
         // The first part, now the file, held to its span before the rest follow it.
         if let Some(span) = spans.and_then(|s| s.first()) {
             out.set_len(*span)?;
         }
+        std::io::Seek::seek(&mut out, std::io::SeekFrom::End(0))?;
         out
     } else {
         std::fs::File::create(into)?
