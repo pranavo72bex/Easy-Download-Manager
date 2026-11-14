@@ -320,7 +320,8 @@ jobs:
       # is never renamed over it.
       - name: Name the installers dm
         shell: bash
-        working-directory: desktop/${{ env.OUT }}/bundle
+        # The packager's outDir, the same for a named target (the Intel Mac's).
+        working-directory: desktop/target/release/bundle
         run: |
           for f in ${{ matrix.crate }}_*; do
             [ -e "$f" ] || continue
@@ -359,7 +360,6 @@ jobs:
             desktop/target/release/bundle/*-setup.exe
             desktop/target/release/bundle/*-portable.zip
             desktop/target/release/bundle/*.dmg
-            desktop/${{ env.OUT }}/bundle/*.dmg
           if-no-files-found: error
 
   installed:
