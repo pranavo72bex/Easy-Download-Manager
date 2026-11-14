@@ -142,7 +142,7 @@ arboard = "3"
 # has none (D4's fallback).
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
 raw-window-handle = "0.6"
-rfd = "0.17"
+rfd = "0.18"
 
 # The window's notifier (notify.rs). Not on Windows, where dm posts its
 # toasts itself (dm_desktop_base::toast).
