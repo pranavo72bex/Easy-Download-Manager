@@ -65,6 +65,14 @@ Windows CI on 2026-11-14 (97ce58de to de16912a), each passing on its re-run, to 
   and bytes at the deadline. Next time it fails, read that before changing the 2 s.
 - `limits.rs:374` `connections_a_server_turns_away_step_aside_at_once` on macOS CI: 1.73 s where
   1.5 s is allowed (about 1 s here).
+- `window_tests::lists::the_toolbar_acts_on_the_selected_row` on macOS CI at 3fb9d7fc: the row
+  still "Stopped" 10 s after the toolbar's Resume was clicked (the click came as soon as the row
+  read Paused; a click on a frame still showing Resume greyed is the guess, not checked). Once.
+- `limits.rs:614` `a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection`
+  on Linux CI at ff86b78a: 5.69 s where 0.7 of one connection's 8 s (5.6) is allowed. Once.
+These wall-clock checks fail on a loaded runner by a few per cent; each release tag's run has
+needed a re-run. Next: one way for them to allow for the runner's speed, as `bench/` scales its
+floors by the computer's measured ceiling, rather than loosening each.
 
 Before the next release (as it stood on 2026-11-13):
 
