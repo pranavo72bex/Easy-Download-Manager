@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- YouTube: where the player's checks cannot be answered for one client's addresses, the next client is asked, and dm asks for fresh site rules at once (where update checks are on) rather than waiting for the weekly look.
+- At rest, dm gives the memory it has freed back to the system (macOS and Linux), at most every 30 seconds.
 - View › Categories and View › Toolbar are kept for the next start, as the list's sort is.
 - A stream's segments are written to the disk as they arrive, not held in memory first: a stream of large segments no longer grows dm by their size.
 - A YouTube video's file carries its picture as its cover, its chapters (from the description's list), and the day it was published, beside its title and channel; a WebM says its title, channel, day and page as Matroska tags, and an MP3 its cover.
