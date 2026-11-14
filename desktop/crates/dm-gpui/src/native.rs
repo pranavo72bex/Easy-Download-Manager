@@ -177,17 +177,32 @@ pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme:
 /// A field that holds a folder: while it is not being typed in, it shows the path with the
 /// home folder as `~` and cut in its middle where it is too long, so both where it starts and
 /// the folder it ends in stay in sight (gaps row U17). Typing in it shows it whole, as it is.
+/// Empty, it shows `hint` (the folder used when none is typed) the same way, in the
+/// placeholder's colour, so its end ("(sorted by kind)") is not cut off.
 pub fn path_field(
     input: &Entity<InputState>,
     name: &'static str,
+    hint: &str,
     typing: bool,
     theme: Theme,
     cx: &gpui::App,
 ) -> impl IntoElement {
     let value = input.read(cx).value().to_string();
-    let shown = (!typing && !value.trim().is_empty())
-        .then(|| SharedString::from(dm_shell::settings::home_short(value.trim())));
-    field(input, name, theme).when_some(shown, |d, shown| {
+    let shown = (!typing).then(|| {
+        if value.trim().is_empty() {
+            (
+                SharedString::from(dm_shell::settings::home_short(hint.trim())),
+                theme.muted,
+            )
+        } else {
+            (
+                SharedString::from(dm_shell::settings::home_short(value.trim())),
+                theme.text,
+            )
+        }
+    });
+    let shown = shown.filter(|(words, _)| !words.is_empty());
+    field(input, name, theme).when_some(shown, |d, (shown, colour)| {
         d.child(
             div()
                 .absolute()
@@ -202,7 +217,7 @@ pub fn path_field(
                 .items_center()
                 .overflow_hidden()
                 .text_size(px(TEXT))
-                .text_color(theme.text)
+                .text_color(colour)
                 .child(
                     div()
                         .w_full()

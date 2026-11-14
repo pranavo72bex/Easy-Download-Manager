@@ -346,10 +346,11 @@ fn every_menu_item_clicked_does_what_it_says() {
         h.dialog_names().iter().any(|d| d == "Download progress")
     });
     h.close_dialogs();
-    assert!(
-        greyed(&mut h, Command::UpdateLink),
-        "not while it is downloading"
-    );
+    // Waited for, not read once: under the whole suite's load the running row's state can
+    // reach the command list a moment after its progress window opens.
+    h.until("Update download link greyed while downloading", |h| {
+        greyed(h, Command::UpdateLink)
+    });
     press(&mut h, &["File", "Stop download"]);
     h.until("Stop download", |h| is(h, "stalled.bin", State::Paused));
     press(&mut h, &["File", "Update download link"]);

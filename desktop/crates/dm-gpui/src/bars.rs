@@ -26,6 +26,11 @@ use crate::zoom::px;
 /// Written once "Not now" is chosen on the add-to-browser bar.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
 
+/// The browser bar's buttons at their words' width with the macOS and Linux least width,
+/// not Windows' dialog width (`native::BUTTON_MIN`, 120): four of those left its words no
+/// room in Windows' first window.
+const BAR_BUTTON_MIN: f32 = 80.0;
+
 /// A bar's frame: a line above the list, its words first, its buttons after.
 fn bar(theme: Theme) -> gpui::Div {
     div()
@@ -217,6 +222,7 @@ impl Downloads {
             .enumerate()
             .map(|(n, (name, page, _))| {
                 native::button(("add-to-browser", n), name.into(), false, theme, screen)
+                    .min_w(px(BAR_BUTTON_MIN))
                     .on_click(cx.listener(move |view, _, _, _| view.open_path(page)))
             });
         Some(
@@ -230,7 +236,9 @@ impl Downloads {
                         .flex_shrink(1.0)
                         .min_w_0()
                         .overflow_hidden()
-                        .whitespace_nowrap()
+                        // Whole on a second line where the window is too narrow for one,
+                        // as Windows' first window is (840 wide), never cut to "Add dm…".
+                        .line_clamp(2)
                         .text_ellipsis()
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .child(screen.label(t("Add dm to your browser:")))
@@ -244,15 +252,15 @@ impl Downloads {
                 .children(pages)
                 .child(div().flex_1())
                 .child(
-                    native::button("not-now", t("Not now").into(), false, theme, screen).on_click(
-                        cx.listener(|view, _, _, cx| {
+                    native::button("not-now", t("Not now").into(), false, theme, screen)
+                        .min_w(px(BAR_BUTTON_MIN))
+                        .on_click(cx.listener(|view, _, _, cx| {
                             let home = dm_shell::settings::home();
                             let _ = std::fs::create_dir_all(&home);
                             let _ = std::fs::write(home.join(BROWSER_HINT_HIDDEN), b"");
                             view.bars.browser = Some((Instant::now(), false));
                             cx.notify();
-                        }),
-                    ),
+                        })),
                 ),
         )
     }

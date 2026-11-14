@@ -1017,6 +1017,7 @@ impl Render for Details {
                                 div().flex_1().min_w_0().child(native::path_field(
                                     &self.folder,
                                     "Save to folder",
+                                    &file_info::default_folder_words(&self.settings),
                                     gpui::Focusable::focus_handle(self.folder.read(cx), cx)
                                         .is_focused(window),
                                     theme,
