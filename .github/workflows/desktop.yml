@@ -91,7 +91,7 @@ jobs:
       # nextest runs the test binaries side by side (cargo test runs them
       # one after another) and fails a test that hangs; doctests, which it
       # does not run, follow.
-      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cargo-nextest
 
@@ -130,7 +130,7 @@ jobs:
         with:
           workspaces: desktop
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cargo-llvm-cov
       - name: Install a CJK font
