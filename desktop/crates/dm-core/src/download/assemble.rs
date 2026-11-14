@@ -27,11 +27,20 @@ use super::*;
 /// A Cancel stops the join within a piece of [`JOIN_PIECE`] (gaps row 185), and the file it had
 /// begun goes with the error; a pause does not: every byte is here, and a join cut short would
 /// lose the parts it had used.
+///
+/// `spans`, where given, is each part's length in the file: a range's file can hold bytes past
+/// its range (an attempt that ended past where a split later cut it), which are the next range's.
+/// Each part is held to its span as it is joined, a rename's by a cut of the file it became and a
+/// copy's by copying no further, where each range's file was opened and cut on its own first
+/// (gaps row S5).
 pub(super) async fn join_parts(
     parts: &[PathBuf],
+    spans: Option<&[u64]>,
     into: &Path,
     control: &crate::control::Control,
 ) -> Result<u64, Error> {
+    debug_assert!(spans.is_none_or(|s| s.len() == parts.len()));
+    let first_span = spans.and_then(|s| s.first().copied());
     /* One part is not concatenated — it is moved.
      *
      * A ranged download's staged file, a stream gathered into one part: there
@@ -42,6 +51,19 @@ pub(super) async fn join_parts(
      * falls back to the copy below. */
     if let [only] = parts {
         if fs::rename(only, into).await.is_ok() {
+            if let Some(span) = first_span {
+                let (into, span) = (into.to_path_buf(), span);
+                tokio::task::spawn_blocking(move || {
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .open(into)?
+                        .set_len(span)
+                })
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!("the file could not be cut to size: {e}"))
+                })??;
+            }
             return Ok(fs::metadata(into).await?.len());
         }
         /* To another drive, by the system's own copy (CopyFileEx on Windows, copy_file_range
@@ -57,7 +79,14 @@ pub(super) async fn join_parts(
                     "a staged part went missing while the file was being joined".into(),
                 ));
             }
-            let bytes = std::fs::copy(&from, &to)?;
+            let mut bytes = std::fs::copy(&from, &to)?;
+            if let Some(span) = first_span.filter(|&span| span < bytes) {
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&to)?
+                    .set_len(span)?;
+                bytes = span;
+            }
             let _ = std::fs::remove_file(&from);
             Ok(bytes)
         })
@@ -73,7 +102,7 @@ pub(super) async fn join_parts(
      * so a copy that fails part-way (the disk filled, nearly always) removes
      * what it had written rather than leaving a truncated file that looks
      * finished and, worse, holds the name the retry would otherwise take. */
-    let copied = copy_parts(parts, into, control).await;
+    let copied = copy_parts(parts, spans, into, control).await;
     if copied.is_err() {
         let _ = fs::remove_file(into).await;
     }
@@ -125,11 +154,14 @@ pub(crate) fn sync_after(path: PathBuf) {
  * Btrfs or XFS without copying at all). */
 pub(super) async fn copy_parts(
     parts: &[PathBuf],
+    spans: Option<&[u64]>,
     into: &Path,
     control: &crate::control::Control,
 ) -> Result<u64, Error> {
     let (parts, into, control) = (parts.to_vec(), into.to_path_buf(), control.clone());
-    crate::heavy::run(move || copy_parts_blocking(&parts, &into, &control)).await?
+    let spans = spans.map(<[u64]>::to_vec);
+    crate::heavy::run(move || copy_parts_blocking(&parts, spans.as_deref(), &into, &control))
+        .await?
 }
 
 /// How much of a part is copied between two looks at whether the download was cancelled: about
@@ -138,6 +170,7 @@ const JOIN_PIECE: u64 = 32 << 20;
 
 pub(super) fn copy_parts_blocking(
     parts: &[PathBuf],
+    spans: Option<&[u64]>,
     into: &Path,
     control: &crate::control::Control,
 ) -> Result<u64, Error> {
@@ -154,21 +187,33 @@ pub(super) fn copy_parts_blocking(
         // Across filesystems a rename cannot move bytes: every part is copied.
         _ => parts,
     };
-    let out = if rest.len() == parts.len() {
-        std::fs::File::create(into)?
+    let renamed = rest.len() < parts.len();
+    let out = if renamed {
+        let out = std::fs::OpenOptions::new().append(true).open(into)?;
+        // The first part, now the file, held to its span before the rest follow it.
+        if let Some(span) = spans.and_then(|s| s.first()) {
+            out.set_len(*span)?;
+        }
+        out
     } else {
-        std::fs::OpenOptions::new().append(true).open(into)?
+        std::fs::File::create(into)?
     };
     let mut out = std::io::BufWriter::with_capacity(4 << 20, out);
-    for part in rest {
+    let skipped = usize::from(renamed);
+    for (at, part) in rest.iter().enumerate() {
         let mut source = std::fs::File::open(part).map_err(|_| missing())?;
+        // Copied no further than its span, where one is given.
+        let mut left = spans
+            .and_then(|s| s.get(at + skipped).copied())
+            .unwrap_or(u64::MAX);
         // A piece at a time, each by `io::copy` (on Linux the kernel's own copy), with a look at
         // the download's control between.
-        loop {
+        while left > 0 {
             crate::heavy::stopped(control)?;
-            let copied =
-                std::io::copy(&mut std::io::Read::take(&mut source, JOIN_PIECE), &mut out)?;
-            if copied < JOIN_PIECE {
+            let piece = JOIN_PIECE.min(left);
+            let copied = std::io::copy(&mut std::io::Read::take(&mut source, piece), &mut out)?;
+            left -= copied;
+            if copied < piece {
                 break;
             }
         }
@@ -521,24 +566,16 @@ pub(super) async fn assemble(
             .map(|&i| (range_path(&job.parts, i), segments[i].span()))
             .collect();
         drop(segments);
-        // Every cut in one blocking task: opened and cut on the async side, each range took two
-        // hops to the thread pool, and splitting multiplies the ranges (gaps row S5).
-        let cut = ranges.clone();
-        // Not a heavy job's turn: cutting a file is quick, and waits behind no copy.
-        tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            for (path, span) in &cut {
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .open(path)?
-                    .set_len(*span)?;
-            }
-            Ok(())
-        })
-        .await
-        .map_err(|e| Error::Internal(format!("the ranges could not be cut to size: {e}")))??;
-        crate::finish_trace::mark("ranges held to their spans");
-        let parts: Vec<PathBuf> = ranges.into_iter().map(|(path, _)| path).collect();
-        return finish(&name, info.content_type.as_deref(), &parts, options).await;
+        // Each held to its span by the join itself, as it is copied (gaps row S5).
+        let (parts, spans): (Vec<PathBuf>, Vec<u64>) = ranges.into_iter().unzip();
+        return finish_held(
+            &name,
+            info.content_type.as_deref(),
+            &parts,
+            Some(&spans),
+            options,
+        )
+        .await;
     }
     drop(segments);
     let staged = job.staged();
@@ -563,6 +600,17 @@ pub(crate) async fn finish(
     name: &str,
     content_type: Option<&str>,
     parts: &[PathBuf],
+    options: &Options,
+) -> Result<(PathBuf, u64, category::Category), Error> {
+    finish_held(name, content_type, parts, None, options).await
+}
+
+/// [`finish`], each part held to its span in `spans` as it is joined (`join_parts`).
+async fn finish_held(
+    name: &str,
+    content_type: Option<&str>,
+    parts: &[PathBuf],
+    spans: Option<&[u64]>,
     options: &Options,
 ) -> Result<(PathBuf, u64, category::Category), Error> {
     // Sorted by what it turned out to be, which is only knowable now: the
@@ -603,7 +651,7 @@ pub(crate) async fn finish(
     .await?;
     crate::finish_trace::mark("named");
 
-    let bytes = join_parts(parts, &path, &options.control).await?;
+    let bytes = join_parts(parts, spans, &path, &options.control).await?;
     crate::finish_trace::mark("placed");
 
     // Cancelled during the join: what it produced is not wanted either.
@@ -655,4 +703,49 @@ pub(crate) async fn finish(
     })
     .await;
     Ok((path, bytes, category))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each range's file held to its span by the join itself: the bytes an attempt wrote past
+    /// where a split later cut its range are left out, whether the first part is renamed into
+    /// place or every part is copied (gaps row S5).
+    #[tokio::test]
+    async fn each_part_is_joined_no_further_than_its_span() {
+        let dir = std::env::temp_dir().join(format!("dm-join-spans-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let control = crate::control::Control::new();
+        let make = |name: &str, bytes: &[u8]| {
+            let path = dir.join(name);
+            std::fs::write(&path, bytes).unwrap();
+            path
+        };
+        // Renamed: the first part becomes the file and is cut, the rest appended as far as
+        // their spans.
+        let parts = vec![make("a", b"aaaXX"), make("b", b"bbYY"), make("c", b"c")];
+        let into = dir.join("joined");
+        let bytes = join_parts(&parts, Some(&[3, 2, 1]), &into, &control)
+            .await
+            .unwrap();
+        assert_eq!(bytes, 6);
+        assert_eq!(std::fs::read(&into).unwrap(), b"aaabbc");
+        assert!(parts.iter().all(|p| !p.exists()));
+        // The blocking join of one part: renamed, then cut. (A copy across drives, where no
+        // rename can be made, is held by the same spans but cannot be made here.)
+        let parts = vec![make("d", b"ddZZ"), make("e", b"eeeQ")];
+        let into = dir.join("copied");
+        let bytes = copy_parts_blocking(&parts[1..], Some(&[3]), &into, &control).unwrap();
+        assert_eq!(bytes, 3);
+        assert_eq!(std::fs::read(&into).unwrap(), b"eee");
+        // One part alone: renamed and cut.
+        let into = dir.join("one");
+        let bytes = join_parts(&parts[..1], Some(&[2]), &into, &control)
+            .await
+            .unwrap();
+        assert_eq!((bytes, std::fs::read(&into).unwrap()), (2, b"dd".to_vec()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

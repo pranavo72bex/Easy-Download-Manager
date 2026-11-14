@@ -450,7 +450,7 @@ fn player(id: &str, call: usize, origin: &str) -> Response {
         }
         // Each reading's first client (odd asks) has addresses with an `n` the player gives
         // no answer for; the next client's (even asks) want none.
-        "solveNext01" if call % 2 == 0 => ok(Some("Next client"), plain_streams()),
+        "solveNext01" if call.is_multiple_of(2) => ok(Some("Next client"), plain_streams()),
         "solveNext01" => ok(
             Some("Needs solving"),
             vec![

@@ -704,7 +704,7 @@ pub(super) async fn remux_ts(
      * had are fetched again. Already gathered (a resume), it is used as is. */
     if parts != [joined.clone()] {
         let partial = options.parts_dir.join(format!("{GATHERED}.partial"));
-        let gathered = join_parts(parts, &partial, &options.control).await;
+        let gathered = join_parts(parts, None, &partial, &options.control).await;
         if gathered.is_err() {
             let _ = fs::remove_file(&partial).await;
             return None;

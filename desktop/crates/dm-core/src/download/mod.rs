@@ -1767,7 +1767,7 @@ mod tests {
         std::fs::write(&parts[2], b"5678").unwrap();
 
         let into = options.dest_dir.join("f.bin");
-        let outcome = join_parts(&parts, &into, &options.control).await;
+        let outcome = join_parts(&parts, None, &into, &options.control).await;
         assert!(outcome.is_err(), "a missing part was skipped");
         assert!(!into.exists(), "a short file was left under the name");
     }
@@ -1794,7 +1794,7 @@ mod tests {
         let into = options.dest_dir.join("f.bin");
         let joining = {
             let (parts, into, control) = (parts.clone(), into.clone(), options.control.clone());
-            tokio::spawn(async move { join_parts(&parts, &into, &control).await })
+            tokio::spawn(async move { join_parts(&parts, None, &into, &control).await })
         };
         tokio::time::sleep(Duration::from_millis(30)).await;
         assert!(

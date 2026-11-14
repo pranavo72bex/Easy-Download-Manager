@@ -676,7 +676,7 @@ async fn fetch_track(
         .map(|i| part_path(&options.parts_dir, i))
         .collect();
     let partial = options.parts_dir.join(format!("track{n}.partial"));
-    join_parts(&parts, &partial, &options.control).await?;
+    join_parts(&parts, None, &partial, &options.control).await?;
     fs::rename(&partial, &gathered).await?;
     Ok(gathered)
 }
