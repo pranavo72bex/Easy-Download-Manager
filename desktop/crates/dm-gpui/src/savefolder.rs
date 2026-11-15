@@ -82,8 +82,8 @@ pub fn browse<T: Saves>(window: &mut Window, cx: &mut Context<T>) {
         multiple: false,
         prompt: None,
     });
-    cx.spawn_in(window, async move |this, cx| {
-        if let Ok(Ok(Some(paths))) = chosen.await {
+    cx.spawn_in(window, async move |this, cx| match chosen.await {
+        Ok(Ok(Some(paths))) => {
             if let Some(path) = paths.first() {
                 let path = path.display().to_string();
                 let _ = this.update_in(cx, |this, window, cx| {
@@ -95,8 +95,27 @@ pub fn browse<T: Saves>(window: &mut Window, cx: &mut Context<T>) {
                 });
             }
         }
+        Ok(Ok(None)) => {}
+        Ok(Err(_)) | Err(_) => {
+            let _ = this.update_in(cx, |this, window, cx| {
+                no_chooser(&this.folder().clone(), window, cx)
+            });
+        }
     })
     .detach();
+}
+
+/// The sentence a folder field shows when Browse… found no folder chooser
+/// (a Linux desktop with no portal for one).
+pub const NO_CHOOSER: &str = "No folder picker here: type the path.";
+
+/// Browse… found no folder chooser: the field says to type the path, and
+/// takes the focus for it.
+pub fn no_chooser<T>(folder: &Entity<InputState>, window: &mut Window, cx: &mut Context<T>) {
+    folder.update(cx, |f, cx| {
+        f.set_placeholder(t(NO_CHOOSER), window, cx);
+        f.focus(window, cx);
+    });
 }
 
 /// A choice from the categories' pop-up, if `pick` is one: Every file to
@@ -223,4 +242,44 @@ pub fn section<T: Saves>(
                         .on_click(cx.listener(|_: &mut T, _, window, cx| browse(window, cx))),
                 ),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Host {
+        folder: Entity<InputState>,
+    }
+
+    impl gpui::Render for Host {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+
+    /// Browse… with no folder chooser on the system: the field says to type
+    /// the path and has the focus for it.
+    #[test]
+    fn browse_with_no_folder_chooser_says_to_type_the_path() {
+        let mut cx = gpui::TestAppContext::single();
+        cx.update(gpui_component::init);
+        let window = cx.add_window(|window, cx| Host {
+            folder: cx.new(|cx| InputState::new(window, cx)),
+        });
+        window
+            .update(&mut cx, |host, window, cx| {
+                let folder = host.folder.clone();
+                no_chooser(&folder, window, cx);
+            })
+            .unwrap();
+        cx.run_until_parked();
+        window
+            .update(&mut cx, |host, window, cx| {
+                let field = host.folder.read(cx);
+                assert_eq!(field.presentation().placeholder().as_ref(), t(NO_CHOOSER));
+                assert!(gpui::Focusable::focus_handle(field, cx).is_focused(window));
+            })
+            .unwrap();
+    }
 }

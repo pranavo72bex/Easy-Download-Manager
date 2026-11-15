@@ -907,5 +907,6 @@
  "Hover a download and press Details to watch its progress.": "Survolez un téléchargement et appuyez sur Détails pour suivre sa progression.",
  "User-Agent": "Agent utilisateur",
  "Request headers": "En-têtes de requête",
- "Name: value | Name: value": "Nom : valeur | Nom : valeur"
+ "Name: value | Name: value": "Nom : valeur | Nom : valeur",
+ "No folder picker here: type the path.": "Pas de sélecteur de dossier : tapez le chemin."
 }

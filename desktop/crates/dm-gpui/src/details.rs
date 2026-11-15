@@ -466,8 +466,8 @@ impl Details {
             multiple: false,
             prompt: None,
         });
-        cx.spawn_in(window, async move |this, cx| {
-            if let Ok(Ok(Some(paths))) = chosen.await {
+        cx.spawn_in(window, async move |this, cx| match chosen.await {
+            Ok(Ok(Some(paths))) => {
                 if let Some(path) = paths.first() {
                     let path = path.display().to_string();
                     let _ = this.update_in(cx, |this, window, cx| {
@@ -476,6 +476,12 @@ impl Details {
                         cx.notify();
                     });
                 }
+            }
+            Ok(Ok(None)) => {}
+            Ok(Err(_)) | Err(_) => {
+                let _ = this.update_in(cx, |this, window, cx| {
+                    crate::savefolder::no_chooser(&this.folder.clone(), window, cx)
+                });
             }
         })
         .detach();

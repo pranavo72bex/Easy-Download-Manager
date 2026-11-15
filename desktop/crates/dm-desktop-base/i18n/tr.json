@@ -907,5 +907,6 @@
  "Hover a download and press Details to watch its progress.": "Bir indirmenin üzerine gelin ve ilerlemesini izlemek için Ayrıntılar’a basın.",
  "User-Agent": "Kullanıcı aracısı",
  "Request headers": "İstek üst bilgileri",
- "Name: value | Name: value": "Ad: değer | Ad: değer"
+ "Name: value | Name: value": "Ad: değer | Ad: değer",
+ "No folder picker here: type the path.": "Burada klasör seçici yok: yolu yazın."
 }

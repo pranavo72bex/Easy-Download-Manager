@@ -907,5 +907,6 @@
  "Hover a download and press Details to watch its progress.": "다운로드 위에 마우스를 올리고 “세부 정보”를 눌러 진행 상황을 확인하세요.",
  "User-Agent": "사용자 에이전트",
  "Request headers": "요청 헤더",
- "Name: value | Name: value": "이름: 값 | 이름: 값"
+ "Name: value | Name: value": "이름: 값 | 이름: 값",
+ "No folder picker here: type the path.": "폴더 선택기가 없습니다. 경로를 입력하세요."
 }

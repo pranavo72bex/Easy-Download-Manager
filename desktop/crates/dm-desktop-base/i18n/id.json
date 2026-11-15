@@ -907,5 +907,6 @@
  "Hover a download and press Details to watch its progress.": "Arahkan kursor ke unduhan dan tekan Detail untuk melihat kemajuannya.",
  "User-Agent": "User-Agent",
  "Request headers": "Header permintaan",
- "Name: value | Name: value": "Nama: nilai | Nama: nilai"
+ "Name: value | Name: value": "Nama: nilai | Nama: nilai",
+ "No folder picker here: type the path.": "Tidak ada pemilih folder: ketik jalurnya."
 }

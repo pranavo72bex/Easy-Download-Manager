@@ -907,5 +907,6 @@
  "Hover a download and press Details to watch its progress.": "Наведите курсор на загрузку и нажмите «Подробности», чтобы следить за ходом.",
  "User-Agent": "User-Agent",
  "Request headers": "Заголовки запроса",
- "Name: value | Name: value": "Имя: значение | Имя: значение"
+ "Name: value | Name: value": "Имя: значение | Имя: значение",
+ "No folder picker here: type the path.": "Выбора папки нет: введите путь."
 }

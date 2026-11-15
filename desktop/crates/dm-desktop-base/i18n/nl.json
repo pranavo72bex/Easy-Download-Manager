@@ -907,5 +907,6 @@
  "Hover a download and press Details to watch its progress.": "Wijs een download aan en klik op Details om de voortgang te volgen.",
  "User-Agent": "User-agent",
  "Request headers": "Aanvraagheaders",
- "Name: value | Name: value": "Naam: waarde | Naam: waarde"
+ "Name: value | Name: value": "Naam: waarde | Naam: waarde",
+ "No folder picker here: type the path.": "Geen mapkiezer hier: typ het pad."
 }

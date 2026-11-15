@@ -907,5 +907,6 @@
  "Hover a download and press Details to watch its progress.": "将鼠标移到下载上，点击“详细信息”查看进度。",
  "User-Agent": "用户代理",
  "Request headers": "请求标头",
- "Name: value | Name: value": "名称: 值 | 名称: 值"
+ "Name: value | Name: value": "名称: 值 | 名称: 值",
+ "No folder picker here: type the path.": "没有文件夹选择器：请输入路径。"
 }

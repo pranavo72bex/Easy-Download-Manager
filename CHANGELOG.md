@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Browse… beside a folder field, on a desktop with no folder chooser, says in the field to type the path and puts the cursor there, where the press did nothing.
 - Manifests for Homebrew, Scoop, winget and Flathub, written from a release's `latest.json` (`scripts/package-managers.py`).
 - YouTube: a channel's address (`youtube.com/@name`, `/channel/…`, or any of its Videos, Shorts or Live tabs) opens the Playlist dialog with the channel's uploads, and a YouTube Music playlist's address opens it as a YouTube playlist's does.
 - A download can be given a User-Agent and request headers of its own (File properties), and a site's rule in Options › Advanced can give every download from that site its own (for a server that wants an API key, a token or a particular client name). A name given is sent on every request of the download, on every connection, in place of the one dm picks.
