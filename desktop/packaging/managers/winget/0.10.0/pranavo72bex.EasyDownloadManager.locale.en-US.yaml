@@ -1,0 +1,18 @@
+PackageIdentifier: pranavo72bex.EasyDownloadManager
+PackageVersion: 0.10.0
+PackageLocale: en-US
+Publisher: pranavo72bex
+PublisherUrl: https://github.com/pranavo72bex
+PackageName: dm
+PackageUrl: https://github.com/pranavo72bex/Easy-Download-Manager
+License: GPL-3.0-or-later
+LicenseUrl: https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/LICENSE
+ShortDescription: "A download manager: many connections, resume, and a queue"
+Moniker: easy-download-manager
+Tags:
+- download-manager
+- downloader
+- torrent
+ReleaseNotesUrl: https://github.com/pranavo72bex/Easy-Download-Manager/releases/tag/desktop-v0.10.0
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

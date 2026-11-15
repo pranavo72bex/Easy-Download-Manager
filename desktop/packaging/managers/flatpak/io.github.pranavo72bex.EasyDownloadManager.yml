@@ -1,0 +1,38 @@
+# Repackages the release's .deb: the same binary the .deb installs.
+app-id: io.github.pranavo72bex.EasyDownloadManager
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+command: dm-gpui
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=xdg-download
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets
+modules:
+  - name: dm
+    buildsystem: simple
+    build-commands:
+      - ar x dm.deb
+      - tar -xf data.tar.*
+      - install -Dm755 usr/bin/dm-gpui /app/bin/dm-gpui
+      - install -Dm644 usr/share/icons/hicolor/128x128/apps/dm-gpui.png /app/share/icons/hicolor/128x128/apps/io.github.pranavo72bex.EasyDownloadManager.png
+      - install -Dm644 usr/share/icons/hicolor/32x32/apps/dm-gpui.png /app/share/icons/hicolor/32x32/apps/io.github.pranavo72bex.EasyDownloadManager.png
+      - install -Dm644 usr/share/applications/dm-gpui.desktop /app/share/applications/io.github.pranavo72bex.EasyDownloadManager.desktop
+      - desktop-file-edit --set-icon=io.github.pranavo72bex.EasyDownloadManager --set-key=Exec --set-value="dm-gpui %u" /app/share/applications/io.github.pranavo72bex.EasyDownloadManager.desktop
+    sources:
+      - type: file
+        dest-filename: dm.deb
+        only-arches: [x86_64]
+        url: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.0/dm_0.10.0_amd64.deb
+        sha256: 7326ada6ecceab5fe4c60da7ad194647a6736ce6a2862e2bdb31fe0af5c72e99
+      - type: file
+        dest-filename: dm.deb
+        only-arches: [aarch64]
+        url: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.0/dm_0.10.0_arm64.deb
+        sha256: 63028f60e4786b499ca731c6b6254d83b71bbde8b6689fb18a1eb981927058fb

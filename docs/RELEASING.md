@@ -92,6 +92,32 @@ tarballs they make themselves (the checkout's, and a new tag's archive), so a
 pin never fails them; set it back to `SKIP` when bumping `pkgver`, and pin the
 new tag's digest once the tag is pushed.
 
+## Package managers
+
+Once the release is published (not a draft: the manifests point at its files),
+write the manifests from its `latest.json`:
+
+```sh
+python3 scripts/package-managers.py
+```
+
+It writes `desktop/packaging/managers/`: a Homebrew cask (both Mac dmgs), a
+Scoop manifest (the Windows portable zip, registered with the browser from
+Scoop's `current` folder), the three winget files (the setup.exe) and a Flatpak
+manifest (the .deb repackaged, both arches). Each carries the digests
+`latest.json` gives. Submitting them:
+
+- Homebrew: a tap of your own (`pranavo72bex/homebrew-dm`, `Casks/`). The main
+  cask list refuses apps Gatekeeper refuses, and dm's dmg is unsigned. Check
+  first with `brew audit --cask --online` from that tap.
+- Scoop: a pull request to `ScoopInstaller/Extras` (`bucket/`).
+- winget: a pull request to `microsoft/winget-pkgs`
+  (`manifests/p/pranavo72bex/EasyDownloadManager/<version>/`), checked first
+  with `winget validate` on Windows.
+- Flathub: a new-app pull request to `flathub/flathub`, built first with
+  `flatpak-builder`. In the sandbox the browser hand-over is not set up for you
+  (the browser's host file lives outside it), so say so in the listing.
+
 ## The browser extension
 
 The zips are built by `sh scripts/package.sh`, which compiles `browser/` to
