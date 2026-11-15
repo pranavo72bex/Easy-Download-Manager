@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The browser extension keeps working with a newer dm app: it no longer asks to be updated when the app is ahead of it, it tells the app its version and what it can do, and the frames each released extension sends are kept in the tests so every later app must keep answering them.
 - Browse… beside a folder field, on a desktop with no folder chooser, says in the field to type the path and puts the cursor there, where the press did nothing.
 - Manifests for Homebrew, Scoop, winget and Flathub, written from a release's `latest.json` (`scripts/package-managers.py`).
 - YouTube: a channel's address (`youtube.com/@name`, `/channel/…`, or any of its Videos, Shorts or Live tabs) opens the Playlist dialog with the channel's uploads, and a YouTube Music playlist's address opens it as a YouTube playlist's does.

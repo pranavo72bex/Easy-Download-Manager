@@ -39,6 +39,14 @@
 //! | `media.formats`   | `media.formats` with `choices`, or a `reason` |
 //! | `download.batch`  | `download.started`, or `download.failed`      |
 //!
+//! **The app moves ahead of the extension.** A browser store can hold an extension's update
+//! back for days while the app updates itself, so the rule is that a newer app never stops an
+//! older extension working: the host reads every request version back to [`OLDEST_PROTOCOL`],
+//! every reply goes out at version 1 and is only ever added to, the extension reads a reply of
+//! any version for the fields it knows, and a new ability is a name in [`feature`] said in the
+//! hellos, not a new version. The frames extension 3.4.0 sends are kept in
+//! `tests/wire/extension-3.4.0.json`, and every app must answer them.
+//!
 //! The host is deliberately one-way past `download.started`: the extension
 //! catches and the application shows what happened.
 
@@ -114,9 +122,10 @@ pub mod kind {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type")]
 pub enum Request {
-    /// Is an app there, which version, and can it resolve a player page.
+    /// Is an app there, which version, and can it resolve a player page. The extension says
+    /// who it is ([`Greeting`]); an extension of 3.4.0 or older says nothing.
     #[serde(rename = "engine.hello")]
-    Hello,
+    Hello(Greeting),
     /// Which downloads the app wants caught. They live in the app's settings
     /// (Options › File types), not in the extension.
     #[serde(rename = "settings.get")]
@@ -136,6 +145,41 @@ pub enum Request {
     /// running: what the toolbar button does. It hands over nothing.
     #[serde(rename = "app.show")]
     Show,
+}
+
+/// What the extension says of itself in its hello, so that the app, which is updated more
+/// often than a store lets the extension be, works out what an older extension can do rather
+/// than the extension having to keep up with the app. Both fields are empty from an
+/// extension of 3.4.0 or older, which sent a bare hello; an app older than this field
+/// ignores it.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Greeting {
+    /// The extension's version, such as "3.5.0".
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub extension_version: String,
+    /// What it can do, by the names in [`feature`].
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub features: Vec<String>,
+}
+
+impl Greeting {
+    /// Whether the extension said it can do `name` (one of [`feature`]).
+    pub fn has(&self, name: &str) -> bool {
+        self.features.iter().any(|f| f == name)
+    }
+}
+
+/// Names of what one side can do, said in its hello ([`Greeting::features`],
+/// [`Hello::features`]). A new ability is a new name here, never a new protocol version: a
+/// side that does not know a name ignores it and goes on as before, so an app updated ahead
+/// of its extension (or the other way round) keeps working with what both know.
+pub mod feature {
+    /// Extension: reads a reply whatever its `protocolVersion`, taking the fields it knows.
+    pub const READS_ANY_REPLY: &str = "reads-any-reply";
+    /// Extension: sends a newer address of a stream it handed over (`Start::renews`).
+    /// App: takes one for a row whose address ran out (the same as [`super::Hello::renews`]).
+    pub const RENEWS: &str = "renews";
 }
 
 /// Links handed over together.
@@ -376,6 +420,10 @@ pub fn page_instead_of_file(browser_mime: &str, url: &str, served: &str) -> bool
 }
 
 /// What the host answers.
+// `Hello` outgrew the rest once it carried the rules and the abilities. A reply is one
+// message, read and dropped, so its size costs nothing; boxing it would change every place
+// that builds or reads one, in the app and the extension.
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type")]
 pub enum Reply {
@@ -444,9 +492,23 @@ pub struct Hello {
     /// address ran out. False from an older app, which would add it as another download.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub renews: bool,
+    /// What the app can do, by the names in [`feature`]. Empty from an app older than this
+    /// field, which said each ability in a field of its own (`renews`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub features: Vec<String>,
 }
 
 impl Hello {
+    /// Whether the app said it can do `name` (one of [`feature`]).
+    pub fn has(&self, name: &str) -> bool {
+        self.features.iter().any(|f| f == name)
+    }
+
+    /// Whether the app takes a newer address of a stream it was handed, said either way.
+    pub fn takes_renewals(&self) -> bool {
+        self.renews || self.has(feature::RENEWS)
+    }
+
     /// The newest protocol version the app reads.
     pub fn protocol(&self) -> u64 {
         self.protocol.unwrap_or(OLDEST_PROTOCOL)
@@ -508,8 +570,16 @@ fn envelope<T: Serialize>(message: &T, version: u64) -> Value {
 }
 
 fn open<T: serde::de::DeserializeOwned>(frame: &Value) -> Result<T, Unreadable> {
+    open_within(frame, PROTOCOL_VERSION)
+}
+
+/// [`open`], reading every version from [`OLDEST_PROTOCOL`] to `newest`.
+fn open_within<T: serde::de::DeserializeOwned>(
+    frame: &Value,
+    newest: u64,
+) -> Result<T, Unreadable> {
     match frame.get("protocolVersion").and_then(Value::as_u64) {
-        Some(v) if (OLDEST_PROTOCOL..=PROTOCOL_VERSION).contains(&v) => {}
+        Some(v) if (OLDEST_PROTOCOL..=newest).contains(&v) => {}
         other => return Err(Unreadable::Version(other)),
     }
     // Keys a message does not use — `protocolVersion`, or the `filename` an
@@ -549,9 +619,13 @@ impl Reply {
         envelope(self, OLDEST_PROTOCOL)
     }
 
-    /// Reads a reply frame, refusing one of a version this side does not read.
+    /// Reads a reply frame. A reply of a newer version than this side knows is read all the
+    /// same, for the fields it knows: the app is updated ahead of a store's extension, and a
+    /// reply is only ever added to (a new field, a new type, or a new [`feature`]), so an
+    /// older extension reads what it always read and the hand-off goes on working. Only a
+    /// frame with no version, or one older than [`OLDEST_PROTOCOL`], is refused.
     pub fn from_frame(frame: &Value) -> Result<Self, Unreadable> {
-        open(frame)
+        open_within(frame, u64::MAX)
     }
 
     /// A refusal, in the one shape every refusal takes.

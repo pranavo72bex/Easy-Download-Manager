@@ -54,7 +54,11 @@ extension that hands it the browser's downloads.
   fonts and vendored patches on 2026-11-13 (gaps row G9).
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
-  by both sides.
+  by both sides. A newer app must never stop an older extension: replies
+  are only added to, a new ability is a name in `dm_protocol::feature`
+  (not a protocol version), and the frames each released extension sends
+  are frozen in `dm-protocol/tests/wire/` (add one there for each
+  extension release; never edit one).
 - `browser/` is the browser extension, in Rust (crate `dm-catcher`),
   compiled to WebAssembly. It catches downloads and hands them to the app,
   and downloads nothing itself: with no app the browser keeps them.

@@ -16,7 +16,7 @@ fn file(url: &str) -> Candidate<'_> {
 #[test]
 fn every_request_carries_the_version_and_reads_back() {
     for request in [
-        Request::Hello,
+        Request::Hello(Default::default()),
         Request::Settings,
         Request::Start(Start {
             id: "b7".into(),
@@ -42,7 +42,10 @@ fn every_request_carries_the_version_and_reads_back() {
 fn the_wire_names_are_the_ones_the_host_has_always_used() {
     // An extension and a host of different builds meet in the field; the
     // strings are the contract, not the Rust names.
-    assert_eq!(Request::Hello.to_frame()["type"], kind::HELLO);
+    assert_eq!(
+        Request::Hello(Default::default()).to_frame()["type"],
+        kind::HELLO
+    );
     assert_eq!(Request::Settings.to_frame()["type"], kind::SETTINGS);
     let start = Request::Start(Start::default()).to_frame();
     assert_eq!(start["type"], kind::START);
@@ -62,10 +65,15 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
         protocol: None,
         rules: None,
         renews: false,
+        features: Vec::new(),
     })
     .to_frame();
     assert_eq!(hello["engineVersion"], "1.2");
     assert!(hello.get("renews").is_none(), "said only when true");
+    assert!(
+        hello.get("features").is_none(),
+        "said only when there are some"
+    );
 }
 
 /// An app that takes renewals says so; an older one, saying nothing, does not, and the
@@ -158,7 +166,7 @@ fn a_caught_download_goes_out_at_the_version_that_judges_pages() {
     assert_eq!(chosen.to_frame()["protocolVersion"], 1);
     // Everything an older host reads correctly still reaches it.
     for old in [
-        Request::Hello,
+        Request::Hello(Default::default()),
         Request::Settings,
         Request::Show,
         Request::Start(Start {
@@ -173,7 +181,10 @@ fn a_caught_download_goes_out_at_the_version_that_judges_pages() {
     // older extension reads.
     for v in [1, 2] {
         let frame = json!({ "protocolVersion": v, "type": "engine.hello" });
-        assert_eq!(Request::from_frame(&frame), Ok(Request::Hello));
+        assert_eq!(
+            Request::from_frame(&frame),
+            Ok(Request::Hello(Default::default()))
+        );
     }
     let hello = Reply::Hello(Hello {
         protocol: Some(PROTOCOL_VERSION),

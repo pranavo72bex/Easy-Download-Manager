@@ -7169,3 +7169,26 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   them); dm-js runs in dm's own process, so a script's memory has no limit of its own beyond
   the time limit (a typed array or string is held to 1e9 elements).
 
+## 2026-11-15: A newer app never stops an older extension (gaps row A22)
+
+* **Why**: the maintainer, 2026-11-15: the app updates itself but the extension waits on a
+  store, and an extension that lags must not stop dm working; the extension keeps the bare
+  minimum and the logic moves to the app, without changing what the app or the extension does.
+* **Read any reply**: `Reply::from_frame` reads every version from 1 up, for the fields it
+  knows. It refused a version above its own and told the person to update the extension; no
+  released app sent one (every reply goes at 1), so nothing a person sees changes. Requests stay
+  strict on the host: a caught download goes at 2 so a version-1 app does not answer it (the
+  2026-10-17 entry), which protects the browser's copy.
+* **Abilities by name, not by version**: `Hello::features` and `Greeting::features` hold names
+  from `dm_protocol::feature`; `renews` is said both ways for 3.4.0. A version bump makes an
+  older side refuse frames; an unknown name is ignored.
+* **The extension says who it is**: `Greeting` (version, abilities) in its hello, kept by the
+  host in `extension.json`, so the app can work out what an older extension can do. A bare
+  hello (3.4.0) reads as an empty greeting, and an older app ignores the fields.
+* **Frozen frames**: `dm-protocol/tests/wire/extension-3.4.0.json` holds every frame 3.4.0
+  sends and every reply it reads; tests in dm-protocol and dm-shell hold every later app to
+  them. Each extension release adds its own file and none is edited.
+* **Not done yet** (row A22): app-served menus, the host judging caught downloads against its
+  own catch rules, notification words from the app, and the streams panel's judging moved to
+  the app. Each changes where a decision is made, so each is its own step with its own checks.
+

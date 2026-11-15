@@ -1332,6 +1332,7 @@ fn a_host_too_old_to_send_rules_gets_the_defaults_and_no_host_is_absent() {
                 protocol: None,
                 rules: None,
                 renews: false,
+                features: Vec::new(),
             },
             rules: CatchRules::default(),
         }
@@ -1345,18 +1346,12 @@ fn a_host_too_old_to_send_rules_gets_the_defaults_and_no_host_is_absent() {
 }
 
 #[test]
-fn a_host_of_another_protocol_is_treated_as_no_host_and_names_the_side_to_update() {
+fn a_host_older_than_any_protocol_is_treated_as_no_host_and_names_the_side_to_update() {
+    // A newer one is read (`a_newer_app_is_still_one_to_hand_to`): the app moves ahead of
+    // the extension, and the extension never asks to be updated to keep working.
     let mut probe = Probe::default();
     probe.absorb(&json!({ "protocolVersion": 3, "type": "engine.hello" }));
-    let Some(App::Absent { reason }) = probe.finished() else {
-        panic!("a host of another version was used")
-    };
-    let said = absent_text(&reason, CHROME_EXTENSION_ID, false);
-    assert!(said.contains("update the dm extension"), "{said}");
-    assert!(
-        !said.contains("--register") && !said.contains("Install"),
-        "{said}"
-    );
+    assert!(probe.has_hello(), "a newer host was refused");
 
     let mut probe = Probe::default();
     probe.absorb(&json!({ "protocolVersion": 0, "type": "engine.hello" }));
@@ -2814,4 +2809,40 @@ fn the_background_and_the_popup_have_no_javascript_of_their_own() {
         assert!(manifest.contains("\"pkg/background.js\""));
     }
     assert!(include_str!("../../../extension/popup.html").contains("src=\"pkg/popup.js\""));
+}
+
+/// The extension says who it is in its hello: the version the stores show (the manifests'),
+/// and that it reads any reply, so an app updated ahead of it keeps the hand-off working.
+#[test]
+fn the_hello_says_this_extensions_version_and_what_it_can_do() {
+    let greeting = greeting();
+    for manifest in [
+        include_str!("../../../extension/manifest.json"),
+        include_str!("../../../extension/manifest.firefox.json"),
+    ] {
+        let manifest: Value = serde_json::from_str(manifest).unwrap();
+        assert_eq!(manifest["version"], greeting.extension_version.as_str());
+    }
+    assert!(greeting.has(dm_protocol::feature::READS_ANY_REPLY));
+    assert!(greeting.has(dm_protocol::feature::RENEWS));
+}
+
+/// An app newer than this extension, at a protocol version it has never heard of, is an app to
+/// hand downloads to, not one to tell the person to update the extension for.
+#[test]
+fn a_newer_app_is_still_one_to_hand_to() {
+    let mut probe = Probe::default();
+    probe.absorb(&serde_json::json!({
+        "protocolVersion": 9, "type": "engine.hello", "engineVersion": "9.0.0", "protocol": 9,
+        "features": ["renews"], "somethingNew": true,
+    }));
+    probe.absorb(&serde_json::json!({
+        "protocolVersion": 9, "type": "settings.get",
+        "catch": { "enabled": true, "extensions": ["zip"], "newRule": 1 },
+    }));
+    let Some(App::Present { hello, rules }) = probe.finished() else {
+        panic!("a newer app read as none: {:?}", probe.finished())
+    };
+    assert!(takes_caught(&hello).is_ok() && hello.takes_renewals());
+    assert_eq!(rules.extensions, vec!["zip".to_string()]);
 }

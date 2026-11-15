@@ -329,6 +329,16 @@ sides, where it used to be two languages kept in step by hand:
 | `settings.get` | `settings.get` with the `catch` rules |
 | `download.start` `{id, url, referrer, caught}` | `download.started`, or `download.failed` with the reason |
 
+**The app moves ahead of the extension.** A store can hold the extension's update back for
+days while the app updates itself, so a newer app never stops an older extension working: the
+host reads every request version back to 1 and answers at version 1, a reply is only ever added
+to, and the extension reads a reply of any version for the fields it knows. The extension's
+hello says its version and what it can do (`Greeting`, kept by the app as `extension.json` in
+dm's home), the app's says what it can do (`features`), and a new ability is a name in
+`dm_protocol::feature`, not a new version. What each released extension sends is frozen in
+`desktop/crates/dm-protocol/tests/wire/`, and the tests hold every later app to answering it.
+What is left to move from the extension to the app is gaps row A22.
+
 **The host** is the desktop binary itself. A native messaging manifest names
 an executable and cannot pass it arguments, so the binary works out that a
 browser started it from what each browser passes as its first argument,

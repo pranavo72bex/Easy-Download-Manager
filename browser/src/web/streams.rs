@@ -238,7 +238,7 @@ fn offer_renewals() {
         let App::Present { hello, .. } = &app else {
             return;
         };
-        if !hello.renews {
+        if !hello.takes_renewals() {
             return;
         }
         for (n, renewal) in due.into_iter().enumerate() {

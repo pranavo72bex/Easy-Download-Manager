@@ -14,20 +14,30 @@ pub fn hand_id(prefix: &str, n: i64, now_ms: f64) -> String {
     format!("{prefix}{n}-{}", now_ms.max(0.0) as u64)
 }
 
+/// What this extension says of itself in its hello: its version, and what it can do, so the
+/// app (updated more often than a store lets this be) works out what this extension can do
+/// rather than this extension having to keep up with the app.
+pub fn greeting() -> dm_protocol::Greeting {
+    dm_protocol::Greeting {
+        extension_version: env!("CARGO_PKG_VERSION").to_string(),
+        features: vec![
+            dm_protocol::feature::READS_ANY_REPLY.to_string(),
+            dm_protocol::feature::RENEWS.to_string(),
+        ],
+    }
+}
+
 /// How a reason for "no app" starts when there is an app, of a protocol
 /// version this extension cannot talk to: its fix is updating one side,
 /// not installing or registering anything.
 pub const MISMATCH: &str = "protocol mismatch: ";
 
-/// What to say of a host whose frames carry protocol version `theirs`,
-/// naming the side to update.
+/// What to say of a host whose frames carry protocol version `theirs`, older than any this
+/// extension reads, naming the side to update. A newer one is read
+/// ([`dm_protocol::Reply::from_frame`]): an app updated ahead of the extension keeps working.
 pub fn mismatch(theirs: Option<u64>) -> String {
     let ours = dm_protocol::PROTOCOL_VERSION;
     let said = match theirs {
-        Some(v) if v > ours => format!(
-            "The dm app is newer than this extension (protocol {v}, the extension {ours}): \
-             update the dm extension in this browser"
-        ),
         Some(v) => format!(
             "The dm app is too old for this extension (protocol {v}, the extension \
              {ours}): update the dm app"

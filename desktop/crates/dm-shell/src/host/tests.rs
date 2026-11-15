@@ -576,7 +576,7 @@ fn a_renewal_is_filed_for_a_running_dm_only_and_never_asks_or_launches() {
     let dir = tempfile::tempdir().unwrap();
     let (hello, _) = ask(
         dir.path(),
-        dm_protocol::Request::Hello.to_frame(),
+        dm_protocol::Request::Hello(Default::default()).to_frame(),
         true,
         Ok(()),
     );
@@ -638,7 +638,7 @@ fn a_hello_is_remembered_so_the_window_stops_offering_the_extension() {
     assert!(!browser_seen(home.path()));
     let _ = ask(
         home.path(),
-        dm_protocol::Request::Hello.to_frame(),
+        dm_protocol::Request::Hello(Default::default()).to_frame(),
         true,
         Ok(()),
     );
@@ -650,7 +650,7 @@ fn a_hello_says_what_this_app_is() {
     let dir = tempfile::tempdir().unwrap();
     let (reply, _) = ask(
         dir.path(),
-        dm_protocol::Request::Hello.to_frame(),
+        dm_protocol::Request::Hello(Default::default()).to_frame(),
         true,
         Ok(()),
     );
@@ -668,7 +668,12 @@ fn a_hello_says_what_this_app_is() {
 fn a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them() {
     let dir = tempfile::tempdir().unwrap();
     let asked = |dir: &std::path::Path| {
-        let (reply, _) = ask(dir, dm_protocol::Request::Hello.to_frame(), true, Ok(()));
+        let (reply, _) = ask(
+            dir,
+            dm_protocol::Request::Hello(Default::default()).to_frame(),
+            true,
+            Ok(()),
+        );
         let Some(Reply::Hello(hello)) = reply else {
             panic!("no hello")
         };
@@ -689,7 +694,7 @@ fn a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them() {
     // The frame the extension reads names the field `rules`.
     let (reply, _) = ask(
         dir.path(),
-        dm_protocol::Request::Hello.to_frame(),
+        dm_protocol::Request::Hello(Default::default()).to_frame(),
         true,
         Ok(()),
     );
@@ -1481,4 +1486,73 @@ fn a_public_pages_links_inside_are_dropped_and_logins_taken_out() {
         page_link("http://nas.local/", "http://nas.local/c.iso").as_deref(),
         Some("http://nas.local/c.iso")
     );
+}
+
+/// A released extension keeps working with this app: every frame extension 3.4.0 sends (the
+/// fixed copy in dm-protocol's `tests/wire`) is answered, at version 1, with the reply of its
+/// kind, and its bare hello is kept as an extension that says nothing of itself.
+#[test]
+fn every_frame_a_released_extension_sends_is_answered() {
+    let file: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../dm-protocol/tests/wire/extension-3.4.0.json"
+    ))
+    .unwrap();
+    for frame in file["requests"].as_array().unwrap() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut world = Pretend {
+            running: true,
+            launches: Ok(()),
+            launched: false,
+            refuses: None,
+            asked: Vec::new(),
+            cookies_seen: Vec::new(),
+            serves: "application/octet-stream",
+            clock: 0,
+            probe_takes_ms: 0,
+            budgets: Vec::new(),
+        };
+        let answer = answer(dir.path(), frame, &mut world)
+            .unwrap_or_else(|| panic!("{frame} got no answer"));
+        assert_eq!(answer["protocolVersion"], 1, "{frame}: {answer}");
+        let reply = Reply::from_frame(&answer).unwrap();
+        let kind = frame["type"].as_str().unwrap();
+        let fits = match (kind, &reply) {
+            ("engine.hello", Reply::Hello(h)) => h.judges_pages() && h.takes_renewals(),
+            ("settings.get", Reply::Settings(_)) => true,
+            ("download.start" | "download.batch", Reply::Started { id, .. }) => *id == frame["id"],
+            ("media.formats", Reply::Formats { .. }) => true,
+            ("app.show", Reply::Shown { .. }) => true,
+            _ => false,
+        };
+        assert!(fits, "{frame} was answered {answer}");
+        if kind == "engine.hello" {
+            assert_eq!(
+                extension_heard(dir.path()),
+                Some(dm_protocol::Greeting::default())
+            );
+        }
+    }
+}
+
+/// What a newer extension says of itself is kept for the app, and written again only when it
+/// changes.
+#[test]
+fn an_extensions_greeting_is_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    assert_eq!(extension_heard(dir.path()), None);
+    let greeting = dm_protocol::Greeting {
+        extension_version: "3.5.0".into(),
+        features: vec![dm_protocol::feature::READS_ANY_REPLY.into()],
+    };
+    let (reply, _) = ask(
+        dir.path(),
+        dm_protocol::Request::Hello(greeting.clone()).to_frame(),
+        true,
+        Ok(()),
+    );
+    let Some(Reply::Hello(hello)) = reply else {
+        panic!("no hello")
+    };
+    assert!(hello.has(dm_protocol::feature::RENEWS) && hello.renews);
+    assert_eq!(extension_heard(dir.path()), Some(greeting));
 }

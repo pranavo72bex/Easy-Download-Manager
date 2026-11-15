@@ -93,7 +93,7 @@ pub(super) async fn probe() -> (App, Option<Port>) {
         Err(why) => return (App::Absent { reason: why }, None),
     };
     if let Err(why) = port
-        .send(&Request::Hello)
+        .send(&Request::Hello(decide::greeting()))
         .and_then(|()| port.send(&Request::Settings))
     {
         return (App::Absent { reason: why }, None);

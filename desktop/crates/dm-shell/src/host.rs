@@ -664,6 +664,36 @@ fn remember_formats(home: &Path, key: &str, choices: &[Choice], now: u64) {
 }
 
 /// The answer to one frame, or `None` for a frame that gets none.
+/// The file that keeps what the last extension to say hello said of itself.
+fn extension_file(home: &Path) -> std::path::PathBuf {
+    home.join("extension.json")
+}
+
+/// Keeps what an extension said of itself in its hello, written only when it changed. Best
+/// effort: a home that cannot be written to costs nothing but the note. A bare hello, from an
+/// extension of 3.4.0 or older, is kept as it is, so an older extension is known for one.
+fn note_extension(home: &Path, greeting: &dm_protocol::Greeting) {
+    if extension_heard(home).as_ref() == Some(greeting) {
+        return;
+    }
+    let Ok(text) = serde_json::to_string(greeting) else {
+        return;
+    };
+    let _ = std::fs::create_dir_all(home);
+    let file = extension_file(home);
+    let staged = file.with_extension("tmp");
+    if std::fs::write(&staged, text).is_ok() {
+        let _ = std::fs::rename(&staged, &file);
+    }
+}
+
+/// What the last extension to say hello said of itself: its version and what it can do
+/// (both empty for an extension of 3.4.0 or older), or `None` before any has.
+pub fn extension_heard(home: &Path) -> Option<dm_protocol::Greeting> {
+    let text = std::fs::read_to_string(extension_file(home)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
 /// The file whose being there says a browser's extension has talked to dm.
 fn browser_seen_file(home: &Path) -> std::path::PathBuf {
     home.join("browser.seen")
@@ -758,10 +788,13 @@ pub fn answer(
 ) -> Option<serde_json::Value> {
     let reply = match Asked::from_frame(frame) {
         // What this app can do, said up front.
-        Ok(Asked::Hello) => {
+        Ok(Asked::Hello(greeting)) => {
             // Remembered, so the window stops offering the extension to
             // someone who has it (`browser_seen`).
             mark_browser_seen(home);
+            // And what the extension said of itself, so the app can work out what an older
+            // extension can do rather than ask it to keep up (`extension_heard`).
+            note_extension(home, &greeting);
             Reply::Hello(Hello {
                 engine_version: env!("CARGO_PKG_VERSION").into(),
                 // The extension hands a download the browser holds only to an
@@ -771,6 +804,8 @@ pub fn answer(
                 // a site reaches it with the app, not with a store release.
                 rules: Some(served::served(home)),
                 renews: true,
+                // Abilities by name: an extension that does not know a name ignores it.
+                features: vec![dm_protocol::feature::RENEWS.into()],
             })
         }
 
