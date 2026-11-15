@@ -10,6 +10,8 @@
 #   DM_RELEASE=desktop-v0.9.0 sh scripts/linux-human-qa.sh   # a release as people get it
 #   DM_DEB=dm_0.9.0_arm64.deb sh scripts/linux-human-qa.sh   # a .deb at hand
 #   sh scripts/linux-human-qa.sh                             # a build of the checkout
+#   DM_LINUX_PROFILE=release sh scripts/linux-human-qa.sh    # its release build, as packaged
+#     (Docker needs more than 8 GB for its link; CARGO_PROFILE_RELEASE_LTO=false is less)
 #   sh scripts/linux-human-qa.sh --save-baseline             # the window's Linux pictures
 #
 # A build of the checkout is the GPUI window (dm-gpui), checked against its
@@ -34,6 +36,10 @@
 set -e
 cd "$(dirname "$0")/.."
 SHOTS="${DM_SHOTS:-$PWD/human-shots/linux-qa}"
+# A build of the checkout: debug, or the release profile the packages are built with.
+profile="${DM_LINUX_PROFILE:-debug}"
+case "$profile" in debug) build_flag="" ;; release) build_flag="--release" ;;
+  *) echo "DM_LINUX_PROFILE is debug or release"; exit 1 ;; esac
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/work" "$stage/in"
@@ -67,8 +73,9 @@ else
   echo "== dm, built in the Debian image"
   docker build -q -t dm-linux-check scripts/linux >/dev/null
   { git ls-files -z --cached --others --exclude-standard; } | tar --null -T - -cf - \
-    | docker run --rm -i -v dm-linux-target:/target -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
-      dm-linux-check sh -c 'set -e; mkdir -p /work && cd /work && tar -xf - && cd desktop && cargo build -q -p "$1"' build "$binary"
+    | docker run --rm -i -e CARGO_PROFILE_RELEASE_LTO -e CARGO_PROFILE_RELEASE_CODEGEN_UNITS \
+      -v dm-linux-target:/target -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
+      dm-linux-check sh -c 'set -e; mkdir -p /work && cd /work && tar -xf - && cd desktop && cargo build -q $2 -p "$1"' build "$binary" "$build_flag"
 fi
 if [ -n "$DM_EXTENSION_ZIP" ]; then
   mkdir -p "$stage/in/chrome"
@@ -84,7 +91,7 @@ docker build -q -t dm-human-qa -f scripts/linux/Dockerfile.human-qa scripts/linu
 volume=dm-human-shots-qa
 docker volume rm "$volume" >/dev/null 2>&1 || true
 status=0
-tar -C "$stage" -cf - work in | docker run --rm -i -e DM_LINUX_BINARY="$binary" \
+tar -C "$stage" -cf - work in | docker run --rm -i -e DM_LINUX_BINARY="$binary" -e DM_LINUX_PROFILE="$profile" \
   -v dm-linux-target:/target:ro -v "$volume":/shots dm-human-qa \
   sh -c 'set -e; tar -xf - -C / && cd /work && sh scripts/linux/human-qa-session.sh "$@"' qa "$@" || status=$?
 rm -rf "$SHOTS" && mkdir -p "$SHOTS"

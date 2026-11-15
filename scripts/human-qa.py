@@ -579,32 +579,62 @@ def whole(row, name):
 # ---------------------------------------------------------------- pictures
 
 def png_pixels(path):
-    """Width, height and RGB rows of an 8-bit PNG, by the standard library."""
+    """Width, height and RGB rows of a non-interlaced PNG, by the standard library.
+    Grey and palette pictures, and depths under 8, are read too: a window drawn all
+    one colour was saved as 1-bit grey, and the comparison stopped the walk with a
+    KeyError (Linux, 2026-11-14)."""
     data = pathlib.Path(path).read_bytes()
-    pos, idat, width = 8, b"", 0
+    pos, idat, width, palette = 8, b"", 0, b""
     while pos < len(data):
         length, kind = struct.unpack(">I4s", data[pos:pos + 8])
         chunk = data[pos + 8:pos + 8 + length]
         if kind == b"IHDR":
             width, height, depth, colour = struct.unpack(">IIBB", chunk[:10])
+        elif kind == b"PLTE":
+            palette = chunk
         elif kind == b"IDAT":
             idat += chunk
         pos += 12 + length
-    channels = {2: 3, 6: 4}[colour]
-    raw, stride, rows, prev = zlib.decompress(idat), width * channels, [], bytearray(width * channels)
+    samples = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[colour]
+    bpp = max(1, samples * depth // 8)               # the filters' step, in bytes
+    stride = (width * samples * depth + 7) // 8
+    raw, rows, prev = zlib.decompress(idat), [], bytearray(stride)
     for y in range(height):
         f, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
         for i in range(stride):
-            a = line[i - channels] if i >= channels else 0
-            b, c = prev[i], prev[i - channels] if i >= channels else 0
+            a = line[i - bpp] if i >= bpp else 0
+            b, c = prev[i], prev[i - bpp] if i >= bpp else 0
             if f == 1: line[i] = (line[i] + a) & 255
             elif f == 2: line[i] = (line[i] + b) & 255
             elif f == 3: line[i] = (line[i] + (a + b) // 2) & 255
             elif f == 4:
                 p = a + b - c; pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
                 line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
-        rows.append(bytes(line)); prev = line
-    return width, height, channels, rows
+        prev = line
+        if colour in (2, 6) and depth == 8:
+            rows.append(bytes(line))
+            continue
+        # Each sample by itself (16-bit samples by their high byte), then made RGB.
+        if depth >= 8:
+            step = depth // 8
+            vals = [line[i] for i in range(0, len(line), step)]
+        else:
+            top = 255 // ((1 << depth) - 1)
+            vals = [(line[(k * depth) // 8] >> (8 - depth - (k * depth) % 8)) & ((1 << depth) - 1)
+                    for k in range(width * samples)]
+            if colour != 3:
+                vals = [v * top for v in vals]
+        out = bytearray()
+        for x in range(width):
+            px = vals[x * samples:(x + 1) * samples]
+            if colour == 3:
+                out += palette[px[0] * 3:px[0] * 3 + 3]
+            elif colour in (0, 4):
+                out += bytes((px[0],) * 3)
+            else:
+                out += bytes(px[:3])
+        rows.append(bytes(out))
+    return width, height, (samples if colour in (2, 6) and depth == 8 else 3), rows
 
 
 def differing(a, b):

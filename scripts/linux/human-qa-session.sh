@@ -7,7 +7,7 @@
 # Inside Dockerfile.human-qa's image (see linux-human-qa.sh), in /work: dm
 # installed from /in/dm.deb as a person installs it (its window: dm-gpui, or
 # dm-desktop in a .deb from before the GPUI window), or the checkout's build
-# (/target/debug/$DM_LINUX_BINARY) put where the .deb puts it; a release's extension
+# (/target/<debug or release>/$DM_LINUX_BINARY) put where the .deb puts it; a release's extension
 # (/in/chrome) in place of dist/chrome; then an X display, a window manager
 # and a session bus with an unlocked keyring, as a desktop has, and
 # human-qa.py with its arguments. The screen is pictured every ten seconds
@@ -22,12 +22,17 @@ if [ -f /in/dm.deb ]; then
   [ -x /usr/bin/dm-gpui ] && binary=dm-gpui
   echo "its window: $binary"
 else
-  install -m 755 "/target/debug/$binary" "/usr/bin/$binary"
-  echo "a build of the checkout: $binary"
+  install -m 755 "/target/${DM_LINUX_PROFILE:-debug}/$binary" "/usr/bin/$binary"
+  echo "a build of the checkout: $binary (${DM_LINUX_PROFILE:-debug})"
 fi
 if [ -d /in/chrome ]; then rm -rf dist/chrome && mkdir -p dist && cp -r /in/chrome dist/chrome; fi
 python3 -c "import json; print('extension', json.load(open('dist/chrome/manifest.json'))['version'])"
 export DISPLAY=:99
+# The .deb's libvulkan1 brings Mesa's software Vulkan (lavapipe), and on Xvfb
+# it presents nothing: dm's window, and vkcube's, stayed black for the whole
+# run (2026-11-14, desktop-v0.10.0 arm64). No Vulkan driver is named, so the
+# window draws as it does for a build of the checkout, where none is installed.
+export VK_ICD_FILENAMES=/nonexistent.json
 Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
 sleep 2
 openbox >/dev/null 2>&1 &
