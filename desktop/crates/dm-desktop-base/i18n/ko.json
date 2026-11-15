@@ -607,7 +607,7 @@
  "It does not match.": "일치하지 않습니다.",
  "Name pattern": "이름 패턴",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "비워 두면 이름을 유지합니다. {n}은 1부터 세고 {name}은 이전 이름입니다",
- "Sites with their own folder and speed:": "자체 폴더와 속도를 쓰는 사이트:",
+ "Sites with their own folder, speed and headers:": "자체 폴더, 속도와 헤더를 쓰는 사이트:",
  "Delete site rule": "사이트 규칙 삭제",
  "Add a site rule": "사이트 규칙 추가",
  "Pop-ups": "팝업",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "“{}”이(가) 들어간 설정이 없습니다.",
  "Download complete — {}": "다운로드 완료 — {}",
  "Details": "세부 정보",
- "Hover a download and press Details to watch its progress.": "다운로드 위에 마우스를 올리고 “세부 정보”를 눌러 진행 상황을 확인하세요."
+ "Hover a download and press Details to watch its progress.": "다운로드 위에 마우스를 올리고 “세부 정보”를 눌러 진행 상황을 확인하세요.",
+ "User-Agent": "사용자 에이전트",
+ "Request headers": "요청 헤더",
+ "Name: value | Name: value": "이름: 값 | 이름: 값"
 }

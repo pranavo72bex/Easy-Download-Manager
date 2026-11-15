@@ -517,7 +517,12 @@ impl World for Here<'_> {
                     // refused and always left with the browser.
                     &settings.with_login(url),
                     referrer,
-                    dm_core::cookies::SignIn::with_headers(url, cookies, headers).as_ref(),
+                    dm_core::cookies::SignIn::with_headers(
+                        url,
+                        cookies,
+                        &settings.site_headers(url, headers),
+                    )
+                    .as_ref(),
                 ),
             )
             .await

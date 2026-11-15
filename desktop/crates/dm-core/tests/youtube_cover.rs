@@ -227,6 +227,13 @@ async fn handle(method: Method, uri: Uri, headers: HeaderMap, body: String) -> R
             player(&id, call, &state.origin)
         }
         ("GET", "/playlist") => playlist_page(&query(&uri, "list").unwrap_or_default()),
+        // A channel's page names its id; its uploads are the list `UU` and the rest of it.
+        ("GET", "/@makers") => text(
+            200,
+            "text/html",
+            r#"<html><link rel="canonical" href="https://www.youtube.com/channel/UCmain0000000000000000ab"></html>"#,
+        ),
+        ("GET", "/@nobody") => text(200, "text/html", "<html><p>no channel here</p></html>"),
         ("POST", "/youtubei/v1/browse") => {
             let asked: Value = serde_json::from_str(&body).unwrap_or_default();
             browse(asked["continuation"].as_str().unwrap_or(""))
@@ -775,6 +782,11 @@ fn playlist_page(list: &str) -> Response {
         "PLnodata" => "<html><p>sign in</p></html>".to_string(),
         "PLempty" => with_data(
             json!({"metadata": {"playlistMetadataRenderer": {"title": "Empty"}}, "contents": []}),
+            None,
+        ),
+        "UUmain0000000000000000ab" => with_data(
+            json!({"metadata": {"playlistMetadataRenderer": {"title": "Uploads from Makers"}},
+                   "contents": [lockup("upld0000001", "First"), lockup("upld0000002", "Second")]}),
             None,
         ),
         "PLmain" => with_data(
@@ -1436,6 +1448,33 @@ async fn playlist(list: &str) -> Result<youtube::Playlist, Error> {
         None,
     )
     .await
+}
+
+/// gaps row Y7: a channel's address, or any of its tabs, is read as the list of its uploads,
+/// its id from the address or from its page; YouTube Music's playlist address as YouTube's.
+#[tokio::test]
+async fn a_channels_uploads_and_a_music_playlist_are_read_as_playlists() {
+    let _env = ENV.read().await;
+    stand_in();
+    let read = |url: &'static str| async move {
+        youtube::read_playlist(&dm_core::client(), url, None).await
+    };
+    for url in [
+        "https://www.youtube.com/@makers",
+        "https://www.youtube.com/@makers/videos",
+        "https://www.youtube.com/channel/UCmain0000000000000000ab/shorts",
+    ] {
+        let list = read(url).await.unwrap_or_else(|e| panic!("{url}: {e}"));
+        assert_eq!(list.id, "UUmain0000000000000000ab", "{url}");
+        assert_eq!(list.title, "Uploads from Makers", "{url}");
+        assert_eq!(list.entries.len(), 2, "{url}");
+    }
+    let music = read("https://music.youtube.com/playlist?list=UUmain0000000000000000ab")
+        .await
+        .unwrap();
+    assert_eq!(music.title, "Uploads from Makers");
+    let none = read("https://www.youtube.com/@nobody").await.unwrap_err();
+    assert!(none.to_string().contains("names no channel"), "{none}");
 }
 
 /// A playlist is its page's first videos and then the browse API's, asked

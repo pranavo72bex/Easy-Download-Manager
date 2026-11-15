@@ -607,7 +607,7 @@
  "It does not match.": "Nie zgadza się.",
  "Name pattern": "Wzorzec nazwy",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Puste zachowuje nazwy. {n} liczy od 1, {name} to dawna nazwa",
- "Sites with their own folder and speed:": "Witryny z własnym folderem i prędkością:",
+ "Sites with their own folder, speed and headers:": "Witryny z własnym folderem, prędkością i nagłówkami:",
  "Delete site rule": "Usuń regułę witryny",
  "Add a site rule": "Dodaj regułę witryny",
  "Pop-ups": "Okna powiadomień",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "Żadne ustawienie nie zawiera „{}”.",
  "Download complete — {}": "Pobieranie zakończone — {}",
  "Details": "Szczegóły",
- "Hover a download and press Details to watch its progress.": "Najedź na pobieranie i naciśnij Szczegóły, aby śledzić jego postęp."
+ "Hover a download and press Details to watch its progress.": "Najedź na pobieranie i naciśnij Szczegóły, aby śledzić jego postęp.",
+ "User-Agent": "User-Agent",
+ "Request headers": "Nagłówki żądania",
+ "Name: value | Name: value": "Nazwa: wartość | Nazwa: wartość"
 }

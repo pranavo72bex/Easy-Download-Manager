@@ -1336,6 +1336,8 @@ def walk(dm, origin):
     # B51: the page says how dm identifies itself, with the switch.
     check("B51", "Advanced shows the name dm sends to servers and the Identify as dm only switch",
           "dm identifies itself to servers as:" in words and "Identify as dm only" in words, f"{words}")
+    check("B51", "Advanced has the site rules' list, which gives a site its own User-Agent and headers",
+          "Sites with their own folder, speed and headers:" in words and "Add a site rule" in words, f"{words}")
     # B56: the Downloads tab has the Connections per file box with its Presets.
     dm.click("Downloads")
     pause(0.8)

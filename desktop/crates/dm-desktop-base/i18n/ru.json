@@ -607,7 +607,7 @@
  "It does not match.": "Не совпадает.",
  "Name pattern": "Шаблон имени",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Пусто — имена не меняются. {n} считает с 1, {name} — прежнее имя",
- "Sites with their own folder and speed:": "Сайты со своей папкой и скоростью:",
+ "Sites with their own folder, speed and headers:": "Сайты со своей папкой, скоростью и заголовками:",
  "Delete site rule": "Удалить правило сайта",
  "Add a site rule": "Добавить правило сайта",
  "Pop-ups": "Всплывающие окна",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "Нет настройки со словами «{}».",
  "Download complete — {}": "Загрузка завершена — {}",
  "Details": "Подробности",
- "Hover a download and press Details to watch its progress.": "Наведите курсор на загрузку и нажмите «Подробности», чтобы следить за ходом."
+ "Hover a download and press Details to watch its progress.": "Наведите курсор на загрузку и нажмите «Подробности», чтобы следить за ходом.",
+ "User-Agent": "User-Agent",
+ "Request headers": "Заголовки запроса",
+ "Name: value | Name: value": "Имя: значение | Имя: значение"
 }

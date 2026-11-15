@@ -607,7 +607,7 @@
  "It does not match.": "不一致。",
  "Name pattern": "名称模式",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "留空则保留名称。{n} 从 1 起计数，{name} 为原名称",
- "Sites with their own folder and speed:": "有各自文件夹和速度的网站：",
+ "Sites with their own folder, speed and headers:": "有各自文件夹、速度和标头的网站：",
  "Delete site rule": "删除网站规则",
  "Add a site rule": "添加网站规则",
  "Pop-ups": "弹出窗口",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "没有设置包含“{}”。",
  "Download complete — {}": "下载完成 — {}",
  "Details": "详细信息",
- "Hover a download and press Details to watch its progress.": "将鼠标移到下载上，点击“详细信息”查看进度。"
+ "Hover a download and press Details to watch its progress.": "将鼠标移到下载上，点击“详细信息”查看进度。",
+ "User-Agent": "用户代理",
+ "Request headers": "请求标头",
+ "Name: value | Name: value": "名称: 值 | 名称: 值"
 }

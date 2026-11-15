@@ -43,6 +43,9 @@ pub struct Properties {
     login: Entity<InputState>,
     password: Entity<InputState>,
     note: Entity<InputState>,
+    /// The download's own `User-Agent` and request headers (gaps row F1).
+    agent: Entity<InputState>,
+    headers: Entity<InputState>,
     /// A digest the person was given, to check the file against.
     check: Entity<InputState>,
     /// A torrent's files ticked to be fetched, as edited.
@@ -87,6 +90,8 @@ impl Properties {
             &self.password.read(cx).value(),
         );
         let description = self.note.read(cx).value().to_string();
+        let agent = self.agent.read(cx).value().to_string();
+        let headers = self.headers.read(cx).value().to_string();
         let (files, priorities) = (self.files.clone(), self.priorities.clone());
         let delete_after = self.delete_after;
         // Off the window's thread: a new address for a running download
@@ -110,6 +115,8 @@ impl Properties {
                             address: &address,
                             files: &files,
                             priorities: &priorities,
+                            agent: &agent,
+                            headers: &headers,
                         },
                     )
                 },
@@ -645,6 +652,22 @@ impl Render for Properties {
                         editable,
                         theme,
                     ))
+                    .child(field_line(
+                        "User-Agent",
+                        width,
+                        &screen,
+                        &self.agent,
+                        editable,
+                        theme,
+                    ))
+                    .child(field_line(
+                        "Request headers",
+                        width,
+                        &screen,
+                        &self.headers,
+                        editable,
+                        theme,
+                    ))
                     .child(field_line("Note", width, &screen, &self.note, true, theme))
                     .when(has_file, |d| {
                         let times = dm_desktop_base::file_info::delete_after_times();
@@ -773,6 +796,14 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
             let login = filled(login, false, window, cx);
             let password = filled(password, true, window, cx);
             let note = filled(row.description.clone(), false, window, cx);
+            let (own_agent, own_headers) = row_edits::split_headers(&row.headers);
+            let agent = filled(own_agent, false, window, cx);
+            let headers = cx.new(|cx| {
+                let mut input =
+                    InputState::new(window, cx).placeholder(t("Name: value | Name: value"));
+                input.set_value(own_headers, window, cx);
+                input
+            });
             let check =
                 cx.new(|cx| InputState::new(window, cx).placeholder(t("A digest you were given")));
             // A server that wants a sign-in: the keyboard goes to Login;
@@ -790,7 +821,7 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
             let properties = cx.new(|cx| {
                 // Drawn again as the download moves on.
                 cx.observe(&watched, |_, _, cx| cx.notify()).detach();
-                for input in [&address, &login, &password, &note] {
+                for input in [&address, &login, &password, &agent, &headers, &note] {
                     cx.subscribe_in(
                         input,
                         window,
@@ -815,6 +846,8 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
                     login,
                     password,
                     note,
+                    agent,
+                    headers,
                     check,
                     files: row.torrent_files.iter().map(|f| f.wanted).collect(),
                     priorities: row.torrent_files.iter().map(|f| f.priority).collect(),

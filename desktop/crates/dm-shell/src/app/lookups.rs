@@ -202,7 +202,7 @@ pub fn read_playlist_later(
     let client = backend.client();
     let proxy = backend.settings().proxy.url_for_tools();
     backend.runtime.spawn(async move {
-        let got = if dm_core::youtube::playlist_id(&url).is_some() {
+        let got = if dm_core::youtube::is_list(&url) {
             dm_core::youtube::read_playlist(&client, &url, None)
                 .await
                 .map_err(|e| e.to_string())

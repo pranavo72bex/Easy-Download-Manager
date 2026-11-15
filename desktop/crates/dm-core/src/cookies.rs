@@ -169,6 +169,43 @@ pub struct SignIn {
     extra: Vec<(String, String)>,
     /// The form this download is the answer to, sent again to its one address.
     post: Option<Posted>,
+    /// The `User-Agent` the person gave this download (Properties, or its site's rule), sent in
+    /// place of the one dm picks, to every server the download reaches: a name is no secret.
+    agent: Option<String>,
+}
+
+/// The `User-Agent` a person gave a download, where its headers hold one. The browser never
+/// hands one over (the extension leaves it out), so one here is the person's.
+fn own_agent(headers: &[(String, String)]) -> Option<String> {
+    headers
+        .iter()
+        .find(|(name, _)| name.trim().eq_ignore_ascii_case("user-agent"))
+        .map(|(_, value)| value.trim().to_string())
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= MAX_FORWARDED_VALUE
+                && reqwest::header::HeaderValue::from_str(value).is_ok()
+        })
+}
+
+/// Headers as a person types them on one line: `Name: value`, each apart from the next by `|`
+/// or a line break (a value may hold `;` and `,`, as `Accept` does). A part with no name is
+/// left out.
+pub fn headers_from_text(text: &str) -> Vec<(String, String)> {
+    text.split(['|', '\n', '\r'])
+        .filter_map(|part| part.split_once(':'))
+        .map(|(name, value)| (name.trim().to_string(), value.trim().to_string()))
+        .filter(|(name, _)| !name.is_empty() && !name.contains(char::is_whitespace))
+        .collect()
+}
+
+/// `headers` on one line, as [`headers_from_text`] reads it back.
+pub fn headers_as_text(headers: &[(String, String)]) -> String {
+    headers
+        .iter()
+        .map(|(name, value)| format!("{name}: {value}"))
+        .collect::<Vec<_>>()
+        .join(" | ")
 }
 
 /// A form a page sent, whose answer is the file: its address, its body and
@@ -244,6 +281,24 @@ pub fn forwardable(headers: &[(String, String)]) -> Vec<(String, String)> {
         .collect()
 }
 
+/// The `User-Agent` a request of this download to `url` goes out with: the person's own where
+/// they gave one, else the one dm picks for that server ([`crate::agent_for`]).
+pub fn agent_with<'a>(sign_in: Option<&'a SignIn>, url: &str) -> &'a str {
+    sign_in
+        .and_then(SignIn::agent)
+        .unwrap_or_else(|| crate::agent_for(url))
+}
+
+/// What a row keeps of the headers it is given: those it may send on ([`forwardable`]), and the
+/// person's own `User-Agent` last.
+pub fn kept_headers(headers: &[(String, String)]) -> Vec<(String, String)> {
+    let mut kept = forwardable(headers);
+    if let Some(agent) = own_agent(headers) {
+        kept.push(("User-Agent".to_string(), agent));
+    }
+    kept
+}
+
 /// Adds the browser's own request headers for `url`'s server to `request`.
 pub fn add_headers(
     mut request: reqwest::RequestBuilder,
@@ -270,6 +325,7 @@ impl SignIn {
             header: header.to_string(),
             extra: Vec::new(),
             post: None,
+            agent: None,
         })
     }
 
@@ -286,6 +342,7 @@ impl SignIn {
             header: String::new(),
             extra: Vec::new(),
             post: None,
+            agent: None,
         });
         sign_in.post = Some(post);
         Some(sign_in)
@@ -298,10 +355,12 @@ impl SignIn {
 
     /// The sign-in for `url`'s server with the browser's own request headers
     /// as well: `None` when there are neither cookies nor a usable header.
-    /// Headers dm sets itself, and any that is not valid, are left out.
+    /// Headers dm sets itself, and any that is not valid, are left out; a `User-Agent` among them
+    /// is the person's own and goes in place of dm's ([`SignIn::agent`]).
     pub fn with_headers(url: &str, header: &str, headers: &[(String, String)]) -> Option<SignIn> {
         let extra = forwardable(headers);
-        if extra.is_empty() {
+        let agent = own_agent(headers);
+        if extra.is_empty() && agent.is_none() {
             return SignIn::new(url, header);
         }
         Some(SignIn {
@@ -309,7 +368,13 @@ impl SignIn {
             header: header.replace(['\r', '\n'], "").trim().to_string(),
             extra,
             post: None,
+            agent,
         })
+    }
+
+    /// The `User-Agent` the person gave this download, if they gave one.
+    pub fn agent(&self) -> Option<&str> {
+        self.agent.as_deref()
     }
 
     /// The browser's request headers, where `url` is on the server they are for.

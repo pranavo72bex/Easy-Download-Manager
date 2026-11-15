@@ -3,6 +3,11 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## Unreleased
+
+- YouTube: a channel's address (`youtube.com/@name`, `/channel/…`, or any of its Videos, Shorts or Live tabs) opens the Playlist dialog with the channel's uploads, and a YouTube Music playlist's address opens it as a YouTube playlist's does.
+- A download can be given a User-Agent and request headers of its own (File properties), and a site's rule in Options › Advanced can give every download from that site its own (for a server that wants an API key, a token or a particular client name). A name given is sent on every request of the download, on every connection, in place of the one dm picks.
+
 ## App 0.10.0, extension 3.4.0
 
 - Windows: the browser bar's "Add dm to your browser:" wraps whole onto a second line at the window's first width, where it was cut to "Add dm…", and an empty Save to folder in Download details shows its hint cut in the middle, so "(sorted by kind)" stays in sight.

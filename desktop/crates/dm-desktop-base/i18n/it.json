@@ -607,7 +607,7 @@
  "It does not match.": "Non corrisponde.",
  "Name pattern": "Modello del nome",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Vuoto mantiene i nomi. {n} conta da 1, {name} è il nome precedente",
- "Sites with their own folder and speed:": "Siti con cartella e velocità proprie:",
+ "Sites with their own folder, speed and headers:": "Siti con cartella, velocità e intestazioni proprie:",
  "Delete site rule": "Elimina regola del sito",
  "Add a site rule": "Aggiungi regola del sito",
  "Pop-ups": "Finestre popup",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "Nessuna impostazione contiene «{}».",
  "Download complete — {}": "Download completato — {}",
  "Details": "Dettagli",
- "Hover a download and press Details to watch its progress.": "Passa il puntatore su un download e premi Dettagli per vederne l’avanzamento."
+ "Hover a download and press Details to watch its progress.": "Passa il puntatore su un download e premi Dettagli per vederne l’avanzamento.",
+ "User-Agent": "User-Agent",
+ "Request headers": "Intestazioni della richiesta",
+ "Name: value | Name: value": "Nome: valore | Nome: valore"
 }

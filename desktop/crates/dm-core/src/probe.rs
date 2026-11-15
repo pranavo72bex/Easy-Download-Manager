@@ -138,8 +138,12 @@ pub async fn probe_get(
         crate::auth::send(client, request, url)
     };
     let ask = |agent: &str| ask_as(agent, Some(wanted.as_str()));
-    let mut res = ask(crate::agent_for(url)).await?;
+    // A name the person gave this download is the one it is asked by, every time: none of the
+    // other names below is tried in its place.
+    let own = sign_in.and_then(crate::cookies::SignIn::agent);
+    let mut res = ask(crate::cookies::agent_with(sign_in, url)).await?;
     if !posted
+        && own.is_none()
         && res.status() == reqwest::StatusCode::FORBIDDEN
         && crate::agent_for(url) == crate::first_agent()
     {
@@ -165,6 +169,7 @@ pub async fn probe_get(
      * refuses the full one; a server that limits every name answers 429 to
      * that too and is waited out as before, one request more than it was. */
     if !posted
+        && own.is_none()
         && res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
         && crate::agent_for(url) == crate::IE_AGENT
     {
@@ -191,7 +196,7 @@ pub async fn probe_get(
         && crate::download::folder_referer(url).is_some()
     {
         crate::drop_made_up_referer(url);
-        let again = ask(crate::agent_for(url)).await?;
+        let again = ask(crate::cookies::agent_with(sign_in, url)).await?;
         if again.status() == reqwest::StatusCode::FORBIDDEN {
             crate::forget_dropped_referer(url);
         } else {
@@ -202,14 +207,14 @@ pub async fn probe_get(
 
     // A 404 is asked for a second time before it is said, as reference A does.
     if !posted && res.status() == reqwest::StatusCode::NOT_FOUND {
-        res = ask(crate::agent_for(url)).await?;
+        res = ask(crate::cookies::agent_with(sign_in, url)).await?;
     }
 
     // Some servers fail a ranged request and serve the plain one, which is how
     // reference A asks first. Taken only if the plain request succeeds; the
     // ranged answer's error is what is said otherwise.
     if !posted && res.status().is_server_error() {
-        if let Ok(plain) = ask_as(crate::agent_for(url), None).await {
+        if let Ok(plain) = ask_as(crate::cookies::agent_with(sign_in, url), None).await {
             if plain.status().is_success() {
                 res = plain;
             }
@@ -238,7 +243,7 @@ pub async fn probe_get(
                 brings = (last.saturating_add(1) < total).then_some(last);
             }
             None => {
-                let whole = ask_as(crate::agent_for(url), Some(WHOLE)).await?;
+                let whole = ask_as(crate::cookies::agent_with(sign_in, url), Some(WHOLE)).await?;
                 if !whole.status().is_success() {
                     return Err(Error::from_response(whole).await);
                 }

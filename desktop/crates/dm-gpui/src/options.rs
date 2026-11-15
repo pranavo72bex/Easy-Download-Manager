@@ -111,8 +111,13 @@ impl Options {
         if is_number(&text) {
             self.numbers.insert(key.to_string());
         }
+        // A site rule's headers say how they are typed while the field is empty.
+        let hint = key.ends_with(".headers");
         let field = cx.new(|cx| {
             let mut input = InputState::new(window, cx).masked(masked);
+            if hint {
+                input = input.placeholder(t("Name: value | Name: value"));
+            }
             input.set_value(text, window, cx);
             input
         });
@@ -317,6 +322,8 @@ impl Options {
                     match *field {
                         "host" => rule.host = text.into(),
                         "folder" => rule.folder = text.into(),
+                        "agent" => rule.agent = text.into(),
+                        "headers" => rule.headers = text.into(),
                         _ => {
                             if let Some(n) = n(0, 1024 * 1024) {
                                 rule.speed = n;

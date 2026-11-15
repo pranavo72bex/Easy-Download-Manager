@@ -607,7 +607,7 @@
  "It does not match.": "一致しません。",
  "Name pattern": "名前のパターン",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "空欄なら名前はそのまま。{n} は 1 から数え、{name} は元の名前",
- "Sites with their own folder and speed:": "独自のフォルダーと速度を使うサイト：",
+ "Sites with their own folder, speed and headers:": "独自のフォルダー、速度、ヘッダーを使うサイト：",
  "Delete site rule": "サイトのルールを削除",
  "Add a site rule": "サイトのルールを追加",
  "Pop-ups": "ポップアップ",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "「{}」を含む設定はありません。",
  "Download complete — {}": "ダウンロード完了 — {}",
  "Details": "詳細",
- "Hover a download and press Details to watch its progress.": "ダウンロードにポインターを合わせて「詳細」を押すと進行状況を確認できます。"
+ "Hover a download and press Details to watch its progress.": "ダウンロードにポインターを合わせて「詳細」を押すと進行状況を確認できます。",
+ "User-Agent": "ユーザーエージェント",
+ "Request headers": "リクエストヘッダー",
+ "Name: value | Name: value": "名前: 値 | 名前: 値"
 }

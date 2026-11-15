@@ -65,9 +65,11 @@ pub struct Handed {
 }
 
 impl Handed {
-    /// The sign-in for `url`, from what the browser sent.
-    fn sign_in(&self, url: &str) -> Option<dm_core::cookies::SignIn> {
-        dm_core::cookies::SignIn::with_headers(url, &self.cookies, &self.headers)
+    /// The sign-in for `url`, from what the browser sent, with its site rule's `User-Agent` and
+    /// headers (Options › Advanced), as the download will be asked with them.
+    fn sign_in(&self, settings: &Settings, url: &str) -> Option<dm_core::cookies::SignIn> {
+        let headers = settings.site_headers(url, &self.headers);
+        dm_core::cookies::SignIn::with_headers(url, &self.cookies, &headers)
     }
 
     /// The page as Referer, where there is one.
@@ -197,7 +199,7 @@ impl Details {
             &self.backend,
             url.clone(),
             self.handed.page(),
-            self.handed.sign_in(&url),
+            self.handed.sign_in(&self.settings, &url),
             self.youtube(),
             move |listed, several| {
                 let _ = tell.try_send((listed, several));
@@ -495,7 +497,7 @@ impl Details {
             &self.backend,
             first.clone(),
             self.handed.page(),
-            self.handed.sign_in(&first),
+            self.handed.sign_in(&self.settings, &first),
             entry,
             folder,
             move || {
@@ -1338,7 +1340,7 @@ fn open_now(
                     &backend,
                     first.clone(),
                     handed.page(),
-                    handed.sign_in(&first),
+                    handed.sign_in(&backend.settings(), &first),
                     move || {
                         let _ = zip_tell.try_send(());
                     },
@@ -1463,7 +1465,7 @@ fn ask_server(
         backend,
         url.to_string(),
         handed.referrer.clone(),
-        handed.sign_in(url),
+        handed.sign_in(&backend.settings(), url),
         remux,
         move |found| {
             let _ = tell.try_send(found);

@@ -170,8 +170,9 @@ pub fn decide(
             Some(how) => Next::Answered { address, id, how },
             None => Next::Duplicate { address, id },
         }
-    } else if dm_core::youtube::playlist_id(&address).is_some() {
-        // A playlist is its videos, each a download: listed to be ticked.
+    } else if dm_core::youtube::is_list(&address) {
+        // A playlist, or a channel's uploads, is its videos, each a download: listed to be
+        // ticked.
         Next::Playlist(address)
     } else {
         Next::Details(vec![address])
@@ -287,6 +288,29 @@ mod tests {
             login.remember,
             Some(vec!["https://e.com/a.zip".into()]),
             "without its login"
+        );
+    }
+
+    /// gaps row Y7: a channel's address and a YouTube Music playlist open the Playlist dialog,
+    /// as a playlist's does; a video with a list beside it is still that video.
+    #[test]
+    fn a_channel_and_a_music_playlist_open_the_playlist_dialog() {
+        let settings = Settings::default();
+        for url in [
+            "https://www.youtube.com/playlist?list=PL1",
+            "https://music.youtube.com/playlist?list=PL1",
+            "https://www.youtube.com/@YouTube/videos",
+        ] {
+            assert_eq!(
+                decide(url, false, "", "", &settings, &[]).next,
+                Next::Playlist(url.into()),
+                "{url}"
+            );
+        }
+        let video = "https://www.youtube.com/watch?v=jNQXAC9IVRw&list=PL1";
+        assert_eq!(
+            decide(video, false, "", "", &settings, &[]).next,
+            Next::Details(vec![video.into()])
         );
     }
 

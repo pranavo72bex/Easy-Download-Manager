@@ -607,7 +607,7 @@
  "It does not match.": "Eşleşmiyor.",
  "Name pattern": "Ad deseni",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Boş bırakılırsa adlar korunur. {n} 1’den sayar, {name} eski addır",
- "Sites with their own folder and speed:": "Kendi klasörü ve hızı olan siteler:",
+ "Sites with their own folder, speed and headers:": "Kendi klasörü, hızı ve üst bilgileri olan siteler:",
  "Delete site rule": "Site kuralını sil",
  "Add a site rule": "Site kuralı ekle",
  "Pop-ups": "Açılır pencereler",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "“{}” geçen ayar yok.",
  "Download complete — {}": "İndirme tamamlandı — {}",
  "Details": "Ayrıntılar",
- "Hover a download and press Details to watch its progress.": "Bir indirmenin üzerine gelin ve ilerlemesini izlemek için Ayrıntılar’a basın."
+ "Hover a download and press Details to watch its progress.": "Bir indirmenin üzerine gelin ve ilerlemesini izlemek için Ayrıntılar’a basın.",
+ "User-Agent": "Kullanıcı aracısı",
+ "Request headers": "İstek üst bilgileri",
+ "Name: value | Name: value": "Ad: değer | Ad: değer"
 }

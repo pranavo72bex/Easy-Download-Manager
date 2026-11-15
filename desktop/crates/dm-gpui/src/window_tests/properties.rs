@@ -87,6 +87,35 @@ fn properties_refuse_an_address_dm_cannot_fetch_and_close_with_their_row() {
     });
 }
 
+/// gaps row F1: a download's own `User-Agent` and request headers are typed in Properties and
+/// kept with the row on OK; shown again when Properties opens once more.
+#[test]
+fn properties_keep_a_downloads_own_user_agent_and_headers() {
+    let world = world();
+    let mut h = world.harness();
+    later(&mut h, world.url("own.bin"));
+    let row = h.row("own.bin");
+    properties_of(&mut h, "own.bin");
+    h.type_into("User-Agent", "Mine/1.0");
+    h.type_into("Request headers", "X-Api-Key: k1 | Accept: */*");
+    h.click("OK");
+    h.until("Properties to close", |h| !h.dialog_open("File properties"));
+    let pair = |n: &str, v: &str| (n.to_string(), v.to_string());
+    assert_eq!(
+        h.view(|view| view.backend.row(row.id)).unwrap().headers,
+        vec![
+            pair("X-Api-Key", "k1"),
+            pair("Accept", "*/*"),
+            pair("User-Agent", "Mine/1.0")
+        ]
+    );
+    properties_of(&mut h, "own.bin");
+    h.until("the agent shown again", |h| h.shows("Mine/1.0"));
+    assert!(h.shows("X-Api-Key: k1 | Accept: */*"));
+    h.click("Cancel");
+    h.until("Properties to close", |h| !h.dialog_open("File properties"));
+}
+
 /// A download of a category of the person's own is said to be of it.
 #[test]
 fn properties_name_a_category_of_the_persons_own() {

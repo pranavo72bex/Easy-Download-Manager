@@ -607,7 +607,7 @@
  "It does not match.": "Komt niet overeen.",
  "Name pattern": "Naampatroon",
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Leeg behoudt de namen. {n} telt vanaf 1, {name} is de oude naam",
- "Sites with their own folder and speed:": "Sites met een eigen map en snelheid:",
+ "Sites with their own folder, speed and headers:": "Sites met een eigen map, snelheid en headers:",
  "Delete site rule": "Siteregel verwijderen",
  "Add a site rule": "Siteregel toevoegen",
  "Pop-ups": "Pop-ups",
@@ -904,5 +904,8 @@
  "No setting says “{}”.": "Geen instelling bevat ‘{}’.",
  "Download complete — {}": "Download voltooid — {}",
  "Details": "Details",
- "Hover a download and press Details to watch its progress.": "Wijs een download aan en klik op Details om de voortgang te volgen."
+ "Hover a download and press Details to watch its progress.": "Wijs een download aan en klik op Details om de voortgang te volgen.",
+ "User-Agent": "User-agent",
+ "Request headers": "Aanvraagheaders",
+ "Name: value | Name: value": "Naam: waarde | Naam: waarde"
 }

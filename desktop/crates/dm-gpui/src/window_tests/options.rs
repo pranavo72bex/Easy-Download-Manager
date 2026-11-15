@@ -597,8 +597,8 @@ fn the_command_line_setting_is_in_options_off_by_default_and_saved() {
     assert_eq!(saved_settings()["allow_command_line"], true);
 }
 
-/// Options › Advanced: a site's rule gives its downloads a folder and a speed limit of their
-/// own, from the moment they are added by any way in.
+/// Options › Advanced: a site's rule gives its downloads a folder, a speed limit, a `User-Agent`
+/// and request headers of their own, from the moment they are added by any way in.
 #[test]
 fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_speed() {
     let _file = settings_file();
@@ -615,14 +615,19 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     h.fill("Folder", &folder.display().to_string());
     // The rule's own speed, under the page's of the same name.
     h.fill_after(
-        "Sites with their own folder and speed:",
+        "Sites with their own folder, speed and headers:",
         "Speed limit, KB/s (0 for none)",
         "4096",
     );
+    // Its own name and a header for its server (gaps row F1).
+    h.fill("User-Agent", "SiteAgent/3");
+    h.reveal("Delete site rule");
+    h.fill("Request headers", "X-Api-Key: k1 | Accept: */*");
     ok(&mut h);
     let rules = kept(&mut h).site_rules;
     assert_eq!(rules.len(), 1);
     assert_eq!(rules[0].speed, 4096);
+    assert_eq!(rules[0].agent, "SiteAgent/3");
 
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("the file to complete", |h| {
@@ -630,6 +635,16 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     });
     let done = h.rows()[0].clone();
     assert_eq!(done.speed_limit, 4096, "its own speed limit, from the rule");
+    assert_eq!(
+        done.headers,
+        [
+            ("X-Api-Key", "k1"),
+            ("Accept", "*/*"),
+            ("User-Agent", "SiteAgent/3")
+        ]
+        .map(|(n, v)| (n.to_string(), v.to_string())),
+        "the rule's agent and headers, from the rule"
+    );
     assert_eq!(done.save_dir.as_deref(), folder.to_str());
     assert!(
         std::path::Path::new(&done.path).starts_with(&folder),

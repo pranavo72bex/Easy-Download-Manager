@@ -613,6 +613,11 @@ impl Backend {
         self.block_on(self.queue.set_description(id, text));
     }
 
+    /// The request headers a download's requests carry, from its next start on.
+    pub fn set_headers(&self, id: Id, headers: Vec<(String, String)>) {
+        self.block_on(self.queue.set_headers(id, headers));
+    }
+
     /// "Delete file after" for a row; `None` keeps its file.
     pub fn set_delete_after(&self, id: Id, seconds: Option<u64>) {
         self.block_on(self.queue.set_delete_after(id, seconds));

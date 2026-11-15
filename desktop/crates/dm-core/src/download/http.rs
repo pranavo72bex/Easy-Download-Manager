@@ -124,7 +124,10 @@ pub(crate) fn get(
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> reqwest::RequestBuilder {
     let mut request = with_form(client, url, sign_in)
-        .header(reqwest::header::USER_AGENT, crate::agent_for(url))
+        .header(
+            reqwest::header::USER_AGENT,
+            crate::cookies::agent_with(sign_in, url),
+        )
         .header(reqwest::header::ACCEPT_ENCODING, IDENTITY);
     if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
         request = request.header(reqwest::header::COOKIE, cookies);

@@ -1818,8 +1818,8 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
             cx.notify();
         }));
     p.add(div().flex().child(add_limit));
-    // Sites with their own folder and speed.
-    p.words(t("Sites with their own folder and speed:"));
+    // Sites with their own folder, speed, User-Agent and request headers (gaps row F1).
+    p.words(t("Sites with their own folder, speed and headers:"));
     for i in 0..o.draft.site_rules.len() {
         let host = input(
             o,
@@ -1865,6 +1865,28 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
             false,
             move |o| o.draft.site_rules[i].speed.to_string(),
         );
+        let agent = input(
+            o,
+            window,
+            cx,
+            &format!("site_rules.{i}.agent"),
+            "User-Agent",
+            260.0,
+            true,
+            false,
+            move |o| o.draft.site_rules[i].agent.clone(),
+        );
+        let headers = input(
+            o,
+            window,
+            cx,
+            &format!("site_rules.{i}.headers"),
+            "Request headers",
+            260.0,
+            true,
+            false,
+            move |o| o.draft.site_rules[i].headers.clone(),
+        );
         let delete = button(p, ("delete-site-rule", i), t("Delete site rule")).on_click(
             cx.listener(move |o, _, _, cx| {
                 if i < o.draft.site_rules.len() {
@@ -1888,6 +1910,18 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
                 .child(screen.label(t("Speed limit, KB/s (0 for none)")))
                 .child(speed)
                 .child(delete),
+        );
+        // The names and headers its requests go with, on a line of their own.
+        p.add(
+            div()
+                .flex()
+                .flex_wrap()
+                .items_center()
+                .gap(px(native::LABEL_GAP))
+                .child(screen.label(t("User-Agent")))
+                .child(agent)
+                .child(screen.label(t("Request headers")))
+                .child(headers),
         );
     }
     let add_rule =

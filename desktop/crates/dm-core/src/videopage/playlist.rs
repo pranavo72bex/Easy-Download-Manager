@@ -104,7 +104,7 @@ pub async fn read_playlist(
     _proxy: Option<&str>,
     _sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Option<Playlist>, Error> {
-    if crate::youtube::playlist_id(url).is_some() {
+    if crate::youtube::is_list(url) {
         let client = crate::client();
         let sign_in = _sign_in.cloned();
         return crate::youtube::read_playlist(&client, url, sign_in.as_ref())

@@ -648,21 +648,25 @@ fn a_site_rule_gives_its_sites_downloads_a_folder_and_a_speed_unless_chosen_othe
                 host: "Example.COM ".into(),
                 folder: dir.display().to_string(),
                 speed: 200,
+                ..Default::default()
             },
             SiteRule {
                 host: "dl.example.com".into(),
                 folder: String::new(),
                 speed: 50,
+                ..Default::default()
             },
             SiteRule {
                 host: "  ".into(),
                 folder: "/never".into(),
                 speed: 1,
+                ..Default::default()
             },
             SiteRule {
                 host: "relative.test".into(),
                 folder: "not/absolute".into(),
                 speed: 5_000_000,
+                ..Default::default()
             },
         ],
         ..Default::default()
@@ -699,6 +703,45 @@ fn a_site_rule_gives_its_sites_downloads_a_folder_and_a_speed_unless_chosen_othe
     // And another site is left as it is.
     let other = settings.with_site_rule("https://elsewhere.org/a.zip", AddOptions::default());
     assert!(other.save_dir.is_none() && other.speed_limit == 0);
+}
+
+/// gaps row F1: a site's rule names the `User-Agent` and headers its downloads go with; a
+/// header the browser (or the person) already gave stands over the rule's.
+#[test]
+fn a_site_rules_agent_and_headers_join_a_downloads_own() {
+    let settings = Settings {
+        site_rules: vec![SiteRule {
+            host: "example.com".into(),
+            agent: " Rule/1 ".into(),
+            headers: "X-Api-Key: k1 | Authorization: Basic rule | user-agent: ignored".into(),
+            ..Default::default()
+        }],
+        ..Settings::default()
+    };
+    let pair = |n: &str, v: &str| (n.to_string(), v.to_string());
+    let with = settings.with_site_rule(
+        "https://dl.example.com/a.zip",
+        AddOptions {
+            headers: vec![pair("Authorization", "Bearer browser")],
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        with.headers,
+        vec![
+            pair("Authorization", "Bearer browser"),
+            pair("X-Api-Key", "k1"),
+            pair("User-Agent", "Rule/1"),
+        ]
+    );
+    assert_eq!(
+        settings.site_headers("https://elsewhere.org/a.zip", &[]),
+        Vec::new()
+    );
+    // Kept and read back as written.
+    let text = serde_json::to_string(&settings).unwrap();
+    let back: Settings = serde_json::from_str(&text).unwrap();
+    assert_eq!(back.site_rules, settings.site_rules);
 }
 
 #[test]

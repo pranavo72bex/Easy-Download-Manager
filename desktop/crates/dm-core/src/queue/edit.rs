@@ -106,7 +106,7 @@ impl Queue {
                 slot.entry_mut().cookies.clone_from(&with.cookies);
             }
             if !with.headers.is_empty() {
-                slot.entry_mut().headers = crate::cookies::forwardable(&with.headers);
+                slot.entry_mut().headers = crate::cookies::kept_headers(&with.headers);
             }
             slot.entry_mut().fresh_link = false;
             true
@@ -159,7 +159,7 @@ impl Queue {
             slot.entry_mut().gif = with.gif && with.span.is_some();
             slot.entry_mut().delete_after = with.delete_after.filter(|s| *s > 0);
             slot.entry_mut().cookies = with.cookies.trim().to_string();
-            slot.entry_mut().headers = crate::cookies::forwardable(&with.headers);
+            slot.entry_mut().headers = crate::cookies::kept_headers(&with.headers);
             slot.entry_mut().cookies_once = with.cookies_once
                 && !(slot.entry.cookies.is_empty() && slot.entry.headers.is_empty());
             slot.entry_mut().replaces = with.replaces.filter(|p| !p.trim().is_empty());
@@ -200,6 +200,17 @@ impl Queue {
         let text = text.to_string();
         self.edit(id, |slot| {
             slot.entry_mut().description = text;
+            true
+        })
+        .await
+    }
+
+    /// Sets the request headers the row's requests carry (a `User-Agent` among them is the
+    /// person's own, `cookies::SignIn::agent`), from its next start on; false if there is no
+    /// such row.
+    pub async fn set_headers(&self, id: Id, headers: Vec<(String, String)>) -> bool {
+        self.edit(id, |slot| {
+            slot.entry_mut().headers = crate::cookies::kept_headers(&headers);
             true
         })
         .await

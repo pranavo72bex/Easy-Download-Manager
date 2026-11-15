@@ -513,9 +513,10 @@ pub struct QueueLimit {
     pub files: usize,
 }
 
-/// What a site's downloads get when they are added: a folder of their own
-/// and a speed limit of their own. The host covers its subdomains, as a
-/// site's connection limit does.
+/// What a site's downloads get when they are added: a folder of their own,
+/// a speed limit of their own, and a `User-Agent` and request headers of
+/// their own. The host covers its subdomains, as a site's connection limit
+/// does.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SiteRule {
@@ -526,6 +527,30 @@ pub struct SiteRule {
     pub folder: String,
     /// KB/s for each of its downloads; zero for none.
     pub speed: u64,
+    /// The `User-Agent` its downloads are asked with, in place of the one dm
+    /// picks; empty keeps dm's.
+    pub agent: String,
+    /// Request headers its downloads carry, as typed: `Name: value`, each
+    /// apart by `|` (`dm_core::cookies::headers_from_text`).
+    pub headers: String,
+}
+
+impl SiteRule {
+    /// `given` with this rule's `User-Agent` and headers after it, each name `given` has already
+    /// left out.
+    pub fn headers_onto(&self, mut given: Vec<(String, String)>) -> Vec<(String, String)> {
+        let mut own = dm_core::cookies::headers_from_text(&self.headers);
+        if !self.agent.trim().is_empty() {
+            own.retain(|(name, _)| !name.eq_ignore_ascii_case("user-agent"));
+            own.push(("User-Agent".to_string(), self.agent.trim().to_string()));
+        }
+        for (name, value) in own {
+            if !given.iter().any(|(n, _)| n.eq_ignore_ascii_case(&name)) {
+                given.push((name, value));
+            }
+        }
+        given
+    }
 }
 
 /// How many addresses Add URL remembers.
@@ -1473,7 +1498,17 @@ impl Settings {
         if with.speed_limit == 0 {
             with.speed_limit = rule.speed;
         }
+        with.headers = rule.headers_onto(std::mem::take(&mut with.headers));
         with
+    }
+
+    /// `given` with `url`'s site rule's `User-Agent` and headers added, a header already given
+    /// (by the browser, or the person for this one download) standing over the rule's.
+    pub fn site_headers(&self, url: &str, given: &[(String, String)]) -> Vec<(String, String)> {
+        match self.site_rule_for(url) {
+            Some(rule) => rule.headers_onto(given.to_vec()),
+            None => given.to_vec(),
+        }
     }
 
     /// `url` with the login Options › Sign-ins keeps for its host, where it

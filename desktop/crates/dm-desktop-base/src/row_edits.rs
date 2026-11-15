@@ -171,6 +171,38 @@ pub struct Edited<'a> {
     pub files: &'a [bool],
     /// When each of a torrent's files is fetched; empty where it has none.
     pub priorities: &'a [TorrentPriority],
+    /// The `User-Agent` field, as typed: empty for the one dm picks.
+    pub agent: &'a str,
+    /// The request headers field, as typed (`dm_core::cookies::headers_from_text`).
+    pub headers: &'a str,
+}
+
+/// A row's own `User-Agent` and its other request headers, as Properties shows them.
+pub fn split_headers(headers: &[(String, String)]) -> (String, String) {
+    let agent = headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("user-agent"))
+        .map(|(_, value)| value.clone())
+        .unwrap_or_default();
+    let rest: Vec<_> = headers
+        .iter()
+        .filter(|(name, _)| !name.eq_ignore_ascii_case("user-agent"))
+        .cloned()
+        .collect();
+    (agent, dm_core::cookies::headers_as_text(&rest))
+}
+
+/// What Properties' two fields make of a row's headers: those typed, the `User-Agent` last.
+pub fn join_headers(agent: &str, headers: &str) -> Vec<(String, String)> {
+    let mut joined: Vec<_> = dm_core::cookies::headers_from_text(headers)
+        .into_iter()
+        .filter(|(name, _)| !name.eq_ignore_ascii_case("user-agent"))
+        .collect();
+    let agent = agent.replace(['\r', '\n'], " ");
+    if !agent.trim().is_empty() {
+        joined.push(("User-Agent".to_string(), agent.trim().to_string()));
+    }
+    joined
 }
 
 /// Properties' OK for `row`: a torrent's choice of files and their
@@ -183,6 +215,12 @@ pub fn keep_properties(backend: &Backend, row: &Entry, edited: &Edited) -> Resul
     choose_priorities(backend, row, edited.priorities)?;
     if edited.description != row.description {
         backend.set_description(row.id, edited.description);
+    }
+    // Kept only where a field was changed: a browser's header whose value holds a `|` would not
+    // come back whole from the field.
+    let (agent, headers) = split_headers(&row.headers);
+    if edited.agent.trim() != agent.trim() || edited.headers.trim() != headers.trim() {
+        backend.set_headers(row.id, join_headers(edited.agent, edited.headers));
     }
     let changed = edited.address.trim() != row.url;
     if changed {
