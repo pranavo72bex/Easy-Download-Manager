@@ -248,8 +248,10 @@ It appears in dm instead of in the browser, and downloads there.
   and in Download details tick **Only a part of the video** and give from
   and to, such as 4:10 and 4:45. Only that part is fetched, as the site's
   own picture and sound, cut to the second. (YouTube today.)
-- **A playlist:** **Add URL** with a YouTube playlist address lists its
-  videos with a tick each; pick the quality, or sound alone, and start.
+- **A playlist or a channel:** **Add URL** with a YouTube or YouTube Music
+  playlist address lists its videos with a tick each; pick the quality, or
+  sound alone, and start. A channel's address (`/@name`, `/channel/…`,
+  `/c/…`, `/user/…`, or one of its tabs) lists the channel's uploads.
 - **The dm icon in the toolbar** opens a small menu: whether dm is
   connected, **Catch downloads** on or off, the video panel on this site on
   or off, and **Open dm**. It never downloads anything by itself.
@@ -267,8 +269,14 @@ It appears in dm instead of in the browser, and downloads there.
   there is added to dm and moved into a `done` folder inside it (nothing is
   deleted). Leave it empty to turn it off.
 - **Give a site its own folder and speed:** **Options › Advanced › Network › Sites
-  whose downloads go to a folder of their own** (the site's subdomains are
-  covered). A folder or speed you pick for one download still wins.
+  with their own folder, speed and headers** (the site's subdomains are
+  covered). A folder or speed you pick for one download still wins. A site
+  rule can also give a **User-Agent** and **Request headers** for that site.
+- **A server that wants its own User-Agent or headers:** a download's
+  **Properties** has **User-Agent** and **Request headers** fields. The name
+  given is sent on every request of that download in place of dm's, and the
+  headers, written `Name: value | Name: value`, go only to the download's
+  own server.
 - **Check a finished file:** **Properties** shows its SHA-256 and a box to
   check it against a digest you were given (MD5, SHA-256 or SHA-512).
   **Move/Rename** of several files takes a name pattern, such as
