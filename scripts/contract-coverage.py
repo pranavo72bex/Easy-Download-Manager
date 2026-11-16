@@ -47,6 +47,14 @@ def floor():
     return float(FLOOR_FILE.read_text().strip())
 
 
+def cleared(cwd):
+    """What `cargo llvm-cov` kept from earlier runs in `cwd`'s workspace, cleared: a first run
+    after a change once read dm-protocol's lib.rs at 49.87% on an earlier build's data and
+    99.74% when run again (gaps row 207)."""
+    subprocess.run(["cargo", "llvm-cov", "clean", "--workspace"], cwd=cwd,
+                   capture_output=True, text=True, check=False)
+
+
 def measured(cwd, args):
     """llvm-cov's per-file summary for one crate's tests, as JSON."""
     run = subprocess.run(
@@ -81,6 +89,8 @@ def main():
     least = floor()
     failed = []
     total_lines = total_covered = 0
+    for workspace in {cwd for _, cwd, _, _ in PARTS}:
+        cleared(workspace)
     for name, cwd, args, counted in PARTS:
         print(f"{name}:")
         for entry in measured(cwd, args):
