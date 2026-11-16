@@ -7240,3 +7240,18 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   browser side (WebAssembly) is not counted, as no host test can run it; `chrome-check.py`
   and `human-qa.py` drive it in a real browser instead.
 
+## 2026-11-16: One writer per range tried and dropped (gaps row S6)
+
+* **Tried**: each range writing through its own positional writer (`write_all_at`, `seek_write`
+  on Windows) in place of tokio's file under a `BufWriter`: one copy of each chunk instead of
+  two, the ledger written in the same trip to the blocking pool as the bytes before it, one write
+  in flight while the next 64 KiB gathered.
+* **Measured** (macOS, Apple M1, release builds, `bench.mjs per_conn flaky fast`, the two builds
+  alternated, 8 runs each): `per_conn` CPU 1,075 ms against 980 before, `flaky` 1,185 against
+  1,205, `fast` 500 against 490; time, memory and bytes fetched twice the same.
+* **Dropped**: no gain to pay for a second write path. The writes of 64 KiB (gaps row 176,
+  2026-11-11) already took the cost out. Worth trying again only where the blocking pool costs
+  more (Windows); gaps row S6 says how it would be judged.
+* **Kept**: `DM_FINISH_TRACE` names a seam check that differed and a lead that differed, with
+  the span, so the one run that fetched a whole file twice (gaps row 206) can be traced.
+

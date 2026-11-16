@@ -34,6 +34,7 @@ pub(crate) fn mark(stage: &str) {
         .append(true)
         .open(path)
     {
-        let _ = writeln!(out, "{ms} {stage}");
+        // One write a line: marks from several connections at once do not run into each other.
+        let _ = out.write_all(format!("{ms} {stage}\n").as_bytes());
     }
 }

@@ -385,6 +385,9 @@ async fn span_agrees(
      * file is no longer that version: the bytes on disk are not all of one file (a file
      * republished during the download, `zoo.rs` changes-midway). */
     if conditional.is_some() && res.status() == reqwest::StatusCode::OK {
+        crate::finish_trace::mark(&format!(
+            "seam {low}-{high} of range {index}: another version"
+        ));
         return Look::Differs;
     }
     let unproven = Look::Unproven { refused: false };
@@ -409,6 +412,10 @@ async fn span_agrees(
     if there[..] == here[..] {
         Look::Same
     } else {
+        let at = there.iter().zip(here.iter()).position(|(a, b)| a != b);
+        crate::finish_trace::mark(&format!(
+            "seam {low}-{high} of range {index}: differs from byte {at:?} of the span"
+        ));
         Look::Differs
     }
 }
@@ -533,11 +540,16 @@ pub(super) async fn assemble(
     let on_disk = leads_on_disk(job, &segments, &leads).await;
     crate::finish_trace::mark("leads read");
     // A slice whose bytes are not on disk proves nothing.
-    let dishonest = leads
+    let differing = leads
         .iter()
         .zip(&on_disk)
-        .any(|((_, lead), there)| there.as_ref().is_some_and(|there| there != lead));
-    if dishonest {
+        .find(|((_, lead), there)| there.as_ref().is_some_and(|there| there != lead));
+    if let Some(((at, lead), _)) = differing {
+        crate::finish_trace::mark(&format!(
+            "the {} bytes before {} differ from the next range's lead",
+            lead.len(),
+            at + lead.len() as u64
+        ));
         drop(segments);
         release_staged(job, true).await;
         let mut listing = fs::read_dir(&options.parts_dir).await?;
