@@ -28,6 +28,14 @@ when your internet drops, and takes over the downloads you start in your
 browser. You install two things, both free: **the dm app**, which does the
 downloading, and **the browser extension**, which sends your downloads to it.
 
+## Quick start
+
+1. **Get the app** for your computer from the [Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases) and install it ([how](#install)).
+2. **Open dm once.** It tells your browsers where it is.
+3. **Add the extension** from [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej), [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/), or the release's `dm-chrome-….zip` for Chrome, Brave, Vivaldi and Opera.
+
+Then click any download link: it lands in dm.
+
 ## What it does
 
 | Feature | What happens |
@@ -37,12 +45,27 @@ downloading, and **the browser extension**, which sends your downloads to it.
 | **Takes over the browser's downloads** | Click a link and it lands in dm, not the browser. Alt-click leaves it with the browser. |
 | **Videos from the page** | Play a video and click **Download video** in its corner, then pick a quality. YouTube needs nothing extra. |
 | **Queues, schedule and limits** | Queues, a scheduler, a speed limit for everything or for one site, and a folder per site. |
+| **Your downloads in the browser's toolbar** | The extension's popup lists what dm is fetching, how far and how fast, and its last failure. |
 | **Driven from a terminal or an AI assistant** | `dm-desktop list`, `pause`, `resume`; or any MCP client, with no key and nothing sent off your computer. |
 
-<p align="center">
-  <a href="docs/progress.png"><img src="docs/progress.png" width="380" alt="A download's progress window"></a>
-  <a href="docs/settings.png"><img src="docs/settings.png" width="380" alt="Options"></a>
-</p>
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/progress-dark.png">
+        <img src="docs/progress.png" alt="A download's progress window: its speed, time left and each connection's part">
+      </picture>
+      <br><sub><strong>Every download's own window</strong>: speed, time left, and each connection's part</sub>
+    </td>
+    <td align="center" width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/settings-dark.png">
+        <img src="docs/settings.png" alt="Options, General: language, theme, text size, starting and updating">
+      </picture>
+      <br><sub><strong>Options</strong>: light or dark, 14 languages, a setting found by typing</sub>
+    </td>
+  </tr>
+</table>
 
 ## Supported
 
@@ -87,7 +110,8 @@ How the Windows installer is signed: see the [Code signing policy](#code-signing
 dm is not signed with a paid certificate yet, so your computer will warn
 you the first time. That is expected; here is how to get past it.
 
-#### Windows
+<details>
+<summary><strong>Windows</strong></summary>
 
 1. If your browser says the file "isn't commonly downloaded" or might be
    harmful, open its downloads list and choose **Keep** (in Edge: **…** →
@@ -97,7 +121,10 @@ you the first time. That is expected; here is how to get past it.
    **Run anyway**.
 4. Click through the installer.
 
-#### Windows, portable (no installer)
+</details>
+
+<details>
+<summary><strong>Windows, portable (no installer)</strong></summary>
 
 Prefer not to install anything, or want dm on a USB stick? Download
 `dm_…_x64-portable.zip` instead, unzip it anywhere and double-click
@@ -107,7 +134,10 @@ to the computer; delete the folder and dm is gone. A portable dm does not start
 when you sign in. To let the browser extension hand downloads to this copy, run
 `dm-gpui.exe --register` once in its folder (and again if you move it).
 
-#### Mac
+</details>
+
+<details>
+<summary><strong>Mac</strong></summary>
 
 1. Double-click `dm_…_aarch64.dmg`.
 2. Drag **dm** into the **Applications** folder.
@@ -118,7 +148,10 @@ when you sign in. To let the browser extension hand downloads to this copy, run
 
 Always open dm from **Applications**, not from the downloaded disk image.
 
-#### Ubuntu, Debian, Linux Mint
+</details>
+
+<details>
+<summary><strong>Ubuntu, Debian, Linux Mint</strong></summary>
 
 Double-click `dm_…_amd64.deb` and click **Install**. Or, in a terminal in
 the folder you downloaded it to:
@@ -127,7 +160,10 @@ the folder you downloaded it to:
 sudo apt install ./dm_*_amd64.deb
 ```
 
-#### Fedora, openSUSE, RHEL
+</details>
+
+<details>
+<summary><strong>Fedora, openSUSE, RHEL</strong></summary>
 
 In a terminal in the folder you downloaded it to:
 
@@ -136,7 +172,10 @@ sudo dnf install ./dm-*.rpm        # Fedora, RHEL
 sudo zypper install ./dm-*.rpm     # openSUSE
 ```
 
-#### Any other Linux (AppImage)
+</details>
+
+<details>
+<summary><strong>Any other Linux (AppImage)</strong></summary>
 
 1. Right-click `dm_…_x86_64.AppImage` → **Properties** → **Permissions**,
    and tick **Allow executing file as program**.
@@ -145,7 +184,10 @@ sudo zypper install ./dm-*.rpm     # openSUSE
 Keep the AppImage where it is once you have opened it: your browser is
 told where it lives. (If you move it, open it once from its new place.)
 
-#### Arch Linux
+</details>
+
+<details>
+<summary><strong>Arch Linux</strong></summary>
 
 From the AUR, where [dm-appimage](https://aur.archlinux.org/packages/dm-appimage)
 installs the release's AppImage (packaged and kept up by
@@ -163,6 +205,8 @@ cd Easy-Download-Manager/desktop/packaging
 makepkg -si
 ```
 
+</details>
+
 ### Step 3 — Open dm once
 
 Open **dm** from your Start menu, Applications folder or app menu. That is
@@ -178,14 +222,18 @@ Click yours and it opens the page you add it from. (The same buttons are in
 
 ### Step 4 — Add the extension
 
-#### Microsoft Edge
+<details>
+<summary><strong>Microsoft Edge</strong></summary>
 
 dm is on Microsoft Edge Add-ons, Microsoft's own store.
 
 1. Open **[dm on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)** in Edge.
 2. Click **Get**, then **Add extension**.
 
-#### Chrome, Brave, Vivaldi and Opera
+</details>
+
+<details>
+<summary><strong>Chrome, Brave, Vivaldi and Opera</strong></summary>
 
 1. Unzip `dm-chrome-….zip`. Move the folder it makes somewhere it can stay,
    such as your Documents folder. **Do not delete this folder later** — the
@@ -200,7 +248,10 @@ dm is on Microsoft Edge Add-ons, Microsoft's own store.
 4. Click **Load unpacked** and choose the folder from step 1.
 5. Close the browser completely and open it again.
 
-#### Firefox
+</details>
+
+<details>
+<summary><strong>Firefox</strong></summary>
 
 dm is on Firefox Add-ons, Mozilla's own store.
 
@@ -231,6 +282,8 @@ starts, sooner than dm can hear back from the app, and does not let an
 extension turn it off. When dm's was the only download listed, the panel
 closes again by itself; with older downloads listed it stays open showing
 them, until you click elsewhere or press Esc.
+
+</details>
 
 ### Step 5 — Try it
 

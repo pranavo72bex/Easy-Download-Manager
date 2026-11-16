@@ -500,24 +500,22 @@ fn says(src: &str, token: Option<&Token>, word: &str) -> bool {
 /// Whether the function whose `function` word is at `at` in `st` has, among its own statements
 /// (not those of a function or block inside it), `x.y("alr","yes")` or `x[…]("alr","yes")`: the
 /// mark of the player's function that builds a stream's address.
-fn sets_alr_yes(src: &str, st: &[Token], at: usize) -> bool {
+/// `Some` where it does: with what has to be set before it is called, where its key comes from
+/// a global its callers set (`g.B[25]=2314109;Yp(…)`, gaps row 209), else nothing.
+fn sets_alr_yes(src: &str, st: &[Token], at: usize, table: Option<&Table>) -> Option<String> {
     // Past the word, the name if any, and the parameters, to the body's brace.
     let mut k = at + 1;
     if st.get(k).is_some_and(|t| t.kind == Kind::Word) {
         k += 1;
     }
     if !is(src, st.get(k), "(") {
-        return false;
+        return None;
     }
-    let Some(open) = past_group(src, st, k) else {
-        return false;
-    };
+    let open = past_group(src, st, k)?;
     if !is(src, st.get(open), "{") {
-        return false;
+        return None;
     }
-    let Some(end) = past_group(src, st, open) else {
-        return false;
-    };
+    let end = past_group(src, st, open)?;
     let mut depth = 0i32;
     for j in open + 1..end.saturating_sub(1) {
         let Some(token) = st.get(j) else { break };
@@ -544,13 +542,213 @@ fn sets_alr_yes(src: &str, st: &[Token], at: usize) -> bool {
                     && is(src, st.get(c + 4), ")")
                     && (is(src, st.get(c + 5), ";") || is(src, st.get(c + 5), "}"))
                 {
-                    return true;
+                    return Some(String::new());
+                }
+                if let Some(table) = table {
+                    if is(src, st.get(j + 1), "[") {
+                        if let Some((key_name, key)) = table.sets_alr_yes(src, st, j + 2, c) {
+                            return Some(
+                                table
+                                    .key_from_global(
+                                        src,
+                                        st.get(open..end).unwrap_or(&[]),
+                                        &key_name,
+                                        key,
+                                    )
+                                    .unwrap_or_default(),
+                            );
+                        }
+                    }
                 }
             }
         }
         depth += depth_change(src, token);
     }
-    false
+    None
+}
+
+/// The player's own table of its strings, where it keeps them in one (gaps row 209): a player
+/// of November 2026 holds most of its words in `g.d='…{alr{…{yes{…'.split("{")` and reads
+/// them as `g.d[k^1387]`, `k` a number each function works out as it runs. What dm looks for
+/// in a function is then not `set("alr","yes")` in quotes but three readings of the table whose
+/// numbers, whatever `k` is, differ from one another as the places of `set`, `alr` and `yes`
+/// do: `(1387^k)^(1892^k)` is `1387^1892`.
+#[derive(Debug, Clone, PartialEq)]
+struct Table {
+    /// How the player names it, as written (`g.d`).
+    name: String,
+    /// The places of `set`, `alr` and `yes` in it.
+    set: u64,
+    alr: u64,
+    yes: u64,
+}
+
+/// The player's table of its strings ([`Table`]), where it has one with `set`, `alr` and `yes`.
+fn string_table(player: &str) -> Option<Table> {
+    let bytes = player.as_bytes();
+    for form in [".split(\"{\")", ".split('{')"] {
+        let mut from = 0;
+        while let Some(found) = player.get(from..).and_then(|rest| rest.find(form)) {
+            let split = from + found;
+            from = split + form.len();
+            // The quoted text before it, back to its opening quote (not one escaped).
+            let Some(&quote) = split.checked_sub(1).and_then(|i| bytes.get(i)) else {
+                continue;
+            };
+            if quote != b'"' && quote != b'\'' {
+                continue;
+            }
+            let mut open = split - 1;
+            while let Some(before) = open.checked_sub(1) {
+                open = before;
+                if bytes.get(open) == Some(&quote) {
+                    let escapes = bytes
+                        .get(..open)
+                        .unwrap_or(&[])
+                        .iter()
+                        .rev()
+                        .take_while(|&&b| b == b'\\')
+                        .count();
+                    if escapes % 2 == 0 {
+                        break;
+                    }
+                }
+            }
+            if bytes.get(open) != Some(&quote) || open + 1 >= split {
+                continue;
+            }
+            // `name =` before the quote.
+            let head = player.get(..open).unwrap_or("").trim_end();
+            let Some(head) = head.strip_suffix('=') else {
+                continue;
+            };
+            let head = head.trim_end();
+            let name_from = head
+                .bytes()
+                .rposition(|b| !(name_byte(b) || b == b'.'))
+                .map_or(0, |i| i + 1);
+            let name = head.get(name_from..).unwrap_or("");
+            if name.is_empty() || name.starts_with('.') || name.ends_with('.') {
+                continue;
+            }
+            let words: Vec<&str> = player
+                .get(open + 1..split - 1)
+                .unwrap_or("")
+                .split('{')
+                .collect();
+            let place = |word: &str| words.iter().position(|w| *w == word).map(|p| p as u64);
+            if let (Some(set), Some(alr), Some(yes)) = (place("set"), place("alr"), place("yes")) {
+                return Some(Table {
+                    name: name.to_string(),
+                    set,
+                    alr,
+                    yes,
+                });
+            }
+        }
+    }
+    None
+}
+
+impl Table {
+    /// A reading of the table at `k` in `st`, `name[v^n]`: the name `v` and the number `n`, and
+    /// where the reading ends.
+    fn reading(&self, src: &str, st: &[Token], k: usize) -> Option<(String, u64, usize)> {
+        let mut spelled = String::new();
+        let mut at = k;
+        while spelled.len() < self.name.len() {
+            let token = st.get(at)?;
+            if token.kind != Kind::Word && !is(src, Some(token), ".") {
+                return None;
+            }
+            spelled.push_str(text(src, token));
+            at += 1;
+        }
+        if spelled != self.name || !is(src, st.get(at), "[") {
+            return None;
+        }
+        let key = st.get(at + 1).filter(|t| t.kind == Kind::Word)?;
+        if !is(src, st.get(at + 2), "^") {
+            return None;
+        }
+        let number = st.get(at + 3).filter(|t| t.kind == Kind::Number)?;
+        let said = text(src, number);
+        let n = match said.strip_prefix("0x").or_else(|| said.strip_prefix("0X")) {
+            Some(hex) => u64::from_str_radix(hex, 16).ok()?,
+            None => said.parse().ok()?,
+        };
+        if !is(src, st.get(at + 4), "]") {
+            return None;
+        }
+        Some((text(src, key).to_string(), n, at + 5))
+    }
+
+    /// Where `x[T[v^a]](T[v^b],T[v^c])` stands at `k` (the reading inside the callee's
+    /// bracket) with its call's `(` at `call`, a set of `alr` to `yes` whatever `v` is: the name
+    /// `v` and the number it has to be for the table to say `set`, `alr` and `yes` there.
+    fn sets_alr_yes(
+        &self,
+        src: &str,
+        st: &[Token],
+        k: usize,
+        call: usize,
+    ) -> Option<(String, u64)> {
+        let (v, a, after) = self.reading(src, st, k)?;
+        if !is(src, st.get(after), "]") || after + 1 != call || !is(src, st.get(call), "(") {
+            return None;
+        }
+        let (v1, b, comma) = self.reading(src, st, call + 1)?;
+        if !is(src, st.get(comma), ",") {
+            return None;
+        }
+        let (v2, c, close) = self.reading(src, st, comma + 1)?;
+        let sets = v == v1
+            && v1 == v2
+            && is(src, st.get(close), ")")
+            && (is(src, st.get(close + 1), ";") || is(src, st.get(close + 1), "}"))
+            && a ^ b == self.set ^ self.alr
+            && b ^ c == self.alr ^ self.yes;
+        sets.then_some((v, a ^ self.set))
+    }
+
+    /// What a caller sets before calling a function whose key `name` it works out from a global
+    /// as its first thing, `var e=g.B[25]%53723;`: `g.B[25]=<key>;`, the key being what the
+    /// table needs (`Table::sets_alr_yes`). `None` where the key comes from anything else (its
+    /// arguments, which dm's own call gives) or could not be that remainder.
+    fn key_from_global(&self, src: &str, body: &[Token], name: &str, key: u64) -> Option<String> {
+        for k in 0..body.len() {
+            if !(is_word(src, body.get(k), name) && is(src, body.get(k + 1), "=")) {
+                continue;
+            }
+            // The global: a chain of names, then `[N]`, then `%M`.
+            let mut at = k + 2;
+            let mut global = String::new();
+            while body
+                .get(at)
+                .is_some_and(|t| t.kind == Kind::Word || is(src, Some(t), "."))
+            {
+                if let Some(token) = body.get(at) {
+                    global.push_str(text(src, token));
+                }
+                at += 1;
+            }
+            let index = body.get(at + 1).filter(|t| t.kind == Kind::Number)?;
+            let modulus = body.get(at + 4).filter(|t| t.kind == Kind::Number)?;
+            if global.is_empty()
+                || !is(src, body.get(at), "[")
+                || !is(src, body.get(at + 2), "]")
+                || !is(src, body.get(at + 3), "%")
+            {
+                return None;
+            }
+            let modulus: u64 = text(src, modulus).parse().ok()?;
+            if key >= modulus {
+                return None;
+            }
+            return Some(format!("{global}[{}]={key};", text(src, index)));
+        }
+        None
+    }
 }
 
 /// Whether the function whose `function` word is at `at` in `st` takes a text apart letter by
@@ -699,12 +897,21 @@ pub(crate) fn program(player: &str) -> Result<String, String> {
         .map(|range| toks.get(range.clone()).unwrap_or(&[]))
         .filter(|st| !left_out(player, st))
         .collect();
+    let table = string_table(player);
     let mut makers: Vec<String> = Vec::new();
     let mut nfuncs: Vec<String> = Vec::new();
     for st in &kept {
         for (name, at) in defined(player, st) {
-            if sets_alr_yes(player, st, at) && !makers.contains(&name) {
-                makers.push(name);
+            if let Some(setup) = sets_alr_yes(player, st, at, table.as_ref()) {
+                // Called as its callers call it: what they set first, set first.
+                let maker = if setup.is_empty() {
+                    name
+                } else {
+                    format!("function (a, b, c) {{ {setup} return {name}(a, b, c); }}")
+                };
+                if !makers.contains(&maker) {
+                    makers.push(maker);
+                }
             } else if !name.contains('.')
                 && nfuncs.len() < MOST_N_FUNCTIONS
                 && splits_and_joins(player, st, at)
@@ -878,6 +1085,76 @@ window.document.createElement("div").appendChild(null);
 g.Vx(om);
 })(_yt_player);
 "#;
+
+    /// [`PLAYER`] as a player of November 2026 has it (gaps row 209): `alr` and `yes` behind a
+    /// table split on `{` and read through a key, `e`, worked out from a global its callers set
+    /// first (`g.B[25]=…;om(…)`). Uncalled, `g.B[25]` is nothing and the key wrong.
+    fn player_behind_a_table() -> String {
+        PLAYER
+            .replace(
+                "'use strict';",
+                "'use strict';g.d='set{alr{yes'.split(\"{\");g.B=[];",
+            )
+            .replace(
+                "om=function(a,b,c){",
+                "om=function(a,b,c){var e=g.B[25]%53723;",
+            )
+            .replace(
+                "a.set(\"alr\",\"yes\");c&&",
+                "a[g.d[e^4094]](g.d[e^4095],g.d[e^4092]);c&&",
+            )
+            .replace("pm=function(a){a.set(\"alr\",\"yes\")||a.get(\"x\")};", "")
+    }
+
+    #[test]
+    fn a_player_s_string_table_and_its_global_key_are_read() {
+        let player = player_behind_a_table();
+        assert!(
+            !player.contains("\"alr\""),
+            "the test player still says alr in quotes"
+        );
+        assert_eq!(
+            string_table(&player),
+            Some(Table {
+                name: "g.d".into(),
+                set: 0,
+                alr: 1,
+                yes: 2,
+            })
+        );
+        let program = program(&player).unwrap();
+        assert!(
+            program.contains(
+                ";__dm.makers = [function (a, b, c) { g.B[25]=4094; return om(a, b, c); }];"
+            ),
+            "{program}"
+        );
+        // A key from the function's own arguments is the caller's call: nothing set first.
+        let by_arguments = player.replace("var e=g.B[25]%53723;", "var e=4094;");
+        assert!(program_makers(&by_arguments).contains(";__dm.makers = [om];"));
+        // A remainder the key cannot be is not set.
+        let too_small = player.replace("%53723", "%9");
+        assert!(program_makers(&too_small).contains(";__dm.makers = [om];"));
+    }
+
+    fn program_makers(player: &str) -> String {
+        program(player).unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_player_behind_a_table_answers_as_the_plain_one_does() {
+        let program = program(&player_behind_a_table()).unwrap();
+        let got = crate::javascript::run(
+            &program,
+            &call(&["abc"], &["a/b+c"]),
+            std::time::Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        let answer: serde_json::Value = serde_json::from_str(&got).unwrap();
+        assert_eq!(answer["n"]["abc"], "cba_3");
+        assert_eq!(answer["sig"]["a/b+c"], "C+B/A");
+    }
 
     #[test]
     fn the_player_is_cut_to_its_definitions_and_its_address_function_found() {

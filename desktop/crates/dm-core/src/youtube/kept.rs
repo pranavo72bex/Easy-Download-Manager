@@ -55,7 +55,11 @@ pub(super) fn cut_program(player_js: &str) -> Result<String, String> {
     let program = match read {
         Some(program) => program,
         None => {
-            let program = player::program(player_js)?;
+            let program = player::program(player_js).inspect_err(|_| {
+                if let Some(dir) = on_disk.as_ref().and_then(|p| p.parent()) {
+                    keep_failed(dir, &key, player_js);
+                }
+            })?;
             if let Some(path) = &on_disk {
                 keep_on_disk(path, &program);
             }
@@ -115,14 +119,41 @@ fn keep_on_disk(path: &Path, program: &str) {
     }
 }
 
+/// What a player that could not be cut was, kept beside the cut ones as `failed-<key>.txt`, the
+/// newest only: a player YouTube serves to some and not to others can be gone by the time anyone
+/// looks (gaps row 209), and this is what dm needs to be taught to read it. Not `.js`, so it is
+/// never read as a cut program nor trimmed with them.
+fn keep_failed(dir: &Path, key: &str, player_js: &str) {
+    if std::fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with(FAILED) && name.ends_with(".txt") {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    let _ = std::fs::write(dir.join(format!("{FAILED}{key}.txt")), player_js);
+}
+
+/// The start of a kept failed player's name ([`keep_failed`]).
+const FAILED: &str = "failed-";
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The kept players' folder is one for the process: tests that set it take turns.
+    static FOLDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     /// A player cut in an earlier session is read from the disk, not cut again; the folder keeps
     /// the newest four (gaps row Y13).
     #[test]
     fn a_cut_player_is_kept_on_the_disk_between_sessions() {
+        let _turn = FOLDER
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = tempfile::tempdir().unwrap();
         let players = dir.path().join("players");
         std::fs::create_dir_all(&players).unwrap();
@@ -151,5 +182,32 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&newest).unwrap(), "new program");
         let left = std::fs::read_dir(&players).unwrap().count();
         assert_eq!(left, 2 * PLAYERS_KEPT, "the oldest were not let go");
+    }
+
+    /// A player that could not be cut is kept as it came, the newest only, and never taken for
+    /// a cut program (gaps row 209).
+    #[test]
+    fn a_player_that_could_not_be_cut_is_kept_for_looking_at() {
+        let _turn = FOLDER
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let dir = tempfile::tempdir().unwrap();
+        let players = dir.path().join("players");
+        set_kept_players(Some(players.clone()));
+        let first = "<html>not a player at all, one</html>";
+        let second = "<html>not a player at all, two</html>";
+        assert!(cut_program(first).is_err());
+        assert!(cut_program(second).is_err());
+        set_kept_players(None);
+        let kept: Vec<String> = std::fs::read_dir(&players)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(kept, [format!("{FAILED}{}.txt", key_of(second))]);
+        assert_eq!(
+            std::fs::read_to_string(players.join(&kept[0])).unwrap(),
+            second
+        );
     }
 }
