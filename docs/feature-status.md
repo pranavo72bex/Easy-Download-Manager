@@ -110,6 +110,7 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
       sparse file (gaps row 166, `tests/by_range.rs`)
 
 ## Browser integration
+- [x] The extension does the bare minimum and the app decides (gaps row A22, 2026-11-15): the app's hello serves the right-click menu (`served_menus`, items named by mechanism, `menu_does`), a click on an item the app added goes to it (`menu.clicked`, `host::menu_start`), each caught download is judged by the app's rules as saved now (`catch.judge`, `Judge::judged_by`), the app may send the browser's words (`Notice`, `Hello::status`) and makes the panel's list (`media.streams`, `dm_protocol::media::panel_list`); each by a `feature` name, so an older side on either end goes on as before. Extension 3.5.0's frames frozen (`tests/wire/extension-3.5.0.json`), answered by the app (`every_frame_a_released_extension_sends_is_answered`) and read by the extension (`the_app_drives_the_menu_the_catch_its_words_and_the_panel_list`, `decide/contract/tests.rs`). Held to 95% line coverage per file before a merge (`scripts/contract-coverage.py`, CI): 97.8% of 6,345 lines.
 - [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`browser/src/decide/excluded.rs`)
 State of the Rust extension, 2026-10-12. What the JavaScript one had
 verified (Firefox 145 install, its own Chrome suite) was of different code

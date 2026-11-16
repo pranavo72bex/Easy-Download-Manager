@@ -194,6 +194,59 @@ pub(super) async fn formats_of(
     }
 }
 
+/// The panel's list of what a tab's player loaded: made by the app from what this extension
+/// kept, where the app says it makes it (gaps row A22 d), so a fix to how the list is joined,
+/// ordered or named reaches this extension with the app; otherwise, or where the app does not
+/// answer in time, made here.
+pub(super) async fn panel_streams(tab: i64, page: &str) -> Vec<decide::Stream> {
+    let raw = raw_streams_of(tab).await;
+    if raw.is_empty() {
+        return Vec::new();
+    }
+    let (app, port) = app().await;
+    let lists = matches!(&app, App::Present { hello, .. } if hello.has(dm_protocol::feature::LISTS_STREAMS));
+    if lists {
+        if let Some(listed) = listed_by_app(port, page, raw.clone()).await {
+            return listed;
+        }
+    }
+    decide::panel_list(raw)
+}
+
+/// Asks the app for the panel's list of `streams`, or `None` where it did not answer in time.
+async fn listed_by_app(
+    port: Option<Port>,
+    page: &str,
+    streams: Vec<decide::Stream>,
+) -> Option<Vec<decide::Stream>> {
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open().ok()?,
+    };
+    port.send(&Request::Streams(dm_protocol::StreamsAsked {
+        page: page.to_string(),
+        streams,
+    }))
+    .ok()?;
+    let deadline = now() + decide::STREAMS_LISTED_WITHIN_MS;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some(listed) = decide::streams_listed(&frame) {
+                    return Some(listed);
+                }
+            }
+            Heard::Gone(why) => {
+                log(
+                    "debug",
+                    &format!("the app did not list a tab's streams: {why}"),
+                );
+                return None;
+            }
+        }
+    }
+}
+
 /// Hands something a person asked for, and says so when it cannot.
 pub(super) async fn hand_asked(target: Target, store: Option<String>, tab: Option<i64>) {
     let name = if target.url.to_ascii_lowercase().starts_with("magnet:") {
@@ -471,7 +524,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     // A site the app cannot read still offers what its player fetched.
     if click.kind == decide::FORMATS_MESSAGE {
         let tab = get(&sender, "tab.id").as_f64().map_or(-1, |id| id as i64);
-        let streams = streams_of(tab).await;
+        let streams = panel_streams(tab, &tab_url).await;
         // The video helper can take half a minute over a page. Where the page
         // has already shown streams of its own that make a choice, they are
         // not held back for it past a few seconds; a single stream is no

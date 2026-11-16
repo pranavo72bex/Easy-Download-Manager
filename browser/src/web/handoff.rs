@@ -61,16 +61,7 @@ pub(super) async fn hand(
         ..start
     };
     port.send(&Request::Start(start))?;
-    let outcome = loop {
-        match port.next(deadline).await {
-            Heard::Frame(frame) => {
-                if let Some(outcome) = decide::taken(&frame, &id) {
-                    break outcome;
-                }
-            }
-            Heard::Gone(why) => break Err(why),
-        }
-    };
+    let outcome = answered(&mut port, &id, deadline).await;
     if outcome.is_err() {
         // Whatever went wrong may be the app going away; ask again next time.
         forget_app();
@@ -82,7 +73,55 @@ pub(super) async fn hand(
     outcome
 }
 
+/// Waits for the app's answer to the hand-off filed under `id`. Words the app sent for the
+/// browser to say of it are said here, in place of this extension's own: a hand-off taken is
+/// then `Ok(true)`, which posts no toast, and a refusal's words are not said a second time.
+async fn answered(port: &mut Port, id: &str, deadline: f64) -> Result<bool, String> {
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some((outcome, notice)) = decide::taken_said(&frame, id) {
+                    let Some(notice) = notice else {
+                        return outcome;
+                    };
+                    show_notice(&notice.title, &notice.body);
+                    return match outcome {
+                        Ok(_) => Ok(true),
+                        Err(why) => {
+                            SAID.with(|said| said.borrow_mut().push(why.clone()));
+                            Err(why)
+                        }
+                    };
+                }
+            }
+            Heard::Gone(why) => return Err(why),
+        }
+    }
+}
+
+/// Sends `request`, a hand-off of its own kind (a click on the app's own menu item), and waits
+/// for the app to say it has it, as [`hand`] does.
+pub(super) async fn ask_app(
+    port: Option<Port>,
+    request: &Request,
+    id: &str,
+) -> Result<bool, String> {
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    port.send(request)?;
+    let outcome = answered(&mut port, id, now() + decide::TAKEN_WITHIN_MS).await;
+    if outcome.is_err() {
+        forget_app();
+    }
+    outcome
+}
+
 thread_local! {
+    /// Refusals whose words the app has had said already: the notification this extension
+    /// would post for one is not posted again.
+    static SAID: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
     /// The names handed to the app in the last moment, said in one toast (gaps row U11).
     static SENT: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -119,6 +158,23 @@ pub(super) fn toast_sent(name: String) {
 }
 
 pub(super) fn notify(title: &str, message: &str) {
+    // Said already, in the app's own words.
+    let said = SAID.with(|said| {
+        let mut said = said.borrow_mut();
+        let at = said.iter().position(|m| message.contains(m.as_str()))?;
+        Some(said.remove(at))
+    });
+    if said.is_some() {
+        return log(
+            "info",
+            &format!("{title}: {message} (said in the app's words)"),
+        );
+    }
+    show_notice(title, message);
+}
+
+/// Posts a notification, whatever has been said before.
+fn show_notice(title: &str, message: &str) {
     log("info", &format!("{title}: {message}"));
     let icon = call_on(&api("runtime"), "getURL", &["icons/icon128.png".into()])
         .unwrap_or(JsValue::UNDEFINED);

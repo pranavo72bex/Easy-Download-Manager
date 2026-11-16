@@ -7192,3 +7192,51 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   own catch rules, notification words from the app, and the streams panel's judging moved to
   the app. Each changes where a decision is made, so each is its own step with its own checks.
 
+## 2026-11-15: The app drives the extension's menu, catching, words and panel list (gaps row A22)
+
+* **Why**: the maintainer, 2026-11-15: the extension does the bare minimum and the app does the
+  most, so that an app update is never held up by an extension a store has not yet updated.
+  Four places where the extension still decided are now the app's, each behind a name in
+  `dm_protocol::feature` said in both hellos, and each changing nothing a person sees with the
+  app as it is.
+* **Menus** (`menus`): the app's hello serves the right-click menu (`served_menus`, Options'
+  hidden items already out). An item names a mechanism the extension knows (`menu_does`: link,
+  media, all links, selected links, `app`) instead of the extension knowing items by id, and an
+  `app` item's click goes to the app whole (`menu.clicked`). Kept in the extension: reading a
+  page's links (a page script) and having the browser download a link dm refuses, which need
+  the browser. Titles: the extension's own translation for an item it knows, the app's English
+  for one it added (the app has no translations of the extension's words).
+* **Catching** (`judges-catch`): the extension asks `catch.judge` and the app answers by its
+  rules as saved now, the browser's tick in Options included. Asked, not sent with the
+  hand-off: the download has to be held (paused) before it is handed over, and a refusal costs
+  nothing to the browser's copy. Held early only where the rules last sent would take it, as
+  before; the extension's own reading judges when the app is older or silent for 5 s. What the
+  person switched in the toolbar popup (paused sites, every download from a site, the master
+  switch) is the browser's and stays in the extension; the built-in never-caught list is
+  already served by the app (`Hello::rules`).
+* **Words** (`says`, an extension ability): `Notice` on a hand-off's answer and
+  `Hello::status` for the popup line replace the extension's own words where sent. The app of
+  today sends none, so the browser's language is kept; a refusal whose words the app had said
+  is not notified again.
+* **Panel list** (`lists-streams`): the code that makes the list from the streams kept
+  (`panel_list`, with `Stream`) moved to `dm_protocol::media`, so both sides build it from one
+  source and the app's newer copy makes the list (`media.streams`), the extension's where the
+  app is older or silent for 3 s. What counts as a stream in a response stays the extension's:
+  forwarding every response the browser gets to a host process started per message costs far
+  more than it saves, and that reading already takes its site rules from the app.
+* **Dropped**: sending the catch facts with `download.start` for the host to refuse there (the
+  download must be paused before the hand-off); an app-chosen title in the app's language for
+  known items (the extension's translations are the browser's language, the app's are not).
+* **Checked**: extension 3.5.0's frames frozen in `tests/wire/extension-3.5.0.json`, answered by
+  the app (`every_frame_a_released_extension_sends_is_answered`) and read by the extension
+  (`the_app_drives_the_menu_the_catch_its_words_and_the_panel_list`).
+* **Held before a merge**: the maintainer, 2026-11-15: over 95% coverage, so an update is
+  checked properly before it merges. The contract (dm-protocol, the extension's deciding parts,
+  the native host's `host*` files) is measured by `scripts/contract-coverage.py` (`make
+  coverage`, CI's "Extension–app contract coverage" job) and each file is held to
+  `docs/contract-coverage-floor.txt` (95% of lines), a floor only ever raised, beside the
+  workspace's own `coverage-floor.txt`. Per file, not overall: a total hides one new file
+  added untested. 97.8% of 6,345 lines when it was set, no file under 95.5%. The extension's
+  browser side (WebAssembly) is not counted, as no host test can run it; `chrome-check.py`
+  and `human-qa.py` drive it in a real browser instead.
+

@@ -54,7 +54,12 @@ SITES = {
     "7-zip": {"url": "https://www.7-zip.org/download.html", "click": r"/a/7z[0-9]+(-x64)?\.exe$"},
     "python": {"url": "https://www.python.org/downloads/macos/", "click": r"/ftp/python/[0-9.]+/python-[0-9.]+-macos11\.pkg$"},
     "nodejs": {"url": "https://nodejs.org/en/download/prebuilt-installer", "click": r"nodejs\.org/dist/v[0-9.]+/node-v[0-9.]+\.pkg$"},
-    "github-release": {"url": "https://github.com/cli/cli/releases/latest", "click": r"/releases/download/v[0-9.]+/gh_[0-9.]+_macOS_arm64\.zip$"},
+    # A release's assets are drawn only once their list scrolls into sight (a lazy
+    # include-fragment), as a person scrolling down to them sees.
+    "github-release": {"url": "https://github.com/cli/cli/releases/latest",
+                       "reveal": "document.querySelector('include-fragment[src*=\"expanded_assets\"]')"
+                                 " || [...document.querySelectorAll('summary')].find(s => /Assets/.test(s.innerText || ''))",
+                       "click": r"/releases/download/v[0-9.]+/gh_[0-9.]+_macOS_arm64\.zip$"},
     # GitHub draws "Download ZIP" only in the Code menu, which a person opens first.
     "github-zip": {"url": "https://github.com/octocat/Hello-World",
                    "open": "[...document.querySelectorAll('button')].find(b => /^\\s*Code\\s*$/.test(b.innerText || ''))",
@@ -102,6 +107,12 @@ def one(base, name, site, engine_home, worker):
         if button:
             cc.click_at(tab, button["x"], button["y"])
             time.sleep(1.5)
+    if site.get("reveal"):
+        # Scrolled to, as a person scrolls down the page to what they came for.
+        cc.wait_for(lambda: tab.evaluate(
+            "(() => { const e = %s; if (!e) return null; e.scrollIntoView({block: 'center'}); return true; })()"
+            % site["reveal"]), 20)
+        time.sleep(2)
     if site["click"]:
         target = cc.wait_for(lambda: tab.evaluate(link(site["click"])), 20)
         if not target:

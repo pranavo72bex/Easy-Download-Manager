@@ -371,14 +371,13 @@ pub async fn on_tab_removed(tab: JsValue, _info: JsValue) {
     forget_kept(tab).await;
 }
 
-/// What a tab has loaded, from this worker or, after it stopped, from the
-/// session's storage.
-pub(super) async fn streams_of(tab: i64) -> Vec<decide::Stream> {
+/// What a tab has loaded, as kept, before the panel's list is made of it.
+pub(super) async fn raw_streams_of(tab: i64) -> Vec<decide::Stream> {
     if tab >= 0 && !STREAMS.with(|s| s.borrow().knows(tab)) {
         let kept = kept_streams(tab).await;
         STREAMS.with(|s| s.borrow_mut().restore(tab, kept));
     }
-    STREAMS.with(|s| s.borrow().of(tab))
+    STREAMS.with(|s| s.borrow().raw(tab))
 }
 
 /// Writes a tab's streams as this worker knows them to the session's storage, which outlives

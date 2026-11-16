@@ -1833,6 +1833,18 @@ def main():
               f"after {time.monotonic() - caught_at:.1f} s")
         check("the app answered", "present" in (worker.evaluate("dmReady.then(m => m.app_status())") or ""),
               worker.evaluate("dmReady.then(m => m.app_status())"))
+        # The app drives the extension (gaps row A22): the right-click menu is the one its hello
+        # served, kept for the worker's next start, each item naming what it does.
+        served = worker.evaluate("chrome.storage.local.get('dm.menus').then(g => g['dm.menus'])") or []
+        check("the right-click menu is the one the app served",
+              [(m.get("id"), m.get("does")) for m in served] == [
+                  ("dm-link", "link"), ("dm-media", "media"),
+                  ("dm-all-links", "all-links"), ("dm-selected-links", "selected-links")],
+              str(served)[:300])
+        unknown = worker.evaluate(
+            "dmReady.then(m => m.on_menu_clicked({menuItemId: 'dm-not-served', linkUrl: 'https://e.com/x.bin',"
+            " pageUrl: 'https://e.com/'}, {id: 1})).then(() => 'done')")
+        check("an item the app did not serve hands nothing over", unknown == "done", str(unknown))
 
         # A name too long for the disk: Chromium would ask where to save it,
         # and its Save dialog stayed open over a download dm had taken.

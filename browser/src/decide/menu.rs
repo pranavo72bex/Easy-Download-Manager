@@ -280,6 +280,10 @@ pub struct MenuClick {
     pub page_url: Option<String>,
     /// The address of the frame the click was in.
     pub frame_url: Option<String>,
+    /// The text selected, if any.
+    pub selection_text: Option<String>,
+    /// "image", "video" or "audio", where the click was on one.
+    pub media_type: Option<String>,
 }
 
 /// What the app downloads when asked: web and FTP links, and magnets.
@@ -307,20 +311,130 @@ pub fn not_private(private: bool) -> Result<(), String> {
     }
 }
 
+/// One item of the right-click menu to make: its id, its words (this extension's own, in the
+/// browser's language, for an item it knows; the app's otherwise) and where it is offered.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuToMake {
+    /// The item's id, which a click names.
+    pub id: String,
+    /// This extension's words for it, where it knows the item.
+    pub known: Option<Word>,
+    /// The app's words for it, said where this extension has none.
+    pub title: String,
+    /// Where the browser offers it.
+    pub contexts: Vec<String>,
+}
+
+/// This extension's words for a menu item it knows by id.
+fn known_menu(id: &str) -> Option<&'static (&'static str, Word, &'static [&'static str])> {
+    MENUS.iter().find(|(known, _, _)| *known == id)
+}
+
+/// The right-click menu to make: the one the app served (`Hello::menus`), less any item whose
+/// mechanism this extension does not know; or, from an app that serves none, this extension's
+/// own, less the items `hidden` (Options) leaves out.
+pub fn menus_to_make(
+    served: Option<&[dm_protocol::MenuItem]>,
+    hidden: &[String],
+) -> Vec<MenuToMake> {
+    match served {
+        Some(items) => items
+            .iter()
+            .filter(|item| {
+                !item.id.trim().is_empty()
+                    && !item.contexts.is_empty()
+                    && dm_protocol::menu_does::ALL.contains(&item.does.as_str())
+            })
+            .map(|item| MenuToMake {
+                id: item.id.clone(),
+                known: known_menu(&item.id).map(|(_, word, _)| *word),
+                title: item.title.clone(),
+                contexts: item.contexts.clone(),
+            })
+            .collect(),
+        None => MENUS
+            .iter()
+            .filter(|(id, _, _)| !hidden.iter().any(|h| h == id))
+            .map(|(id, word, contexts)| MenuToMake {
+                id: (*id).to_string(),
+                known: Some(*word),
+                title: word.en.to_string(),
+                contexts: contexts.iter().map(|c| (*c).to_string()).collect(),
+            })
+            .collect(),
+    }
+}
+
+/// What a click on menu item `id` does (one of `dm_protocol::menu_does`): as the app served it,
+/// or, from an app that serves none, as this extension's own items do. `None` for an item
+/// neither knows.
+pub fn menu_does_for(served: Option<&[dm_protocol::MenuItem]>, id: &str) -> Option<&'static str> {
+    use dm_protocol::menu_does;
+    match served {
+        Some(items) => {
+            let does = items.iter().find(|item| item.id == id)?.does.as_str();
+            menu_does::ALL.iter().copied().find(|known| *known == does)
+        }
+        None => match id {
+            MENU_LINK => Some(menu_does::LINK),
+            MENU_MEDIA => Some(menu_does::MEDIA),
+            MENU_ALL_LINKS => Some(menu_does::ALL_LINKS),
+            MENU_SELECTED_LINKS => Some(menu_does::SELECTED_LINKS),
+            _ => None,
+        },
+    }
+}
+
+/// What a click hands to the app for an item whose mechanism is the app's own
+/// (`menu_does::APP`): the browser's words of the click, and the tab's title.
+pub fn menu_clicked(click: &MenuClick, id: &str, title: &str) -> dm_protocol::MenuClicked {
+    dm_protocol::MenuClicked {
+        id: id.to_string(),
+        item: click.menu_item_id.as_str().unwrap_or("").to_string(),
+        link_url: text(&click.link_url),
+        src_url: text(&click.src_url),
+        page_url: text(&click.page_url),
+        frame_url: text(&click.frame_url),
+        selection_text: text(&click.selection_text).chars().take(2000).collect(),
+        media_type: text(&click.media_type),
+        title: title.trim().chars().take(300).collect(),
+        ..dm_protocol::MenuClicked::default()
+    }
+}
+
+/// The address a click for the app's own item is about, for the sign-in that goes with it.
+pub fn menu_clicked_address(click: &dm_protocol::MenuClicked) -> &str {
+    [
+        &click.link_url,
+        &click.src_url,
+        &click.frame_url,
+        &click.page_url,
+    ]
+    .into_iter()
+    .find(|url| is_web(url))
+    .map_or("", |url| url.as_str())
+}
+
 /// What a menu click hands over, or why nothing. `private` is whether the
 /// tab it was in is in a private window.
 pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
+    let does = menu_does_for(None, click.menu_item_id.as_str().unwrap_or(""));
+    menu_target_doing(click, does.unwrap_or(""), private)
+}
+
+/// [`menu_target`] for an item that does `does` (`menu_does::LINK` or `MEDIA`), whatever its id.
+pub fn menu_target_doing(click: &MenuClick, does: &str, private: bool) -> Result<Target, String> {
     not_private(private)?;
     let page = text(&click.page_url);
     let frame = text(&click.frame_url);
     let item = click.menu_item_id.as_str().unwrap_or("");
-    let target = match item {
-        MENU_LINK => Target {
+    let target = match does {
+        dm_protocol::menu_does::LINK => Target {
             url: text(&click.link_url),
             referrer: page,
             page: false,
         },
-        MENU_MEDIA => {
+        dm_protocol::menu_does::MEDIA => {
             let src = text(&click.src_url);
             if handable(&src) {
                 Target {
@@ -339,7 +453,7 @@ pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
                 }
             }
         }
-        other => return Err(format!("{other} is not one of dm's menu items")),
+        _ => return Err(format!("{item} is not one of dm's menu items")),
     };
     if handable(&target.url) {
         Ok(target)

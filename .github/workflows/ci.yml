@@ -56,6 +56,34 @@ jobs:
           name: extension-zips
           path: dist/*.zip
 
+  contract-coverage:
+    # What the extension and the app say to each other (gaps row A22): dm-protocol, the
+    # extension's deciding parts and the native host, each file held to 95% of its lines
+    # (docs/contract-coverage-floor.txt, the maintainer, 2026-11-15). An app update must never
+    # stop an extension a store has not yet updated, so code added to the contract untested
+    # fails here, before the merge.
+    name: Extension–app contract coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: |
+            browser
+            desktop
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-llvm-cov
+      - name: Install what dm-shell links
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
+      - name: Measure, and hold each file to the floor
+        run: python3 scripts/contract-coverage.py
+
   browser:
     name: In Chrome for Testing, handing off to dm
     runs-on: ubuntu-latest

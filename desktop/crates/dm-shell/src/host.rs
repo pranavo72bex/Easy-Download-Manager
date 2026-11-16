@@ -23,7 +23,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use dm_protocol::{
-    Batch, CatchRules, Choice, FormatsAsked, Hello, Reply, Request as Asked, SettingsReply, Start,
+    feature, Batch, CatchRules, Choice, FormatsAsked, Hello, Reply, Request as Asked,
+    SettingsReply, Start,
 };
 
 /// A request the app will pick up.
@@ -805,7 +806,19 @@ pub fn answer(
                 rules: Some(served::served(home)),
                 renews: true,
                 // Abilities by name: an extension that does not know a name ignores it.
-                features: vec![dm_protocol::feature::RENEWS.into()],
+                features: [
+                    feature::RENEWS,
+                    feature::MENUS,
+                    feature::JUDGES_CATCH,
+                    feature::LISTS_STREAMS,
+                ]
+                .map(String::from)
+                .to_vec(),
+                // The right-click menu, made by the extension as the app serves it: an item
+                // added to the app works with the extension as released.
+                menus: Some(dm_protocol::served_menus(&catch_rules(home))),
+                // The extension's own words, in the browser's language, say how the app is.
+                status: None,
             })
         }
 
@@ -857,10 +870,10 @@ pub fn answer(
                     // Download links asks in the app's window.
                     Ok(_) if world.app_running() => {
                         world.ring();
-                        Reply::Started { id, shown: true }
+                        Reply::started(&id, true)
                     }
                     Ok(filed) => match world.launch() {
-                        Ok(()) => Reply::Started { id, shown: true },
+                        Ok(()) => Reply::started(&id, true),
                         // Taken back out: the browser keeps it, and a dm
                         // started later must not download it a second time.
                         Err(e) => {
@@ -910,142 +923,205 @@ pub fn answer(
             },
         },
 
-        Ok(Asked::Start(Start {
-            id,
-            url,
-            referrer,
-            caught,
-            quality,
-            sound,
-            label,
-            ask,
-            from,
-            to,
-            cookies,
-            cookies_once,
-            headers,
-            title,
-            mime,
-            deadline,
-            post,
-            renews,
-            ..
-        })) => {
-            let url = url.trim().to_string();
-            if url.is_empty() {
-                Reply::failed(&id, "no URL was given")
-            } else if renews && !world.app_running() {
-                // Nothing waits for it with no app running, and dm is not
-                // started for a renewal the person did not ask for.
-                Reply::failed(&id, "no dm is running to take a renewed address")
-            } else if !dm_core::accepted(&url)
-                // A file on this computer is dm's to read only when the
-                // person opens it with dm, never at a web page's word.
-                || url.get(..5).is_some_and(|s| s.eq_ignore_ascii_case("file:"))
-            {
-                // Refused here by the queue's own rule, rather than accepted
-                // and then dropped by the queue unseen.
-                Reply::failed(
-                    &id,
-                    "dm downloads http(s) and ftp links, magnets and .torrent files only",
-                )
-            } else if let Some(why) = caught
-                .then(|| unwritable(&saved(home).download_dir))
-                .flatten()
-            {
-                // A download the browser holds is left with it when dm could
-                // not save it anyway: taken, it would sit paused in dm.
-                Reply::failed(&id, why)
-            } else if let Some(why) = checked(
-                world,
-                // Not asked about first where the person said the site's
-                // links work once (Options › Browser): the asking spent the
-                // link before dm's own download could use it.
-                // Nor a form's answer: asking would send the form again.
-                caught && post.is_none() && !saved(home).catch.works_once(&url, &referrer),
-                Asking {
-                    url: &url,
-                    referrer: &referrer,
-                    cookies: &cookies,
-                    headers: &headers,
-                },
-                &mime,
-                deadline,
-            ) {
-                // Before anything is filed: the browser fetches this with its
-                // cookies and its session, and dm has neither. A link only
-                // the signed-in browser can fetch is refused here, while the
-                // browser still holds it, rather than taken from the browser
-                // and failed in dm — a download caught and then lost.
-                Reply::failed(&id, why)
-            } else {
-                // A caught download asks too, where Options says so; a renewal never does.
-                let asks = !renews && (ask || (caught && saved(home).ask_caught_downloads));
-                match deposit(
-                    home,
-                    &id,
-                    &Request {
-                        url,
-                        referrer,
-                        quality: quality.filter(|q| !q.trim().is_empty()),
-                        sound: sound
-                            .map(|s| s.trim().to_string())
-                            .filter(|s| !s.is_empty()),
-                        label,
-                        ask: asks,
-                        // Only a video asked for from the panel has a part.
-                        from: if caught {
-                            String::new()
-                        } else {
-                            from.trim().to_string()
-                        },
-                        to: if caught {
-                            String::new()
-                        } else {
-                            to.trim().to_string()
-                        },
-                        caught,
-                        cookies: cookies.trim().to_string(),
-                        cookies_once: cookies_once
-                            && (!cookies.trim().is_empty() || !headers.is_empty()),
-                        headers: dm_core::cookies::forwardable(&headers),
-                        title: title.trim().chars().take(300).collect(),
-                        browser: parent_browser(),
-                        post,
-                        from_browser: true,
-                        renews,
-                        ..Request::default()
-                    },
-                ) {
-                    Ok(_) if world.app_running() => {
-                        world.ring();
-                        Reply::Started { id, shown: asks }
-                    }
-                    Ok(filed) => match world.launch() {
-                        Ok(()) => Reply::Started { id, shown: asks },
-                        // Filed, but nothing will read it: said now, not
-                        // discovered when the file never appears — and taken
-                        // back out, since the browser keeps the download and
-                        // a dm started later must not fetch it as well.
-                        Err(e) => {
-                            // Only one this hand-off filed: the same request
-                            // already waiting was answered Started before.
-                            if filed.new {
-                                let _ = std::fs::remove_file(&filed.path);
-                            }
-                            Reply::failed(&id, format!("dm could not be started to take it: {e}"))
-                        }
-                    },
-                    Err(e) => Reply::failed(&id, format!("dm could not take it: {e}")),
-                }
+        Ok(Asked::Start(start)) => take(home, start, world),
+
+        // Would the app take this download the browser started, by its rules as they are
+        // now: an extension that asks judges nothing of type, size or site itself.
+        Ok(Asked::Judge(judge)) => {
+            let verdict = judge.judged_by(&catch_rules(home));
+            Reply::Judged {
+                id: judge.id,
+                take: verdict.is_ok(),
+                reason: verdict.err(),
             }
         }
+
+        // An item of the menu the app served, clicked: the app chooses what it takes.
+        Ok(Asked::MenuClicked(click)) => match menu_start(&click) {
+            Ok(start) => take(home, start, world),
+            Err(why) => Reply::failed(&click.id, why),
+        },
+
+        // The panel's list, made by this app's own reading of what the player loaded.
+        Ok(Asked::Streams(asked)) => Reply::Streams {
+            streams: dm_protocol::media::panel_list(asked.streams),
+        },
 
         // Another version, or something this host does not do: pausing and
         // cancelling belong to the window, which is where the download is.
         Err(_) => return None,
     };
     Some(reply.to_frame())
+}
+
+/// The answer to a hand-off ([`Asked::Start`]), or to a click on an item of the menu the app
+/// served, made into one ([`menu_start`]).
+fn take(home: &Path, start: Start, world: &mut dyn World) -> Reply {
+    let Start {
+        id,
+        url,
+        referrer,
+        caught,
+        quality,
+        sound,
+        label,
+        ask,
+        from,
+        to,
+        cookies,
+        cookies_once,
+        headers,
+        title,
+        mime,
+        deadline,
+        post,
+        renews,
+        ..
+    } = start;
+    let url = url.trim().to_string();
+    if url.is_empty() {
+        Reply::failed(&id, "no URL was given")
+    } else if renews && !world.app_running() {
+        // Nothing waits for it with no app running, and dm is not
+        // started for a renewal the person did not ask for.
+        Reply::failed(&id, "no dm is running to take a renewed address")
+    } else if !dm_core::accepted(&url)
+        // A file on this computer is dm's to read only when the
+        // person opens it with dm, never at a web page's word.
+        || url.get(..5).is_some_and(|s| s.eq_ignore_ascii_case("file:"))
+    {
+        // Refused here by the queue's own rule, rather than accepted
+        // and then dropped by the queue unseen.
+        Reply::failed(
+            &id,
+            "dm downloads http(s) and ftp links, magnets and .torrent files only",
+        )
+    } else if let Some(why) = caught
+        .then(|| unwritable(&saved(home).download_dir))
+        .flatten()
+    {
+        // A download the browser holds is left with it when dm could
+        // not save it anyway: taken, it would sit paused in dm.
+        Reply::failed(&id, why)
+    } else if let Some(why) = checked(
+        world,
+        // Not asked about first where the person said the site's
+        // links work once (Options › Browser): the asking spent the
+        // link before dm's own download could use it.
+        // Nor a form's answer: asking would send the form again.
+        caught && post.is_none() && !saved(home).catch.works_once(&url, &referrer),
+        Asking {
+            url: &url,
+            referrer: &referrer,
+            cookies: &cookies,
+            headers: &headers,
+        },
+        &mime,
+        deadline,
+    ) {
+        // Before anything is filed: the browser fetches this with its
+        // cookies and its session, and dm has neither. A link only
+        // the signed-in browser can fetch is refused here, while the
+        // browser still holds it, rather than taken from the browser
+        // and failed in dm — a download caught and then lost.
+        Reply::failed(&id, why)
+    } else {
+        // A caught download asks too, where Options says so; a renewal never does.
+        let asks = !renews && (ask || (caught && saved(home).ask_caught_downloads));
+        match deposit(
+            home,
+            &id,
+            &Request {
+                url,
+                referrer,
+                quality: quality.filter(|q| !q.trim().is_empty()),
+                sound: sound
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty()),
+                label,
+                ask: asks,
+                // Only a video asked for from the panel has a part.
+                from: if caught {
+                    String::new()
+                } else {
+                    from.trim().to_string()
+                },
+                to: if caught {
+                    String::new()
+                } else {
+                    to.trim().to_string()
+                },
+                caught,
+                cookies: cookies.trim().to_string(),
+                cookies_once: cookies_once && (!cookies.trim().is_empty() || !headers.is_empty()),
+                headers: dm_core::cookies::forwardable(&headers),
+                title: title.trim().chars().take(300).collect(),
+                browser: parent_browser(),
+                post,
+                from_browser: true,
+                renews,
+                ..Request::default()
+            },
+        ) {
+            Ok(_) if world.app_running() => {
+                world.ring();
+                Reply::started(&id, asks)
+            }
+            Ok(filed) => match world.launch() {
+                Ok(()) => Reply::started(&id, asks),
+                // Filed, but nothing will read it: said now, not
+                // discovered when the file never appears — and taken
+                // back out, since the browser keeps the download and
+                // a dm started later must not fetch it as well.
+                Err(e) => {
+                    // Only one this hand-off filed: the same request
+                    // already waiting was answered Started before.
+                    if filed.new {
+                        let _ = std::fs::remove_file(&filed.path);
+                    }
+                    Reply::failed(&id, format!("dm could not be started to take it: {e}"))
+                }
+            },
+            Err(e) => Reply::failed(&id, format!("dm could not take it: {e}")),
+        }
+    }
+}
+
+/// What a click on an item of the menu the app served hands over: the link clicked, else the
+/// video's or sound's own address, else the page (or frame) it was on, read for its video.
+/// The items an app of today serves are carried out by the extension itself
+/// (`dm_protocol::menu_does`); this is where an item added later is decided, by the app.
+fn menu_start(click: &dm_protocol::MenuClicked) -> Result<Start, String> {
+    let web = |url: &str| {
+        let lower = url.trim().to_ascii_lowercase();
+        lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("ftp://")
+    };
+    let handable = |url: &str| web(url) || url.trim().to_ascii_lowercase().starts_with("magnet:");
+    let page = if click.frame_url.trim().is_empty() {
+        click.page_url.trim()
+    } else {
+        click.frame_url.trim()
+    };
+    let (url, referrer, read_page) = if handable(&click.link_url) {
+        (click.link_url.trim(), click.page_url.trim(), false)
+    } else if handable(&click.src_url) {
+        (click.src_url.trim(), click.page_url.trim(), false)
+    } else if web(page) {
+        (page, "", true)
+    } else {
+        return Err("there is no address here for dm to take".into());
+    };
+    Ok(Start {
+        id: click.id.clone(),
+        url: url.to_string(),
+        referrer: referrer.to_string(),
+        cookies: click.cookies.clone(),
+        cookies_once: click.cookies_once,
+        title: click.title.clone(),
+        // A page is handed over for its video, which the app reads, never saved itself.
+        quality: read_page.then(|| "best".to_string()),
+        ..Start::default()
+    })
 }
 
 /// Why dm may not save into `folder`, or `None` where it may: made where
@@ -1180,9 +1256,14 @@ pub fn run(home: &Path) {
         home,
         started: false,
     };
+    serve(home, &mut input, &mut output, &mut here);
+}
 
-    while let Some(message) = read_frame(&mut input) {
-        let Some(reply) = answer(home, &message, &mut here) else {
+/// Answers each frame read from `input` on `output`, in turn, until `input` ends or `output`
+/// cannot be written: a frame that gets no answer is skipped, and the next one is read.
+pub fn serve(home: &Path, input: &mut impl Read, output: &mut impl Write, world: &mut dyn World) {
+    while let Some(message) = read_frame(input) {
+        let Some(reply) = answer(home, &message, world) else {
             continue;
         };
         if output.write_all(&frame(&reply)).is_err() || output.flush().is_err() {
@@ -1281,6 +1362,7 @@ mod coverage_tests {
             Reply::Started {
                 id: "links-1".into(),
                 shown: true,
+                notice: None,
             }
         );
         assert_eq!(filed(home.path()).len(), 1, "left for the dm started");
@@ -1418,6 +1500,7 @@ mod coverage_tests {
             Reply::Started {
                 id: "caught-2".into(),
                 shown: true,
+                notice: None,
             }
         );
         assert_eq!(filed(home.path()).len(), 1);

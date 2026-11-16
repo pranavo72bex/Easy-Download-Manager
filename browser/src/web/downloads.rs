@@ -86,8 +86,30 @@ pub async fn on_download_created(item: JsValue) {
     });
     let mut paused = early && pause().await;
 
-    let (app, port) = app().await;
+    let (app, mut port) = app().await;
+    // An app that judges by its own rules as they are now is asked (gaps row A22 b): a rule
+    // added to it works with this extension as released. One that does not answer in time is
+    // judged by the rules it last sent, with this extension's own reading of them.
+    let asked = match &app {
+        App::Present { hello, .. } if hello.has(dm_protocol::feature::JUDGES_CATCH) => {
+            let judge = decide::judge_of(&found, &hand_id("j", found.id, now()), browser, forced);
+            let (verdict, open) = judged_by_app(port.take(), judge).await;
+            port = open;
+            verdict
+        }
+        _ => None,
+    };
     let verdict = match &app {
+        App::Present { hello, .. } if asked.is_some() => {
+            asked.clone().unwrap_or(Ok(())).and_then(|()| {
+                decide::takes_caught(hello).map_err(|old| {
+                    if !TOLD_OLD.with(|t| t.replace(true)) {
+                        notify("Update the dm app", old);
+                    }
+                    old.to_string()
+                })
+            })
+        }
         App::Present { rules, .. } if !rules.takes_from(browser) => Err(format!(
             "dm takes no downloads from {browser} (Options › Browser)"
         )),
@@ -249,6 +271,40 @@ pub async fn on_download_created(item: JsValue) {
             notify("The browser is downloading it", &why);
             if paused {
                 give_back(&id, &found.url).await;
+            }
+        }
+    }
+}
+
+/// Asks the app whether it takes a download the browser started (`catch.judge`), on the port
+/// the handshake left open where it did, and hands the port back for the hand-off that follows.
+/// `None` where the app did not answer in time, or the port went.
+async fn judged_by_app(
+    port: Option<Port>,
+    judge: dm_protocol::Judge,
+) -> (Option<Result<(), String>>, Option<Port>) {
+    let mut port = match port {
+        Some(port) => port,
+        None => match Port::open() {
+            Ok(port) => port,
+            Err(_) => return (None, None),
+        },
+    };
+    let id = judge.id.clone();
+    if port.send(&Request::Judge(judge)).is_err() {
+        return (None, None);
+    }
+    let deadline = now() + decide::JUDGED_WITHIN_MS;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some(verdict) = decide::judged(&frame, &id) {
+                    return (Some(verdict), Some(port));
+                }
+            }
+            Heard::Gone(why) => {
+                log("debug", &format!("the app did not judge a download: {why}"));
+                return (None, None);
             }
         }
     }

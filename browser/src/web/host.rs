@@ -138,6 +138,8 @@ pub(super) async fn app() -> (App, Option<Port>) {
         // that serves none (an older one) leaves the tables as they were built.
         decide::rules::install(hello.rules.clone());
         remember_served(decide::rules::held().as_ref()).await;
+        // The right-click menu the app serves, made again where it changed.
+        remember_menus(hello.menus.as_deref()).await;
     }
     KNOWN.with(|k| {
         *k.borrow_mut() = Some(Known {

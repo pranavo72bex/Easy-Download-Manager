@@ -23,6 +23,10 @@ pub fn greeting() -> dm_protocol::Greeting {
         features: vec![
             dm_protocol::feature::READS_ANY_REPLY.to_string(),
             dm_protocol::feature::RENEWS.to_string(),
+            dm_protocol::feature::MENUS.to_string(),
+            dm_protocol::feature::JUDGES_CATCH.to_string(),
+            dm_protocol::feature::SAYS.to_string(),
+            dm_protocol::feature::LISTS_STREAMS.to_string(),
         ],
     }
 }
@@ -69,6 +73,10 @@ pub fn takes_caught(hello: &Hello) -> Result<(), &'static str> {
 /// The toolbar popup's status line for an app that answered, in the
 /// browser's language, and whether it is a warning.
 pub fn status_line(hello: &Hello) -> (String, bool) {
+    // The app's own words where it sends them: it knows itself better than this extension can.
+    if let Some(status) = hello.status.as_ref().filter(|s| !s.line.trim().is_empty()) {
+        return (status.line.clone(), status.bad);
+    }
     let version = hello.engine_version.as_str();
     if !hello.judges_pages() {
         return (words::POPUP_CONNECTED_OLD.with(&[version]), true);
@@ -254,15 +262,87 @@ impl Probe {
 /// Whether a frame answers the hand-off filed under `id`: `Some(Ok)` taken,
 /// `Some(Err)` refused with the app's reason, `None` not about it.
 pub fn taken(frame: &Value, id: &str) -> Option<Result<bool, String>> {
+    taken_said(frame, id).map(|(outcome, _)| outcome)
+}
+
+/// [`taken`], with the words the app sent for the browser to say of it in place of this
+/// extension's own (`feature::SAYS`), where it sent any.
+pub fn taken_said(
+    frame: &Value,
+    id: &str,
+) -> Option<(Result<bool, String>, Option<dm_protocol::Notice>)> {
+    let said = |notice: Option<dm_protocol::Notice>| {
+        notice.filter(|n| !n.title.trim().is_empty() || !n.body.trim().is_empty())
+    };
     match Reply::from_frame(frame).ok()? {
         // Whether the app's own window comes forward to ask about it: then the browser posts
         // no toast of its own (gaps row U11).
-        Reply::Started { id: said, shown } if said == id => Some(Ok(shown)),
-        Reply::Failed { id: said, failure } if said == id => Some(Err(failure
-            .map(|f| f.message)
-            .filter(|m| !m.is_empty())
-            .unwrap_or_else(|| "dm would not take it".into()))),
+        Reply::Started {
+            id: answered,
+            shown,
+            notice,
+        } if answered == id => Some((Ok(shown), said(notice))),
+        Reply::Failed {
+            id: answered,
+            failure,
+            notice,
+        } if answered == id => Some((
+            Err(failure
+                .map(|f| f.message)
+                .filter(|m| !m.is_empty())
+                .unwrap_or_else(|| "dm would not take it".into())),
+            said(notice),
+        )),
         _ => None,
+    }
+}
+
+/// Whether a frame answers the catch question asked under `id` (`catch.judge`): `Some(Ok)`
+/// the app takes the download, `Some(Err)` it leaves it with the browser, and why.
+pub fn judged(frame: &Value, id: &str) -> Option<Result<(), String>> {
+    match Reply::from_frame(frame).ok()? {
+        Reply::Judged {
+            id: answered,
+            take,
+            reason,
+        } if answered == id => Some(if take {
+            Ok(())
+        } else {
+            Err(reason
+                .filter(|r| !r.trim().is_empty())
+                .unwrap_or_else(|| "dm's settings leave it with the browser".into()))
+        }),
+        _ => None,
+    }
+}
+
+/// The panel's list the app made of a tab's streams (`media.streams`), where the frame is it.
+pub fn streams_listed(frame: &Value) -> Option<Vec<dm_protocol::media::Stream>> {
+    match Reply::from_frame(frame).ok()? {
+        Reply::Streams { streams } => Some(streams),
+        _ => None,
+    }
+}
+
+/// The question the app answers for a download the browser started (`catch.judge`): the
+/// download as the rules read it, the browser it is in, and whether the person asked for
+/// this one whatever its type and size.
+pub fn judge_of(
+    found: &Catchable,
+    id: &str,
+    browser: &str,
+    every_type: bool,
+) -> dm_protocol::Judge {
+    dm_protocol::Judge {
+        id: id.to_string(),
+        url: found.url.clone(),
+        asked_url: found.asked_url.clone(),
+        referrer: found.referrer.clone(),
+        filename: found.filename.clone(),
+        mime: found.mime.clone(),
+        size: found.size,
+        browser: browser.to_string(),
+        every_type,
     }
 }
 

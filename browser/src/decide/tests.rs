@@ -1333,6 +1333,7 @@ fn a_host_too_old_to_send_rules_gets_the_defaults_and_no_host_is_absent() {
                 rules: None,
                 renews: false,
                 features: Vec::new(),
+                ..Hello::default()
             },
             rules: CatchRules::default(),
         }
@@ -2845,4 +2846,132 @@ fn a_newer_app_is_still_one_to_hand_to() {
     };
     assert!(takes_caught(&hello).is_ok() && hello.takes_renewals());
     assert_eq!(rules.extensions, vec!["zip".to_string()]);
+}
+
+/// What the app drives (gaps row A22), read the way this extension reads it, from the replies
+/// frozen for it in dm-protocol's `tests/wire/extension-3.5.0.json` and from a newer app's: the
+/// menu it serves, its catch verdict, its own words and the panel's list.
+#[test]
+fn the_app_drives_the_menu_the_catch_its_words_and_the_panel_list() {
+    use super::{
+        greeting, judged, menu_does_for, menus_to_make, status_line, streams_listed, taken_said,
+        MenuClick,
+    };
+    use dm_protocol::{feature, menu_does, Reply};
+    let file: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../desktop/crates/dm-protocol/tests/wire/extension-3.5.0.json"
+    ))
+    .unwrap();
+    let replies = file["replies"].as_array().unwrap();
+    let of_type = |kind: &str| -> Vec<&serde_json::Value> {
+        replies.iter().filter(|r| r["type"] == kind).collect()
+    };
+    // This extension says it can follow the app.
+    let said = greeting();
+    for name in [
+        feature::MENUS,
+        feature::JUDGES_CATCH,
+        feature::SAYS,
+        feature::LISTS_STREAMS,
+    ] {
+        assert!(said.has(name), "{name}");
+    }
+    // The menu the app served: an item this extension knows is said in its own words, one the
+    // app added is made with the app's, and a click on it goes to the app.
+    let Ok(Reply::Hello(hello)) = Reply::from_frame(of_type("engine.hello")[1]) else {
+        panic!("no hello")
+    };
+    let served = hello.menus.clone().unwrap();
+    let made = menus_to_make(Some(&served), &["dm-link".into()]);
+    assert_eq!(
+        made.len(),
+        2,
+        "the app's menu is made whole: it left out what Options hides"
+    );
+    assert!(made[0].known.is_some());
+    assert_eq!(
+        (made[1].known, made[1].title.as_str()),
+        (None, "Download this with dm")
+    );
+    assert_eq!(
+        menu_does_for(Some(&served), "dm-new-item"),
+        Some(menu_does::APP)
+    );
+    assert_eq!(
+        menu_does_for(Some(&served), "dm-media"),
+        None,
+        "not served, not done"
+    );
+    // A mechanism this extension does not know is not made.
+    let mut later = served.clone();
+    later[1].does = "teleport".into();
+    assert_eq!(menus_to_make(Some(&later), &[]).len(), 1);
+    // An app that serves no menu: this extension's own, less what Options hides.
+    let own = menus_to_make(None, &["dm-media".into()]);
+    let ids: Vec<&str> = own.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(ids, ["dm-link", "dm-all-links", "dm-selected-links"]);
+    assert_eq!(menu_does_for(None, "dm-media"), Some(menu_does::MEDIA));
+    // The popup's line in the app's words, where it sent them.
+    assert_eq!(
+        status_line(&hello),
+        ("Connected to dm 0.11.0".to_string(), false)
+    );
+    // The catch verdict.
+    let judged_frames = of_type("catch.judged");
+    assert_eq!(judged(judged_frames[0], "j7-1763200000000"), Some(Ok(())));
+    assert!(judged(judged_frames[1], "j7-1763200000000")
+        .unwrap()
+        .unwrap_err()
+        .contains("minimum size"));
+    assert_eq!(judged(judged_frames[0], "another"), None);
+    // The app's words of a hand-off, in place of this extension's.
+    let (outcome, notice) = taken_said(of_type("download.started")[1], "c1-1763100000000").unwrap();
+    assert_eq!(outcome, Ok(false));
+    assert_eq!(notice.unwrap().title, "Sent to dm");
+    let (outcome, notice) = taken_said(of_type("download.failed")[1], "c1-1763100000000").unwrap();
+    assert_eq!(outcome, Err("no".to_string()));
+    assert_eq!(notice.unwrap().title, "Kept in the browser");
+    let (_, none) = taken_said(of_type("download.started")[0], "c1-1763100000000").unwrap();
+    assert_eq!(none, None, "no words from the app: this extension's own");
+    // The panel's list the app made.
+    let listed = streams_listed(of_type("media.streams")[0]).unwrap();
+    assert_eq!(listed[0].label, "1080p HLS stream");
+    // A click for the app's item carries what the browser said of it.
+    let click: MenuClick = serde_json::from_value(serde_json::json!({
+        "menuItemId": "dm-new-item", "srcUrl": "https://cdn.example/p.jpg",
+        "pageUrl": "https://example.com/", "mediaType": "image"
+    }))
+    .unwrap();
+    let asked = super::menu_clicked(&click, "c0-1", "Page title");
+    assert_eq!(asked.item, "dm-new-item");
+    assert_eq!(asked.media_type, "image");
+    assert_eq!(
+        super::menu_clicked_address(&asked),
+        "https://cdn.example/p.jpg"
+    );
+}
+
+/// Every frame this extension builds for the mechanisms the app drives is one the frozen
+/// copy for its release holds, so the app's tests answer what this extension really sends.
+#[test]
+fn the_frames_this_release_sends_are_the_frozen_ones() {
+    let file: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../desktop/crates/dm-protocol/tests/wire/extension-3.5.0.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        file["requests"][0]["extensionVersion"],
+        env!("CARGO_PKG_VERSION")
+    );
+    let hello = dm_protocol::Request::Hello(super::greeting()).to_frame();
+    assert_eq!(hello, file["requests"][0]);
+    let kinds: Vec<&str> = file["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|f| f["type"].as_str())
+        .collect();
+    for kind in ["catch.judge", "menu.clicked", "media.streams"] {
+        assert!(kinds.contains(&kind), "{kind}");
+    }
 }

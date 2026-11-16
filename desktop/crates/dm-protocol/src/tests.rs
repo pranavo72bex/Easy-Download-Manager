@@ -52,7 +52,8 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
     assert_eq!(
         Reply::Started {
             id: "a".into(),
-            shown: false
+            shown: false,
+            notice: None,
         }
         .to_frame()["type"],
         kind::STARTED
@@ -66,6 +67,7 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
         rules: None,
         renews: false,
         features: Vec::new(),
+        ..Hello::default()
     })
     .to_frame();
     assert_eq!(hello["engineVersion"], "1.2");
@@ -788,4 +790,154 @@ fn a_posted_form_is_logged_by_its_size_alone() {
         logged.contains("application/x-www-form-urlencoded"),
         "{logged}"
     );
+}
+
+/* ------------------------------------------- what the app drives (A22) */
+
+#[test]
+fn every_new_frame_goes_out_at_the_version_every_app_reads_and_by_its_type() {
+    let requests = [
+        (Request::Judge(Judge::default()), kind::JUDGE),
+        (
+            Request::MenuClicked(MenuClicked::default()),
+            kind::MENU_CLICKED,
+        ),
+        (Request::Streams(StreamsAsked::default()), kind::STREAMS),
+    ];
+    for (request, name) in requests {
+        assert_eq!(request.needs(), OLDEST_PROTOCOL, "{name}");
+        let frame = request.to_frame();
+        assert_eq!(frame["type"], name);
+        assert_eq!(Request::from_frame(&frame), Ok(request));
+    }
+    let replies = [
+        (
+            Reply::Judged {
+                id: "j".into(),
+                take: false,
+                reason: Some("why".into()),
+            },
+            kind::JUDGED,
+        ),
+        (
+            Reply::Streams {
+                streams: Vec::new(),
+            },
+            kind::STREAMS,
+        ),
+        (Reply::started("s", true), kind::STARTED),
+    ];
+    for (reply, name) in replies {
+        let frame = reply.to_frame();
+        assert_eq!(frame["type"], name);
+        assert_eq!(frame["protocolVersion"], OLDEST_PROTOCOL);
+        assert_eq!(Reply::from_frame(&frame), Ok(reply));
+    }
+    // Words not sent are not on the wire: an extension of 3.4.0 reads the frame it always did.
+    let started = Reply::started("s", false).to_frame();
+    assert!(started.get("notice").is_none() && started.get("shown").is_none());
+    let failed = Reply::failed("f", "no").to_frame();
+    assert!(failed.get("notice").is_none());
+    let hello = Reply::Hello(Hello::default()).to_frame();
+    assert!(hello.get("menus").is_none() && hello.get("status").is_none());
+}
+
+#[test]
+fn an_app_that_serves_an_empty_menu_says_so_and_one_that_serves_none_does_not() {
+    let empty = Hello {
+        menus: Some(Vec::new()),
+        ..Hello::default()
+    };
+    let frame = Reply::Hello(empty).to_frame();
+    assert_eq!(frame["menus"], json!([]));
+    let Ok(Reply::Hello(read)) = Reply::from_frame(&frame) else {
+        panic!("not read")
+    };
+    assert_eq!(read.menus, Some(Vec::new()));
+    let none: Hello = serde_json::from_value(json!({ "engineVersion": "0.10.0" })).unwrap();
+    assert_eq!(none.menus, None);
+}
+
+#[test]
+fn every_menu_item_hidden_serves_an_empty_menu_and_each_names_a_known_mechanism() {
+    let rules = CatchRules {
+        hidden_menus: MENU_ITEMS.iter().map(|(id, _)| format!(" {id} ")).collect(),
+        ..CatchRules::default()
+    };
+    assert!(served_menus(&rules).is_empty());
+    for item in served_menus(&CatchRules::default()) {
+        assert!(menu_does::ALL.contains(&item.does.as_str()), "{item:?}");
+        assert!(!item.contexts.is_empty() && !item.title.is_empty());
+    }
+    assert_eq!(menu_does::ALL.len(), 5);
+}
+
+#[test]
+fn the_judge_reads_the_download_as_the_rules_do() {
+    let judge = Judge {
+        url: "https://e.com/a.zip".into(),
+        asked_url: "https://e.com/get".into(),
+        referrer: "https://e.com/".into(),
+        filename: "a.zip".into(),
+        mime: "application/zip".into(),
+        size: Some(3),
+        ..Judge::default()
+    };
+    let c = judge.candidate();
+    assert_eq!(
+        (c.url, c.asked_url, c.referrer),
+        ("https://e.com/a.zip", "https://e.com/get", "https://e.com/")
+    );
+    assert_eq!(
+        (c.filename, c.mime, c.size),
+        ("a.zip", "application/zip", Some(3))
+    );
+    // No browser named: the browser's tick does not count.
+    let rules = CatchRules {
+        off_browsers: vec!["Firefox".into()],
+        ..CatchRules::default()
+    };
+    assert_eq!(judge.judged_by(&rules), Ok(()));
+    // A type not on the list.
+    let rules = CatchRules {
+        extensions: vec!["iso".into()],
+        ..CatchRules::default()
+    };
+    assert!(judge.judged_by(&rules).unwrap_err().contains("file types"));
+    let off = CatchRules {
+        enabled: false,
+        ..CatchRules::default()
+    };
+    assert!(Judge {
+        every_type: true,
+        ..judge
+    }
+    .judged_by(&off)
+    .unwrap_err()
+    .contains("turned off"));
+}
+
+#[test]
+fn a_list_from_the_first_edition_gets_the_types_added_since_then_becomes_every_type() {
+    let mut first = CatchRules {
+        extensions: vec!["zip".into(), "exe".into()],
+        defaults_version: 0,
+        ..CatchRules::default()
+    };
+    first.bring_up_to_date();
+    assert!(
+        first.extensions.is_empty(),
+        "the old defaults, never chosen, are every type"
+    );
+    let mut chosen = CatchRules {
+        extensions: vec!["zip".into(), "mine".into()],
+        defaults_version: 0,
+        ..CatchRules::default()
+    };
+    chosen.bring_up_to_date();
+    assert!(
+        chosen.extensions.contains(&"pdf".to_string())
+            && chosen.extensions.contains(&"mine".to_string())
+    );
+    assert_eq!(chosen.defaults_version, CATCH_DEFAULTS_VERSION);
 }

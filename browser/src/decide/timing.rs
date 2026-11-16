@@ -25,6 +25,15 @@ pub const SETTINGS_WITHIN_MS: f64 = 3_000.0;
 /// Long enough for the host's own first request (`PROBE_WITHIN_MS`, 16 s),
 /// its margin for answering, and five seconds for the host to start.
 pub const TAKEN_WITHIN_MS: f64 = 24_000.0;
+
+/// How long the app has to say whether it takes a download the browser started
+/// (`catch.judge`): its rules are read from a file, in milliseconds. Past it the rules the app
+/// last sent judge, as they would for an app that does not judge.
+pub const JUDGED_WITHIN_MS: f64 = 5_000.0;
+
+/// How long the app has to make the panel's list of a tab's streams (`media.streams`). Past it
+/// this extension makes the list itself.
+pub const STREAMS_LISTED_WITHIN_MS: f64 = 3_000.0;
 /// How long a URL given back to the browser is left alone if it comes round
 /// again, which it does when the extension has to restart it.
 pub const RELEASED_FOR_MS: f64 = 60_000.0;

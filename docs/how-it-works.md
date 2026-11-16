@@ -328,6 +328,9 @@ sides, where it used to be two languages kept in step by hand:
 | `engine.hello` | `engine.hello` with the app's version and whether it reads video pages (the field is still named `videopage` on the wire) |
 | `settings.get` | `settings.get` with the `catch` rules |
 | `download.start` `{id, url, referrer, caught}` | `download.started`, or `download.failed` with the reason |
+| `catch.judge` (to an app that says `judges-catch`) | `catch.judged` `{take, reason}`: the app's rules as saved now |
+| `menu.clicked` (an item the app served with `does: app`) | `download.started`, or `download.failed` |
+| `media.streams` `{page, streams}` (to an app that says `lists-streams`) | `media.streams`: the panel's list, made by the app |
 
 **The app moves ahead of the extension.** A store can hold the extension's update back for
 days while the app updates itself, so a newer app never stops an older extension working: the
@@ -337,7 +340,36 @@ hello says its version and what it can do (`Greeting`, kept by the app as `exten
 dm's home), the app's says what it can do (`features`), and a new ability is a name in
 `dm_protocol::feature`, not a new version. What each released extension sends is frozen in
 `desktop/crates/dm-protocol/tests/wire/`, and the tests hold every later app to answering it.
-What is left to move from the extension to the app is gaps row A22.
+
+**The extension does the bare minimum; the app decides (gaps row A22).** The extension keeps
+only what needs the browser: it catches the browser's downloads and holds them, sees what the
+app cannot (cookies, request headers, the page's links, the responses a player gets), draws the
+browser's own surfaces (the right-click menu, the toolbar popup, the panel over a player) and
+carries out a handful of fixed mechanisms the app names. The app decides:
+
+* **the right-click menu**: the app's hello serves it (`Hello::menus`, `dm_protocol::served_menus`,
+  Options' hidden items already left out). Each item names what it does by a mechanism the
+  extension knows (`dm_protocol::menu_does`: a link, a player's media, all links, the selected
+  links, or `app`); a click on an `app` item goes to the app as the browser said it
+  (`menu.clicked`), and the app chooses what it takes (`host::menu_start`). The extension says
+  an item it knows in the browser's language, one the app added in the app's words.
+* **whether a download the browser started is taken**: the extension asks (`catch.judge`) and
+  the app judges by its catch rules as saved now (`Judge::judged_by`), so a rule added to the
+  app works with the extension as released. The extension holds a download before asking only
+  where the rules the app last sent would take it, and judges with those itself where the app
+  does not answer within five seconds or is older than this.
+* **the words**: a reply may carry what the browser says of it (`Notice` on `download.started`
+  and `download.failed`, `Hello::status` for the popup's line), shown in place of the
+  extension's own; its own, in the browser's language, where none come. The app of today
+  sends none.
+* **the panel's list of what a player loaded**: the extension keeps the streams it saw and the
+  app makes the list of them (`media.streams`, `dm_protocol::media::panel_list`: picture and
+  sound joined, clips beside a video dropped, the order, the names), the extension making it
+  with its own copy of the same code where the app does not answer in three seconds.
+
+Each is a name in `dm_protocol::feature` said in both hellos, so an older side on either end
+goes on as before: an extension of 3.4.0 makes its own menu and judges for itself, and a 3.5.0
+extension talking to an app of 0.10.0 does the same.
 
 **The host** is the desktop binary itself. A native messaging manifest names
 an executable and cannot pass it arguments, so the binary works out that a

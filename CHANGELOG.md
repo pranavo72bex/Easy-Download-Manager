@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Extension 3.5.0 does the bare minimum and the dm app decides: the app serves the right-click menu, judges each download the browser starts by its catch rules as saved now, can send the words the browser shows, and makes the "Download video" panel's list of what a player loaded. A rule or a menu item added to a later app then works with the extension as the store has it. Nothing a person sees changes, and an older app or extension goes on as before.
 - The browser extension keeps working with a newer dm app: it no longer asks to be updated when the app is ahead of it, it tells the app its version and what it can do, and the frames each released extension sends are kept in the tests so every later app must keep answering them.
 - Browse… beside a folder field, on a desktop with no folder chooser, says in the field to type the path and puts the cursor there, where the press did nothing.
 - Manifests for Homebrew, Scoop, winget and Flathub, written from a release's `latest.json` (`scripts/package-managers.py`).

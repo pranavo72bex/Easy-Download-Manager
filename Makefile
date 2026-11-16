@@ -98,7 +98,7 @@ BOLD := $(shell test -t 1 && tput bold 2>/dev/null)
 DIM  := $(shell test -t 1 && tput dim 2>/dev/null)
 OFF  := $(shell test -t 1 && tput sgr0 2>/dev/null)
 
-.PHONY: help install client extension register unregister uninstall test doctor app clean \
+.PHONY: help install client extension register unregister uninstall test coverage doctor app clean \
         run run-release build build-macos build-linux build-windows build-extension \
         devices analyze format qa qa-docker
 
@@ -115,6 +115,7 @@ help:
 	@echo "  make build-extension the browser extension's zips"
 	@echo "  make devices         which of those this computer can build"
 	@echo "  make test            every test"
+	@echo "  make coverage        the extension-app contract held to its floor"
 	@echo "  make analyze         clippy, formatting and the privacy check"
 	@echo "  make format          format the code"
 	@echo "  make qa              the behaviour contract, whole, in sight"
@@ -416,6 +417,11 @@ qa-docker:
 test:
 	@cd browser && cargo test
 	@cd desktop && cargo test --workspace
+
+# What the extension and the app say to each other, each file held to
+# docs/contract-coverage-floor.txt (needs cargo-llvm-cov).
+coverage:
+	@python3 scripts/contract-coverage.py
 
 clean:
 	@cd desktop && cargo clean

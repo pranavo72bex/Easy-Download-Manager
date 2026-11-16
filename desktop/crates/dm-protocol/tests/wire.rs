@@ -11,10 +11,16 @@ use dm_protocol::{feature, Greeting, Hello, Reply, Request};
 use serde_json::{json, Value};
 
 fn released() -> Vec<(&'static str, Value)> {
-    [(
-        "extension-3.4.0.json",
-        include_str!("wire/extension-3.4.0.json"),
-    )]
+    [
+        (
+            "extension-3.4.0.json",
+            include_str!("wire/extension-3.4.0.json"),
+        ),
+        (
+            "extension-3.5.0.json",
+            include_str!("wire/extension-3.5.0.json"),
+        ),
+    ]
     .into_iter()
     .map(|(name, text)| (name, serde_json::from_str(text).expect(name)))
     .collect()
@@ -31,6 +37,10 @@ fn holds(read: &Value, sent: &Value) -> bool {
         (Value::Object(read), Value::Object(sent)) => sent
             .iter()
             .all(|(k, v)| read.get(k).is_some_and(|r| holds(r, v))),
+        // A list holds what was sent item by item, in order: a newer side may say more of each.
+        (Value::Array(read), Value::Array(sent)) => {
+            read.len() == sent.len() && read.iter().zip(sent).all(|(r, s)| holds(r, s))
+        }
         _ => read == sent,
     }
 }
@@ -136,4 +146,119 @@ fn an_app_says_its_abilities_by_name_and_an_older_ones_fields_still_count() {
     };
     assert!(named.takes_renewals());
     assert!(!Hello::default().takes_renewals());
+}
+
+/// What the app drives, said in a newer app's replies, reads in the shapes extension 3.5.0
+/// knows: the menu it serves, its catch verdict, its own words and the panel's list.
+#[test]
+fn the_mechanisms_an_app_drives_read_from_a_newer_app() {
+    let hello = json!({
+        "protocolVersion": 4, "type": "engine.hello", "engineVersion": "9.0.0",
+        "features": ["menus", "judges-catch", "lists-streams", "later"],
+        "menus": [
+            { "id": "dm-later", "title": "Later with dm", "contexts": ["image"], "does": "app", "icon": "x" }
+        ],
+        "status": { "line": "dm 9 here", "bad": false, "colour": "green" }
+    });
+    let Ok(Reply::Hello(hello)) = Reply::from_frame(&hello) else {
+        panic!("a newer hello is not read")
+    };
+    assert!(hello.has(feature::MENUS) && hello.has(feature::JUDGES_CATCH));
+    let menus = hello.menus.expect("menus served");
+    assert_eq!(menus[0].does, dm_protocol::menu_does::APP);
+    assert_eq!(hello.status.expect("a status").line, "dm 9 here");
+    let judged =
+        json!({ "protocolVersion": 4, "type": "catch.judged", "id": "j", "take": false, "why": 1 });
+    assert!(matches!(
+        Reply::from_frame(&judged),
+        Ok(Reply::Judged { take: false, .. })
+    ));
+    let failed = json!({
+        "protocolVersion": 4, "type": "download.failed", "id": "x",
+        "notice": { "title": "Kept", "body": "why", "icon": "x" }
+    });
+    let Ok(Reply::Failed {
+        notice: Some(notice),
+        ..
+    }) = Reply::from_frame(&failed)
+    else {
+        panic!("a refusal's words are not read")
+    };
+    assert_eq!(
+        (notice.title.as_str(), notice.body.as_str()),
+        ("Kept", "why")
+    );
+}
+
+/// The menu an app of today serves is the one an extension of 3.4.0 made for itself, less what
+/// Options leaves out: serving it changes nothing a person sees.
+#[test]
+fn the_served_menu_is_the_menu_a_released_extension_made() {
+    let all = dm_protocol::served_menus(&dm_protocol::CatchRules::default());
+    let made: Vec<(&str, &str, Vec<&str>)> = all
+        .iter()
+        .map(|m| {
+            (
+                m.id.as_str(),
+                m.does.as_str(),
+                m.contexts.iter().map(String::as_str).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        made,
+        vec![
+            ("dm-link", "link", vec!["link"]),
+            ("dm-media", "media", vec!["video", "audio"]),
+            ("dm-all-links", "all-links", vec!["page"]),
+            ("dm-selected-links", "selected-links", vec!["selection"]),
+        ]
+    );
+    let rules = dm_protocol::CatchRules {
+        hidden_menus: vec!["dm-media".into()],
+        ..dm_protocol::CatchRules::default()
+    };
+    let ids: Vec<String> = dm_protocol::served_menus(&rules)
+        .into_iter()
+        .map(|m| m.id)
+        .collect();
+    assert_eq!(ids, ["dm-link", "dm-all-links", "dm-selected-links"]);
+}
+
+/// The app judges a caught download by its rules as they are now, the browser's tick in
+/// Options included, and a download the person asked for whatever its type.
+#[test]
+fn the_app_judges_a_caught_download_by_its_rules() {
+    let judge = dm_protocol::Judge {
+        id: "j".into(),
+        url: "https://files.example.com/a.iso".into(),
+        filename: "a.iso".into(),
+        size: Some(10),
+        browser: "Brave".into(),
+        ..dm_protocol::Judge::default()
+    };
+    let mut rules = dm_protocol::CatchRules::default();
+    assert_eq!(judge.judged_by(&rules), Ok(()));
+    rules.min_size_kb = 1;
+    assert!(judge
+        .judged_by(&rules)
+        .unwrap_err()
+        .contains("minimum size"));
+    let asked = dm_protocol::Judge {
+        every_type: true,
+        ..judge.clone()
+    };
+    assert_eq!(
+        asked.judged_by(&rules),
+        Ok(()),
+        "asked for, size does not count"
+    );
+    rules.off_browsers = vec!["brave".into()];
+    assert!(asked.judged_by(&rules).unwrap_err().contains("Brave"));
+    rules.off_browsers.clear();
+    rules.skip_hosts = vec!["example.com".into()];
+    assert!(
+        asked.judged_by(&rules).is_err(),
+        "a site to leave alone still holds"
+    );
 }

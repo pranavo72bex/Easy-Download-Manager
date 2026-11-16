@@ -58,7 +58,12 @@ extension that hands it the browser's downloads.
   are only added to, a new ability is a name in `dm_protocol::feature`
   (not a protocol version), and the frames each released extension sends
   are frozen in `dm-protocol/tests/wire/` (add one there for each
-  extension release; never edit one).
+  extension release; never edit one). The extension does the bare
+  minimum: the app serves the right-click menu, judges each caught
+  download by its rules as saved now, may send the words the browser
+  says, and makes the panel's list of a player's streams
+  (`dm_protocol::media`); a new feature goes in the app, through those
+  mechanisms, not in the extension (`docs/how-it-works.md`).
 - `browser/` is the browser extension, in Rust (crate `dm-catcher`),
   compiled to WebAssembly. It catches downloads and hands them to the app,
   and downloads nothing itself: with no app the browser keeps them.
@@ -122,6 +127,7 @@ cd browser && cargo test                   # the extension's decisions, on the h
 cd browser && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                      # the WebAssembly, dist/chrome, dist/firefox, zips
 cd desktop && cargo test --workspace       # Rust unit + integration (real HTTP server)
+python3 scripts/contract-coverage.py       # extension-app contract, each file >= 95% of lines
 cd desktop && cargo clippy --workspace --all-targets -- -D warnings
 cd desktop && cargo fmt --check
 python3 scripts/app-check.py               # drives the built binary (DM_BINARY= for a packaged one)

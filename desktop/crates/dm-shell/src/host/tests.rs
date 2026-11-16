@@ -315,6 +315,7 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
         Some(Reply::Started {
             id: "links-1".into(),
             shown: true,
+            notice: None,
         })
     );
     let filed: Request = serde_json::from_str(
@@ -417,7 +418,8 @@ fn a_sites_cookies_handed_over_reach_the_app_and_the_probe() {
         reply,
         Some(Reply::Started {
             id: "c1".into(),
-            shown: true
+            shown: true,
+            notice: None,
         })
     );
     // The probe before taking it asked as the signed-in browser would.
@@ -473,6 +475,7 @@ fn a_video_from_the_panel_reaches_the_app_with_its_quality_and_asks_first() {
         Some(Reply::Started {
             id: "panel-1".into(),
             shown: true,
+            notice: None,
         })
     );
     let filed: Request = serde_json::from_str(
@@ -500,6 +503,7 @@ fn a_picture_and_the_sound_that_goes_with_it_reach_the_app_together() {
         Some(Reply::Started {
             id: "pair-1".into(),
             shown: false,
+            notice: None,
         })
     );
     let filed: Request = serde_json::from_str(
@@ -607,6 +611,7 @@ fn a_renewal_is_filed_for_a_running_dm_only_and_never_asks_or_launches() {
         Some(Reply::Started {
             id: "renew-2".into(),
             shown: false,
+            notice: None,
         })
     );
     assert!(!launched);
@@ -770,7 +775,8 @@ fn a_caught_download_asks_where_to_save_only_where_options_say() {
             reply,
             Some(Reply::Started {
                 id: id.into(),
-                shown: request.ask
+                shown: request.ask,
+                notice: None,
             })
         );
         request
@@ -808,7 +814,8 @@ fn a_hand_off_is_filed_and_taken_by_the_running_app() {
         reply,
         Some(Reply::Started {
             id: "b1-2".into(),
-            shown: true
+            shown: true,
+            notice: None,
         })
     );
     assert!(!launched, "a running app is not started twice");
@@ -830,7 +837,8 @@ fn with_no_app_running_one_is_started_and_a_failure_to_start_is_said() {
         reply,
         Some(Reply::Started {
             id: "a".into(),
-            shown: true
+            shown: true,
+            notice: None,
         })
     );
 
@@ -840,7 +848,7 @@ fn with_no_app_running_one_is_started_and_a_failure_to_start_is_said() {
         false,
         Err(()),
     );
-    let Some(Reply::Failed { id, failure }) = reply else {
+    let Some(Reply::Failed { id, failure, .. }) = reply else {
         panic!("a launch that failed was reported as taken")
     };
     assert_eq!(id, "b");
@@ -1033,7 +1041,8 @@ fn a_sign_in_page_served_in_place_of_the_file_leaves_it_with_the_browser() {
         reply,
         Some(Reply::Started {
             id: "s3".into(),
-            shown: true
+            shown: true,
+            notice: None,
         })
     );
 
@@ -1049,7 +1058,8 @@ fn a_sign_in_page_served_in_place_of_the_file_leaves_it_with_the_browser() {
         reply,
         Some(Reply::Started {
             id: "s4".into(),
-            shown: true
+            shown: true,
+            notice: None,
         })
     );
 }
@@ -1086,7 +1096,8 @@ fn a_hand_off_the_extension_has_stopped_waiting_for_is_not_filed() {
         reply,
         Some(Reply::Started {
             id: "t2".into(),
-            shown: true
+            shown: true,
+            notice: None,
         })
     );
     assert_eq!(world.budgets, [5_000 - dm_protocol::ANSWER_MARGIN_MS]);
@@ -1149,7 +1160,8 @@ fn a_link_handed_over_on_request_is_taken_without_asking_the_server() {
         reply,
         Some(Reply::Started {
             id: "m1".into(),
-            shown: false
+            shown: false,
+            notice: None,
         })
     );
     assert!(world.asked.is_empty(), "the server was asked");
@@ -1421,7 +1433,8 @@ fn a_forms_answer_is_taken_without_asking_and_its_form_goes_with_it() {
         reply,
         Some(Reply::Started {
             id: "f1".into(),
-            shown: true
+            shown: true,
+            notice: None,
         })
     );
     assert!(
@@ -1493,10 +1506,22 @@ fn a_public_pages_links_inside_are_dropped_and_logins_taken_out() {
 /// kind, and its bare hello is kept as an extension that says nothing of itself.
 #[test]
 fn every_frame_a_released_extension_sends_is_answered() {
-    let file: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../dm-protocol/tests/wire/extension-3.4.0.json"
-    ))
-    .unwrap();
+    for (release, text) in [
+        (
+            "3.4.0",
+            include_str!("../../../dm-protocol/tests/wire/extension-3.4.0.json"),
+        ),
+        (
+            "3.5.0",
+            include_str!("../../../dm-protocol/tests/wire/extension-3.5.0.json"),
+        ),
+    ] {
+        every_frame_of_a_release_is_answered(release, text);
+    }
+}
+
+fn every_frame_of_a_release_is_answered(release: &str, text: &str) {
+    let file: serde_json::Value = serde_json::from_str(text).unwrap();
     for frame in file["requests"].as_array().unwrap() {
         let dir = tempfile::tempdir().unwrap();
         let mut world = Pretend {
@@ -1519,16 +1544,21 @@ fn every_frame_a_released_extension_sends_is_answered() {
         let fits = match (kind, &reply) {
             ("engine.hello", Reply::Hello(h)) => h.judges_pages() && h.takes_renewals(),
             ("settings.get", Reply::Settings(_)) => true,
-            ("download.start" | "download.batch", Reply::Started { id, .. }) => *id == frame["id"],
+            ("download.start" | "download.batch" | "menu.clicked", Reply::Started { id, .. }) => {
+                *id == frame["id"]
+            }
             ("media.formats", Reply::Formats { .. }) => true,
             ("app.show", Reply::Shown { .. }) => true,
+            ("catch.judge", Reply::Judged { id, .. }) => *id == frame["id"],
+            ("media.streams", Reply::Streams { streams }) => !streams.is_empty(),
             _ => false,
         };
-        assert!(fits, "{frame} was answered {answer}");
+        assert!(fits, "{release}: {frame} was answered {answer}");
         if kind == "engine.hello" {
+            let heard = extension_heard(dir.path()).expect("the hello is kept");
             assert_eq!(
-                extension_heard(dir.path()),
-                Some(dm_protocol::Greeting::default())
+                heard.extension_version,
+                frame["extensionVersion"].as_str().unwrap_or("")
             );
         }
     }
@@ -1555,4 +1585,234 @@ fn an_extensions_greeting_is_kept() {
     };
     assert!(hello.has(dm_protocol::feature::RENEWS) && hello.renews);
     assert_eq!(extension_heard(dir.path()), Some(greeting));
+}
+
+/// The app drives the menu, the catch verdict and the panel's list (gaps row A22): its hello
+/// serves the menu less what Options leaves out, a caught download is judged by the rules saved
+/// now, a click on an item it added is filed as a hand-off, and the panel's list is its own.
+#[test]
+fn the_app_serves_the_menu_judges_catches_and_lists_streams() {
+    let dir = tempfile::tempdir().unwrap();
+    let said =
+        |frame: serde_json::Value| ask(dir.path(), frame, true, Ok(())).0.expect("an answer");
+    let hello = serde_json::json!({ "protocolVersion": 1, "type": "engine.hello" });
+    let Reply::Hello(first) = said(hello.clone()) else {
+        panic!("no hello")
+    };
+    for name in [
+        dm_protocol::feature::MENUS,
+        dm_protocol::feature::JUDGES_CATCH,
+        dm_protocol::feature::LISTS_STREAMS,
+    ] {
+        assert!(first.has(name), "{name}");
+    }
+    assert_eq!(first.menus.as_ref().map(Vec::len), Some(4));
+    assert_eq!(
+        first.status, None,
+        "the extension's own words say how the app is"
+    );
+
+    // Options changed: the next hello serves the menu without the item, and the next catch
+    // question is judged by the rules as saved now.
+    std::fs::write(
+        dir.path().join("settings.json"),
+        r#"{"catch":{"enabled":true,"extensions":[],"defaultsVersion":2,"minSizeKb":1024,"hiddenMenus":["dm-media"]}}"#,
+    )
+    .unwrap();
+    let Reply::Hello(changed) = said(hello) else {
+        panic!("no hello")
+    };
+    let ids: Vec<String> = changed.menus.unwrap().into_iter().map(|m| m.id).collect();
+    assert_eq!(ids, ["dm-link", "dm-all-links", "dm-selected-links"]);
+    let judge = |size: u64| {
+        serde_json::json!({
+            "protocolVersion": 1, "type": "catch.judge", "id": "j1",
+            "url": "https://example.com/a.zip", "size": size
+        })
+    };
+    match said(judge(10)) {
+        Reply::Judged { id, take, reason } => {
+            assert_eq!(id, "j1");
+            assert!(!take);
+            assert!(reason.unwrap().contains("minimum size"));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(
+        said(judge(5 << 20)),
+        Reply::Judged { take: true, .. }
+    ));
+    let filed = || -> Vec<std::path::PathBuf> {
+        std::fs::read_dir(inbox(dir.path()))
+            .map(|d| d.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default()
+    };
+    assert!(filed().is_empty(), "a question files nothing");
+
+    // A click on an item the app added: its link, filed as a hand-off.
+    let click = serde_json::json!({
+        "protocolVersion": 1, "type": "menu.clicked", "id": "c1", "item": "dm-new",
+        "linkUrl": "https://example.com/b.zip", "pageUrl": "https://example.com/list"
+    });
+    assert!(matches!(said(click), Reply::Started { ref id, .. } if id == "c1"));
+    let request: Request =
+        serde_json::from_str(&std::fs::read_to_string(inbox(dir.path()).join("c1.json")).unwrap())
+            .unwrap();
+    assert_eq!(request.url, "https://example.com/b.zip");
+    assert_eq!(request.referrer, "https://example.com/list");
+    assert!(!request.caught, "asked for, as a menu's link is");
+    let nothing = serde_json::json!({
+        "protocolVersion": 1, "type": "menu.clicked", "id": "c2", "item": "dm-new",
+        "pageUrl": "chrome://settings"
+    });
+    assert!(matches!(said(nothing), Reply::Failed { .. }));
+
+    // The panel's list: a picture and a sound fetched apart are one line.
+    let streams = serde_json::json!({
+        "protocolVersion": 1, "type": "media.streams", "page": "https://example.com/watch",
+        "streams": [
+            { "url": "https://cdn.example/v.mp4", "kind": "Picture", "size": 5000000, "label": "720p video file" },
+            { "url": "https://cdn.example/a.mp4", "kind": "Sound", "size": 900000, "label": "audio file" }
+        ]
+    });
+    let Reply::Streams { streams } = said(streams) else {
+        panic!("no list")
+    };
+    assert_eq!(streams.len(), 1);
+    assert_eq!(
+        streams[0].sound.as_deref(),
+        Some("https://cdn.example/a.mp4")
+    );
+}
+
+/// The host as the browser runs it: frames in on one pipe, answers out on the other, in turn;
+/// a frame that gets no answer (another version's) is skipped and the next one still answered.
+#[test]
+fn the_host_answers_each_frame_on_its_pipe_in_turn_and_skips_what_it_does_not_take() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut input = Vec::new();
+    for value in [
+        serde_json::json!({ "protocolVersion": 1, "type": "engine.hello", "extensionVersion": "3.5.0" }),
+        serde_json::json!({ "protocolVersion": 99, "type": "engine.hello" }),
+        serde_json::json!({ "protocolVersion": 1, "type": "catch.judge", "id": "j", "url": "https://e.com/a.zip" }),
+    ] {
+        input.extend(frame(&value));
+    }
+    let mut output = Vec::new();
+    serve(
+        dir.path(),
+        &mut input.as_slice(),
+        &mut output,
+        &mut pretend("application/zip", 0, 0),
+    );
+    let mut answers = output.as_slice();
+    let first = read_frame(&mut answers).expect("the hello's answer");
+    assert_eq!(first["type"], "engine.hello");
+    let second = read_frame(&mut answers).expect("the verdict");
+    assert_eq!(second["type"], "catch.judged");
+    assert_eq!(second["take"], true);
+    assert!(
+        read_frame(&mut answers).is_none(),
+        "the unread frame got nothing"
+    );
+}
+
+/// A browser that closed its end stops the host at once, with nothing written half.
+#[test]
+fn the_host_stops_when_the_browser_stops_reading() {
+    struct Closed;
+    impl Write for Closed {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let mut input = Vec::new();
+    for _ in 0..3 {
+        input.extend(frame(
+            &serde_json::json!({ "protocolVersion": 1, "type": "settings.get" }),
+        ));
+    }
+    let mut reader = input.as_slice();
+    serve(
+        dir.path(),
+        &mut reader,
+        &mut Closed,
+        &mut pretend("application/zip", 0, 0),
+    );
+    assert!(
+        !reader.is_empty(),
+        "the frames after the failed write are not read"
+    );
+}
+
+/// A click on an item the app added: its link, else the media's own address, else the page (or
+/// the frame it was in) read for its video; nothing where none is a web address.
+#[test]
+fn a_click_on_the_apps_own_item_hands_over_the_best_address_it_has() {
+    let click = |value: serde_json::Value| -> dm_protocol::MenuClicked {
+        serde_json::from_value(value).unwrap()
+    };
+    let on_media = menu_start(&click(serde_json::json!({
+        "id": "c1", "linkUrl": "javascript:void(0)", "srcUrl": " https://cdn.e.com/v.mp4 ",
+        "pageUrl": "https://e.com/watch", "cookies": "s=1", "cookiesOnce": true, "title": "Watch"
+    })))
+    .unwrap();
+    assert_eq!(on_media.url, "https://cdn.e.com/v.mp4");
+    assert_eq!(on_media.referrer, "https://e.com/watch");
+    assert_eq!(
+        (on_media.cookies.as_str(), on_media.cookies_once),
+        ("s=1", true)
+    );
+    assert_eq!(on_media.title, "Watch");
+    assert_eq!(on_media.quality, None, "a file is not read as a page");
+    let magnet = menu_start(&click(
+        serde_json::json!({ "id": "c2", "linkUrl": "magnet:?xt=urn:btih:00" }),
+    ))
+    .unwrap();
+    assert!(magnet.url.starts_with("magnet:"));
+    let in_frame = menu_start(&click(serde_json::json!({
+        "id": "c3", "srcUrl": "blob:https://e.com/1", "pageUrl": "https://e.com/",
+        "frameUrl": "https://player.e.com/embed/1"
+    })))
+    .unwrap();
+    assert_eq!(in_frame.url, "https://player.e.com/embed/1");
+    assert_eq!(in_frame.referrer, "");
+    assert_eq!(
+        in_frame.quality.as_deref(),
+        Some("best"),
+        "a page is read for its video"
+    );
+    let on_page = menu_start(&click(
+        serde_json::json!({ "id": "c4", "pageUrl": "ftp://e.com/pub/" }),
+    ))
+    .unwrap();
+    assert_eq!(on_page.url, "ftp://e.com/pub/");
+    assert!(menu_start(&click(
+        serde_json::json!({ "id": "c5", "pageUrl": "about:blank" })
+    ))
+    .is_err());
+    assert!(menu_start(&click(serde_json::json!({ "id": "c6" }))).is_err());
+}
+
+/// The app's hello is the same whichever extension asks, and an older one is answered whole:
+/// the fields 3.4.0 reads keep their meaning beside the ones added for 3.5.0.
+#[test]
+fn the_apps_hello_keeps_every_field_an_older_extension_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    let bare = serde_json::json!({ "protocolVersion": 1, "type": "engine.hello" });
+    let answer = answer(dir.path(), &bare, &mut pretend("application/zip", 0, 0)).unwrap();
+    assert_eq!(answer["protocolVersion"], 1);
+    assert_eq!(answer["renews"], true);
+    assert_eq!(answer["protocol"], dm_protocol::PROTOCOL_VERSION);
+    assert!(answer["engineVersion"]
+        .as_str()
+        .is_some_and(|v| !v.is_empty()));
+    assert!(answer["rules"].is_object());
+    let menus = answer["menus"].as_array().unwrap();
+    assert_eq!(menus.len(), dm_protocol::MENU_ITEMS.len());
+    assert!(answer.get("status").is_none());
 }

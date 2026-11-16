@@ -106,55 +106,10 @@ fn inside(host: &str) -> bool {
     }
 }
 
-/// What kind of media a stream is, which decides how the app fetches it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
-pub enum StreamKind {
-    /// An HLS playlist: the app fetches its segments and joins them.
-    Hls,
-    /// A DASH manifest: the app reads it, fetches picture and sound and
-    /// joins them itself.
-    Dash,
-    /// A whole audio or video file.
-    File,
-    /// The picture of a video a player fetches apart from its sound: not
-    /// offered alone, but with a sound as one line (`Stream::sound`).
-    Picture,
-    /// The sound that goes with a [`StreamKind::Picture`].
-    Sound,
-}
-
-/// Media a page loaded, offered in the panel beside what the app reads.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
-pub struct Stream {
-    /// The stream's address.
-    pub url: String,
-    /// What kind of media the stream is.
-    pub kind: StreamKind,
-    /// Its size, where the response said.
-    pub size: Option<u64>,
-    /// The label the panel lists it under.
-    pub label: String,
-    /// For a picture and a sound a player fetched apart, joined into one
-    /// line of the list: the address of the sound, which dm fetches with the
-    /// picture at `url` and joins.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sound: Option<String>,
-    /// For a playlist or manifest read: the addresses of the renditions and
-    /// sound tracks it lists, which a player fetches one by one and which are
-    /// not lines of their own beside it.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub members: Vec<String>,
-    /// How long it plays, in seconds, where its playlist or manifest said: said on its line
-    /// (gaps row 155), so two videos' streams of one page are told apart.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub length: Option<u64>,
-    /// A whole MP4 file a player fetched in byte ranges asked for in its `Range` header, not
-    /// in its address (Bilibili's picture and sound, gaps row 155): picture or sound by its
-    /// type until its first bytes are read ([`mp4_track`]), as such a server may call both
-    /// `video/mp4`; and not a line beside a playlist or manifest, whose own files it may be.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub by_ranges: bool,
-}
+pub use dm_protocol::media::{
+    label_height, panel_list, Stream, StreamKind, CLIP_FLOOR, DASH_PLAIN, DASH_SOUND, HLS_PLAIN,
+    HLS_SOUND, RANGED_PICTURE, RANGED_SOUND,
+};
 
 /// A whole file smaller than this is a thumbnail, a sound effect or an ad
 /// beacon, not something a person came to download.
@@ -413,23 +368,8 @@ fn hls_label(path: &str) -> String {
     }
 }
 
-/// The label of a playlist that carries only sound.
-const HLS_SOUND: &str = "HLS sound";
-
-/// The label of a manifest that carries only sound.
-const DASH_SOUND: &str = "DASH sound";
-
-/// The labels of a playlist or manifest nothing is known of yet; the ones
-/// [`Streams::wants_description`] asks to have read.
-const HLS_PLAIN: &str = "HLS stream";
-const DASH_PLAIN: &str = "DASH stream";
-
 /// The most of a playlist or manifest that is read for its qualities.
 pub const PLAYLIST_READ_CAP: usize = 256 * 1024;
-
-/// A file smaller than this, beside something larger, is a sign-in page's
-/// clip, an advert or a preview, not the video the person came for.
-pub const CLIP_FLOOR: u64 = 512 * 1024;
 
 /// One rendition a master playlist lists: a picture with its sound, or a
 /// sound track alone.
@@ -802,22 +742,6 @@ pub fn dash_label(body: &str) -> Option<String> {
     }
 }
 
-/// The picture height a line's label names (`720p HLS stream`, `1080p60 …`),
-/// for sorting the best first.
-fn label_height(label: &str) -> u32 {
-    // A manifest named by nothing but its kind is not known to be less than
-    // the renditions named beside it: it is usually their master.
-    if label == HLS_PLAIN || label == DASH_PLAIN {
-        return u32::MAX;
-    }
-    let digits: String = label.chars().take_while(|c| c.is_ascii_digit()).collect();
-    if label[digits.len()..].starts_with('p') {
-        digits.parse().unwrap_or(0)
-    } else {
-        0
-    }
-}
-
 /// `text` with its percent escapes read (`%3D` as `=`): a CDN writes the padding of a
 /// base64 value that way in an address, and the value is not base64 until it is read.
 fn percent_decoded(text: &str) -> String {
@@ -960,11 +884,6 @@ fn ranged_line(sound: bool, height: Option<u32>) -> (StreamKind, String) {
         (false, None) => (StreamKind::Picture, RANGED_PICTURE.to_string()),
     }
 }
-
-/// What a picture and a sound found by [`ranged_of`] are called. A file with one of these names
-/// and no partner is a whole file all the same, and is offered as one.
-const RANGED_PICTURE: &str = "video file";
-const RANGED_SOUND: &str = "audio file";
 
 /// A picture or a sound of any site's player that fetches each as a file in byte ranges named in
 /// the address (`bytestart` and `byteend`, or `range`): the file is the address without them, and
@@ -1473,108 +1392,8 @@ impl Streams {
         self.by_tab.get(&tab).cloned().unwrap_or_default()
     }
 
-    /// What a tab has loaded, for the panel's list: manifests first, which
-    /// are whole videos, then files, largest first. Two of a kind are told
-    /// apart by their file name.
+    /// What a tab has loaded, for the panel's list ([`panel_list`]).
     pub fn of(&self, tab: i64) -> Vec<Stream> {
-        let mut list = self.by_tab.get(&tab).cloned().unwrap_or_default();
-        // Beside a playlist or manifest, the whole files a player fetched by ranges are that
-        // stream's own (an HLS or DASH stream's single-file renditions), not lines of their own.
-        if list
-            .iter()
-            .any(|s| matches!(s.kind, StreamKind::Hls | StreamKind::Dash))
-        {
-            list.retain(|s| !s.by_ranges);
-        }
-        // A picture and a sound a player fetched apart are one line, with
-        // the largest of each: the best the page has loaded.
-        let largest = |list: &[Stream], kind: StreamKind| {
-            list.iter()
-                .filter(|s| s.kind == kind)
-                .max_by_key(|s| s.size.unwrap_or(0))
-                .cloned()
-        };
-        let (picture, sound) = (
-            largest(&list, StreamKind::Picture),
-            largest(&list, StreamKind::Sound),
-        );
-        list.retain(|s| !matches!(s.kind, StreamKind::Picture | StreamKind::Sound));
-        // A file found by its byte ranges that has no partner is a whole file on its own.
-        let alone = match (&picture, &sound) {
-            (Some(p), None) if p.label.ends_with(RANGED_PICTURE) => Some(p.clone()),
-            (None, Some(s)) if s.label == RANGED_SOUND => Some(s.clone()),
-            _ => None,
-        };
-        if let Some(mut file) = alone {
-            file.kind = StreamKind::File;
-            list.push(file);
-        }
-        // A playlist of sound alone is not offered beside a stream with a
-        // picture: it would save the sound and nothing else.
-        if list
-            .iter()
-            .any(|s| s.kind == StreamKind::Hls && s.label != HLS_SOUND)
-        {
-            list.retain(|s| !(s.kind == StreamKind::Hls && s.label == HLS_SOUND));
-        }
-        if list
-            .iter()
-            .any(|s| s.kind == StreamKind::Dash && s.label != DASH_SOUND)
-        {
-            list.retain(|s| !(s.kind == StreamKind::Dash && s.label == DASH_SOUND));
-        }
-        if let (Some(picture), Some(sound)) = (picture, sound) {
-            list.push(Stream {
-                url: picture.url,
-                kind: StreamKind::File,
-                size: picture.size.zip(sound.size).map(|(a, b)| a + b),
-                label: format!("{} + sound", picture.label),
-                sound: Some(sound.url),
-                members: Vec::new(),
-                length: None,
-                by_ranges: false,
-            });
-        }
-        // A small clip beside something larger (a sign-in page's, an advert,
-        // a preview) is not what the person came for. Alone, it is the post.
-        let snapshot = list.clone();
-        list.retain(|s| {
-            let small = s.kind == StreamKind::File && s.size.is_some_and(|z| z < CLIP_FLOOR);
-            !small
-                || !snapshot.iter().any(|other| {
-                    other.url != s.url
-                        && (other.kind != StreamKind::File
-                            || other.size.is_none_or(|z| z >= CLIP_FLOOR))
-                })
-        });
-        // Manifests first (whole videos), the tallest picture first among
-        // them, then files, the largest first.
-        list.sort_by_key(|s| {
-            (
-                s.kind == StreamKind::File,
-                std::cmp::Reverse(s.size.unwrap_or(0)),
-                std::cmp::Reverse(label_height(&s.label)),
-            )
-        });
-        let labels: Vec<String> = list.iter().map(|s| s.label.clone()).collect();
-        for stream in &mut list {
-            if labels.iter().filter(|l| **l == stream.label).count() > 1 {
-                let name = stream
-                    .url
-                    .split(['?', '#'])
-                    .next()
-                    .unwrap_or("")
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or("")
-                    .chars()
-                    .take(40)
-                    .collect::<String>();
-                if !name.is_empty() {
-                    stream.label = format!("{} · {name}", stream.label);
-                }
-            }
-        }
-        list
+        panel_list(self.by_tab.get(&tab).cloned().unwrap_or_default())
     }
 }

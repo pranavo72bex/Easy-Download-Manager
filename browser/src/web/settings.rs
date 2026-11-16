@@ -72,6 +72,35 @@ pub(super) async fn ensure_served() {
     }
 }
 
+/// Where the right-click menu the app last served is kept (`Hello::menus`).
+pub(super) const MENUS_KEY: &str = "dm.menus";
+
+/// Keeps the menu the app served (or that it served none: an older app's extension makes its
+/// own), and makes the browser's menu again where it changed.
+pub(super) async fn remember_menus(menus: Option<&[dm_protocol::MenuItem]>) {
+    if remembered_menus().await.as_deref() == menus {
+        return;
+    }
+    let Ok(value) = serde_json::to_value(menus) else {
+        return;
+    };
+    let item = to_js(&serde_json::json!({ MENUS_KEY: value }));
+    if let Err(why) = call("storage.local", "set", &[item]).await {
+        log("debug", &format!("the served menu was not kept: {why}"));
+    }
+    make_menus().await;
+}
+
+/// The menu the app last served, if it served one.
+pub(super) async fn remembered_menus() -> Option<Vec<dm_protocol::MenuItem>> {
+    let got = call("storage.local", "get", &[JsValue::from_str(MENUS_KEY)])
+        .await
+        .ok()?;
+    serde_json::from_value::<Option<Vec<dm_protocol::MenuItem>>>(from_js(&field(&got, MENUS_KEY)))
+        .ok()
+        .flatten()
+}
+
 /// The catch rules the app last sent, if any were kept.
 pub(super) async fn remembered_rules() -> Option<CatchRules> {
     let got = call("storage.local", "get", &[JsValue::from_str(RULES_KEY)])

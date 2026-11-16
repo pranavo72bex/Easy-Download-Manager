@@ -38,6 +38,15 @@
 //! | `download.start`  | `download.started`, or `download.failed`      |
 //! | `media.formats`   | `media.formats` with `choices`, or a `reason` |
 //! | `download.batch`  | `download.started`, or `download.failed`      |
+//! | `catch.judge`     | `catch.judged`: the app's rules as saved now  |
+//! | `menu.clicked`    | `download.started`, or `download.failed`      |
+//! | `media.streams`   | `media.streams`: the panel's list             |
+//!
+//! **The extension does the bare minimum.** What needs the browser stays in it (catching and
+//! holding a download, the cookies, headers and links only it sees, its menu, popup and panel);
+//! what to do is the app's: the menu it serves ([`Hello::menus`]), whether a caught download is
+//! taken ([`Request::Judge`]), the words said ([`Notice`], [`Hello::status`]) and the panel's
+//! list ([`media::panel_list`]). Each is a [`feature`] name, so an older side goes on as before.
 //!
 //! **The app moves ahead of the extension.** A browser store can hold an extension's update
 //! back for days while the app updates itself, so the rule is that a newer app never stops an
@@ -62,6 +71,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod media;
 mod rules;
 pub use rules::{
     AnswerRule, ExcludeRules, Finder, Rules, SiteProfile, MAX_RULES_BYTES, RULES_FORMAT,
@@ -111,6 +121,14 @@ pub mod kind {
     pub const FAILED: &str = "download.failed";
     /// [`Request::Show`]: bring the app's window to the front.
     pub const SHOW: &str = "app.show";
+    /// [`Request::Judge`] and its answer, [`Reply::Judged`].
+    pub const JUDGE: &str = "catch.judge";
+    /// [`Reply::Judged`].
+    pub const JUDGED: &str = "catch.judged";
+    /// [`Request::MenuClicked`]: an item of the menu the app served was clicked.
+    pub const MENU_CLICKED: &str = "menu.clicked";
+    /// [`Request::Streams`] and its answer, [`Reply::Streams`].
+    pub const STREAMS: &str = "media.streams";
 }
 
 /// What the extension asks.
@@ -145,6 +163,210 @@ pub enum Request {
     /// running: what the toolbar button does. It hands over nothing.
     #[serde(rename = "app.show")]
     Show,
+    /// Would the app take this download the browser started, by its catch rules as they are
+    /// now. Sent only to an app whose hello says [`feature::JUDGES_CATCH`]; the extension
+    /// judges with the rules' code it was built with otherwise.
+    #[serde(rename = "catch.judge")]
+    Judge(Judge),
+    /// An item of the right-click menu the app served ([`Hello::menus`]) whose
+    /// [`MenuItem::does`] is [`menu_does::APP`] was clicked: what the browser said of the
+    /// click, for the app to choose what it takes. Answered as a hand-off is.
+    #[serde(rename = "menu.clicked")]
+    MenuClicked(MenuClicked),
+    /// The streams a tab's player loaded, as the extension kept them, for the app to make the
+    /// panel's list of ([`media::panel_list`]). Sent only to an app whose hello says
+    /// [`feature::LISTS_STREAMS`].
+    #[serde(rename = "media.streams")]
+    Streams(StreamsAsked),
+}
+
+/// A download the browser started, as far as the catch rules judge it ([`Request::Judge`]).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Judge {
+    /// The extension's name for this question, echoed in the answer.
+    pub id: String,
+    /// Where the bytes come from, after redirects when the browser knows.
+    pub url: String,
+    /// The address the download was asked for, before any redirect.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub asked_url: String,
+    /// The page it was started from.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub referrer: String,
+    /// The name the browser chose, where it has chosen.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub filename: String,
+    /// What the server said it is sending.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub mime: String,
+    /// Its size in bytes, where the browser knows it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    /// Which of [`BROWSERS`] it was started in.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub browser: String,
+    /// The person asked for this one (a click with the take key held, or the toolbar popup's
+    /// "every download from this site"): type and size do not count, the app's switch and its
+    /// sites to leave alone still do.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub every_type: bool,
+}
+
+impl Judge {
+    /// The download, as [`CatchRules::takes`] reads one.
+    pub fn candidate(&self) -> Candidate<'_> {
+        Candidate {
+            url: &self.url,
+            asked_url: &self.asked_url,
+            referrer: &self.referrer,
+            filename: &self.filename,
+            mime: &self.mime,
+            size: self.size,
+        }
+    }
+
+    /// Whether `rules` take it, or why not, in words for the extension's log.
+    pub fn judged_by(&self, rules: &CatchRules) -> Result<(), String> {
+        if !self.browser.is_empty() && !rules.takes_from(&self.browser) {
+            return Err(format!(
+                "dm takes no downloads from {} (Options › Browser)",
+                self.browser
+            ));
+        }
+        rules
+            .takes(&self.candidate(), self.every_type)
+            .map_err(|left| left.reason().to_string())
+    }
+}
+
+/// A click on an item of the menu the app served ([`Request::MenuClicked`]): the browser's
+/// `contextMenus.OnClickData`, as far as a hand-off can use it, and what the extension reads
+/// beside it.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MenuClicked {
+    /// The extension's name for this hand-off, echoed in the answer.
+    pub id: String,
+    /// Which item: its [`MenuItem::id`].
+    pub item: String,
+    /// The link right-clicked, if any.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub link_url: String,
+    /// The picture's, video's or sound's address, if any.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub src_url: String,
+    /// The page's address.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub page_url: String,
+    /// The address of the frame the click was in.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub frame_url: String,
+    /// The text selected, if any.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub selection_text: String,
+    /// "image", "video" or "audio", where the click was on one.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub media_type: String,
+    /// The tab's title.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub title: String,
+    /// The browser's cookies for the clicked address's site, where the person hands that
+    /// site's sign-in over (the toolbar popup, or Options for every site).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub cookies: String,
+    /// Those cookies are for this download alone.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub cookies_once: bool,
+}
+
+/// A tab's streams, for the app to make the panel's list of ([`Request::Streams`]).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct StreamsAsked {
+    /// The page the tab is on.
+    pub page: String,
+    /// What the tab's player loaded, as the extension kept it, oldest first.
+    pub streams: Vec<media::Stream>,
+}
+
+/// What an item of the menu the app serves does, by a mechanism the extension knows
+/// ([`MenuItem::does`]). A new item the app adds uses [`menu_does::APP`]: the click goes to
+/// the app, which chooses what to take from it, so an extension as released carries it.
+pub mod menu_does {
+    /// The link right-clicked, handed over (or downloaded by the browser where dm cannot).
+    pub const LINK: &str = "link";
+    /// The video or sound right-clicked, or its page where its address is a player's own.
+    pub const MEDIA: &str = "media";
+    /// Every link of the page, for the app's "Download links" dialog.
+    pub const ALL_LINKS: &str = "all-links";
+    /// The links of the selection, for the same dialog.
+    pub const SELECTED_LINKS: &str = "selected-links";
+    /// Sent to the app as it was clicked ([`super::Request::MenuClicked`]).
+    pub const APP: &str = "app";
+    /// Every mechanism an extension that says [`super::feature::MENUS`] knows.
+    pub const ALL: [&str; 5] = [LINK, MEDIA, ALL_LINKS, SELECTED_LINKS, APP];
+}
+
+/// One item of the browser's right-click menu, as the app serves it ([`Hello::menus`]).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct MenuItem {
+    /// Its id, which a click names.
+    pub id: String,
+    /// Its words, in English. The extension says an item it knows by id in the browser's
+    /// language instead.
+    pub title: String,
+    /// Where the browser offers it: "link", "page", "selection", "video", "audio", "image".
+    pub contexts: Vec<String>,
+    /// What a click does: one of [`menu_does`]. An item the extension does not know how to
+    /// carry out is not made.
+    pub does: String,
+}
+
+/// The right-click menu as the app serves it: [`MENU_ITEMS`] less those Options leaves out
+/// (`hidden_menus`), each with where the browser offers it and what it does — the menu an
+/// extension of 3.4.0 makes for itself.
+pub fn served_menus(rules: &CatchRules) -> Vec<MenuItem> {
+    MENU_ITEMS
+        .iter()
+        .filter(|(id, _)| rules.shows_menu(id))
+        .map(|(id, title)| {
+            let (contexts, does): (&[&str], &str) = match *id {
+                "dm-link" => (&["link"], menu_does::LINK),
+                "dm-media" => (&["video", "audio"], menu_does::MEDIA),
+                "dm-all-links" => (&["page"], menu_does::ALL_LINKS),
+                _ => (&["selection"], menu_does::SELECTED_LINKS),
+            };
+            MenuItem {
+                id: (*id).to_string(),
+                title: (*title).to_string(),
+                contexts: contexts.iter().map(|c| (*c).to_string()).collect(),
+                does: does.to_string(),
+            }
+        })
+        .collect()
+}
+
+/// Words the app sends for the extension to show in place of its own
+/// ([`feature::SAYS`]): a notification's title and body.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct Notice {
+    /// The notification's title.
+    pub title: String,
+    /// Its body.
+    pub body: String,
+}
+
+/// The toolbar popup's status line, as the app would have it said ([`Hello::status`]).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct StatusLine {
+    /// The line.
+    pub line: String,
+    /// Said as something wrong (in the popup's warning colour).
+    pub bad: bool,
 }
 
 /// What the extension says of itself in its hello, so that the app, which is updated more
@@ -180,6 +402,19 @@ pub mod feature {
     /// Extension: sends a newer address of a stream it handed over (`Start::renews`).
     /// App: takes one for a row whose address ran out (the same as [`super::Hello::renews`]).
     pub const RENEWS: &str = "renews";
+    /// App: serves the right-click menu in its hello ([`super::Hello::menus`]) and answers
+    /// `menu.clicked`. Extension: makes the menu the app serves, in place of its own.
+    pub const MENUS: &str = "menus";
+    /// App: answers `catch.judge` by its catch rules as they are now. Extension: asks, in
+    /// place of judging with the rules' code it was built with, so a rule added to the app
+    /// works with the extension as released.
+    pub const JUDGES_CATCH: &str = "judges-catch";
+    /// Extension: shows the words a reply carries ([`super::Notice`],
+    /// [`super::Hello::status`]) in place of its own; its own where none come.
+    pub const SAYS: &str = "says";
+    /// App: answers `media.streams` with the panel's list. Extension: asks, in place of making
+    /// the list with the code it was built with.
+    pub const LISTS_STREAMS: &str = "lists-streams";
 }
 
 /// Links handed over together.
@@ -443,6 +678,10 @@ pub enum Reply {
         /// sent when false, and read as false from an app that does not say.
         #[serde(default, skip_serializing_if = "is_false")]
         shown: bool,
+        /// What the browser says of it, in place of the extension's own toast
+        /// ([`feature::SAYS`]). Absent: the extension's own words.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice: Option<Notice>,
     },
     /// The app did not take the download; the browser keeps it.
     #[serde(rename = "download.failed")]
@@ -452,6 +691,10 @@ pub enum Reply {
         /// Why, where the host can say.
         #[serde(default)]
         failure: Option<Failure>,
+        /// What the browser says of it, in place of the extension's own notification
+        /// ([`feature::SAYS`]). Absent: the extension's own title, with `failure`'s words.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice: Option<Notice>,
     },
     /// The qualities on offer, best first; empty with a `reason` when the
     /// page could not be read.
@@ -470,6 +713,24 @@ pub enum Reply {
         /// Why the window could not be shown, in words for the popup.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
+    },
+    /// The answer to [`Request::Judge`]: whether the app takes the download.
+    #[serde(rename = "catch.judged")]
+    Judged {
+        /// The question's [`Judge::id`].
+        id: String,
+        /// The app takes it; the extension holds it and hands it over.
+        take: bool,
+        /// Why not, in words for the extension's log.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+    /// The panel's list of a tab's streams, made by the app ([`media::panel_list`]).
+    #[serde(rename = "media.streams")]
+    Streams {
+        /// The lines, in the panel's order.
+        #[serde(default)]
+        streams: Vec<media::Stream>,
     },
 }
 
@@ -496,6 +757,14 @@ pub struct Hello {
     /// field, which said each ability in a field of its own (`renews`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub features: Vec<String>,
+    /// The right-click menu the app wants made ([`feature::MENUS`]). Absent from an app that
+    /// serves none, whose extension makes its own; empty is a menu with nothing in it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub menus: Option<Vec<MenuItem>>,
+    /// The toolbar popup's status line as the app would have it said ([`feature::SAYS`]).
+    /// Absent: the extension's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<StatusLine>,
 }
 
 impl Hello {
@@ -635,6 +904,16 @@ impl Reply {
             failure: Some(Failure {
                 message: message.into(),
             }),
+            notice: None,
+        }
+    }
+
+    /// A hand-off taken, `shown` where the app's own window comes forward to ask about it.
+    pub fn started(id: &str, shown: bool) -> Self {
+        Reply::Started {
+            id: id.into(),
+            shown,
+            notice: None,
         }
     }
 }

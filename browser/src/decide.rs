@@ -51,3 +51,7 @@ mod test_secrets;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "decide/contract/tests.rs"]
+mod contract_tests;
