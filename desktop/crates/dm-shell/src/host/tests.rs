@@ -1603,6 +1603,7 @@ fn the_app_serves_the_menu_judges_catches_and_lists_streams() {
         dm_protocol::feature::MENUS,
         dm_protocol::feature::JUDGES_CATCH,
         dm_protocol::feature::LISTS_STREAMS,
+        dm_protocol::feature::LISTS_DOWNLOADS,
     ] {
         assert!(first.has(name), "{name}");
     }
@@ -1815,4 +1816,66 @@ fn the_apps_hello_keeps_every_field_an_older_extension_reads() {
     let menus = answer["menus"].as_array().unwrap();
     assert_eq!(menus.len(), dm_protocol::MENU_ITEMS.len());
     assert!(answer.get("status").is_none());
+}
+
+/// The toolbar popup's list (gaps row U18): what the window last wrote, while dm runs; with dm
+/// gone, nothing running, and its last failure still said.
+#[test]
+fn the_popup_is_told_what_the_window_is_fetching() {
+    let dir = tempfile::tempdir().unwrap();
+    let frame = dm_protocol::Request::Downloads.to_frame();
+    // Nothing written yet: nothing running.
+    let (reply, _) = ask(dir.path(), frame.clone(), true, Ok(()));
+    assert_eq!(
+        reply,
+        Some(Reply::Downloads {
+            downloads: Vec::new(),
+            running: 0,
+            failed: None,
+        })
+    );
+    let published = crate::app::going::Published {
+        at_ms: 0,
+        downloads: vec![dm_protocol::Going {
+            name: "a.iso".into(),
+            percent: Some(12),
+            speed: 3_000_000,
+        }],
+        running: 7,
+        failed: Some(dm_protocol::LastFailure {
+            name: "b.zip".into(),
+            why: "the server refused it".into(),
+        }),
+    };
+    std::fs::write(
+        crate::app::going::file(dir.path()),
+        serde_json::to_vec(&published).unwrap(),
+    )
+    .unwrap();
+    let (
+        Some(Reply::Downloads {
+            downloads,
+            running,
+            failed,
+        }),
+        _,
+    ) = ask(dir.path(), frame.clone(), true, Ok(()))
+    else {
+        panic!("no list")
+    };
+    assert_eq!((downloads, running), (published.downloads.clone(), 7));
+    assert_eq!(failed, published.failed);
+    // dm is not running: what it wrote no longer runs, and nothing is started to say so.
+    let (
+        Some(Reply::Downloads {
+            downloads, failed, ..
+        }),
+        launched,
+    ) = ask(dir.path(), frame, false, Ok(()))
+    else {
+        panic!("no list")
+    };
+    assert!(downloads.is_empty());
+    assert_eq!(failed, published.failed);
+    assert!(!launched, "asking for the list starts no dm");
 }

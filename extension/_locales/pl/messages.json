@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm nie jest jeszcze połączony z tą przeglądarką. Nie masz jeszcze aplikacji dm na tym komputerze? Kliknij poniżej „Pobierz aplikację dm”, zainstaluj ją i otwórz raz. Już zainstalowana: otwórz dm raz (jeśli jest już otwarty, otwórz go ponownie), aby mógł się połączyć, a potem ponownie otwórz to okno. Zaawansowane: $COMMAND$",
+    "message": "dm nie jest jeszcze połączony z tą przeglądarką."
+  },
+  "popupStepGet": {
+    "message": "1. Nie masz jeszcze aplikacji dm na tym komputerze? Pobierz ją, zainstaluj i otwórz raz."
+  },
+  "popupStepOpen": {
+    "message": "2. Już zainstalowana? Otwórz dm (jeśli jest już otwarty, otwórz go ponownie). To okno połączy się samo."
+  },
+  "popupAdvanced": {
+    "message": "Zaawansowane: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "i $COUNT$ więcej",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Nie powiodło się: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm nie odpowiedział ($REASON$). Otwórz dm (jeśli jest już otwarty, otwórz go ponownie), a potem ponownie otwórz to okno. Jeśli nadal nie odpowiada: $COMMAND$",
+    "message": "dm nie odpowiedział ($REASON$). Otwórz dm (jeśli jest już otwarty, otwórz go ponownie); to okno spróbuje ponownie samo. Jeśli nadal nie odpowiada: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

@@ -385,6 +385,14 @@ at once rather than at the next half-second poll), answers, and exits with
 the port the browser owns. It is one-way past `download.started`: the app's
 window is where the download is.
 
+The toolbar popup lists what dm is fetching (`downloads.list`, gaps row U18). The host is a
+process per message with no line to the window, and the control port is open only where a person
+asked for it, so the window writes what runs into `going.json` in dm's home as it reads the queue
+(`app::going`): at most once a second while anything runs, once as the last stops, at once when a
+download fails, and only once a browser's extension has talked to this dm. The host reads it when
+the popup asks and says nothing runs where it is over five seconds old or no dm runs. The popup
+asks every two seconds while it is open, which also connects it by itself once dm can be reached.
+
 **Never losing a download.** A caught download is paused while the app is
 asked, and cancelled only once the app says it has it. No app, no answer, a
 refusal, or a server that will not serve dm: the browser's download is

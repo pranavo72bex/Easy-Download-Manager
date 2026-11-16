@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm n'est pas encore connecté à ce navigateur. Pas encore d'application dm sur cet ordinateur ? Cliquez sur « Obtenir l'application dm » ci-dessous, installez-la et ouvrez-la une fois. Déjà installée : ouvrez dm une fois (s'il est déjà ouvert, ouvrez-le à nouveau) pour qu'il puisse se connecter, puis rouvrez cette fenêtre. Avancé : $COMMAND$",
+    "message": "dm n'est pas encore connecté à ce navigateur."
+  },
+  "popupStepGet": {
+    "message": "1. Pas encore d'application dm sur cet ordinateur ? Téléchargez-la, installez-la et ouvrez-la une fois."
+  },
+  "popupStepOpen": {
+    "message": "2. Déjà installée ? Ouvrez dm (s'il est déjà ouvert, ouvrez-le à nouveau). Cette fenêtre se connecte d'elle-même."
+  },
+  "popupAdvanced": {
+    "message": "Avancé : $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "et $COUNT$ de plus",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Échec : $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm n'a pas répondu ($REASON$). Ouvrez dm (s'il est déjà ouvert, ouvrez-le à nouveau), puis rouvrez cette fenêtre. S'il ne répond toujours pas : $COMMAND$",
+    "message": "dm n'a pas répondu ($REASON$). Ouvrez dm (s'il est déjà ouvert, ouvrez-le à nouveau) ; cette fenêtre réessaie d'elle-même. S'il ne répond toujours pas : $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

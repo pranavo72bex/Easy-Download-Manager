@@ -96,8 +96,8 @@ fn the_english_fills_its_gaps_once_and_in_order() {
     assert_eq!(POPUP_AND.english(&["a.com", "b.com"]), "a.com and b.com");
     assert_eq!(
         POPUP_NOT_ANSWERING.english(&["timed out", "dm-desktop --register"]),
-        "dm did not answer (timed out). Open dm (if it's already open, open it again), then \
-         reopen this popup. If it still does not answer: dm-desktop --register"
+        "dm did not answer (timed out). Open dm (if it's already open, open it again); this \
+         popup tries again by itself. If it still does not answer: dm-desktop --register"
     );
     // What fills a gap is not read for gaps of its own.
     assert_eq!(PANEL_NEVER_ON.english(&["$SITE$"]), "Never on $SITE$");
@@ -152,10 +152,11 @@ fn the_english_is_what_the_extension_said_before() {
             CHROME_EXTENSION_ID,
             false
         ),
-        "dm isn't connected to this browser yet. No dm app on this computer yet? click Get the dm \
-         app below, install it and open it once. Already installed: open dm once (if it's already \
-         open, open it again) so it can connect, then reopen this popup. Advanced: dm-desktop \
-         --register"
+        "dm isn't connected to this browser yet."
+    );
+    assert_eq!(
+        crate::decide::popup_register(CHROME_EXTENSION_ID, false),
+        "Advanced: dm-desktop --register"
     );
     assert_eq!(
         absent_text("Specified native messaging host not found.", "abc", false),
@@ -166,8 +167,8 @@ fn the_english_is_what_the_extension_said_before() {
     );
     assert_eq!(
         absent_popup_text("timed out", "abc", false),
-        "dm did not answer (timed out). Open dm (if it's already open, open it again), then \
-         reopen this popup. If it still does not answer: dm-desktop --register abc"
+        "dm did not answer (timed out). Open dm (if it's already open, open it again); this \
+         popup tries again by itself. If it still does not answer: dm-desktop --register abc"
     );
     assert_eq!(
         absent_text("timed out", "abc", true),
@@ -314,7 +315,7 @@ fn the_popups_words_are_each_in_the_catalog() {
         at = &after[open + 1 + text.len()..];
     }
     rest.push_str(at);
-    assert_eq!(marked, 8);
+    assert_eq!(marked, 10);
     // The text left between tags.
     let left: Vec<&str> = rest
         .split('>')

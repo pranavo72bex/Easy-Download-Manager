@@ -159,16 +159,49 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm isn't connected to this browser yet. No dm app on this computer yet? click Get the dm app below, install it and open it once. Already installed: open dm once (if it's already open, open it again) so it can connect, then reopen this popup. Advanced: $COMMAND$",
-    "description": "The status line when the browser finds no dm to talk to.",
+    "message": "dm isn't connected to this browser yet.",
+    "description": "The status line when the browser finds no dm to talk to."
+  },
+  "popupStepGet": {
+    "message": "1. No dm app on this computer yet? Get it, install it and open it once.",
+    "description": "The first step when the browser finds no dm: getting the app."
+  },
+  "popupStepOpen": {
+    "message": "2. Already installed? Open dm (if it's already open, open it again). This popup connects by itself.",
+    "description": "The second step when the browser finds no dm: opening the app, after which the popup connects by itself."
+  },
+  "popupAdvanced": {
+    "message": "Advanced: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
+    },
+    "description": "Below the two steps, folded away: the command that registers dm with this browser."
+  },
+  "popupMore": {
+    "message": "and $COUNT$ more",
+    "description": "Under the popup's list of downloads: how many more run than are listed.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Failed: $NAME$ ($WHY$)",
+    "description": "Under the popup's list: the app's last download that failed, and why in the app's words.",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
     }
   },
   "popupNotAnswering": {
-    "message": "dm did not answer ($REASON$). Open dm (if it's already open, open it again), then reopen this popup. If it still does not answer: $COMMAND$",
+    "message": "dm did not answer ($REASON$). Open dm (if it's already open, open it again); this popup tries again by itself. If it still does not answer: $COMMAND$",
     "description": "The status line when dm is there and did not answer.",
     "placeholders": {
       "reason": {

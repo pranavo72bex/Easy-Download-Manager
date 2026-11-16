@@ -811,6 +811,7 @@ pub fn answer(
                     feature::MENUS,
                     feature::JUDGES_CATCH,
                     feature::LISTS_STREAMS,
+                    feature::LISTS_DOWNLOADS,
                 ]
                 .map(String::from)
                 .to_vec(),
@@ -946,6 +947,17 @@ pub fn answer(
         Ok(Asked::Streams(asked)) => Reply::Streams {
             streams: dm_protocol::media::panel_list(asked.streams),
         },
+
+        // What the window is fetching, as it last wrote it (`app::going`), for the toolbar popup.
+        Ok(Asked::Downloads) => {
+            let running = world.app_running();
+            let published = crate::app::going::read(home, world.now_ms(), running);
+            Reply::Downloads {
+                downloads: published.downloads,
+                running: published.running,
+                failed: published.failed,
+            }
+        }
 
         // Another version, or something this host does not do: pausing and
         // cancelling belong to the window, which is where the download is.

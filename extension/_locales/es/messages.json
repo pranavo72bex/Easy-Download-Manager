@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm aún no está conectado a este navegador. ¿Aún no tienes la aplicación dm en este equipo? Haz clic abajo en «Obtener la aplicación dm», instálala y ábrela una vez. Si ya está instalada: abre dm una vez (si ya está abierto, ábrelo de nuevo) para que pueda conectarse y luego vuelve a abrir esta ventana. Avanzado: $COMMAND$",
+    "message": "dm todavía no está conectado a este navegador."
+  },
+  "popupStepGet": {
+    "message": "1. ¿Aún no tiene la app dm en este equipo? Descárguela, instálela y ábrala una vez."
+  },
+  "popupStepOpen": {
+    "message": "2. ¿Ya está instalada? Abra dm (si ya está abierta, vuelva a abrirla). Esta ventana se conecta sola."
+  },
+  "popupAdvanced": {
+    "message": "Avanzado: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "y $COUNT$ más",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Falló: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm no respondió ($REASON$). Abre dm (si ya está abierto, ábrelo de nuevo) y luego vuelve a abrir esta ventana. Si sigue sin responder: $COMMAND$",
+    "message": "dm no respondió ($REASON$). Abra dm (si ya está abierta, vuelva a abrirla); esta ventana lo vuelve a intentar sola. Si sigue sin responder: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm belum terhubung ke browser ini. Belum ada aplikasi dm di komputer ini? Klik “Dapatkan aplikasi dm” di bawah, pasang, lalu buka sekali. Sudah terpasang: buka dm sekali (jika sudah terbuka, buka lagi) agar dapat terhubung, lalu buka kembali jendela ini. Lanjutan: $COMMAND$",
+    "message": "dm belum terhubung ke peramban ini."
+  },
+  "popupStepGet": {
+    "message": "1. Belum ada aplikasi dm di komputer ini? Dapatkan, pasang, lalu buka sekali."
+  },
+  "popupStepOpen": {
+    "message": "2. Sudah terpasang? Buka dm (jika sudah terbuka, buka lagi). Jendela ini terhubung dengan sendirinya."
+  },
+  "popupAdvanced": {
+    "message": "Lanjutan: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "dan $COUNT$ lainnya",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Gagal: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm tidak menjawab ($REASON$). Buka dm (jika sudah terbuka, buka lagi), lalu buka kembali jendela ini. Jika masih tidak menjawab: $COMMAND$",
+    "message": "dm tidak menjawab ($REASON$). Buka dm (jika sudah terbuka, buka lagi); jendela ini mencoba lagi dengan sendirinya. Jika masih tidak menjawab: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

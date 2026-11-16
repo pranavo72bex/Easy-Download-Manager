@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm はまだこのブラウザーに接続されていません。このコンピューターに dm アプリがまだない場合は、下の「dm アプリを入手」をクリックし、インストールして一度開いてください。インストール済みの場合は、dm を一度開いて（すでに開いている場合はもう一度開いて）接続させてから、このウィンドウを開き直してください。上級者向け: $COMMAND$",
+    "message": "dm はまだこのブラウザーに接続されていません。"
+  },
+  "popupStepGet": {
+    "message": "1. このコンピューターに dm アプリがまだない場合は、入手してインストールし、一度開いてください。"
+  },
+  "popupStepOpen": {
+    "message": "2. インストール済みの場合は、dm を開いてください（すでに開いている場合はもう一度開いてください）。このウィンドウは自動的に接続します。"
+  },
+  "popupAdvanced": {
+    "message": "上級者向け: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "ほか $COUNT$ 件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "失敗: $NAME$（$WHY$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm が応答しませんでした（$REASON$）。dm を開いて（すでに開いている場合はもう一度開いて）から、このウィンドウを開き直してください。それでも応答しない場合: $COMMAND$",
+    "message": "dm が応答しませんでした（$REASON$）。dm を開いてください（すでに開いている場合はもう一度開いてください）。このウィンドウは自動的に再試行します。それでも応答しない場合: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

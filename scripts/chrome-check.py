@@ -1192,11 +1192,23 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     check("and it comes back where it was put, for the page",
           abs(again.get("x", 0) - moved.get("x", -9)) <= 2 and abs(again.get("y", 0) - moved.get("y", -9)) <= 2,
           f"{again.get('x')},{again.get('y')} against {moved.get('x')},{moved.get('y')}")
-    check("a drag hands nothing over", not (engine_dl / "clip.mp4").exists(), str(engine_dl))
+    # Given the time a hand-off takes to show in the worker's log, so one a drag set off is
+    # told apart from one the page's own click below sets off (a run of 2026-11-16 found
+    # clip.mp4 handed over between the two, and could not say which).
+    mark = len(worker.events)
+    time.sleep(2)
+    worker.drain(0.5)
+    dragged = [l for l in worker.logged("log", "info", since=mark) if "clip.mp4" in l]
+    check("a drag hands nothing over",
+          not dragged and not (engine_dl / "clip.mp4").exists(), "; ".join(dragged) or str(engine_dl))
     # The page's own script pressing the panel's button: not a person, so
     # nothing is handed over (the panel's root is open to the page).
+    mark = len(worker.events)
     tab.evaluate("document.querySelector('dm-panel').shadowRoot.querySelector('.go').click()")
     time.sleep(2)
+    worker.drain(0.5)
+    scripted = [l for l in worker.logged("log", "info", since=mark) if "clip.mp4" in l]
+    check("a page script's click sets off no hand-off", not scripted, "; ".join(scripted))
     check("a click a page script makes on the panel hands nothing over",
           not (engine_dl / "clip.mp4").exists() and (panel(tab) or {}).get("title") == "Download video",
           str(panel(tab)))
@@ -2204,7 +2216,20 @@ def main():
               f"asked first: {alive}; {len(queued_main()) - before} queued of {len(ARRIVING)} links")
         stale.call("Page.navigate", url="about:blank")
 
+        # The popup lists what dm is fetching (gaps row U18): the host reads what the window
+        # wrote (`going.json`), and a line a download comes of it.
+        going = {"at_ms": int(time.time() * 1000), "running": 1,
+                 "downloads": [{"name": "check-going.iso", "percent": 42, "speed": 2 * 1024 * 1024}]}
+        (engine_home / "going.json").write_text(json.dumps(going))
+        popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
+        loaded(popup, "/popup.html", "#going")
+        going_of = "document.getElementById('going').textContent"
+        listed = wait_for(lambda: "check-going.iso · 42%" in (popup.evaluate(going_of) or "") and popup.evaluate(going_of), 15)
+        check("the toolbar popup lists what dm is fetching", bool(listed), listed or popup.evaluate(going_of))
+        (engine_home / "going.json").unlink(missing_ok=True)
+
         # 8. No app: the browser keeps it.
+        registered = registration.read_bytes()
         registration.unlink()
         for path, _ in borrowed:
             path.unlink(missing_ok=True)
@@ -2215,12 +2240,27 @@ def main():
         check("with no host, a download it would catch finishes in the browser",
               kept and not (engine_dl / "absent.bin").exists(), status)
 
-        # The popup with no app: it says so, and names the fix.
+        # The popup with no app: one line, two steps, and the fix folded under them; the
+        # toolbar icon says "!" (gaps row U18).
         popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
         loaded(popup, "/popup.html", "#status")
-        said = wait_for(lambda: "--register" in (popup.evaluate(status_of) or "") and popup.evaluate(status_of), 20)
-        check("with no app, the toolbar popup says so and names the fix", bool(said),
+        steps_shown = ("!document.getElementById('steps').hidden"
+                       " && document.getElementById('advanced').textContent.includes('--register')")
+        said = wait_for(lambda: popup.evaluate(steps_shown) and popup.evaluate(status_of), 20)
+        check("with no app, the toolbar popup says so in two steps and names the fix under them",
+              said == "dm isn't connected to this browser yet.",
               (said or popup.evaluate(status_of) or "")[:200])
+        badge = worker.evaluate("chrome.action.getBadgeText({})")
+        check("and the toolbar icon says '!'", badge == "!", repr(badge))
+        # dm registered again while the popup stays open: it connects by itself, unopened.
+        registration.write_bytes(registered)
+        for path, _ in borrowed:
+            path.write_text(host_manifest)
+        again = wait_for(lambda: (popup.evaluate(status_of) or "").startswith("Connected") and popup.evaluate(status_of), 20)
+        check("once dm can be reached, the open popup says so by itself", bool(again),
+              (again or popup.evaluate(status_of) or "")[:200])
+        badge = wait_for(lambda: worker.evaluate("chrome.action.getBadgeText({})") == "" or None, 10)
+        check("and the '!' goes", badge is True, repr(worker.evaluate("chrome.action.getBadgeText({})")))
 
         # 8. Errors.
         worker.drain(1)

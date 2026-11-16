@@ -41,6 +41,7 @@
 //! | `catch.judge`     | `catch.judged`: the app's rules as saved now  |
 //! | `menu.clicked`    | `download.started`, or `download.failed`      |
 //! | `media.streams`   | `media.streams`: the panel's list             |
+//! | `downloads.list`  | `downloads.list`: what the app is fetching    |
 //!
 //! **The extension does the bare minimum.** What needs the browser stays in it (catching and
 //! holding a download, the cookies, headers and links only it sees, its menu, popup and panel);
@@ -129,6 +130,8 @@ pub mod kind {
     pub const MENU_CLICKED: &str = "menu.clicked";
     /// [`Request::Streams`] and its answer, [`Reply::Streams`].
     pub const STREAMS: &str = "media.streams";
+    /// [`Request::Downloads`] and its answer, [`Reply::Downloads`].
+    pub const DOWNLOADS: &str = "downloads.list";
 }
 
 /// What the extension asks.
@@ -178,6 +181,10 @@ pub enum Request {
     /// [`feature::LISTS_STREAMS`].
     #[serde(rename = "media.streams")]
     Streams(StreamsAsked),
+    /// What the app is fetching now and its last failure, for the toolbar popup (gaps row U18).
+    /// Sent only to an app whose hello says [`feature::LISTS_DOWNLOADS`].
+    #[serde(rename = "downloads.list")]
+    Downloads,
 }
 
 /// A download the browser started, as far as the catch rules judge it ([`Request::Judge`]).
@@ -415,6 +422,32 @@ pub mod feature {
     /// App: answers `media.streams` with the panel's list. Extension: asks, in place of making
     /// the list with the code it was built with.
     pub const LISTS_STREAMS: &str = "lists-streams";
+    /// App: answers `downloads.list` with what it is fetching ([`super::Going`]). Extension:
+    /// asks while its toolbar popup is open, and lists them there.
+    pub const LISTS_DOWNLOADS: &str = "lists-downloads";
+}
+
+/// A download the app is fetching, as the toolbar popup lists it ([`Reply::Downloads`]).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct Going {
+    /// Its file's name.
+    pub name: String,
+    /// How much of it is here, 0 to 100, where its size is known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub percent: Option<u8>,
+    /// Bytes a second now.
+    pub speed: u64,
+}
+
+/// The app's last download that failed, as the toolbar popup says it ([`Reply::Downloads`]).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct LastFailure {
+    /// Its file's name.
+    pub name: String,
+    /// Why, in the app's words.
+    pub why: String,
 }
 
 /// Links handed over together.
@@ -731,6 +764,20 @@ pub enum Reply {
         /// The lines, in the panel's order.
         #[serde(default)]
         streams: Vec<media::Stream>,
+    },
+    /// The answer to [`Request::Downloads`]: what the app is fetching, the most the popup shows,
+    /// and its last failure.
+    #[serde(rename = "downloads.list")]
+    Downloads {
+        /// The downloads running, the fastest first.
+        #[serde(default)]
+        downloads: Vec<Going>,
+        /// How many run in all, where more run than are listed.
+        #[serde(default)]
+        running: usize,
+        /// The last download that failed, while the app remembers it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        failed: Option<LastFailure>,
     },
 }
 

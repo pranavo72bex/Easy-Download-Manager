@@ -803,6 +803,7 @@ fn every_new_frame_goes_out_at_the_version_every_app_reads_and_by_its_type() {
             kind::MENU_CLICKED,
         ),
         (Request::Streams(StreamsAsked::default()), kind::STREAMS),
+        (Request::Downloads, kind::DOWNLOADS),
     ];
     for (request, name) in requests {
         assert_eq!(request.needs(), OLDEST_PROTOCOL, "{name}");
@@ -824,6 +825,21 @@ fn every_new_frame_goes_out_at_the_version_every_app_reads_and_by_its_type() {
                 streams: Vec::new(),
             },
             kind::STREAMS,
+        ),
+        (
+            Reply::Downloads {
+                downloads: vec![Going {
+                    name: "a.zip".into(),
+                    percent: Some(40),
+                    speed: 1_000,
+                }],
+                running: 3,
+                failed: Some(LastFailure {
+                    name: "b.iso".into(),
+                    why: "the server refused it".into(),
+                }),
+            },
+            kind::DOWNLOADS,
         ),
         (Reply::started("s", true), kind::STARTED),
     ];
@@ -940,4 +956,27 @@ fn a_list_from_the_first_edition_gets_the_types_added_since_then_becomes_every_t
             && chosen.extensions.contains(&"mine".to_string())
     );
     assert_eq!(chosen.defaults_version, CATCH_DEFAULTS_VERSION);
+}
+
+/// A list of nothing running reads back as nothing, from an app that leaves out what it has not.
+#[test]
+fn a_downloads_list_of_nothing_reads_back_as_nothing() {
+    let frame = serde_json::json!({ "type": kind::DOWNLOADS, "protocolVersion": 1 });
+    assert_eq!(
+        Reply::from_frame(&frame),
+        Ok(Reply::Downloads {
+            downloads: Vec::new(),
+            running: 0,
+            failed: None,
+        })
+    );
+    let unknown = serde_json::json!({ "name": "c.bin" });
+    assert_eq!(
+        serde_json::from_value::<Going>(unknown).unwrap(),
+        Going {
+            name: "c.bin".into(),
+            percent: None,
+            speed: 0,
+        }
+    );
 }

@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm이 아직 이 브라우저에 연결되지 않았습니다. 이 컴퓨터에 dm 앱이 아직 없나요? 아래의 “dm 앱 받기”를 클릭해 설치한 뒤 한 번 여세요. 이미 설치했다면: dm을 한 번 열어(이미 열려 있으면 다시 열어) 연결되게 한 다음 이 창을 다시 여세요. 고급: $COMMAND$",
+    "message": "dm이 아직 이 브라우저에 연결되지 않았습니다."
+  },
+  "popupStepGet": {
+    "message": "1. 이 컴퓨터에 dm 앱이 아직 없나요? 받아서 설치한 다음 한 번 여세요."
+  },
+  "popupStepOpen": {
+    "message": "2. 이미 설치했나요? dm을 여세요(이미 열려 있으면 다시 여세요). 이 창은 저절로 연결됩니다."
+  },
+  "popupAdvanced": {
+    "message": "고급: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "외 $COUNT$개",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "실패: $NAME$($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm이 응답하지 않았습니다($REASON$). dm을 열고(이미 열려 있으면 다시 열고) 이 창을 다시 여세요. 그래도 응답하지 않으면: $COMMAND$",
+    "message": "dm이 응답하지 않았습니다($REASON$). dm을 여세요(이미 열려 있으면 다시 여세요). 이 창은 저절로 다시 시도합니다. 그래도 응답하지 않으면: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

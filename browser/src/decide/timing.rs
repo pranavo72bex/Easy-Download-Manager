@@ -46,3 +46,10 @@ pub const DETERMINE_WITHIN_MS: f64 =
 // Held for longer than the app is given to answer and to take it, or the
 // browser would ask where to save a download dm was about to take.
 const _: () = assert!(DETERMINE_WITHIN_MS > HELLO_WITHIN_MS + TAKEN_WITHIN_MS);
+
+/// How often the toolbar popup asks again for an app that did not answer, while it is open (gaps
+/// row U18): as often as an absent app's answer is kept ([`ABSENT_FOR_MS`]), so each ask is new.
+pub const POPUP_ASK_AGAIN_MS: i32 = ABSENT_FOR_MS as i32;
+
+/// How long the popup's list of downloads waits for the app before it shows nothing new.
+pub const DOWNLOADS_LISTED_WITHIN_MS: f64 = 1_500.0;

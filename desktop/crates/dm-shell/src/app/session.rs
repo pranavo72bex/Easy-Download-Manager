@@ -54,6 +54,8 @@ pub struct Session {
     pub events: super::events::Events,
     /// Rows being added off the presentation's thread (`Self::adding`).
     adds: Arc<Mutex<Adds>>,
+    /// What is running, written for the browser's toolbar popup (`going.json`, gaps row U18).
+    going: super::going::Publisher,
 }
 
 /// What dm does when one download is done, chosen in its own progress window (gaps row U36):
@@ -256,6 +258,11 @@ impl Session {
         let snapshot = backend.snapshot();
         let detected = self.detector.read_holding(&snapshot.rows, hold_new);
         self.events.publish(&snapshot.rows);
+        let home = crate::settings::home();
+        self.going
+            .publish(&home, &snapshot.rows, &detected.failed, || {
+                crate::host::browser_seen(&home)
+            });
         let mut problems = Vec::new();
         let command = settings.on_complete.trim();
         if !command.is_empty() && !detected.finished.is_empty() {

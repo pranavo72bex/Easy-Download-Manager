@@ -365,9 +365,14 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
                 App::Absent { reason } => serde_json::json!({
                     "ok": false,
                     "said": decide::absent_popup_text(&reason, &own_id(), is_firefox()),
+                    "advanced": decide::popup_register(&own_id(), is_firefox()),
                     "host": !decide::not_connected(&reason),
                 }),
             });
+        }
+        Some(decide::DOWNLOADS_MESSAGE) => {
+            let (lines, failed) = popup_downloads().await;
+            return to_js(&serde_json::json!({ "lines": lines, "failed": failed }));
         }
         Some(decide::OPEN_MESSAGE) => {
             return match show_app().await {
@@ -692,6 +697,33 @@ pub(super) async fn page_links(
                 }
             }
             Heard::Gone(why) => return Err(why),
+        }
+    }
+}
+
+/// What the app is fetching, as lines for the toolbar popup (gaps row U18): asked of an app that
+/// says it lists them, nothing of one that does not, or that did not answer in time.
+async fn popup_downloads() -> (Vec<String>, Option<String>) {
+    let (app, port) = app().await;
+    let lists = matches!(&app, App::Present { hello, .. } if hello.has(dm_protocol::feature::LISTS_DOWNLOADS));
+    if !lists {
+        return (Vec::new(), None);
+    }
+    let Some(mut port) = port.or_else(|| Port::open().ok()) else {
+        return (Vec::new(), None);
+    };
+    if port.send(&Request::Downloads).is_err() {
+        return (Vec::new(), None);
+    }
+    let deadline = now() + decide::DOWNLOADS_LISTED_WITHIN_MS;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some((downloads, running, failed)) = decide::downloads_listed(&frame) {
+                    return decide::popup_downloads(&downloads, running, failed.as_ref());
+                }
+            }
+            Heard::Gone(_) => return (Vec::new(), None),
         }
     }
 }

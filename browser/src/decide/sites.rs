@@ -15,6 +15,8 @@ pub const CATCHING_KEY: &str = "dm.catching";
 pub const STATUS_MESSAGE: &str = "dm.status";
 /// The message the popup sends to ask the app to show itself.
 pub const OPEN_MESSAGE: &str = "dm.open";
+/// The toolbar popup asking the background what the app is fetching (gaps row U18).
+pub const DOWNLOADS_MESSAGE: &str = "dm.downloads";
 
 /// Where the sites the panel is kept off are stored, in the extension's
 /// local storage: read by the page script, written by its × menu and the

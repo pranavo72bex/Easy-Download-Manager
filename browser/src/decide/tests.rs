@@ -1245,21 +1245,13 @@ fn no_host_says_open_dm_and_not_install_it() {
         ),
     ] {
         assert!(not_connected(reason), "{reason}");
+        // One short line; the two steps and the command are the popup's own lines under it.
         let popup = absent_popup_text(reason, CHROME_EXTENSION_ID, firefox);
-        assert!(
-            popup.starts_with("dm isn't connected to this browser yet."),
-            "{popup}"
+        assert_eq!(popup, "dm isn't connected to this browser yet.", "{reason}");
+        assert_eq!(
+            popup_register(CHROME_EXTENSION_ID, firefox),
+            "Advanced: dm-desktop --register"
         );
-        assert!(
-            popup.contains("if it's already open, open it again"),
-            "{popup}"
-        );
-        assert!(popup.contains("then reopen this popup."), "{popup}");
-        assert!(
-            popup.ends_with("Advanced: dm-desktop --register"),
-            "{popup}"
-        );
-        assert!(!popup.contains("Install"), "{popup}");
         let notice = absent_text(reason, CHROME_EXTENSION_ID, firefox);
         assert!(notice.contains("then try again."), "{notice}");
     }
@@ -2974,4 +2966,69 @@ fn the_frames_this_release_sends_are_the_frozen_ones() {
     for kind in ["catch.judge", "menu.clicked", "media.streams"] {
         assert!(kinds.contains(&kind), "{kind}");
     }
+}
+
+#[test]
+fn the_toolbar_badge_says_when_the_app_does_not_answer() {
+    let present = App::Present {
+        hello: Hello::default(),
+        rules: CatchRules::default(),
+    };
+    assert_eq!(badge(&present), "");
+    for reason in [
+        "Specified native messaging host not found.",
+        "the dm app did not answer in time",
+    ] {
+        let absent = App::Absent {
+            reason: reason.into(),
+        };
+        assert_eq!(badge(&absent), "!", "{reason}");
+    }
+}
+
+#[test]
+fn the_popup_lists_what_the_app_fetches_and_its_last_failure() {
+    use dm_protocol::{Going, LastFailure};
+    let going = |name: &str, percent: Option<u8>, speed: u64| Going {
+        name: name.into(),
+        percent,
+        speed,
+    };
+    assert_eq!(
+        going_line(&going("a.iso", Some(12), 3 * 1024 * 1024)),
+        format!("a.iso · 12% · {}/s", human_size(3 * 1024 * 1024))
+    );
+    // No size known and nothing moving: the name alone.
+    assert_eq!(going_line(&going("b.bin", None, 0)), "b.bin");
+    let failed = LastFailure {
+        name: "c.zip".into(),
+        why: "the server refused it".into(),
+    };
+    let (lines, failure) = popup_downloads(
+        &[going("a.iso", Some(1), 0), going("b.bin", None, 0)],
+        5,
+        Some(&failed),
+    );
+    assert_eq!(lines, ["a.iso · 1%", "b.bin", "and 3 more"]);
+    assert_eq!(
+        failure.as_deref(),
+        Some("Failed: c.zip (the server refused it)")
+    );
+    assert_eq!(popup_downloads(&[], 0, None), (Vec::new(), None));
+
+    // The app's answer read back; any other answer is not a list.
+    let frame = Reply::Downloads {
+        downloads: vec![going("a.iso", Some(50), 10)],
+        running: 1,
+        failed: None,
+    }
+    .to_frame();
+    assert_eq!(
+        downloads_listed(&frame),
+        Some((vec![going("a.iso", Some(50), 10)], 1, None))
+    );
+    assert_eq!(
+        downloads_listed(&Reply::started("s", true).to_frame()),
+        None
+    );
 }

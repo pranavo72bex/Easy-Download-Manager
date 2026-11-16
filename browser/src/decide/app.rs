@@ -84,6 +84,18 @@ pub fn status_line(hello: &Hello) -> (String, bool) {
     (words::POPUP_CONNECTED.with(&[version]), false)
 }
 
+/// What the toolbar icon's badge says of the app (gaps row U18): "!" while the app does not
+/// answer, so a person sees it before a download is left with the browser; nothing once it does.
+pub fn badge(app: &App) -> &'static str {
+    match app {
+        App::Present { .. } => "",
+        App::Absent { .. } => "!",
+    }
+}
+
+/// The badge's colour while it says something: the popup's own red for a problem.
+pub const BADGE_COLOUR: &str = "#c50f1f";
+
 /// Whether the browser found no dm it may start: no host manifest, or one
 /// that does not admit this extension. Either is fixed by dm itself, which
 /// registers with every browser installed when it is opened — opened again
@@ -136,10 +148,17 @@ pub fn absent_popup_text(reason: &str, own_id: &str, firefox: bool) -> String {
     }
     let register = register_command(own_id, firefox);
     if not_connected(reason) {
-        words::POPUP_NOT_CONNECTED.with(&[&register])
+        // The steps and the command follow it in the popup (`popup_register`).
+        words::POPUP_NOT_CONNECTED.say()
     } else {
         words::POPUP_NOT_ANSWERING.with(&[reason, &register])
     }
+}
+
+/// The popup's folded-away line under the steps for a browser that finds no dm: the command that
+/// registers dm with this browser.
+pub fn popup_register(own_id: &str, firefox: bool) -> String {
+    words::POPUP_ADVANCED.with(&[&register_command(own_id, firefox)])
 }
 
 /// The command that registers dm with this browser. The ids every
@@ -371,4 +390,51 @@ impl Released {
             None => false,
         }
     }
+}
+
+/// What the app said it is fetching (`downloads.list`), where `frame` is that answer: the
+/// downloads listed, how many run in all, and the last failure.
+pub fn downloads_listed(
+    frame: &Value,
+) -> Option<(
+    Vec<dm_protocol::Going>,
+    usize,
+    Option<dm_protocol::LastFailure>,
+)> {
+    match Reply::from_frame(frame).ok()? {
+        Reply::Downloads {
+            downloads,
+            running,
+            failed,
+        } => Some((downloads, running, failed)),
+        _ => None,
+    }
+}
+
+/// One download's line in the toolbar popup: its name, how far it is where its size is known,
+/// and its speed (`a.iso · 12% · 3.0 MB/s`).
+pub fn going_line(going: &dm_protocol::Going) -> String {
+    let mut line = going.name.clone();
+    if let Some(percent) = going.percent {
+        line.push_str(&format!(" · {percent}%"));
+    }
+    if going.speed > 0 {
+        line.push_str(&format!(" · {}/s", super::human_size(going.speed)));
+    }
+    line
+}
+
+/// The popup's list, as lines: one a download, then how many more run past those listed, and
+/// the last failure, each in the browser's language.
+pub fn popup_downloads(
+    downloads: &[dm_protocol::Going],
+    running: usize,
+    failed: Option<&dm_protocol::LastFailure>,
+) -> (Vec<String>, Option<String>) {
+    let mut lines: Vec<String> = downloads.iter().map(going_line).collect();
+    if running > downloads.len() {
+        lines.push(words::POPUP_MORE.with(&[&(running - downloads.len()).to_string()]));
+    }
+    let failure = failed.map(|f| words::POPUP_LAST_FAILED.with(&[&f.name, &f.why]));
+    (lines, failure)
 }

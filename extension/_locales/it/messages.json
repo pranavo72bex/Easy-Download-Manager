@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm non è ancora connesso a questo browser. Nessuna app dm su questo computer? Fai clic su «Scarica l'app dm» qui sotto, installala e aprila una volta. Già installata: apri dm una volta (se è già aperto, aprilo di nuovo) perché possa connettersi, poi riapri questa finestra. Avanzate: $COMMAND$",
+    "message": "dm non è ancora collegato a questo browser."
+  },
+  "popupStepGet": {
+    "message": "1. Non hai ancora l'app dm su questo computer? Scaricala, installala e aprila una volta."
+  },
+  "popupStepOpen": {
+    "message": "2. Già installata? Apri dm (se è già aperto, aprilo di nuovo). Questa finestra si collega da sola."
+  },
+  "popupAdvanced": {
+    "message": "Avanzate: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "e altri $COUNT$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Non riuscito: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm non ha risposto ($REASON$). Apri dm (se è già aperto, aprilo di nuovo), poi riapri questa finestra. Se ancora non risponde: $COMMAND$",
+    "message": "dm non ha risposto ($REASON$). Apri dm (se è già aperto, aprilo di nuovo); questa finestra riprova da sola. Se ancora non risponde: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm 尚未连接到此浏览器。这台电脑上还没有 dm 应用？请点击下方的“获取 dm 应用”，安装后打开一次。已经安装：打开 dm 一次（如果已打开，请再打开一次）以便它连接，然后重新打开此窗口。高级：$COMMAND$",
+    "message": "dm 尚未连接到此浏览器。"
+  },
+  "popupStepGet": {
+    "message": "1. 这台电脑上还没有 dm 应用？请获取并安装，然后打开一次。"
+  },
+  "popupStepOpen": {
+    "message": "2. 已经安装？请打开 dm（如果已经打开，请再打开一次）。此窗口会自动连接。"
+  },
+  "popupAdvanced": {
+    "message": "高级：$COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "还有 $COUNT$ 个",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "失败：$NAME$（$WHY$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm 没有回应（$REASON$）。请打开 dm（如果已打开，请再打开一次），然后重新打开此窗口。如果仍然没有回应：$COMMAND$",
+    "message": "dm 没有应答（$REASON$）。请打开 dm（如果已经打开，请再打开一次）；此窗口会自动重试。如果仍然没有应答：$COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

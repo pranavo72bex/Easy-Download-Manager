@@ -315,16 +315,46 @@ pub const POPUP_AND: Word = Word {
     en: "$FIRST$ and $NEXT$",
     places: &["first", "next"],
 };
-/// The status line when the browser finds no dm to talk to.
+/// The status line when the browser finds no dm to talk to; the steps follow it.
 pub const POPUP_NOT_CONNECTED: Word = Word {
     key: "popupNotConnected",
-    en: "dm isn't connected to this browser yet. No dm app on this computer yet? click Get the dm app below, install it and open it once. Already installed: open dm once (if it's already open, open it again) so it can connect, then reopen this popup. Advanced: $COMMAND$",
+    en: "dm isn't connected to this browser yet.",
+    places: &[],
+};
+/// The first step when the browser finds no dm: getting the app.
+pub const POPUP_STEP_GET: Word = Word {
+    key: "popupStepGet",
+    en: "1. No dm app on this computer yet? Get it, install it and open it once.",
+    places: &[],
+};
+/// The second step: opening the app, after which the popup connects by itself (gaps row U18).
+pub const POPUP_STEP_OPEN: Word = Word {
+    key: "popupStepOpen",
+    en: "2. Already installed? Open dm (if it's already open, open it again). This popup connects by itself.",
+    places: &[],
+};
+/// Below the steps, folded away: the command that registers dm with this browser.
+pub const POPUP_ADVANCED: Word = Word {
+    key: "popupAdvanced",
+    en: "Advanced: $COMMAND$",
     places: &["command"],
+};
+/// Under the popup's list of downloads, those running past the ones listed (gaps row U18).
+pub const POPUP_MORE: Word = Word {
+    key: "popupMore",
+    en: "and $COUNT$ more",
+    places: &["count"],
+};
+/// The app's last download that failed, under the popup's list.
+pub const POPUP_LAST_FAILED: Word = Word {
+    key: "popupLastFailed",
+    en: "Failed: $NAME$ ($WHY$)",
+    places: &["name", "why"],
 };
 /// The status line when dm is there and did not answer.
 pub const POPUP_NOT_ANSWERING: Word = Word {
     key: "popupNotAnswering",
-    en: "dm did not answer ($REASON$). Open dm (if it's already open, open it again), then reopen this popup. If it still does not answer: $COMMAND$",
+    en: "dm did not answer ($REASON$). Open dm (if it's already open, open it again); this popup tries again by itself. If it still does not answer: $COMMAND$",
     places: &["reason", "command"],
 };
 
@@ -570,6 +600,11 @@ pub const ALL: &[Word] = &[
     POPUP_WIDER,
     POPUP_AND,
     POPUP_NOT_CONNECTED,
+    POPUP_STEP_GET,
+    POPUP_STEP_OPEN,
+    POPUP_ADVANCED,
+    POPUP_MORE,
+    POPUP_LAST_FAILED,
     POPUP_NOT_ANSWERING,
     PANEL_DOWNLOAD_VIDEO,
     PANEL_DOWNLOAD_AUDIO,

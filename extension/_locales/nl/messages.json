@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm is nog niet verbonden met deze browser. Nog geen dm-app op deze computer? Klik hieronder op “De dm-app halen”, installeer hem en open hem één keer. Al geïnstalleerd: open dm één keer (als het al open is, open het opnieuw) zodat het verbinding kan maken, en open dan dit venster opnieuw. Gevorderd: $COMMAND$",
+    "message": "dm is nog niet met deze browser verbonden."
+  },
+  "popupStepGet": {
+    "message": "1. Nog geen dm-app op deze computer? Haal hem op, installeer hem en open hem één keer."
+  },
+  "popupStepOpen": {
+    "message": "2. Al geïnstalleerd? Open dm (als het al open is, open het opnieuw). Dit venster maakt zelf verbinding."
+  },
+  "popupAdvanced": {
+    "message": "Geavanceerd: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "en nog $COUNT$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Mislukt: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm heeft niet geantwoord ($REASON$). Open dm (als het al open is, open het opnieuw) en open dan dit venster opnieuw. Als het nog steeds niet antwoordt: $COMMAND$",
+    "message": "dm gaf geen antwoord ($REASON$). Open dm (als het al open is, open het opnieuw); dit venster probeert het zelf opnieuw. Als het nog steeds niet antwoordt: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

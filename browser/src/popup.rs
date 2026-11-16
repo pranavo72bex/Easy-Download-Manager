@@ -265,49 +265,118 @@ fn extension() -> JsValue {
     }
 }
 
+/// Shows what the background said of the app; true when the app answered.
+fn show_status(reply: &JsValue) -> bool {
+    let flag = |key: &str, otherwise: bool| {
+        Reflect::get(reply, &key.into())
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(otherwise)
+    };
+    let shown = |id: &str, on: bool| {
+        if let Some(element) = by_id(id) {
+            let _ = if on {
+                element.remove_attribute("hidden")
+            } else {
+                element.set_attribute("hidden", "")
+            };
+        }
+    };
+    if flag("ok", false) {
+        say(&text(reply, "line"), flag("bad", false));
+        shown("steps", false);
+        shown("advanced", false);
+        shown("get-actions", false);
+        shown("open-actions", true);
+        return true;
+    }
+    // No host: Open dm could not reach dm, so it is not offered; the steps say how to connect,
+    // with where to get the app, and the command folded under them.
+    let host = flag("host", true);
+    shown("steps", !host);
+    shown("open-actions", host);
+    shown("get-actions", !host);
+    let advanced = text(reply, "advanced");
+    if let Some(line) = by_id("advanced") {
+        line.set_text_content(Some(&advanced));
+    }
+    shown("advanced", !host && !advanced.is_empty());
+    let said = text(reply, "said");
+    let said = if said.is_empty() {
+        words::POPUP_NO_ANSWER.say()
+    } else {
+        said
+    };
+    say(&said, true);
+    false
+}
+
+/// Lists what the background said the app is fetching (`decide::popup_downloads`): a line a
+/// download, then the last failure; hidden where there is nothing.
+fn show_downloads(reply: &JsValue) {
+    let Some(document) = document() else {
+        return;
+    };
+    let lines: Vec<String> = Reflect::get(reply, &"lines".into())
+        .ok()
+        .and_then(|v| v.dyn_into::<Array>().ok())
+        .map(|a| a.iter().filter_map(|v| v.as_string()).collect())
+        .unwrap_or_default();
+    if let Some(list) = by_id("going") {
+        list.set_text_content(None);
+        for line in &lines {
+            if let Ok(item) = document.create_element("li") {
+                item.set_text_content(Some(line));
+                let _ = item.set_attribute("title", line);
+                let _ = list.append_child(&item);
+            }
+        }
+        let _ = if lines.is_empty() {
+            list.set_attribute("hidden", "")
+        } else {
+            list.remove_attribute("hidden")
+        };
+    }
+    let failed = text(reply, "failed");
+    if let Some(line) = by_id("failed") {
+        line.set_text_content(Some(&failed));
+        let _ = if failed.is_empty() {
+            line.set_attribute("hidden", "")
+        } else {
+            line.remove_attribute("hidden")
+        };
+    }
+}
+
+/// Waits `ms` milliseconds.
+async fn pause(ms: i32) {
+    let promise = Promise::new(&mut |done, _| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&done, ms);
+        }
+    });
+    let _ = JsFuture::from(promise).await;
+}
+
 /// Wires the popup, once its WebAssembly has loaded (`pkg/popup.js`, which `scripts/package.sh`
 /// writes, starts it).
 #[wasm_bindgen]
 pub fn popup_start() {
     in_browser_language();
     let ext = extension();
-    // The app, asked through the background, which owns the connection.
+    // The app, asked through the background, which owns the connection; asked again every two
+    // seconds until it answers, so opening dm connects the popup without reopening it (gaps row
+    // U18).
+    // Once it answers, what it is fetching is listed, and kept up to date while the popup is open.
     let asked = ext.clone();
     wasm_bindgen_futures::spawn_local(async move {
-        let reply = ask(&asked, decide::STATUS_MESSAGE).await;
-        let ok = Reflect::get(&reply, &"ok".into())
-            .ok()
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        if ok {
-            let bad = Reflect::get(&reply, &"bad".into())
-                .ok()
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            say(&text(&reply, "line"), bad);
-        } else {
-            // No host: Open dm could not reach dm, so it is not offered;
-            // the status says how to connect instead.
-            let host = Reflect::get(&reply, &"host".into())
-                .ok()
-                .and_then(|v| v.as_bool())
-                .unwrap_or(true);
-            // with no app to open, where to get one.
-            if !host {
-                if let Some(open) = by_id("open-actions") {
-                    let _ = open.set_attribute("hidden", "");
-                }
-                if let Some(get) = by_id("get-actions") {
-                    let _ = get.remove_attribute("hidden");
-                }
-            }
-            let said = text(&reply, "said");
-            let said = if said.is_empty() {
-                words::POPUP_NO_ANSWER.say()
+        loop {
+            if show_status(&ask(&asked, decide::STATUS_MESSAGE).await) {
+                show_downloads(&ask(&asked, decide::DOWNLOADS_MESSAGE).await);
             } else {
-                said
-            };
-            say(&said, true);
+                show_downloads(&JsValue::UNDEFINED);
+            }
+            pause(decide::POPUP_ASK_AGAIN_MS).await;
         }
     });
 

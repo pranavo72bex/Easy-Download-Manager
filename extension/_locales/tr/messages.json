@@ -130,15 +130,43 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm henüz bu tarayıcıya bağlı değil. Bu bilgisayarda henüz dm uygulaması yok mu? Aşağıdaki “dm uygulamasını edinin” düğmesine tıklayın, kurun ve bir kez açın. Zaten kurulu: bağlanabilmesi için dm'i bir kez açın (zaten açıksa yeniden açın), sonra bu pencereyi yeniden açın. Gelişmiş: $COMMAND$",
+    "message": "dm henüz bu tarayıcıya bağlı değil."
+  },
+  "popupStepGet": {
+    "message": "1. Bu bilgisayarda henüz dm uygulaması yok mu? Edinin, kurun ve bir kez açın."
+  },
+  "popupStepOpen": {
+    "message": "2. Zaten kurulu mu? dm'yi açın (zaten açıksa yeniden açın). Bu pencere kendiliğinden bağlanır."
+  },
+  "popupAdvanced": {
+    "message": "Gelişmiş: $COMMAND$",
     "placeholders": {
       "command": {
         "content": "$1"
       }
     }
   },
+  "popupMore": {
+    "message": "ve $COUNT$ tane daha",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "Başarısız: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
   "popupNotAnswering": {
-    "message": "dm yanıt vermedi ($REASON$). dm'i açın (zaten açıksa yeniden açın), sonra bu pencereyi yeniden açın. Hâlâ yanıt vermezse: $COMMAND$",
+    "message": "dm yanıt vermedi ($REASON$). dm'yi açın (zaten açıksa yeniden açın); bu pencere kendiliğinden yeniden dener. Hâlâ yanıt vermiyorsa: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"

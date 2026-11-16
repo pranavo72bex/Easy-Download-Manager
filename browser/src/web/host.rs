@@ -141,6 +141,7 @@ pub(super) async fn app() -> (App, Option<Port>) {
         // The right-click menu the app serves, made again where it changed.
         remember_menus(hello.menus.as_deref()).await;
     }
+    show_badge(decide::badge(&app));
     KNOWN.with(|k| {
         *k.borrow_mut() = Some(Known {
             app: app.clone(),
@@ -148,4 +149,19 @@ pub(super) async fn app() -> (App, Option<Port>) {
         })
     });
     (app, port)
+}
+
+/// The toolbar icon's badge set to `text` ("!" while the app does not answer, `decide::badge`).
+/// A browser without badges says nothing, and nothing else changes.
+fn show_badge(text: &str) {
+    let action = api("action");
+    if !text.is_empty() {
+        let colour = serde_json::json!({ "color": decide::BADGE_COLOUR });
+        let _ = call_on(&action, "setBadgeBackgroundColor", &[to_js(&colour)]);
+    }
+    let _ = call_on(
+        &action,
+        "setBadgeText",
+        &[to_js(&serde_json::json!({ "text": text }))],
+    );
 }
