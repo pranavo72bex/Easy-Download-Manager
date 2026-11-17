@@ -260,6 +260,32 @@ fn write_scorecard() -> Result<String, String> {
 struct Crate {
     name: String,
     deps: Vec<String>,
+    /// Dependencies of any kind (tests' and the build's too) whose version or path the crate
+    /// writes itself rather than taking the workspace's (`x.workspace = true`, gaps row X8).
+    own_versions: Vec<String>,
+}
+
+/// The dependencies in `value` (a manifest) not written as `workspace = true`.
+fn own_versions(value: &toml::Table) -> Vec<String> {
+    let mut tables = vec![value];
+    if let Some(targets) = value.get("target").and_then(|t| t.as_table()) {
+        tables.extend(targets.values().filter_map(|t| t.as_table()));
+    }
+    let mut own = Vec::new();
+    for table in tables {
+        for kind in ["dependencies", "dev-dependencies", "build-dependencies"] {
+            let Some(deps) = table.get(kind).and_then(|d| d.as_table()) else {
+                continue;
+            };
+            for (name, spec) in deps {
+                let inherited = spec.get("workspace").and_then(|w| w.as_bool()) == Some(true);
+                if !inherited {
+                    own.push(name.clone());
+                }
+            }
+        }
+    }
+    own
 }
 
 fn manifest(path: &Path) -> Result<Crate, String> {
@@ -269,6 +295,7 @@ fn manifest(path: &Path) -> Result<Crate, String> {
     let value: toml::Table = text
         .parse()
         .map_err(|e| format!("{}: {e}", path.display()))?;
+    let own_versions = own_versions(&value);
     let name = value
         .get("package")
         .and_then(|p| p.get("name"))
@@ -288,7 +315,11 @@ fn manifest(path: &Path) -> Result<Crate, String> {
             }
         }
     }
-    Ok(Crate { name, deps })
+    Ok(Crate {
+        name,
+        deps,
+        own_versions,
+    })
 }
 
 const GUI: &[&str] = &[
@@ -324,6 +355,24 @@ fn layers() -> Result<(), String> {
     .collect::<Result<Vec<_>, _>>()?;
 
     let mut wrong = Vec::new();
+    // Every version once, at the workspace's root (gaps row X8): a crate of the desktop
+    // workspace names a dependency with `x.workspace = true` and adds only its own features.
+    // `browser/` is its own workspace until row A15.
+    for member in [
+        "desktop/crates/dm-protocol/Cargo.toml",
+        "desktop/crates/dm-js/Cargo.toml",
+        "desktop/crates/dm-core/Cargo.toml",
+        "desktop/crates/dm-shell/Cargo.toml",
+        "desktop/crates/dm-desktop-base/Cargo.toml",
+        "desktop/crates/dm-gpui/Cargo.toml",
+        "desktop/xtask/Cargo.toml",
+    ] {
+        for d in manifest(&root.join(member))?.own_versions {
+            wrong.push(format!(
+                "{member} writes {d}'s version itself: put it in desktop/Cargo.toml's                  [workspace.dependencies] and write `{d}.workspace = true`"
+            ));
+        }
+    }
     for c in &crates {
         let own: Vec<&str> = c
             .deps
@@ -906,6 +955,24 @@ mod tests {
         let read = manifest(&path).unwrap();
         assert_eq!(read.name, "dm-x");
         assert_eq!(read.deps, ["dm-core", "windows-sys"]);
+        assert_eq!(read.own_versions, ["dm-core", "tempfile", "windows-sys"]);
+
+        // Taken from the workspace, with or without features of its own: none written here.
+        std::fs::write(
+            &path,
+            "[package]
+name = \"dm-x\"
+
+[dependencies]
+dm-core.workspace = true
+             tokio = { workspace = true, features = [\"fs\"] }
+
+             [build-dependencies]
+embed-resource = { version = \"3\" }
+",
+        )
+        .unwrap();
+        assert_eq!(manifest(&path).unwrap().own_versions, ["embed-resource"]);
 
         std::fs::write(&path, "[package\n").unwrap();
         assert!(manifest(&path).err().unwrap().contains("Cargo.toml"));

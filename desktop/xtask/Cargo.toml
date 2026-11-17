@@ -7,4 +7,4 @@ publish = false
 description = "dm's own checks: the scorecard, the layering of the crates, and that nothing phones home"
 
 [dependencies]
-toml = "1.1"
+toml.workspace = true

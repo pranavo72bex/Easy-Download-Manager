@@ -9,10 +9,10 @@ publish = false
 
 [dependencies]
 # dm's own JavaScript interpreter (gaps row F15).
-dm-js = { path = "../dm-js" }
+dm-js.workspace = true
 # Already in the tree through reqwest; named for its chunk type.
-bytes = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }
+bytes.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }
 # rustls rather than the system OpenSSL: a download manager that fails to
 # build on a machine without libssl headers is one nobody can package.
 # `socks`, or a SOCKS proxy in the settings failed every HTTP download with
@@ -20,83 +20,83 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util
 # 0.13, as the torrent library has it, so one reqwest is built; its TLS is
 # handed the same rustls set-up as the stream protocols (`tls_backend`):
 # ring and the public roots, as 0.12's `rustls-tls` had it.
-reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider", "system-proxy", "socks", "http2"] }
+reqwest.workspace = true
 # FTP through a SOCKS proxy: the handshake, after which the connection is a
 # plain one. HTTP CONNECT is a few lines and is written here.
-tokio-socks = "0.5"
+tokio-socks.workspace = true
 # rtmps:// streams (rtmp.rs): TLS as reqwest has it, with the same roots.
-tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
-webpki-roots = "1"
+tokio-rustls.workspace = true
+webpki-roots.workspace = true
 # rtsp:// streams (rtsp.rs): RTSP, RTP and the H.264, H.265 and AAC
 # depacketizers, which every camera and media server speaks.
-retina = "0.4"
+retina.workspace = true
 # The `Proxy-Authorization` an HTTP CONNECT to a proxy with a login carries.
-base64 = "0.22"
-futures-util = "0.3"
-thiserror = "2"
+base64.workspace = true
+futures-util.workspace = true
+thiserror.workspace = true
 # The shell sends these straight into a webview; deriving here beats
 # maintaining a parallel set of near-identical types in the GUI crate.
-serde = { version = "1", features = ["derive", "rc"] }
+serde = { workspace = true, features = ["derive", "rc"] }
 # The queue is written to disk so a restart does not lose it.
-serde_json = "1"
+serde_json.workspace = true
 # Already in the tree via reqwest's url dependency; named so the hand-rolled
 # byte-scanner it replaces cannot come back.
-percent-encoding = "2"
-chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
-sha2 = "0.11.0"
-md-5 = "0.11.0"
+percent-encoding.workspace = true
+chrono = { workspace = true, features = ["clock", "std"] }
+sha2.workspace = true
+md-5.workspace = true
 # SHA-1 digests a person checks a file against (`checksum.rs`); already in the build through
 # the torrent engine, which names torrents by it.
-sha1 = "0.11"
+sha1.workspace = true
 # CRC-32 digests the same way; already in the build through flate2 and png.
-crc32fast = "1.5"
+crc32fast.workspace = true
 # NTLM sign-ins (`ntlm.rs`): its NT hash is MD4 of the password, and its
 # client challenge must be unpredictable.
-md4 = "0.11"
-getrandom = "0.4"
-quick-xml = "0.42.0"
-url = "2.5.8"
-aes = "0.9.3"
-cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
+md4.workspace = true
+getrandom.workspace = true
+quick-xml.workspace = true
+url.workspace = true
+aes.workspace = true
+cbc.workspace = true
 # Seals the file of a row's secrets under a key the operating system's store keeps (`secretstore.rs`).
-chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+chacha20poly1305.workspace = true
 # BitTorrent, the one kind of download the browser side cannot do at all: an
 # extension has no sockets. rustls to match reqwest above, so the binary
 # carries one TLS stack rather than two; in the vendored copy `rust-tls`
 # means ring and the pure-Rust SHA-1, so no second crypto library (aws-lc,
 # built in C with cmake) and no axum come with it (desktop/vendor/README.md).
-librqbit = { version = "9.0.1", default-features = false, features = ["rust-tls"] }
-tokio-util = "0.7"
-dirs = "7.0.0"
-zip = { version = "9", default-features = false, features = ["deflate"] }
+librqbit.workspace = true
+tokio-util.workspace = true
+dirs.workspace = true
+zip.workspace = true
 
 # A body a server compresses unasked is undone here and not by reqwest, which
 # gives no count of the bytes on the wire: with it the expansion is held to a
 # ratio (`decode.rs`), as a decompression bomb needs.
-flate2 = "1"
-brotli-decompressor = "6"
-symphonia-codec-aac = "0.6.1"
-symphonia-core = "0.6.1"
+flate2.workspace = true
+brotli-decompressor.workspace = true
+symphonia-codec-aac.workspace = true
+symphonia-core.workspace = true
 
 # Calls into the C library that std does not wrap. Already in the tree through tokio.
 # A GIF of a video's part on Linux, from its AV1 stream (gaps row 54): pure
 # Rust, without its assembly (no assembler needed to build). BSD-2-Clause.
 [target.'cfg(target_os = "linux")'.dependencies]
-rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+rav1d.workspace = true
 
 [target.'cfg(unix)'.dependencies]
-libc = "0.2"
+libc.workspace = true
 
 # The free space on a disk, so a file too large for it is refused at the
 # start. Already in the tree through tokio and others; only its
 # file-system module is named.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_System_JobObjects", "Win32_System_Threading"] }
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 # Media Foundation, the system's own decoders, for a video's sound saved as MP3
 # and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers
 # for. The same version GPUI's Windows platform uses, so already in the tree.
-windows = { version = "0.62", features = [
+windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_Media_MediaFoundation",
   "Win32_System_Com",
@@ -107,27 +107,27 @@ windows = { version = "0.62", features = [
 [dev-dependencies]
 # The AV1 reader is tested on every system, though only Linux builds it in;
 # libc for the C library's EAGAIN, rav1d's "not now", on Windows too.
-rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
-libc = "0.2"
+rav1d.workspace = true
+libc.workspace = true
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.
-proptest = "1"
-tokio = { version = "1", features = ["full"] }
-axum = "0.8"
+proptest.workspace = true
+tokio = { workspace = true, features = ["full"] }
+axum.workspace = true
 # A server that speaks HTTP/2 alone (tests/http2_only.rs), as axum::serve speaks both.
-hyper = { version = "1", features = ["server", "http2"] }
-hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
-rand = "0.8"
+hyper.workspace = true
+hyper-util.workspace = true
+rand.workspace = true
 # Cleans up after itself. The hand-rolled version left a directory of
 # downloaded parts behind on every run.
-tempfile = "3"
-sha2 = "0.11.0"
-memory-stats = "1.2.0"
-aes = "0.9.3"
-cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
+tempfile.workspace = true
+sha2.workspace = true
+memory-stats.workspace = true
+aes.workspace = true
+cbc.workspace = true
 # A certificate for the rtsps:// bridge's test server.
-rcgen = "0.14"
-symphonia-bundle-mp3 = "0.6.1"
+rcgen.workspace = true
+symphonia-bundle-mp3.workspace = true
 
 # Used as `md5` (checksums and Digest sign-ins), which the name `md-5` hides
 # from cargo-machete.

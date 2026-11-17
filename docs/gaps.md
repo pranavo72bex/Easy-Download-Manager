@@ -63,7 +63,8 @@ goes on with the rows that need none.
 dm's tree; rows X and A below). Each is a pure move: nothing a person sees changes, B25's
 pictures stay, and each is committed alone with `cargo check`, clippy and its crates' tests.
 Smallest first:
-1. X8: every dependency's version once, in `[workspace.dependencies]`.
+1. ~~X8~~ done 2026-11-17: every version once in `desktop/Cargo.toml`'s `[workspace.dependencies]`,
+   `Cargo.lock` unchanged, `cargo xtask layers` refuses a version written in a crate.
 2. A15: one workspace at the top, `browser/` in it.
 3. X9: one assets folder.
 4. A13: `dm-gpui` in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`.
@@ -110,7 +111,7 @@ W26, W18, W20, U20, Y27, Y7; then W5, W10, W11, W12, W15, W16, P4, P5; then F8, 
 W25, W22.
 
 **7. Structure and docs** (pure moves, after the features so they are moved once and no feature
-is written against a file about to be split; X8, A15, X9, A13, X1, X10, A10, A6 and A19's
+is written against a file about to be split; A15, X9, A13, X1, X10, A10, A6 and A19's
 widgets are taken first of all, above): A5, A11, A19 (what is left), A20, A21, A14, A8, A9, A7,
 A12, A17 (with X5), A18, A4, X7, A16; then X3, D5, D6 (with X6).
 
@@ -511,7 +512,6 @@ of 60 in the base and 16 of 98 in the window, 307 lines in all (`secretstore/too
 | X5  | The window toolkit is three different sources: macOS builds the published `gpui-pre`, Linux a patched copy (`vendor/gpui-pre-linux`) and Windows another (`vendor/gpui-pre-windows`, 13,545 lines, 9 `dm:` marks, row 211's change among them; row A17 counts the Linux copy only). A fix made in one copy is not looked for in the other, and a new GPUI is carried over twice by hand | OPEN · M (with A17) | A17's patches cover both copies; `desktop/vendor/README.md` has one table (the change, the copy it is in, why the other systems do not need it, whether upstream has been told); a check that every `dm:` mark is in that table |
 | X6  | No one page says what each system does and how far it has been proved. What differs (the tray, Mica, the jump list, sheets, a drag out, IME, the secret store, the JavaScript engine, the packages) is spread over `docs/migration/PLATFORM_GAP_ANALYSIS.md`, `docs/parity.md` and `docs/windows-checklist.md`; what is owed on which system is prose inside this file's rows ("owed on Windows", "owed to the final Linux pass"), and G7's row was stale on 2026-11-17 | OPEN · M (with D5, D6) | `docs/platforms.md`: for each system how it is built, tested, packaged and put through QA with one command each; a table of what differs and why; a table of rows still owed on each system with the commit last checked. This file's rows point at it rather than each telling it again |
 | X7  | One task, a different command on each system: `make` (436 lines, written for `uname`) on macOS and Linux, hand-typed `cargo` and PowerShell on Windows; 19 checks are `sh` scripts and seven are Linux's own (`linux-human-qa.sh`, `linux-gui-check.sh`, …) beside the Python ones | OPEN · M (the part of A16 that needs nobody's word: the contract's `python3 scripts/human-qa.py` stays as it is) | `cargo xtask build`, `package`, `test` and `qa` do the same thing on the three systems and are what `Makefile`, CI and the docs call; `qa` runs `human-qa.py` as the contract says, with what that system needs set for it |
-| X8  | A dependency's version is written in each crate that uses it: `desktop/Cargo.toml` has no `[workspace.dependencies]`, and the six crates write 149 versions between them (dm-core 56, dm-gpui 35, the base 25, dm-shell 19, dm-protocol 9, dm-js 5); `browser/` writes its own again. Raising one crate is an edit in several files and nothing stops two crates asking for two versions (row A18's doubles). GPUI's own makers keep every version once at the workspace's root (their public repository, read 2026-11-17: 633 entries, each crate `x.workspace = true`) | OPEN · S | `[workspace.dependencies]` holds every version and feature set once; a crate writes `name.workspace = true` (its own features added there); `cargo xtask check` refuses a version in a crate's manifest; `Cargo.lock` unchanged by the move |
 | X9  | What is not code is kept in five places under three crates: `dm-gpui/assets/icons` (31 files), `dm-gpui/icons` (5), `dm-gpui/macos`, the base's `i18n` (the catalogs) and `dm-shell/resources` (`rules.json`). GPUI's makers keep one `assets/` at the root (icons, fonts, sounds, settings) | OPEN · S | One `desktop/assets/` (`icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), read through one `assets` module; the packaging and `build.rs` point at it; B25's pictures and every package's contents unchanged |
 | X10 | Test helpers are shared by reaching across folders: `desktop/test-support/secrets.rs` is pulled in by `#[path = "../../../test-support/secrets.rs"]` from five files in four crates, `dm-core/tests/common/` is the engine's own and cannot be used by the window's tests, and no crate has a `test-support` feature (GPUI's own crates each have one, and dm-gpui already asks GPUI for it) | OPEN · S to M | Each crate that has fakes or fixtures offers them under a `test-support` feature, used by the others' dev-dependencies; no `#[path]` out of a crate, checked by xtask; the shipped binary's size unchanged |
 

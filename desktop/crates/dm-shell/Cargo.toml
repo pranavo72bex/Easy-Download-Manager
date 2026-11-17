@@ -13,33 +13,33 @@ description = "What every dm window shares: the settings, the browser host, the 
 # settings change is written once, whichever window is drawing it.
 [dependencies]
 # A form's raw body, which the extension sends as base64 (dm-core's version).
-base64 = "0.22"
-dm-core = { path = "../dm-core" }
-dm-protocol = { path = "../dm-protocol" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sha2 = "0.11.0"
-tokio = { version = "1", features = ["rt-multi-thread", "fs", "time", "sync", "net"] }
-dirs = "7.0.0"
-url = "2"
+base64.workspace = true
+dm-core.workspace = true
+dm-protocol.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "fs", "time", "sync", "net"] }
+dirs.workspace = true
+url.workspace = true
 # Reading a crawled page no further than its cap.
-futures-util = "0.3"
+futures-util.workspace = true
 
 # Whether a mount is read-only (a disk image), for `register::transient`.
 # Already in the tree through tokio.
 [target.'cfg(unix)'.dependencies]
-libc = "0.2"
+libc.workspace = true
 
 [dev-dependencies]
-proptest = "1"
-tokio = { version = "1", features = ["full"] }
-tempfile = "3"
-axum = "0.8"
+proptest.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tempfile.workspace = true
+axum.workspace = true
 
 # A browser's pipes to the native host, kept from the dm it starts
 # (`host::launch_desktop`): inherited, they held the host's answer open.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = [
+windows-sys = { workspace = true, features = [
   "Win32_Foundation",
   # A dial-up or VPN connection dialled before downloads (dialup/ras.rs); a
   # connection's status names its tunnel's addresses, which WinSock defines.

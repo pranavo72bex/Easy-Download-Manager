@@ -17,39 +17,39 @@ name = "dm_desktop_base"
 path = "src/lib.rs"
 
 [dependencies]
-dm-core = { path = "../dm-core" }
-dm-shell = { path = "../dm-shell" }
-serde_json = "1"
+dm-core.workspace = true
+dm-shell.workspace = true
+serde_json.workspace = true
 # The control port's window answers, as typed shapes (probe.rs).
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 # The control protocol's token (control.rs).
-getrandom = "0.4"
+getrandom.workspace = true
 # The system's language, for the window's first one: from the OS itself,
 # since an app opened from the Dock or a login item has no LANG (i18n.rs).
-sys-locale = "0.3"
+sys-locale.workspace = true
 # Dates and addresses as a row's details say them (format.rs, details.rs).
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-url = "2"
+chrono = { workspace = true, features = ["clock", "std"] }
+url.workspace = true
 # The login item on macOS and Windows (login.rs): a launch agent, the Run key.
-auto-launch = "0.6"
+auto-launch.workspace = true
 # A removed file to the Recycle Bin or the Trash (desktop.rs).
-trash = "5.2.9"
+trash.workspace = true
 # The window's native handle, for Windows' taskbar progress (taskbar.rs).
-raw-window-handle = "0.6"
+raw-window-handle.workspace = true
 # A logout or `kill` quits dm as Exit does (signals.rs).
-tokio = { version = "1", features = ["rt-multi-thread", "signal"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "signal"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # What VoiceOver is given of each window, read from inside (a11y_tree.rs).
-objc2 = "0.6"
+objc2.workspace = true
 # The Dock's bar and badge (taskbar.rs): its tile, the program's picture and a bar over it.
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSAccessibility", "objc2-core-foundation", "NSDockTile", "NSImage", "NSImageView", "NSControl", "NSView", "NSProgressIndicator", "NSColor", "NSColorSpace"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSGeometry"] }
+objc2-app-kit = { workspace = true, features = ["std", "NSApplication", "NSResponder", "NSAccessibility", "objc2-core-foundation", "NSDockTile", "NSImage", "NSImageView", "NSControl", "NSView", "NSProgressIndicator", "NSColor", "NSColorSpace"] }
+objc2-foundation = { workspace = true, features = ["std", "NSString", "NSArray", "NSGeometry"] }
 
 [target.'cfg(windows)'.dependencies]
 # A finished download's toast (toast.rs): WinRT, which windows-sys has no
 # wrappers for. Already in the tree through other crates.
-windows = { version = "0.62", features = [
+windows = { workspace = true, features = [
   # The taskbar button's jump list (jumplist.rs): COM.
   "Win32_Foundation",
   "Win32_System_Com",
@@ -63,7 +63,7 @@ windows = { version = "0.62", features = [
   "Data_Xml_Dom",
   "UI_Notifications",
 ] }
-windows-sys = { version = "0.61", features = [
+windows-sys = { workspace = true, features = [
   # What --register and --help print reaches the console that started dm
   # (modes.rs).
   "Win32_System_Console",
@@ -103,11 +103,11 @@ windows-sys = { version = "0.61", features = [
 [target.'cfg(target_os = "linux")'.dependencies]
 # The file manager's "show this file" and the portal's file chooser, on the
 # session bus (desktop.rs).
-zbus = { version = "5", default-features = false, features = ["blocking-api"] }
+zbus.workspace = true
 
 [dev-dependencies]
-tempfile = "3"
-proptest = "1"
+tempfile.workspace = true
+proptest.workspace = true
 
 [lints]
 workspace = true

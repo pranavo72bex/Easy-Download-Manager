@@ -248,7 +248,9 @@ still missing is in `docs/gaps.md`, rows 180 to 192.
    reviewer's reading. Prefer a safe crate that already does it.
 8. No new dependency without saying, in the commit, why the ones already in
    `Cargo.lock` cannot do it, and what it adds to the build time and the
-   binary.
+   binary. Its version goes once in `desktop/Cargo.toml`'s
+   `[workspace.dependencies]`; a crate writes `name.workspace = true` with
+   its own features (`cargo xtask layers` refuses a version in a crate).
 9. Every task spawned has an owner that can cancel it, and a plan for when
    dm quits. A task that is simply dropped with the runtime does not count
    as stopped.
