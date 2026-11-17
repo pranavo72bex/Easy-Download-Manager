@@ -131,14 +131,19 @@ fn percent_decode(text: &str) -> String {
 /// The name a row is shown by: the file's, or a guess at it until the
 /// server says.
 pub fn name_of(row: &Entry) -> String {
+    name_seen(row).into_owned()
+}
+
+/// [`name_of`], borrowed from the row where it is the row's own.
+fn name_seen(row: &Entry) -> std::borrow::Cow<'_, str> {
     if !row.filename.is_empty() {
-        return row.filename.clone();
+        return std::borrow::Cow::Borrowed(&row.filename);
     }
     // The name chosen in Download details, until the file is saved under
     // it: a row added for later showed its address's name.
     match row.save_name.as_deref().map(str::trim) {
-        Some(chosen) if !chosen.is_empty() => chosen.to_string(),
-        _ => provisional(&row.url),
+        Some(chosen) if !chosen.is_empty() => std::borrow::Cow::Borrowed(chosen),
+        _ => std::borrow::Cow::Owned(provisional(&row.url)),
     }
 }
 
@@ -200,15 +205,25 @@ pub fn planned_folder(
 /// same folder under the same name: what `name_it_will_get_after` is told.
 /// One pass, in the order the rows were added.
 pub fn earlier_of_the_same_name(rows: &[Arc<Entry>]) -> HashMap<Id, usize> {
-    let mut order: Vec<&Entry> = rows.iter().map(|r| &**r).collect();
-    order.sort_by_key(|r| r.id);
-    let mut seen: HashMap<(Option<String>, String), usize> = HashMap::new();
-    let mut before = HashMap::new();
+    // Only the rows not yet placed, sorted only where the list is not already in the order
+    // they were added, and each folder and name borrowed from its row: at 10,000 waiting rows
+    // every row was sorted and its folder and name copied at each change of the list (gaps
+    // row 210).
+    let mut order: Vec<&Entry> = rows
+        .iter()
+        .map(|r| &**r)
+        .filter(|r| !r.state.settled() && r.path.is_empty())
+        .collect();
+    if !order.is_sorted_by_key(|r| r.id) {
+        order.sort_by_key(|r| r.id);
+    }
+    let mut seen: HashMap<(Option<&str>, std::borrow::Cow<'_, str>), usize> =
+        HashMap::with_capacity(order.len());
+    let mut before = HashMap::with_capacity(order.len());
     for r in order {
-        if r.state.settled() || !r.path.is_empty() {
-            continue;
-        }
-        let count = seen.entry((r.save_dir.clone(), name_of(r))).or_insert(0);
+        let count = seen
+            .entry((r.save_dir.as_deref(), name_seen(r)))
+            .or_insert(0);
         before.insert(r.id, *count);
         *count += 1;
     }
