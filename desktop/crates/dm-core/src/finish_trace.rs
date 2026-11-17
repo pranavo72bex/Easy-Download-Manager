@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! A trace of a download's finish, for finding where the time after its last byte goes (gaps
-//! rows 177 and S5): with `DM_FINISH_TRACE` naming a file, each stage appends a line, its name
+//! rows 177 and S5), and of the window's start (`start: …`, gaps row S16): with `DM_FINISH_TRACE` naming a file, each stage appends a line, its name
 //! and the wall clock in milliseconds, which the benchmark's own times (the server's last byte)
 //! line up with. Without it, a stage costs one look at a value read once.
 
@@ -22,7 +22,8 @@ fn file() -> Option<&'static std::path::Path> {
 }
 
 /// Writes down that `stage` is reached now.
-pub(crate) fn mark(stage: &str) {
+#[doc(hidden)]
+pub fn mark(stage: &str) {
     let Some(path) = file() else {
         return;
     };

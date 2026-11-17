@@ -1819,6 +1819,18 @@ impl Downloads {
     /// chosen every two seconds while anything changes, as a waiting row's
     /// name follows its folder (`name_it_will_get_after`).
     pub(crate) fn read(&mut self) -> bool {
+        let first = crate::port::FRAMES.load(Ordering::Relaxed) == 0;
+        if first {
+            dm_core::finish_trace::mark("start: a read before the first frame begins");
+        }
+        let changed = self.read_rows();
+        if first {
+            dm_core::finish_trace::mark("start: a read before the first frame ends");
+        }
+        changed
+    }
+
+    fn read_rows(&mut self) -> bool {
         let queue_changed = dm_shell::app::changes::take();
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
@@ -2009,7 +2021,9 @@ pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
 
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::port::FRAMES.fetch_add(1, Ordering::Relaxed);
+        if crate::port::FRAMES.fetch_add(1, Ordering::Relaxed) == 0 {
+            dm_core::finish_trace::mark("start: first frame drawn");
+        }
         // Its waits, copies and disk calls, counted in a debug build (row 180).
         let _drawing = dm_shell::app::costs::drawing();
         if !std::mem::take(&mut self.drawn_fresh) {

@@ -159,6 +159,8 @@ fn open_question(cx: &mut App) -> Option<WindowHandle<Question>> {
 const OWN_FLAGS: [&str; 2] = ["--accessibility", "--churn"];
 
 fn main() {
+    // The start's stages, where DM_FINISH_TRACE names a file (gaps row S16).
+    dm_core::finish_trace::mark("start: main");
     // A portable copy's home, before any thread starts.
     dm_shell::settings::enter_portable();
 
@@ -224,7 +226,10 @@ fn main() {
         login_item,
         ..
     } = match boot::start(&args, &handed, platform, wake.clone()) {
-        Ok(booted) => booted,
+        Ok(booted) => {
+            dm_core::finish_trace::mark("start: settings, client and queue read");
+            booted
+        }
         Err(why) => {
             eprintln!("{why}");
             std::process::exit(1);

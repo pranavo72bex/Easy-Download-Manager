@@ -39,7 +39,14 @@ impl Queue {
         if let Some(last) = last.and_then(|t| t.trim().parse::<u64>().ok()) {
             crate::lock(&self.inner.recheck).1 = last;
         }
-        self.save().await;
+        // Written in the background, not waited for: the list was just read from that very file,
+        // so nothing is lost if dm stops before it is written again, and a long list cost the
+        // window 45 ms of its start (10,000 rows, gaps row S16). Saves take turns
+        // (`saving`), so a change made meanwhile is written after it.
+        // Owed from now, so a `flush` made before the background write starts still writes it.
+        self.inner.unwritten.store(true, Ordering::SeqCst);
+        let queue = self.clone();
+        tokio::spawn(async move { queue.save().await });
     }
 
     /// Reads a stored queue, if one is readable.
@@ -89,6 +96,15 @@ impl Queue {
         // for below is the disk's, and nothing asks the disk under the lock
         // every read of the list waits for (gaps row 184).
         let entries = tokio::task::spawn_blocking(move || {
+            // The parts folder listed once: asked row by row, 10,000 rows that never started (and
+            // so recorded no folder) were 10,000 looks at the disk at every start (gaps row S16).
+            let listed: std::collections::HashSet<String> = std::fs::read_dir(&parts_base)
+                .map(|dir| {
+                    dir.flatten()
+                        .map(|e| e.file_name().to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
             entries
                 .into_iter()
                 .map(|mut entry| {
@@ -96,7 +112,7 @@ impl Queue {
                     // folder: its parts are under the folder in force now,
                     // and are recorded there, so a later change of the
                     // setting does not strand them.
-                    if entry.parts_dir.is_empty() {
+                    if entry.parts_dir.is_empty() && listed.contains(&entry.id.to_string()) {
                         let staged = parts_base.join(entry.id.to_string());
                         if staged.is_dir() {
                             entry.parts_dir = staged.display().to_string();
