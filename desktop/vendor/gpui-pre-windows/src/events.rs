@@ -28,6 +28,9 @@ pub(crate) const WM_GPUI_FORCE_UPDATE_WINDOW: u32 = WM_USER + 5;
 pub(crate) const WM_GPUI_KEYBOARD_LAYOUT_CHANGED: u32 = WM_USER + 6;
 pub(crate) const WM_GPUI_GPU_DEVICE_LOST: u32 = WM_USER + 7;
 pub(crate) const WM_GPUI_DISPLAYS_CHANGED: u32 = WM_USER + 10;
+// dm: the app chose Light or Dark (`Platform::set_window_appearance`). Its own message, as
+// Windows will not post `WM_SETTINGCHANGE` with the string it carries (desktop/vendor/README.md).
+pub(crate) const WM_DM_APPEARANCE_CHOSEN: u32 = WM_USER + 21;
 
 const SIZE_MOVE_LOOP_TIMER_ID: usize = 1;
 
@@ -153,6 +156,8 @@ impl WindowsWindowInner {
             WM_IME_COMPOSITION => self.handle_ime_composition(handle, lparam),
             WM_SETCURSOR => self.handle_set_cursor(handle, lparam),
             WM_SETTINGCHANGE => self.handle_system_settings_changed(handle, wparam, lparam),
+            // dm: see `WM_DM_APPEARANCE_CHOSEN`.
+            WM_DM_APPEARANCE_CHOSEN => self.follow_appearance(handle),
             WM_INPUTLANGCHANGE => self.handle_input_language_changed(),
             WM_SHOWWINDOW => self.handle_window_visibility_changed(handle, wparam),
             DM_POINTERHITTEST => self.handle_dm_pointer_hit_test(wparam),
@@ -1240,19 +1245,27 @@ impl WindowsWindowInner {
         {
             log::info!("System settings changed: {}", parameter_string);
             if parameter_string.as_str() == "ImmersiveColorSet" {
-                let new_appearance = system_appearance()
-                    .context("unable to get system appearance when handling ImmersiveColorSet")
-                    .log_err()?;
-
-                if new_appearance != self.state.appearance.get() {
-                    self.state.appearance.set(new_appearance);
-                    let mut callback = self.state.callbacks.appearance_changed.take()?;
-
-                    callback();
-                    self.state.callbacks.appearance_changed.set(Some(callback));
-                    configure_dwm_dark_mode(handle, new_appearance);
-                }
+                self.follow_appearance(handle)?;
             }
+        }
+        Some(0)
+    }
+
+    // dm: the window's look made the one in force, the system's or the app's choice; moved out
+    // of `handle_system_theme_changed` for `WM_DM_APPEARANCE_CHOSEN` too, and the title bar's
+    // dark mode set before the callback, which may be absent yet.
+    fn follow_appearance(&self, handle: HWND) -> Option<isize> {
+        let new_appearance = system_appearance()
+            .context("unable to get system appearance when handling ImmersiveColorSet")
+            .log_err()?;
+
+        if new_appearance != self.state.appearance.get() {
+            self.state.appearance.set(new_appearance);
+            configure_dwm_dark_mode(handle, new_appearance);
+            let mut callback = self.state.callbacks.appearance_changed.take()?;
+
+            callback();
+            self.state.callbacks.appearance_changed.set(Some(callback));
         }
         Some(0)
     }

@@ -132,13 +132,23 @@ Licence Apache-2.0 (its `LICENSE-APACHE`); the version the GPUI window
 (`crates/dm-gpui`, pinned `gpui-pre` 0.3.12) is built with on Windows. The
 published package's `Cargo.lock` and `.cargo_vcs_info.json` are left out.
 
+Mica behind the whole window (`dm:` lines in `window.rs`,
+`extend_frame_into_client`): Windows puts a system backdrop behind the frame it
+draws itself only, and this window draws its own title bar, so what it left
+clear for Mica showed black (dm's gaps row G11). The frame is spread over the
+whole window (`DwmExtendFrameIntoClientArea`, margins of -1) for Mica and put
+back for an opaque window. Not yet enough: the frame is drawn one flat colour
+(gaps row G11).
+
 The app's own Light or Dark (`dm:` lines in `util.rs` and `platform.rs`):
 upstream leaves `Platform::set_window_appearance` empty on Windows, so
 Options › General › Theme did nothing and every window followed Windows' mode
 (dm's gaps row 211). The choice is kept in `util.rs` (`choose_appearance`) and
-`system_appearance` answers with it where one is chosen; each window is posted
-Windows' own `ImmersiveColorSet` change, so it takes the new look, and its title
-bar's dark mode, from its own message loop.
+`system_appearance` answers with it where one is chosen; each window is posted a
+message of dm's own (`WM_DM_APPEARANCE_CHOSEN`, as Windows will not post
+`WM_SETTINGCHANGE` with its string) and takes the new look, and its title bar's
+dark mode, from its own message loop (`events.rs` `follow_appearance`, which
+Windows' own `ImmersiveColorSet` change goes through too).
 
 Files dragged out of the window (`src/drag_out.rs`, and `dm:` lines in
 `gpui_windows.rs`, `window.rs`, `events.rs`): upstream offers GPUI's

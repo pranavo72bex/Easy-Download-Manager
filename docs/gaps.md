@@ -37,6 +37,102 @@ What reference A does comes from four folders of local notes. They are listed in
 reach dm only as black-box items in `docs/engine-local/requirements.md`, and a run of both apps
 must prove each one.
 
+## Work order (the maintainer, 2026-11-17: the coding first and fast, the tests last and at once)
+
+This is the order the rows below are taken in. It replaces "Order across the tables" in the audit
+of 2026-11-11 and the "Order" line of rows W; the rows themselves stay in their tables, where
+their detail is. Each row is named here once.
+
+**While coding (steps 1 to 7):** a row is coded with `cargo check`, clippy on the crates it
+touches and its own tests only (`cargo test -p <crate> <name>`), then committed. The whole
+`cargo test --workspace`, `human-qa.py`, the benchmark, the site checks and every "owed on
+Windows / Linux / by hand" are not run row by row: they are step 8, once. A row whose code is
+done moves to "Coded, waits for step 8" in its Status and is deleted only when step 8 passes it.
+A row is not held up waiting for an answer: step 0's questions are asked together, and coding
+goes on with the rows that need none.
+
+**0. Asked of the maintainer in one message, before step 1** (answers come while steps 1 to 5 run)
+- Approval in words (the contract): Y7, Y27, U20, A4, A16, W8, W10, W11, W12, W14, W15, W16,
+  W17, W18, W20, W26.
+- A decision: P4, P5, F8, F11, F12, W5, W13, W22, W25.
+- Only the maintainer can do: 163, R1, R4, W24, R2's submissions, F4's export file, row 5's
+  readers.
+
+**First of all: the structure, as GPUI's makers lay out theirs** (the maintainer, 2026-11-17:
+"add it to gaps.md and give it first priority", of a reading of their public repository beside
+dm's tree; rows X and A below). Each is a pure move: nothing a person sees changes, B25's
+pictures stay, and each is committed alone with `cargo check`, clippy and its crates' tests.
+Smallest first:
+1. X8: every dependency's version once, in `[workspace.dependencies]`.
+2. A15: one workspace at the top, `browser/` in it.
+3. X9: one assets folder.
+4. A13: `dm-gpui` in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`.
+5. X1: one `folders` module for where a person's files live.
+6. X10: test helpers under a `test-support` feature.
+7. A19 (the `widgets` part: spacing and colours named once), A10 (a system's code in `platform/`).
+8. A6: `dm-media`, `dm-torrent`, `dm-net` out of dm-core. About ten crates is the aim, not the
+   hundreds a large team keeps.
+Not taken from them: a crate's first file named after the crate (dm keeps `lib.rs`).
+
+**Then, before step 1: the GPUI migration closed** (the maintainer, 2026-11-17: "add in first
+priority"; detail under "GPUI migration: where it stands" below). Its whole runs (`cargo test
+--workspace`, `human-qa.py`) come after the moves above, so they are run once on the tree as it
+will stay. These rows' checks are run on the system each names, not left for step 8:
+- G11 (Mica drawn black on Windows 11), fixed and seen.
+- `cargo test --workspace` whole on Windows, for `dm-gpui`'s test process ending with
+  0xc0000409: its cause found if it shows again.
+- 211 seen (Light and Dark at start and from Options), then `human-qa.py` whole on Windows on
+  a build after rows 210 to 212 (G7).
+- U43: a drag on each of the list's bars, then the two window tests ported.
+- G10: a finished file dragged out, seen landing on Windows; macOS and Linux on theirs.
+- G6: IME by hand; on Linux the 50-window churn and the package's size.
+- G8: the release workflow's packages from a draft through `human-qa.py` on every system.
+- The four commits on `main` pushed.
+
+**1. Broken today** (small, seen failing): G11 (with the block above), 204 (Vimeo), 205 (Reddit's
+sound), 210 (the queue's snapshot).
+
+**2. Small, nothing to ask** (a day or less each): X4 (each system's traps), X2, W19, S4, Y6 (SRT and VTT writers), Y10, U41,
+U27, Y14 (numbered segments), 172 (the harness's batch case), 190 (criterion benches), R3
+(Windows on Arm in the release matrix), W23 (the translating page), P8.
+
+**3. Speed, memory and CPU** (each change judged by its one `bench` or `ui-bench.py` case, not
+the whole benchmark): 175, 176, 177, 171, S5, S6, S16, 181, S11, 185 (the copy across drives
+after a Cancel), 186 (what dm itself receives twice).
+
+**4. Videos:** Y9, Y8, Y13, Y16, Y20, Y21, Y25, Y4, Y5 (a premiere, a stream just ended), Y2.
+
+**5. Features with nothing to ask:** F6 (its key first: W5 and W21 use it), W21, W7, F10, F2,
+W9, U16 (the title), U35, P6, P3, then CI's own: W6, R5.
+
+**6. Rows approved or decided in step 0**, as each answer comes, smallest first: W8, W14, W17,
+W26, W18, W20, U20, Y27, Y7; then W5, W10, W11, W12, W15, W16, P4, P5; then F8, F11, F12, W13,
+W25, W22.
+
+**7. Structure and docs** (pure moves, after the features so they are moved once and no feature
+is written against a file about to be split; X8, A15, X9, A13, X1, X10, A10, A6 and A19's
+widgets are taken first of all, above): A5, A11, A19 (what is left), A20, A21, A14, A8, A9, A7,
+A12, A17 (with X5), A18, A4, X7, A16; then X3, D5, D6 (with X6).
+
+**8. The test pass, once, at the end** (every failure it finds is fixed, then only what failed is
+run again):
+- Everywhere: `cargo fmt`, clippy `-D warnings`, `cargo test --workspace` ten whole runs (195,
+  198, 202), the extension's tests, `chrome-check.py` ten runs (208), `youtube-check.py` ten
+  runs (178, 209), `bench.mjs fast` fifty runs (206); the cause of 206 and 208 is fixed from
+  what these runs name.
+- Windows laptop, a release installer built after step 7: `human-qa.py` whole (G7, G8, 211, 193,
+  194, U2, U23, U43), G10 (a drag out), 191, 20, 39, T5, U15 (each notification clicked), 187,
+  188, 189, `ui-bench.py` (210, S11), R2 (`scoop install`, `winget validate`), then
+  `node bench/bench.mjs` whole and `compare.mjs` (171, 175, 176, 177, W1, W2).
+- macOS: `human-qa.py` whole, G10, U15, U16, 187, the whole benchmark.
+- Linux in Docker: `linux-human-qa.sh`, `linux-gui-check.sh`, G6 and G7's owed checks, G10, 185,
+  186, 188, 189, 190 (arm64), 194, R2 (`flatpak-builder`).
+- Sites and the outside world: Y26 (every line of `docs/site-list.md`), 121, Y12, F14, 200, 47.
+- Long and by count: W3 (the twenty tasks), W4 (the 72 hours).
+
+**Not in the order:** 170 (a sign-in), 192 and S13 (closed by decision), and step 0's third line
+until the maintainer has done it.
+
 ## Paused (2026-11-16, night): where to pick up
 
 S16's start speed-up committed 2026-11-17 (the background save at start marks the write owed first, so a `flush` right after start still writes; a queue test caught it).
@@ -144,6 +240,32 @@ Left, for the final test pass (the maintainer, 2026-11-17: the coding first, the
    took 5.65 s against its 5.6 (0.7 of 8) once beside `dm-gpui`'s window tests; alone 5.81 s
    for the whole target, three of three passing. Load, as its comment allows for; watch it.
 
+#### GPUI migration: where it stands (read 2026-11-17 at 0262fc50, nothing run for it)
+
+Done: egui is gone (no egui or eframe package in `desktop/Cargo.lock`, no `dm-desktop` crate;
+the word is left in comments and in the installer's step that removes the older program);
+`dm-gpui` is the only window and the default on macOS, Windows and Linux; 0.10.0's
+`human-qa.py` held 66 of 66 on each (Windows from the release installer, at 54625da9).
+
+Not closed, each in its own row and in the work order above:
+- G11 (step 1): Mica on draws the frame solid black on Windows 11. Off by default.
+- G10: a finished file dragged out is coded, never seen landing on any system.
+- U43: the list's bars are drawn; a drag on them unchecked, the two egui window tests not ported.
+- 211: Theme's Light and Dark on Windows coded, not yet seen.
+- G8: the release workflow's packages from a draft, not yet through `human-qa.py` on every system.
+- G6: IME by hand only; on Linux the 50-window churn and the package's size.
+
+Before it is called finished:
+- `dm-gpui`'s test process ended with 0xc0000409 in the last whole `cargo test --workspace` on
+  Windows (first bullet of "Left" above). Not repeated, its cause not known: if it shows again
+  it is a row of its own, not load.
+- Windows' 66 of 66 is of 54625da9. Rows 210 to 212 changed `desktop/` since (530a102e,
+  0262fc50), so the contract asks for `human-qa.py` whole again.
+- G7's row still names a whole Windows run on an installer built after the review fixes of
+  2026-11-11 as owed: the run of 2026-11-17 above is that run. What G7 still waits for on
+  Windows is the run after rows 210 to 212.
+- Four commits on `main` are not pushed.
+
 Builds on this laptop: `CARGO_INCREMENTAL=0`. D: filled (398 GB in `D:/dm-target/debug`, 138
 of it the incremental cache) and the linker failed with LNK1180.
 
@@ -195,7 +317,7 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | G7  | GPUI migration, Phase C: the window in eight slices (main window; table; row commands; Add URL and the questions; queues and Scheduler; progress and failure windows; Options; dialogs, tray, shortcuts, accessibility, B25 pictures) | PARTIAL: every slice holds on macOS (64/64, 2026-11-10) and on Linux (64/64 from a build of the checkout, B25 compared with `docs/behaviour-baseline/gpui/linux`, and `linux-gui-check.sh` 122/122 with real input, 2026-11-11); on Windows 63 of 64 from its installer (2026-11-11; B36 missed only its click-to-first-request time once, held at 0.71 s on the second pass); owed on Windows: a whole `human-qa.py` run on an installer built after the review fixes of 2026-11-11; the empty list's prompt (inventory 54: "Nothing queued", its line, Add a download, what may be dropped) is built (2026-11-11, `table::empty`, the words both windows' from `rows::empty_words`), checked on macOS over the control port (its words, Add a download opening Add URL, gone with a row, "No download here matches the filter." for a search that finds nothing) and the macOS B25 picture drawn again; Linux: owed to the final Linux pass (`human-qa.py` with the Linux B25 picture drawn again by `--save-baseline` and looked at); Windows: its picture on the laptop. `human-qa.py` on the GPUI window on macOS, 2026-11-11: 65 of 66 rows, B25 failing for size alone on all three pictures (this Mac's display now centres the first window at 901 points and the dialogs at 520, 2 pixels off each baseline; the empty window's new picture was taken of a 900-point window, as the baselines are). View › Text size is built (B66, issue #32: the scale slider of 60/80/100/120%, 2026-11-11), checked on macOS over the control port; Linux: owed to the final Linux pass (`app-check.py` and `human-qa.py` B66 under Xvfb, `cargo check` of the Linux paths); Windows: owed on its laptop (a 150% display, the caption buttons and title bar at 120%); not checked anywhere: a real drag of the slider's thumb; the list scrolls sideways where its columns are wider than the window (2026-11-11: at 120% in a 760-point window, Last Try Date out of sight, then reached by a sideways scroll over the port, `ui.scroll {sideways}`; the wheel moves only the rows, a sideways swipe only the columns), checked on macOS; Linux: owed to the final Linux pass (the same under Xvfb) Windows, 2026-11-13 (main at cf0df40d with the Windows fixes of that day, debug `dm-gpui`, Microsoft Edge): `human-qa.py` 66 of 66 rows; B25's three Windows pictures drawn again with `--save-baseline` and looked at (the empty list's prompt, Add URL's kept warning line, the free space beside the size, the accent colour: the changes already drawn again on macOS and Linux). Seen in that picture: at Windows' first window width the browser bar on one line cut "Add dm to your browser:" to "Add dm…"; done 2026-11-14 at the maintainer's word (the words wrap whole onto a second line), `human-qa.py` 66 of 66 on Windows with the pictures drawn again. Still owed on Windows: a whole run on an installer built after these fixes. | Each slice's contract rows (`docs/migration/GPUI_MIGRATION_PLAN.md` Phase C) hold in GPUI on every system, run side by side with egui by `human-qa.py`; D3 for the new B25 pictures |
 | G8  | GPUI migration, Phase D: platform integrations to adapt or redo for GPUI (`docs/migration/PLATFORM_GAP_ANALYSIS.md`) and packaging | PARTIAL: macOS's .dmg held 64/64 (2026-11-10); Windows' installer (`cargo packager -p dm-gpui --formats nsis`) held 63 of 64 installed (2026-11-11), with the tray, the login launch, the window put away, moved and pictured through Win32, the jump list, taskbar progress and High Contrast; Linux's .deb, AppImage and .rpm built from `dm-gpui` (2026-11-11: `/usr/bin/dm-desktop` and a hidden `dm-desktop.desktop` kept for earlier installs; the .deb installed by apt passes `app-check.py` and the Secret Service check; the AppImage answers as a native host), with the tray and its host (`dm_desktop_base::tray`, shared with the egui window), dialogs placed and moved on X11, links dropped on X11 and Wayland. The release profile's fat-LTO link of `dm-gpui` ran out of Docker's 7.6 GB here (the local check used thin LTO); CI's 16 GB runners are expected to hold it. Owed: the release workflow's packages from a draft on every system | The release workflow's packages, downloaded from a draft, hold 64/64 on macOS, Windows and Linux |
 | G10 | A finished download cannot be dragged out of the GPUI window into a folder, a mail or a chat (it could from the egui window, removed 2026-11-13: `drag` on macOS and Windows, dm's own XDND on X11, winit's on Wayland; `docs/parity.md` "Dragging finished files out of the window"). Not a contract row | PARTIAL (2026-11-11): written for macOS, X11 and Wayland, not yet watched landing. A finished row (or the chosen rows, from one of them) is a GPUI drag (`dm-gpui` `dragout.rs`, `table.rs`) whose files GPUI hands to the system as the pointer leaves the window (`external_drag_payload`): AppKit's dragging session on macOS and the data device on Wayland, both GPUI's own (Wayland now offers a copy only), and on X11 an XDND source added to the vendored GPUI (`vendor/gpui-pre-linux` `x11/drag_out.rs`, the egui window's `xdnd.rs` moved there). No `drag` crate: the system's drag runs beside GPUI's loop, never inside an update. Built, clippy clean, `dragout.rs` unit tests pass; a row still takes a click and a double-click through the control port, as before. macOS: `drag-out-check.py` now drives `dm-gpui` (DM_BINARY for the egui window) but could not move the pointer here (the terminal is not allowed under Accessibility; `AXIsProcessTrusted` false, so the egui window failed it the same way): owed, by hand or with that permission. Linux: owed to the final Linux pass (`linux-drag-check.sh`, `linux-wayland-drag-check.sh` with DM_WINDOW=gpui; the X11 code is not compiled on this Mac). Windows (2026-11-12, written on the Mac and compiled for Windows by `scripts/windows-check.sh clippy`, not yet run): GPUI's Windows platform had no `start_external_drag`; the vendored `vendor/gpui-pre-windows` (`src/drag_out.rs`) now makes the drag with the shell's own pieces, the files as shell items, their data object as Explorer's (`BHID_DataObject`) and `SHDoDragDrop` with the shell's drop source, from a message posted to the window so its modal loop runs outside GPUI's updates; owed to the Windows laptop: a row dragged into an Explorer folder and a mail | `drag-out-check.py` passes with dm-gpui on macOS; `linux-drag-check.sh` and `linux-wayland-drag-check.sh` pass with dm-gpui; a drag out on Windows |
-| G11 | Options › General's "Use the Mica backdrop" (Windows 11) was the egui window's only: the GPUI window draws Fluent's opaque colours and offers no switch. Off by default, not a contract row | PARTIAL (2026-11-12): written on the Mac, compiled and linted for Windows (`scripts/windows-check.sh clippy`), not yet seen. The check moved toolkit-free to `dm_desktop_base::mica` (the egui window's `chrome` asks it); the GPUI window puts it in force at start from `settings.mica`, opens with `WindowBackgroundAppearance::MicaBackdrop`, draws its frame (title bar, toolbar, side panel, status bar) clear through `theme::frame` and keeps the list's column solid; Options › General offers the switch under Sounds on Windows 11 22H2 and later, with the egui window's words. Owed to the Windows laptop: the switch turned on, dm started again, the desktop seen faintly through the frame in light and dark. Seen 2026-11-17 on the laptop (Windows 11 26100, transparency effects on, release of 9f8d8dc3 with `"mica": true`): the frame (title bar, toolbar, side panel, status bar) is drawn solid black, not the backdrop; the list stays as it was. Next: whether GPUI's DirectComposition swap chain is made with premultiplied alpha and a clear of 0 reaches DWM, or Mica is only applied after the first frame | The switch on Windows 11 (`chrome::mica_possible`), GPUI's `WindowBackgroundAppearance::MicaBackdrop` with the window's and side panel's colours see-through where it is on, its words read as they read now |
+| G11 | Options › General's "Use the Mica backdrop" (Windows 11) was the egui window's only: the GPUI window draws Fluent's opaque colours and offers no switch. Off by default, not a contract row | PARTIAL (2026-11-12): written on the Mac, compiled and linted for Windows (`scripts/windows-check.sh clippy`), not yet seen. The check moved toolkit-free to `dm_desktop_base::mica` (the egui window's `chrome` asks it); the GPUI window puts it in force at start from `settings.mica`, opens with `WindowBackgroundAppearance::MicaBackdrop`, draws its frame (title bar, toolbar, side panel, status bar) clear through `theme::frame` and keeps the list's column solid; Options › General offers the switch under Sounds on Windows 11 22H2 and later, with the egui window's words. Owed to the Windows laptop: the switch turned on, dm started again, the desktop seen faintly through the frame in light and dark. Seen 2026-11-17 on the laptop (Windows 11 26100, transparency effects on, release of 9f8d8dc3 with `"mica": true`): the frame (title bar, toolbar, side panel, status bar) is drawn solid black, not the backdrop; the list stays as it was. Looked into the same day: the swap chain is DirectComposition's with premultiplied alpha and the frame is cleared to 0, so the frame is clear; but the frame was never spread over the client area, where Windows puts a system backdrop only behind the frame it draws itself. `window.rs` `extend_frame_into_client` now spreads it (`DwmExtendFrameIntoClientArea`, margins of -1) for Mica and puts it back for an opaque window. Seen after, with the window active (debug build, Light and Dark now in force, row 211): the frame one flat colour everywhere, `#ffffff` in Light and `#0a0a0a` in Dark, no tint of the wallpaper, so Mica is still not drawn. Next: whether `DWMWA_SYSTEMBACKDROP_TYPE` is set before the window is first shown and needs setting again after, whether GPUI's own non-client handling (`WM_NCCALCSIZE`) takes away what DWM needs, and what a plain DirectComposition window with Mica draws on this laptop | The switch on Windows 11 (`chrome::mica_possible`), GPUI's `WindowBackgroundAppearance::MicaBackdrop` with the window's and side panel's colours see-through where it is on, its words read as they read now |
 | 198 | `window::dialogs::a_file_starts_while_download_details_asks_and_lands_where_chosen` (egui window; ported by name to `dm-gpui` `window_tests::dialogs`, the copy to watch since the egui crate's removal) failed once in a whole `cargo xtask check` on macOS (2026-11-12, "timed out waiting for the file to finish under the name chosen"); alone it passed three runs of three | OPEN | Run it beside the rest of the suite until it fails again, then find whether the download or the test's wait is slow under load |
 | 200 | Security (same audit): an inside address reached through a public name that resolves inside (DNS rebinding) passes `redirects::inward` and `named_inside`, which judge the name as written | PARTIAL (2026-11-12): done and tested on macOS: a public-looking name a public address leads to (a redirect, a playlist's or manifest's piece, a mirror, a page's link: `redirects::inward`) is held to public addresses for ten minutes (`dns::must_be_public`); the resolver dm's clients connect through refuses it where it resolves inside alone, at the connection, from the same kept answer the judgement saw. A hop counts as inside where its name was found to lead inside, so an intranet's own names lead on to each other (`dns::leads_inside`). Tested with kept names (`dns::tests::a_public_name_that_leads_inside_is_refused`). Owed: a real rebinding name (one that answers public, then 127.0.0.1) | The address a connection is made to judged after the lookup (a resolver of dm's own for the engine's client), as FTP pins its data connection to the control peer; a test with a name resolving to 127.0.0.1 |
 | 195 | `errors::connections_that_lose_the_server_take_turns_and_come_back_together` (dm-core, row 177's test) failed once in a whole `cargo test --workspace` on macOS (2026-11-12, the merge of gpui-par, another checkout building at the same time): "the server was not asked for 504 ms of the outage", where the test allows 400 ms between turns. Its binary alone passed six runs in a row, and the next whole run passed. Looked into (2026-11-12, macOS): not reproduced in 16 more runs, ten of the test alone and six of its whole binary, while a whole `cargo test -p dm-core` ran beside them. A turn is reserved when a connection's request fails (`retry::Together::turn_at`), so a gap is a request, or the wake of the connection to make it, coming late on a starved runtime, not a turn skipped; what the test holds to is that no stretch of the outage goes unasked, as the two seconds of connections asking in step did. The test now allows 900 ms between asks (ten a second leave 100). Still owed: ten whole `cargo test --workspace` runs in a row | PARTIAL | Find whether the turns themselves slip under load (a timer on a busy runtime) or only the test's reading of them, and either keep the turns even under load or give the test the margin a loaded computer needs; ten whole runs in a row pass |
@@ -227,7 +349,8 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 208 | In one `chrome-check.py` run of five (macOS, Edge, 2026-11-16) the "Download video" panel handed `clip.mp4` to dm before the check's own click on it: after its grip was dragged and the page's script pressed its button, which the panel ignores (`is_trusted`, `content.js` `pressed`). The check now waits 2 s after the drag and reads the worker's log after each, so a run that does it says which | OPEN · S to M | The cause named by such a run and fixed; 10 runs with no hand-off before the check's click |
 | 209 | YouTube: "Me at the zoo" failed in dm with "YouTube's player is not as dm knows it (no function in it builds a stream's address)" (`human-qa.py` B35 and 1 `youtube-check.py` run in 5, macOS, Edge, 2026-11-16). YouTube serves a second player to some: its words behind one table (`g.d='…{alr{…'.split("{")`) read as `g.d[e^1387]`, `e` worked out from a global its callers set first (`g.B[25]=2314109;Yp(…)`). Done (2026-11-16): a player dm cannot cut is kept as `players/failed-<key>.txt` (`youtube::kept`); dm reads the table (`player::string_table`), knows the address function by three readings whose numbers differ as the places of `set`, `alr` and `yes` do, and calls it with the global set first (`Table::key_from_global`). On the kept player both checks are answered in dm-js; `youtube-check.py` then passed 10 runs of 10. Left: the signature it gives that player came back 7 characters shorter (103 to 96), not yet seen to fetch, since those 10 runs keep no dm home to show which player each had | PARTIAL · S | A `youtube-check.py` run known to have had that player (its cut program, `players/f5af9725….js` with this dm version, in the home it keeps) lands the video whole |
 | 210 | Windows: with 10,000 rows and 300 downloads added at once (10 running), the window's slowest answer to `ui.texts` is 0.67 to 0.76 s in each of three runs (`ui-bench.py` group `many`, release 0.10.0, the laptop, 2026-11-17; `scripts/ui-bench-baselines/win32-x86_64.json` `many_worst`), where its median is 0.026 s and macOS arm64's baseline worst is 0.12 s. At 100 rows the worst is 0.034 s, so it grows with the list: one step of the turnover (300 rows added, or each finish) touches every row. The same run's "Paging, 60 downloading" worst reached 0.63 s once at 10,000 rows. Found 2026-11-17 (timers in `read`, debug, 300 rows joining 10,000 with the names' two seconds past): naming every waiting row looked at the disk once a row, 0.78 s of a 0.93 s read. Done: on Windows a folder asked about more than 64 names within half a second is listed once and each name looked up in the listing, the disk asked only where the listing has the name in some case (`names.rs` `nth_free_in`, `dm_core::nth_free_name_with`; a folder not made yet holds nothing), with a test that it answers as the disk does. The read 0.93 s to 0.34 s (debug); `ui-bench.py --only many`, release: `many_worst` at 10,000 rows 0.204 s (0.087 to 0.227) against 0.675, CPU 39.4% against 46.2%, nothing else worse. Since then `earlier_of_the_same_name` sorts and keys only the rows not yet placed, skips the sort where the list is already in the order added, and borrows each folder and name. Left: `ui-bench.py --only many` again at 10,000 rows, and the queue's snapshot (40 ms in debug) | PARTIAL · M | The step found (a `profiling` build on Windows, or `DM_FINISH_TRACE` marks around the read): `many_worst` at 10,000 rows on the laptop under 0.2 s in three runs, macOS's not worse than its baseline |
-| 211 | Windows: Options › General › Theme's Light and Dark did nothing: every window followed Windows' own mode (seen 2026-11-17 with `"theme": "light"` under Windows' dark mode: drawn dark). GPUI's `set_window_appearance` is empty by default and `gpui-pre-windows` did not give it a body. Done the same day: the vendored platform keeps the choice (`util.rs` `choose_appearance`, honoured by `system_appearance`) and posts each window Windows' own `ImmersiveColorSet` change, so each takes it from its own message loop (`desktop/vendor/README.md`); built and linted, not yet seen | PARTIAL · S | Light and Dark each seen taking effect at start and when changed in Options, under Windows' dark and light modes; the title bar's colour following |
+| 211 | Windows: Options › General › Theme's Light and Dark did nothing: every window followed Windows' own mode (seen 2026-11-17 with `"theme": "light"` under Windows' dark mode: drawn dark). GPUI's `set_window_appearance` is empty by default and `gpui-pre-windows` did not give it a body. Done the same day: the vendored platform keeps the choice (`util.rs` `choose_appearance`, honoured by `system_appearance`) and tells each window by a message of its own (`WM_DM_APPEARANCE_CHOSEN`, `events.rs` `follow_appearance`; Windows will not post `WM_SETTINGCHANGE` with its string, which the first try did and no window heard, as a trace showed), so each takes it from its own message loop (`desktop/vendor/README.md`). Seen 2026-11-17 (debug build, the laptop in Windows' dark mode): `"theme": "light"` draws the window and its title bar light (side panel `#f3f3f3`, list `#fbfbfb`), `"dark"` dark (`#202020`, `#272727`). Left: Light and Dark changed in Options while dm runs, and under Windows' light mode | PARTIAL · S | Light and Dark each seen taking effect at start and when changed in Options, under Windows' dark and light modes; the title bar's colour following |
+| 213 | `dm-gpui`'s test process ends with 0xc0000409 (Windows' fast fail: a Rust abort, no message printed) in a whole `cargo test --workspace` on the Windows laptop, after 380 of its 389 tests have passed, the same 9 left each time (`window_tests::zip::*`, `windows::properties_of_two_downloads_open_in_windows_of_their_own`, `speed_schedule::when_done_does_not_fire_on_a_stopped_or_schedule_held_queue`, `zoom::tests::a_measure_follows_the_text_size`): twice on 2026-11-17, both runs after row 210's change. The run before it (9f8d8dc3) passed all 389. The same binary run alone, and `cargo test -p dm-gpui` alone, pass 389 of 389 | OPEN · M | The abort's cause found (a dump of the test process, `procdump -e` or WER's LocalDumps, in a whole run); ten whole runs in a row with no abort |
 
 ## The audit of 2026-11-11 (rows P, Y, S, U, F, A, D, R)
 
@@ -369,6 +492,29 @@ why; every file sampled opens with what it is for.
 | A20 | Comments tell history, not the code: outside the egui crate, 98 mentions of egui ("as the egui window does"), 105 of gaps rows, 70 dates, 107 "used to" or "without this"; some point at things long gone (`category.rs` cites a `naming.js`; `dm-core/Cargo.toml:111` "into a webview"; `dm-shell/Cargo.toml` names an earlier window toolkit) | OPEN · M | A comment says what and why now; history is in `docs/decisions.md` and git; xtask refuses "egui" and "Phase A to E" in product source once G9 is done |
 | A21 | One thing, several names in the code: the type is `Entry`, the code says "row" 3,252 times and "download" 2,055; `Queue` is the whole list and also a named queue; "host" is the browser's host, the JavaScript host and an address's host; `Job`, `Segment`, range, part, piece | PARTIAL · L: the glossary written (2026-11-13; completed and moved into `AGENTS.md` › Glossary on 2026-11-14: each word, what it is, and the name to use). Left: the queue against queues clash renamed | The glossary (`AGENTS.md`) first; then the queue against queues clash renamed |
 
+### X. One codebase, three systems (the maintainer, 2026-11-17)
+
+The maintainer, 2026-11-17: "add more point which can makes our application systematic and easy
+to maintain cross platform". Counted that day at 0262fc50 by reading the tree; nothing was run.
+Rows A10 (a system's code in `platform/`), P8 (system programs), A16 (the checks in Rust), A17
+(patched copies) and 188 (stored baselines) already hold part of this and are not repeated.
+A10 counted again: a `cfg` for a system is in 23 of 143 dm-core files, 16 of 52 in dm-shell, 22
+of 60 in the base and 16 of 98 in the window, 307 lines in all (`secretstore/tools.rs` 16,
+`dialup.rs` 13, `mp3.rs` 12, `second_path/mod.rs` 11).
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| X1  | Where a person's files live is worked out in 12 files: `APPDATA`, `LOCALAPPDATA`, `HOME`, `USERPROFILE`, `XDG_*` and `Library/Application Support` are read or written out at 29 places (`dm-shell` `register.rs` 6 and `settings.rs` 5, the base's `autostart.rs` 6, then `welcome.rs`, `system_theme.rs`, `dm-core/src/lib.rs`, `tray.rs`, `login.rs`, `desktop.rs`, `processes.rs`, `shell.rs`, `syswindow/x11.rs`). A folder that moves on one system is a search through all of them | OPEN · M | One `folders` module (settings, data, cache, the browsers' host folders, the login items) with a function for each and each system's answer side by side; `cargo xtask check` refuses those names anywhere else; a test for each system's answers with the variables set |
+| X2  | A window's size for each system is given where the window is made, as three bare numbers in a fixed order: `native::pick(macos, windows, gnome)` at 10 places in 5 files (`main.rs`, `options.rs`, `grabber.rs`, `links.rs`, `titlebar.rs`). Nothing names which number is whose, the other windows have one size for every system, and Windows' sizes are to be set again (the maintainer, 2026-11-11: "we will handle it later") | OPEN · S | One table in `native.rs`: a row for each window, a named field for each system; a window asks for its row by name. B25's pictures unchanged on all three systems |
+| X3  | No list of what is tested on which system. About 20 tests are compiled for Unix alone (`cfg(unix)` or `cfg(not(windows))`), 7 for Windows alone and 8 for macOS alone, so a rule can be proved on two systems and never on the third with nothing saying so: on Windows nothing checks `a_download_folder_that_cannot_be_written_is_said_before_fetching`, `a_queue_that_cannot_be_written_says_so_rather_than_pretending`, `a_program_run_after_a_download_is_given_the_file_last` or the window's `a_finished_download_is_handed_to_the_command_set_to_run_after` | OPEN · M | `cargo xtask` writes a table (the test, the systems it runs on, why not the others) into `docs/testing.md` and fails when it is stale; each test left out of a system has a twin there or a written reason |
+| X4  | What goes wrong on one system is known only to whoever met it. On Windows: `human-qa.py` reads the browser rows wrongly unless run as `python -X utf8` (5 of 33 Python scripts set their own encoding); started from Git Bash it pictures B25 black; `cargo packager` finds no configuration from the checkout's root; a debug build needs `CARGO_INCREMENTAL=0` or fills the disk. None of it is in `CONTRIBUTING.md` or `docs/testing.md`; it is in this file's story | OPEN · S | Every script sets UTF-8 for itself; `human-qa.py` says so and stops when its window cannot be pictured; the packager's configuration is found from the root (or `cargo xtask package`); what is left is in the page of row X6 |
+| X5  | The window toolkit is three different sources: macOS builds the published `gpui-pre`, Linux a patched copy (`vendor/gpui-pre-linux`) and Windows another (`vendor/gpui-pre-windows`, 13,545 lines, 9 `dm:` marks, row 211's change among them; row A17 counts the Linux copy only). A fix made in one copy is not looked for in the other, and a new GPUI is carried over twice by hand | OPEN · M (with A17) | A17's patches cover both copies; `desktop/vendor/README.md` has one table (the change, the copy it is in, why the other systems do not need it, whether upstream has been told); a check that every `dm:` mark is in that table |
+| X6  | No one page says what each system does and how far it has been proved. What differs (the tray, Mica, the jump list, sheets, a drag out, IME, the secret store, the JavaScript engine, the packages) is spread over `docs/migration/PLATFORM_GAP_ANALYSIS.md`, `docs/parity.md` and `docs/windows-checklist.md`; what is owed on which system is prose inside this file's rows ("owed on Windows", "owed to the final Linux pass"), and G7's row was stale on 2026-11-17 | OPEN · M (with D5, D6) | `docs/platforms.md`: for each system how it is built, tested, packaged and put through QA with one command each; a table of what differs and why; a table of rows still owed on each system with the commit last checked. This file's rows point at it rather than each telling it again |
+| X7  | One task, a different command on each system: `make` (436 lines, written for `uname`) on macOS and Linux, hand-typed `cargo` and PowerShell on Windows; 19 checks are `sh` scripts and seven are Linux's own (`linux-human-qa.sh`, `linux-gui-check.sh`, …) beside the Python ones | OPEN · M (the part of A16 that needs nobody's word: the contract's `python3 scripts/human-qa.py` stays as it is) | `cargo xtask build`, `package`, `test` and `qa` do the same thing on the three systems and are what `Makefile`, CI and the docs call; `qa` runs `human-qa.py` as the contract says, with what that system needs set for it |
+| X8  | A dependency's version is written in each crate that uses it: `desktop/Cargo.toml` has no `[workspace.dependencies]`, and the six crates write 149 versions between them (dm-core 56, dm-gpui 35, the base 25, dm-shell 19, dm-protocol 9, dm-js 5); `browser/` writes its own again. Raising one crate is an edit in several files and nothing stops two crates asking for two versions (row A18's doubles). GPUI's own makers keep every version once at the workspace's root (their public repository, read 2026-11-17: 633 entries, each crate `x.workspace = true`) | OPEN · S | `[workspace.dependencies]` holds every version and feature set once; a crate writes `name.workspace = true` (its own features added there); `cargo xtask check` refuses a version in a crate's manifest; `Cargo.lock` unchanged by the move |
+| X9  | What is not code is kept in five places under three crates: `dm-gpui/assets/icons` (31 files), `dm-gpui/icons` (5), `dm-gpui/macos`, the base's `i18n` (the catalogs) and `dm-shell/resources` (`rules.json`). GPUI's makers keep one `assets/` at the root (icons, fonts, sounds, settings) | OPEN · S | One `desktop/assets/` (`icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), read through one `assets` module; the packaging and `build.rs` point at it; B25's pictures and every package's contents unchanged |
+| X10 | Test helpers are shared by reaching across folders: `desktop/test-support/secrets.rs` is pulled in by `#[path = "../../../test-support/secrets.rs"]` from five files in four crates, `dm-core/tests/common/` is the engine's own and cannot be used by the window's tests, and no crate has a `test-support` feature (GPUI's own crates each have one, and dm-gpui already asks GPUI for it) | OPEN · S to M | Each crate that has fakes or fixtures offers them under a `test-support` feature, used by the others' dev-dependencies; no `#[path]` out of a crate, checked by xtask; the shipped binary's size unchanged |
+
 ### D. Docs: true, short, and enough for a newcomer
 
 | #   | Gap | Status | How it closes |
@@ -385,6 +531,92 @@ why; every file sampled opens with what it is for.
 | R3  | No build for Intel Macs (`README.md:81`) or Windows on Arm | PARTIAL · S (the maintainer, 2026-11-13: "package on mac build we can consider implementing"): Intel Macs coded (2026-11-13): `desktop.yml` builds `x86_64-apple-darwin` on the Apple silicon runner into `dm_<version>_x64.dmg`, checks it is x86_64 and runs `smoke.py` on it under Rosetta; `binary-size.py --as=macos-x86_64`; the update check already picks the x64 .dmg. Run at the 0.10.0 tag (2026-11-14, run 43596783401): "macOS Intel (app, dmg)" built and "Install and run (macos-x64)" passed, and the released `dm_0.10.0_x64.dmg`'s `dm-gpui` is a Mach-O x86_64 (checked 2026-11-15). Owed: Windows on Arm, not started | A line in the release matrix for Windows on Arm; `smoke.py` on it |
 | R4  | The extension is in two stores (Edge, Firefox); Chrome-family browsers load it unpacked (the store's fee was declined, `decisions.md:1262`); Safari has none | OPEN · S (a fee), L · the maintainer's: the Chrome Web Store listing needs the maintainer's developer account and its fee, Safari a developer account; the code is ready to take the store's id (`--register`) | A Chrome Web Store listing with its id given to `--register`; Safari needs its own wrapper and a developer account |
 | R5  | The contract's 64 rows and the benchmark run on a person's computer only; CI gates neither (a visible window, reference A's frozen numbers) | OPEN · M | The rows on CI's Linux runner as `linux-human-qa.sh` already runs them in Docker, reported and not yet gating (the contract's own run stays a person's, in sight); `bench/compare.mjs` on a schedule against dm's own last numbers |
+
+## Best in its market (rows W, the maintainer, 2026-11-17)
+
+Asked for by the maintainer on 2026-11-17: "things we need to implement to make the application
+best in the market of this category … better than [reference A] and best in market which user
+wants". Listed only: nothing here is coded. Found by reading this list, `docs/feature-status.md`,
+`docs/parity.md`, `docs/feature-matrix.md` and a search of the source for each thing, not by
+running anything, so a row's first step is to see the gap happen (a run or a test that fails).
+
+A fifth goal beside the four above, in the maintainer's words of that day:
+
+5. **Best in its market, and what a person wants.** Ahead of every download manager a person can
+   get, free or paid, not reference A alone, and holding what people ask a download manager for.
+
+Status is OPEN for every row. Every row that adds a control, a dialog, a line of Options or a
+word to the window changes what `docs/behaviour-contract.md` fixes or adds to it, so it is marked
+"the maintainer's word" and waits for approval in words before it is coded (`CLAUDE.md`). "decide"
+and the sizes are as in the audit of 2026-11-11.
+
+**What already puts dm ahead, and must not be lost** (each proved in `docs/parity.md`): free with
+no reminder to pay; Windows, macOS and Linux where reference A is Windows alone; nothing phones
+home; YouTube, the muxer, MP3 and GIF with no helper program; BitTorrent; a checksum file read by
+itself; Metalink and mirrors; a control port and MCP; a headless run; secrets sealed in the
+system's store.
+
+**What stands between dm and "better than reference A" today** is already in this list, and comes
+before every row W: memory (175), CPU on Windows (176), the finish after the last byte on Windows
+(177), `flaky` and `outage` on Windows (171), the `batch` case (172), the site list's 59 "not yet"
+lines (Y26), Vimeo and Reddit (204, 205), nothing signed (R1), no store listing for Chrome-family
+browsers (R4), an update that only opens its installer (F6).
+
+**Order:** W1 to W4 (the claim measured), W5 to W9 (what a person meets in the first week), W10
+to W20 (what people ask for), W21 to W26 (trust and reach).
+
+### W, first part: the claim measured
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| W1  | "Best in the market" is measured against one app. `bench/` judges dm against reference A's frozen numbers alone; reference B was run once in Docker for behaviour, never timed, and no other manager has been run at all | OPEN · M | Reference B and at least two more managers people use (references C and D, named only in the git-ignored `docs/engine-local/`) run through `bench/bench.mjs` on Windows, each frozen in a baseline file of its own (never in `bench/reference-a-baseline.json`); `compare.mjs` judges dm against the best of them in each parameter; a parameter where any of them is ahead is a row here |
+| W2  | Every benchmark case is a loopback server, so what a person's connection adds is unmeasured: the cost of setting up each extra connection over TLS at 80 ms, a line that loses packets, a server at 20 Mbit/s, a name that resolves slowly | OPEN · M | Cases `wan` (80 ms, 20 Mbit/s, TLS) and `lossy` (1% loss) in `bench/` through a local shaper, run for dm and reference A on the same computer the same day; dm's median better in each; what the cases find (connections warmed ahead, TLS sessions reused across ranges) each a row S |
+| W3  | "Easier to use than reference A" (bottom line 2) has no measure: nothing counts the steps of a task in either app | OPEN · M | A list of twenty everyday tasks (catch a file from the browser, a video at 1080p, a playlist, pause and resume, a batch of links, a schedule, a speed limit, find a finished file, a fresh link for a failed one, move to another folder …) in `docs/tasks.md`; a script counts clicks, keys and windows for each in dm (`ui.*`) and a person counts them once in reference A; any task where dm takes more is a row U proposing the change |
+| W4  | No long run: the stress checks last minutes. Nothing shows dm after three days with thousands of downloads come and gone (memory, handles, the list file's size, the window's answer time) | OPEN · M | `stress-check.py soak`: 72 hours, 50,000 downloads added and finished or removed against the local server with cuts and outages; resident memory and open handles flat within a tenth after the first hour, `ui.texts` under 100 ms at the end, every file whole |
+
+### W, second part: the first week
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| W5  | Site knowledge reaches a person only by a new install: YouTube's client name and version, the player's shapes and the site rules are compiled in (`dm-shell/resources/rules.json` is served to the extension, not fetched). When a site changes, every dm is broken until its owner updates, and row F6's update still needs a person | OPEN · M · decide (a second address dm asks; the privacy text and `cargo xtask privacy` change with it) | A small signed file of site knowledge (the rules, the client names; data only, never a program) fetched from the release page with the weekly check, refused on a wrong signature (row F6's key) and where older than what dm has; a test with a stand-in |
+| W6  | No watch on whether the sites still work between releases: `sites-check.py` and `youtube-check.py` run when a person runs them, so a break is found by a user (rows 204, 205 and 209 were found late) | OPEN · M | A scheduled CI run, daily, signed out, of `youtube-check.py` and the public pages of `sites-check.py`; a failure opens an issue by itself with the check's log; the README's site table made from the last run |
+| W7  | A share page of the large file-storage services (a public "anyone with the link" file) given to Add URL or the clipboard is taken as a page, so its HTML is what lands; the site list's file hosts all say "not yet" (Y26). To be seen first | OPEN · M | For each such service in `docs/site-list.md`: the public share address in Add URL lands the file itself under its own name, the service's "too large to scan" step answered; `sites-check.py` rows for each, signed out |
+| W8  | A failure cannot be reported well: dm has no crash reporting (by decision, and it stays so), and nothing gathers what a report needs, so an issue arrives as "it does not work" | OPEN · S · the maintainer's word (a new Help item) | Help › "Copy a report": dm's version, the system, the row's state and reason, the last notes, the response headers of the failing request, with addresses, names, cookies and sign-ins cut out unless ticked; put on the clipboard, sent nowhere; a test that no secret or address is in it by default |
+| W9  | The help is five topics (`docs/user-guide.md`); videos' qualities, sign-ins, proxies, the speed limiter, Options and what each failure sentence means are not in it, and it cannot be searched | OPEN · M | A page per Options tab and per dialog, each failure sentence of `dm_core::NOTES` and the engine's errors with what to do next; Help's search finds a setting or a sentence by typing; xtask fails where a sentence a person can see has no entry |
+
+### W, third part: what people ask a download manager for
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| W10 | A channel or playlist cannot be followed: it is read once (Y7). The Grabber's saved searches run again by themselves and add only what is new, but nothing does that for a playlist, a channel's uploads or a feed (RSS, a podcast) | OPEN · M · the maintainer's word (the Playlist dialog, the side panel) | "Check again every … hours" in the Playlist dialog and for a feed's address; only videos or files not fetched before are added, to a queue chosen; listed with the Grabber projects; stand-in tests for a playlist that gains a video and a feed that gains an item |
+| W11 | No downloading through a metered or battery-bound moment with care: dm does not know a connection is metered (a phone's hotspot, a capped plan) or that the computer runs on its battery; no source reads either | OPEN · M · the maintainer's word (Options) | Options › Downloads: "On a metered connection: go on, ask, or wait" and "On battery: wait below … %"; the row waits with its reason said and goes on by itself when the state ends; Windows' connection cost, macOS's and NetworkManager's read by direct calls; tested against a fake |
+| W12 | A download cannot be held to one network: the second path adds a connection, but nothing says "only through this adapter" (a VPN), so when a VPN drops the download goes on over the plain line | OPEN · M · decide · the maintainer's word (Options › Advanced › Network) | "Only through: (adapter)"; every connection bound to its address; where the adapter goes, rows wait with the reason said and resume when it is back; a test with two local addresses, one taken away |
+| W13 | A file cannot be opened until it is whole: ranges are staged apart and joined at the end, so a video cannot be watched, nor an archive's list read, while it comes. Preview applies to finished files | OPEN · L · decide (how the parts are kept; rows 166 and S5 measured the staging) | "Play while downloading" for a video or sound file: the first and last pieces first, then in order, in a file a player can open; no slower in `bench` with it off; a test reads the first tenth while the rest is still coming |
+| W14 | An archive is unpacked only by hand (Extract here, Extract to…), one at a time; none with a password (F10) | OPEN · S · the maintainer's word (Options, Download details) | "Unpack when done" for a category or a download, into a folder of the archive's name, the archive kept or sent to the Trash as chosen, under the ZIP's existing rules (never replacing, nothing outside the folder); a password asked once and never kept; with F10's AES |
+| W15 | No picture of what dm has done: no speed graph in a progress window, no totals by day, site or category, though finished rows are kept with their times | OPEN · M · the maintainer's word (a new window, the progress window) | A speed line over the last minutes in the progress window; View › Statistics: bytes by day, by site and by category, the average and best speed, from the list dm already keeps, nothing new written about the person; B25's pictures drawn again |
+| W16 | Settings, queues, site rules and sign-ins cannot be carried to another computer or kept safe: Export writes the list of downloads alone (`.dmlist`) | OPEN · S to M · the maintainer's word (File menu) | File › "Back up dm…" and "Restore…": one file of the settings, queues, schedules, site rules, saved searches and the list; sign-ins left out unless a passphrase is given, then sealed with it; a round-trip test, and a restore into a newer dm |
+| W17 | Every download is kept in the list: no way to fetch one that leaves no row, address or page behind once done, and no "forget finished rows after … days" | OPEN · S · the maintainer's word (Download details, Options) | "Keep no record" on a download (taken by itself for a hand-over from a private browser window, which the extension knows): the row goes when the file is whole, with its address, page and sign-in; Options: "Forget finished downloads after … days"; a test that nothing of it is left in dm's home |
+| W18 | The same file fetched twice is noticed by its address alone ("Already in the list"): the same file from another address or mirror, or one already in the folder from before dm, is fetched again in full | OPEN · S to M · the maintainer's word (a new question) | Where the server's name, size and (once known) digest or entity tag match a finished row or a file in the folder, the question is asked before the body is fetched, with "Show it", "Download again" and Remember my choice |
+| W19 | A server's own word for a file's digest is not read: only a checksum file beside the download and one typed in. No `Repr-Digest`, `Digest` or `Content-MD5` header is looked at (none in the source) | OPEN · S | Where the answer carries one, the finished file is checked against it under the rules of the checksum file (a mismatch fails the download and says so); a stand-in test for each header |
+| W20 | A video's sound alone is MP3 only, re-encoded at 192 kbit/s (Y25): the sound as the site serves it (M4A, Opus) cannot be chosen from the panel, with its title, artist and cover. To be seen first | OPEN · S to M · the maintainer's word (B33, B34: the panel's lines) | A line "Audio only · M4A · 3.4 MB" for each sound track, saved as it comes, tagged as an MP3 now is (`mp4mux::tags_of`); a line above 1080p that the system's own player opens (with Y8) |
+
+### W, fourth part: trust and reach
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| W21 | Nothing shows a person that a release is what the source builds: no list of what is in it, no second build to compare, and the installers are unsigned (R1), which is the first thing a new user sees (SmartScreen, Gatekeeper) | OPEN · M | Each release carries a list of every crate and version in it (made by the release workflow), its digests signed by a key of the project's (F6's), and `docs/RELEASING.md` says how to build the same bytes; R1 taken up again at the maintainer's word, as no other row removes that first warning |
+| W22 | An unsigned installer is sometimes called harmful by antivirus programs, and nobody learns of it until a user says so | OPEN · S · decide (a release's files sent to an outside scanner) | The release workflow checks each installer with the common scanners before it is published and holds the release on a finding; a false alarm reported to its vendor, the steps in `docs/RELEASING.md` |
+| W23 | Fourteen languages, 96 strings of twelve of them unread by a native speaker (row 5), no right-to-left (U35), and no stated way for a reader to add or mend a language | OPEN · S, then readers | `docs/guide/translating.md`: one file to copy, `cargo xtask` says which strings are missing or unread; the catalogs' unread strings listed per language in an issue a reader can take; then the languages with the most speakers dm lacks (Hindi, Arabic with U35, Vietnamese, Ukrainian) |
+| W24 | Windows on Arm (R3), Safari (R4), the Chrome Web Store (R4) and the package managers not yet submitted (R2) are each a person who cannot install dm as they install everything else | OPEN: the maintainer's (accounts and a fee) | Those four rows closed; this row is their order: the Chrome Web Store first (the most people), then winget and Homebrew, then Windows on Arm, then Safari |
+| W25 | The control port and MCP can do everything, but a person who wants dm on a home server (a NAS, a small computer with no screen) has `--headless` and no page to look at; the window is the only face. A page served beyond the loopback was declined with the phone's links (2026-11-13) | OPEN · L · decide (stays declined unless the maintainer reopens it) | The design of 2026-10-24 for a listener beyond the loopback (pairing, a token per device that can be revoked, a pinned key, a rate limit) written as a security review first; only then a page of the list with Add, Pause and Resume, off by default, nothing listening until it is turned on |
+| W26 | More connections than the person set, while each is held to a low rate (`docs/feature-matrix.md`, "Worth taking"): reference B ends such a download in 1.2 s where dm takes 2.0 s at the default 8 | OPEN · S · the maintainer's word (a change to existing behaviour, waiting since the matrix was written) | Connections' choice "Automatic (up to …)" with a stated ceiling, growing only while each addition raises the total rate (`ranged::grow`'s rule) and never on a server that refused one; `tests/grow.rs`; `bench` `per_conn` better than both references |
+
+**Declined before and not listed again** (each needs the maintainer's word to reopen;
+`docs/decisions.md`, 2026-10-24 and 2026-11-13): sending a link from a phone; cutting advertising
+or sponsor segments out of a video; paid file-host accounts and link-unlocking services; catching
+downloads other programs start (row F11 holds its smallest form); toolbar icon sets of a person's
+own; a stream a DRM system protects, which dm never decrypts. A phone app of dm's own is not
+listed: it is another product, not a row.
 
 ## GPUI migration: picking it up (rows G1 to G9)
 
@@ -458,7 +690,8 @@ each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026
 - **G5, egui's own costs: done** (2026-11-10). `scripts/ui-bench.py`; egui's numbers at 100,
   1,000 and 10,000 rows are in `GPUI_TEST_PLAN.md` section 4 (release build, M1, macOS 27).
   Linux and Windows numbers come with G6, measured the same way beside GPUI's.
-- **G6, the GPUI shell: in progress.** `desktop/crates/dm-gpui` (binary `dm-gpui`) on the pins
+- **G6, the GPUI shell: built and shipped (0.10.0); what its row still owes is under "GPUI
+  migration: where it stands" above. As written on 2026-11-10:** `desktop/crates/dm-gpui` (binary `dm-gpui`) on the pins
   opens its main window on macOS, type-checks for Windows and builds on Linux (2026-11-10;
   `GPUI_TEST_PLAN.md` section 5's findings). Check 1 (screen readers in a dialog's own window,
   and 50 windows opened and closed) passes on macOS; Windows (NVDA, a Windows computer) and

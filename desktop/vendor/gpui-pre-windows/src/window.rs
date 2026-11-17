@@ -924,6 +924,8 @@ impl PlatformWindow for WindowsWindow {
         match background_appearance {
             WindowBackgroundAppearance::Opaque => {
                 set_window_composition_attribute(hwnd, None, 0);
+                // dm: the frame drawn as a frame again where it was spread for Mica.
+                extend_frame_into_client(hwnd, false);
             }
             WindowBackgroundAppearance::Transparent => {
                 set_window_composition_attribute(hwnd, None, 2);
@@ -932,10 +934,14 @@ impl PlatformWindow for WindowsWindow {
                 set_window_composition_attribute(hwnd, Some((0, 0, 0, 0)), 4);
             }
             WindowBackgroundAppearance::MicaBackdrop => {
+                // dm: Mica behind the whole window, not only the frame Windows draws.
+                extend_frame_into_client(hwnd, true);
                 // DWMSBT_MAINWINDOW => MicaBase
                 dwm_set_window_composition_attribute(hwnd, 2);
             }
             WindowBackgroundAppearance::MicaAltBackdrop => {
+                // dm: as for Mica.
+                extend_frame_into_client(hwnd, true);
                 // DWMSBT_TABBEDWINDOW => MicaAlt
                 dwm_set_window_composition_attribute(hwnd, 4);
             }
@@ -1612,6 +1618,21 @@ fn retrieve_window_placement(
     let bounds = bounds.to_device_pixels(display.scale_factor());
     placement.rcNormalPosition = calculate_window_rect(bounds, border_offset);
     Ok(placement)
+}
+
+// dm: Windows puts a system backdrop (Mica) behind the frame it draws itself; this window
+// draws its own title bar in the client area, where what the window leaves clear showed black
+// (dm's gaps row G11). Spread over the whole window (margins of -1), the backdrop is behind
+// every clear pixel; `false` puts the frame back as it was (desktop/vendor/README.md).
+fn extend_frame_into_client(hwnd: HWND, whole: bool) {
+    let side = if whole { -1 } else { 0 };
+    let margins = windows::Win32::UI::Controls::MARGINS {
+        cxLeftWidth: side,
+        cxRightWidth: side,
+        cyTopHeight: side,
+        cyBottomHeight: side,
+    };
+    unsafe { DwmExtendFrameIntoClientArea(hwnd, &margins) }.log_err();
 }
 
 fn dwm_set_window_composition_attribute(hwnd: HWND, backdrop_type: u32) {

@@ -762,15 +762,12 @@ impl Platform for WindowsPlatform {
     }
 
     // dm: the app's Light or Dark (None: the system's), which upstream ignored on Windows. Each
-    // window is told as Windows tells it of a change of its own mode, so it takes the new look
-    // from its own message loop, outside the update that asked (desktop/vendor/README.md).
+    // window is told by a message of its own (Windows will not post `WM_SETTINGCHANGE` with its
+    // string), so it takes the new look from its own message loop, outside the update that
+    // asked (desktop/vendor/README.md).
     fn set_window_appearance(&self, appearance: Option<WindowAppearance>) {
         choose_appearance(appearance);
-        self.post_message(
-            WM_SETTINGCHANGE,
-            WPARAM(0),
-            LPARAM(windows::core::w!("ImmersiveColorSet").as_ptr() as isize),
-        );
+        self.post_message(WM_DM_APPEARANCE_CHOSEN, WPARAM(0), LPARAM(0));
     }
 
     fn open_url(&self, url: &str) {
