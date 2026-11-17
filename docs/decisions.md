@@ -7255,3 +7255,23 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 * **Kept**: `DM_FINISH_TRACE` names a seam check that differed and a lead that differed, with
   the span, so the one run that fetched a whole file twice (gaps row 206) can be traced.
 
+
+## 2026-11-17: GPUI built optimised in debug builds and tests too (gaps row 203)
+
+* **Seen**: on the Windows laptop (i5-6200U, debug build) `layout::five_hundred_rows_draw_inside_a_frame_budget`
+  took 157 to 197 ms a frame against its 160. Timed with the rows on screen held to 1, 5, 30,
+  100, 500 and 2,000: 40, 58, 159, 184, 186 and 197 ms, so the cost follows the rows on screen,
+  not the list. dm's own part (`render` and the rows' builder) was about 14 ms; leaving the
+  cells out took the frame to 48 ms. The rest was GPUI's layout and painting, built at
+  opt-level 0 in the dev profile, where the release profile builds it at 3.
+* **The release build had none of it**: `ui-bench.py` on the same laptop at 10,000 rows, one
+  scroll 0.077 to 0.087 s, a sort 0.084 to 0.097 s, at or under macOS arm64's stored baseline.
+* **Done**: `[profile.dev.package.*]` at opt-level 2 for the crates the release profile
+  optimises for drawing (`gpui-pre`, `taffy` and each system's `gpui-pre-*`). dm's own crates
+  stay at 0 with their debug assertions, so a debug build still debugs dm.
+* **Measured** (the laptop, `cargo test -j 2`): the frame test 20 to 25 ms a frame where it was
+  157 to 197; the whole `dm-gpui` suite, 389 tests, 195 s where it was 641 to 887 s the same day.
+  The cost: those crates' first debug build, 742 s for `dm-gpui`'s tests from a target folder
+  that had the rest; after that they are not built again.
+* **Not changed**: the test's budgets (160 ms on Windows, 200 on Linux, 100 on macOS), set for
+  CI's runners, which draw without a GPU; lower them only after CI has run with this.

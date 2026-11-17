@@ -333,6 +333,9 @@ async fn removing_many_rows_writes_the_queue_once() {
     let ids: Vec<_> = q.add_each(items).await.into_iter().flatten().collect();
     assert_eq!(ids.len(), 200);
     let kept = ids[0];
+    // What the adds owe written first: left owed, its delayed write could land inside the
+    // count below, one save more than the batch's on a loaded computer.
+    q.flush().await;
 
     let before = q.saves_written();
     q.remove_many(&ids[1..]).await;

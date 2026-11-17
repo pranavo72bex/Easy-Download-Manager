@@ -87,6 +87,25 @@ opt-level = 3
 [profile.release.package.gpui-pre-windows]
 opt-level = 3
 
+# The same crates optimised in debug builds and tests too: built at opt-level 0, GPUI's layout
+# and painting of a screenful of rows took about 120 ms of a 168 ms frame on the Windows laptop
+# (gaps row 203), so the window tests timed GPUI rather than dm, which stays at opt-level 0
+# with its debug assertions. Built once per target folder; not dm's own crates.
+[profile.dev.package.gpui-pre]
+opt-level = 2
+[profile.dev.package.taffy]
+opt-level = 2
+[profile.dev.package.gpui-pre-macos]
+opt-level = 2
+[profile.dev.package.gpui-pre-apple]
+opt-level = 2
+[profile.dev.package.gpui-pre-linux]
+opt-level = 2
+[profile.dev.package.gpui-pre-wgpu]
+opt-level = 2
+[profile.dev.package.gpui-pre-windows]
+opt-level = 2
+
 # The release build with its symbols and line tables kept, for a profiler
 # (docs/testing.md, Profiling): `cargo build --profile profiling -p dm-gpui`.
 # The same code as the release (line tables do not change it: stripped, it was

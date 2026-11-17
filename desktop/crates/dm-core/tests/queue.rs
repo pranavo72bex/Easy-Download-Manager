@@ -10,7 +10,7 @@
 //! taking the queue down with it, and that a failure is one row's problem.
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,8 +27,10 @@ use common::tempdir;
 struct Server {
     live: Arc<AtomicUsize>,
     peak: Arc<AtomicUsize>,
-    /// How often `flaky` has been asked for: the first two times are refused (dm asks a 404 twice).
-    flaky: Arc<AtomicUsize>,
+    /// `flaky` is refused until the test sets this ([`serve_gated`]), however many times dm
+    /// asks: refused only its first two asks, it was fetched in its first run on a loaded
+    /// computer, where a retry then had nothing to do (gaps row 202).
+    flaky_open: Arc<AtomicBool>,
     /// Every path asked for, so a test can say what was never fetched.
     asked: Arc<std::sync::Mutex<Vec<String>>>,
 }
@@ -44,12 +46,30 @@ async fn serve_recording() -> (
     Arc<AtomicUsize>,
     Arc<std::sync::Mutex<Vec<String>>>,
 ) {
+    serve_with(Arc::new(AtomicBool::new(false))).await
+}
+
+/// [`serve`], with the flag that lets `flaky` be fetched: refused until it is set, so its
+/// first run fails however many times dm asks a 404.
+async fn serve_gated() -> (SocketAddr, Arc<AtomicBool>) {
+    let open = Arc::new(AtomicBool::new(false));
+    let (addr, _, _) = serve_with(Arc::clone(&open)).await;
+    (addr, open)
+}
+
+async fn serve_with(
+    flaky_open: Arc<AtomicBool>,
+) -> (
+    SocketAddr,
+    Arc<AtomicUsize>,
+    Arc<std::sync::Mutex<Vec<String>>>,
+) {
     let peak = Arc::new(AtomicUsize::new(0));
     let asked = Arc::new(std::sync::Mutex::new(Vec::new()));
     let state = Server {
         live: Arc::new(AtomicUsize::new(0)),
         peak: Arc::clone(&peak),
-        flaky: Arc::new(AtomicUsize::new(0)),
+        flaky_open,
         asked: Arc::clone(&asked),
     };
 
@@ -57,10 +77,10 @@ async fn serve_recording() -> (
     // between axum versions, and this test cares about the queue, not routing.
     async fn handler(State(s): State<Server>, uri: Uri) -> Response {
         s.asked.lock().unwrap().push(uri.path().to_string());
-        // Gone the first time and there after: what a retry is for. A 404,
-        // which the engine's own retries do not cover, so only a person's
-        // Retry gets it the second look.
-        let gone_once = uri.path().contains("flaky") && s.flaky.fetch_add(1, Ordering::SeqCst) < 2;
+        // Gone until the test lets it be fetched: what a retry is for. A
+        // 404, which the engine's own retries do not cover, so only a
+        // person's Retry gets it the second look.
+        let gone_once = uri.path().contains("flaky") && !s.flaky_open.load(Ordering::SeqCst);
         if uri.path().contains("missing") || gone_once {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -286,7 +306,7 @@ async fn a_paused_download_holds_its_place_and_can_be_resumed() {
 
 #[tokio::test]
 async fn a_failed_download_is_retried_from_a_clean_row_and_a_settled_one_is_not() {
-    let (addr, _) = serve().await;
+    let (addr, flaky_open) = serve_gated().await;
     let dir = tempdir();
     let q = queue(dir.path(), 1);
 
@@ -304,6 +324,7 @@ async fn a_failed_download_is_retried_from_a_clean_row_and_a_settled_one_is_not(
         !q.retry(fine).await,
         "a finished download was put back in line"
     );
+    flaky_open.store(true, Ordering::SeqCst);
     assert!(q.retry(flaky).await);
 
     // Back in line as a fresh row: no leftover reason, no leftover count
@@ -2885,13 +2906,19 @@ async fn a_recheck_leaves_alone_a_row_made_from_a_web_page() {
 /// the download folder is changed before it runs again.
 #[tokio::test]
 async fn a_download_goes_on_into_the_folder_it_began_in() {
-    let (addr, _) = serve().await;
+    let (addr, flaky_open) = serve_gated().await;
     let dir = tempdir();
     let q = queue(dir.path(), 1);
     // Its first run fails, as a stopped or interrupted one ends.
     let id = q.add(&format!("http://{addr}/flaky.bin")).await.unwrap();
     q.run().await;
-    let began = q.get(id).await.unwrap().began_in;
+    let first = q.get(id).await.unwrap();
+    assert!(
+        matches!(first.state, DownloadState::Failed(_)),
+        "the first run left it {:?}",
+        first.state
+    );
+    let began = first.began_in;
     assert!(!began.is_empty(), "no folder recorded at its start");
 
     // The download folder moved meanwhile.
@@ -2900,6 +2927,7 @@ async fn a_download_goes_on_into_the_folder_it_began_in() {
     options.dest_dir = elsewhere.path().to_path_buf();
     q.set_options(options).await;
 
+    flaky_open.store(true, Ordering::SeqCst);
     assert!(q.retry(id).await);
     q.run().await;
     let done = q.get(id).await.unwrap();

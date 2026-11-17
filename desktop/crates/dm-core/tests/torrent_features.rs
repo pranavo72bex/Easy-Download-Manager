@@ -96,7 +96,43 @@ async fn swarm_with(name: &str, files: &[(&str, Vec<u8>)], encrypted_only: bool)
     } else {
         root.clone()
     };
-    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_port()));
+    // The seeder's port: one found free and let go can be taken before the session binds it
+    // (Windows said "forbidden by its access permissions", os error 10013, in a whole
+    // workspace run), so a refused bind tries another, at most five times.
+    let mut tries = 0;
+    let (addr, session) = loop {
+        let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_port()));
+        let made = Session::new_with_opts(
+            seed.path().to_path_buf(),
+            SessionOptions {
+                dht: None,
+                disable_local_service_discovery: true,
+                persistence: None,
+                listen: Some(ListenerOptions {
+                    mode: ListenerMode::TcpOnly,
+                    listen_addr: addr,
+                    ..Default::default()
+                }),
+                connect: Some(ConnectionOptions {
+                    peer_opts: Some(PeerConnectionOptions {
+                        require_encryption: encrypted_only,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        )
+        .await;
+        match made {
+            Ok(session) => break (addr, session),
+            Err(e) if tries < 4 => {
+                tries += 1;
+                eprintln!("the seeder could not listen on {addr} ({e:#}); another port");
+            }
+            Err(e) => panic!("the seeder could not listen: {e:#}"),
+        }
+    };
     let tracker = tracker_returning(addr).await;
     let announce = format!("http://{tracker}/announce");
     let torrent = librqbit::create_torrent(
@@ -116,29 +152,6 @@ async fn swarm_with(name: &str, files: &[(&str, Vec<u8>)], encrypted_only: bool)
         torrent.info_hash().as_string(),
         urlencode(&announce)
     );
-    let session = Session::new_with_opts(
-        seed.path().to_path_buf(),
-        SessionOptions {
-            dht: None,
-            disable_local_service_discovery: true,
-            persistence: None,
-            listen: Some(ListenerOptions {
-                mode: ListenerMode::TcpOnly,
-                listen_addr: addr,
-                ..Default::default()
-            }),
-            connect: Some(ConnectionOptions {
-                peer_opts: Some(PeerConnectionOptions {
-                    require_encryption: encrypted_only,
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        },
-    )
-    .await
-    .unwrap();
     let out_folder = if files.len() == 1 {
         seed.path().to_path_buf()
     } else {
