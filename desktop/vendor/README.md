@@ -136,8 +136,8 @@ Mica behind the whole window (`dm:` lines in `window.rs`,
 `extend_frame_into_client`): Windows puts a system backdrop behind the frame it
 draws itself only, and this window draws its own title bar, so what it left
 clear for Mica showed black (dm's gaps row G11). The frame is spread over the
-whole window (`DwmExtendFrameIntoClientArea`, margins of -1) for Mica and put
-back for an opaque window. Not yet enough: the frame is drawn one flat colour
+whole window (`DwmExtendFrameIntoClientArea`, margins of -1) for Mica; an
+opaque window is left as upstream draws it. Not yet enough: the frame is drawn one flat colour
 (gaps row G11).
 
 The app's own Light or Dark (`dm:` lines in `util.rs` and `platform.rs`):
