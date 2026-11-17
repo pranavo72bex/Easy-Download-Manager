@@ -37,6 +37,8 @@ fn step(name: &'static str, dir: &Path, program: &'static str, args: &[&'static 
 
 /// The steps, cheapest first. `root` is the repository's root.
 fn steps(root: &Path) -> Vec<Step> {
+    // One workspace, rooted in desktop/, with browser/ in it (gaps row A15): the desktop steps
+    // format, lint and test the extension's crate too.
     let desktop = root.join("desktop");
     let browser = root.join("browser");
     // nextest runs the test binaries side by side and stops a test that hangs; plain
@@ -54,12 +56,6 @@ fn steps(root: &Path) -> Vec<Step> {
             &["fmt", "--all", "--", "--check"],
         ),
         step(
-            "browser: formatting",
-            &browser,
-            "cargo",
-            &["fmt", "--", "--check"],
-        ),
-        step(
             "desktop: lints (warnings refused)",
             &desktop,
             "cargo",
@@ -73,12 +69,7 @@ fn steps(root: &Path) -> Vec<Step> {
                 "warnings",
             ],
         ),
-        step(
-            "browser: lints (warnings refused)",
-            &browser,
-            "cargo",
-            &["clippy", "--all-targets", "--", "-D", "warnings"],
-        ),
+        // The extension's browser side, which the host build above does not compile.
         step(
             "browser: lints as WebAssembly (warnings refused)",
             &browser,
@@ -134,7 +125,6 @@ fn steps(root: &Path) -> Vec<Step> {
             &["test", "--workspace", "--locked", "--no-fail-fast"],
         ));
     }
-    steps.push(step("browser: tests", &browser, "cargo", &["test"]));
     steps
 }
 
@@ -199,17 +189,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_gate_holds_formatting_lints_licences_and_tests_of_both_workspaces() {
+    fn the_gate_holds_formatting_lints_licences_and_tests_of_the_app_and_the_extension() {
         let root = Path::new("/repo");
         let names: Vec<_> = steps(root).iter().map(|s| s.name).collect();
         for wanted in [
             "desktop: formatting",
-            "browser: formatting",
             "desktop: lints (warnings refused)",
-            "browser: lints (warnings refused)",
+            "browser: lints as WebAssembly (warnings refused)",
             "desktop: licences, sources and duplicate versions",
             "desktop: tests",
-            "browser: tests",
         ] {
             assert!(
                 names.contains(&wanted),

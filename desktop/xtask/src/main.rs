@@ -20,7 +20,7 @@
 //!
 //! Each is also a test, so `cargo test --workspace` runs them.
 //!
-//! - `check` runs everything that needs no window, both workspaces, in one command
+//! - `check` runs everything that needs no window, the app's and the extension's, in one command
 //!   (`check.rs`): formatting, lints, licences, the tests (and through them the checks above).
 
 #[cfg(test)]
@@ -356,8 +356,8 @@ fn layers() -> Result<(), String> {
 
     let mut wrong = Vec::new();
     // Every version once, at the workspace's root (gaps row X8): a crate of the desktop
-    // workspace names a dependency with `x.workspace = true` and adds only its own features.
-    // `browser/` is its own workspace until row A15.
+    // workspace (the extension's too, gaps row A15) names a dependency with `x.workspace = true`
+    // and adds only its own features.
     for member in [
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-js/Cargo.toml",
@@ -366,6 +366,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
         "desktop/xtask/Cargo.toml",
+        "browser/Cargo.toml",
     ] {
         for d in manifest(&root.join(member))?.own_versions {
             wrong.push(format!(
@@ -496,13 +497,12 @@ const ALLOWED_HOSTS: &[&str] = &[
 fn privacy() -> Result<(), String> {
     let root = root();
     let mut wrong = Vec::new();
-    for lock in ["desktop/Cargo.lock", "browser/Cargo.lock"] {
-        let text = read(&root.join(lock))?;
-        for line in text.lines() {
-            if let Some(name) = line.strip_prefix("name = ").map(|n| n.trim_matches('"')) {
-                if REPORTERS.contains(&name) {
-                    wrong.push(format!("{lock} pulls in {name}, which reports to someone"));
-                }
+    // One lock file for the app and the extension (gaps row A15).
+    let lock = "desktop/Cargo.lock";
+    for line in read(&root.join(lock))?.lines() {
+        if let Some(name) = line.strip_prefix("name = ").map(|n| n.trim_matches('"')) {
+            if REPORTERS.contains(&name) {
+                wrong.push(format!("{lock} pulls in {name}, which reports to someone"));
             }
         }
     }

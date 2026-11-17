@@ -7275,3 +7275,22 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   that had the rest; after that they are not built again.
 * **Not changed**: the test's budgets (160 ms on Windows, 200 on Linux, 100 on macOS), set for
   CI's runners, which draw without a GPU; lower them only after CI has run with this.
+
+## 2026-11-17: One Cargo workspace, rooted in desktop/, the extension in it (gaps rows X8, A15)
+
+* **Done**: every dependency's version once in `desktop/Cargo.toml`'s `[workspace.dependencies]`
+  (X8); `browser/` a member of that workspace through `package.workspace = "../desktop"` (A15).
+  One `Cargo.lock` (`desktop/Cargo.lock`; `browser/Cargo.lock` deleted), one target folder
+  (`desktop/target`), and `cargo test --workspace`, clippy, `cargo fmt --all`, `cargo deny` and
+  `cargo audit` cover the extension's crate. The WebAssembly is built with
+  `--profile extension` (release, opt-level "s", panic "abort": what browser/'s own release
+  profile was), so `scripts/package.sh` reads `wasm32-unknown-unknown/extension/`.
+* **Rooted in desktop/, not the repository's top**: the row offered either. Moving the root up
+  would rename `desktop/target` in about sixty places (every script's default binary, the
+  Makefile, the release workflow's bundle paths, `packaging.rs`'s check) that cannot all be run
+  on one machine; rooted in desktop/ the only paths that moved are the extension's lock and
+  build. The move to the top stays possible and is a rename of paths alone.
+* **The lock**: the extension's crates now resolve from the desktop lock, a few patch versions
+  older than browser/'s was (bitflags 2.13.1, cfg-if 1.0.4, indexmap 2.14.1 and the like);
+  wasm-bindgen stays pinned at 0.2.127. `xtask layers` refuses a version written in any
+  member's manifest, the extension's included.

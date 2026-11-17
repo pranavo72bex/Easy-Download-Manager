@@ -5,10 +5,9 @@ license = "GPL-3.0-or-later"
 edition = "2021"
 description = "dm's browser extension: catches downloads and hands them to the app"
 publish = false
-
-# Its own workspace, apart from desktop/: it is built for
-# wasm32-unknown-unknown, and nothing the desktop links needs to know.
-[workspace]
+# A member of the one workspace, rooted in desktop/ (gaps row A15): its lock file, target folder,
+# dependency versions and the `extension` profile it is built with are there.
+workspace = "../desktop"
 
 [lib]
 # cdylib is the WebAssembly the browser loads; rlib lets `cargo test` run the
@@ -16,22 +15,22 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-dm-protocol = { path = "../desktop/crates/dm-protocol" }
-serde = { version = "1", features = ["derive"] }
+dm-protocol.workspace = true
+serde = { workspace = true, features = ["derive"] }
 # Keys in the order a page wrote them: a player answer lists its streams that way.
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
 
-# Only the browser build talks to a browser. Pinned exactly, because the
-# wasm-bindgen CLI that turns the build into what the loader imports must be
-# the same version, and scripts/package.sh checks it against Cargo.lock.
+# Only the browser build talks to a browser. wasm-bindgen is pinned exactly in the workspace
+# (the CLI scripts/package.sh runs must be the same version).
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "=0.2.127"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-futures-channel = "0.3"
-futures-util = { version = "0.3", default-features = false, features = ["std", "async-await-macro"] }
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+js-sys.workspace = true
+futures-channel.workspace = true
+# std and the async-await macro: futures-util's default set, as the desktop's crates take it.
+futures-util.workspace = true
 # The page script's DOM: the panel over a player.
-web-sys = { version = "0.3", features = [
+web-sys = { workspace = true, features = [
   "Window", "Document", "Element", "HtmlElement", "HtmlMediaElement", "Node",
   "NodeList", "Selection", "console",
   "EventTarget", "Event", "MouseEvent", "KeyboardEvent", "DomRect", "CssStyleDeclaration",
@@ -41,13 +40,6 @@ web-sys = { version = "0.3", features = [
   "HtmlInputElement",
 ] }
 
-[profile.release]
-opt-level = "s"
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
-
 # The decisions fed random and hostile input on the host (tests/fuzz.rs).
 [dev-dependencies]
-proptest = "1"
+proptest.workspace = true

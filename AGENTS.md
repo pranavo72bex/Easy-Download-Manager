@@ -114,7 +114,7 @@ make test | analyze | format | qa | qa-docker   # tests; what CI refuses; the co
 ```
 
 All of it that needs no window, in one command (formatting, lints, licences and the tests of
-both workspaces; each step runs, and the failures are listed at the end):
+the app and the extension; each step runs, and the failures are listed at the end):
 
 ```sh
 cd desktop && cargo xtask check

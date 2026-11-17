@@ -34,7 +34,7 @@ FLOOR_FILE = ROOT / "docs" / "contract-coverage-floor.txt"
 # (what it is, the directory cargo runs in, its arguments, which files count)
 PARTS = [
     ("dm-protocol", ROOT / "desktop", ["-p", "dm-protocol"], "/crates/dm-protocol/src/"),
-    ("extension", ROOT / "browser", [], "/browser/src/"),
+    ("extension", ROOT / "desktop", ["-p", "dm-catcher"], "/browser/src/"),
     ("native host", ROOT / "desktop", ["-p", "dm-shell"], "/crates/dm-shell/src/host"),
 ]
 NOT_COUNTED = ("/test-support/", "/tests/", "tests.rs", "_tests.rs")

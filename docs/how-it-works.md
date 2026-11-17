@@ -449,7 +449,7 @@ cd browser && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                          # build the WebAssembly, dist/chrome, dist/firefox, the zips
 python3 scripts/chrome-check.py                # Chrome for Testing, handing off to a real dm
 
-cd desktop && cargo xtask check                # all of the gate that needs no window, both workspaces
+cd desktop && cargo xtask check                # all of the gate that needs no window, app and extension
 cd desktop && cargo test --workspace           # engine, protocol, shell and window tests
 cd desktop && cargo clippy --workspace --all-targets -- -D warnings
 python3 scripts/app-check.py                   # drives the built binary: lock, hand-off, proxy, schedule

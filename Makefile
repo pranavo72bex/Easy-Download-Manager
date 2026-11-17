@@ -425,6 +425,5 @@ coverage:
 
 clean:
 	@cd desktop && cargo clean
-	@cd browser && cargo clean
 	@rm -rf dist extension/pkg $(BUILD)
 	@echo "removed build output"

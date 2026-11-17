@@ -27,7 +27,7 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: browser
+          workspaces: desktop
 
       - name: Test what it decides
         working-directory: browser
@@ -45,7 +45,7 @@ jobs:
         working-directory: browser
         run: cargo fmt -- --check
 
-      # Installs the wasm-bindgen CLI matching browser/Cargo.lock, builds the
+      # Installs the wasm-bindgen CLI matching desktop/Cargo.lock, builds the
       # WebAssembly, and refuses a build missing anything a manifest names or
       # carrying JavaScript other than the loader and wasm-bindgen's module.
       - name: Build both store zips
@@ -72,9 +72,7 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: |
-            browser
-            desktop
+          workspaces: desktop
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
@@ -95,9 +93,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: |
-            browser
-            desktop
+          workspaces: desktop
 
       - name: Linux libraries dm links and Chrome needs
         run: |

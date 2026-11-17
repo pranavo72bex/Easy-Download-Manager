@@ -13,7 +13,7 @@
 # The extension is Rust (browser/), compiled to WebAssembly, plus the page
 # scripts and manifests in extension/. wasm-bindgen turns the build into the
 # module the background and the popup import, and its CLI must be exactly the version of the
-# wasm-bindgen crate in browser/Cargo.lock — a mismatch is refused at load
+# wasm-bindgen crate in desktop/Cargo.lock (one workspace, browser/ in it) — a mismatch is refused at load
 # time, in the browser, with an error nobody sees — so it is checked here and
 # installed if it is missing or different.
 
@@ -56,11 +56,11 @@ if ! rustup target list --installed 2>/dev/null | grep -qx wasm32-unknown-unknow
   rustup target add wasm32-unknown-unknown
 fi
 
-[ -f "$root/browser/Cargo.lock" ] || (cd "$root/browser" && cargo generate-lockfile)
+[ -f "$root/desktop/Cargo.lock" ] || (cd "$root/desktop" && cargo generate-lockfile)
 wanted=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' \
-  "$root/browser/Cargo.lock")
+  "$root/desktop/Cargo.lock")
 if [ -z "$wanted" ]; then
-  echo "could not read the wasm-bindgen version from browser/Cargo.lock" >&2
+  echo "could not read the wasm-bindgen version from desktop/Cargo.lock" >&2
   exit 1
 fi
 have=$(wasm-bindgen --version 2>/dev/null | awk '{ print $2 }' || true)
@@ -73,18 +73,18 @@ fi
 
 echo "building the extension (dm-catcher, wasm32)"
 # Without the building computer's paths in the WebAssembly the stores publish
-# (scripts/release-flags.sh).
+# (scripts/release-flags.sh). The workspace's `extension` profile: built for size, and a
+# panic stops it (desktop/Cargo.toml).
 (cd "$root/browser" && CARGO_BUILD_RUSTFLAGS="$(sh "$root/scripts/release-flags.sh")" \
-  cargo build --release --target wasm32-unknown-unknown --locked)
+  cargo build --profile extension --target wasm32-unknown-unknown --locked)
+wasm="${CARGO_TARGET_DIR:-$root/desktop/target}/wasm32-unknown-unknown/extension/dm_catcher.wasm"
 rm -rf "$pkg"
-wasm-bindgen --target web --no-typescript --out-dir "$pkg" \
-  "${CARGO_TARGET_DIR:-$root/browser/target}/wasm32-unknown-unknown/release/dm_catcher.wasm"
+wasm-bindgen --target web --no-typescript --out-dir "$pkg" "$wasm"
 # The panel's copy, which the background puts into a page's frame with
 # scripting.executeScript: a script of its own (no module), its WebAssembly
 # written into it, so the page's frame fetches nothing from the extension.
 panel=$(mktemp -d)
-wasm-bindgen --target no-modules --no-typescript --out-dir "$panel" \
-  "${CARGO_TARGET_DIR:-$root/browser/target}/wasm32-unknown-unknown/release/dm_catcher.wasm"
+wasm-bindgen --target no-modules --no-typescript --out-dir "$panel" "$wasm"
 "$py" - "$panel" "$pkg/panel.js" <<'PY'
 import base64, pathlib, sys
 src = pathlib.Path(sys.argv[1])

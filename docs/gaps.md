@@ -65,7 +65,9 @@ pictures stay, and each is committed alone with `cargo check`, clippy and its cr
 Smallest first:
 1. ~~X8~~ done 2026-11-17: every version once in `desktop/Cargo.toml`'s `[workspace.dependencies]`,
    `Cargo.lock` unchanged, `cargo xtask layers` refuses a version written in a crate.
-2. A15: one workspace at the top, `browser/` in it.
+2. ~~A15~~ done 2026-11-17: one workspace, rooted in `desktop/` with `browser/` a member (one lock,
+   one target folder, the WebAssembly built with `--profile extension`); why not the top:
+   `docs/decisions.md`. CI's extension jobs and the Docker images are owed a run (step 8).
 3. X9: one assets folder.
 4. A13: `dm-gpui` in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`.
 5. X1: one `folders` module for where a person's files live.
@@ -111,7 +113,7 @@ W26, W18, W20, U20, Y27, Y7; then W5, W10, W11, W12, W15, W16, P4, P5; then F8, 
 W25, W22.
 
 **7. Structure and docs** (pure moves, after the features so they are moved once and no feature
-is written against a file about to be split; A15, X9, A13, X1, X10, A10, A6 and A19's
+is written against a file about to be split; X9, A13, X1, X10, A10, A6 and A19's
 widgets are taken first of all, above): A5, A11, A19 (what is left), A20, A21, A14, A8, A9, A7,
 A12, A17 (with X5), A18, A4, X7, A16; then X3, D5, D6 (with X6).
 
@@ -485,7 +487,6 @@ why; every file sampled opens with what it is for.
 | A12 | 27 product files are over 1,000 lines (the gate is 2,500, `xtask/src/main.rs:406`) and 94 functions over 100, 14 over 300: `details.rs` `render` 594, `ranged.rs` `attempt_segment` 573, `download/mod.rs` `fetch_reporting` 477, `queue/runner.rs` `start` 459, `torrent.rs` `download_torrent` 449, the Options pages 327 to 385 each. `wc -l` gives the 27; the largest and how each splits (`options_pages.rs` a file per page; `list.rs` into state, commands, dialogs, render; `youtube.rs` into page, formats, client; `settings.rs` as A8; `shell.rs` into args, start, open, inbox, after; `register.rs` into browsers, manifests, registry) | OPEN · XL | The file gate ratchets 2,500 to 1,200 to 800 and `too-many-lines-threshold = 150` with a baseline that only shrinks; each split a pure move with the gate run |
 | A13 | Three layouts side by side: `mod.rs` in four modules, `foo.rs` beside `foo/` in 16, and 48 flat files in dm-gpui (`options.rs` beside `options_pages.rs`); tests are meant to live in `foo/tests.rs` (AGENTS.md rule 8) yet about 16,600 lines of tests sit inline in product files, and `download/capped_tests.rs` is a third way | OPEN · M | One layout, checked by xtask; dm-gpui in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`; inline test modules of over 100 lines moved out |
 | A14 | The bridge between the window and the engine has no stated rule: `Backend` has 93 functions and 54 `block_on` calls, three kinds of channel (tokio's 30 times, `async_channel` 14, `std::mpsc` 13), two executors and 31 `thread::spawn` | OPEN · M | One page says which thread may wait on what; one kind of wake channel; no `block_on` on the window's thread (row S17 is one) |
-| A15 | `browser/` is a second workspace with its own lock file, version and target folder, reaching into `../desktop/crates/dm-protocol` | OPEN · S to M | One workspace at the top (or `dm-protocol` in a neutral `crates/`); `cargo xtask check` covers both |
 | A16 | The checks are not Rust: 52 Python files of 20,242 lines (25 of them each write their own control-port client), 39 shell scripts, a 436-line Makefile, the Node benchmark (754 lines), and building the extension needs sh and Python (`scripts/package.sh:27-38`). None of it runs in the product, but the contract makes `python3 scripts/human-qa.py` the meaning of QA | OPEN · XL · the maintainer's word (the contract names the script) | In steps: `cargo xtask extension` makes the same zips byte for byte and `package.sh` goes; a `qa` crate with one `ControlClient`, the app and stress checks as `cargo test -p dm-qa`; `cargo xtask qa` for the contract's rows; the browser checks last (a DevTools client in Rust). The benchmark: decide, recommended kept as the frozen measuring instrument it is |
 | A17 | Patched copies are whole trees with marks in them: `vendor/gpui-pre-linux` (17,601 lines for three changes, 9 `dm:` marks) and librqbit (row P3). GPUI itself comes from a weekly third-party snapshot (`gpui-pre =0.3.12`, 25 crates), not from its makers | OPEN · M | Each copy is upstream source plus `vendor/patches/*.patch`, made again by `cargo xtask vendor`; a weekly CI job tries the next snapshot; the three fixes offered upstream |
 | A18 | Weight: 866 crates build the window; 132 names in more than one version (`windows` 5, `hashbrown` 5, `syn` 3, `rand` 3), two HTTP stacks (reqwest 0.13 and GPUI's 0.12), two async runtimes | OPEN · M: with egui gone (G9, 2026-11-13) `desktop/Cargo.lock` holds 1,022 packages, from 1,151 | Measured again after G9; the cargo-deny list of doubles only shrinks |

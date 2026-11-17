@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxcb1-dev libx11-xcb-dev libvulkan-dev \
     && rm -rf /var/lib/apt/lists/*
 ENV CARGO_TARGET_DIR=/target CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0
-COPY browser/Cargo.lock /tmp/browser.lock
+COPY desktop/Cargo.lock /tmp/dm.lock
 RUN rustup target add wasm32-unknown-unknown \
-    && v=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' /tmp/browser.lock) \
+    && v=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' /tmp/dm.lock) \
     && cargo install wasm-bindgen-cli --version "$v" --locked && rm -rf /usr/local/cargo/registry/src
 WORKDIR /src
 COPY . .

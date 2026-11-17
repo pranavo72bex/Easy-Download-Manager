@@ -121,7 +121,7 @@ manifest (the .deb repackaged, both arches). Each carries the digests
 ## The browser extension
 
 The zips are built by `sh scripts/package.sh`, which compiles `browser/` to
-WebAssembly with the wasm-bindgen CLI matching `browser/Cargo.lock`. The
+WebAssembly with the wasm-bindgen CLI matching `desktop/Cargo.lock`. The
 Chrome zip carries the manifest `key` that fixes the unpacked id; remove it
 before a Web Store upload (the store assigns its own id, which is then
 registered with `dm-desktop --register <id>`). Chrome's needs uploading to the

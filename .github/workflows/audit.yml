@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [desktop, browser]
+        dir: [desktop]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
@@ -42,13 +42,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [desktop, browser]
+        dir: [desktop]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-deny
-      # One set of rules for both workspaces: desktop/deny.toml.
+      # One workspace, the extension in it (gaps row A15), and one set of rules: desktop/deny.toml.
       - name: cargo deny
         working-directory: ${{ matrix.dir }}
         run: cargo deny --locked --config ${{ github.workspace }}/desktop/deny.toml check
