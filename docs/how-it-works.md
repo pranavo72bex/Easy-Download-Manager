@@ -56,7 +56,7 @@ connection, Download complete, Properties, Add numbered series, Files on a
 site, Scheduler, Speed limiter, Options. It is held together like this:
 
 - **A command registry** (`dm_shell::app::commands`: each command's name,
-  label and keys; the GPUI window's menus in `desktop/crates/dm-gpui/src/menus.rs`). The menus,
+  label and keys; the GPUI window's menus in `desktop/crates/dm-gpui/src/window/menus.rs`). The menus,
   the toolbar, the row menu, the keyboard and the control protocol all run
   the same named commands.
 - **An application layer under the window** (`dm_shell::app`,
@@ -542,10 +542,12 @@ desktop/
                           app/ the application layer every window drives
   crates/dm-desktop-base/ the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
                           the system's services (tray, toasts, taskbar…)
-  crates/dm-gpui/         the window shipped, in GPUI: list.rs (the rows, each wake's read),
-                          tick.rs, table.rs, menus.rs, one file per dialog, port.rs and probe.rs
-                          (the control port), syswindow/ (the system's own window calls),
-                          tray.rs; harness.rs and window_tests/ the window's tests
+  crates/dm-gpui/         the window shipped, in GPUI: window/ (list.rs the rows and each wake's
+                          read, tick.rs, table.rs, menus.rs, the bars, theme.rs), dialogs/ (one
+                          file per window beside the main one), options.rs with options/pages.rs,
+                          widgets/ (what GPUI lacks), platform/ (syswindow/, tray.rs, services,
+                          drags and drops), port.rs and probe.rs (the control port); harness.rs
+                          and window_tests/ the window's tests
   crates/dm-assets/       the files below compiled in: the window's pictures, the catalogs,
                           the shipped site rules
   assets/                 what is not code: icons/ (the window's), app-icons/ and macos/

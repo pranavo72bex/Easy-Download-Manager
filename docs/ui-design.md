@@ -6,7 +6,7 @@ is checked by looking at a picture of the real window. The pictures are dm's
 own (`desktop/assets/icons/`).
 
 The window is the GPUI one (`crates/dm-gpui`): its tokens are in
-`crates/dm-gpui/src/theme.rs`, and its look is held by the pictures in
+`crates/dm-gpui/src/window/theme.rs`, and its look is held by the pictures in
 `docs/behaviour-baseline/gpui/` (contract row B25). The tokens below were
 first set for the older egui window, removed on 2026-11-13 (gaps row G9);
 the GPUI window keeps their values.
@@ -22,7 +22,7 @@ the GPUI window keeps their values.
 
 Chosen in Options › General › Look; saved as `theme` in the settings.
 
-## Tokens (`crates/dm-gpui/src/theme.rs`)
+## Tokens (`crates/dm-gpui/src/window/theme.rs`)
 
 The modern looks are WinUI 3's Fluent 2 brushes (decisions.md, 2026-10-19),
 each laid over the surface it sits on; see-through ones are given as WinUI

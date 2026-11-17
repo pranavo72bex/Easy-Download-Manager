@@ -7294,3 +7294,21 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   older than browser/'s was (bitflags 2.13.1, cfg-if 1.0.4, indexmap 2.14.1 and the like);
   wasm-bindgen stays pinned at 0.2.127. `xtask layers` refuses a version written in any
   member's manifest, the extension's included.
+
+## 2026-11-17: One module layout, dm-gpui in folders, tests in files of their own (gaps row A13)
+
+* **Done**: dm-gpui's 48 flat files into `window/` (the main window: list, table, bars, menus,
+  theme, each wake), `dialogs/` (each window beside the main one), `options/` (`options.rs` with
+  `options/pages.rs`, was `options_pages.rs`), `widgets/` and `platform/` (the system's window
+  calls, tray, notifications, clipboard, drags and drops); `main.rs`, the control port
+  (`port.rs`, `probe.rs`), `assets.rs` and the tests' harness stay at the root. Paths became
+  `crate::window::list` and the like; nothing else in the code changed.
+* **One layout**: `foo.rs` beside `foo/`, the most used of the three (16 modules against 4 with
+  `mod.rs`); the six `mod.rs` under `src/` renamed (`tests/common/mod.rs` stays: cargo would
+  build a `tests/common.rs` as a test of its own). 83 inline test modules over 100 lines
+  (17,808 lines) moved to `foo/tests.rs`, or `foo/<what>_tests.rs` beside it for a second set;
+  `download/capped_tests.rs` is `download/tests/capped.rs`. `cargo xtask layers` refuses a
+  `mod.rs` and an inline test module over 100 lines; the scans that leave tests out (privacy,
+  translations, dm-gpui's program guard) know a test file by those two names.
+* **`ftp/target/`**: the repository's `.gitignore` drops every `target/`; dm-core's FTP `target`
+  module's folder is excepted by name.

@@ -79,7 +79,7 @@ reaches past `dm_core::Queue` (and the control port the same queue serves).
 Steps 1 to 16 of [audit.md](audit.md) section 7 are done, each held to
 `cargo test --workspace` and the whole behaviour contract. A presentation
 drives the application in this order each tick (the GPUI window in
-`Downloads::read` and `Downloads::tick`, `dm-gpui/src/list.rs` and `tick.rs`;
+`Downloads::read` and `Downloads::tick`, `dm-gpui/src/window/list.rs` and `tick.rs`;
 `--headless` in `dm_desktop_base::headless`; `session.rs`'s
 `no_window_tests` with no window at all):
 

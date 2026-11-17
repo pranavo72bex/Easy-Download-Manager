@@ -201,7 +201,7 @@ fn a_finished_zip_is_extracted_beside_itself_and_a_hostile_one_is_refused() {
     let elsewhere = tempfile::tempdir().unwrap();
     assert!(h.enabled(Command::ExtractTo));
     h.view(|view| view.say(String::new()));
-    crate::services::choose_ahead(elsewhere.path().to_path_buf());
+    crate::platform::services::choose_ahead(elsewhere.path().to_path_buf());
     h.run(Command::ExtractTo);
     let name = path.file_stem().unwrap().to_owned();
     h.until("the extraction elsewhere", |_| {
@@ -358,7 +358,7 @@ fn open_with_asks_for_an_application_and_opens_the_file_with_it() {
     h.select("file.zip");
     assert!(h.enabled(Command::OpenWith));
     let app = std::path::PathBuf::from("/Applications/Archive Utility.app");
-    crate::services::choose_ahead(app.clone());
+    crate::platform::services::choose_ahead(app.clone());
     h.run(Command::OpenWith);
     let wanted = format!("{} with {}", row.path, app.display());
     h.until("the file to be opened with it", |h| {
@@ -686,7 +686,7 @@ fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
     h.until("Options", |h| h.dialog_open("Options"));
     let file = world.dir.path().join("dm-settings.json");
     h.scroll_to("Save settings to a file…");
-    crate::services::choose_ahead(file.clone());
+    crate::platform::services::choose_ahead(file.clone());
     h.click("Save settings to a file…");
     h.until("the file", |_| file.is_file());
     let text = std::fs::read_to_string(&file).unwrap();
@@ -701,7 +701,7 @@ fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
     h.run(Command::Options);
     h.until("Options", |h| h.dialog_open("Options"));
     h.scroll_to("Load settings from a file…");
-    crate::services::choose_ahead(file.clone());
+    crate::platform::services::choose_ahead(file.clone());
     h.click("Load settings from a file…");
     for _ in 0..5 {
         h.until("a wake", |_| true);
@@ -991,7 +991,7 @@ fn an_unreachable_folder_pauses_and_another_folder_finishes_it() {
     h.until_shown("Choose another folder…");
     std::fs::remove_file(&blocker).unwrap();
     let elsewhere = download_dir.join("elsewhere");
-    crate::services::choose_ahead(elsewhere.clone());
+    crate::platform::services::choose_ahead(elsewhere.clone());
     h.click("Choose another folder…");
     h.until("the download to finish elsewhere", |h| completed(h) == 1);
     let row = h.rows()[0].clone();

@@ -23,16 +23,17 @@ fn rust_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
         // The window's tests and their harness are test modules whose files hold no
         // `#[cfg(test)]` of their own: their made-up strings are not the window's.
         let test_only = path.file_name().is_some_and(|n| {
-            [
-                "tests.rs",
-                "window_tests",
-                "window_tests.rs",
-                "harness",
-                "harness.rs",
-                "i18n_check.rs",
-            ]
-            .iter()
-            .any(|t| n == *t)
+            n.to_str().is_some_and(|n| n.ends_with("_tests.rs"))
+                || [
+                    "tests.rs",
+                    "window_tests",
+                    "window_tests.rs",
+                    "harness",
+                    "harness.rs",
+                    "i18n_check.rs",
+                ]
+                .iter()
+                .any(|t| n == *t)
         });
         if test_only {
             continue;
@@ -141,7 +142,7 @@ fn run_time_words() -> Vec<&'static str> {
     words.extend(dm_shell::app::power::WhenDone::ALL.iter().map(|w| w.verb()));
     words.extend(base::i18n::BUILT_IN_NAMES);
     words.extend(base::format::MONTHS);
-    words.push(crate::drops::DROP_HINT);
+    words.push(crate::platform::drops::DROP_HINT);
     words.extend(base::format::REASONS.iter().map(|(_, plain)| *plain));
     words.extend(base::format::NEXT_STEPS.iter().map(|(_, step)| *step));
     words.extend(base::format::RETRY_CAUSES);

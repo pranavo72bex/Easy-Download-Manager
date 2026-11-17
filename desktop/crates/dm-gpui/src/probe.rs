@@ -16,9 +16,9 @@ use gpui::{
 };
 use serde_json::{json, Value};
 
-use crate::list::{line, Downloads, ROW_HEIGHT};
-use crate::screen::Drawn;
-use crate::zoom::px;
+use crate::window::list::{line, Downloads, ROW_HEIGHT};
+use crate::window::screen::Drawn;
+use crate::window::zoom::px;
 
 /// Answers one request on the window's thread.
 pub fn answer(
@@ -31,7 +31,7 @@ pub fn answer(
     // The main window as it stands on screen, pictured by the system.
     if method == "ui.screenshot" {
         let path = dm_shell::app::control_api::screenshot_path(&dm_shell::settings::home(), params);
-        crate::syswindow::picture(window, &path)?;
+        crate::platform::syswindow::picture(window, &path)?;
         return Ok(serde_json::json!({ "path": path.display().to_string() }));
     }
     if let Some(answer) = probe::input(&mut Probe { view, window, cx }, method, params) {
@@ -149,7 +149,7 @@ impl Probe<'_, '_> {
     /// where one is open (it stands in front of dm's window), else dm's.
     fn in_front(&mut self, send: impl FnOnce(&mut Window, &mut gpui::App) + 'static) {
         // The dialog the system has in front, else the newest.
-        let dialogs: Vec<gpui::AnyWindowHandle> = crate::screen::Screens::all(self.cx)
+        let dialogs: Vec<gpui::AnyWindowHandle> = crate::window::screen::Screens::all(self.cx)
             .into_iter()
             .filter(|(_, _, dialog)| *dialog)
             .map(|(handle, _, _)| handle)
@@ -162,7 +162,7 @@ impl Probe<'_, '_> {
         match front {
             Some(handle) => self.cx.defer(move |cx| {
                 let _ = handle.update(cx, |_, window, cx| {
-                    crate::native::keys_to(handle, || send(window, cx))
+                    crate::widgets::native::keys_to(handle, || send(window, cx))
                 });
             }),
             None => self.window.defer(self.cx, send),
@@ -175,7 +175,7 @@ impl Probe<'_, '_> {
     /// is a dialog's.
     fn everything(&self) -> Vec<(Drawn, gpui::AnyWindowHandle, bool)> {
         let mut all = Vec::new();
-        for (handle, screen, dialog) in crate::screen::Screens::all(self.cx) {
+        for (handle, screen, dialog) in crate::window::screen::Screens::all(self.cx) {
             all.extend(
                 screen
                     .drawn()
@@ -225,7 +225,7 @@ impl Probe<'_, '_> {
         let (height, width) = (f32::from(bounds.size.height), f32::from(bounds.size.width));
         let scrolled = -f32::from(offset.y);
         // A row's height on screen, at the text size in force.
-        let row = crate::zoom::of(ROW_HEIGHT);
+        let row = crate::window::zoom::of(ROW_HEIGHT);
         let first = (scrolled / row).floor().max(0.0) as usize;
         let count = (height / row).ceil() as usize + 1;
         (first..(first + count).min(self.view.shown.len()))
@@ -286,7 +286,7 @@ impl Probe<'_, '_> {
         // where a dialog shows the same words (Options' Downloads tab).
         let lower = words.to_lowercase();
         let shown = self.everything();
-        let title = crate::menus::WINDOW_MENUS
+        let title = crate::window::menus::WINDOW_MENUS
             .iter()
             .position(|name| same(dm_desktop_base::i18n::t(name)));
         let in_a_dialog = || {
@@ -296,7 +296,10 @@ impl Probe<'_, '_> {
         };
         if let Some(index) = title.filter(|_| !in_a_dialog()) {
             let ticks = self.view.menu_ticks.clone().unwrap_or_default();
-            if let Some(menu) = crate::menus::window_menus(&ticks).into_iter().nth(index) {
+            if let Some(menu) = crate::window::menus::window_menus(&ticks)
+                .into_iter()
+                .nth(index)
+            {
                 OPEN_MENU.with(|m| *m.borrow_mut() = Some(menu.owned()));
                 return Some(clicked());
             }
@@ -316,12 +319,12 @@ impl Probe<'_, '_> {
 
     /// The titles of the dialogs' windows open, the oldest first.
     fn dialog_titles(&mut self) -> Vec<String> {
-        crate::screen::Screens::all(self.cx)
+        crate::window::screen::Screens::all(self.cx)
             .into_iter()
             .rev()
             .filter(|(_, _, dialog)| *dialog)
             .filter_map(|(handle, _, _)| {
-                crate::screen::Screens::name_of(handle, self.cx)
+                crate::window::screen::Screens::name_of(handle, self.cx)
                     .map(|name| name.to_string())
                     .or_else(|| self.title_of(handle))
             })
@@ -338,10 +341,12 @@ impl Probe<'_, '_> {
             .ok()
             .filter(|title| !title.is_empty())
             .or_else(|| {
-                crate::screen::Screens::title_of(handle, self.cx).map(|title| title.to_string())
+                crate::window::screen::Screens::title_of(handle, self.cx)
+                    .map(|title| title.to_string())
             })
             .or_else(|| {
-                crate::screen::Screens::name_of(handle, self.cx).map(|name| name.to_string())
+                crate::window::screen::Screens::name_of(handle, self.cx)
+                    .map(|name| name.to_string())
             })
     }
 }
@@ -406,7 +411,7 @@ impl WindowProbe for Probe<'_, '_> {
 
     fn click(&mut self, click: probe::Click) -> Result<probe::Clicked, String> {
         // One of the choices of a pop-up the port clicked a moment ago.
-        if let Some(held) = crate::popup::held() {
+        if let Some(held) = crate::widgets::popup::held() {
             let lower = click.text.to_lowercase();
             match held
                 .choices
@@ -415,7 +420,7 @@ impl WindowProbe for Probe<'_, '_> {
             {
                 Some(index) => {
                     self.view.scripted.acted();
-                    let pick = crate::popup::Pick {
+                    let pick = crate::widgets::popup::Pick {
                         field: held.field,
                         item: held.item,
                         index,
@@ -431,7 +436,7 @@ impl WindowProbe for Probe<'_, '_> {
                         at: [0.0, 0.0],
                     });
                 }
-                None => crate::popup::hold(held),
+                None => crate::widgets::popup::hold(held),
             }
         }
         // An item of a menu the port opened, or a menu's title where nothing
@@ -457,7 +462,7 @@ impl WindowProbe for Probe<'_, '_> {
         // double).
         self.cx.defer(move |cx| {
             let _ = in_window.update(cx, |_, window, cx| {
-                crate::popup::scripted(|| {
+                crate::widgets::popup::scripted(|| {
                     let none = Modifiers::default();
                     window.dispatch_event(
                         PlatformInput::MouseMove(MouseMoveEvent {
@@ -585,7 +590,7 @@ impl WindowProbe for Probe<'_, '_> {
         // its inside: the frame less its title bar.
         let frames = |window: &Window| {
             // Windows says its frame itself (`syswindow::frames`).
-            if let Some((outer, inner)) = crate::syswindow::frames(window) {
+            if let Some((outer, inner)) = crate::platform::syswindow::frames(window) {
                 return (rect_of(outer), rect_of(inner));
             }
             let outer = window.bounds();
@@ -598,7 +603,10 @@ impl WindowProbe for Probe<'_, '_> {
         let pixels_per_point = Some(self.window.scale_factor());
         let mut dialogs = Vec::new();
         // The oldest first, as they were opened.
-        for (handle, _, dialog) in crate::screen::Screens::all(self.cx).into_iter().rev() {
+        for (handle, _, dialog) in crate::window::screen::Screens::all(self.cx)
+            .into_iter()
+            .rev()
+        {
             if !dialog {
                 continue;
             }
@@ -647,7 +655,7 @@ impl WindowProbe for Probe<'_, '_> {
         // The dialog's window by its title, put where a drag by its title
         // bar would put it.
         let wanted = to.title.to_lowercase();
-        let found = crate::screen::Screens::all(self.cx)
+        let found = crate::window::screen::Screens::all(self.cx)
             .into_iter()
             .filter(|(_, _, dialog)| *dialog)
             .find_map(|(handle, _, _)| {
@@ -659,7 +667,7 @@ impl WindowProbe for Probe<'_, '_> {
         let [x, y] = to.to;
         handle
             .update(self.cx, |_, window, _| {
-                crate::syswindow::move_to(window, x, y)
+                crate::platform::syswindow::move_to(window, x, y)
             })
             .map_err(|e| e.to_string())??;
         Ok(probe::Moved {
@@ -716,7 +724,12 @@ impl WindowProbe for Probe<'_, '_> {
                     description: row.description.clone(),
                     url: dm_desktop_base::format::shown_url(&row.url),
                     rect: shown.get(&i).map(|(y, left, width)| {
-                        [*left, *y, left + width, y + crate::zoom::of(ROW_HEIGHT)]
+                        [
+                            *left,
+                            *y,
+                            left + width,
+                            y + crate::window::zoom::of(ROW_HEIGHT),
+                        ]
                     }),
                 }
             })
@@ -768,7 +781,7 @@ impl WindowProbe for Probe<'_, '_> {
         }
         if !dm_shell::app::commands::Command::ALL.contains(&command) || !self.view.enabled(command)
         {
-            return Err(if crate::menus::carried_out(command) {
+            return Err(if crate::window::menus::carried_out(command) {
                 format!("{id} has nothing to act on")
             } else {
                 format!("{id} is not in the GPUI shell yet")

@@ -35,7 +35,7 @@ fn three_videos(world: &World) -> Playlist {
 
 /// The Playlist window over `read`, or reading `url` where there is none.
 fn open(h: &mut Harness, url: String, read: Option<Playlist>) {
-    h.update(|_, cx| crate::playlist::open(cx.entity().downgrade(), url, read, cx));
+    h.update(|_, cx| crate::dialogs::playlist::open(cx.entity().downgrade(), url, read, cx));
     h.until("the Playlist window", |h| h.dialog_open("Playlist"));
 }
 

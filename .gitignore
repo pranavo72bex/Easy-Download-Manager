@@ -1,5 +1,7 @@
 dist/
 target/
+# dm-core's FTP `target` module's own folder (its tests), not a build's.
+!desktop/crates/dm-core/src/ftp/target/
 pkg/
 __pycache__/
 .DS_Store

@@ -347,7 +347,7 @@ fn the_toolbar_keeps_its_names_narrow_and_in_german() {
         settings.text_size = size;
         let mut h = world.harness_with(settings);
         dm_desktop_base::i18n::set("de");
-        h.act(|_, cx| crate::zoom::start(size, cx));
+        h.act(|_, cx| crate::window::zoom::start(size, cx));
         h.resize(720.0, 460.0);
         let mut seen: Vec<(String, gpui::Bounds<gpui::Pixels>)> = Vec::new();
         for (_, label) in dm_shell::app::commands::toolbar_in(&[]) {
@@ -367,7 +367,7 @@ fn the_toolbar_keeps_its_names_narrow_and_in_german() {
             seen.push((name.to_string(), at));
         }
         assert!(!seen.is_empty(), "no toolbar names: {:?}", h.texts());
-        h.act(|_, cx| crate::zoom::start(1.0, cx));
+        h.act(|_, cx| crate::window::zoom::start(1.0, cx));
     }
     dm_desktop_base::i18n::set("en");
 }
@@ -512,7 +512,7 @@ fn tab_stays_in_the_dialog_and_enter_presses_its_default() {
     let world = world();
     let mut h = world.harness();
     let url = world.url("file.zip");
-    h.act(|_, cx| crate::details::open(cx.entity().downgrade(), vec![url], cx));
+    h.act(|_, cx| crate::dialogs::details::open(cx.entity().downgrade(), vec![url], cx));
     h.until("Download details", |h| h.dialog_open("Download details"));
     let dialog = front(&mut h).unwrap();
     for _ in 0..12 {
@@ -521,7 +521,7 @@ fn tab_stays_in_the_dialog_and_enter_presses_its_default() {
     }
     assert!(!h.view(|view| view.menu_open()), "Tab opened a menu behind");
     // Nothing in it focused but the dialog itself: Enter is Start now.
-    h.dialog::<crate::details::Details, _>(|d, window, cx| window.focus(&d.focus, cx));
+    h.dialog::<crate::dialogs::details::Details, _>(|d, window, cx| window.focus(&d.focus, cx));
     h.key("enter", &[]);
     h.until("Start now", |h| !h.dialog_open("Download details"));
     assert_eq!(h.rows().len(), 1);
@@ -758,7 +758,7 @@ fn escape_closes_the_window_in_front() {
             view.complete.insert(id);
             cx.entity().downgrade()
         });
-        let complete = h.cx.update(|cx| crate::complete::open(list, cx));
+        let complete = h.cx.update(|cx| crate::dialogs::complete::open(list, cx));
         h.view(|view| view.complete_window = complete);
         h.until("Download complete", |h| h.dialog_open("Download complete"));
         if progress_in_front {

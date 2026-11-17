@@ -11,6 +11,43 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Resume here (2026-11-17, night: stopped at the maintainer's word, "we will continue rest tomorrow")
+
+Everything is committed and pushed to `main`. Done today, in the order of "Work order" below:
+X8, A15, X9 (each checked and pushed), then A13 (pushed with `cargo check`, clippy `-D warnings`
+and xtask's tests passing, but **its whole `cargo test --workspace` run had not finished**).
+Pick up in this order:
+
+1. **A13's test run.** `D:\t\a13.log` holds the run started at 21:10 that night: if it ends with
+   `done`, read its `FAILED` and `panicked` lines; if not (the session ended under it), run again
+   from `desktop/` with `CARGO_TARGET_DIR=D:/dm-target`:
+   `cargo test --workspace --locked --no-fail-fast` (about an hour on the laptop). Anything that
+   fails is most likely a test that read its own file's source by path: 83 inline test modules
+   moved to `foo/tests.rs` (or `foo/<what>_tests.rs`), and dm-gpui's files moved into
+   `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`. Fix, then commit.
+2. **X1** (one `folders` module), written but not applied: `D:\t\x1\` holds `folders.rs`, its
+   `folders_tests.rs` and `x1.py`, which puts them in as `dm-core/src/folders.rs` and
+   `folders/tests.rs`, declares `pub mod folders`, rewrites the 15 places that read `HOME`,
+   `USERPROFILE`, `XDG_*`, `ProgramFiles`/`LOCALAPPDATA`, `Library/...` or the `dirs` crate
+   (`dm-desktop-base` autostart, desktop, login, system_theme; `dm-gpui` dialogs/welcome;
+   `dm-shell` register, settings, shell) and drops `dirs` from dm-shell. Run it from the
+   repository root (`python D:/t/x1/x1.py`), then `cargo check --workspace --all-targets`, fix
+   unused imports. Still to write: the `cargo xtask layers` rule that refuses `dirs::`, `"HOME"`,
+   `"USERPROFILE"`, `"APPDATA"`, `"LOCALAPPDATA"`, `"XDG_CONFIG_HOME"`, `"XDG_DATA_HOME"`,
+   `"Library/Application Support"` and `"Library/LaunchAgents"` in shipped code outside
+   `dm-core/src/folders.rs` (`processes.rs`'s list of AppRun's variables names
+   `XDG_DATA_DIRS`, not a folder read, so that name is not refused). Each answer must stay as
+   it was: `home_variable` is `$HOME` alone (macOS's login checks), `home` is the `dirs` crate's.
+   Test: `cargo test -p dm-core folders`, `-p dm-shell`, `-p dm-desktop-base`, xtask; clippy.
+3. Then "Work order" → "First of all", in turn: X10, A19's widgets part with A10, A6; then
+   "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
+   maintainer at the screen: do the rest first and ask for those together).
+
+Notes for this laptop: no git identity is set; commit with
+`git -c user.name=pranavo72bex -c user.email=pranavj304@gmail.com commit`. Write multi-line
+edits through a file or the editor, not a shell heredoc: the shell mangled `\\` and `\n` in
+two of today's edits (both found and fixed).
+
 ## Bottom line (the maintainer, 2026-11-10)
 
 What every change is measured against. These two never close, and nothing below may be closed
@@ -71,7 +108,9 @@ Smallest first:
 3. ~~X9~~ done 2026-11-17: `desktop/assets/` (`icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`),
    compiled in through the `dm-assets` crate; the installers' contents are owed a package build
    (step 8).
-4. A13: `dm-gpui` in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`.
+4. ~~A13~~ done 2026-11-17: dm-gpui in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`;
+   `foo.rs` beside `foo/` everywhere; 83 inline test modules moved out; xtask holds both. Its
+   whole `cargo test --workspace` is still owed ("Resume here", step 1).
 5. X1: one `folders` module for where a person's files live.
 6. X10: test helpers under a `test-support` feature.
 7. A19 (the `widgets` part: spacing and colours named once), A10 (a system's code in `platform/`).
@@ -115,7 +154,7 @@ W26, W18, W20, U20, Y27, Y7; then W5, W10, W11, W12, W15, W16, P4, P5; then F8, 
 W25, W22.
 
 **7. Structure and docs** (pure moves, after the features so they are moved once and no feature
-is written against a file about to be split; A13, X1, X10, A10, A6 and A19's
+is written against a file about to be split; X1, X10, A10, A6 and A19's
 widgets are taken first of all, above): A5, A11, A19 (what is left), A20, A21, A14, A8, A9, A7,
 A12, A17 (with X5), A18, A4, X7, A16; then X3, D5, D6 (with X6).
 
@@ -487,7 +526,6 @@ why; every file sampled opens with what it is for.
 | A10 | Code for one system is scattered: `cfg` for an OS in 24 of 115 dm-core files, 18 of 45 in the base, 10 of 48 in the window; `javascript.rs` and `syswindow.rs` each hold three systems in one file; `secretstore.rs` is 1,027 lines of all three | PARTIAL · L: done (2026-11-12): one file for each system where a file held all three: `javascript/{chakra,jsc,sandbox/*}.rs`, `secretstore/{tools,credentials,tests}.rs`, `dm-gpui` `syswindow/{macos,windows,x11}.rs` (each with its own `hide`, `show`, `move_to`, `picture`, `nowhere_to_hide`), `dm-shell` `shell/opener/{macos,windows,unix}.rs` (open and show in folder, the short path), `dm-desktop-base` `taskbar/{win,dock,launcher}.rs` and `desktop/{linux,windows}.rs`; built and linted on macOS, for Windows and Linux in Docker, Linux's checks passing. `dm-core` `second_path/{windows,unix,macos}.rs` (2026-11-14; Windows clippy and `linux-check.sh` pass). Left: the media decoders (`mp3.rs`, `frames.rs`, `gif.rs`, with P5), `login.rs`, and the egui crate (removed with G9) | Each service a trait with `platform/{macos,windows,linux}.rs`; `cfg` for an OS only in `platform/mod.rs`, checked by xtask; row P8's programs behind it |
 | A11 | State set from afar: about 100 statics outside the extension, eight process-wide setters that configure the engine (`set_engine`, `set_folder`, `allow_fetching`, `set_second_path`, …), the UI language in a thread-local, and 12 `DM_*` switches read where they are used (18 with the test ones; the scripts use 78 names) | OPEN · M to L | An `EngineConfig` handed to `Queue::new`; one `env.rs` table (name, purpose, test-only or not) as the only place `env::var("DM_…")` appears, checked by xtask |
 | A12 | 27 product files are over 1,000 lines (the gate is 2,500, `xtask/src/main.rs:406`) and 94 functions over 100, 14 over 300: `details.rs` `render` 594, `ranged.rs` `attempt_segment` 573, `download/mod.rs` `fetch_reporting` 477, `queue/runner.rs` `start` 459, `torrent.rs` `download_torrent` 449, the Options pages 327 to 385 each. `wc -l` gives the 27; the largest and how each splits (`options_pages.rs` a file per page; `list.rs` into state, commands, dialogs, render; `youtube.rs` into page, formats, client; `settings.rs` as A8; `shell.rs` into args, start, open, inbox, after; `register.rs` into browsers, manifests, registry) | OPEN · XL | The file gate ratchets 2,500 to 1,200 to 800 and `too-many-lines-threshold = 150` with a baseline that only shrinks; each split a pure move with the gate run |
-| A13 | Three layouts side by side: `mod.rs` in four modules, `foo.rs` beside `foo/` in 16, and 48 flat files in dm-gpui (`options.rs` beside `options_pages.rs`); tests are meant to live in `foo/tests.rs` (AGENTS.md rule 8) yet about 16,600 lines of tests sit inline in product files, and `download/capped_tests.rs` is a third way | OPEN · M | One layout, checked by xtask; dm-gpui in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`; inline test modules of over 100 lines moved out |
 | A14 | The bridge between the window and the engine has no stated rule: `Backend` has 93 functions and 54 `block_on` calls, three kinds of channel (tokio's 30 times, `async_channel` 14, `std::mpsc` 13), two executors and 31 `thread::spawn` | OPEN · M | One page says which thread may wait on what; one kind of wake channel; no `block_on` on the window's thread (row S17 is one) |
 | A16 | The checks are not Rust: 52 Python files of 20,242 lines (25 of them each write their own control-port client), 39 shell scripts, a 436-line Makefile, the Node benchmark (754 lines), and building the extension needs sh and Python (`scripts/package.sh:27-38`). None of it runs in the product, but the contract makes `python3 scripts/human-qa.py` the meaning of QA | OPEN · XL · the maintainer's word (the contract names the script) | In steps: `cargo xtask extension` makes the same zips byte for byte and `package.sh` goes; a `qa` crate with one `ControlClient`, the app and stress checks as `cargo test -p dm-qa`; `cargo xtask qa` for the contract's rows; the browser checks last (a DevTools client in Rust). The benchmark: decide, recommended kept as the frozen measuring instrument it is |
 | A17 | Patched copies are whole trees with marks in them: `vendor/gpui-pre-linux` (17,601 lines for three changes, 9 `dm:` marks) and librqbit (row P3). GPUI itself comes from a weekly third-party snapshot (`gpui-pre =0.3.12`, 25 crates), not from its makers | OPEN · M | Each copy is upstream source plus `vendor/patches/*.patch`, made again by `cargo xtask vendor`; a weekly CI job tries the next snapshot; the three fixes offered upstream |

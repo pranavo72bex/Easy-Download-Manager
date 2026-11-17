@@ -37,8 +37,8 @@ drawing function.
 `dm_shell::app::commands` (its name in `Command::ALL` and `id`, its English
 label, its `Chord`s, when it applies in `applies`, and, where it needs no
 dialog, what it does in `verb`). The window's menus give it words from its
-label (`dm-gpui/src/menus.rs`), and the window carries it out or opens its
-dialog in `Downloads::run` (`dm-gpui/src/list.rs`); the control port and MCP
+label (`dm-gpui/src/window/menus.rs`), and the window carries it out or opens its
+dialog in `Downloads::run` (`dm-gpui/src/window/list.rs`); the control port and MCP
 reach it by its name with nothing more.
 
 **A new control-port or MCP method**: a UI-free one goes in

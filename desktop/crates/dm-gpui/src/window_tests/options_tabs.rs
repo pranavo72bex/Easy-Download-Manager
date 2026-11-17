@@ -39,7 +39,7 @@ fn a_settings_file_that_cannot_be_written_or_read_is_said() {
     options_at(&mut h, "General");
     // A folder is no place to write a file.
     h.scroll_to("Save settings to a file…");
-    crate::services::choose_ahead(world.dir.path().to_path_buf());
+    crate::platform::services::choose_ahead(world.dir.path().to_path_buf());
     h.click("Save settings to a file…");
     h.until("the refusal to write", |h| {
         h.shows_part("could not be written")
@@ -47,18 +47,18 @@ fn a_settings_file_that_cannot_be_written_or_read_is_said() {
 
     let junk = world.dir.path().join("junk.json");
     std::fs::write(&junk, "this is not settings").unwrap();
-    crate::services::choose_ahead(junk.clone());
+    crate::platform::services::choose_ahead(junk.clone());
     h.scroll_to("Load settings from a file…");
     h.click("Load settings from a file…");
     let unread = format!("{} could not be read", junk.display());
     h.until("the refusal to read", |h| h.shows_part(&unread));
 
     let file = world.dir.path().join("carried.json");
-    crate::services::choose_ahead(file.clone());
+    crate::platform::services::choose_ahead(file.clone());
     h.scroll_to("Save settings to a file…");
     h.click("Save settings to a file…");
     h.until("the file", |_| file.is_file());
-    crate::services::choose_ahead(file);
+    crate::platform::services::choose_ahead(file);
     h.scroll_to("Load settings from a file…");
     h.click("Load settings from a file…");
     h.until_shown("Loaded. Look them over, then OK to use them.");

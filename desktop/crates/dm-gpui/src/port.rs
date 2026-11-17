@@ -72,7 +72,7 @@ pub(crate) fn reads(backend: Backend, assistants_only: bool) -> Reads {
             return Some(
                 match params.get("path").and_then(serde_json::Value::as_str) {
                     Some(path) if !path.is_empty() => {
-                        crate::services::choose_ahead(path.into());
+                        crate::platform::services::choose_ahead(path.into());
                         Ok(serde_json::json!({ "chosen": path }))
                     }
                     _ => Err("give `path`: what the next panel is answered with".into()),

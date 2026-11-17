@@ -27,7 +27,7 @@ fn a_saved_grabber_search_is_a_project_in_the_side_panel() {
     h.until_shown("Grabber projects");
     h.click("Manuals");
     h.until("the Grabber", |h| h.dialog_open("Grabber"));
-    let typed = h.dialog::<crate::grabber::Grabber, _>(|g, _, cx| g.typed(cx));
+    let typed = h.dialog::<crate::dialogs::grabber::Grabber, _>(|g, _, cx| g.typed(cx));
     assert_eq!(typed, (page, "pdf".into(), "20".into(), "Manuals".into()));
 }
 

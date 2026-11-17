@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn every_toolbar_command_has_its_picture() {
         for (command, _) in dm_shell::app::commands::TOOLBAR {
-            let path = crate::toolbar::icon(command);
+            let path = crate::window::toolbar::icon(command);
             assert!(
                 matches!(Assets.load(path), Ok(Some(_))),
                 "{} has no picture at {path}",
@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn every_kind_has_its_picture() {
         for kind in dm_core::Category::ALL.into_iter().map(Some).chain([None]) {
-            let (path, _) = crate::list::kind_picture(kind);
+            let (path, _) = crate::window::list::kind_picture(kind);
             assert!(matches!(Assets.load(path), Ok(Some(_))), "{kind:?}: {path}");
         }
     }

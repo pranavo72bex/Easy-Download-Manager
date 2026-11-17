@@ -11,14 +11,14 @@ use std::time::Instant;
 use dm_core::State;
 use dm_shell::app::power::WhenDone;
 
+use crate::dialogs::scheduler::Scheduler;
 use crate::harness::world::{world, World};
 use crate::harness::{settings_file, Harness};
-use crate::scheduler::Scheduler;
 
 /// A time chosen from its pop-ups, hour then minute, as a person chooses it (gaps row U32):
 /// `field` is the Scheduler's "Start at" or "Stop at", or the Speed limiter's.
 fn set_time(h: &mut Harness, field: &str, time: &str) {
-    use crate::popup::Pick;
+    use crate::widgets::popup::Pick;
     let (hour, minute) = dm_desktop_base::scheduler::time_parts(time);
     let (hour_field, minute_field): (&'static str, &'static str) = match field {
         "Start at" => ("from-hour", "from-minute"),
@@ -42,7 +42,7 @@ fn set_time(h: &mut Harness, field: &str, time: &str) {
         }
     } else {
         for (field, index) in picks {
-            h.dialog(|l: &mut crate::limiter::Limiter, _, cx| {
+            h.dialog(|l: &mut crate::dialogs::limiter::Limiter, _, cx| {
                 l.pick(
                     &Pick {
                         field,
@@ -560,7 +560,7 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     for (field, index) in [("date-year", 0), ("date-month", 11), ("date-day", 30)] {
         h.dialog(|s: &mut Scheduler, _, cx| {
             s.pick(
-                &crate::popup::Pick {
+                &crate::widgets::popup::Pick {
                     field,
                     item: 0,
                     index,

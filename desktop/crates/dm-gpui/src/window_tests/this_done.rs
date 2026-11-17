@@ -30,14 +30,14 @@ fn when_this_download_is_done_opens_it() {
     assert!(h.call("ui.click", json!({ "text": "Open" })).is_err());
     // A person's pick of it in the pop-up's menu.
     let dialog = h.cx.update(|cx| {
-        crate::screen::Screens::all(cx)
+        crate::window::screen::Screens::all(cx)
             .into_iter()
             .find(|(_, _, dialog)| *dialog)
             .map(|(window, _, _)| window)
     });
     h.cx.dispatch_action(
         dialog.expect("the progress window"),
-        crate::popup::Pick {
+        crate::widgets::popup::Pick {
             field: "this-done",
             item: 0,
             index: 1,

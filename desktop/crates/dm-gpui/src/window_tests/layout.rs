@@ -83,7 +83,7 @@ fn front(h: &mut Harness) -> gpui::AnyWindowHandle {
 
 /// The text size put in force for every window, as View › Text size puts it.
 fn text_size(h: &mut Harness, size: f32) {
-    h.act(|_, cx| crate::zoom::start(size, cx));
+    h.act(|_, cx| crate::window::zoom::start(size, cx));
     h.act(|_, cx| cx.refresh_windows());
 }
 
@@ -113,7 +113,7 @@ fn a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag() {
         drag(&mut h, "file.zip"),
         "the finished file was not dragged"
     );
-    let carried = h.view(|view| crate::dragout::carried(view, done.id));
+    let carried = h.view(|view| crate::platform::dragout::carried(view, done.id));
     assert_eq!(
         carried,
         [std::path::PathBuf::from(&done.path)],
@@ -124,7 +124,7 @@ fn a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag() {
     let waiting = h.row("stalled.bin");
     drag(&mut h, "stalled.bin");
     assert!(
-        h.view(|view| crate::dragout::carried(view, waiting.id))
+        h.view(|view| crate::platform::dragout::carried(view, waiting.id))
             .is_empty(),
         "an unfinished download has no file to carry"
     );
@@ -209,11 +209,15 @@ fn view_text_size_zooms_the_window() {
     for item in ["View", "Text size", "Larger"] {
         h.click(item);
     }
-    h.until("120%", |_| (crate::zoom::factor() - 1.2).abs() < 0.01);
+    h.until("120%", |_| {
+        (crate::window::zoom::factor() - 1.2).abs() < 0.01
+    });
     for item in ["View", "Text size", "Normal size"] {
         h.click(item);
     }
-    h.until("100%", |_| (crate::zoom::factor() - 1.0).abs() < 0.01);
+    h.until("100%", |_| {
+        (crate::window::zoom::factor() - 1.0).abs() < 0.01
+    });
 }
 
 #[test]
@@ -412,7 +416,7 @@ fn dialogs_keep_their_place_and_show_the_size() {
     assert_eq!(h.bounds_of("OK"), ok, "OK moved as the warning appeared");
     h.close_dialogs();
     let url = world.url("file.zip");
-    h.act(|_, cx| crate::details::open(cx.entity().downgrade(), vec![url], cx));
+    h.act(|_, cx| crate::dialogs::details::open(cx.entity().downgrade(), vec![url], cx));
     h.until("the size in Download details", |h| {
         h.shows_part(&dm_desktop_base::format::bytes(256 * 1024))
     });

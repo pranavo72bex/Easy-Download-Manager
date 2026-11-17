@@ -81,7 +81,7 @@ fn every_dialog_in_every_language_is_translated() {
         let mut h = world.harness_with(settings);
         dm_desktop_base::i18n::set(code);
         dm_desktop_base::i18n::record_missing();
-        for menu in crate::menus::WINDOW_MENUS {
+        for menu in crate::window::menus::WINDOW_MENUS {
             h.click(dm_desktop_base::i18n::t(menu));
             h.texts();
             h.key("escape", &[]);
@@ -104,7 +104,7 @@ fn every_dialog_in_every_language_is_translated() {
         // Download details, the progress window, Download complete, Delete's question and
         // Properties, each looked at and closed.
         let url = world.url("x.bin");
-        h.act(|_, cx| crate::details::open(cx.entity().downgrade(), vec![url], cx));
+        h.act(|_, cx| crate::dialogs::details::open(cx.entity().downgrade(), vec![url], cx));
         h.until("Download details", |h| h.dialogs().len() == 1);
         h.close_dialogs();
         h.act(|view, cx| view.show_progress(id, cx));
@@ -517,7 +517,9 @@ fn every_menu_item_clicked_does_what_it_says() {
         h.rows().iter().all(|r| r.state != State::Running)
     });
     press(&mut h, &["Tasks", "Exit"]);
-    h.until("Tasks › Exit to quit", |_| crate::question::is_quitting());
+    h.until("Tasks › Exit to quit", |_| {
+        crate::dialogs::question::is_quitting()
+    });
 }
 
 /// Every toolbar button, clicked by its name, does what its menu item does.

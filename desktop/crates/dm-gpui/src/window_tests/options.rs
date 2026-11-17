@@ -306,9 +306,9 @@ fn a_queues_start_time_is_set_in_options() {
     // Chosen from its hour and minute pop-ups, which hold only times (gaps row U32).
     for (field, index) in [("start-hour", 23), ("start-minute", 45)] {
         h.dialog(|o: &mut Options, _, cx| {
-            crate::options_pages::pick(
+            crate::options::pages::pick(
                 o,
-                &crate::popup::Pick {
+                &crate::widgets::popup::Pick {
                     field,
                     item: 0,
                     index,

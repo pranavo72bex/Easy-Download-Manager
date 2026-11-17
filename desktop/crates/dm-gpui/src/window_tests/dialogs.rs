@@ -59,7 +59,7 @@ fn hand_links(h: &mut Harness, world: &World, links: Vec<String>) {
 
 /// Download details for `urls`, as Add URL's OK opens it.
 fn details(h: &mut Harness, urls: Vec<String>) {
-    h.act(|_, cx| crate::details::open(cx.entity().downgrade(), urls, cx));
+    h.act(|_, cx| crate::dialogs::details::open(cx.entity().downgrade(), urls, cx));
     h.until("Download details", |h| h.dialog_open("Download details"));
 }
 
@@ -892,7 +892,7 @@ fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
     let looked = |h: &mut Harness| {
         let at = std::time::Instant::now();
         h.until("a look at the clipboard", |_| {
-            at.elapsed() > crate::clipwatch::EVERY * 2
+            at.elapsed() > crate::platform::clipwatch::EVERY * 2
         });
     };
     clip(&mut h, &world.url("new.iso"));
@@ -1496,7 +1496,7 @@ fn the_close_question_is_asked_once_and_the_answer_is_kept() {
     h.act(|view, cx| view.ask_close(cx));
     h.until_shown(question);
     h.click("Exit");
-    h.until("Exit to quit", |_| crate::question::is_quitting());
+    h.until("Exit to quit", |_| crate::dialogs::question::is_quitting());
     assert_eq!(h.view(|v| v.backend.settings().on_close), "exit");
 }
 
@@ -1730,10 +1730,14 @@ fn a_copied_link_is_taken_at_once_where_that_is_on() {
     // Copied again, it is not taken twice.
     clip(&mut h, "other words");
     let at = std::time::Instant::now();
-    h.until("a look", |_| at.elapsed() > crate::clipwatch::EVERY * 2);
+    h.until("a look", |_| {
+        at.elapsed() > crate::platform::clipwatch::EVERY * 2
+    });
     clip(&mut h, &copied);
     let at = std::time::Instant::now();
-    h.until("a look", |_| at.elapsed() > crate::clipwatch::EVERY * 2);
+    h.until("a look", |_| {
+        at.elapsed() > crate::platform::clipwatch::EVERY * 2
+    });
     assert!(!h.dialog_open("Download details"), "taken twice");
     // Off again: offered in the bar, as before.
     h.settings_to(|s| s.start_copied = false);
@@ -1750,7 +1754,7 @@ fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
     let world = world();
     let mut h = world.harness();
     h.act(|_, cx| {
-        crate::links::open(
+        crate::dialogs::links::open(
             cx.entity().downgrade(),
             Request {
                 url: world.url("page.html"),
@@ -1842,7 +1846,7 @@ fn a_links_words_on_the_page_are_shown_and_kept_as_its_description() {
         ask: true,
         ..Default::default()
     };
-    h.act(|_, cx| crate::links::open(cx.entity().downgrade(), request, cx));
+    h.act(|_, cx| crate::dialogs::links::open(cx.entity().downgrade(), request, cx));
     h.until("Download links", |h| h.dialog_open("Download links"));
     h.until_shown("Link text");
     assert!(
@@ -1875,7 +1879,7 @@ fn a_links_words_on_the_page_are_shown_and_kept_as_its_description() {
         ask: true,
         ..Default::default()
     };
-    h.act(|_, cx| crate::links::open(cx.entity().downgrade(), again, cx));
+    h.act(|_, cx| crate::dialogs::links::open(cx.entity().downgrade(), again, cx));
     h.until("Download links", |h| h.dialog_open("Download links"));
     h.until_shown("A third");
     h.click("Use link texts as descriptions");
@@ -1911,7 +1915,7 @@ fn download_links_adds_for_later_to_the_queue_chosen() {
         ask: true,
         ..Default::default()
     };
-    h.act(|_, cx| crate::links::open(cx.entity().downgrade(), request, cx));
+    h.act(|_, cx| crate::dialogs::links::open(cx.entity().downgrade(), request, cx));
     h.until("Download links", |h| h.dialog_open("Download links"));
     h.until_shown("Main queue");
     h.click("Main queue");

@@ -372,7 +372,8 @@ fn layers() -> Result<(), String> {
     ] {
         for d in manifest(&root.join(member))?.own_versions {
             wrong.push(format!(
-                "{member} writes {d}'s version itself: put it in desktop/Cargo.toml's                  [workspace.dependencies] and write `{d}.workspace = true`"
+                "{member} writes {d}'s version itself: put it in desktop/Cargo.toml's \
+                 [workspace.dependencies] and write `{d}.workspace = true`"
             ));
         }
     }
@@ -440,6 +441,7 @@ fn layers() -> Result<(), String> {
     // not counted.
     for dir in [
         "desktop/crates/dm-assets/src",
+        "desktop/crates/dm-js/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
@@ -448,12 +450,28 @@ fn layers() -> Result<(), String> {
         "browser/src",
     ] {
         for file in walk(&root.join(dir)) {
-            if file.file_name().is_some_and(|n| n == "tests.rs") {
+            if file.extension().is_none_or(|e| e != "rs") {
                 continue;
             }
-            let lines = std::fs::read_to_string(&file).map_or(0, |t| t.lines().count());
+            let text = std::fs::read_to_string(&file).unwrap_or_default();
+            let shown = file.strip_prefix(&root).unwrap_or(&file).display();
+            // One layout (gaps row A13): a module with children is `foo.rs` beside `foo/`.
+            if file.file_name().is_some_and(|n| n == "mod.rs") {
+                wrong.push(format!(
+                    "{shown}: a module with children is `foo.rs` beside `foo/`, not `foo/mod.rs`"
+                ));
+            }
+            for (name, lines) in long_inline_tests(&text) {
+                wrong.push(format!(
+                    "{shown}: its test module `{name}` is {lines} lines inline: move it to a file \
+                     of its own (`mod {name};`), as the limit is {MAX_INLINE_TEST_LINES}"
+                ));
+            }
+            if is_test_file(&file) {
+                continue;
+            }
+            let lines = text.lines().count();
             if lines > MAX_SOURCE_LINES {
-                let shown = file.strip_prefix(&root).unwrap_or(&file).display();
                 wrong.push(format!(
                     "{shown} is {lines} lines: split it into modules (the limit is {MAX_SOURCE_LINES})"
                 ));
@@ -465,6 +483,44 @@ fn layers() -> Result<(), String> {
     } else {
         Err(wrong.join("\n"))
     }
+}
+
+/// Whether `file` is a module's tests by its name: `tests.rs`, or `<what>_tests.rs` beside it
+/// (gaps row A13).
+fn is_test_file(file: &Path) -> bool {
+    file.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n == "tests.rs" || n.ends_with("_tests.rs"))
+}
+
+/// The most lines a test module may have written inside a product file (gaps row A13).
+const MAX_INLINE_TEST_LINES: usize = 100;
+
+/// The `#[cfg(test)] mod name { ... }` blocks of `text` longer than
+/// [`MAX_INLINE_TEST_LINES`], each with its length. A block is one opened at the start of a line
+/// and closed by the first `}` alone at the start of a line, as rustfmt writes a module.
+fn long_inline_tests(text: &str) -> Vec<(String, usize)> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut found = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        let Some(name) = line
+            .strip_prefix("mod ")
+            .and_then(|rest| rest.strip_suffix(" {"))
+        else {
+            continue;
+        };
+        if i == 0 || lines[i - 1].trim() != "#[cfg(test)]" {
+            continue;
+        }
+        let length = lines[i + 1..]
+            .iter()
+            .position(|l| *l == "}")
+            .unwrap_or(lines.len() - i - 1);
+        if length > MAX_INLINE_TEST_LINES {
+            found.push((name.to_string(), length));
+        }
+    }
+    found
 }
 
 /// The most lines a source file may have before `cargo xtask layers` asks for
@@ -532,20 +588,21 @@ fn privacy() -> Result<(), String> {
         "extension",
     ] {
         for file in walk(&root.join(dir)) {
-            // A module's tests live in its `tests.rs`, or start at #[cfg(test)]; the
-            // window's tests and their harness are test modules of their own
-            // (`dm-gpui/src/window_tests`, `harness`), whose files hold no #[cfg(test)].
-            let test_only = file.components().any(|c| {
-                [
-                    "tests.rs",
-                    "window_tests",
-                    "window_tests.rs",
-                    "harness",
-                    "harness.rs",
-                ]
-                .iter()
-                .any(|t| c.as_os_str() == *t)
-            });
+            // A module's tests live in its `tests.rs` or a `*_tests.rs` (gaps row A13), or start
+            // at #[cfg(test)]; the window's tests and their harness are test modules of their
+            // own (`dm-gpui/src/window_tests`, `harness`), whose files hold no #[cfg(test)].
+            let test_only = is_test_file(&file)
+                || file.components().any(|c| {
+                    [
+                        "tests.rs",
+                        "window_tests",
+                        "window_tests.rs",
+                        "harness",
+                        "harness.rs",
+                    ]
+                    .iter()
+                    .any(|t| c.as_os_str() == *t)
+                });
             if test_only {
                 continue;
             }
@@ -958,6 +1015,21 @@ mod tests {
     }
 
     #[test]
+    fn a_long_inline_test_module_is_found_and_a_short_one_or_a_file_is_not() {
+        let short = "fn a() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn b() {}\n}\n";
+        assert!(long_inline_tests(short).is_empty());
+        let body = "    // a line\n".repeat(MAX_INLINE_TEST_LINES + 1);
+        let long = format!("#[cfg(test)]\nmod more_tests {{\n{body}}}\n");
+        assert_eq!(
+            long_inline_tests(&long),
+            [("more_tests".to_string(), MAX_INLINE_TEST_LINES + 1)]
+        );
+        // Not a test's, or a file of its own.
+        assert!(long_inline_tests(&format!("mod inner {{\n{body}}}\n")).is_empty());
+        assert!(long_inline_tests("#[cfg(test)]\nmod tests;\n").is_empty());
+    }
+
+    #[test]
     fn a_manifest_names_its_crate_and_every_dependency_but_the_tests() {
         let dir = Scratch::new("manifest");
         let path = dir.0.join("Cargo.toml");
@@ -976,16 +1048,9 @@ mod tests {
         // Taken from the workspace, with or without features of its own: none written here.
         std::fs::write(
             &path,
-            "[package]
-name = \"dm-x\"
-
-[dependencies]
-dm-core.workspace = true
-             tokio = { workspace = true, features = [\"fs\"] }
-
-             [build-dependencies]
-embed-resource = { version = \"3\" }
-",
+            "[package]\nname = \"dm-x\"\n\n[dependencies]\ndm-core.workspace = true\n\
+             tokio = { workspace = true, features = [\"fs\"] }\n\n\
+             [build-dependencies]\nembed-resource = { version = \"3\" }\n",
         )
         .unwrap();
         assert_eq!(manifest(&path).unwrap().own_versions, ["embed-resource"]);

@@ -44,15 +44,17 @@ extension that hands it the browser's downloads.
   command line, the words (`i18n`, its catalogs in `assets/i18n`) and
   numbers (`format`), and the system's services. `crates/dm-gpui` is the
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
-  no web view, plus the tray: one file per part of the window (`list.rs` the
-  rows and their reads, `tick.rs` what each wake does, `table.rs`,
-  `menus.rs`, `toolbar.rs`, `sidebar.rs`, one file per dialog such as
-  `addurl.rs`, `details.rs`, `options.rs`, and `port.rs` with `probe.rs` for
-  the control port). `cargo packager -p dm-gpui` there builds the installers,
+  no web view, plus the tray: one file per part of the window, in five
+  folders (`window/`: `list.rs` the rows and their reads, `tick.rs` what each
+  wake does, `table.rs`, `menus.rs`, `toolbar.rs`, `sidebar.rs`; `dialogs/`:
+  one file per dialog such as `addurl.rs` and `details.rs`; `options.rs` with
+  `options/pages.rs`; `widgets/`; `platform/`: the system's window calls, the
+  tray, drags and drops), and `port.rs` with `probe.rs` for the control port. `cargo packager -p dm-gpui` there builds the installers,
   from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
   holds dm's version. What is not code is in one folder, `desktop/assets/`
   (the window's `icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), and
-  `crates/dm-assets` compiles in what the program reads of it. The older egui window (`crates/dm-desktop`) was removed with its
+  `crates/dm-assets` compiles in what the program reads of it. The older
+  egui window (`crates/dm-desktop`) was removed with its
   fonts and vendored patches on 2026-11-13 (gaps row G9).
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
@@ -212,10 +214,13 @@ the frozen standard that reference A was measured against.
 7. Shipped code does not `unwrap`, `expect` or `panic`; a new reader of
    outside input gets a property test in its crate's `tests/fuzz.rs`.
 8. Keep modules small and by concern: a source file over 2500 lines fails
-   `cargo xtask layers`. A module's tests go in `tests.rs` beside it
-   (`foo.rs` with `foo/tests.rs`), which the privacy and translation scans
-   skip by name, so a test's made-up address or string is not taken for
-   shipped code.
+   `cargo xtask layers`. One layout: a module with children is `foo.rs`
+   beside `foo/`, never `foo/mod.rs`. A module's tests go in `tests.rs`
+   beside it (`foo.rs` with `foo/tests.rs`), or a `<what>_tests.rs` there
+   for a second set; an inline `#[cfg(test)] mod` of over 100 lines fails
+   `cargo xtask layers`. The privacy and translation scans skip those files
+   by name, so a test's made-up address or string is not taken for shipped
+   code.
 9. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.
 

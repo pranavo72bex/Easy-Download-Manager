@@ -11,7 +11,7 @@ use std::sync::{mpsc, Arc};
 use gpui::{AnyWindowHandle, AppContext as _, Entity, TestAppContext};
 use serde_json::Value;
 
-use crate::list::Downloads;
+use crate::window::list::Downloads;
 use dm_desktop_base::boot::Wake;
 
 pub(crate) mod world;
@@ -191,7 +191,7 @@ pub(crate) struct Harness {
     #[allow(dead_code)]
     pub(crate) fake: Arc<Fake>,
     asks: mpsc::Sender<dm_desktop_base::control::Request>,
-    wakes: crate::wakes::Wakes,
+    wakes: crate::window::wakes::Wakes,
     /// When GPUI's clock was last moved on (`step`).
     clock: std::time::Instant,
     /// The windows open at the last step: one opened since is put in front (`step`).
@@ -231,10 +231,10 @@ impl Harness {
             Arc::clone(&fake) as Arc<dyn dm_shell::app::platform::Platform>,
         );
         let (asks, asked) = mpsc::channel();
-        let (wakes, woken) = crate::wakes::pair();
+        let (wakes, woken) = crate::window::wakes::pair();
         let mut cx = TestAppContext::single();
         cx.update(gpui_component::init);
-        crate::screen::record();
+        crate::window::screen::record();
         // As `main` opens it: the list in gpui-component's root, then what the application
         // hears beside it (`wire`: the keys, the menus, Quit and the text size).
         let made = std::rc::Rc::new(std::cell::RefCell::new(None));
@@ -428,7 +428,7 @@ impl Harness {
             let open = cx.windows();
             // A dialog opened since is in front, as the system makes a new window the one with
             // the keys (its Tab walks its own controls); one closed hands them back.
-            let dialogs: Vec<AnyWindowHandle> = crate::screen::Screens::all(cx)
+            let dialogs: Vec<AnyWindowHandle> = crate::window::screen::Screens::all(cx)
                 .into_iter()
                 .filter(|(_, _, dialog)| *dialog)
                 .map(|(handle, _, _)| handle)
@@ -603,7 +603,7 @@ impl Harness {
     /// The next of dm's own file or folder panels (Import, Export, Options' Browse…) is
     /// answered with `path`, as a script's `ui.choose` answers it.
     pub(crate) fn choose_ahead(&mut self, path: &std::path::Path) {
-        crate::services::choose_ahead(path.to_path_buf());
+        crate::platform::services::choose_ahead(path.to_path_buf());
     }
 
     /// The folder panel a dialog's Browse… opened (GPUI's own path prompt) answered with
@@ -682,7 +682,7 @@ impl Harness {
     ) -> (gpui::AnyWindowHandle, gpui::Bounds<gpui::Pixels>) {
         self.step();
         let found = self.cx.update(|cx| {
-            crate::screen::Screens::all(cx)
+            crate::window::screen::Screens::all(cx)
                 .into_iter()
                 .flat_map(|(handle, screen, _)| {
                     screen
@@ -759,7 +759,7 @@ impl Harness {
     pub(crate) fn click_as_person(&mut self, text: &str, nth: usize) {
         use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, PlatformInput};
         let found = self.cx.update(|cx| {
-            crate::screen::Screens::all(cx)
+            crate::window::screen::Screens::all(cx)
                 .into_iter()
                 .flat_map(|(handle, screen, _)| {
                     screen.drawn().into_iter().rev().map(move |d| (handle, d))
@@ -805,7 +805,7 @@ impl Harness {
     pub(crate) fn click_beside(&mut self, label: &str) {
         use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, PlatformInput};
         let found = self.cx.update(|cx| {
-            crate::screen::Screens::all(cx)
+            crate::window::screen::Screens::all(cx)
                 .into_iter()
                 .flat_map(|(handle, screen, _)| {
                     screen.drawn().into_iter().rev().map(move |d| (handle, d))
@@ -953,9 +953,9 @@ impl Harness {
     }
 
     /// The words of the dialog in front, where each was laid out, and its window.
-    fn front_dialog(&mut self) -> (gpui::AnyWindowHandle, Vec<crate::screen::Drawn>) {
+    fn front_dialog(&mut self) -> (gpui::AnyWindowHandle, Vec<crate::window::screen::Drawn>) {
         self.cx.update(|cx| {
-            let dialogs: Vec<_> = crate::screen::Screens::all(cx)
+            let dialogs: Vec<_> = crate::window::screen::Screens::all(cx)
                 .into_iter()
                 .filter(|(_, _, dialog)| *dialog)
                 .collect();
@@ -986,7 +986,7 @@ impl Harness {
     /// [`Harness::reveal`], for the words `words` laid out after the words `anchor` (the
     /// first, where there is no anchor): where the first such are, once on screen.
     fn reveal_after(&mut self, anchor: Option<&str>, words: &str) -> gpui::Bounds<gpui::Pixels> {
-        let found = |drawn: &[crate::screen::Drawn]| {
+        let found = |drawn: &[crate::window::screen::Drawn]| {
             let from = match anchor {
                 Some(anchor) => drawn.iter().position(|d| d.text.as_ref() == anchor)? + 1,
                 None => 0,
@@ -1070,7 +1070,7 @@ impl Harness {
     /// window's menus show it now: whether it is ticked, and whether greyed.
     pub(crate) fn menu_item(&mut self, path: &[&str]) -> (bool, bool) {
         let ticks = self.view(|view| view.menu_ticks.clone().unwrap_or_default());
-        let menus: Vec<gpui::OwnedMenu> = crate::menus::window_menus(&ticks)
+        let menus: Vec<gpui::OwnedMenu> = crate::window::menus::window_menus(&ticks)
             .into_iter()
             .map(|menu| menu.owned())
             .collect();
@@ -1164,7 +1164,7 @@ impl Harness {
             .collect();
         self.cx.update(|cx| {
             let _ = window.update(cx, |_, window, cx| {
-                crate::native::keys_to(window.window_handle(), || {
+                crate::widgets::native::keys_to(window.window_handle(), || {
                     window.dispatch_keystroke(all, cx);
                     window.dispatch_keystroke(backspace, cx);
                     for key in typed {

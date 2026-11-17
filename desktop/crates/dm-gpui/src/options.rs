@@ -9,7 +9,10 @@
 //! field, with what it does under it, in sections under bold headings. OK
 //! keeps only what Options changed and refuses what cannot be kept, on the
 //! page that holds it (`dm_desktop_base::options`); Cancel keeps nothing.
-//! The pages are drawn in `options_pages.rs`.
+//! The pages are drawn in `options/pages.rs`.
+
+/// Its six pages (B43).
+pub(crate) mod pages;
 
 use std::collections::HashMap;
 
@@ -24,19 +27,19 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 use gpui_component::slider::{SliderEvent, SliderState};
 
-use crate::list::Downloads;
-use crate::native;
-use crate::popup::Pick;
-use crate::screen::{Screen, Screens};
-use crate::theme::Theme;
-use crate::zoom::px;
+use crate::widgets::native;
+use crate::widgets::popup::Pick;
+use crate::window::list::Downloads;
+use crate::window::screen::{Screen, Screens};
+use crate::window::theme::Theme;
+use crate::window::zoom::px;
 
 /// The window's size: one for every page, so the tabs and the buttons stay
 /// where they are when another page is picked; a page longer than that
 /// scrolls. Smaller on Windows, where 600 points stood nearly the height of
 /// a laptop's screen.
-const WIDTH: f32 = crate::native::pick(680.0, 620.0, 680.0);
-const HEIGHT: f32 = crate::native::pick(600.0, 520.0, 600.0);
+const WIDTH: f32 = crate::widgets::native::pick(680.0, 620.0, 680.0);
+const HEIGHT: f32 = crate::widgets::native::pick(600.0, 520.0, 600.0);
 
 /// Options' view.
 pub struct Options {
@@ -169,9 +172,11 @@ impl Options {
         cx: &mut Context<Self>,
         then: impl FnOnce(&mut Self, String, &mut Context<Self>) + 'static,
     ) {
-        crate::services::ask_then(crate::services::Asked::folder(), cx, |o, picked, cx| {
-            then(o, picked.display().to_string(), cx)
-        });
+        crate::platform::services::ask_then(
+            crate::platform::services::Asked::folder(),
+            cx,
+            |o, picked, cx| then(o, picked.display().to_string(), cx),
+        );
     }
 
     /// The system's open or save panel, `name` suggested; `then` with the
@@ -183,7 +188,11 @@ impl Options {
         cx: &mut Context<Self>,
         then: impl FnOnce(&mut Self, std::path::PathBuf, &mut Context<Self>) + 'static,
     ) {
-        crate::services::ask_then(crate::services::Asked::file(save, name), cx, then);
+        crate::platform::services::ask_then(
+            crate::platform::services::Asked::file(save, name),
+            cx,
+            then,
+        );
     }
 
     /// A sound file played, as it would be heard.
@@ -436,7 +445,7 @@ impl Options {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<SliderState> {
-        let percent = TEXT_SIZE.percent(crate::zoom::factor()) as f32;
+        let percent = TEXT_SIZE.percent(crate::window::zoom::factor()) as f32;
         if let Some(slider) = self.scale.clone() {
             if (slider.read(cx).value().start() - percent).abs() > 0.5 {
                 slider.update(cx, |s, cx| s.set_value(percent, window, cx));
@@ -463,7 +472,7 @@ impl Options {
 
     /// A choice made in one of the pages' pop-ups.
     fn pick(&mut self, pick: &Pick, cx: &mut Context<Self>) {
-        crate::options_pages::pick(self, pick);
+        crate::options::pages::pick(self, pick);
         cx.notify();
     }
 
@@ -545,9 +554,9 @@ impl Render for Options {
         let screen = self.screen.clone();
         let wanted = self.search.read(cx).value().to_string();
         let page = if wanted.trim().is_empty() {
-            crate::options_pages::page(self, theme, window, cx)
+            crate::options::pages::page(self, theme, window, cx)
         } else {
-            crate::options_pages::search(self, &wanted, theme, window, cx)
+            crate::options::pages::search(self, &wanted, theme, window, cx)
         };
         // The pages as a tab view's segments, as macOS draws them.
         let tabs = options::TABS.iter().map(|(tab, words)| {
@@ -601,12 +610,18 @@ impl Render for Options {
                 )
         });
         let restore = !options::tab_settings(self.tab).is_empty();
-        crate::native::dialog("options", t("Options"), theme, cx)
+        crate::widgets::native::dialog("options", t("Options"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
-            .on_action(cx.listener(|this, _: &crate::menus::NextPage, _, cx| this.step_page(1, cx)))
             .on_action(
-                cx.listener(|this, _: &crate::menus::PreviousPage, _, cx| this.step_page(-1, cx)),
+                cx.listener(|this, _: &crate::window::menus::NextPage, _, cx| {
+                    this.step_page(1, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::window::menus::PreviousPage, _, cx| {
+                    this.step_page(-1, cx)
+                }),
             )
             .text_size(px(native::TEXT))
             .text_color(theme.text)
@@ -759,11 +774,11 @@ impl Downloads {
             self.watch_clipboard(now.watch_clipboard);
         }
         if before.theme != now.theme {
-            crate::theme::follow(&now.theme, cx);
+            crate::window::theme::follow(&now.theme, cx);
         }
         // Every window at the text size chosen, at once; the View menu's
         // percentage with it.
-        if crate::zoom::set(now.text_size, cx) {
+        if crate::window::zoom::set(now.text_size, cx) {
             self.menu_ticks = None;
         }
         if before.language != now.language {
@@ -800,7 +815,7 @@ fn open_window(
     cx: &mut App,
 ) -> Option<gpui::AnyWindowHandle> {
     let bounds = Bounds::centered(None, size(px(WIDTH), px(HEIGHT)), cx);
-    let opened = crate::screen::open_window(
+    let opened = crate::window::screen::open_window(
         cx,
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -853,7 +868,7 @@ fn open_window(
                 }
             })
             .detach();
-            crate::native::close_is_cancel(&options, window, cx);
+            crate::widgets::native::close_is_cancel(&options, window, cx);
             cx.new(|cx| gpui_component::Root::new(options, window, cx))
         },
     );
@@ -866,7 +881,7 @@ fn open_window(
     }
 }
 
-impl crate::native::CloseButton for Options {
+impl crate::widgets::native::CloseButton for Options {
     fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
         self.cancel(window);
     }
