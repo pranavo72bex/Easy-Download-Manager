@@ -275,10 +275,94 @@ pub fn name_it_will_get_after(
                 })
                 .count()
         });
-        let said = dm_core::nth_free_name(std::path::Path::new(&folder), &name, before);
+        let said = nth_free_in(std::path::Path::new(&folder), &name, before);
         free.insert(key, (Instant::now(), said.clone()));
         said
     })
+}
+
+/// [`dm_core::nth_free_name`], with a folder asked about many names at once listed once
+/// instead (Windows). Naming 10,300 waiting rows looked at the disk 10,300 times on Windows,
+/// 0.78 s of a 0.93 s read, where the same on macOS is a few milliseconds (gaps rows 210, S16).
+fn nth_free_in(folder: &Path, name: &str, nth: usize) -> String {
+    #[cfg(windows)]
+    if let Some(listed) = listing::of(folder) {
+        // NTFS compares names without case and keeps them as written, so a name the disk has
+        // is in the listing in some case; one found there is still asked of the disk.
+        return dm_core::nth_free_name_with(folder, name, nth, |path| {
+            path.file_name()
+                .is_some_and(|n| listed.contains(&n.to_string_lossy().to_lowercase()))
+        });
+    }
+    dm_core::nth_free_name(folder, name, nth)
+}
+
+/// Each folder's names, listed once it has been asked about many names in a short while.
+#[cfg(windows)]
+mod listing {
+    use std::collections::{HashMap, HashSet};
+    use std::path::{Path, PathBuf};
+    use std::rc::Rc;
+    use std::time::{Duration, Instant};
+
+    /// How long a listing, or a count of names asked, stands: a pass naming every row ends
+    /// within it, and a file arriving is seen no later than a name kept for two seconds is.
+    const FOR: Duration = Duration::from_millis(500);
+    /// Names asked of a folder within [`FOR`] before it is listed: a few rows named every
+    /// two seconds look at the disk as before, a folder of many files is not listed for them.
+    const AFTER: usize = 64;
+
+    struct Folder {
+        since: Instant,
+        asked: usize,
+        /// `None` until listed; a folder that could not be read is kept as `Some(None)`.
+        listed: Option<Option<Rc<HashSet<String>>>>,
+    }
+
+    thread_local! {
+        static FOLDERS: std::cell::RefCell<HashMap<PathBuf, Folder>> =
+            std::cell::RefCell::new(HashMap::new());
+    }
+
+    /// `folder`'s names in lower case, where it has been asked about more than [`AFTER`] names
+    /// within [`FOR`] and could be read; `None` while each name is to be asked of the disk.
+    pub(super) fn of(folder: &Path) -> Option<Rc<HashSet<String>>> {
+        FOLDERS.with(|folders| {
+            let mut folders = folders.borrow_mut();
+            if folders.len() > 256 {
+                folders.retain(|_, f| f.since.elapsed() < FOR);
+            }
+            let entry = folders.entry(folder.to_path_buf()).or_insert(Folder {
+                since: Instant::now(),
+                asked: 0,
+                listed: None,
+            });
+            if entry.since.elapsed() >= FOR {
+                *entry = Folder {
+                    since: Instant::now(),
+                    asked: 0,
+                    listed: None,
+                };
+            }
+            entry.asked += 1;
+            if entry.listed.is_none() && entry.asked > AFTER {
+                // A folder not made yet holds nothing; one that cannot be read otherwise is
+                // asked name by name.
+                entry.listed = Some(match std::fs::read_dir(folder) {
+                    Ok(dir) => Some(Rc::new(
+                        dir.flatten()
+                            .map(|e| e.file_name().to_string_lossy().to_lowercase())
+                            .collect(),
+                    )),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                        Some(Rc::new(HashSet::new()))
+                    }
+                    Err(_) => None,
+                });
+            }
+            entry.listed.clone().flatten()
+        })
+    }
 }
 
 /// Renames asked for before a row's file is whole ("use the address's
@@ -344,6 +428,40 @@ pub fn category_folder(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder asked about many names at once is listed instead (Windows), and says what the
+    /// disk says: a name taken in another case is taken, `(1)` and `(2)` are counted, a name
+    /// nothing has is free.
+    #[test]
+    fn a_folder_asked_about_many_names_answers_as_the_disk_does() {
+        let dir = tempfile::tempdir().unwrap();
+        for taken in ["Big.BIN", "big (1).bin", "other.zip"] {
+            std::fs::write(dir.path().join(taken), b"x").unwrap();
+        }
+        let asked = [
+            ("big.bin", 0),
+            ("big.bin", 1),
+            ("BIG.bin", 0),
+            ("other.zip", 0),
+            ("free.txt", 0),
+            ("free.txt", 2),
+        ];
+        // Past the count that lists the folder, and again within it.
+        for _ in 0..30 {
+            for (name, nth) in asked {
+                assert_eq!(
+                    nth_free_in(dir.path(), name, nth),
+                    dm_core::nth_free_name(dir.path(), name, nth),
+                    "{name}, {nth}"
+                );
+            }
+        }
+        // A folder not made yet holds nothing.
+        let gone = dir.path().join("gone");
+        for _ in 0..100 {
+            assert_eq!(nth_free_in(&gone, "a.bin", 0), "a.bin");
+        }
+    }
 
     fn row(id: u64, url: &str, state: State) -> Arc<Entry> {
         Arc::new(

@@ -132,6 +132,14 @@ Licence Apache-2.0 (its `LICENSE-APACHE`); the version the GPUI window
 (`crates/dm-gpui`, pinned `gpui-pre` 0.3.12) is built with on Windows. The
 published package's `Cargo.lock` and `.cargo_vcs_info.json` are left out.
 
+The app's own Light or Dark (`dm:` lines in `util.rs` and `platform.rs`):
+upstream leaves `Platform::set_window_appearance` empty on Windows, so
+Options › General › Theme did nothing and every window followed Windows' mode
+(dm's gaps row 211). The choice is kept in `util.rs` (`choose_appearance`) and
+`system_appearance` answers with it where one is chosen; each window is posted
+Windows' own `ImmersiveColorSet` change, so it takes the new look, and its title
+bar's dark mode, from its own message loop.
+
 Files dragged out of the window (`src/drag_out.rs`, and `dm:` lines in
 `gpui_windows.rs`, `window.rs`, `events.rs`): upstream offers GPUI's
 `start_external_drag` on macOS and Wayland only, so a finished download could

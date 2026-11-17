@@ -333,8 +333,21 @@ pub fn free_name(dir: &Path, name: &str) -> String {
 /// 0, where `nth` others of that name are already waiting to be placed
 /// there: each takes the next free one in turn.
 pub fn nth_free_name(dir: &Path, name: &str, nth: usize) -> String {
+    nth_free_name_with(dir, name, nth, |_| true)
+}
+
+/// [`nth_free_name`], asking the disk about a name only where `may_be_taken` says something of
+/// that name may be there: a caller that listed the folder once answers the rest itself, where
+/// a look at the disk for each of thousands of names cost most of a second on Windows (gaps
+/// row 210). `may_be_taken` must not say no of a name the disk has.
+pub fn nth_free_name_with(
+    dir: &Path,
+    name: &str,
+    nth: usize,
+    may_be_taken: impl Fn(&Path) -> bool,
+) -> String {
     candidates(dir, name)
-        .filter(|path| std::fs::symlink_metadata(path).is_err())
+        .filter(|path| !(may_be_taken(path) && std::fs::symlink_metadata(path).is_ok()))
         .nth(nth)
         .and_then(|path| path.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_else(|| name.to_string())

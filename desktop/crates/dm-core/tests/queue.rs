@@ -2013,6 +2013,21 @@ async fn an_unreadable_queue_file_is_kept_aside_and_said_rather_than_overwritten
     assert!(q.problems().is_empty());
 }
 
+/// A queue file written with the mark some editors put before UTF-8 is read as any other
+/// (gaps row 212).
+#[tokio::test]
+async fn a_queue_file_with_a_byte_order_mark_is_read() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    std::fs::write(&store, "\u{feff}[]").unwrap();
+
+    let q = queue(dir.path(), 1);
+    q.persist_to(store.clone()).await;
+
+    assert!(q.problems().is_empty());
+    assert!(!dir.path().join("queue.json.unreadable").exists());
+}
+
 #[tokio::test]
 async fn a_queue_file_that_is_not_text_is_kept_aside_too() {
     /* Only a file that read as text and failed to parse was kept aside; one

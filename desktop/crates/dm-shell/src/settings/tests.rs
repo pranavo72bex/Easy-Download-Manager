@@ -132,6 +132,28 @@ fn a_settings_file_that_cannot_be_read_is_kept_and_said() {
     );
 }
 
+/// A settings file written with the mark some editors put before UTF-8 is read as any other,
+/// not set aside (gaps row 212).
+#[test]
+fn a_settings_file_with_a_byte_order_mark_is_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    std::fs::write(
+        &path,
+        "\u{feff}{ \"connections\": 4, \"theme\": \"light\" }",
+    )
+    .unwrap();
+
+    let (settings, notice) = Settings::load_from(&path);
+    assert_eq!(notice, None);
+    assert_eq!(
+        (settings.connections, settings.theme.as_str()),
+        (4, "light")
+    );
+    assert!(path.exists());
+    assert!(!dir.path().join("settings.json.unreadable").exists());
+}
+
 /// A category saved on a Mac or Linux with a name Windows
 /// cannot make ("Live: 2024", "Misc.") was dropped at load, and the
 /// next save deleted it. It is kept where it works; only a new or

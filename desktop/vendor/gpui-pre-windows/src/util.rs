@@ -155,9 +155,28 @@ pub(crate) fn logical_point(x: f32, y: f32, scale_factor: f32) -> Point<Pixels> 
     }
 }
 
+// dm: the look the app chose (`Platform::set_window_appearance`), which upstream left unset on
+// Windows, so Options' Light or Dark was ignored and every window followed the system's
+// (desktop/vendor/README.md). `None` follows the system's.
+static CHOSEN_APPEARANCE: std::sync::Mutex<Option<WindowAppearance>> = std::sync::Mutex::new(None);
+
+// dm: see `CHOSEN_APPEARANCE`.
+pub(crate) fn choose_appearance(appearance: Option<WindowAppearance>) {
+    *CHOSEN_APPEARANCE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = appearance;
+}
+
 // https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/apply-windows-themes
 #[inline]
 pub(crate) fn system_appearance() -> Result<WindowAppearance> {
+    // dm: the look the app chose, where it chose one.
+    if let Some(chosen) = *CHOSEN_APPEARANCE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    {
+        return Ok(chosen);
+    }
     let ui_settings = UISettings::new()?;
     let foreground_color = ui_settings.GetColorValue(UIColorType::Foreground)?;
     // If the foreground is light, then is_color_light will evaluate to true,

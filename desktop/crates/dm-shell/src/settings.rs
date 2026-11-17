@@ -1297,6 +1297,10 @@ impl Settings {
     /// host: the host read strictly, so one odd field put every default in
     /// force there while the window kept the rest.
     fn parse(text: &str) -> Result<(Self, Vec<String>), serde_json::Error> {
+        // The mark some editors put before UTF-8 (and PowerShell 5.1's `Out-File -Encoding
+        // utf8`) is not JSON: read with it, the file was set aside and every default put in
+        // force (gaps row 212).
+        let text = text.strip_prefix('\u{feff}').unwrap_or(text);
         lenient::take();
         let parsed = match serde_json::from_str::<Settings>(text) {
             Ok(settings) => Ok((settings, Vec::new())),

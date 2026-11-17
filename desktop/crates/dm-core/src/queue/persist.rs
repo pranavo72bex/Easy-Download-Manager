@@ -66,7 +66,9 @@ impl Queue {
         };
         let secrets = self.read_secrets(path);
         let parsed = read.and_then(|text| {
-            serde_json::from_slice::<Vec<Entry>>(&text)
+            // Without the mark some editors put before UTF-8, which is not JSON.
+            let json = text.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&text);
+            serde_json::from_slice::<Vec<Entry>>(json)
                 .map(|entries| (text, entries))
                 .map_err(|e| e.to_string())
         });

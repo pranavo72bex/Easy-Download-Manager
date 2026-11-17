@@ -178,7 +178,8 @@ pub use control::{Control, Wanted};
 
 pub use download::{
     download, download_reporting, free_name, free_space, names_a_document, nth_free_name,
-    slow_part_writes_to, Finished, HostLimit, Options, Room, Update, CHECKED_BESIDE, NOTES,
+    nth_free_name_with, slow_part_writes_to, Finished, HostLimit, Options, Room, Update,
+    CHECKED_BESIDE, NOTES,
 };
 
 pub use limit::Limiter;
