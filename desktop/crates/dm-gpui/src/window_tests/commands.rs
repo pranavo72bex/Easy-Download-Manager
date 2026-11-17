@@ -201,7 +201,13 @@ fn every_command_runs_against_rows_in_every_state() {
 #[test]
 fn every_menu_item_clicked_does_what_it_says() {
     let world = world();
-    let mut h = world.harness();
+    // The stalled connection given the longest wait allowed: at the default 30 s, a whole suite
+    // run reached the running row's checks after it had timed out and was retrying ("No answer
+    // (retry 2 of 15)"), where Update download link is rightly offered.
+    let mut h = world.harness_with(dm_shell::Settings {
+        read_timeout: 600,
+        ..world.settings()
+    });
     h.add_url(&world.url("file.zip"), "Start now");
     h.add_url(&world.url("stalled.bin"), "Start now");
     h.add_url(&world.url("other.pdf"), "Add for later");

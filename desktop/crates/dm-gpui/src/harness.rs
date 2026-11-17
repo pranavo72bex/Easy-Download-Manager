@@ -207,8 +207,12 @@ impl Harness {
         dir: &std::path::Path,
         settings: dm_shell::Settings,
     ) -> Harness {
+        // The client as a launch builds it (`shell::start`): through the settings' proxy and
+        // with their read timeout, which `dm_core::client()` left at its fixed 30 s.
+        let client = dm_core::client_with_timeout(&settings.proxy, settings.read_timeout())
+            .unwrap_or_else(|_| dm_core::client());
         let queue = dm_core::Queue::new(
-            dm_core::client(),
+            client,
             settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
             settings.concurrency,
         );

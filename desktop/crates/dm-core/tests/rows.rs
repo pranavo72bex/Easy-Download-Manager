@@ -46,6 +46,22 @@ fn queue(dir: &std::path::Path) -> Queue {
     )
 }
 
+/// `persist_to`, and its first write waited for: it is made in the background (gaps row S16),
+/// so a test that counts saves would otherwise count it, or find it had already written the
+/// change the test is about.
+async fn persisted(q: &Queue, path: std::path::PathBuf) {
+    let before = q.saves_written();
+    q.persist_to(path).await;
+    let asked = std::time::Instant::now();
+    while q.saves_written() == before {
+        assert!(
+            asked.elapsed() < std::time::Duration::from_secs(10),
+            "the list read back was never written"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+    }
+}
+
 #[tokio::test]
 async fn download_later_waits_in_its_queue_until_the_queue_starts() {
     let addr = serve().await;
@@ -302,7 +318,7 @@ async fn removing_many_rows_writes_the_queue_once() {
     let addr = serve().await;
     let dir = tempdir();
     let q = queue(dir.path());
-    q.persist_to(dir.path().join("queue.json")).await;
+    persisted(&q, dir.path().join("queue.json")).await;
     let items = (0..200)
         .map(|n| {
             (
@@ -472,7 +488,7 @@ async fn flushes_made_at_once_write_one_change_once() {
     for round in 0..40 {
         let dir = tempdir();
         let q = queue(dir.path());
-        q.persist_to(dir.path().join("queue.json")).await;
+        persisted(&q, dir.path().join("queue.json")).await;
         let url = |n: u32| format!("http://{addr}/r{round}-{n}.bin");
         q.add(&url(0)).await.unwrap();
         // Within the write gap of that save, so this one is owed, not written.

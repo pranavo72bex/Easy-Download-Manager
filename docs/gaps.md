@@ -103,44 +103,34 @@ macOS-only `memory` module and broke the Windows and Linux builds), A10's `secon
 and Y3 closed. Next: S5 and Y16 (each more than an hour), then the rows that need the Windows
 laptop, a phone or a person.
 
-### Resume here (Windows release QA, 2026-11-14)
+### Resume here (Windows release QA, 2026-11-17, at 54625da9)
 
-Done on 2026-11-14, at the maintainer's word ("UI has been updated … if the UI is misaligned
-with updated UI … fix it"):
-- Browser bar (`bars.rs`): at Windows' first width (840) "Add dm to your browser:" was cut to
-  "Add dm…". The label now wraps whole onto a second line (`line_clamp(2)`), and the bar's
-  buttons take a least width of 80 (`BAR_BUTTON_MIN`, the macOS and Linux value) in place of
-  Windows' 120. The label's wrap reaches Linux too: at its first width (900) it was cut to
-  "Add dm to your bro…" and now wraps whole (Linux `empty-window.png` redrawn).
-- Download details (`native::path_field`): an empty Save to folder shows its hint cut in the
-  middle, in the muted colour, as a typed folder is (U17), so "(sorted by kind)" stays in sight.
-- The three Windows B25 pictures redrawn with `--save-baseline` and looked at.
-- `cargo test -p dm-gpui`: 387 passed. Then `human-qa.py` from PowerShell on the debug build
-  with Edge, without `--save-baseline`: 66 of 66 rows, no check failing (B25 0.00/0.03/0.10%,
-  B36 68 of 68 and 70 of 70). Log: `D:/t/qa-run4.log`.
+Done on the Windows laptop on 2026-11-17:
+- Release installer `dm-gpui_0.10.0_x64-setup.exe` (`cargo packager --release -p dm-gpui
+  --formats nsis --out-dir D:/dm-target/release/bundle`, run from `desktop/crates/dm-gpui`: from
+  the checkout's root it finds no configuration), installed with `/S`. `human-qa.py` against
+  the installed `dm-gpui.exe`: 66 of 66 rows (B25 0.00/0.00/0.12%, B36 74 of 74 and 76 of 76).
+  Log: `D:/t/qa-0.10.0-installer-2.log`. A first run was 64 of 66 because `dist/chrome` was
+  still extension 3.4.0, which does not keep the menu the app serves (A22); `sh
+  scripts/package.sh` before QA after a pull that changes `browser/`.
+- `every_menu_item_clicked_does_what_it_says`: the stalled row did time out and retry ("No
+  answer (retry 2 of 15)"). The window tests' harness built its client with the fixed 30 s
+  (`dm_core::client()`), not the settings' read timeout as a launch does (`shell::start`); it
+  now builds it as a launch does, and the test gives `stalled.bin` 600 s. The rule is as it was.
+- `dm-core` `tests/rows.rs`: `removing_many_rows_writes_the_queue_once` and
+  `flushes_made_at_once_write_one_change_once` failed nearly every run here since S16 made
+  `persist_to`'s write a background one: it landed inside the counted window. The two tests
+  now wait for that write first (`persisted`).
+- `each_part_is_joined_no_further_than_its_span` (step 4 of 2026-11-14) passes on Windows.
 
-Left, in order:
-1. Done on the Mac (2026-11-14, at 9267b3c4): `cargo test --workspace` 2301 passed, clippy
-   `-D warnings` clean, the extension's 169 tests, `chrome-check.py` 92 of 92; `human-qa.py`
-   65 of 66 on macOS and on Linux (`linux-human-qa.sh`), B25 alone failing on the two fixes'
-   own change: macOS `download-details.png` (the empty folder's hint cut in the middle, 1.47%)
-   and Linux `empty-window.png` (the bar's label wrapped whole, 4.57%), both looked at and
-   saved as the baselines. Main's Desktop CI green on all three systems.
-2. Release installer: `cargo packager --release -p dm-gpui --formats nsis --out-dir
-   D:/dm-target/release/bundle` (about 25 min). Then one whole QA run against it.
-3. `window_tests::commands::every_menu_item_clicked_does_what_it_says` failed in two of three
-   whole `cargo test -p dm-gpui` runs on this laptop and passes alone: "Update download link"
-   is not greyed on the running `stalled.bin` row. Guess, not checked: under the suite's load
-   the stalled connection has timed out and the row is retrying, where `commands.rs` offers
-   Update download link (`looks.retrying`). The check now waits up to 10 s for the grey, which
-   did not help on its own. Next: log the row's retrying state at the timeout, then make the
-   check say why it is offered, without changing the rule.
-
-4. `cargo test --workspace` on Windows (2026-11-14, before aaa042f2) stopped at `dm-core`:
-   `each_part_is_joined_no_further_than_its_span` got "Access is denied" from `join_parts`.
-   aaa042f2 (the join opens a renamed range to write, not to append) is the fix for it; not
-   yet run on Windows after it, nor the crates after `dm-core`. Passed on the Mac's final pass
-   and on Windows CI (the Desktop run at 9267b3c4).
+Left:
+1. `five_hundred_rows_draw_inside_a_frame_budget` fails here, alone too: 157 to 183 ms a frame
+   against Windows' 160 (117 to 138 ms on this laptop before). Nothing in the window's drawing
+   changed since 9267b3c4 and other programs were busy; re-measure on a quiet machine and on
+   Windows CI before calling it a slowdown. The budget is not moved.
+2. `tests/limits.rs` `a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection`
+   took 5.65 s against its 5.6 (0.7 of 8) once beside `dm-gpui`'s window tests; alone 5.81 s
+   for the whole target, three of three passing. Load, as its comment allows for; watch it.
 
 Builds on this laptop: `CARGO_INCREMENTAL=0`. D: filled (398 GB in `D:/dm-target/debug`, 138
 of it the incremental cache) and the linker failed with LNK1180.
