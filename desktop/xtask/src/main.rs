@@ -343,6 +343,7 @@ const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 fn layers() -> Result<(), String> {
     let root = root();
     let crates = [
+        "desktop/crates/dm-assets/Cargo.toml",
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
@@ -359,6 +360,7 @@ fn layers() -> Result<(), String> {
     // workspace (the extension's too, gaps row A15) names a dependency with `x.workspace = true`
     // and adds only its own features.
     for member in [
+        "desktop/crates/dm-assets/Cargo.toml",
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-js/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
@@ -384,18 +386,30 @@ fn layers() -> Result<(), String> {
         let (may, no_gui, no_sockets): (&[&str], bool, bool) = match c.name.as_str() {
             // The words both sides speak; nothing else.
             "dm-protocol" => (&[], true, true),
+            // dm's files that are not code, as bytes (gaps row X9): nothing else.
+            "dm-assets" => (&[], true, true),
             // dm's own JavaScript: the language alone, no window and no sockets (gaps row F15).
             "dm-js" => (&[], true, true),
             // The engine: no window, no browser.
             "dm-core" => (&["dm-js"], true, false),
             // Around the window but not the window.
-            "dm-shell" => (&["dm-core", "dm-protocol"], true, false),
+            "dm-shell" => (&["dm-assets", "dm-core", "dm-protocol"], true, false),
             // What the desktop program does that is not drawing: any window
             // may use it, so it uses none.
-            "dm-desktop-base" => (&["dm-core", "dm-protocol", "dm-shell"], true, false),
+            "dm-desktop-base" => (
+                &["dm-assets", "dm-core", "dm-protocol", "dm-shell"],
+                true,
+                false,
+            ),
             // The window.
             "dm-gpui" => (
-                &["dm-core", "dm-protocol", "dm-shell", "dm-desktop-base"],
+                &[
+                    "dm-assets",
+                    "dm-core",
+                    "dm-protocol",
+                    "dm-shell",
+                    "dm-desktop-base",
+                ],
                 false,
                 false,
             ),
@@ -425,6 +439,7 @@ fn layers() -> Result<(), String> {
     // thousands of lines. Tests live in `tests.rs` or under `tests/`, and are
     // not counted.
     for dir in [
+        "desktop/crates/dm-assets/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
@@ -507,6 +522,7 @@ fn privacy() -> Result<(), String> {
         }
     }
     for dir in [
+        "desktop/crates/dm-assets/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-protocol/src",

@@ -33,7 +33,7 @@ fn catalogs() -> BTreeMap<String, serde_json::Map<String, Value>> {
 
 /// The app's languages as the browser names its catalogs: `pt-BR.json` is `pt_BR`.
 fn app_languages() -> BTreeMap<String, BTreeMap<String, String>> {
-    let dir = repo().join("desktop/crates/dm-desktop-base/i18n");
+    let dir = repo().join("desktop/assets/i18n");
     let mut found = BTreeMap::new();
     for entry in std::fs::read_dir(&dir).unwrap() {
         let path = entry.unwrap().path();

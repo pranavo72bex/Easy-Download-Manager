@@ -19,6 +19,8 @@ path = "src/lib.rs"
 [dependencies]
 dm-core.workspace = true
 dm-shell.workspace = true
+# Its files that are not code: desktop/assets/ (gaps row X9).
+dm-assets.workspace = true
 serde_json.workspace = true
 # The control port's window answers, as typed shapes (probe.rs).
 serde = { workspace = true, features = ["derive"] }

@@ -2009,6 +2009,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "dm-assets"
+version = "0.10.0"
+
+[[package]]
 name = "dm-catcher"
 version = "3.5.0"
 dependencies = [
@@ -2083,6 +2087,7 @@ version = "0.10.0"
 dependencies = [
  "auto-launch",
  "chrono",
+ "dm-assets",
  "dm-core",
  "dm-shell",
  "getrandom 0.4.3",
@@ -2112,6 +2117,7 @@ dependencies = [
  "axum",
  "block2 0.6.2",
  "chrono",
+ "dm-assets",
  "dm-core",
  "dm-desktop-base",
  "dm-protocol",
@@ -2161,6 +2167,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "dirs 7.0.0",
+ "dm-assets",
  "dm-core",
  "dm-protocol",
  "futures-util",

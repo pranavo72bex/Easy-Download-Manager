@@ -233,10 +233,9 @@ mod tests {
     /// field names; none has been run against the live site).
     #[test]
     fn the_shipped_site_rules_find_the_streams_of_their_sites_answers() {
-        let rules = dm_protocol::Rules::parse(include_str!(
-            "../../../desktop/crates/dm-shell/resources/rules.json"
-        ))
-        .expect("the shipped rules parse");
+        let rules =
+            dm_protocol::Rules::parse(include_str!("../../../desktop/assets/rules/rules.json"))
+                .expect("the shipped rules parse");
         let keys_of = |host: &str, request: &str| -> Vec<String> {
             let site = rules.sites.iter().find(|s| s.host == host).expect(host);
             site.answers

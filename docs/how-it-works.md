@@ -541,12 +541,15 @@ desktop/
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup;
                           app/ the application layer every window drives
   crates/dm-desktop-base/ the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
-                          i18n/ (the catalogs), the system's services (tray, toasts, taskbar…)
+                          the system's services (tray, toasts, taskbar…)
   crates/dm-gpui/         the window shipped, in GPUI: list.rs (the rows, each wake's read),
                           tick.rs, table.rs, menus.rs, one file per dialog, port.rs and probe.rs
                           (the control port), syswindow/ (the system's own window calls),
-                          tray.rs; harness.rs and window_tests/ the window's tests;
-                          icons/ and macos/Info.plist for the installers
+                          tray.rs; harness.rs and window_tests/ the window's tests
+  crates/dm-assets/       the files below compiled in: the window's pictures, the catalogs,
+                          the shipped site rules
+  assets/                 what is not code: icons/ (the window's), app-icons/ and macos/
+                          (the installers'), i18n/ (the catalogs), rules/ (rules.json)
   xtask/                  cargo xtask scorecard | layers | privacy | secrets
   packaging/PKGBUILD      the Arch package
 shared/naming-cases.json  filename cases the engine's naming is held to

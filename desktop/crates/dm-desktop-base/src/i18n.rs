@@ -44,22 +44,8 @@ pub const LANGUAGES: [(&str, &str); 14] = [
     ("ko", "한국어"),
 ];
 
-/// The catalogs, as written.
-pub const CATALOGS: [(&str, &str); 13] = [
-    ("es", include_str!("../i18n/es.json")),
-    ("pt-BR", include_str!("../i18n/pt-BR.json")),
-    ("fr", include_str!("../i18n/fr.json")),
-    ("de", include_str!("../i18n/de.json")),
-    ("it", include_str!("../i18n/it.json")),
-    ("nl", include_str!("../i18n/nl.json")),
-    ("pl", include_str!("../i18n/pl.json")),
-    ("ru", include_str!("../i18n/ru.json")),
-    ("id", include_str!("../i18n/id.json")),
-    ("tr", include_str!("../i18n/tr.json")),
-    ("zh-CN", include_str!("../i18n/zh-CN.json")),
-    ("ja", include_str!("../i18n/ja.json")),
-    ("ko", include_str!("../i18n/ko.json")),
-];
+/// The catalogs, as written (`desktop/assets/i18n/`, gaps row X9).
+pub const CATALOGS: [(&str, &str); 13] = dm_assets::CATALOGS;
 
 /// English to translation. Held in a static, so what it holds is `'static`
 /// without leaking each string.

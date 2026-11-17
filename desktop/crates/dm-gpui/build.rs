@@ -11,7 +11,7 @@
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=icons/icon.ico");
+    println!("cargo:rerun-if-changed=../../assets/app-icons/icon.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
@@ -25,7 +25,12 @@ fn main() {
         parts.next().unwrap_or(0),
     );
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
-    let icon = std::path::Path::new(&dir).join("icons").join("icon.ico");
+    let icon = std::path::Path::new(&dir)
+        .join("..")
+        .join("..")
+        .join("assets")
+        .join("app-icons")
+        .join("icon.ico");
     let icon = icon.display().to_string().replace('\\', "\\\\");
     let rc = format!(
         r#"1 ICON "{icon}"

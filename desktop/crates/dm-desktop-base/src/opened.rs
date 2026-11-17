@@ -5,7 +5,7 @@
 
 //! Links and files the system opens with dm, on macOS: a `magnet:` link
 //! clicked in a browser or another program, a `.torrent` file opened from
-//! Finder. The bundle's Info.plist (`macos/Info.plist`) names both; the
+//! Finder. The bundle's Info.plist (`desktop/assets/macos/Info.plist`) names both; the
 //! system then sends the running app an Apple event, never a command line:
 //! `GURL` for a link, `odoc` for files.
 //!

@@ -218,7 +218,7 @@ impl Tray {
 /// dm's own icon, for a taskbar's tray (Windows, Linux).
 #[cfg(not(target_os = "macos"))]
 fn app_icon() -> Result<tray_icon::Icon, String> {
-    const PNG: &[u8] = include_bytes!("../icons/32x32.png");
+    const PNG: &[u8] = dm_assets::APP_ICON_32;
     let mut decoder = png::Decoder::new(std::io::Cursor::new(PNG));
     decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::ALPHA);
     let mut reader = decoder.read_info().map_err(|e| e.to_string())?;

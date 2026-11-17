@@ -59,9 +59,9 @@ contents:
       mode: 0755
   - src: desktop/packaging/dm.desktop
     dst: /usr/share/applications/dm.desktop
-  - src: desktop/crates/dm-gpui/icons/icon.png
+  - src: desktop/assets/app-icons/icon.png
     dst: /usr/share/icons/hicolor/512x512/apps/dm.png
-  - src: desktop/crates/dm-gpui/icons/128x128.png
+  - src: desktop/assets/app-icons/128x128.png
     dst: /usr/share/icons/hicolor/128x128/apps/dm.png
   - src: LICENSE
     dst: /usr/share/licenses/dm/LICENSE

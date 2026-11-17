@@ -11,8 +11,8 @@ use std::path::Path;
 
 use dm_protocol::Rules;
 
-/// The document shipped inside the app.
-const SHIPPED: &str = include_str!("../../resources/rules.json");
+/// The document shipped inside the app (`desktop/assets/rules/`, gaps row X9).
+const SHIPPED: &str = dm_assets::RULES;
 
 /// The file a newer document is put in, in dm's home folder.
 pub const FILE: &str = "rules.json";

@@ -41,7 +41,7 @@ extension that hands it the browser's downloads.
   the same app (`docs/architecture/`). `crates/dm-desktop-base` is what the
   desktop program does that is not drawing, with no window toolkit: `Desktop`
   (the application's `Platform`), the login item, the control port, MCP, the
-  command line, the words (`i18n`, its catalogs in `dm-desktop-base/i18n`) and
+  command line, the words (`i18n`, its catalogs in `assets/i18n`) and
   numbers (`format`), and the system's services. `crates/dm-gpui` is the
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
   no web view, plus the tray: one file per part of the window (`list.rs` the
@@ -49,8 +49,10 @@ extension that hands it the browser's downloads.
   `menus.rs`, `toolbar.rs`, `sidebar.rs`, one file per dialog such as
   `addurl.rs`, `details.rs`, `options.rs`, and `port.rs` with `probe.rs` for
   the control port). `cargo packager -p dm-gpui` there builds the installers,
-  from its `icons/` and `macos/Info.plist`; its `Cargo.toml` holds dm's
-  version. The older egui window (`crates/dm-desktop`) was removed with its
+  from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
+  holds dm's version. What is not code is in one folder, `desktop/assets/`
+  (the window's `icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), and
+  `crates/dm-assets` compiles in what the program reads of it. The older egui window (`crates/dm-desktop`) was removed with its
   fonts and vendored patches on 2026-11-13 (gaps row G9).
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used

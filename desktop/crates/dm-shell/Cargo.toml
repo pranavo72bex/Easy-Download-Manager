@@ -16,6 +16,8 @@ description = "What every dm window shares: the settings, the browser host, the 
 base64.workspace = true
 dm-core.workspace = true
 dm-protocol.workspace = true
+# Its files that are not code: desktop/assets/ (gaps row X9).
+dm-assets.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha2.workspace = true

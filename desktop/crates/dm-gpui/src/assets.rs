@@ -10,72 +10,15 @@ use std::borrow::Cow;
 
 use gpui::{AssetSource, Result, SharedString};
 
-/// The pictures named, each at `icons/<name>.svg`, compiled in.
-macro_rules! icons {
-    ($($name:literal),* $(,)?) => {
-        &[$((
-            concat!("icons/", $name, ".svg"),
-            include_bytes!(concat!("../assets/icons/", $name, ".svg")) as &[u8],
-        )),*]
-    };
-}
-
-/// Every picture, by the path a view asks for.
-const ICONS: &[(&str, &[u8])] = icons!(
-    // A side-panel group's heading: open (up, to close it) or shut (down, to open it).
-    "chevron-up",
-    "chevron-down",
-    // The toolbar's.
-    "add",
-    "resume",
-    "stop",
-    "stop-all",
-    "delete",
-    "delete-completed",
-    // A row's own Details button (its progress window).
-    "details",
-    "options",
-    "scheduler",
-    "start-queue",
-    "stop-queue",
-    "grabber",
-    // Each file kind's, before a row's name (B45).
-    "kind-videos",
-    "kind-audio",
-    "kind-documents",
-    "kind-apps",
-    "kind-archives",
-    "kind-pictures",
-    "kind-other",
-    // A pop-up button's, as the system draws one (up and down).
-    "chevron-up-down",
-    // The top bar's search box.
-    "search",
-    // The top bar's button that shows or hides the categories, as the
-    // system's sidebar button.
-    "sidebar",
-    // The floating drop target's.
-    "drop",
-    // The side panel's places that are not a kind: All, Unfinished, Finished, a queue, a
-    // person's own category.
-    "place-all",
-    "place-unfinished",
-    "place-finished",
-    "place-queue",
-    "place-folder",
-    // A row's own Open button (gaps row U13).
-    "open",
-);
+// Every picture, by the path a view asks for (`desktop/assets/icons/`, gaps row X9).
+use dm_assets::ICONS;
 
 /// The pictures compiled into dm.
 pub struct Assets;
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
-        Ok(ICONS
-            .iter()
-            .find(|(p, _)| *p == path)
-            .map(|(_, bytes)| Cow::Borrowed(*bytes)))
+        Ok(dm_assets::icon(path).map(Cow::Borrowed))
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {

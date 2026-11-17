@@ -201,7 +201,7 @@ ifeq ($(UNAME),Linux)
 	@install -d "$(PREFIX)/share/applications" "$(PREFIX)/share/icons/hicolor/128x128/apps"
 	@sed 's|^Exec=.*|Exec=$(BINDIR)/dm %u|' desktop/packaging/dm.desktop \
 	  > "$(PREFIX)/share/applications/dm.desktop"
-	@install -m 644 desktop/crates/$(WINDOW)/icons/128x128.png \
+	@install -m 644 desktop/assets/app-icons/128x128.png \
 	  "$(PREFIX)/share/icons/hicolor/128x128/apps/dm.png"
 	@echo "installed a menu entry and an icon"
 endif
