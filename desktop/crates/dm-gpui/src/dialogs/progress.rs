@@ -749,7 +749,8 @@ pub fn open(
     let origin = main
         .map(|b| b.origin + point(px(24.0 + step), px(96.0 + step)))
         .unwrap_or_else(|| point(px(120.0 + step), px(120.0 + step)));
-    let bounds = Bounds::new(origin, size(px(480.0), px(320.0)));
+    let (width, height) = crate::widgets::native::WindowSize::Progress.here();
+    let bounds = Bounds::new(origin, size(px(width), px(height)));
     let opened = crate::window::screen::open_window(
         cx,
         WindowOptions {

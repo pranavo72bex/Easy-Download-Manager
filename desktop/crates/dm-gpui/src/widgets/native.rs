@@ -24,13 +24,123 @@ use crate::window::zoom::px;
 /// The measure each system's own dialogs use: macOS's (AppKit's, measured
 /// on the system's own dialog), Windows 11's (WinUI's) or GNOME's
 /// (libadwaita's), so a dm dialog is laid out as its neighbours are.
-pub(crate) const fn pick(macos: f32, windows: f32, gnome: f32) -> f32 {
-    if cfg!(target_os = "macos") {
-        macos
-    } else if cfg!(windows) {
-        windows
-    } else {
-        gnome
+const fn pick(macos: f32, windows: f32, gnome: f32) -> f32 {
+    Each {
+        macos,
+        windows,
+        gnome,
+    }
+    .here()
+}
+
+/// One measure for each system, each by its system's name.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Each<T> {
+    pub(crate) macos: T,
+    pub(crate) windows: T,
+    pub(crate) gnome: T,
+}
+
+impl<T: Copy> Each<T> {
+    /// The same measure on every system.
+    pub(crate) const fn all(same: T) -> Self {
+        Each {
+            macos: same,
+            windows: same,
+            gnome: same,
+        }
+    }
+
+    /// This system's measure (GNOME's on any system but macOS and Windows).
+    pub(crate) const fn here(&self) -> T {
+        if cfg!(target_os = "macos") {
+            self.macos
+        } else if cfg!(windows) {
+            self.windows
+        } else {
+            self.gnome
+        }
+    }
+}
+
+/// The windows whose size is fixed: each asks the table below for its row
+/// by name. A window whose size follows what it holds (About, a question,
+/// Details, the limiter, a row's dialog) works its size out where it opens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WindowSize {
+    /// The main window, the downloads list, on its first start.
+    Main,
+    /// The question asked before the main window opens.
+    StartQuestion,
+    /// Options.
+    Options,
+    /// The site grabber.
+    Grabber,
+    /// Links found on a page.
+    Links,
+    /// Links on the clipboard.
+    ClipboardLinks,
+    /// Add URL.
+    AddUrl,
+    /// Add numbered series.
+    Series,
+    /// A playlist's videos.
+    Playlist,
+    /// "Download complete".
+    Complete,
+    /// A download's progress.
+    Progress,
+    /// A download's properties.
+    Properties,
+    /// The scheduler.
+    Scheduler,
+    /// The first start's welcome.
+    Welcome,
+}
+
+impl WindowSize {
+    /// The table: each window's size as it opens, width by height in
+    /// points, on each system. Smaller on Windows where a laptop's screen
+    /// asked for it (the maintainer, 2026-11-11); Windows' sizes are to be
+    /// set again.
+    pub(crate) const fn each(self) -> Each<(f32, f32)> {
+        match self {
+            Self::Main => Each {
+                macos: (900.0, 600.0),
+                windows: (840.0, 520.0),
+                gnome: (900.0, 600.0),
+            },
+            Self::StartQuestion => Each::all((360.0, 140.0)),
+            Self::Options => Each {
+                macos: (680.0, 600.0),
+                windows: (620.0, 520.0),
+                gnome: (680.0, 600.0),
+            },
+            Self::Grabber => Each {
+                macos: (640.0, 560.0),
+                windows: (600.0, 480.0),
+                gnome: (640.0, 560.0),
+            },
+            Self::Links => Each {
+                macos: (760.0, 560.0),
+                windows: (680.0, 480.0),
+                gnome: (760.0, 560.0),
+            },
+            Self::ClipboardLinks => Each::all((520.0, 300.0)),
+            Self::AddUrl => Each::all((520.0, 220.0)),
+            Self::Series => Each::all((520.0, 300.0)),
+            Self::Playlist => Each::all((560.0, 420.0)),
+            Self::Complete => Each::all((440.0, 220.0)),
+            Self::Progress => Each::all((480.0, 320.0)),
+            Self::Properties => Each::all((560.0, 420.0)),
+            Self::Scheduler => Each::all((720.0, 520.0)),
+            Self::Welcome => Each::all((480.0, 300.0)),
+        }
+    }
+
+    /// This window's size on this system: width, height.
+    pub(crate) const fn here(self) -> (f32, f32) {
+        self.each().here()
     }
 }
 
@@ -623,4 +733,120 @@ pub fn time_picked(time: &mut String, hour: bool, to: usize) {
     let (h, m) = time_parts(time);
     let to = to as u32;
     *time = if hour { time_of(to, m) } else { time_of(h, to) };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Each, WindowSize};
+
+    /// Each window's row, as each system had it before the table: a move
+    /// of the numbers, not a change to any.
+    #[test]
+    fn window_sizes_are_as_they_were() {
+        let rows = [
+            (
+                WindowSize::Main,
+                (900.0, 600.0),
+                (840.0, 520.0),
+                (900.0, 600.0),
+            ),
+            (
+                WindowSize::StartQuestion,
+                (360.0, 140.0),
+                (360.0, 140.0),
+                (360.0, 140.0),
+            ),
+            (
+                WindowSize::Options,
+                (680.0, 600.0),
+                (620.0, 520.0),
+                (680.0, 600.0),
+            ),
+            (
+                WindowSize::Grabber,
+                (640.0, 560.0),
+                (600.0, 480.0),
+                (640.0, 560.0),
+            ),
+            (
+                WindowSize::Links,
+                (760.0, 560.0),
+                (680.0, 480.0),
+                (760.0, 560.0),
+            ),
+            (
+                WindowSize::ClipboardLinks,
+                (520.0, 300.0),
+                (520.0, 300.0),
+                (520.0, 300.0),
+            ),
+            (
+                WindowSize::AddUrl,
+                (520.0, 220.0),
+                (520.0, 220.0),
+                (520.0, 220.0),
+            ),
+            (
+                WindowSize::Series,
+                (520.0, 300.0),
+                (520.0, 300.0),
+                (520.0, 300.0),
+            ),
+            (
+                WindowSize::Playlist,
+                (560.0, 420.0),
+                (560.0, 420.0),
+                (560.0, 420.0),
+            ),
+            (
+                WindowSize::Complete,
+                (440.0, 220.0),
+                (440.0, 220.0),
+                (440.0, 220.0),
+            ),
+            (
+                WindowSize::Progress,
+                (480.0, 320.0),
+                (480.0, 320.0),
+                (480.0, 320.0),
+            ),
+            (
+                WindowSize::Properties,
+                (560.0, 420.0),
+                (560.0, 420.0),
+                (560.0, 420.0),
+            ),
+            (
+                WindowSize::Scheduler,
+                (720.0, 520.0),
+                (720.0, 520.0),
+                (720.0, 520.0),
+            ),
+            (
+                WindowSize::Welcome,
+                (480.0, 300.0),
+                (480.0, 300.0),
+                (480.0, 300.0),
+            ),
+        ];
+        for (window, macos, windows, gnome) in rows {
+            assert_eq!(
+                window.each(),
+                Each {
+                    macos,
+                    windows,
+                    gnome
+                },
+                "{window:?}"
+            );
+            let here = if cfg!(target_os = "macos") {
+                macos
+            } else if cfg!(windows) {
+                windows
+            } else {
+                gnome
+            };
+            assert_eq!(window.here(), here, "{window:?}");
+        }
+    }
 }

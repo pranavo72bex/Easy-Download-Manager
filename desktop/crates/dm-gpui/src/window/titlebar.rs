@@ -63,7 +63,12 @@ pub fn traffic_lights_at() -> (f32, f32) {
 /// Where the bar's own controls begin: past the traffic lights on macOS,
 /// at the window's edge elsewhere. In points on screen, as the lights'
 /// place is, whatever the text size.
-const CONTROLS_AT: f32 = native::pick(78.0, 8.0, 8.0);
+const CONTROLS_AT: f32 = native::Each {
+    macos: 78.0,
+    windows: 8.0,
+    gnome: 8.0,
+}
+.here();
 
 thread_local! {
     /// Where the menus' titles end in the window, as the last frame laid
@@ -350,7 +355,12 @@ impl Downloads {
 
 /// The room the window's own buttons take: on Windows, where the bar is the
 /// window's title bar; elsewhere the system draws them.
-const WINDOW_BUTTONS_WIDTH: f32 = native::pick(0.0, 3.0 * WINDOW_BUTTON, 0.0);
+const WINDOW_BUTTONS_WIDTH: f32 = native::Each {
+    macos: 0.0,
+    windows: 3.0 * WINDOW_BUTTON,
+    gnome: 0.0,
+}
+.here();
 
 /// Each of the window's own buttons' width, on Windows: the system's, in
 /// points on screen whatever the text size.

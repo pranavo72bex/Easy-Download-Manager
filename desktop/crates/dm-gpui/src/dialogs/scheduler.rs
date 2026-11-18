@@ -553,7 +553,8 @@ fn open_now(view: WeakEntity<Downloads>, queue: String, cx: &mut App) {
     let backend = downloads.read(cx).backend.clone();
     let settings = backend.settings();
     let queues = backend.queues();
-    let bounds = Bounds::centered(None, size(px(720.0), px(520.0)), cx);
+    let (width, height) = crate::widgets::native::WindowSize::Scheduler.here();
+    let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let opened = crate::window::screen::open_window(
         cx,
         WindowOptions {

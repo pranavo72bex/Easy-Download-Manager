@@ -768,7 +768,8 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
     // Each further one a step down and across, as the egui window places
     // them.
     let nth = downloads.read(cx).properties_open(cx);
-    let mut bounds = Bounds::centered(None, size(px(560.0), px(420.0)), cx);
+    let (width, height) = crate::widgets::native::WindowSize::Properties.here();
+    let mut bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     bounds.origin.x += px(24.0 * nth as f32);
     bounds.origin.y += px(24.0 * nth as f32);
     let watched = downloads.clone();

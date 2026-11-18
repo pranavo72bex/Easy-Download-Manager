@@ -39,8 +39,8 @@ use crate::window::zoom::px;
 /// where they are when another page is picked; a page longer than that
 /// scrolls. Smaller on Windows, where 600 points stood nearly the height of
 /// a laptop's screen.
-const WIDTH: f32 = crate::widgets::native::pick(680.0, 620.0, 680.0);
-const HEIGHT: f32 = crate::widgets::native::pick(600.0, 520.0, 600.0);
+const WIDTH: f32 = crate::widgets::native::WindowSize::Options.here().0;
+const HEIGHT: f32 = crate::widgets::native::WindowSize::Options.here().1;
 
 /// Options' view.
 pub struct Options {

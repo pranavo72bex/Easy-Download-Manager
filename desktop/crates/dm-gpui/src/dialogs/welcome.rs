@@ -249,7 +249,8 @@ fn open(
     settings: dm_shell::Settings,
     cx: &mut App,
 ) {
-    let bounds = Bounds::centered(None, size(px(480.0), px(300.0)), cx);
+    let (width, height) = crate::widgets::native::WindowSize::Welcome.here();
+    let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let opened = crate::window::screen::open_window(
         cx,
         WindowOptions {
