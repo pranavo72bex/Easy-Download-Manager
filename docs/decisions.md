@@ -7711,3 +7711,15 @@ Tried and dropped: having connections waiting for a range to halve ask the check
 connection busy with a slow check missed the moment a range became worth halving, the very delay
 the row removes); a connection of its own for each check (before a server has refused anything
 its limit is unknown, and a check taking a place can get a range refused).
+
+## 2026-11-18: criterion benches, by hand only (gaps row 190)
+
+criterion 0.8 is a dev-dependency of dm-core and dm-shell only; it was already in Cargo.lock
+through GPUI, so nothing new is built into dm. Three benches with `harness = false`: `plan`,
+`naming` and `large_list`. They run under the release profile, so they time what ships, and are
+run by hand on one quiet machine against a saved baseline (`--save-baseline` / `--baseline`).
+They never run in CI or `cargo test`: shared runners are too noisy. `large_list` uses a real
+queue rather than made-up rows, so the read includes the snapshot, the detector and the events;
+it carries its own do-nothing platform, as dm-shell's test backend exists only in its unit tests
+and dm-test-support may not depend on dm-shell. Written on the Windows laptop after builds
+stopped there: none has run yet (the Mac's first run records the numbers).

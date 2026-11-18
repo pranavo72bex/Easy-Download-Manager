@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- criterion benches for range planning, naming and a read of 10,000 rows (`cargo bench -p dm-core --bench plan`, `--bench naming`, `cargo bench -p dm-shell --bench large_list`), run by hand and never in CI.
 - A range that comes whole no longer waits for its seam checks before taking more work: the checks go out on the connections that have finished their ranges, never more at once than the download already had open.
 - HLS: a stream whose initialisation segment changes part-way (advert breaks) is saved as one MP4, with picture and sound in step across each break; streams scrambled by SAMPLE-AES with a clear key, as transport streams or fragmented MP4 (`cbcs`), are saved in the clear.
 - CI: the behaviour contract's rows run on Linux in Docker for every pull request, with held, failed and not-checked rows in the run summary (reported, not gating), and a weekly benchmark compares dm with its own last numbers and fails on a regression.
