@@ -1,0 +1,146 @@
+dm's change to librqbit-sha1-wrapper 9.1.0 (crates.io, Apache-2.0), applied
+to the published crate with Cargo.lock, Cargo.toml.orig, .cargo_vcs_info.json
+and .cargo-ok removed first. Made again by desktop/vendor/vendor.sh; explained
+in desktop/vendor/README.md. The text before each file's section says what
+its hunks do, in order; git apply skips it.
+
+Cargo.toml:
+  1. The feature `sha1-ring`, the name librqbit and librqbit-core ask for, is
+     backed by the pure-Rust sha1 and sha2 crates rather than aws-lc-rs (a
+     second crypto library, in C, built with cmake; gaps row P7).
+  2. The sha1 and sha2 dependencies in place of aws-lc-rs.
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 4f59e97..e1a8cc4 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -29,7 +29,10 @@ resolver = "2"
+ [features]
+ default = ["sha1-crypto-hash"]
+ sha1-crypto-hash = ["crypto-hash"]
+-sha1-ring = ["aws-lc-rs"]
++# dm: the name librqbit-core and librqbit ask for, kept, now backed by the
++# pure-Rust sha1 and sha2 crates rather than aws-lc-rs, which built a second
++# crypto library in C (with cmake) beside ring (desktop/vendor/README.md).
++sha1-ring = ["sha1", "sha2"]
+ 
+ [lib]
+ name = "librqbit_sha1_wrapper"
+@@ -38,9 +41,15 @@ path = "src/lib.rs"
+ [dependencies.assert_cfg]
+ version = "0.1"
+ 
+-[dependencies.aws-lc-rs]
+-version = "1.12"
++[dependencies.sha1]
++version = "0.11"
+ optional = true
++default-features = false
++
++[dependencies.sha2]
++version = "0.11"
++optional = true
++default-features = false
+ 
+ [dependencies.crypto-hash]
+ version = "0.3"
+src/lib.rs:
+  1-3. `Sha1Ring` and `Sha256Ring` over sha1::Sha1 and sha2::Sha256 (the
+     names are upstream's, which librqbit uses).
+  4. A test of the FIPS 180 "abc" vector for SHA-1, fed in two parts.
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 3cffb56..e4ccee7 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -85,20 +85,25 @@ mod crypto_hash_impl {
+     }
+ }
+ 
++// dm: `sha1-ring` is the pure-Rust sha1 and sha2 crates (RustCrypto) here, in
++// place of aws-lc-rs: aws-lc is a C library built with cmake, and dm's one
++// crypto provider is ring. The sha1 crate uses the processor's SHA
++// instructions where it has them (x86 SHA-NI, ARMv8 SHA), so checking a piece
++// stays fast. The type names are upstream's, which librqbit uses.
+ #[cfg(feature = "sha1-ring")]
+ mod ring_impl {
+     use super::{ISha1, ISha256};
+ 
+-    use aws_lc_rs::digest::{Context, SHA1_FOR_LEGACY_USE_ONLY as SHA1, SHA256};
++    use sha1::Digest as _;
+ 
+     pub struct Sha1Ring {
+-        ctx: Context,
++        ctx: sha1::Sha1,
+     }
+ 
+     impl ISha1 for Sha1Ring {
+         fn new() -> Self {
+             Self {
+-                ctx: Context::new(&SHA1),
++                ctx: sha1::Sha1::new(),
+             }
+         }
+ 
+@@ -107,22 +112,18 @@ mod ring_impl {
+         }
+ 
+         fn finish(self) -> [u8; 20] {
+-            let result = self.ctx.finish();
+-            debug_assert_eq!(result.as_ref().len(), 20);
+-            let mut result_arr = [0u8; 20];
+-            result_arr.copy_from_slice(result.as_ref());
+-            result_arr
++            self.ctx.finalize().into()
+         }
+     }
+ 
+     pub struct Sha256Ring {
+-        ctx: Context,
++        ctx: sha2::Sha256,
+     }
+ 
+     impl ISha256 for Sha256Ring {
+         fn new() -> Self {
+             Self {
+-                ctx: Context::new(&SHA256),
++                ctx: sha2::Sha256::new(),
+             }
+         }
+ 
+@@ -131,11 +132,7 @@ mod ring_impl {
+         }
+ 
+         fn finish(self) -> [u8; 32] {
+-            let result = self.ctx.finish();
+-            debug_assert_eq!(result.as_ref().len(), 32);
+-            let mut result_arr = [0u8; 32];
+-            result_arr.copy_from_slice(result.as_ref());
+-            result_arr
++            self.ctx.finalize().into()
+         }
+     }
+ }
+@@ -154,7 +151,21 @@ pub type Sha256 = ring_impl::Sha256Ring;
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::{ISha256, Sha256};
++    use super::{ISha1, ISha256, Sha1, Sha256};
++
++    // dm: the SHA-1 test vector of FIPS 180 ("abc"), fed in two parts, so
++    // the backend's streaming and its output are both checked.
++    #[test]
++    fn test_sha1_known_vector_abc() {
++        let mut h = Sha1::new();
++        h.update(b"a");
++        h.update(b"bc");
++        let expected: [u8; 20] = [
++            0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a, 0xba, 0x3e, 0x25, 0x71, 0x78, 0x50,
++            0xc2, 0x6c, 0x9c, 0xd0, 0xd8, 0x9d,
++        ];
++        assert_eq!(h.finish(), expected);
++    }
+ 
+     fn assert_sha256_impl<T: ISha256>() {}
+ 

@@ -5,7 +5,37 @@ place of it through `[patch.crates-io]` in `desktop/Cargo.toml`. When the
 crate is upgraded, its change is carried over or, once the crate does it
 itself, the copy is removed.
 
-## librqbit 9.0.1
+## How librqbit and its SHA-1 wrapper are made (gaps row P3)
+
+`librqbit/` and `librqbit-sha1-wrapper/` are the crates published on crates.io
+at 9.1.0, with dm's change to each in `patches/librqbit.patch` and
+`patches/librqbit-sha1-wrapper.patch` (each file's hunks explained at its
+head, each changed line marked `dm:`). `sh desktop/vendor/vendor.sh` makes
+both again: it fetches the two crates, checks their SHA-256 against the ones
+it holds (crates.io's), removes what dm's build does not use and applies the
+patches; nothing from the crates is run. Run on a clean tree, `git status`
+then shows no change. Removed from each: `webui/` (the web interface, built
+only with the `webui` feature, with upstream's notes for an AI assistant in
+it), `resources/` (test torrents), `examples/` (and their `[[example]]`
+targets, in the patch), the crate's own `Cargo.lock` (dm's is
+`desktop/Cargo.lock`), `Cargo.toml.orig`, `.cargo_vcs_info.json` and
+`.cargo-ok`: 95 files, 810 KB. Upstream's one test that read `resources/`
+(`session.rs`, `test_torrent_file_from_info_and_bytes`) is left out by the
+patch. The other `librqbit-*` crates (core, bencode, peer protocol, DHT,
+trackers and the rest) are used from crates.io as published, at 9.1.0.
+
+From 9.0.1 to 9.1.0 upstream fixed, among others: a nesting limit of 128 in
+the bencode reader (librqbit-bencode), a piece offset out of the piece's
+bounds in a stream's read (librqbit-core `lengths.rs`), a piece downloaded
+again when its file was chosen anew during its hash check, a handshake that
+came in more than one read, and a listener that panicked once every branch
+of its `select!` was disabled (`session.rs` `task_listener`, `else =>
+continue`, kept beside dm's change there, below). To move to another
+version: change `VERSION` and the SHA-256s in `vendor.sh`, run it, mend any
+hunk `git apply` refuses, and write each patch again as the `git diff` from
+the published crate (with the same files removed) to the mended copy.
+
+## librqbit 9.1.0
 
 Encrypted peer connections (`src/mse.rs`, and `dm:` lines in
 `peer_connection.rs`, `session.rs`, `torrent_state/mod.rs`,
@@ -50,10 +80,6 @@ now, so dm builds no axum outside its tests. `cargo tree -i aws-lc-sys`,
 `-i cmake`, `-i axum-extra` and `-e normal -i axum` (from `desktop/`, with
 `--target all`) are empty.
 
-Left out of the copy: upstream's `webui/CLAUDE.md`, notes for an AI assistant
-working on its web interface (built only with the `webui` feature, which dm
-does not use), which would otherwise read as instructions for this project.
-
 Checked against another implementation, libtorrent 2.0.8 (the library most
 BitTorrent clients are built on) set to make and take only encrypted
 connections, both ways (`scripts/mse-interop.sh`,
@@ -62,7 +88,7 @@ connections, both ways (`scripts/mse-interop.sh`,
 tests are in `src/mse.rs` (run from `desktop/vendor/librqbit` with
 `cargo test --lib mse`, as the crate is not a workspace member).
 
-## librqbit-sha1-wrapper 9.0.1
+## librqbit-sha1-wrapper 9.1.0
 
 The SHA-1 and SHA-256 behind librqbit's piece checks and info hashes, under
 the feature name librqbit and librqbit-core ask for, `sha1-ring` (`Cargo.toml`
@@ -74,7 +100,7 @@ instructions where it has them (x86 SHA-NI, ARMv8 SHA). The other backend,
 `sha1-crypto-hash` (the system's library), is as published. A test of the
 FIPS 180 "abc" vector for SHA-1, fed in two parts, is added beside upstream's
 SHA-256 one (`cargo test --features sha1-ring --no-default-features` here).
-Licence Apache-2.0, as published; its `Cargo.lock` is left out.
+Licence Apache-2.0, as published.
 
 ## gpui-pre-linux 0.3.12
 
