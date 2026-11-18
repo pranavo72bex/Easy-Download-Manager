@@ -245,7 +245,8 @@ impl Render for Complete {
 /// Opens "Download complete", in the corner above the status bar.
 pub fn open(view: WeakEntity<Downloads>, cx: &mut App) -> Option<gpui::AnyWindowHandle> {
     let downloads = view.upgrade()?;
-    let bounds = Bounds::centered(None, size(px(440.0), px(220.0)), cx);
+    let (width, height) = crate::widgets::native::WindowSize::Complete.here();
+    let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let opened = crate::window::screen::open_window(
         cx,
         WindowOptions {

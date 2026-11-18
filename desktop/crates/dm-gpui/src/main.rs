@@ -91,7 +91,8 @@ impl Render for Question {
 
 /// Opens the question in a dialog window of its own, over the screen's middle.
 fn open_question(cx: &mut App) -> Option<WindowHandle<Question>> {
-    let dialog = Bounds::centered(None, size(px(360.0), px(140.0)), cx);
+    let (width, height) = widgets::native::WindowSize::StartQuestion.here();
+    let dialog = Bounds::centered(None, size(px(width), px(height)), cx);
     crate::window::screen::open_window(
         cx,
         WindowOptions {
@@ -305,10 +306,8 @@ fn main() {
             // (900 by 600 took two thirds of 1366 by 768, the maintainer's
             // word of 2026-11-11), as wide as the toolbar's buttons need;
             // macOS's as it was.
-            let first = size(
-                px(widgets::native::pick(900.0, 840.0, 900.0)),
-                px(widgets::native::pick(600.0, 520.0, 600.0)),
-            );
+            let (width, height) = widgets::native::WindowSize::Main.here();
+            let first = size(px(width), px(height));
             let middle = Bounds::centered(None, first, cx);
             (WindowBounds::Windowed(middle), None)
         });

@@ -288,7 +288,8 @@ pub fn open(view: WeakEntity<Downloads>, cx: &mut App) {
         if crate::window::screen::bring_named(t("Add numbered series"), cx) {
             return;
         }
-        let bounds = Bounds::centered(None, size(px(520.0), px(300.0)), cx);
+        let (width, height) = crate::widgets::native::WindowSize::Series.here();
+        let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
         let opened = crate::window::screen::open_window(
             cx,
             WindowOptions {

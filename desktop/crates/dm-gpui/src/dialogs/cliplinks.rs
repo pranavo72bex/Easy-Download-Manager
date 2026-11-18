@@ -280,7 +280,8 @@ impl Downloads {
 /// Opens Links on the clipboard for `links`.
 fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut App) {
     cx.defer(move |cx| {
-        let bounds = Bounds::centered(None, size(px(520.0), px(300.0)), cx);
+        let (width, height) = crate::widgets::native::WindowSize::ClipboardLinks.here();
+        let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
         let opened = crate::window::screen::open_window(
             cx,
             WindowOptions {

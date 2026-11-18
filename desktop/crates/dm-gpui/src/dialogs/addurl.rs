@@ -247,7 +247,8 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
         .and_then(|item| item.text())
         .and_then(|text| dm_shell::app::links::looks_downloadable(&text))
         .unwrap_or_default();
-    let bounds = Bounds::centered(None, size(px(520.0), px(220.0)), cx);
+    let (width, height) = crate::widgets::native::WindowSize::AddUrl.here();
+    let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let opened = crate::window::screen::open_window(
         cx,
         WindowOptions {
