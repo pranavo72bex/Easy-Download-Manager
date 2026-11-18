@@ -8,7 +8,7 @@
 use super::*;
 
 /// Reads an H.264 sequence parameter set's picture size.
-pub(crate) fn picture_size(sps: &[u8]) -> Option<(u32, u32)> {
+pub fn picture_size(sps: &[u8]) -> Option<(u32, u32)> {
     // Past the one-byte NAL header, emulation prevention bytes out.
     let data = rbsp(sps.get(1..)?);
     let mut bits = Bits { data: &data, at: 0 };

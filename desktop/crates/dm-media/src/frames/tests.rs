@@ -19,7 +19,7 @@ fn red_blue(rgb: &[u8]) -> (u32, u32) {
 /// pictures a second, its size kept, red then blue.
 #[test]
 fn an_av1_video_is_read_to_pictures_red_then_blue() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/red-blue.av1.mp4");
+    let fixture = crate::fixtures().join("mp4/red-blue.av1.mp4");
     let (w, h, frames) = av1::read(&fixture, 12, 480).unwrap();
     assert_eq!((w, h), (320, 180));
     assert!(
@@ -54,7 +54,7 @@ fn an_av1_video_is_read_to_pictures_red_then_blue() {
 #[test]
 fn a_cut_av1_part_gives_the_pictures_of_its_span_only() {
     let dir = tempfile::tempdir().unwrap();
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/red-blue.av1.mp4");
+    let fixture = crate::fixtures().join("mp4/red-blue.av1.mp4");
     let part = dir.path().join("part.mp4");
     crate::mp4mux::join_cut(&[fixture], &[], &part, Some((500, 1500)), None).unwrap();
     let (_, _, frames) = av1::read(&part, 12, 480).unwrap();
@@ -72,7 +72,7 @@ fn a_cut_av1_part_gives_the_pictures_of_its_span_only() {
 /// A picture that is not AV1 is refused in words, not decoded as noise.
 #[test]
 fn a_part_that_is_not_av1_is_refused_in_words() {
-    let h264 = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/picture.f137.mp4");
+    let h264 = crate::fixtures().join("mp4/picture.f137.mp4");
     let Err(said) = av1::read(&h264, 12, 480) else {
         panic!("an H.264 part was decoded as AV1");
     };
@@ -116,7 +116,7 @@ fn a_picture_is_read_by_media_foundation_and_made_a_gif() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4");
+    let fixtures = crate::fixtures().join("mp4");
     let mp4 = dir.path().join("part.mp4");
     crate::mp4mux::join(&[fixtures.join("picture.f137.mp4")], &mp4).unwrap();
     let (w, h, frames) = read(&mp4, 12, 480).unwrap();
@@ -126,10 +126,7 @@ fn a_picture_is_read_by_media_foundation_and_made_a_gif() {
         assert_eq!(frame.rgb.len(), usize::from(w) * usize::from(h) * 3);
         assert!(frame.delay >= 2);
     }
-    let gif = dir.path().join("part.gif");
-    let length = crate::gif::from_video(&mp4, &gif).unwrap();
-    let bytes = std::fs::read(&gif).unwrap();
-    assert_eq!(bytes.len() as u64, length);
+    let bytes = crate::gif::from_video_bytes(&mp4).unwrap();
     assert_eq!(&bytes[..6], b"GIF89a");
     assert_eq!(u16::from_le_bytes([bytes[6], bytes[7]]), w);
     assert_eq!(u16::from_le_bytes([bytes[8], bytes[9]]), h);
@@ -169,7 +166,7 @@ fn a_cut_part_gives_the_pictures_of_its_span_only() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
-    let picture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/picture.f137.mp4");
+    let picture = crate::fixtures().join("mp4/picture.f137.mp4");
     let whole = dir.path().join("whole.mp4");
     crate::mp4mux::join(std::slice::from_ref(&picture), &whole).unwrap();
     let all = read(&whole, 12, 480).unwrap().2.len();
@@ -206,7 +203,7 @@ fn a_cut_part_gives_the_pictures_of_its_span_only() {
 #[test]
 fn a_file_with_no_picture_is_refused_in_words() {
     let dir = tempfile::tempdir().unwrap();
-    let sound = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/sound.f140.m4a");
+    let sound = crate::fixtures().join("mp4/sound.f140.m4a");
     assert!(
         read(&sound, 12, 480).is_err(),
         "a sound alone has no picture"

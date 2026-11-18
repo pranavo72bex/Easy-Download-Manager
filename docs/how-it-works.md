@@ -182,7 +182,8 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 ## The desktop client
 
 `desktop/` is all Rust: `dm-core` is the
-engine and has no idea a screen exists; `dm-shell` is the settings, the
+engine and has no idea a screen exists; `dm-media` is dm's own media code (the muxers, the MP3
+and GIF encoders, the decoders), files in and files out, which the engine calls; `dm-shell` is the settings, the
 browser hand-off, startup and the application layer; `dm-desktop-base` is what
 the program does that is not drawing (the control port, the command line,
 MCP, the words); `dm-gpui` is the window, drawn with GPUI — no web view, no
@@ -510,11 +511,11 @@ desktop/
     torrent.rs            magnets and .torrent files, via librqbit
     dash.rs               DASH manifests read by dm: templates, lists, byte ranges, the picture
                           and sound chosen (the fetching is download/dash.rs)
-    stream.rs, tsmux.rs   HLS playlists, and transport streams put into MP4 (tsmux/: demux,
-                          samples, sound, headers, tracks)
-    mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4, WebM or MKV (mp4mux/: read, write,
-                          text; mkvmux/from_mp4.rs: an MP4's samples as Matroska blocks, for a
-                          pair no MP4 holds, VP8 or Vorbis beside MP4, or MKV asked)
+    stream.rs             HLS playlists
+    mp4mux.rs, mkvmux.rs, tsmux.rs, mp3.rs, gif.rs   dm-media's modules under their old paths,
+                          with the engine's calls of them off the async runtime, the MP3 and the
+                          GIF written to their files, and what needs a page (`gif::possible_for`,
+                          `mp3::choice_after`)
     live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
                           recorder, connect, session)
     youtube.rs            a YouTube page read by dm itself (the player API; the player's checks
@@ -537,6 +538,18 @@ desktop/
     extract/sevenz.rs     a 7z under the same rules (sevenz/: header, lzma with LZMA2)
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)
+  crates/dm-media/        dm's own media code (gaps row A6): files in, files out; no sockets, no
+                          async runtime, none of dm's other crates
+    mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4, WebM or MKV (mp4mux/: read, write,
+                          text, part; mkvmux/from_mp4.rs: an MP4's samples as Matroska blocks, for a
+                          pair no MP4 holds, VP8 or Vorbis beside MP4, or MKV asked)
+    tsmux.rs              transport streams put into MP4 (tsmux/: demux, samples, sound, headers,
+                          tracks, packed)
+    fmp4.rs               a fragmented MP4 written as a live stream comes (RTMP, RTSP)
+    mp3.rs, gif.rs        dm's own MP3 and GIF encoders, returning the file's bytes
+    aac.rs, frames.rs, mf.rs   the decoders: AAC, and a video's pictures (the system's on macOS
+                          and Windows, Media Foundation in mf.rs; AV1 by rav1d on Linux)
+    shape.rs, subtitles.rs     a picture cropped to a shape; subtitles read and written
   crates/dm-protocol/     what the extension and the host say, and the catch rule
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup;
                           app/ the application layer every window drives

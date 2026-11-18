@@ -2044,6 +2044,7 @@ dependencies = [
  "crc32fast",
  "dirs 7.0.0",
  "dm-js",
+ "dm-media",
  "dm-test-support",
  "flate2",
  "futures-util",
@@ -2059,7 +2060,6 @@ dependencies = [
  "proptest",
  "quick-xml 0.42.0",
  "rand 0.8.8",
- "rav1d",
  "rcgen",
  "reqwest",
  "retina",
@@ -2067,9 +2067,6 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2 0.11.0",
- "symphonia-bundle-mp3",
- "symphonia-codec-aac",
- "symphonia-core",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -2078,7 +2075,6 @@ dependencies = [
  "tokio-util",
  "url",
  "webpki-roots",
- "windows 0.62.2",
  "windows-sys 0.61.2",
  "zip",
 ]
@@ -2152,6 +2148,22 @@ dependencies = [
 [[package]]
 name = "dm-js"
 version = "0.10.0"
+
+[[package]]
+name = "dm-media"
+version = "0.10.0"
+dependencies = [
+ "libc",
+ "proptest",
+ "rav1d",
+ "serde",
+ "serde_json",
+ "symphonia-bundle-mp3",
+ "symphonia-codec-aac",
+ "symphonia-core",
+ "tempfile",
+ "windows 0.62.2",
+]
 
 [[package]]
 name = "dm-protocol"

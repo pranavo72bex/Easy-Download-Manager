@@ -16,7 +16,8 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-pub mod aac;
+// dm's own media code is dm-media's (gaps row A6); the engine's paths to it stay.
+pub use dm_media::aac;
 
 pub mod auth;
 
@@ -46,9 +47,9 @@ mod download;
 
 pub mod extract;
 
-pub mod fmp4;
+pub use dm_media::fmp4;
 
-pub mod frames;
+pub use dm_media::frames;
 
 mod dns;
 pub mod finish_trace;
@@ -73,9 +74,6 @@ pub mod heap;
 pub mod memory;
 
 mod metalink;
-
-#[cfg(windows)]
-pub(crate) mod mf;
 
 pub mod mkvmux;
 
@@ -119,11 +117,11 @@ mod second_path;
 
 pub mod secretstore;
 
-pub mod shape;
+pub use dm_media::shape;
 
 mod stream;
 
-pub mod subtitles;
+pub use dm_media::subtitles;
 
 /// The tests' logins and secrets, never written in the code.
 #[cfg(test)]

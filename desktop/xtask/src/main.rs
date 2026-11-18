@@ -345,6 +345,7 @@ fn layers() -> Result<(), String> {
     let crates = [
         "desktop/crates/dm-assets/Cargo.toml",
         "desktop/crates/dm-protocol/Cargo.toml",
+        "desktop/crates/dm-media/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
@@ -364,6 +365,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-assets/Cargo.toml",
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-js/Cargo.toml",
+        "desktop/crates/dm-media/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
@@ -393,11 +395,14 @@ fn layers() -> Result<(), String> {
             "dm-assets" => (&[], true, true),
             // dm's own JavaScript: the language alone, no window and no sockets (gaps row F15).
             "dm-js" => (&[], true, true),
+            // dm's own media code (gaps row A6): files in, files out; nothing of dm's, no window,
+            // no sockets and no async runtime.
+            "dm-media" => (&[], true, true),
             // What the tests share (gaps row X10): nothing of dm's, and no crate may ship it, as
             // none lists it among those it may depend on (only `[dev-dependencies]` name it).
             "dm-test-support" => (&[], true, true),
             // The engine: no window, no browser.
-            "dm-core" => (&["dm-js"], true, false),
+            "dm-core" => (&["dm-js", "dm-media"], true, false),
             // Around the window but not the window.
             "dm-shell" => (&["dm-assets", "dm-core", "dm-protocol"], true, false),
             // What the desktop program does that is not drawing: any window
@@ -447,6 +452,7 @@ fn layers() -> Result<(), String> {
     for dir in [
         "desktop/crates/dm-assets/src",
         "desktop/crates/dm-js/src",
+        "desktop/crates/dm-media/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
@@ -507,6 +513,7 @@ fn layers() -> Result<(), String> {
     for krate in [
         "desktop/crates/dm-assets",
         "desktop/crates/dm-js",
+        "desktop/crates/dm-media",
         "desktop/crates/dm-protocol",
         "desktop/crates/dm-core",
         "desktop/crates/dm-shell",

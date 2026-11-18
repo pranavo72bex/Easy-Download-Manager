@@ -10,7 +10,7 @@ resolver = "2"
 # browser/ (the extension, built for wasm32-unknown-unknown) is a member from outside this folder:
 # one lock file and one target folder for both sides, and `cargo test --workspace` tests its
 # deciding parts too (gaps row A15). Its manifest names this workspace (`package.workspace`).
-members = ["crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-protocol", "crates/dm-shell", "crates/dm-test-support", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
+members = ["crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-protocol", "crates/dm-shell", "crates/dm-test-support", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
 # A patched copy, used through [patch.crates-io], not a member.
 exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
 
@@ -23,6 +23,7 @@ dm-assets = { path = "crates/dm-assets" }
 dm-core = { path = "crates/dm-core" }
 dm-desktop-base = { path = "crates/dm-desktop-base" }
 dm-js = { path = "crates/dm-js" }
+dm-media = { path = "crates/dm-media" }
 dm-protocol = { path = "crates/dm-protocol" }
 dm-shell = { path = "crates/dm-shell" }
 # Tests' alone: only ever a dev-dependency (gaps row X10).
@@ -128,13 +129,16 @@ lto = true
 codegen-units = 1
 strip = true
 
-# Built for speed where the work is the CPU's: dm's engine with its MP3, GIF
-# and resampling code ("z" made it three times as slow), digests, unpacking,
+# Built for speed where the work is the CPU's: dm's engine and its media code
+# (dm-media: the MP3, GIF and resampling code, "z" made it three times as
+# slow; gaps row A6), digests, unpacking,
 # TLS, AAC decoding and drawing. The rest waits on the network or the window
 # and is built for size. Not dm-gpui: with LTO a binary's setting becomes
 # the whole program's (the older egui window's binary at 3 was 27 MB).
 # docs/decisions.md, 2026-11-06 and 2026-11-12 (gaps row S12).
 [profile.release.package.dm-core]
+opt-level = 3
+[profile.release.package.dm-media]
 opt-level = 3
 [profile.release.package.symphonia-codec-aac]
 opt-level = 3

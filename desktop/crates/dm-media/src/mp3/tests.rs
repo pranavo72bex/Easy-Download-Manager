@@ -5,6 +5,13 @@
 
 use super::*;
 
+/// [`convert_bytes`] written to `target`, as dm-core's `mp3::convert` does; the MP3's length.
+fn convert(source: &std::path::Path, target: &std::path::Path) -> Result<u64, String> {
+    let bytes = convert_bytes(source)?;
+    std::fs::write(target, &bytes).map_err(|e| e.to_string())?;
+    Ok(bytes.len() as u64)
+}
+
 /// An MP3 made from a video carries its title, artist and page in an ID3v2.4 header;
 /// with no words, none (gaps row Y25).
 #[test]
@@ -203,8 +210,7 @@ fn a_real_aac_sound_is_saved_as_an_mp3_as_long_as_it_is() {
         eprintln!("no AAC decoder on this Windows (an N edition): nothing to check");
         return;
     }
-    let m4a =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/sound.f140.m4a");
+    let m4a = crate::fixtures().join("mp4/sound.f140.m4a");
     let dir = tempfile::tempdir().unwrap();
     let mp3 = dir.path().join("sound.mp3");
     let length = convert(&m4a, &mp3).unwrap();
@@ -420,8 +426,7 @@ fn another_decoder_plays_back_what_went_in() {
 #[cfg(target_os = "linux")]
 #[test]
 fn an_aac_sound_is_saved_as_an_mp3_that_plays_it() {
-    let m4a =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/tone.stereo.m4a");
+    let m4a = crate::fixtures().join("mp4/tone.stereo.m4a");
     let dir = tempfile::tempdir().unwrap();
     let mp3 = dir.path().join("tone.mp3");
     assert!(possible());

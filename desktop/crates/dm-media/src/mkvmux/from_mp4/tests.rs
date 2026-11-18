@@ -9,16 +9,14 @@
 
 use super::super::{
     elements, find, join, needs_matroska, read_input,
-    tests::{tiny_webm, tiny_webm_at},
+    testing::{tiny_webm, tiny_webm_at},
 };
 use super::*;
 use crate::mp4mux::{Edit, Sample};
 use std::path::PathBuf;
 
 fn media(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/media/mp4mux")
-        .join(name)
+    crate::fixtures().join("media/mp4mux").join(name)
 }
 
 /// The EBML header's DocType.

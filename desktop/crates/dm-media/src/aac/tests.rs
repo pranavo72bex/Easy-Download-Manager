@@ -57,7 +57,7 @@ fn a_file_that_is_not_an_mp4_is_refused_not_decoded() {
 
 #[test]
 fn the_fixture_m4a_is_decoded_to_its_length_with_sound_in_it() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/sound.f140.m4a");
+    let fixture = crate::fixtures().join("mp4/sound.f140.m4a");
     let (track, config, _) = audio_track(&fixture).unwrap();
     let pcm = read(&fixture).unwrap();
     assert_eq!(pcm.channels, config.channels);
@@ -118,7 +118,7 @@ fn a_tone_keeps_its_pitch_and_length_through_the_resampler() {
 /// gives whole MPEG-1 Layer III frames, as long as the sound.
 #[test]
 fn the_fixture_becomes_an_mp3_through_the_built_in_decoder() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/tone.stereo.m4a");
+    let fixture = crate::fixtures().join("mp4/tone.stereo.m4a");
     let pcm = read(&fixture).unwrap();
     let bytes = crate::mp3::encode_all(&pcm.samples, pcm.channels, pcm.rate).unwrap();
     let (mut at, mut frames) = (0usize, 0u64);
@@ -141,7 +141,7 @@ fn the_fixture_becomes_an_mp3_through_the_built_in_decoder() {
 #[cfg(target_os = "macos")]
 #[test]
 fn the_decode_matches_the_systems_own() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/tone.stereo.m4a");
+    let fixture = crate::fixtures().join("mp4/tone.stereo.m4a");
     let ours = read(&fixture).unwrap();
     let system = crate::mp3::decode::read(&fixture).unwrap();
     assert_eq!((ours.channels, ours.rate), (system.channels, system.rate));

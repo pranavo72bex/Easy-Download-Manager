@@ -760,7 +760,7 @@ pub(super) mod tests {
         let silent = track(vec![piece(None, 0)]);
         assert_eq!(size_of_tracks(&[&silent]), (None, None));
     }
-    use crate::mp4mux::tests::{fragmented, plain};
+    use crate::mp4mux::testing::{fragmented, plain};
     use axum::body::Body;
     use axum::http::{header, HeaderMap, StatusCode};
     use axum::response::Response;
@@ -817,7 +817,7 @@ pub(super) mod tests {
         starts
     }
 
-    /// A fragmented file (`mp4mux::tests::fragmented`) cut as a DASH server serves it: its
+    /// A fragmented file (`mp4mux::testing::fragmented`) cut as a DASH server serves it: its
     /// first boxes, then each fragment (`moof` and `mdat`) as a piece of its own.
     pub(in crate::download) fn cut_into_pieces(file: &[u8]) -> (Vec<u8>, Vec<Vec<u8>>) {
         let starts = box_starts(file);
@@ -1658,7 +1658,7 @@ pub(super) mod tests {
     async fn a_pair_no_mp4_holds_is_saved_as_an_mkv() {
         let dir = tempfile::tempdir().unwrap();
         let vp8 = dir.path().join("vp8.webm");
-        crate::mkvmux::tests::tiny_webm(&vp8, "V_VP8", 1, 5);
+        crate::mkvmux::testing::tiny_webm(&vp8, "V_VP8", 1, 5);
         let url = serve_pair(
             ("video/webm", std::fs::read(&vp8).unwrap()),
             ("audio/mp4", media("sound.m4a")),
@@ -1691,16 +1691,7 @@ pub(super) mod tests {
 
     /// The samples of the one track in the MP4 at `path`, as bytes, and their lengths.
     pub(in crate::download) fn samples_in(path: &Path) -> (Vec<Vec<u8>>, Vec<u32>) {
-        let data = std::fs::read(path).unwrap();
-        let tracks = crate::mp4mux::tracks_in_file(path).unwrap();
-        assert_eq!(tracks.len(), 1, "one track");
-        let bytes = tracks[0]
-            .samples
-            .iter()
-            .map(|s| data[s.offset as usize..(s.offset + u64::from(s.size)) as usize].to_vec())
-            .collect();
-        let lengths = tracks[0].samples.iter().map(|s| s.duration).collect();
-        (bytes, lengths)
+        crate::mp4mux::testing::samples_in(path)
     }
 
     /// A stand-in for a stream in three periods: a programme's two halves, each with first

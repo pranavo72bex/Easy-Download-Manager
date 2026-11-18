@@ -4,12 +4,10 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn media(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/media/mp4mux")
-        .join(name)
+    crate::fixtures().join("media/mp4mux").join(name)
 }
 
 /// What an SPS says, for the builder below.

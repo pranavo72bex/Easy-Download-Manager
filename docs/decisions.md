@@ -7365,3 +7365,37 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   the few paddings off the scale (3, 5, 7, 9, 14 points), each tuned to match a system's
   control. `cargo xtask layers` refuses a gap, padding or margin written as a literal on the
   scale, so the scale stays the one place.
+
+## 2026-11-18: dm's media code, a crate of its own (gaps row A6, step 1)
+
+* **Done**: `desktop/crates/dm-media` holds what was dm-core's `aac`, `fmp4`, `frames` (with
+  `av1.rs`, `win.rs`), `gif`, `mf`, `mkvmux`, `mp3` (with `decode/`, `tables.rs`), `mp4mux`,
+  `tsmux`, `subtitles` and `shape`: 14,700 lines and 89 tests moved as they were. It uses none
+  of dm's crates, no tokio and no sockets (`cargo xtask layers` holds it so); its decoders
+  (symphonia's AAC, rav1d, Media Foundation's `windows` features) went with it, out of
+  dm-core's manifest. Release builds keep it at `opt-level = 3`, as dm-core's media code was.
+* **dm-core's paths stay**: `aac`, `fmp4`, `frames`, `shape` and `subtitles` are re-exported
+  (`pub use dm_media::aac;`); `mp4mux`, `mkvmux`, `tsmux`, `mp3` and `gif` are small modules
+  of dm-core that `pub use dm_media::<m>::*` and add the engine's part: the `_async` calls
+  (`spawn_blocking`, or `heavy::run` for the MP3 and the GIF), the MP3 and GIF written with
+  `write_atomic`, and the two that need a page (`gif::possible_for` asks `youtube`,
+  `mp3::choice_after` makes a `videopage::Choice`). So `dm_core::mp4mux::join` and every other
+  caller in dm-shell, dm-gpui, the examples and the integration tests are unchanged.
+* **The MP3 and the GIF come back as bytes** (`mp3::convert_bytes`, `gif::from_video_bytes`):
+  writing a file safely is the engine's (`write_atomic`), and a second copy of it in dm-media
+  was the alternative.
+* **A narrow API across the line, not the internals made public**: the RTMP recorder asked
+  `tsmux`'s sound-frame reader and HEVC parser for three numbers each; dm-media answers with
+  `tsmux::mpeg_audio` (an `MpegAudio` of four fields) and `tsmux::hevc_picture_size`, so its
+  `Frame`, `Sound` and `HevcSps` stay its own. Made public as they were: `picture_size`,
+  `mp4mux::{init_shape, plan_plain_part, write_plain_part, PlainPart}`, `mkvmux::needs_matroska`.
+* **Test files**: the small MP4 and WebM files both crates' tests build
+  (`mp4mux::testing::{fragmented, plain, samples_in}`, `mkvmux::testing::tiny_webm`) are behind
+  dm-media's `testing` feature, which dm-core turns on in `[dev-dependencies]` alone, so the
+  program does not carry them. The media fixtures stay in `dm-core/tests/fixtures`, which
+  dm-core's integration tests also read; dm-media's tests find them by `crate::fixtures()`.
+* **Checked on Windows for the other systems**: `cargo check` and clippy `-D warnings` of
+  dm-media, all targets, for `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` (no linker
+  needed), so its macOS code (AudioToolbox, VideoToolbox) and Linux code (rav1d) compile as
+  moved. dm-core cannot be checked so (ring's build wants that system's C compiler); its facades
+  have no system's code. Linking and running them on macOS and Linux are step 8's.

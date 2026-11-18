@@ -160,16 +160,12 @@ impl Recorder {
             2 => {
                 let frame = data.get(1..).unwrap_or_default();
                 if self.sound.is_none() {
-                    if let crate::tsmux::Frame::Whole {
-                        shape:
-                            crate::tsmux::Sound::Mpeg {
-                                mpeg1,
-                                rate,
-                                channels,
-                                per_frame,
-                            },
-                        ..
-                    } = crate::tsmux::mpeg_audio_frame(frame)
+                    if let Some(crate::tsmux::MpegAudio {
+                        mpeg1,
+                        rate,
+                        channels,
+                        per_frame,
+                    }) = crate::tsmux::mpeg_audio(frame)
                     {
                         self.sound = Some(SoundConfig::Mp3 {
                             rate,
@@ -342,8 +338,8 @@ pub(super) fn hevc_size(record: &[u8]) -> (u32, u32) {
             let unit = record.get(at + 2..at + 2 + len);
             at += 2 + len;
             if kind == 33 {
-                if let Some(info) = unit.and_then(crate::tsmux::hevc_sps) {
-                    return (info.width, info.height);
+                if let Some(size) = unit.and_then(crate::tsmux::hevc_picture_size) {
+                    return size;
                 }
             }
         }

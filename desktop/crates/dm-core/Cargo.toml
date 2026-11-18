@@ -10,6 +10,8 @@ publish = false
 [dependencies]
 # dm's own JavaScript interpreter (gaps row F15).
 dm-js.workspace = true
+# dm's own media code: the muxers, the MP3 and GIF encoders, the decoders (gaps row A6).
+dm-media.workspace = true
 # Already in the tree through reqwest; named for its chunk type.
 bytes.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }
@@ -75,15 +77,8 @@ zip.workspace = true
 # ratio (`decode.rs`), as a decompression bomb needs.
 flate2.workspace = true
 brotli-decompressor.workspace = true
-symphonia-codec-aac.workspace = true
-symphonia-core.workspace = true
 
 # Calls into the C library that std does not wrap. Already in the tree through tokio.
-# A GIF of a video's part on Linux, from its AV1 stream (gaps row 54): pure
-# Rust, without its assembly (no assembler needed to build). BSD-2-Clause.
-[target.'cfg(target_os = "linux")'.dependencies]
-rav1d.workspace = true
-
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
@@ -93,24 +88,11 @@ libc.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
-# Media Foundation, the system's own decoders, for a video's sound saved as MP3
-# and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers
-# for. The same version GPUI's Windows platform uses, so already in the tree.
-windows = { workspace = true, features = [
-  "Win32_Foundation",
-  "Win32_Media_MediaFoundation",
-  "Win32_System_Com",
-  "Win32_System_Com_StructuredStorage",
-  "Win32_System_Variant",
-] }
-
 [dev-dependencies]
 # The logins and secrets tests use (gaps row X10).
 dm-test-support.workspace = true
-# The AV1 reader is tested on every system, though only Linux builds it in;
-# libc for the C library's EAGAIN, rav1d's "not now", on Windows too.
-rav1d.workspace = true
-libc.workspace = true
+# The small MP4 and WebM files dm-media makes for tests (`mp4mux::testing`).
+dm-media = { workspace = true, features = ["testing"] }
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.
 proptest.workspace = true
@@ -129,7 +111,6 @@ aes.workspace = true
 cbc.workspace = true
 # A certificate for the rtsps:// bridge's test server.
 rcgen.workspace = true
-symphonia-bundle-mp3.workspace = true
 
 # Used as `md5` (checksums and Digest sign-ins), which the name `md-5` hides
 # from cargo-machete.

@@ -22,24 +22,24 @@ use super::*;
 const MERGE_GAP: u64 = 128 << 10;
 
 /// What to fetch of a plain MP4 and how to build the part from it.
-pub(crate) struct PlainPart {
+pub struct PlainPart {
     /// The byte ranges of the original file to fetch, in order, first and
     /// last byte inclusive. Written one after another into the data file.
-    pub(crate) ranges: Vec<(u64, u64)>,
+    pub ranges: Vec<(u64, u64)>,
     /// The tracks, trimmed, their sample offsets pointing into the data file.
     tracks: Vec<Track>,
 }
 
 impl PlainPart {
     /// How many bytes the ranges add up to.
-    pub(crate) fn bytes(&self) -> u64 {
+    pub fn bytes(&self) -> u64 {
         self.ranges.iter().map(|(a, b)| b - a + 1).sum()
     }
 }
 
 /// The part `from_ms`..`to_ms` of the MP4 whose `moov` box alone is in
 /// `index` (the box as it lies in the file, header included).
-pub(crate) fn plan_plain_part(index: &Path, from_ms: u64, to_ms: u64) -> Result<PlainPart, String> {
+pub fn plan_plain_part(index: &Path, from_ms: u64, to_ms: u64) -> Result<PlainPart, String> {
     let mut file =
         File::open(index).map_err(|e| format!("{} could not be read: {e}", index.display()))?;
     let length = file
@@ -143,7 +143,7 @@ pub(crate) fn plan_plain_part(index: &Path, from_ms: u64, to_ms: u64) -> Result<
 /// The part written to `out`: its frames read from `data` (the planned
 /// ranges one after another), cut to `cut` (from and to, milliseconds) by
 /// edit lists, with the picture's crop where `shape` asks.
-pub(crate) fn write_plain_part(
+pub fn write_plain_part(
     mut plan: PlainPart,
     data: &Path,
     out: &Path,
@@ -163,7 +163,7 @@ pub(crate) fn write_plain_part(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mp4mux::tests::plain;
+    use crate::mp4mux::testing::plain;
 
     /// The `moov` box of a file, as it lies in it.
     fn moov_of_file(bytes: &[u8]) -> Vec<u8> {

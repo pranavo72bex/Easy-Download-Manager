@@ -95,7 +95,7 @@ async fn a_part_of_webm_streams_is_refused() {
 #[tokio::test]
 async fn a_pair_no_mp4_holds_is_saved_as_an_mkv() {
     let dir = tempfile::tempdir().unwrap();
-    crate::mkvmux::tests::tiny_webm(&dir.path().join("v.f1.webm"), "V_VP8", 1, 5);
+    crate::mkvmux::testing::tiny_webm(&dir.path().join("v.f1.webm"), "V_VP8", 1, 5);
     std::fs::write(
         dir.path().join("v.f140.m4a"),
         fixture("media/mp4mux/sound.m4a"),

@@ -3,20 +3,6 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-#[test]
-fn a_gif_is_offered_where_the_part_can_be_decoded() {
-    let youtube = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
-    let stream = "https://cdn.example/live/index.m3u8";
-    if cfg!(target_os = "linux") {
-        // From YouTube's AV1 stream only: a stream caught elsewhere is H.264.
-        assert!(possible_for(youtube));
-        assert!(!possible_for(stream));
-    } else {
-        assert_eq!(possible_for(youtube), possible());
-        assert_eq!(possible_for(stream), possible());
-    }
-}
-
 use super::*;
 
 /// An LZW stream read back as GIF's decoder reads it.

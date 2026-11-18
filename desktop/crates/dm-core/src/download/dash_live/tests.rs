@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::download::dash::tests::{cut_into_pieces, options, samples_in};
-use crate::mp4mux::tests::fragmented;
+use crate::mp4mux::testing::fragmented;
 use axum::body::Body;
 use axum::response::Response;
 use axum::routing::get;

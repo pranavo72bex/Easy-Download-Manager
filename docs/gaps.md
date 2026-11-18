@@ -23,23 +23,24 @@ to not push the code"); push only when the maintainer says so. Done today, in th
   workspace, all targets; the tests of xtask, dm-test-support, dm-protocol, dm-shell,
   dm-desktop-base, the extension, dm-gpui (388) and `dm-core --lib folders`. Not yet run on
   this tree: the whole `cargo test --workspace` (it comes once, after the moves: step 8).
+- A6 step 1: `desktop/crates/dm-media` (dm-core's media modules, 14,700 lines; dm-core keeps
+  their paths; `docs/decisions.md`, 2026-11-18). Checked: clippy `-D warnings` on dm-media and
+  dm-core, all targets; dm-media's tests (84 here); dm-core's lib tests and its `mp3`, `mp4mux`,
+  `frames_cover`, `live_gif`, `fuzz` and `hls` tests; `cargo xtask layers`; dm-media checked
+  and clippy-clean for Linux and macOS from this laptop (`rustup target add
+  x86_64-unknown-linux-gnu aarch64-apple-darwin`, `cargo check --target ...`, no linker).
 
 Pick up in this order:
-1. **A6** step 1, `dm-media` out of dm-core: aac, fmp4, frames (with `av1.rs`, `win.rs`), gif,
-   mf, mkvmux, mp3 (with `decode/`, `tables.rs`), mp4mux, tsmux, subtitles and shape
-   (`decode.rs` is HTTP bodies, not media: it stays). Mapped 2026-11-18: what they need from
-   the rest is `write_atomic` (gif, mp3), `heavy::run` (gif, mp3's async wrappers),
-   `youtube::video_id` (`gif::possible_for`) and `videopage::Choice` (`mp3::choice_after`);
-   six `tokio::task::spawn_blocking` wrappers (mkvmux, mp4mux 2, tsmux, tsmux/packed 2). Plan:
-   dm-media free of tokio and of dm's crates (no sockets, as the layering asks); dm-core keeps
-   thin facade modules (`pub use dm_media::mp3::*;` plus the async wrappers and the two
-   functions that need youtube or videopage) so every `crate::mp4mux::...` path and the
-   integration tests' `dm_core::...` paths stay; the blocking writers return bytes and dm-core
-   writes them with `write_atomic`. Its deps: symphonia-core, symphonia-codec-aac, windows
-   (Media Foundation's features), rav1d (Linux), libc, serde; `opt-level = 3` in the release
-   profile as dm-core has. `missing_docs` is on: an item made `pub` for dm-core needs its doc.
-   macOS's AudioToolbox and VideoToolbox code (`mp3/decode`, `frames.rs`) cannot be compiled
-   here: build it on the Mac before closing.
+1. **A6** step 2, `dm-torrent` out of dm-core (`torrent.rs`, 1,330 lines, and librqbit with
+   it, row P3). Mapped 2026-11-18: unlike the media code it is woven into the engine
+   (`download::{Options, Finished, Update, or_stop, finish, claim_dir, get}`, `auth::send`,
+   `cookies::SignIn`, `probe::{sanitize, reserved_on_windows}`, `category`, `Error`,
+   `Progress`, `lock`, `KB`, `reqwest_defaults`) and the queue calls it, so dm-torrent cannot
+   depend on dm-core. Plan: dm-torrent owns what speaks to librqbit (the session, its options,
+   the stats read as `Swarm`, the sharing registry, `tiers`, `merged_files`, the file list) in
+   its own plain types; dm-core's `torrent.rs` keeps the glue (Options in, Finished out, the
+   stop, the claim of the folder, the .torrent fetched over HTTP). Then step 3, `dm-net` (once
+   `Error` and `pac`'s use of `javascript` are untangled).
 2. **A10**'s rest (each system's `cfg` behind `platform/`, ~70 files across the crates) is
    mostly macOS and Linux code this laptop cannot compile: do it on the Mac.
 3. Then "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
@@ -121,7 +122,7 @@ Smallest first:
    dev-dependency only; `cargo xtask layers` refuses a `#[path]` out of a crate.
 7. ~~A19's widgets part~~ done 2026-11-18 (`widgets/space.rs`, the colours in `theme.rs`);
    A10 (a system's code in `platform/`).
-8. A6: `dm-media`, `dm-torrent`, `dm-net` out of dm-core. About ten crates is the aim, not the
+8. A6: `dm-media` (done 2026-11-18), `dm-torrent`, `dm-net` out of dm-core. About ten crates is the aim, not the
    hundreds a large team keeps.
 Not taken from them: a crate's first file named after the crate (dm keeps `lib.rs`).
 
@@ -526,7 +527,7 @@ why; every file sampled opens with what it is for.
 |-----|-----|--------|---------------|
 | A4  | Names no longer say what things are: the shipped binary is `dm-gpui` while `--help` says `dm-desktop` and the .deb installs a shell wrapper under the old name; `dm-shell` is the application layer, and "shell" also means the window. One word, several layers: scheduler in four crates, Add URL in three, `probe` (ask a server; the control port's answers), `control` (the stop flag; the TCP server), `progress` three times, `rules` four. Items reachable by several paths: 8 re-exports of dm-shell from dm-desktop-base, globs in `dm-core/src/lib.rs:157-161` | OPEN · L · the maintainer's word (the program's name is seen) | `dm-gpui` becomes `dm-desktop` with the binary `dm`, `dm-shell` becomes `dm-app`; the clashes renamed (`dm_core::control` to `stop`, the base's `probe` to `window_api`); no `pub use` across a crate but dm-core's own listed front; login items and browser manifests rewritten by `register::ensure_this_copy`, checked on each system |
 | A5  | `dm-desktop-base` is three things in one flat crate of 45 files: the system's services (16), dialog models and words with no toolkit (20), and the ways dm runs (8). The one binary has 12 modes sent from two places (`dm-gpui/src/main.rs:150-190` and an if-chain in `modes.rs`), and `main.rs` still carries the migration's scaffolding: a demo "Delete the file?" dialog (86-140), `--accessibility` and `--churn` | OPEN · M | Three folders, `platform/`, `view/`, `run/`, each `mod.rs` saying what is in it; one `enum Mode` with `parse` and `run`, tested from a table; the scaffolding removed, or kept only if a check names it |
-| A6  | dm-core is 55 modules and 57,049 lines under one name: the engine (17.9k), media (14.5k), sites (8.0k), stream protocols (8.0k), the network (6.5k), torrents (1.7k); a queue edit recompiles the muxers at `opt-level = 3` | OPEN · L | Three crates taken out, in this order, each a pure move: `dm-media` (needs only `write_atomic` from the rest), `dm-torrent` (owns librqbit, row P3), `dm-net` (once `Error` and `pac`'s use of `javascript` are untangled); sites stay with the engine. `cargo tree -p dm-engine` has no decoder; `cargo xtask layers` knows the new rules |
+| A6  | dm-core is 55 modules and 57,049 lines under one name: the engine (17.9k), media (14.5k), sites (8.0k), stream protocols (8.0k), the network (6.5k), torrents (1.7k); a queue edit recompiles the muxers at `opt-level = 3` | PARTIAL · L: `dm-media` out (2026-11-18, its own tests and dm-core's media tests pass on Windows; built on macOS and Linux in step 8). Left: `dm-torrent`, `dm-net` | Three crates taken out, in this order, each a pure move: `dm-media` (needs only `write_atomic` from the rest), `dm-torrent` (owns librqbit, row P3), `dm-net` (once `Error` and `pac`'s use of `javascript` are untangled); sites stay with the engine. `cargo tree -p dm-engine` has no decoder; `cargo xtask layers` knows the new rules |
 | A7  | The window's main view is everything at once: `struct Downloads` has 64 fields and 18 `impl` blocks over 17 files; `list.rs` has 68 functions (`carry_out` 249 lines, `new` 231 lines with 8 arguments); and the application's tick is written out twice, in `dm-gpui/src/tick.rs` (361) and `dm-desktop-base/src/headless.rs` (921) | OPEN · L | One `Session::tick() -> Vec<Effect>` in the application crate, used by the window and headless; `Downloads` split into a state struct per concern, none over about 15 fields; `human-qa.py` whole |
 | A8  | Settings is one struct of 80 fields in a 1,615-line file with no version; a new field touches seven places (`Settings`, its 96-line `Default`, `clamped`, the base's `options.rs`, the window's `put`, `options_pages.rs`, the catalogs). Saved files carry no format number (`Entry` has 38 fields, only the journal has a header) and their names are written out as text at 34 sites | OPEN · L | A sub-struct per Options page with `#[serde(flatten)]` (the file on disk unchanged, held by a round-trip test); a `version` field; a `paths` module owning every file name; `"format": N` in each file; "how to add an Options field" (row D5) |
 | A9  | Errors are mostly text: `Error::Internal(String)` made at 211 sites, `State::Failed(String)` saved to disk, `Result<_, String>` 358 times, and the text is matched in product code (`error.rs:157`, `retry.rs:63-66`, sentence constants compared at 8 sites) | OPEN · L | `Failed { kind, said }` with a default for old files; no `.contains("…")` on an error outside tests; one error type per crate; every sentence a person sees unchanged, held by the existing tests |

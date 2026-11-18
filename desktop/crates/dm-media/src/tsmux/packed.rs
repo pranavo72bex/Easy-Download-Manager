@@ -48,13 +48,6 @@ pub fn join_packed(ts: &Path, aac: &Path, out: &Path) -> Result<u64, String> {
     result
 }
 
-/// [`join_packed`], off the async runtime.
-pub async fn join_packed_async(ts: PathBuf, aac: PathBuf, out: PathBuf) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || join_packed(&ts, &aac, &out))
-        .await
-        .map_err(|e| format!("the remux stopped: {e}"))?
-}
-
 /// Puts the picture of the transport stream at `picture` and the sound of the one at `sound`
 /// into one MP4 at `out`: an HLS master whose sound is a playlist of transport-stream segments
 /// of its own (gaps row Y16). Both are stamped by the same 90 kHz clock, so they keep the
@@ -110,13 +103,6 @@ pub fn join_ts(picture: &Path, sound: &Path, out: &Path) -> Result<u64, String> 
         let _ = std::fs::remove_file(&stream.path);
     }
     result
-}
-
-/// [`join_ts`], off the async runtime.
-pub async fn join_ts_async(picture: PathBuf, sound: PathBuf, out: PathBuf) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || join_ts(&picture, &sound, &out))
-        .await
-        .map_err(|e| format!("the remux stopped: {e}"))?
 }
 
 /// Whether the file at `path` starts as packed AAC does: an ID3 tag or an
