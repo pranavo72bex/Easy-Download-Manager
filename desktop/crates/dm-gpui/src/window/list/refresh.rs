@@ -205,8 +205,8 @@ impl Downloads {
             taken.sort_moved |= self.sort.is_some_and(|(column, _)| {
                 dm_desktop_base::columns::compare(column, &old, new) != std::cmp::Ordering::Equal
             });
-            self.timed_rows =
-                (self.timed_rows + usize::from(timed(new))).saturating_sub(usize::from(timed(&old)));
+            self.timed_rows = (self.timed_rows + usize::from(timed(new)))
+                .saturating_sub(usize::from(timed(&old)));
         }
         taken
     }

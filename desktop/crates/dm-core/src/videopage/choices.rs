@@ -246,8 +246,8 @@ async fn list_from_reading(
 ) -> Vec<Choice> {
     let client = match crate::proxy::route_for(proxy, url) {
         Some(proxy) => {
-            let built = reqwest::Proxy::all(proxy)
-                .and_then(|proxy| crate::builder().proxy(proxy).build());
+            let built =
+                reqwest::Proxy::all(proxy).and_then(|proxy| crate::builder().proxy(proxy).build());
             match built {
                 Ok(client) => client,
                 Err(_) => return Vec::new(),

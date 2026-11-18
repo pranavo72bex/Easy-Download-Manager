@@ -121,10 +121,10 @@ fn the_host_reads_what_was_written_and_nothing_running_once_stale_or_dm_is_gone(
     let mut publisher = Publisher::default();
     let rows = vec![row(1, State::Running, "a.bin", 1, Some(4), 10.0)];
     // No browser has talked to this dm: nothing written.
-    publisher.publish(home.path(), &rows, &[], || false);
+    publisher.publish(home.path(), &rows, &Changes::Every, &[], || false);
     assert!(!file(home.path()).exists());
     let mut publisher = Publisher::default();
-    publisher.publish(home.path(), &rows, &[], || true);
+    publisher.publish(home.path(), &rows, &Changes::Every, &[], || true);
     let written: Published =
         serde_json::from_slice(&std::fs::read(file(home.path())).unwrap()).unwrap();
     assert_eq!(written.running, 1);

@@ -273,7 +273,9 @@ impl Session {
         // them had looked every row up at every read (gaps row 181).
         let changes = Changes::between(&self.rows, &snapshot.rows);
         self.rows.clone_from(&snapshot.rows);
-        let detected = self.detector.read_changes(&snapshot.rows, hold_new, &changes);
+        let detected = self
+            .detector
+            .read_changes(&snapshot.rows, hold_new, &changes);
         self.dry.follow(&snapshot.rows, &changes);
         self.events.publish_changes(&snapshot.rows, &changes);
         let home = crate::settings::home();

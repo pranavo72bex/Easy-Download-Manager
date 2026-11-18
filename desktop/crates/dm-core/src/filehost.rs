@@ -204,10 +204,7 @@ fn own_address(found: &Url, domain: &str) -> bool {
 ///
 /// Only where the service could not be reached (a network error), as the download itself
 /// could not have been.
-pub async fn file_address(
-    client: &reqwest::Client,
-    url: &str,
-) -> Result<Option<String>, Error> {
+pub async fn file_address(client: &reqwest::Client, url: &str) -> Result<Option<String>, Error> {
     let Some(step) = step_of(url) else {
         return Ok(None);
     };
@@ -352,8 +349,8 @@ fn drive_form(html: &str) -> Option<String> {
 
 /// MediaFire's Download button's address. `None` where the page holds none.
 fn mediafire_button(html: &str) -> Option<String> {
-    let button = tags(html, "a")
-        .find(|tag| attribute(tag, "id").as_deref() == Some("downloadButton"))?;
+    let button =
+        tags(html, "a").find(|tag| attribute(tag, "id").as_deref() == Some("downloadButton"))?;
     let href = Url::parse(&attribute(button, "href")?).ok()?;
     own_address(&href, "mediafire.com").then(|| href.into())
 }
