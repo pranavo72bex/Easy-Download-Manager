@@ -530,6 +530,15 @@ def one(base, name, site, engine_dl, worker=None):
 
 def sites(base, origin, engine_dl, engine_home, worker):
     results = []
+    # The real sites are read with the rules the app ships (Vimeo's player config, Facebook's
+    # finders ...), not the test page's that chrome-check's own checks put in dm's home
+    # (revision 999, for 127.0.0.1 alone): written over them under a higher revision, and the
+    # extension made to ask the app again, which serves them in its hello (gaps row 204).
+    shipped = json.loads((cc.ROOT / "desktop/assets/rules/rules.json").read_text(encoding="utf-8"))
+    shipped["revision"] = 1000
+    (engine_home / "rules.json").write_text(json.dumps(shipped), encoding="utf-8")
+    worker.evaluate("dmReady.then(m => { m.forget_app();"
+                    " return m.on_page_message({type: 'dm.status'}, {id: chrome.runtime.id}); })")
     if PROBE:
         # What the extension's own worker is told, tab or no tab.
         worker.evaluate("""(() => { globalThis.__dmseen = []; chrome.webRequest.onResponseStarted.addListener(d => {

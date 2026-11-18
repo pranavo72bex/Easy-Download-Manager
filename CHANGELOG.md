@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: Vimeo (gaps row 204). The panel listed nothing, and a click handed dm one piece of the player's file, which Vimeo refused: its player now asks for each piece at an address signed for that piece alone, which the extension no longer takes for a whole file, and the HLS stream named in the player's config is listed again, so a click saves the whole video with sound. A JSON answer the page asked for with XMLHttpRequest before the site's rules reached the page is read once they do, as a fetch's already was.
 - Fixed: Move/Rename beside Retry, on a download that failed because something of its name was already there, did nothing, and a download stopped at a folder dm cannot write to named Move/Rename while it was greyed. For one download that failed or is stopped, Move/Rename now gives it the name and folder typed, takes what it fetched along, and tries it again (one you stopped yourself stays stopped); Choose another folder… works on a failed download too.
 - Fixed: a live DASH recording that passed over a period in another format (an advert) said "checked against the checksum file published beside it" on its row instead of how many parts were left out.
 - A Dropbox, Google Drive or MediaFire share link given to Add URL downloads the file itself under its own name, answering Drive's "can't scan this file for viruses" question for large files, instead of saving the share page.

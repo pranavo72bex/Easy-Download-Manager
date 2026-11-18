@@ -445,7 +445,12 @@
         }
         if (typeof text !== 'string' || !text || text.length > MEDIA_ANSWER) return;
         if (TEXTUAL.test(type) || !type || type.includes('octet-stream') || jsonLike(text)) keep(text);
-        if (href && (type.includes('json') || jsonLike(text))) tellAnswer(href, text);
+        if (!(type.includes('json') || jsonLike(text))) return;
+        // As a fetch's answer is: a request opened before the rules came is looked at again
+        // now, or kept until they come (Vimeo's player asks for its config that early).
+        const hit = href || watched(url);
+        if (hit) tellAnswer(hit, text);
+        else if (!rulesCame) keepEarly(new URL(String(url), location.href).href, text);
       } catch { /* an answer that cannot be read is not kept */ }
     });
     return opened.call(this, method, url, ...rest);

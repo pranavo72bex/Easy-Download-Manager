@@ -885,6 +885,9 @@ fn ranged_line(sound: bool, height: Option<u32>) -> (StreamKind, String) {
     }
 }
 
+/// `range=` in base64, as a path segment that names a piece's bytes begins.
+const SIGNED_RANGE: &str = "cmFuZ2U9";
+
 /// A picture or a sound of any site's player that fetches each as a file in byte ranges named in
 /// the address (`bytestart` and `byteend`, or `range`): the file is the address without them, and
 /// what it is — picture or sound — is the response's type, which must say `video/` or `audio/`
@@ -929,6 +932,15 @@ pub fn ranged_of(url: &str, mime: &str, content_range: Option<&str>) -> Option<S
         extension.as_str(),
         "ts" | "m4s" | "m4f" | "cmfv" | "cmfa" | "aac" | "vtt"
     ) {
+        return None;
+    }
+    // The range also written into the path, signed with it (Vimeo's `…/range/prot/<base64 of
+    // "range=2607-76215">/avf/<id>.mp4?pathsig=…&range=2607-76215`): without the parameter it
+    // names the same piece, and its signature fits no other, so there is no whole file here.
+    if path
+        .split('/')
+        .any(|segment| segment.starts_with(SIGNED_RANGE))
+    {
         return None;
     }
     let kept: Vec<&str> = query

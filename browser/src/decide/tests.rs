@@ -2239,6 +2239,15 @@ fn a_players_byte_range_pieces_of_a_picture_and_a_sound_become_one_line_on_any_s
         "bytes 0-9/10"
     )
     .is_none());
+    // The range signed into the path as well (Vimeo, 2026-11-18): with the parameter gone it is
+    // still that piece, and the server refuses the address (gaps row 204).
+    assert!(ranged_of(
+        "https://vod-adaptive-ak.vimeocdn.com/exp=1~acl=x~hmac=y/clip/psid=z/v2/range/prot/\
+         cmFuZ2U9MjYwNy03NjIxNQ/avf/737611a6.mp4?pathsig=8c953e4f~sig&r=dXM%3D&range=2607-76215",
+        "video/mp4",
+        None
+    )
+    .is_none());
 }
 
 #[test]
