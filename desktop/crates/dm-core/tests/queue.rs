@@ -1462,6 +1462,76 @@ async fn a_full_disk_pauses_and_another_folder_finishes_it() {
     assert!(!roomy.join(dm_core::UNFINISHED).exists());
 }
 
+/// Move/Rename for a download not finished (B54's button beside Retry, and the words of a
+/// folder it cannot write to): a failed one, and one stopped at a folder whose name a file
+/// holds, each given another folder and name, land there under that name. A running or
+/// waiting one is not placed this way.
+#[tokio::test]
+async fn an_unfinished_download_given_another_folder_and_name_lands_there() {
+    let (addr, open) = serve_gated().await;
+    let dir = tempdir();
+    let taken = dir.path().join("taken");
+    std::fs::write(&taken, b"a file where the folder would be").unwrap();
+    let elsewhere = dir.path().join("elsewhere");
+    let q = Queue::new(
+        client(),
+        dm_core::Options {
+            connections: 1,
+            dest_dir: taken.clone(),
+            ..common::options(dir.path())
+        },
+        1,
+    );
+    // Stopped at the folder a file's name holds, the words naming Move/Rename.
+    let stalled = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    q.run().await;
+    let row = q.get(stalled).await.unwrap();
+    assert_eq!(row.state, DownloadState::Paused, "{:?}", row.state);
+    assert!(row.stalled.contains("Move/Rename"), "{}", row.stalled);
+    q.place_unfinished(stalled, Some(elsewhere.clone()), Some("mine.bin".into()))
+        .await
+        .unwrap();
+    q.run().await;
+    let row = q.get(stalled).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed, "{:?}", row.state);
+    assert_eq!(std::path::Path::new(&row.path), elsewhere.join("mine.bin"));
+    assert_eq!(std::fs::read(&row.path).unwrap().len(), 1024);
+
+    // Failed: given a name in the folder it has, and tried again.
+    let failed = q
+        .add_with(
+            &format!("http://{addr}/flaky.bin"),
+            dm_core::AddOptions {
+                save_dir: Some(elsewhere.display().to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    q.run().await;
+    let row = q.get(failed).await.unwrap();
+    assert!(
+        matches!(row.state, DownloadState::Failed(_)),
+        "{:?}",
+        row.state
+    );
+    open.store(true, Ordering::SeqCst);
+    // Not while it runs or waits.
+    let waiting = q.add(&format!("http://{addr}/g.bin")).await.unwrap();
+    assert!(q.place_unfinished(waiting, None, None).await.is_err());
+    q.remove(waiting).await;
+    q.place_unfinished(failed, None, Some("theirs.bin".into()))
+        .await
+        .unwrap();
+    q.run().await;
+    let row = q.get(failed).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed, "{:?}", row.state);
+    assert_eq!(
+        std::path::Path::new(&row.path),
+        elsewhere.join("theirs.bin")
+    );
+}
+
 /* ------------------------------------------------------------- metalink */
 
 /// A server that hosts a mirror list and the mirrors it names.

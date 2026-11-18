@@ -104,10 +104,17 @@ impl MoveRename {
         MoveRename {
             ids: rows.iter().map(|r| r.id).collect(),
             name: rows.first().map(|r| r.filename.clone()).unwrap_or_default(),
+            // A failed one has no file yet: the folder it was to land in.
             folder: rows
                 .first()
-                .and_then(|r| std::path::Path::new(&r.path).parent())
-                .map(|p| p.display().to_string())
+                .and_then(|r| {
+                    std::path::Path::new(&r.path)
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .map(|p| p.display().to_string())
+                        .or_else(|| r.save_dir.clone())
+                        .or_else(|| (!r.began_in.is_empty()).then(|| r.began_in.clone()))
+                })
                 .unwrap_or_default(),
             pattern: String::new(),
         }
@@ -123,6 +130,16 @@ impl MoveRename {
             let Some(row) = backend.row(*id) else {
                 continue;
             };
+            // One that failed or is stopped (a name already taken, a folder it cannot write
+            // to): its name and folder from now on (B54's button beside Retry).
+            if matches!(row.state, State::Failed(_) | State::Paused) {
+                let name = Some(self.name.trim().to_string()).filter(|n| !n.is_empty());
+                let folder = (!self.folder.trim().is_empty()).then_some(folder.as_path());
+                if let Err(e) = backend.place_unfinished(*id, folder, name) {
+                    said = Some(e.into());
+                }
+                continue;
+            }
             let here = std::path::Path::new(&row.path)
                 .parent()
                 .map(|p| p.to_path_buf());

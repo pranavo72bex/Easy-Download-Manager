@@ -330,3 +330,26 @@ fn the_toolbar_keeps_a_persons_order_and_hides_what_they_hid() {
     assert!(!shown.iter().any(|(c, _)| *c == Command::Scheduler));
     assert_eq!(shown.len(), TOOLBAR.len() - 1);
 }
+
+/// A download that failed because something of its name is already there offers Move/Rename
+/// beside Retry (B54), and one stopped at a folder it cannot write to names it: the command
+/// applies to that one row, or the button does nothing.
+#[test]
+fn move_rename_applies_to_one_failed_download() {
+    let failed = row(
+        6,
+        State::Failed("/tmp/x/f: something of that name is already there".into()),
+        "",
+        0,
+    );
+    let paused = row(7, State::Paused, "", 10);
+    let running = row(8, State::Running, "", 10);
+    let rows = vec![failed.clone(), paused.clone(), running.clone()];
+    let on = |chosen: &[&Entry]| applies(Command::MoveRename, chosen, &rows, false, &PLAIN);
+    assert!(on(&[&failed]));
+    // Stopped, as a folder it cannot write to stops it: its words name Move/Rename.
+    assert!(on(&[&paused]));
+    assert!(!on(&[&running]));
+    // Several are moved together only once finished.
+    assert!(!on(&[&failed, &paused]));
+}

@@ -542,12 +542,15 @@ pub fn applies(
                 && !chosen[0].path.is_empty()
                 && !looks.gone(chosen[0])
         }
-        // One to move and rename, or several to move together.
+        // One to move and rename, or several to move together; or one that failed or is
+        // stopped, given another name or folder (the button beside Retry, B54, and a stalled
+        // row's words name it).
         Command::MoveRename => {
-            !chosen.is_empty()
-                && chosen
-                    .iter()
-                    .all(|r| r.state == State::Completed && !r.path.is_empty() && !looks.gone(r))
+            (one && matches!(chosen[0].state, State::Failed(_) | State::Paused))
+                || !chosen.is_empty()
+                    && chosen.iter().all(|r| {
+                        r.state == State::Completed && !r.path.is_empty() && !looks.gone(r)
+                    })
         }
         Command::ResumeAll => rows.iter().any(|r| r.state == State::Paused),
         Command::StopAll => rows

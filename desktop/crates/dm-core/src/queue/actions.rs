@@ -17,7 +17,9 @@ impl Queue {
             if matches!(slot.entry.state, State::Running | State::Queued) || slot.still_stopping() {
                 return Err("stop the download before giving it another folder".into());
             }
-            if slot.entry.state.settled() {
+            // A failed one goes on from its parts in the new folder (Choose another
+            // folder…, Move/Rename beside Retry: B54).
+            if matches!(slot.entry.state, State::Completed | State::Cancelled) {
                 return Err("a finished download is moved with Move/Rename".into());
             }
             PathBuf::from(&slot.entry.parts_dir)
@@ -122,6 +124,58 @@ impl Queue {
             }
             _ if !later => self.resume(id).await,
             _ => {}
+        }
+        Ok(())
+    }
+
+    /// Move/Rename for a download not finished and not under way: one that failed (something
+    /// of its name already there: the button beside Retry, B54) or that stopped (a folder it
+    /// cannot write to, whose bar names Move/Rename). The name and the folder asked for are its
+    /// own from now on, and its parts go with it. One that failed or stalled is tried again at
+    /// once; one the person paused stays paused.
+    pub async fn place_unfinished(
+        &self,
+        id: Id,
+        dir: Option<PathBuf>,
+        name: Option<String>,
+    ) -> Result<(), String> {
+        let entry = self
+            .get(id)
+            .await
+            .ok_or("that download is no longer listed")?;
+        let goes_on = match &entry.state {
+            State::Failed(_) => true,
+            State::Paused => !entry.stalled.is_empty(),
+            _ => return Err("only a download that failed or is stopped is placed this way".into()),
+        };
+        if let Some(name) = name.map(|n| n.trim().to_string()) {
+            if crate::probe::sanitize(&name).is_empty() {
+                return Err("that is not a name a file can have".into());
+            }
+            if name != entry.filename {
+                self.edit(id, |slot| {
+                    slot.entry_mut().save_name = Some(name.clone());
+                    true
+                })
+                .await;
+            }
+        }
+        let here = entry
+            .save_dir
+            .clone()
+            .unwrap_or_else(|| entry.began_in.clone());
+        match dir {
+            Some(dir) if dir != std::path::Path::new(&here) => {
+                self.relocate(id, dir).await?;
+                if !goes_on {
+                    self.pause(id).await;
+                }
+            }
+            _ if !goes_on => {}
+            _ if matches!(entry.state, State::Failed(_)) => {
+                self.retry(id).await;
+            }
+            _ => self.resume(id).await,
         }
         Ok(())
     }

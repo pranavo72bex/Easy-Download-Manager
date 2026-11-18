@@ -718,6 +718,35 @@ impl Backend {
         self.block_on(self.queue.move_to(id, &dir))
     }
 
+    /// Move/Rename for a download that failed or is stopped: given the name and the folder
+    /// asked for (a folder checked as `move_to` checks it), and tried again where it failed or
+    /// stalled (`Queue::place_unfinished`).
+    pub fn place_unfinished(
+        &self,
+        id: Id,
+        dir: Option<&std::path::Path>,
+        name: Option<String>,
+    ) -> Result<(), String> {
+        let dir = match dir {
+            Some(dir) => {
+                let dir = full_folder(&dir.to_string_lossy())?;
+                if let Some(why) =
+                    crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
+                {
+                    return Err(why);
+                }
+                Some(dir)
+            }
+            None => None,
+        };
+        self.login_now(id);
+        self.block_on(async {
+            self.queue.place_unfinished(id, dir, name).await?;
+            shell::wake(&self.queue);
+            Ok(())
+        })
+    }
+
     /// A playable file of what a download has fetched so far.
     pub fn preview(&self, id: Id) -> Result<std::path::PathBuf, String> {
         self.block_on(self.queue.preview(id))
