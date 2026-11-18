@@ -190,6 +190,14 @@ fn main() {
         }
     };
 
+    // Windows ending the session (a logoff, a shutdown or restart) ends dm
+    // as Exit does, the downloads stopped and awaited before it is answered,
+    // with the window or without (gaps row 186).
+    dm_desktop_base::signals::on_session_end(&backend, {
+        let wake = Arc::clone(&wake);
+        move || wake(Wake::Now)
+    });
+
     // Every word in the language the person chose (or the system's), from
     // the first frame, as the egui window starts: the window, its menus, the
     // tray and the jump list are made on this thread, where the language in

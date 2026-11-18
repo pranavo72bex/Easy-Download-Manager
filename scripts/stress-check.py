@@ -590,6 +590,37 @@ def wait_for(cond, seconds, every=0.5):
     return None
 
 
+def end_session(pid, wait_ms=5000):
+    """What Windows does to a program as the session ends (a logoff, a shutdown): each of the
+    process's top-level windows, hidden ones too, asked WM_QUERYENDSESSION, then told
+    WM_ENDSESSION, each answer awaited up to `wait_ms` (Windows' own wait before it offers to end
+    a program that has not answered). Says how many windows were told."""
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    found = []
+    each = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def mine(hwnd, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value == pid:
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(each(mine), 0)
+    send = user32.SendMessageTimeoutW
+    send.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+                     wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+    send.restype = ctypes.c_ssize_t
+    logoff = 0x80000000                                   # ENDSESSION_LOGOFF
+    answer = ctypes.c_size_t()
+    for message, ending in ((0x0011, 0), (0x0016, 1)):    # WM_QUERYENDSESSION, WM_ENDSESSION
+        for hwnd in found:
+            send(hwnd, message, ending, logoff, 0, wait_ms, ctypes.byref(answer))
+    return len(found)
+
+
 def states(rows):
     out = {}
     for r in rows:
@@ -882,11 +913,41 @@ def p_crash(ctx):
         shutil.rmtree(dm.out, ignore_errors=True)
 
 
+def ended_running(dm, phase_name, n, mode):
+    """Ends `dm` with 10 or more of its `n` downloads running, as the system asks it to end:
+    SIGTERM, or on Windows (which has none: `terminate()` there is TerminateProcess, which
+    nothing outlives) the session's end, which reaches the window's dm through GPUI's hidden
+    window and `--headless` through dm's own. Checks it exits 0 within 2 s."""
+    wait_for(lambda: sum(1 for r in dm.rows() if r["state"]["kind"] == "running" and r["progress"]["downloaded"] > 0) >= 10, 60, every=0.5)
+    time.sleep(2)
+    before = dm.rows()
+    running = sum(1 for r in before if r["state"]["kind"] == "running")
+    fetched = sum(r["progress"]["downloaded"] for r in before)
+    t = time.time()
+    if sys.platform == "win32":
+        told = end_session(dm.proc.pid)
+        how = f"the session's end ({told} windows told)"
+    else:
+        dm.proc.terminate()
+        how = "SIGTERM"
+    try:
+        code = dm.proc.wait(15)
+    except subprocess.TimeoutExpired:
+        code = None
+    took = time.time() - t
+    dm.stop()
+    word = "the session's end" if sys.platform == "win32" else "SIGTERM"
+    measure(phase_name, f"{how} to {mode} with {running} of {n} downloads running ({fetched // MB} MB fetched): exit {code} after {took:.2f} s")
+    check(phase_name, f"{mode} exits 0 within 2 s of {word} with 10 downloads running",
+          code == 0 and took < 2.0 and running >= 10, f"exit {code} after {took:.2f} s")
+
+
 @phase
 def p_quit(ctx):
-    """SIGTERM in the middle of 20 downloads, 10 running (dm's most at once), the rest waiting
-    (gaps row 186): dm stops them as a pause does and exits 0 within 2 s; a restart puts them
-    back in line and finishes them byte-exact."""
+    """SIGTERM (on Windows, the session's end) in the middle of 20 downloads, 10 running (dm's
+    most at once), the rest waiting (gaps row 186): dm stops them as a pause does and exits 0
+    within 2 s; a restart puts them back in line and finishes them byte-exact. On Windows the
+    restarted `--headless` dm is ended the same way, and a third start finishes them."""
     base, root = ctx["base"], ctx["root"]
     n = 20
     size = 24 * MB
@@ -901,22 +962,7 @@ def p_quit(ctx):
         urls.append(f"{base}/f/quit{i}/{size}/{name}?rate={MB // 4}")
         expect[name] = (f"quit{i}", size)
     dm.add(urls)
-    wait_for(lambda: sum(1 for r in dm.rows() if r["state"]["kind"] == "running" and r["progress"]["downloaded"] > 0) >= 10, 60, every=0.5)
-    time.sleep(2)
-    before = dm.rows()
-    running = sum(1 for r in before if r["state"]["kind"] == "running")
-    fetched = sum(r["progress"]["downloaded"] for r in before)
-    t = time.time()
-    dm.proc.terminate()
-    try:
-        code = dm.proc.wait(15)
-    except subprocess.TimeoutExpired:
-        code = None
-    took = time.time() - t
-    dm.stop()
-    measure("quit", f"SIGTERM with {running} of {n} downloads running ({fetched // MB} MB fetched): exit {code} after {took:.2f} s")
-    check("quit", "exits 0 within 2 s of SIGTERM with 10 downloads running", code == 0 and took < 2.0 and running >= 10,
-          f"exit {code} after {took:.2f} s")
+    ended_running(dm, "quit", n, "the window")
     dm2 = DM(root, settings, name="quit")
     dm2.home, dm2.out = dm.home, dm.out
     try:
@@ -925,6 +971,16 @@ def p_quit(ctx):
         st = states(rows)
         measure("quit", f"after the restart: {st}, {sum(r['progress']['downloaded'] for r in rows) // MB} MB kept")
         check("quit", "every row comes back to run again", len(rows) == n and all(r["state"]["kind"] in ("queued", "running", "completed") for r in rows), str(st))
+        if sys.platform == "win32":
+            ended_running(dm2, "quit", n, "--headless")
+            dm2 = DM(root, settings, name="quit")
+            dm2.home, dm2.out = dm.home, dm.out
+            dm2.start()
+            rows = dm2.rows()
+            st = states(rows)
+            measure("quit", f"after the second restart: {st}, {sum(r['progress']['downloaded'] for r in rows) // MB} MB kept")
+            check("quit", "every row comes back to run again after --headless ended",
+                  len(rows) == n and all(r["state"]["kind"] in ("queued", "running", "completed") for r in rows), str(st))
         wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm2.rows()), 300, every=2)
         ok, bad = verify(dm2.rows(), expect)
         if bad:

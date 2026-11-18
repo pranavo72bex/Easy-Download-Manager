@@ -10,11 +10,16 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use dm_shell::app::backend::Backend;
 use dm_shell::settings;
+
+#[cfg(windows)]
+mod session_end;
 
 /// Set when the system asks dm to end: SIGTERM, SIGINT or SIGHUP (a
 /// logout, `kill`, a service manager stopping it, Ctrl+C in a terminal),
-/// or Windows' console close, logoff and shutdown events.
+/// or Windows' console close, break, logoff and shutdown events, and its
+/// session ending (`on_session_end`).
 pub static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
 /// Ends dm as Program › Exit does when the system asks, rather than being
@@ -64,6 +69,9 @@ pub fn on_signal(runtime: &tokio::runtime::Runtime, wake: impl Fn() + Send + Syn
             };
         }
         listen!(windows::ctrl_c());
+        // What a process manager sends a console program it stops (Python's
+        // `send_signal(CTRL_BREAK_EVENT)`): Windows' nearest to SIGTERM.
+        listen!(windows::ctrl_break());
         listen!(windows::ctrl_close());
         listen!(windows::ctrl_logoff());
         listen!(windows::ctrl_shutdown());
@@ -75,6 +83,33 @@ pub fn on_signal(runtime: &tokio::runtime::Runtime, wake: impl Fn() + Send + Syn
             wake();
         });
     }
+}
+
+/// Windows ending the session (a logoff, a shutdown or restart, an
+/// installer's Restart Manager) ends dm as Exit does, the downloads stopped
+/// and awaited before Windows is answered, since it may end the process
+/// then (gaps row 186). Windows asks windows, not with a signal, and never
+/// tells a program with the window system loaded through its console: a
+/// hidden window of dm's own hears it, under GPUI's window and under
+/// `--headless`, which has none. Nothing elsewhere: a logout there is a
+/// signal.
+pub fn on_session_end(backend: &Backend, wake: impl Fn() + Send + Sync + 'static) {
+    #[cfg(windows)]
+    {
+        let backend = backend.clone();
+        let _ = session_end::watch(Arc::new(move || {
+            // Here, whatever the window's thread is doing (a dialog of the
+            // system's holds it); then dm is asked to end, as by a signal,
+            // and its own Exit finds nothing left running.
+            backend.shut_down();
+            crate::control::closing();
+            crate::control::forget_port(&settings::home());
+            SIGNALLED.store(true, Ordering::SeqCst);
+            wake();
+        }));
+    }
+    #[cfg(not(windows))]
+    let _ = (backend, wake);
 }
 
 /// The first signal asks dm to quit; a second, while it is still closing,

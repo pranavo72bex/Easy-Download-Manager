@@ -382,20 +382,7 @@ impl Downloads {
             .detach();
             return;
         }
-        // The downloads stopped and awaited, as a pause stops them, the
-        // queue written last (gaps row 186).
-        self.backend.shut_down();
-        // As the egui window ends: a request still waiting is told dm is
-        // quitting, and `control.port` no longer sends a client to a port
-        // nobody answers. Here, before the system ends the process:
-        // nothing after GPUI's run is reached on macOS. Not in the window's tests, which
-        // share one process: one test's Exit would close every other's port
-        // (`dm_desktop_base::control`'s own tests check the closing).
-        #[cfg(not(test))]
-        dm_desktop_base::control::closing();
-        dm_desktop_base::control::forget_port(&dm_shell::settings::home());
-        // Where and as large as the window was, for the next start.
-        crate::window::frame::keep(&dm_shell::settings::home(), self.frame, self.display);
+        self.wind_down();
         // The questions it closes are not answered, and none waiting is asked.
         crate::dialogs::question::quitting();
         self.sheets.clear();
@@ -416,6 +403,27 @@ impl Downloads {
         }
         self.quit_asked = true;
         cx.quit();
+    }
+
+    /// What Exit does before the window goes, and what GPUI's own end of dm
+    /// does where Exit was not chosen (`on_app_quit`: Windows ending the
+    /// session, a logoff, a shutdown or restart, quits GPUI from its own
+    /// window and ends the process as soon as the quit's handlers return).
+    pub(crate) fn wind_down(&mut self) {
+        // The downloads stopped and awaited, as a pause stops them, the
+        // queue written last (gaps row 186).
+        self.backend.shut_down();
+        // As the egui window ends: a request still waiting is told dm is
+        // quitting, and `control.port` no longer sends a client to a port
+        // nobody answers. Here, before the system ends the process:
+        // nothing after GPUI's run is reached on macOS. Not in the window's tests, which
+        // share one process: one test's Exit would close every other's port
+        // (`dm_desktop_base::control`'s own tests check the closing).
+        #[cfg(not(test))]
+        dm_desktop_base::control::closing();
+        dm_desktop_base::control::forget_port(&dm_shell::settings::home());
+        // Where and as large as the window was, for the next start.
+        crate::window::frame::keep(&dm_shell::settings::home(), self.frame, self.display);
     }
 
     /// Asks `asked` as a sheet on the main window, after any question
