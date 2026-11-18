@@ -116,6 +116,7 @@ async fn a_refusal_at_the_first_ask_is_not_read_again() {
         "https://www.youtube.com/watch?v=jNQXAC9IVRw",
         &plan,
         &options(dir.path()),
+        false,
     )
     .await;
     assert!(matches!(renewed, Ok(None)));

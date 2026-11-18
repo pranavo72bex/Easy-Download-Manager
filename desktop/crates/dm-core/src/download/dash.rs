@@ -305,12 +305,18 @@ pub(super) async fn download_numbered(
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
-    let first = fetch_capped(client, &numbered_address(url, 0), FIRST_PIECE_MOST, options).await?;
-    let count = segment_count(&first.body).ok_or_else(|| {
-        Error::Internal(
-            "the stream is served in numbered pieces, and its first did not say how many".into(),
-        )
-    })?;
+    // Where the first piece cannot be had or does not say how many follow, the caller falls
+    // back to the video's other formats (`NUMBERED_UNREAD`); a stop is a stop.
+    let first = match fetch_capped(client, &numbered_address(url, 0), FIRST_PIECE_MOST, options)
+        .await
+    {
+        Ok(first) => first,
+        Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+        Err(why) => return Err(numbered_unread(&why.to_string())),
+    };
+    let Some(count) = segment_count(&first.body) else {
+        return Err(numbered_unread("its first piece does not say how many follow"));
+    };
     let track = Track {
         medium: if ext == "m4a" {
             Medium::Audio
@@ -347,7 +353,15 @@ pub(super) async fn download_numbered(
         let _ = finished.send(());
         let _ = handle.await;
     }
-    let files = fetched?;
+    let files = match fetched {
+        Ok(files) => files,
+        Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+        // Nothing after the first piece was whole: the other formats are fetched instead.
+        Err(why) if !any_numbered_piece(&options.parts_dir).await => {
+            return Err(numbered_unread(&why.to_string()))
+        }
+        Err(why) => return Err(why),
+    };
     options.control.check()?;
     let (path, bytes, category) = finish(&name, None, &files, options).await?;
     Ok(Finished {
@@ -359,6 +373,28 @@ pub(super) async fn download_numbered(
         verified: options.checksum.is_some(),
         mirrors: 1,
     })
+}
+
+/// [`NUMBERED_UNREAD`], with why noted in the log.
+fn numbered_unread(why: &str) -> Error {
+    eprintln!("dm: a stream's numbered pieces could not be read ({why}); its other formats are fetched");
+    Error::Internal(NUMBERED_UNREAD.into())
+}
+
+/// Whether any numbered piece after the first is whole in `parts_dir` (its part file, named
+/// when whole).
+async fn any_numbered_piece(parts_dir: &Path) -> bool {
+    let first = part_path(parts_dir, 0);
+    let Ok(mut entries) = fs::read_dir(parts_dir).await else {
+        return false;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with("part-") && !name.ends_with(".partial") && entry.path() != first {
+            return true;
+        }
+    }
+    false
 }
 
 /// The most the first of a stream's numbered pieces is believed to be: its first boxes and

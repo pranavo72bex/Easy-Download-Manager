@@ -43,7 +43,7 @@ pub async fn download_page(
         .await
         .map_err(Error::Disk)?;
 
-    let read = resolve(url, options).await?;
+    let read = resolve(url, options, false).await?;
     // A live stream (YouTube's own HLS playlist of it): recorded by the engine's live HLS
     // recording, as a stream's address is, from now until it ends or is stopped (gaps row Y5).
     if read.info.is_live == Some(true) && !part {
@@ -73,6 +73,56 @@ pub async fn download_page(
         ));
     };
 
+    let numbered: Vec<String> = plan
+        .streams
+        .iter()
+        .filter(|s| s.numbered)
+        .map(|s| s.id.clone())
+        .collect();
+    let mut outcome = fetch_renewing(client, url, plan, read, options, report.clone(), false).await;
+    // Numbered pieces whose first does not say how many follow, or none of which could be
+    // fetched: the video from its other formats, as before dm read numbered pieces (gaps row
+    // Y14). Nothing new is said on the row; the log says why.
+    if matches!(&outcome, Err(Error::Internal(why)) if why == crate::download::NUMBERED_UNREAD) {
+        eprintln!("dm: {url}: fetched from its formats that are not numbered pieces");
+        for id in &numbered {
+            let _ = tokio::fs::remove_dir_all(staging.join(format!(".dm-f{id}"))).await;
+        }
+        outcome = match resolve(url, options, true).await {
+            Ok(read) => match read.plan(staging) {
+                Some(plan) => {
+                    fetch_renewing(client, url, plan, read, options, report.clone(), true).await
+                }
+                None => Err(Error::Internal(
+                    "this video's streams cannot be fetched by dm's own engine".into(),
+                )),
+            },
+            Err(why) => Err(why),
+        };
+    }
+    match outcome {
+        Ok(done) => Ok(done),
+        Err(Error::Paused) => Err(Error::Paused),
+        Err(Error::Cancelled) => {
+            remove_staging(staging).await;
+            Err(Error::Cancelled)
+        }
+        Err(why) => Err(why),
+    }
+}
+
+/// `plan` fetched, waiting first until its streams are served; where a stream is refused,
+/// once more after a short wait (a reading a few seconds old), and from the page read again
+/// where its addresses have run out. `without_numbered` reads it again as it was read.
+async fn fetch_renewing(
+    client: &reqwest::Client,
+    url: &str,
+    plan: Plan,
+    read: Read,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+    without_numbered: bool,
+) -> Result<Finished, Error> {
     let mut current = (plan, read);
     wait_until_available(&current.1, options).await?;
     let mut outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
@@ -93,24 +143,16 @@ pub async fn download_page(
             ..
         })
     ) {
-        match renewed(url, &current.0, options).await {
+        match renewed(url, &current.0, options, without_numbered).await {
             Ok(Some(next)) => {
                 current = next;
-                outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
+                outcome = fetch(client, &current.0, &current.1, options, report).await;
             }
             Ok(None) => {}
             Err(stop) => outcome = Err(stop),
         }
     }
-    match outcome {
-        Ok(done) => Ok(done),
-        Err(Error::Paused) => Err(Error::Paused),
-        Err(Error::Cancelled) => {
-            remove_staging(staging).await;
-            Err(Error::Cancelled)
-        }
-        Err(why) => Err(why),
-    }
+    outcome
 }
 
 /// The page read again, after a stream's address was refused (403 or 410),
@@ -119,12 +161,17 @@ pub async fn download_page(
 /// served once. One refused at the first ask never did, and is not read as
 /// before. `None` where the fresh reading is not the same streams (another
 /// format, name or size): what is staged belongs to the old ones.
-async fn renewed(url: &str, plan: &Plan, options: &Options) -> Result<Option<(Plan, Read)>, Error> {
+async fn renewed(
+    url: &str,
+    plan: &Plan,
+    options: &Options,
+    without_numbered: bool,
+) -> Result<Option<(Plan, Read)>, Error> {
     let staging = &options.parts_dir;
     if !plan.streams.iter().any(Stream::expired) && !fetched_any(staging).await {
         return Ok(None);
     }
-    let read = match resolve(url, options).await {
+    let read = match resolve(url, options, without_numbered).await {
         Ok(read) => read,
         Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
         Err(_) => return Ok(None),
@@ -548,14 +595,23 @@ fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
     }
 }
 
-/// Reads a YouTube page by dm's own YouTube reader (`crate::youtube`).
-async fn resolve(url: &str, options: &Options) -> Result<Read, Error> {
+/// Reads a YouTube page by dm's own YouTube reader (`crate::youtube`); `without_numbered`, with
+/// its formats served only as numbered pieces left out.
+async fn resolve(url: &str, options: &Options, without_numbered: bool) -> Result<Read, Error> {
     let staging = &options.parts_dir;
-    let own = crate::download::or_stop(
-        &options.control,
-        crate::youtube::read_for(url, options, staging),
-    )
-    .await;
+    let own = if without_numbered {
+        crate::download::or_stop(
+            &options.control,
+            crate::youtube::read_for_without_numbered(url, options, staging),
+        )
+        .await
+    } else {
+        crate::download::or_stop(
+            &options.control,
+            crate::youtube::read_for(url, options, staging),
+        )
+        .await
+    };
     match own {
         Ok(text) => {
             let info: Info = serde_json::from_str(&text).map_err(|e| {

@@ -723,6 +723,12 @@ pub(crate) async fn download_video_stream_with(
     .await
 }
 
+/// What [`download_numbered_stream_with`] fails with where the stream's first piece does not
+/// say how many follow, or it failed before any piece after the first was whole: the video is
+/// then fetched from its other formats (`videopage::download_page`), as before dm read
+/// numbered pieces. Never shown: a fallback is always taken on it.
+pub(crate) const NUMBERED_UNREAD: &str = "the stream's numbered pieces could not be read";
+
 /// [`download_video_stream_with`] for a stream served only as numbered pieces (`&sq=N`, gaps
 /// row Y14): fetched piece by piece by the DASH piece fetcher, and gathered into one file.
 pub(crate) async fn download_numbered_stream_with(

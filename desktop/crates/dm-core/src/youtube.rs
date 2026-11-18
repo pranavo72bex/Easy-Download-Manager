@@ -790,6 +790,25 @@ fn choose(
     Some(vec![(*picture).clone(), sound])
 }
 
+tokio::task_local! {
+    /// Set while a video is read with its formats served only as numbered pieces left out
+    /// ([`read_for_without_numbered`]).
+    static WITHOUT_NUMBERED: ();
+}
+
+/// [`read_for`] with the formats served only as numbered pieces left out, as they were before
+/// dm fetched them (gaps row Y14): what a download falls back to where their first piece does
+/// not say how many follow, or none of them could be fetched.
+pub async fn read_for_without_numbered(
+    url: &str,
+    options: &crate::download::Options,
+    staging: &Path,
+) -> Result<String, Error> {
+    WITHOUT_NUMBERED
+        .scope((), read_for(url, options, staging))
+        .await
+}
+
 /// [`read`] for a download's options: through the proxy they name, at the
 /// quality and in the container they ask, with the session they carry.
 pub async fn read_for(
@@ -1027,6 +1046,7 @@ async fn read_within(
         // `bv+ba` takes them; the formats with both in one file only where
         // there is nothing apart, and then one alone (a picture with its own
         // sound and a sound beside it made a file with two sound tracks).
+        let without_numbered = WITHOUT_NUMBERED.try_with(|()| ()).is_ok();
         let streams_at = |at: &str| -> Vec<Format> {
             player
                 .pointer(at)
@@ -1034,6 +1054,7 @@ async fn read_within(
                 .into_iter()
                 .flatten()
                 .filter_map(Format::of)
+                .filter(|f| !(without_numbered && f.numbered))
                 .collect()
         };
         let mut formats = streams_at("/streamingData/adaptiveFormats");
