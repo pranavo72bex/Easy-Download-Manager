@@ -89,5 +89,10 @@
  "Nothing in the list for it now",
  "higher qualities are copy-protected, so the best one that is not was taken",
  "{} pieces of the live stream were gone before dm could fetch them",
- "No folder picker here: type the path."
+ "No folder picker here: type the path.",
+ "No file picker here: type the path.",
+ "File's path",
+ "Type the file's full path, such as {}.",
+ "Export the list",
+ "Import a list"
 ]

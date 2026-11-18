@@ -908,5 +908,10 @@
  "User-Agent": "",
  "Request headers": "",
  "Name: value | Name: value": "",
- "No folder picker here: type the path.": ""
+ "No folder picker here: type the path.": "",
+ "No file picker here: type the path.": "",
+ "File's path": "",
+ "Type the file's full path, such as {}.": "",
+ "Export the list": "",
+ "Import a list": ""
 }

@@ -151,6 +151,17 @@ fn chosen_ahead() -> Option<PathBuf> {
         .map(|(path, _)| path)
 }
 
+/// Whether a path chosen ahead, still fresh, waits for the next panel:
+/// Import and Export then ask the panel, which it answers, even where the
+/// desktop has no chooser to show (`listfile::typed_instead`).
+pub fn chosen_ahead_waits() -> bool {
+    #[cfg(test)]
+    let at = CHOSEN_HERE.with(|c| c.borrow().as_ref().map(|(_, at)| *at));
+    #[cfg(not(test))]
+    let at = dm_core::lock(&CHOSEN_AHEAD).as_ref().map(|(_, at)| *at);
+    at.is_some_and(|at| at.elapsed() < CHOSEN_AHEAD_FOR)
+}
+
 #[cfg(test)]
 thread_local! {
     /// In the window's tests, a test's own path chosen ahead: each runs its window on a thread

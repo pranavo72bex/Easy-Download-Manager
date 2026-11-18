@@ -908,5 +908,10 @@
  "User-Agent": "User-Agent",
  "Request headers": "Anfrage-Header",
  "Name: value | Name: value": "Name: Wert | Name: Wert",
- "No folder picker here: type the path.": "Keine Ordnerauswahl: Pfad eingeben."
+ "No folder picker here: type the path.": "Keine Ordnerauswahl: Pfad eingeben.",
+ "No file picker here: type the path.": "Keine Dateiauswahl: Pfad eingeben.",
+ "File's path": "Pfad der Datei",
+ "Type the file's full path, such as {}.": "Geben Sie den vollständigen Pfad der Datei ein, etwa {}.",
+ "Export the list": "Liste exportieren",
+ "Import a list": "Liste importieren"
 }

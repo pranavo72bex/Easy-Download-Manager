@@ -908,5 +908,10 @@
  "User-Agent": "Kullanıcı aracısı",
  "Request headers": "İstek üst bilgileri",
  "Name: value | Name: value": "Ad: değer | Ad: değer",
- "No folder picker here: type the path.": "Burada klasör seçici yok: yolu yazın."
+ "No folder picker here: type the path.": "Burada klasör seçici yok: yolu yazın.",
+ "No file picker here: type the path.": "Burada dosya seçici yok: yolu yazın.",
+ "File's path": "Dosyanın yolu",
+ "Type the file's full path, such as {}.": "Dosyanın tam yolunu yazın, örneğin {}.",
+ "Export the list": "Listeyi dışa aktar",
+ "Import a list": "Liste içe aktar"
 }

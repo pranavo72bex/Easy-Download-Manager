@@ -908,5 +908,10 @@
  "User-Agent": "Agent utilisateur",
  "Request headers": "En-têtes de requête",
  "Name: value | Name: value": "Nom : valeur | Nom : valeur",
- "No folder picker here: type the path.": "Pas de sélecteur de dossier : tapez le chemin."
+ "No folder picker here: type the path.": "Pas de sélecteur de dossier : tapez le chemin.",
+ "No file picker here: type the path.": "Pas de sélecteur de fichier : tapez le chemin.",
+ "File's path": "Chemin du fichier",
+ "Type the file's full path, such as {}.": "Tapez le chemin complet du fichier, comme {}.",
+ "Export the list": "Exporter la liste",
+ "Import a list": "Importer une liste"
 }
