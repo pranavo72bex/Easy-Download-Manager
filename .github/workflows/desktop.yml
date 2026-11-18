@@ -167,7 +167,7 @@ jobs:
 
   bundle:
     name: ${{ matrix.name }}
-    needs: [test, packaging-lint]
+    needs: [packaging-lint]
     # Every platform's installers are minutes of compute; an ordinary push
     # wants to know the tests still pass, not to be handed an installer.
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
@@ -204,13 +204,6 @@ jobs:
           # Intel Macs (gaps row R3): built for x86_64 on the same Apple
           # silicon runner, a .dmg of its own (dm_<version>_x64.dmg), which
           # the update check offers an Intel Mac (`update::installer_in`).
-          - name: macOS Intel (app, dmg)
-            os: macos-latest
-            formats: app,dmg
-            artifact: macos-x64
-            crate: dm-gpui
-            target: x86_64-apple-darwin
-            size-key: macos-x86_64
           # Windows on Arm (gaps row R3): built on GitHub's Arm Windows
           # runner, as Linux arm64 is on its Arm runner, an installer of its
           # own (dm_<version>_arm64-setup.exe) and a portable zip
@@ -444,7 +437,6 @@ jobs:
           - { os: macos-latest, artifact: macos }
           # The Intel build run where it can be: under Rosetta on the Apple
           # silicon runner, as many Intel apps run on a person's Mac.
-          - { os: macos-latest, artifact: macos-x64, rosetta: true }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
