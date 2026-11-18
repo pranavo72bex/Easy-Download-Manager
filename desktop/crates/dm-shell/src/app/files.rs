@@ -152,6 +152,23 @@ pub fn extract_later(
     into: Option<PathBuf>,
     done: impl FnOnce(Result<dm_core::extract::Extracted, String>) + Send + 'static,
 ) -> Result<(), String> {
+    extract_later_with(path, url, into, None, move |answer| {
+        done(answer.map_err(|e| e.to_string()))
+    })
+}
+
+/// [`extract_later`] with the archive's `password` (gaps row F10): a ZIP's AES or older
+/// cipher, a 7z's AES. `done` is given dm's own error, so that a window can tell an archive
+/// that wants a password (`Error::Encrypted`, as `None` gives for one) from a password that
+/// is not its own (`Error::WrongPassword`), and ask again. The password goes with the
+/// extracting thread and is dropped with it, kept nowhere.
+pub fn extract_later_with(
+    path: PathBuf,
+    url: String,
+    into: Option<PathBuf>,
+    password: Option<String>,
+    done: impl FnOnce(Result<dm_core::extract::Extracted, dm_core::extract::Error>) + Send + 'static,
+) -> Result<(), String> {
     std::thread::Builder::new()
         .name("dm-extract".into())
         .spawn(move || {
@@ -161,15 +178,15 @@ pub fn extract_later(
             let cancel = std::sync::atomic::AtomicBool::new(false);
             let origin = (!url.is_empty()).then_some(url.as_str());
             let limits = dm_core::extract::Limits::default();
-            let answer = dm_core::extract::extract_in(
+            let answer = dm_core::extract::extract_in_with(
                 &path,
                 into.as_deref(),
+                password.as_deref(),
                 &limits,
                 &cancel,
                 origin,
                 &|_, _| {},
-            )
-            .map_err(|e| e.to_string());
+            );
             done(answer);
         })
         .map(|_| ())
@@ -193,5 +210,30 @@ mod tests {
         let answer = rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
         assert!(answer.is_err(), "{answer:?}");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn a_zip_with_a_password_says_which_answer_it_wants() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("locked.zip");
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../dm-core/tests/fixtures/archives/zip/aes256.zip");
+        std::fs::copy(fixtures, &path).unwrap();
+        let ask = |password: Option<&str>| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let pw = password.map(str::to_string);
+            extract_later_with(path.clone(), String::new(), None, pw, move |answer| {
+                tx.send(answer).unwrap();
+            })
+            .unwrap();
+            rx.recv_timeout(std::time::Duration::from_secs(60)).unwrap()
+        };
+        use dm_core::extract::Error;
+        assert!(matches!(ask(None), Err(Error::Encrypted(_))));
+        assert!(matches!(ask(Some("no")), Err(Error::WrongPassword(_))));
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+        let done = ask(Some("dm secret")).unwrap();
+        let hello = std::fs::read(done.folder.join("docs/a.txt")).unwrap();
+        assert_eq!(hello, b"hello, zip\n");
     }
 }

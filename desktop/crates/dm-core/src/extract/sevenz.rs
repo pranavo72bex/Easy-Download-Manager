@@ -9,21 +9,30 @@
 //!
 //! dm unpacks the methods nearly every 7z archive uses: stored (Copy), LZMA and LZMA2, with
 //! its own decoders (`lzma.rs`), solid archives (many files in one packed stream) included.
-//! Anything else (a BCJ filter, PPMd, BZip2, an AES password, an archive in several parts) is
-//! refused with a plain message before anything is written. Every file's checksum (CRC32) is
-//! checked as it is written; a mismatch fails the archive and removes its folder.
+//! Anything else (a BCJ filter, PPMd, BZip2, an archive in several parts) is refused with a
+//! plain message before anything is written. Every file's checksum (CRC32) is checked as it
+//! is written; a mismatch fails the archive and removes its folder.
+//!
+//! With a password, a folder 7-Zip encrypted (AES-256 under one of those methods, its list
+//! of files too) is decrypted (`crypt.rs`). A 7z carries no check of the password itself, so
+//! it is proved before anything is written: by the list of files' checksum where that is
+//! encrypted, or else by unpacking one encrypted folder's first file and checking its CRC;
+//! once for each key the archive uses.
 
 mod header;
+mod keys;
 mod lzma;
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
 use self::header::{Archive, Folder, Method, Refusal};
-use super::{plain_mode, safe_path, Error, Extracted, Limits};
+use self::keys::{aes_of, Keys};
+use super::crypt::CbcReader;
+use super::{plain_mode, safe_path, Error, Extracted, Job};
 
 /// Whether `name` is a 7z archive.
 pub fn is_7z(name: &str) -> bool {
@@ -43,13 +52,31 @@ fn special(attributes: Option<u32>) -> bool {
     a & REPARSE_POINT != 0 || (a & UNIX_EXTENSION != 0 && !plain_mode(Some(a >> 16)))
 }
 
+/// Whether a folder can be unpacked with what was given; `shown` names it in an error.
+fn usable(folder: &Folder, keys: &Keys, shown: &str) -> Result<(), Error> {
+    if folder.encrypted && !keys.given() {
+        return Err(Error::Encrypted(shown.into()));
+    }
+    match &folder.method {
+        Ok(_) => aes_of(folder).map(|_| ()),
+        Err(Refusal::Method(m)) => Err(Error::Method(m.clone())),
+    }
+}
+
 /// A reader of a folder's unpacked bytes, from the archive at `path`.
-fn open_folder(path: &Path, folder: &Folder) -> Result<Box<dyn Read>, Error> {
+fn open_folder(path: &Path, folder: &Folder, keys: &Keys) -> Result<Box<dyn Read>, Error> {
+    usable(folder, keys, "the archive")?;
     let mut file = File::open(path)?;
     file.seek(SeekFrom::Start(folder.pack_offset))?;
-    let packed: Box<dyn Read> = Box::new(file.take(folder.pack_size));
+    let mut packed: Box<dyn Read> = Box::new(file.take(folder.pack_size));
     let size = folder.unpack_size;
     let unreadable = |e: std::io::Error| Error::Unreadable(e.to_string());
+    if let (Some(aes), Some(coder)) = (aes_of(folder)?, folder.aes.as_ref()) {
+        let key = keys
+            .key(&aes)
+            .ok_or_else(|| Error::Encrypted("the archive".into()))?;
+        packed = Box::new(CbcReader::new(packed, &key, aes.iv, coder.size).map_err(unreadable)?);
+    }
     Ok(match &folder.method {
         Ok(Method::Copy) => packed,
         Ok(Method::Lzma(props)) => {
@@ -58,30 +85,98 @@ fn open_folder(path: &Path, folder: &Folder) -> Result<Box<dyn Read>, Error> {
         Ok(Method::Lzma2(prop)) => {
             Box::new(lzma::Lzma2Reader::new(packed, *prop, size).map_err(unreadable)?)
         }
-        Err(Refusal::Encrypted) => return Err(Error::Encrypted("the archive".into())),
         Err(Refusal::Method(m)) => return Err(Error::Method(m.clone())),
     })
 }
 
-/// A whole folder's bytes, for a header packed into one; its checksum checked.
-fn unpack_whole(path: &Path, folder: &Folder) -> Result<Vec<u8>, Error> {
-    let mut out = Vec::new();
-    open_folder(path, folder)?
-        .take(folder.unpack_size)
-        .read_to_end(&mut out)
-        .map_err(|e| Error::Unreadable(e.to_string()))?;
-    if out.len() as u64 != folder.unpack_size {
-        return Err(header::damaged("its packed list of files ends early"));
+/// A whole folder's bytes, for a header packed into one; its checksum checked. An encrypted
+/// one that does not unpack or add up was opened with the wrong password; one that does
+/// proves its key.
+fn unpack_whole(path: &Path, folder: &Folder, keys: &Keys) -> Result<Vec<u8>, Error> {
+    const WHAT: &str = "the archive's list of files";
+    // Without a password, the words it always had.
+    usable(folder, keys, "its list of files")?;
+    let unpacked = || -> Result<Vec<u8>, Error> {
+        let mut out = Vec::new();
+        open_folder(path, folder, keys)?
+            .take(folder.unpack_size)
+            .read_to_end(&mut out)
+            .map_err(|e| Error::Unreadable(e.to_string()))?;
+        if out.len() as u64 != folder.unpack_size {
+            return Err(header::damaged("its packed list of files ends early"));
+        }
+        if folder.crc.is_some_and(|crc| crc32fast::hash(&out) != crc) {
+            return Err(header::damaged("its packed list of files does not add up"));
+        }
+        Ok(out)
+    };
+    match (unpacked(), aes_of(folder)?) {
+        (Err(Error::Unreadable(_)), Some(_)) => Err(Error::WrongPassword(WHAT.into())),
+        (Ok(out), Some(aes)) => {
+            if folder.crc.is_some() {
+                keys.prove(&aes);
+            }
+            Ok(out)
+        }
+        (got, _) => got,
     }
-    if folder.crc.is_some_and(|crc| crc32fast::hash(&out) != crc) {
-        return Err(header::damaged("its packed list of files does not add up"));
-    }
-    Ok(out)
 }
 
 /// Reads what the archive at `path` holds.
-fn read_archive(path: &Path, max_entries: usize) -> Result<Archive, Error> {
-    header::read(path, max_entries, &|f| unpack_whole(path, f))
+fn read_archive(path: &Path, max_entries: usize, keys: &Keys) -> Result<Archive, Error> {
+    // An encrypted list of files with no checksum of its own unpacks, under the wrong
+    // password, into bytes that are no list: that too is the wrong password.
+    let decrypted = std::cell::Cell::new(false);
+    let read = header::read(path, max_entries, &|f| {
+        decrypted.set(f.aes.is_some());
+        unpack_whole(path, f, keys)
+    });
+    match read {
+        Err(Error::Unreadable(_)) if decrypted.get() => {
+            Err(Error::WrongPassword("the archive's list of files".into()))
+        }
+        other => other,
+    }
+}
+
+/// Proves the password on each key the archive's files are encrypted with that its list of
+/// files has not already proved: the first file of the first folder of that key is unpacked
+/// and its checksum compared, nothing written. A 7z has no other check of a password.
+fn prove(path: &Path, archive: &Archive, keys: &Keys, job: &Job) -> Result<(), Error> {
+    const WHAT: &str = "the archive";
+    for folder in &archive.folders {
+        let Some(aes) = aes_of(folder)? else {
+            continue;
+        };
+        let Some(&(size, crc)) = folder.streams.first() else {
+            continue;
+        };
+        if keys.proved(&aes) {
+            continue;
+        }
+        let mut reader = open_folder(path, folder, keys)?;
+        let mut sum = crc32fast::Hasher::new();
+        let mut buf = vec![0u8; 64 * 1024];
+        let mut left = size;
+        while left > 0 {
+            if job.cancel.load(Ordering::Relaxed) {
+                return Err(Error::Cancelled);
+            }
+            let want = (buf.len() as u64).min(left) as usize;
+            let chunk = buf.get_mut(..want).unwrap_or_default();
+            let n = match reader.read(chunk) {
+                Ok(0) | Err(_) => return Err(Error::WrongPassword(WHAT.into())),
+                Ok(n) => n,
+            };
+            sum.update(chunk.get(..n).unwrap_or_default());
+            left -= n as u64;
+        }
+        if crc.is_some_and(|want| want != sum.finalize()) {
+            return Err(Error::WrongPassword(WHAT.into()));
+        }
+        keys.prove(&aes);
+    }
+    Ok(())
 }
 
 /// One entry as it will be written: where, whether a folder, and its stream if it has one.
@@ -93,15 +188,10 @@ struct Planned {
 
 /// Extracts the 7z at `archive` into `folder`, which must not exist yet, as
 /// `super::extract_into` does a ZIP.
-pub(super) fn extract_into(
-    archive: &Path,
-    folder: &Path,
-    limits: &Limits,
-    cancel: &AtomicBool,
-    origin: Option<&str>,
-    progress: &dyn Fn(u64, u64),
-) -> Result<Extracted, Error> {
-    let parsed = read_archive(archive, limits.max_entries)?;
+pub(super) fn extract_into(archive: &Path, folder: &Path, job: &Job) -> Result<Extracted, Error> {
+    let limits = job.limits;
+    let keys = Keys::new(job.password);
+    let parsed = read_archive(archive, limits.max_entries, &keys)?;
     if parsed.entries.len() > limits.max_entries {
         return Err(Error::TooBig("too many entries"));
     }
@@ -117,10 +207,8 @@ pub(super) fn extract_into(
         }
         if let Some(stream) = entry.stream {
             // A file in a folder dm cannot unpack fails the archive, named by that file.
-            match parsed.folders.get(stream.folder).map(|f| &f.method) {
-                Some(Ok(_)) => {}
-                Some(Err(Refusal::Encrypted)) => return Err(Error::Encrypted(shown)),
-                Some(Err(Refusal::Method(m))) => return Err(Error::Method(m.clone())),
+            match parsed.folders.get(stream.folder) {
+                Some(f) => usable(f, &keys, &shown)?,
                 None => return Err(header::damaged("a stream with no folder")),
             }
         }
@@ -152,10 +240,11 @@ pub(super) fn extract_into(
         return Err(Error::TooBig("it compresses far beyond anything real"));
     }
 
+    // The password proved before the folder is made.
+    prove(archive, &parsed, &keys, job)?;
+
     fs::create_dir(folder)?;
-    let made = write_all(
-        archive, &parsed, folder, &plan, total, limits, cancel, origin, progress,
-    );
+    let made = write_all(archive, &parsed, folder, &plan, total, &keys, job);
     match made {
         Ok(files) => Ok(Extracted {
             folder: folder.to_path_buf(),
@@ -190,18 +279,16 @@ fn finish(open: Open, archive: &Archive) -> Result<(), Error> {
 
 /// The second pass: the entries judged, written in their order, each folder unpacked once
 /// from start to end as its files come.
-#[allow(clippy::too_many_arguments)]
 fn write_all(
     path: &Path,
     archive: &Archive,
     folder: &Path,
     plan: &[Planned],
     expected: u64,
-    limits: &Limits,
-    cancel: &AtomicBool,
-    origin: Option<&str>,
-    progress: &dyn Fn(u64, u64),
+    keys: &Keys,
+    job: &Job,
 ) -> Result<usize, Error> {
+    let (limits, cancel, origin, progress) = (job.limits, job.cancel, job.origin, job.progress);
     let (mut done, mut files) = (0u64, 0usize);
     let mut buf = vec![0u8; 256 * 1024];
     let mut open: Option<Open> = None;
@@ -235,7 +322,7 @@ fn write_all(
                     .ok_or_else(|| header::damaged("a stream with no folder"))?;
                 open = Some(Open {
                     index: stream.folder,
-                    reader: open_folder(path, f)?,
+                    reader: open_folder(path, f, keys)?,
                     crc: crc32fast::Hasher::new(),
                 });
             }

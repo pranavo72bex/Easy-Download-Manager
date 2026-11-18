@@ -10,9 +10,13 @@
 //! entry is checked first, and nothing is written unless all of them pass.
 //! An entry that would land outside the folder (`..`, an absolute or drive
 //! path, a backslash trick), a symbolic link, a device file, a password-
-//! protected entry, two names that are one on a case-folding disk, or totals
-//! past the limits fail the whole archive. Nothing is repaired, nothing
-//! extracted is opened or run, and the archive is left where it was.
+//! protected entry when no password is given, two names that are one on a
+//! case-folding disk, or totals past the limits fail the whole archive. With a
+//! password (`extract_in_with`), a ZIP's AES or older PKWARE cipher and a 7z's
+//! AES are undone (`extract/crypt.rs`), and the password is proved on one entry
+//! before anything is written: a wrong one is said as such, never unpacked
+//! into nonsense. Nothing is repaired, nothing extracted is opened or run,
+//! and the archive is left where it was.
 //!
 //! The destination is always a new folder beside the archive (`name`, then
 //! `name (1)`…), so no file already on disk is ever replaced. Declared
@@ -61,6 +65,15 @@ pub struct Extracted {
     pub bytes: u64,
 }
 
+/// What one extraction is given beside its archive and folder.
+struct Job<'a> {
+    password: Option<&'a str>,
+    limits: &'a Limits,
+    cancel: &'a AtomicBool,
+    origin: Option<&'a str>,
+    progress: &'a dyn Fn(u64, u64),
+}
+
 /// Why an archive was not extracted.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -73,9 +86,14 @@ pub enum Error {
     /// An entry is a link or a special file.
     #[error("the archive holds a link or special file, which dm does not extract: {0}")]
     Special(String),
-    /// An entry is protected by a password.
+    /// An entry is protected by a password and none was given: the caller may ask for one
+    /// and call [`extract_in_with`]. Its words are those it had before dm could use one.
     #[error("the archive is password-protected, which dm does not extract: {0}")]
     Encrypted(String),
+    /// The password given is not the archive's (for a 7z or a ZIP's older cipher, whose
+    /// bytes carry no check of their own, also what damaged encrypted bytes look like).
+    #[error("wrong password for {0}")]
+    WrongPassword(String),
     /// The archive is packed with a method dm does not unpack; the text names it.
     #[error("the archive is packed with {0}, which dm does not unpack")]
     Method(String),
@@ -126,8 +144,10 @@ pub fn is_zip(name: &str) -> bool {
     name.to_ascii_lowercase().ends_with(".zip")
 }
 
+mod crypt;
 mod sevenz;
 mod tar;
+mod zipcrypt;
 pub use sevenz::is_7z;
 pub use tar::is_tar;
 
@@ -214,11 +234,28 @@ pub fn extract_in(
     origin: Option<&str>,
     progress: &dyn Fn(u64, u64),
 ) -> Result<Extracted, Error> {
+    extract_in_with(archive, parent, None, limits, cancel, origin, progress)
+}
+
+/// [`extract_in`] with the archive's `password`, for a ZIP (AES or the older PKWARE cipher)
+/// or a 7z (AES, its list of files too) that has one; a tar has none. With `None` an entry
+/// with a password is [`Error::Encrypted`], as [`extract_in`] says; a password that is not
+/// the archive's is [`Error::WrongPassword`], found before anything is written. The
+/// password is used for this call alone and kept nowhere.
+pub fn extract_in_with(
+    archive: &Path,
+    parent: Option<&Path>,
+    password: Option<&str>,
+    limits: &Limits,
+    cancel: &AtomicBool,
+    origin: Option<&str>,
+    progress: &dyn Fn(u64, u64),
+) -> Result<Extracted, Error> {
     let folder = match parent {
         Some(parent) => destination_in(archive, parent),
         None => destination_for(archive),
     };
-    extract_into(archive, &folder, limits, cancel, origin, progress)
+    extract_into_with(archive, &folder, password, limits, cancel, origin, progress)
 }
 
 /// [`extract`] into `folder`, which must not exist yet.
@@ -230,13 +267,33 @@ pub fn extract_into(
     origin: Option<&str>,
     progress: &dyn Fn(u64, u64),
 ) -> Result<Extracted, Error> {
+    extract_into_with(archive, folder, None, limits, cancel, origin, progress)
+}
+
+/// [`extract_into`] with the archive's `password`, as [`extract_in_with`] has it.
+pub fn extract_into_with(
+    archive: &Path,
+    folder: &Path,
+    password: Option<&str>,
+    limits: &Limits,
+    cancel: &AtomicBool,
+    origin: Option<&str>,
+    progress: &dyn Fn(u64, u64),
+) -> Result<Extracted, Error> {
     // A tar, plain or gzipped, by dm's own reader under the same rules (gaps row F10).
     if is_tar(&archive.to_string_lossy()) {
         return tar::extract_into(archive, folder, limits, cancel, origin, progress);
     }
     // A 7z, by dm's own reader and LZMA decoders under the same rules (gaps row F10).
     if is_7z(&archive.to_string_lossy()) {
-        return sevenz::extract_into(archive, folder, limits, cancel, origin, progress);
+        let job = Job {
+            password,
+            limits,
+            cancel,
+            origin,
+            progress,
+        };
+        return sevenz::extract_into(archive, folder, &job);
     }
     let file = File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::Unreadable(e.to_string()))?;
@@ -245,7 +302,7 @@ pub fn extract_into(
     }
 
     // First pass: every entry is judged before anything is written.
-    let mut plan: Vec<(usize, PathBuf, bool, u64)> = Vec::with_capacity(zip.len());
+    let mut plan: Vec<Planned> = Vec::with_capacity(zip.len());
     let (mut total, mut stored) = (0u64, 0u64);
     let mut seen: HashSet<String> = HashSet::new();
     for i in 0..zip.len() {
@@ -268,9 +325,12 @@ pub fn extract_into(
         if entry.enclosed_name().is_none() {
             return Err(Error::Escapes(shown));
         }
-        if entry.encrypted() {
+        // Without a password a locked entry fails the archive, as it always has; with one,
+        // its cipher is one dm undoes or the archive is refused here.
+        if entry.encrypted() && password.is_none() {
             return Err(Error::Encrypted(shown));
         }
+        let lock = zipcrypt::lock_of(&entry)?;
         if entry.is_symlink() || !plain_mode(entry.unix_mode()) {
             return Err(Error::Special(shown));
         }
@@ -284,7 +344,14 @@ pub fn extract_into(
         if total > limits.max_bytes {
             return Err(Error::TooBig("too many bytes"));
         }
-        plan.push((i, path, dir, entry.size()));
+        plan.push(Planned {
+            index: i,
+            path,
+            dir,
+            size: entry.size(),
+            stored: entry.compressed_size(),
+            lock,
+        });
     }
     if total > limits.ratio_floor && total / stored.max(1) > limits.max_ratio {
         return Err(Error::TooBig("it compresses far beyond anything real"));
@@ -293,19 +360,41 @@ pub fn extract_into(
     // A file may not also be the folder of another entry.
     let dirs: HashSet<&Path> = plan
         .iter()
-        .filter(|(_, _, dir, _)| *dir)
-        .map(|(_, p, _, _)| p.as_path())
+        .filter(|p| p.dir)
+        .map(|p| p.path.as_path())
         .collect();
-    for (_, path, dir, _) in &plan {
-        if !*dir && dirs.contains(path.as_path()) {
-            return Err(Error::Duplicate(path.display().to_string()));
+    for p in &plan {
+        if !p.dir && dirs.contains(p.path.as_path()) {
+            return Err(Error::Duplicate(p.path.display().to_string()));
         }
     }
 
+    // The password proved on one locked file before the folder is made.
+    let files = plan.iter().filter(|p| !p.dir);
+    zipcrypt::prove(
+        &mut zip,
+        files.map(|p| {
+            (
+                p.index,
+                p.lock,
+                p.stored,
+                p.size,
+                p.path.display().to_string(),
+            )
+        }),
+        password,
+        cancel,
+    )?;
+
     fs::create_dir(folder)?;
-    let made = write_all(
-        &mut zip, folder, &plan, total, limits, cancel, origin, progress,
-    );
+    let job = Job {
+        password,
+        limits,
+        cancel,
+        origin,
+        progress,
+    };
+    let made = write_all(&mut zip, folder, &plan, total, &job);
     match made {
         Ok(files) => Ok(Extracted {
             folder: folder.to_path_buf(),
@@ -320,35 +409,43 @@ pub fn extract_into(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// One ZIP entry as it will be written.
+struct Planned {
+    index: usize,
+    path: PathBuf,
+    dir: bool,
+    /// Bytes once unpacked, as the header says, and as stored.
+    size: u64,
+    stored: u64,
+    lock: zipcrypt::Lock,
+}
+
 fn write_all(
     zip: &mut zip::ZipArchive<File>,
     folder: &Path,
-    plan: &[(usize, PathBuf, bool, u64)],
+    plan: &[Planned],
     expected: u64,
-    limits: &Limits,
-    cancel: &AtomicBool,
-    origin: Option<&str>,
-    progress: &dyn Fn(u64, u64),
+    job: &Job,
 ) -> Result<usize, Error> {
+    let (limits, cancel, origin, progress) = (job.limits, job.cancel, job.origin, job.progress);
     let (mut done, mut files) = (0u64, 0usize);
     let mut buf = vec![0u8; 256 * 1024];
     progress(0, expected);
-    for (i, path, dir, declared) in plan {
+    for p in plan {
+        let declared = &p.size;
         if cancel.load(Ordering::Relaxed) {
             return Err(Error::Cancelled);
         }
-        let target = folder.join(path);
-        if *dir {
+        let target = folder.join(&p.path);
+        if p.dir {
             fs::create_dir_all(&target)?;
             continue;
         }
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent)?;
         }
-        let mut entry = zip
-            .by_index(*i)
-            .map_err(|e| Error::Unreadable(e.to_string()))?;
+        let shown = p.path.display().to_string();
+        let mut entry = zipcrypt::open(zip, p.index, p.lock, job.password, &shown)?;
         // `create_new`: never replaces, never follows a link that is there.
         let mut out = OpenOptions::new()
             .write(true)
@@ -383,6 +480,9 @@ fn write_all(
     }
     Ok(files)
 }
+
+#[cfg(test)]
+mod password_tests;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
