@@ -74,10 +74,16 @@ pub(super) enum Method {
 /// Why a folder cannot be unpacked by dm.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Refusal {
-    /// It is encrypted (AES): a password would be needed.
-    Encrypted,
     /// It uses a method dm does not read; the text names it.
     Method(String),
+}
+
+/// A folder's AES coder (gaps row F10): its properties, read once a password is given, and
+/// the bytes it decrypts to, the input of the coder after it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct AesCoder {
+    pub(super) props: Vec<u8>,
+    pub(super) size: u64,
 }
 
 /// A stream's size and, where the archive gives one, its checksum.
@@ -86,7 +92,13 @@ pub(super) type StreamSize = (u64, Option<u32>);
 /// One folder: a packed stream and how it unpacks, and the files' streams inside it.
 #[derive(Debug, Clone)]
 pub(super) struct Folder {
+    /// How its bytes unpack once any AES is undone.
     pub(super) method: Result<Method, Refusal>,
+    /// Whether any coder of it is AES: a password is needed, whatever else it holds.
+    pub(super) encrypted: bool,
+    /// The AES coder under `method`, where the folder is one dm decrypts: AES alone, or
+    /// AES read by one coder dm reads, as 7-Zip writes an archive with a password.
+    pub(super) aes: Option<AesCoder>,
     /// Where its packed bytes start in the file, and how many there are.
     pub(super) pack_offset: u64,
     pub(super) pack_size: u64,
@@ -226,6 +238,9 @@ impl<'a> Cursor<'a> {
 #[derive(Debug, Clone)]
 struct RawFolder {
     method: Result<Method, Refusal>,
+    encrypted: bool,
+    /// The AES coder's output and its properties.
+    aes: Option<(usize, Vec<u8>)>,
     /// The number of packed streams it reads.
     packed: usize,
     /// The number of coder outputs it has.
@@ -243,13 +258,33 @@ impl RawFolder {
     }
 }
 
+/// One coder: a method dm reads, AES with its properties, or a refusal.
+#[derive(Debug, Clone)]
+enum Coder {
+    Plain(Method),
+    Aes(Vec<u8>),
+    Refused(Refusal),
+}
+
+/// The 7zAES coder's id.
+const AES_ID: [u8; 4] = [0x06, 0xF1, 0x07, 0x01];
+
+fn coder_of(id: &[u8], props: &[u8]) -> Coder {
+    if id == AES_ID {
+        return Coder::Aes(props.to_vec());
+    }
+    match method_of(id, props) {
+        Ok(m) => Coder::Plain(m),
+        Err(r) => Coder::Refused(r),
+    }
+}
+
 /// A coder's method id, named as plainly as it can be for a refusal.
 fn method_of(id: &[u8], props: &[u8]) -> Result<Method, Refusal> {
     match id {
         [0x00] => Ok(Method::Copy),
         [0x03, 0x01, 0x01] if props.len() == 5 => Ok(Method::Lzma(props.to_vec())),
         [0x21] if props.len() == 1 => Ok(Method::Lzma2(props.first().copied().unwrap_or(0))),
-        [0x06, 0xF1, 0x07, 0x01] => Err(Refusal::Encrypted),
         [0x03, 0x03, ..] | [0x04..=0x0B] => Err(Refusal::Method("a BCJ filter".into())),
         [0x03] => Err(Refusal::Method("a Delta filter".into())),
         [0x03, 0x04, 0x01] => Err(Refusal::Method("PPMd".into())),
@@ -295,17 +330,18 @@ fn folder(c: &mut Cursor) -> Result<RawFolder, Error> {
         } else {
             &[]
         };
-        methods.push((method_of(id, props), i, o));
+        methods.push((coder_of(id, props), i, o));
     }
     if outs == 0 {
         return Err(damaged("a folder with no output"));
     }
     let binds = outs - 1;
-    let mut bound_outs = Vec::new();
+    let mut bound = Vec::new();
     for _ in 0..binds {
-        let _in_index = c.number()?;
-        bound_outs.push(c.number()?);
+        let in_index = c.number()?;
+        bound.push((in_index, c.number()?));
     }
+    let bound_outs: Vec<u64> = bound.iter().map(|&(_, o)| o).collect();
     let packed = ins
         .checked_sub(binds)
         .filter(|&p| p > 0)
@@ -318,23 +354,46 @@ fn folder(c: &mut Cursor) -> Result<RawFolder, Error> {
     let main_out = (0..outs)
         .find(|o| !bound_outs.contains(o))
         .ok_or_else(|| damaged("a folder with no output of its own"))? as usize;
-    // One plain coder dm reads, or the first thing in the chain it does not.
-    let method = match methods.as_slice() {
-        [(m, 1, 1)] => m.clone(),
-        _ => {
-            let refused = methods.iter().find_map(|(m, _, _)| m.clone().err());
-            if methods
-                .iter()
-                .any(|(m, _, _)| *m == Err(Refusal::Encrypted))
+    let encrypted = methods.iter().any(|(m, _, _)| matches!(m, Coder::Aes(_)));
+    // One plain coder dm reads; AES alone (over stored bytes); or one coder dm reads whose
+    // input is AES's output, as an archiver writes a password's archive: the bind pair names
+    // the reading coder's input and AES's output, in either order of the two (7-Zip lists
+    // the reading coder first, py7zr AES). Anything else is refused by the first thing dm
+    // does not read.
+    let pair = |reader: usize, aes: usize| -> Option<(Method, Vec<u8>)> {
+        match (methods.get(reader), methods.get(aes)) {
+            (Some((Coder::Plain(m), 1, 1)), Some((Coder::Aes(p), 1, 1)))
+                if bound == [(reader as u64, aes as u64)] =>
             {
-                Err(Refusal::Encrypted)
-            } else {
-                Err(refused.unwrap_or_else(|| Refusal::Method("a chain of several methods".into())))
+                Some((m.clone(), p.clone()))
             }
+            _ => None,
+        }
+    };
+    let chained = match methods.len() {
+        2 => pair(0, 1)
+            .map(|c| (c, 1))
+            .or_else(|| pair(1, 0).map(|c| (c, 0))),
+        _ => None,
+    };
+    let (method, aes) = match (methods.as_slice(), chained) {
+        (_, Some(((m, p), at))) => (Ok(m), Some((at, p))),
+        ([(Coder::Plain(m), 1, 1)], _) => (Ok(m.clone()), None),
+        ([(Coder::Refused(r), 1, 1)], _) => (Err(r.clone()), None),
+        ([(Coder::Aes(p), 1, 1)], _) => (Ok(Method::Copy), Some((0, p.clone()))),
+        _ => {
+            let refused = methods.iter().find_map(|(m, _, _)| match m {
+                Coder::Refused(r) => Some(r.clone()),
+                _ => None,
+            });
+            let chain = || Refusal::Method("a chain of several methods".into());
+            (Err(refused.unwrap_or_else(chain)), None)
         }
     };
     Ok(RawFolder {
         method,
+        encrypted,
+        aes,
         packed: packed as usize,
         outs: outs as usize,
         out_sizes: Vec::new(),
@@ -532,8 +591,14 @@ fn place(s: Streams, file_len: u64) -> Result<Vec<Folder>, Error> {
             Some(it) => it.next().unwrap_or_default(),
             None => vec![(unpack_size, f.crc)],
         };
+        let aes = f.aes.map(|(at, props)| AesCoder {
+            props,
+            size: f.out_sizes.get(at).copied().unwrap_or(0),
+        });
         out.push(Folder {
             method: f.method,
+            encrypted: f.encrypted,
+            aes,
             pack_offset: start,
             pack_size,
             unpack_size,
@@ -764,13 +829,7 @@ pub(super) fn read(
                 [f] => f,
                 _ => return Err(damaged("its packed list of files")),
             };
-            match &f.method {
-                Ok(_) => {}
-                Err(Refusal::Encrypted) => {
-                    return Err(Error::Encrypted("its list of files".into()))
-                }
-                Err(Refusal::Method(m)) => return Err(Error::Method(m.clone())),
-            }
+            // A method dm does not read, or a password not given, is `unpack`'s to say.
             if f.unpack_size > HEADER_MOST {
                 return Err(Error::TooBig("its list of files is too large"));
             }

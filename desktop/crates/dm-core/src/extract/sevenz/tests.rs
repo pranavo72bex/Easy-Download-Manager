@@ -9,8 +9,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use super::super::Limits;
 use super::*;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 
 /// The fixtures: `tests/fixtures/archives/7z`, made by its `make.py`.
 fn fixture(name: &str) -> Vec<u8> {
@@ -140,7 +142,7 @@ fn read_fixture(name: &str) -> Archive {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(name);
     std::fs::write(&path, fixture(name)).unwrap();
-    read_archive(&path, 1000).unwrap()
+    read_archive(&path, 1000, &Keys::new(None)).unwrap()
 }
 
 #[test]
@@ -200,6 +202,9 @@ struct TestFolder {
     coders: Vec<(Vec<u8>, Vec<u8>)>,
     unpacked: Vec<u8>,
     files: Vec<u64>,
+    /// Each coder's output size where they differ (AES's is its reader's input); empty, all
+    /// are `unpacked`'s.
+    sizes: Vec<u64>,
 }
 
 /// An entry to write: its name, and whether it has bytes (in folder order), is an empty
@@ -218,6 +223,7 @@ fn copy_folder(files: &[&[u8]]) -> TestFolder {
         coders: vec![(vec![0x00], vec![])],
         unpacked,
         files: files.iter().map(|f| f.len() as u64).collect(),
+        sizes: Vec::new(),
     }
 }
 
@@ -257,8 +263,9 @@ fn seven(folders: &[TestFolder], entries: &[(&str, Kind)], attributes: Option<&[
         }
         h.push(0x0C);
         for f in folders {
-            for _ in &f.coders {
-                number(&mut h, f.unpacked.len() as u64);
+            for k in 0..f.coders.len() {
+                let size = f.sizes.get(k).copied();
+                number(&mut h, size.unwrap_or(f.unpacked.len() as u64));
             }
         }
         h.push(0x00);
@@ -496,12 +503,15 @@ fn a_header_listing_more_folders_or_packed_streams_than_entries_allowed_is_refus
         let path = dir.path().join(format!("{name}.7z"));
         std::fs::write(&path, wrap(Vec::new(), &h)).unwrap();
         assert!(
-            matches!(read_archive(&path, limit), Err(Error::TooBig(_))),
+            matches!(
+                read_archive(&path, limit, &Keys::new(None)),
+                Err(Error::TooBig(_))
+            ),
             "{name}"
         );
         // Within the limit the same lists are only read as far as they go.
         assert!(!matches!(
-            read_archive(&path, limit * 4 + 1),
+            read_archive(&path, limit * 4 + 1, &Keys::new(None)),
             Err(Error::TooBig(_))
         ));
     }
@@ -691,6 +701,7 @@ fn lzma_folder(
         coders: vec![(vec![0x03, 0x01, 0x01], p)],
         unpacked,
         files,
+        sizes: Vec::new(),
     }
 }
 
@@ -755,6 +766,7 @@ fn a_raw_lzma2_stream_of_stored_and_compressed_chunks_unpacks_in_parts() {
         coders: vec![(vec![0x21], vec![8])],
         unpacked: want.clone(),
         files: sizes,
+        sizes: Vec::new(),
     };
     let entries = [
         ("1", Kind::Data),
@@ -965,7 +977,7 @@ fn damaged_headers_are_errors_never_a_panic() {
         fix_checksums(&mut bad);
         let path = dir.path().join("h.7z");
         std::fs::write(&path, &bad).unwrap();
-        let _ = read_archive(&path, 1000);
+        let _ = read_archive(&path, 1000, &Keys::new(None));
     }
 }
 
@@ -1032,4 +1044,139 @@ fn a_stream_that_ends_before_its_stated_size_is_an_error() {
     )
     .unwrap();
     assert!(r.read_to_end(&mut Vec::new()).is_err());
+}
+
+// ---- AES, written here (gaps row F10) ----
+
+fn run_pw(
+    dir: &Path,
+    name: &str,
+    bytes: &[u8],
+    password: Option<&str>,
+) -> Result<Extracted, Error> {
+    let archive = dir.join(name);
+    std::fs::write(&archive, bytes).unwrap();
+    super::super::extract_in_with(
+        &archive,
+        None,
+        password,
+        &Limits::default(),
+        &AtomicBool::new(false),
+        None,
+        &|_, _| {},
+    )
+}
+
+/// An AES coder's properties: 2^2 rounds (quick), the salt `[7, 7]`, the IV `[5; 16]`; and
+/// the key "pw" makes from them.
+fn aes_props() -> (Vec<u8>, [u8; 32]) {
+    // Salt: 1 + 1 bytes; IV: 1 + 15.
+    let mut props = vec![0xC0 | 2, (1 << 4) | 15, 7, 7];
+    props.extend([5u8; 16]);
+    let aes = crate::extract::crypt::SevenAes::parse(&props).unwrap();
+    (props, aes.key(&crate::extract::crypt::utf16le("pw")))
+}
+
+/// LZMA2 of stored chunks alone: each up to 64 KiB, the first resetting the dictionary.
+fn lzma2_stored(plain: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (i, chunk) in plain.chunks(1 << 16).enumerate() {
+        out.push(if i == 0 { 0x01 } else { 0x02 });
+        out.extend_from_slice(&((chunk.len() - 1) as u16).to_be_bytes());
+        out.extend_from_slice(chunk);
+    }
+    out.push(0x00);
+    out
+}
+
+#[test]
+fn aes_alone_and_under_lzma2_in_either_order_opens_with_its_password_only() {
+    use crate::extract::crypt::seven_seal;
+    let (props, key) = aes_props();
+    let one = text(5000, 3);
+    let two = noise(70_000, 4);
+    let unpacked = [one.clone(), two.clone()].concat();
+    let files = vec![one.len() as u64, two.len() as u64];
+    let entries = [("one.txt", Kind::Data), ("two.bin", Kind::Data)];
+    // AES alone, over the bytes as they are.
+    let alone = TestFolder {
+        packed: seven_seal(&key, [5; 16], &unpacked),
+        coders: vec![(vec![0x06, 0xF1, 0x07, 0x01], props.clone())],
+        unpacked: unpacked.clone(),
+        files: files.clone(),
+        sizes: Vec::new(),
+    };
+    // LZMA2 reading AES's output, 7-Zip's order (the test writer binds coder 0's input to
+    // coder 1's output).
+    let lzma2 = lzma2_stored(&unpacked);
+    let chained = TestFolder {
+        packed: seven_seal(&key, [5; 16], &lzma2),
+        coders: vec![
+            (vec![0x21], vec![0x10]),
+            (vec![0x06, 0xF1, 0x07, 0x01], props.clone()),
+        ],
+        unpacked: unpacked.clone(),
+        files: files.clone(),
+        sizes: vec![unpacked.len() as u64, lzma2.len() as u64],
+    };
+    for (what, folder) in [("alone", alone), ("chained", chained)] {
+        let bytes = seven(&[folder], &entries, None);
+        let dir = tempfile::tempdir().unwrap();
+        let got = run_pw(dir.path(), "a.7z", &bytes, Some("pw")).unwrap();
+        assert_eq!(
+            std::fs::read(got.folder.join("one.txt")).unwrap(),
+            one,
+            "{what}"
+        );
+        assert_eq!(
+            std::fs::read(got.folder.join("two.bin")).unwrap(),
+            two,
+            "{what}"
+        );
+        for password in [None, Some("pW"), Some("")] {
+            let dir = tempfile::tempdir().unwrap();
+            let e = run_pw(dir.path(), "a.7z", &bytes, password).unwrap_err();
+            match password {
+                None => assert!(matches!(e, Error::Encrypted(_)), "{what}: {e:?}"),
+                Some(_) => assert!(matches!(e, Error::WrongPassword(_)), "{what}: {e:?}"),
+            }
+            let made = std::fs::read_dir(dir.path()).unwrap().count();
+            assert_eq!(made, 1, "{what}: only the archive");
+        }
+    }
+}
+
+#[test]
+fn aes_with_a_filter_or_unknown_key_settings_is_refused_by_what_dm_does_not_read() {
+    let (props, _) = aes_props();
+    let dir = tempfile::tempdir().unwrap();
+    let mut f = copy_folder(&[b"payload"]);
+    // AES, then BCJ, then LZMA2: a chain dm does not read; without a password, a password.
+    f.coders = vec![
+        (vec![0x03, 0x03, 0x01, 0x03], vec![]),
+        (vec![0x21], vec![0x10]),
+        (vec![0x06, 0xF1, 0x07, 0x01], props),
+    ];
+    let bytes = seven(&[f], &[("p.exe", Kind::Data)], None);
+    assert!(matches!(
+        run_pw(dir.path(), "a.7z", &bytes, None),
+        Err(Error::Encrypted(_))
+    ));
+    match run_pw(dir.path(), "b.7z", &bytes, Some("pw")) {
+        Err(Error::Method(m)) => assert_eq!(m, "a BCJ filter"),
+        other => panic!("{other:?}"),
+    }
+    // A key of 2^40 rounds: more than dm makes.
+    let mut f = copy_folder(&[b"payload"]);
+    f.coders = vec![(vec![0x06, 0xF1, 0x07, 0x01], vec![40])];
+    let bytes = seven(&[f], &[("p.txt", Kind::Data)], None);
+    match run_pw(dir.path(), "c.7z", &bytes, Some("pw")) {
+        Err(Error::Method(m)) => assert!(m.contains("2^40"), "{m}"),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        3,
+        "only the archives"
+    );
 }
