@@ -207,10 +207,7 @@ impl Detector {
                 self.moved.insert(row.id, was);
                 self.tell(row, &mut detected);
             }
-            if self.ready
-                && (new || self.held.contains(&row.id))
-                && !self.own.contains(&row.id)
-            {
+            if self.ready && (new || self.held.contains(&row.id)) && !self.own.contains(&row.id) {
                 fresh.push(row);
             }
             next.insert(row.id, row.state.clone());

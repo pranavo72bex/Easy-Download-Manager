@@ -1313,13 +1313,20 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     let nowhere = world.dir.path().join("no such folder").join("list.dmlist");
     h.type_into("File's path", &nowhere.display().to_string());
     h.click("OK");
-    h.until("the write refused", |h| h.shows_part("could not be written"));
-    assert!(h.dialog_open("Export the list"), "closed with the path lost");
+    h.until("the write refused", |h| {
+        h.shows_part("could not be written")
+    });
+    assert!(
+        h.dialog_open("Export the list"),
+        "closed with the path lost"
+    );
     let file = world.dir.path().join("typed.dmlist");
     h.type_into("File's path", &file.display().to_string());
     h.click("OK");
     h.until("the list written", |_| file.is_file());
-    h.until("Export's dialog closed", |h| !h.dialog_open("Export the list"));
+    h.until("Export's dialog closed", |h| {
+        !h.dialog_open("Export the list")
+    });
 
     let other = crate::harness::world::world();
     let mut other_h = other.harness();
@@ -1333,11 +1340,16 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     other_h.type_into("File's path", &missing.display().to_string());
     other_h.click("OK");
     other_h.until("the read refused", |h| h.shows_part("could not be read"));
-    assert!(other_h.dialog_open("Import a list"), "closed with the path lost");
+    assert!(
+        other_h.dialog_open("Import a list"),
+        "closed with the path lost"
+    );
     other_h.type_into("File's path", &file.display().to_string());
     other_h.click("OK");
     other_h.until("the list imported", |h| h.rows().len() == 1);
-    other_h.until("Import's dialog closed", |h| !h.dialog_open("Import a list"));
+    other_h.until("Import's dialog closed", |h| {
+        !h.dialog_open("Import a list")
+    });
 }
 
 /// Several links copied at once are all offered, through the dialog that lists them; only the

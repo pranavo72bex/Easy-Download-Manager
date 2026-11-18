@@ -59,8 +59,12 @@ pub(crate) fn suggested(download_dir: &Path) -> PathBuf {
 /// The file a typed path names (`~` the home folder), or what to say: a
 /// full path is wanted, such as `example`.
 pub(crate) fn typed_path(typed: &str, example: &Path) -> Result<PathBuf, String> {
-    dm_shell::settings::full_path(typed)
-        .ok_or_else(|| tf("Type the file's full path, such as {}.", &[&example.display()]))
+    dm_shell::settings::full_path(typed).ok_or_else(|| {
+        tf(
+            "Type the file's full path, such as {}.",
+            &[&example.display()],
+        )
+    })
 }
 
 /// The dialog's view.
@@ -247,13 +251,15 @@ fn open_now(view: WeakEntity<Downloads>, save: bool, cx: &mut App) {
             let dialog = cx.new(|cx| {
                 // Return in the field is OK; what was said goes once the
                 // path is changed.
-                cx.subscribe_in(&path, window, |this: &mut ListFile, _, event, window, cx| {
-                    match event {
+                cx.subscribe_in(
+                    &path,
+                    window,
+                    |this: &mut ListFile, _, event, window, cx| match event {
                         InputEvent::PressEnter { .. } => this.ok(window, cx),
                         InputEvent::Change if this.says.take().is_some() => cx.notify(),
                         _ => {}
-                    }
-                })
+                    },
+                )
                 .detach();
                 ListFile {
                     view,
@@ -306,14 +312,20 @@ mod tests {
     fn only_a_full_path_is_taken() {
         let example = std::env::temp_dir().join("downloads.dmlist");
         let full = std::env::temp_dir().join("typed.dmlist");
-        assert_eq!(typed_path(&format!("  {}  ", full.display()), &example), Ok(full));
+        assert_eq!(
+            typed_path(&format!("  {}  ", full.display()), &example),
+            Ok(full)
+        );
         for typed in ["", "   ", "relative.dmlist", "lists/typed.dmlist"] {
             let why = typed_path(typed, &example).unwrap_err();
             assert!(why.contains("full path"), "{typed:?}: {why}");
             assert!(why.contains(&example.display().to_string()), "{why}");
         }
         if let Some(home) = dm_core::folders::home() {
-            assert_eq!(typed_path("~/typed.dmlist", &example), Ok(home.join("typed.dmlist")));
+            assert_eq!(
+                typed_path("~/typed.dmlist", &example),
+                Ok(home.join("typed.dmlist"))
+            );
         }
     }
 }

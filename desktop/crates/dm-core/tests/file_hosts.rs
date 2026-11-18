@@ -119,7 +119,11 @@ async fn dropbox(State(site): State<Site>, Query(q): Asked) -> Response {
 /// only to the form's answer.
 async fn drive(State(site): State<Site>, Query(q): Asked) -> Response {
     let said = |key: &str| q.get(key).map(String::as_str);
-    site.saw(format!("drive id={:?} confirm={:?}", said("id"), said("confirm")));
+    site.saw(format!(
+        "drive id={:?} confirm={:?}",
+        said("id"),
+        said("confirm")
+    ));
     match said("id") {
         Some("SmallFile_1") => file("small notes.txt", SMALL.to_vec()),
         Some("BigFile-2") => {
@@ -164,7 +168,10 @@ async fn lands(client: &dm_core::reqwest::Client, share: &str, name: &str, body:
     assert_eq!(probed.filename, name, "{share}");
     assert_eq!(probed.size, Some(body.len() as u64), "{share}");
     let kind = probed.content_type.as_deref();
-    assert!(!dm_core::videopage::is_page(kind), "{share}: probed as a page");
+    assert!(
+        !dm_core::videopage::is_page(kind),
+        "{share}: probed as a page"
+    );
 
     let dir = tempdir();
     let done = dm_core::download(client, share, &options(dir.path()))

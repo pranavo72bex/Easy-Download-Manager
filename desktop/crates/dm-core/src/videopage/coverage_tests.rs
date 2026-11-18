@@ -264,7 +264,10 @@ async fn a_staging_that_cannot_be_removed_is_given_up_on() {
     let at = std::time::Instant::now();
     remove_staging(&dir.path().join("parts")).await;
     let held = locked.join("a.part").exists();
-    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+    // Removed whole when run as root (a container's tests): nothing left to unlock.
+    if locked.exists() {
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
     if held {
         assert!(
             at.elapsed() >= std::time::Duration::from_secs(2),

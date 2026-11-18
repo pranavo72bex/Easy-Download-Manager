@@ -83,7 +83,10 @@ fn every_other_address_is_left_as_it_is() {
 
 #[test]
 fn a_dropbox_share_asks_for_its_file() {
-    assert_eq!(step_of(DROPBOX_SHARE), Some(Step::File(DROPBOX_FILE.into())));
+    assert_eq!(
+        step_of(DROPBOX_SHARE),
+        Some(Step::File(DROPBOX_FILE.into()))
+    );
     let file = |url: &str| Some(Step::File(url.into()));
     assert_eq!(
         step_of("https://www.dropbox.com/s/abc123/report.pdf"),
@@ -96,7 +99,10 @@ fn a_dropbox_share_asks_for_its_file() {
     );
     // Already the file.
     assert_eq!(step_of(DROPBOX_FILE), None);
-    assert_eq!(step_of("https://www.dropbox.com/s/abc123/report.pdf?raw=1"), None);
+    assert_eq!(
+        step_of("https://www.dropbox.com/s/abc123/report.pdf?raw=1"),
+        None
+    );
 }
 
 /// What a Drive share address of `id` asks for, `more` after its query.
@@ -162,7 +168,10 @@ fn drives_question_is_answered_by_its_form() {
 
 #[test]
 fn mediafires_button_names_the_file() {
-    assert_eq!(mediafire_button(MEDIAFIRE_PAGE).as_deref(), Some(MEDIAFIRE_FILE));
+    assert_eq!(
+        mediafire_button(MEDIAFIRE_PAGE).as_deref(),
+        Some(MEDIAFIRE_FILE)
+    );
     let elsewhere = MEDIAFIRE_PAGE.replace("download1507.mediafire.com", "mediafire.example.net");
     assert_eq!(mediafire_button(&elsewhere), None);
     let script = MEDIAFIRE_PAGE.replace(MEDIAFIRE_FILE, "javascript:void(0)");
@@ -178,7 +187,10 @@ fn attributes_are_read_whole_and_unescaped() {
     assert_eq!(attribute(tag, "id").as_deref(), Some("downloadButton"));
     let href = attribute(tag, "href");
     assert_eq!(href.as_deref(), Some("https://x.mf.com/a?b=1&c=2"));
-    assert_eq!(attribute("<input name=id value=7>", "value").as_deref(), Some("7"));
+    assert_eq!(
+        attribute("<input name=id value=7>", "value").as_deref(),
+        Some("7")
+    );
     assert_eq!(attribute("<input hidden>", "value"), None);
     // `<abbr>` is not an `<a>`.
     assert_eq!(tags(r#"<abbr id="x"><a id="y">"#, "a").count(), 1);

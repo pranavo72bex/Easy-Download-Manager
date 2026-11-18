@@ -165,7 +165,11 @@ fn a_wake_that_changed_nothing_draws_nothing_and_a_changed_row_draws_once() {
         }
     }
     assert!(drawn.ends_with(&[0, 0]), "wakes drew {drawn:?}");
-    assert_eq!(h.wake_counting_renders(), 0, "nothing changed, nothing drawn");
+    assert_eq!(
+        h.wake_counting_renders(),
+        0,
+        "nothing changed, nothing drawn"
+    );
     h.view(|view| view.backend.set_description(id, "changed"));
     assert_eq!(h.wake_counting_renders(), 1, "a row changed: drawn once");
     assert_eq!(h.wake_counting_renders(), 0, "and not again");

@@ -506,7 +506,10 @@ async fn a_range_whole_takes_its_next_work_without_waiting_for_its_checks() {
     // Every range is asked for as a closed range; what has no range at all looks for a checksum
     // file beside the download, once it is whole.
     let ranges = log.iter().filter(|a| !a.check && a.to.is_some()).count();
-    assert_eq!(checks, ranges, "{checks} checks for {ranges} ranges: {log:?}");
+    assert_eq!(
+        checks, ranges,
+        "{checks} checks for {ranges} ranges: {log:?}"
+    );
 }
 
 /// The most requests [`Paced`] served at once, each from `LET_GO` after it came until its answer
@@ -555,10 +558,16 @@ async fn checks_beside_the_ranges_never_ask_more_than_a_sites_limit_of_connectio
     assert_eq!(std::fs::read(&done.path).unwrap(), pattern(size));
     let log = served.log.lock().unwrap().clone();
     let most = most_at_once(&log);
-    assert!(most <= 3, "{most} requests at once to a site limited to 3: {log:?}");
+    assert!(
+        most <= 3,
+        "{most} requests at once to a site limited to 3: {log:?}"
+    );
     let checks = log.iter().filter(|a| a.check).count();
     // Every range is asked for as a closed range; what has no range at all looks for a checksum
     // file beside the download, once it is whole.
     let ranges = log.iter().filter(|a| !a.check && a.to.is_some()).count();
-    assert_eq!(checks, ranges, "{checks} checks for {ranges} ranges: {log:?}");
+    assert_eq!(
+        checks, ranges,
+        "{checks} checks for {ranges} ranges: {log:?}"
+    );
 }

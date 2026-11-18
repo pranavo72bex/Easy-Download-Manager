@@ -96,7 +96,7 @@ jobs:
             echo "the last numbers: run $id"
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "no last numbers on $BRANCH${id:+ (run $id's have expired)}"
+            echo "no last numbers on $BRANCH${id:+ (the numbers of run $id have expired)}"
           fi
 
       - name: dm against its last numbers

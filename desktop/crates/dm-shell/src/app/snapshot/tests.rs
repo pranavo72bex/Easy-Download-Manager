@@ -159,7 +159,11 @@ fn only_the_rows_that_changed_are_given_their_sizes_and_missing_files_are_looked
     again.state = dm_core::State::Running;
     shown[0] = Arc::new(again);
     sizes.apply_at(&mut shown, &[0]);
-    assert_eq!(shown[0].progress.total, Some(10), "as counted while it runs");
+    assert_eq!(
+        shown[0].progress.total,
+        Some(10),
+        "as counted while it runs"
+    );
     std::fs::write(&here, [0u8; 9]).unwrap();
     shown[0] = finished(1, &here);
     sizes.apply_at(&mut shown, &[0]);
