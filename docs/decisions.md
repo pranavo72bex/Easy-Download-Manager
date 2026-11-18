@@ -7312,3 +7312,21 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   translations, dm-gpui's program guard) know a test file by those two names.
 * **`ftp/target/`**: the repository's `.gitignore` drops every `target/`; dm-core's FTP `target`
   module's folder is excepted by name.
+
+## 2026-11-18: Where a person's files live, in one module (gaps row X1)
+
+* **Done**: `dm-core/src/folders.rs` answers every question of where a folder is: `home` and
+  `downloads` and `local_data` (the `dirs` crate's), `home_variable` (`$HOME` alone, what
+  macOS's launch agent and the login item's checks are written against), `home_or_profile`
+  (`$HOME`, else `%USERPROFILE%`: the browsers' folders), `xdg_config`, `xdg_data`,
+  `launch_agents`, `application_support` and `windows_programs`. The 15 places in
+  `dm-desktop-base`, `dm-gpui` and `dm-shell` that worked these out themselves call it, and
+  `dm-shell` no longer depends on `dirs`. Each answer is what it was: a pure move.
+* **Tests without touching the process**: each variable-reading function has an `_in` form
+  taking the environment's lookup, so `folders/tests.rs` gives Linux's, macOS's and Windows'
+  variables side by side without setting any (tests run in parallel threads).
+* **Kept so**: `cargo xtask layers` refuses `dirs::`, `"HOME"`, `"USERPROFILE"`, `"APPDATA"`,
+  `"LOCALAPPDATA"`, `"XDG_CONFIG_HOME"`, `"XDG_DATA_HOME"`, `"Library/Application Support"` and
+  `"Library/LaunchAgents"` in shipped code outside `folders.rs` (comments and test files are
+  passed over). `XDG_DATA_DIRS` in `processes.rs` names a variable an AppImage's child is given,
+  not a folder read, so it is not refused.

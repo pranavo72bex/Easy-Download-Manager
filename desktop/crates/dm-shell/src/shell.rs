@@ -76,7 +76,7 @@ pub fn browser_launch(args: &[String]) -> bool {
 /// some versions and nothing in others; a `moz-extension://` origin is a
 /// profile's own name for an extension, not its id, and is not checked.
 pub fn launcher_known(args: &[String]) -> bool {
-    launcher_known_in(args, &dirs::home_dir().unwrap_or_default())
+    launcher_known_in(args, &dm_core::folders::home().unwrap_or_default())
 }
 
 /// [`launcher_known`], with the manifests under `home`.

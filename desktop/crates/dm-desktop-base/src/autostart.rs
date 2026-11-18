@@ -19,10 +19,7 @@ use std::path::{Path, PathBuf};
 
 /// Where the entry goes: `$XDG_CONFIG_HOME/autostart`, or `~/.config/autostart`.
 pub fn entry_path() -> Option<PathBuf> {
-    let config = std::env::var_os("XDG_CONFIG_HOME")
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    let config = dm_core::folders::xdg_config()?;
     Some(config.join("autostart").join("dm.desktop"))
 }
 
@@ -84,17 +81,7 @@ pub fn icon_in(data_dirs: &[PathBuf]) -> &'static str {
 
 /// Where icons are looked for, as the XDG base-directory spec says.
 fn data_dirs() -> Vec<PathBuf> {
-    let mut dirs: Vec<PathBuf> = std::env::var_os("XDG_DATA_HOME")
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .into_iter()
-        .collect();
-    let system = std::env::var_os("XDG_DATA_DIRS")
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "/usr/local/share:/usr/share".into());
-    dirs.extend(std::env::split_paths(&system));
-    dirs
+    dm_core::folders::xdg_data()
 }
 
 /// One argument as the desktop-entry spec has an `Exec` line read it:

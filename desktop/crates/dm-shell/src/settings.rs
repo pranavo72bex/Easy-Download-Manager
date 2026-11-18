@@ -830,8 +830,8 @@ impl Default for Settings {
             // A `dm` folder inside the one the operating system already
             // nominates. A download manager that puts files anywhere else is
             // one people have to go looking in.
-            download_dir: dirs::download_dir()
-                .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
+            download_dir: dm_core::folders::downloads()
+                .unwrap_or_else(|| dm_core::folders::home().unwrap_or_default())
                 .join("dm"),
             speed_limit: 0,
             last_speed_limit: 0,
@@ -1567,7 +1567,7 @@ pub fn full_path(typed: &str) -> Option<PathBuf> {
     let typed = typed.trim();
     match typed.strip_prefix('~') {
         Some(rest) if rest.is_empty() || rest.starts_with('/') || rest.starts_with('\\') => {
-            dirs::home_dir().map(|home| home.join(rest.trim_start_matches(['/', '\\'])))
+            dm_core::folders::home().map(|home| home.join(rest.trim_start_matches(['/', '\\'])))
         }
         _ if !typed.is_empty() && std::path::Path::new(typed).is_absolute() => {
             Some(PathBuf::from(typed))
@@ -1583,7 +1583,7 @@ pub fn home_short(path: &str) -> String {
     if cfg!(windows) {
         return path.to_string();
     }
-    let Some(home) = dirs::home_dir() else {
+    let Some(home) = dm_core::folders::home() else {
         return path.to_string();
     };
     match std::path::Path::new(path).strip_prefix(&home) {
@@ -1800,7 +1800,7 @@ pub fn home() -> PathBuf {
     if cfg!(test) {
         return std::env::temp_dir().join(format!("dm-shell-tests-{}", std::process::id()));
     }
-    dirs::data_local_dir()
+    dm_core::folders::local_data()
         .unwrap_or_else(std::env::temp_dir)
         .join("dm-engine")
 }

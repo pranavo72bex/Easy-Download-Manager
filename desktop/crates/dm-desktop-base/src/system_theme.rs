@@ -99,12 +99,7 @@ fn ask() -> Option<bool> {
                 .and_then(|name| from_theme_name(&name))
         })
         .or_else(|| {
-            let config = std::env::var_os("XDG_CONFIG_HOME")
-                .filter(|v| !v.is_empty())
-                .map(std::path::PathBuf::from)
-                .or_else(|| {
-                    std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
-                })?;
+            let config = dm_core::folders::xdg_config()?;
             let kde = config.join("kdeglobals");
             from_kdeglobals(&std::fs::read_to_string(kde).ok()?)
         })

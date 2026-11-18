@@ -30,8 +30,7 @@ pub fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, 
 /// it.
 pub fn login_item_program() -> Option<std::path::PathBuf> {
     if cfg!(target_os = "macos") {
-        let plist = std::path::PathBuf::from(std::env::var_os("HOME")?)
-            .join("Library/LaunchAgents/dm.plist");
+        let plist = dm_core::folders::launch_agents()?.join("dm.plist");
         let text = std::fs::read_to_string(plist).ok()?;
         return crate::autostart::plist_program(&text);
     }

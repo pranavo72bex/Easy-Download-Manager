@@ -52,6 +52,8 @@ pub mod frames;
 
 mod dns;
 pub mod finish_trace;
+// Where a person's files and the system's folders are (gaps row X1).
+pub mod folders;
 pub mod ftp;
 
 pub mod gif;

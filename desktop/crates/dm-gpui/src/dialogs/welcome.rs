@@ -231,10 +231,7 @@ impl Downloads {
 
     /// Opens the welcome with the browsers found on this computer.
     pub(crate) fn welcome(&mut self, cx: &mut Context<Self>) {
-        let user = std::env::var_os("HOME")
-            .or_else(|| std::env::var_os("USERPROFILE"))
-            .map(std::path::PathBuf::from)
-            .unwrap_or_default();
+        let user = dm_core::folders::home_or_profile().unwrap_or_default();
         let found = dm_shell::register::installed_browsers(&user);
         let settings = self.backend.settings();
         let home = dm_shell::settings::home();

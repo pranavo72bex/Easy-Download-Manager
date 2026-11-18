@@ -232,11 +232,7 @@ const BROWSERS: [(&str, Store, &str, &[&str], &str); 8] = [
 /// The browsers installed on this computer, in the order they are offered.
 pub fn installed_browsers(home: &Path) -> Vec<Installed> {
     let programs = Programs::here(home);
-    let windows_bases: Vec<PathBuf> = ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"]
-        .iter()
-        .filter_map(std::env::var_os)
-        .map(PathBuf::from)
-        .collect();
+    let windows_bases = dm_core::folders::windows_programs();
     installed_where(|bundle, on_path, under| {
         if cfg!(target_os = "macos") {
             programs
@@ -273,7 +269,7 @@ pub fn installed_where(found: impl Fn(&str, &[&str], &str) -> bool) -> Vec<Insta
 pub fn places(home: &Path) -> Vec<Place> {
     type Found = Vec<(PathBuf, &'static [&'static str])>;
     let (chromium, firefox): (Found, Found) = if cfg!(target_os = "macos") {
-        let support = home.join("Library/Application Support");
+        let support = dm_core::folders::application_support(home);
         (
             [
                 ("Google/Chrome", &["Google Chrome.app"][..]),
@@ -902,7 +898,7 @@ pub fn run_reg(args: &[String]) -> Result<(), String> {
 
 /// dm's folder in `%LOCALAPPDATA%`, where its Windows manifests live.
 fn windows_data(home: &Path) -> PathBuf {
-    dirs::data_local_dir()
+    dm_core::folders::local_data()
         .unwrap_or_else(|| home.join("AppData").join("Local"))
         .join("dm")
 }
@@ -1224,7 +1220,7 @@ pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
                 .into(),
         );
     }
-    let home = dirs::home_dir().unwrap_or_default();
+    let home = dm_core::folders::home().unwrap_or_default();
     let browsers = ensure(&home, &exe, &Programs::here(&home));
     // Windows' magnet and .torrent handlers, whatever the browsers' manifests needed: `ensure`
     // registers only when a manifest is stale, and a dm installed over an older one at the
@@ -1375,7 +1371,7 @@ pub fn failed_words(why: &str) -> String {
 /// `--register [id…]` or `--unregister`, run and finished with an exit code;
 /// `None` when neither was asked for.
 pub fn from_args(args: &[String]) -> Option<i32> {
-    let home = dirs::home_dir().unwrap_or_default();
+    let home = dm_core::folders::home().unwrap_or_default();
     match args.first().map(String::as_str) {
         Some("--unregister") => {
             let removed = unregister(&home);

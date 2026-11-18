@@ -221,7 +221,12 @@ the frozen standard that reference A was measured against.
    `cargo xtask layers`. The privacy and translation scans skip those files
    by name, so a test's made-up address or string is not taken for shipped
    code.
-9. Update `docs/parity.md` and `docs/gaps.md` with the exact
+9. Where a person's files live (home, Downloads, `%LOCALAPPDATA%`, the XDG
+   folders, `~/Library/...`) is asked of `dm_core::folders` alone: `cargo
+   xtask layers` refuses the `dirs` crate, `"HOME"`, `"USERPROFILE"`,
+   `"APPDATA"`, `"LOCALAPPDATA"`, `"XDG_CONFIG_HOME"`, `"XDG_DATA_HOME"`
+   and the `Library` folders anywhere else in shipped code.
+10. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.
 
 ## Rules for performance and platform work

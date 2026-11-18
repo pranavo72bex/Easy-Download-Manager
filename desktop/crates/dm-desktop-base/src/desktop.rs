@@ -84,9 +84,7 @@ impl<W: WindowServices> Platform for Desktop<W> {
         }
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
         if wanted {
-            let home = std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_default();
+            let home = dm_core::folders::home_variable().unwrap_or_default();
             if let Some(why) = crate::autostart::refused_at_login(
                 &exe,
                 &home,

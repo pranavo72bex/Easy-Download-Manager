@@ -22,7 +22,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha2.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "time", "sync", "net"] }
-dirs.workspace = true
 url.workspace = true
 # Reading a crawled page no further than its cap.
 futures-util.workspace = true

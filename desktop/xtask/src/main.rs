@@ -470,6 +470,15 @@ fn layers() -> Result<(), String> {
             if is_test_file(&file) {
                 continue;
             }
+            // Where a person's files live is worked out in one place (gaps row X1).
+            if !is_folders_module(&file) {
+                for (line, what) in folder_reads(&text) {
+                    wrong.push(format!(
+                        "{shown}:{line} reads {what}: where a person's files live is \
+                         `dm_core::folders`'s to say (gaps row X1)"
+                    ));
+                }
+            }
             let lines = text.lines().count();
             if lines > MAX_SOURCE_LINES {
                 wrong.push(format!(
@@ -491,6 +500,43 @@ fn is_test_file(file: &Path) -> bool {
     file.file_name()
         .and_then(|n| n.to_str())
         .is_some_and(|n| n == "tests.rs" || n.ends_with("_tests.rs"))
+}
+
+/// What only `dm-core/src/folders.rs` may read (gaps row X1): the `dirs` crate, and the
+/// variables and paths that say where a person's folders are. AppRun's `XDG_DATA_DIRS`
+/// (`processes.rs`) names a variable a child is given, not a folder read, and is not here.
+const FOLDER_READS: &[&str] = &[
+    "dirs::",
+    "\"HOME\"",
+    "\"USERPROFILE\"",
+    "\"APPDATA\"",
+    "\"LOCALAPPDATA\"",
+    "\"XDG_CONFIG_HOME\"",
+    "\"XDG_DATA_HOME\"",
+    "\"Library/Application Support\"",
+    "\"Library/LaunchAgents\"",
+];
+
+/// Whether `file` is `dm_core::folders` itself, or its tests.
+fn is_folders_module(file: &Path) -> bool {
+    let shown = file.to_string_lossy().replace('\\', "/");
+    shown.ends_with("dm-core/src/folders.rs") || shown.contains("dm-core/src/folders/")
+}
+
+/// The lines of `text` (numbered from 1) that read one of [`FOLDER_READS`], with what each
+/// reads. Comments are passed over: they may name a folder.
+fn folder_reads(text: &str) -> Vec<(usize, &'static str)> {
+    let mut found = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        let code = line.trim_start();
+        if code.starts_with("//") {
+            continue;
+        }
+        if let Some(what) = FOLDER_READS.iter().find(|w| code.contains(**w)) {
+            found.push((i + 1, *what));
+        }
+    }
+    found
 }
 
 /// The most lines a test module may have written inside a product file (gaps row A13).
@@ -911,6 +957,22 @@ mod tests {
         if let Err(why) = layers() {
             panic!("{why}");
         }
+    }
+
+    #[test]
+    fn a_folder_is_read_in_dm_core_folders_alone() {
+        let text = "// dirs::home_dir() in a comment is passed over\n\
+                    let a = 1;\n\
+                    let h = std::env::var_os(\"HOME\");\n\
+                    let d = dirs::download_dir();\n\
+                    let x = std::env::var_os(\"XDG_DATA_DIRS\");\n";
+        assert_eq!(folder_reads(text), [(3, "\"HOME\""), (4, "dirs::")]);
+        assert!(is_folders_module(Path::new(
+            r"C:\dm\desktop/crates/dm-core/src\folders.rs"
+        )));
+        assert!(!is_folders_module(Path::new(
+            "desktop/crates/dm-shell/src/settings.rs"
+        )));
     }
 
     #[test]
