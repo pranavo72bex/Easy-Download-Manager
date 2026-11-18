@@ -1426,13 +1426,20 @@ async fn fetch_reporting(
         && !is_stream()
         && !options.media
         && !options.accept_page;
-    // A pause or a cancel meanwhile ends the look with nothing found; the assembly below
-    // honours it as it does any other.
-    if beside {
+    /* The server's own word for the file's digest, where its answer gave one (`Repr-Digest`,
+     * `Digest`, `Content-MD5`), is taken first under the same rules: it costs no request, and no
+     * checksum file is then asked for (gaps row W19). A mismatch fails the file as a checksum
+     * file's does; the row says nothing more of a match than a typed digest's. */
+    let from_header = beside && info.digest.is_some();
+    if from_header {
+        checksum = info.digest.clone();
+    } else if beside {
+        // A pause or a cancel meanwhile ends the look with nothing found; the assembly below
+        // honours it as it does any other.
         checksum =
             sidecar::published_beside(client, url, &info.final_url, &info.filename, options).await;
     }
-    let from_beside = beside && checksum.is_some();
+    let from_beside = beside && !from_header && checksum.is_some();
     /* A Metalink supplies its own digest where the caller gave none, so the
      * options handed to assembly carry whichever applies — one place decides
      * whether a file is the file. */

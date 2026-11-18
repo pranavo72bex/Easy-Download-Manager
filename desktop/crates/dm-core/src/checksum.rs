@@ -210,6 +210,91 @@ pub(crate) const LISTS: [(&str, Algorithm); 2] = [
     ("SHA512SUMS", Algorithm::Sha512),
 ];
 
+/// The digest a server's answer gives for the whole file it sends, where it gives one (gaps row
+/// W19): `Repr-Digest` (`sha-256=:…:`), the older `Digest` (`SHA-256=…`) and `Content-MD5`, each
+/// in base64. The strongest hash offered is taken, a `Repr-Digest` before the others at the same
+/// strength; a hash dm does not know, or a value of the wrong length for its hash, is passed over.
+///
+/// `whole` says the answer's body is the whole file (a 200, or a 206 from its first byte to its
+/// last): `Digest` and `Content-MD5` describe the body sent, so on a part of the file they are
+/// not the file's, where `Repr-Digest` names the whole file however much of it was sent. None is
+/// taken from an answer sent compressed: each names the compressed bytes, not the file dm saves.
+pub(crate) fn from_headers(headers: &reqwest::header::HeaderMap, whole: bool) -> Option<Checksum> {
+    let coded = headers
+        .get_all(reqwest::header::CONTENT_ENCODING)
+        .iter()
+        .any(|v| {
+            v.to_str()
+                .map_or(true, |v| !v.trim().eq_ignore_ascii_case("identity"))
+        });
+    if coded {
+        return None;
+    }
+    let all = |name: &str| -> String {
+        headers
+            .get_all(name)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    let mut offered: Vec<Checksum> = Vec::new();
+    // RFC 9530: a dictionary of `name=:base64:`, any parameters after a `;`.
+    for member in all("repr-digest").split(',') {
+        let Some((name, value)) = member.split_once('=') else {
+            continue;
+        };
+        let value = value.split(';').next().unwrap_or("").trim();
+        if let Some(bytes) = value.strip_prefix(':').and_then(|v| v.strip_suffix(':')) {
+            offered.extend(header_digest(name, bytes));
+        }
+    }
+    if whole {
+        // RFC 3230: `name=base64`, the name in any case; the base64 may end in `=`.
+        for member in all("digest").split(',') {
+            if let Some((name, value)) = member.split_once('=') {
+                offered.extend(header_digest(name, value));
+            }
+        }
+        offered.extend(header_digest("md5", &all("content-md5")));
+    }
+    let strength = |algorithm: Algorithm| match algorithm {
+        Algorithm::Sha512 => 4,
+        Algorithm::Sha256 => 3,
+        Algorithm::Sha1 => 2,
+        Algorithm::Md5 => 1,
+        Algorithm::Crc32 => 0,
+    };
+    // The first of the strongest: `max_by_key` keeps the last of equals, so the list is turned.
+    offered
+        .into_iter()
+        .rev()
+        .max_by_key(|found| strength(found.algorithm))
+}
+
+/// One digest a header names, by the hash's registered name (`sha-256`, `sha-512`, `sha` for
+/// SHA-1, `md5`) and its value in base64; `None` for a hash dm does not know or a value that is
+/// not that hash's length.
+fn header_digest(name: &str, value: &str) -> Option<Checksum> {
+    use base64::Engine as _;
+    let algorithm = match name.trim().to_ascii_lowercase().as_str() {
+        "sha-512" => Algorithm::Sha512,
+        "sha-256" => Algorithm::Sha256,
+        "sha" => Algorithm::Sha1,
+        "md5" => Algorithm::Md5,
+        _ => return None,
+    };
+    let value = value.trim().trim_end_matches('=');
+    let bytes = base64::engine::general_purpose::STANDARD_NO_PAD
+        .decode(value)
+        .ok()?;
+    let expected = crate::hex::encode(bytes);
+    (Algorithm::from_digest_length(&expected) == Some(algorithm)).then_some(Checksum {
+        algorithm,
+        expected,
+    })
+}
+
 /// The digest a checksum file of `algorithm` publishes for a file called one of `names`.
 ///
 /// Reads the forms the common tools write: `<digest>  name` and `<digest> *name` (the GNU

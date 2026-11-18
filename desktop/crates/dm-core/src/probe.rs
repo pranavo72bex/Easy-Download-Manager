@@ -34,6 +34,10 @@ pub struct Probe {
     /// When the server says the file last changed (`Last-Modified`), for a
     /// finished file to carry that date where asked.
     pub modified: Option<String>,
+    /// The digest the answer's headers give for the whole file (`Repr-Digest`, `Digest`,
+    /// `Content-MD5`), which a finished file is checked against as a checksum file's is (gaps
+    /// row W19).
+    pub digest: Option<crate::Checksum>,
 }
 
 /// Learns a URL's length, name and whether it can be resumed, draining the
@@ -291,6 +295,15 @@ pub async fn probe_get(
 
     let content_type = header(reqwest::header::CONTENT_TYPE);
     let modified = header(reqwest::header::LAST_MODIFIED);
+    // A 206 from the file's first byte to its last is the whole file, as a 200 is.
+    let whole = status == reqwest::StatusCode::OK
+        || (status == reqwest::StatusCode::PARTIAL_CONTENT
+            && first_part(&headers).is_some_and(|(last, total)| last.saturating_add(1) == total));
+    let digest = if empty {
+        None
+    } else {
+        crate::checksum::from_headers(&headers, whole)
+    };
     let filename = filename_for(
         headers
             .get(reqwest::header::CONTENT_DISPOSITION)
@@ -303,6 +316,7 @@ pub async fn probe_get(
     Ok(ProbeWithBody {
         probe: Probe {
             modified,
+            digest,
             size,
             resumable,
             filename,
