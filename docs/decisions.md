@@ -7444,3 +7444,69 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 * **Kept so**: `cargo xtask layers` lets dm-net use dm-js alone and dm-core use dm-net; `cargo
   xtask privacy` now reads dm-media, dm-net and dm-torrent's shipped code for addresses too (it
   read dm-core's alone, and these were dm-core's).
+
+## 2026-11-18: The read of 10,000 rows: one walk, one lookup a row (gaps row 210)
+
+The 40 ms at 10,000 rows (debug) was the whole `session.read`, not the snapshot alone: the
+snapshot was 7 to 12 ms (three walks of the queue, rows, retries and swarms, each looking every
+row up by id) and the detector's `read_holding` 33 ms (several lookups a row, two maps of 10,000
+rebuilt each read). `Queue::read_shared` now takes the three in one walk under one lock, and the
+detector looks each row up once and skips a row whose state has not changed. A fast multiply
+hasher for the id-keyed maps was tried and measured no different in debug (the map's unoptimised
+probing is the cost), so it was dropped. A snapshot that updates only changed rows was not built:
+it needs a log of changed rows fed from about 90 `entry_mut` call sites and a counter on every
+change to the order, for at most about 3 ms in debug and almost nothing in release, against the
+risk of the window showing a stale row.
+
+## 2026-11-18: Each system's traps, set or said (gaps row X4)
+
+Python scripts set UTF-8 themselves (`reconfigure` after the imports and an explicit `encoding=`
+on every text read, write and subprocess call) rather than relying on `python -X utf8` or
+`PYTHONUTF8`, so how a script is started cannot change what it reads. `human-qa.py` stops at a
+missing or one-colour first window picture rather than reporting rows it could not see.
+Packaging goes through `cargo xtask package`, which runs cargo-packager in `crates/dm-gpui`,
+rather than a second packager configuration at the root, which would duplicate the settings and
+break `beforePackagingCommand` and the relative paths; a root `.cargo/config.toml` gives
+`cargo xtask` from the root. Not taken: `incremental = false` in the cargo configuration, which
+would change every system's builds; it is documented as `CARGO_INCREMENTAL=0` for Windows.
+
+## 2026-11-18: A server's own digest header checks the file (gaps row W19)
+
+The first answer's `Repr-Digest`, `Digest` or `Content-MD5` (`checksum::from_headers`, kept as
+`Probe::digest`) checks a finished file under the checksum file's rules (nothing typed, no
+Metalink, not a stream, a media catch or a page). It is taken before a checksum file is looked
+for, because it costs no request. The strongest hash wins, with `Repr-Digest` first at equal
+strength; unknown hashes and values of the wrong length are ignored. `Digest` and `Content-MD5`
+describe the body sent, so they count only on a 200 or on a 206 from byte 0 to the last;
+`Repr-Digest` names the whole file on any 206. None is taken from an answer with a
+`Content-Encoding`: each describes the compressed bytes, and a false mismatch would delete a good
+file. A match is not mentioned on the row (as with a typed digest), so no new text needs
+translating. Not done: sending `Want-Repr-Digest`, which would add a request header to every
+download.
+
+## 2026-11-18: The site watch, daily on Linux (gaps row W6)
+
+`.github/workflows/sites.yml` runs daily on Linux, not Windows: dm reads YouTube with its own
+interpreter (dm-js) on every system, and `chrome-check.py`'s setup already runs under Xvfb in
+`ci.yml`. Both checks run with `DM_SKIP_LOCAL=1`, because the loopback checks are `ci.yml`'s. A
+site is judged as `video-sites-check.py` judges it: "no public video post found", "no video
+player appeared", a bot-check phrase or a failed watch-page load, and a file still arriving when
+the wait ends are not judged and open no issue (a page change that hides the player therefore
+reads as not judged, visible in the table). A day with nothing judged is a red run without an
+issue, as in `youtube-check.yml`. One issue is found by its label (`site-watch`), not its title,
+and is closed by the first run in which nothing failed and something passed. CI commits
+nothing, as no workflow here does: the README's table is the run's artifact, put in by hand with
+`site-table.py --readme`.
+
+## 2026-11-18: Windows on Arm, built on an Arm machine (gaps row R3)
+
+Built natively on GitHub's `windows-11-arm` runner, as Linux arm64 is on `ubuntu-22.04-arm`, not
+cross-built on windows-latest, so `smoke.py` runs on the machine the build is for. The target is
+named (`aarch64-pc-windows-msvc`), so the build is Arm's whatever Rust the image has. `ring` 0.17
+builds its C for that target with clang only (MSVC's cl is refused), so the job uses the
+runner's clang, or installs LLVM 20.1.8's woa64 build. The Arm runner also runs x64 programs
+under emulation, so the installed `dm-gpui.exe`'s PE machine field is checked (0xAA64; the x64
+build is held to 0x8664). `+crt-static` for the target, as for x64, since the installer brings
+no C runtime. The update check needed no change: `installer_in` already took `arm64` for
+`aarch64`, and an arm64 Windows is offered nothing rather than the x64 installer when a release
+has no Arm one.

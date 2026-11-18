@@ -5,6 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Windows on Arm: each release builds `dm_<version>_arm64-setup.exe` and `dm_<version>_arm64-portable.zip` on an Arm Windows machine, installs and runs them there, and dm's update check offers the Arm installer to an Arm Windows.
+- A daily check of the real video sites, signed out (`.github/workflows/sites.yml`): a broken site opens one issue with the check's log, closed when the sites work again; `scripts/site-table.py` makes the README's site table from the last run.
+- A server's `Repr-Digest`, `Digest` or `Content-MD5` header now checks the finished file as a checksum file beside it does; a mismatch fails the download and says so.
+- A list of 10,000 downloads is read about twice as fast: the queue is walked once a read and each row looked up once.
+- Tools: every Python script sets UTF-8 for itself (no more `python -X utf8` on Windows); `human-qa.py` stops and says why when dm's window cannot be pictured (Git Bash on Windows); `cargo xtask package`, from the root or `desktop/`, makes this system's installers.
 - The browser's toolbar popup lists what dm is fetching (name, how far, speed), how many more run, and the last download that failed. With no dm to talk to it says so in one line and two steps, keeps the command under them, connects by itself once dm is opened, and the toolbar icon shows "!" meanwhile.
 - Extension 3.5.0 does the bare minimum and the dm app decides: the app serves the right-click menu, judges each download the browser starts by its catch rules as saved now, can send the words the browser shows, and makes the "Download video" panel's list of what a player loaded. A rule or a menu item added to a later app then works with the extension as the store has it. Nothing a person sees changes, and an older app or extension goes on as before.
 - The browser extension keeps working with a newer dm app: it no longer asks to be updated when the app is ahead of it, it tells the app its version and what it can do, and the frames each released extension sends are kept in the tests so every later app must keep answering them.
