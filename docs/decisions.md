@@ -7674,3 +7674,20 @@ both ways, unlike the frozen floor's min(1, …): the previous run is a measurem
 shared runner, not a bar that may only tighten. Only passing runs become the previous numbers, so
 a regression keeps failing until it is fixed or a hand run with `accept` takes it. Reference A's
 frozen baseline is read for the parameters' names and directions only, and never edited.
+
+## 2026-11-18: HLS advert breaks and SAMPLE-AES (gaps row Y16)
+
+A playlist whose `EXT-X-MAP` changes part-way is fetched as runs: each initialisation segment
+goes in front of its segments, and the joined file (several `moov`s) is read by `mp4mux` run by
+run and written as one plain MP4. Each run's sample description becomes one more `stsd` entry,
+named a chunk at a time by `stsc`, rather than one file a run or a re-encode. A run is placed
+only by its own clock within itself, as an advert's clock starts at nought; it starts where the
+previous run ended on its longest track, and the shorter track's last sample holds the gap, so
+picture and sound never drift over many breaks; real gaps between runs are dropped. SAMPLE-AES
+with a clear key is cleared after the join, not a segment at a time as AES-128 is: a transport
+stream's samples change length when emulation prevention comes off, so they are cleared as
+`tsmux` makes the MP4, each segment's key and vector looked up by the file offset where its PES
+starts. `cbcs` keeps lengths, so a fragmented MP4 is cleared in place, its entry renamed to the
+`frma` format and `sinf` made `free`, instead of rebuilding the index. Decryption is in dm-media
+(`aes` and `cbc`, already in the build). Refused rather than guessed: SAMPLE-AES AC-3 and E-AC-3,
+packed audio, live recordings and pairs of playlists, and `cbcs` with `seig` sample groups.

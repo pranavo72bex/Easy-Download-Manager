@@ -13,9 +13,27 @@ and how it closes; when it closes, its row is deleted (what was done is in
 
 ## Resume here (2026-11-18)
 
-Committed on `main` on this laptop and **not pushed** (the maintainer, 2026-11-18: "make sure
-to not push the code"); push only when the maintainer says so. Done today, in the order of
-"Work order" below:
+**Pushed to `origin/main` on 2026-11-18, evening** at the maintainer's word ("testing work will
+be done in mac so push it anyway"). Coded the same day with agents working in parallel, each
+checked only by its own crates' clippy and tests (the work order's "while coding" rule), then
+merged: rows 210, X4, W19, W6, R3, X2, Y6, W23, F6, W21, W9, F2, Y25, Y14, Y4, R5, F10 and Y16
+(each row's Status says what is owed). On the merged tree on Windows: `cargo fmt --check`,
+clippy `-D warnings` on the workspace (all targets, before the last merges), xtask's 63 tests;
+dm-shell's lib 372 of 373 (`instance::tests::a_dm_starting_while_the_host_probes_waits_the_probe_out`
+failed once under nine agents' builds: run it again quiet); dm-core's whole suite was not
+finished on this tree. **Next, on the Mac: step 8 on this tree** (`cargo test --workspace`, the
+`youtube_cover.rs` Unix tests of Y6 and Y14, A10, and the window checks of X2).
+
+Still being coded when this was pushed (each on a branch of its own in `D:\dm-wt\<branch>`,
+merged when it reports): S4 (`s4-seams`), Y9, 181, P3, 190, U41, 186, W7, 200. Waiting for the
+maintainer's word (asked in each row): F2's Grabber box (B60, B61), F10's password dialog, W9's
+search in Help, Y25's bit-rate choice (B43), Y6's subtitle files beside a video, W23's 416 strings
+changed since 2026-10-24, F6's real update key and `DM_UPDATE_SIGNING_KEY` secret (the next
+`desktop-v` tag stops at signing until then). Found by reading, not run: `dash_live.rs:325`
+sends `NOTES[2]` where `NOTES[3]` looks meant; Move/Rename on a failed download may do nothing
+(`commands::applies`).
+
+Earlier the same day, in the order of "Work order" below:
 - A13's whole `cargo test --workspace --no-fail-fast` on Windows: 103 of 104 test binaries
   passed; xtask's layers test found `window/list.rs` at 2525 lines, now split (2448).
 - X1 (`dm_core::folders`), X10 (`desktop/crates/dm-test-support`) and A19's widgets part

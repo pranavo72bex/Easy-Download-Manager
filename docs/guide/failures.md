@@ -440,6 +440,15 @@ the address came from your browser, play the video again and click
   The stream is encrypted, and its key is missing or wrong. The key's
   address may have expired: play the video again in your browser and click
   **Download video**.
+- `a scrambled stream's segments went missing before they were joined`
+- `clearing stopped: …`
+- `this stream's samples are scrambled (SAMPLE-AES) and could not be put in the clear: …`
+  The stream's samples are scrambled with a key the site hands out, and dm
+  could not unscramble what it fetched. Download it again; if it fails the
+  same way, the stream is in a shape dm does not handle yet.
+- `this stream's sound is scrambled (SAMPLE-AES) in packed audio, which dm does not put in the clear yet`
+  dm cannot unscramble this kind of stream's sound yet. Choose another
+  quality or format if the page offers one.
 - `that is not a DASH manifest dm can read: …`
 - `a manifest listed an address dm cannot read: …`
 - `a manifest's … is not one dm can read`
@@ -590,6 +599,12 @@ removed, and the archive stays where it was.
   archive; it may be made to do harm.
 - `the archive holds a link or special file, which dm does not extract: …`
 - `the archive is password-protected, which dm does not extract: …`
+  The archive is locked with a password. The window does not ask for one
+  yet; unpack it with another program that asks.
+- `wrong password for …`
+  The password given does not open the archive (or the locked part of it is
+  damaged, which looks the same). Nothing was written. Check the password,
+  including its capital letters.
 - `the archive is packed with …, which dm does not unpack`
   The archive needs a program that handles these; dm does not.
 - `the archive lists the same name twice: …`
