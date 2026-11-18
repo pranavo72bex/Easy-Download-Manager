@@ -30,6 +30,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// Whether the top bar is the window's title bar (macOS, Windows), or a
 /// row under the desktop's own (Linux, where a program drawing its title
@@ -124,7 +125,7 @@ pub fn titlebar(
                 .flex()
                 .flex_none()
                 .items_center()
-                .ml(px(4.0))
+                .ml(px(space::XS))
                 .children(
                     crate::window::menus::WINDOW_MENUS
                         .iter()
@@ -198,8 +199,8 @@ fn search_box(
         .h(px(BOX_HEIGHT))
         .flex()
         .items_center()
-        .gap(px(6.0))
-        .px(px(8.0))
+        .gap(px(space::S))
+        .px(px(space::M))
         .rounded(px(native::RADIUS + 1.0))
         .border_1()
         .border_color(theme.separator)
@@ -405,7 +406,7 @@ fn window_buttons(theme: Theme, maximized: bool) -> Vec<gpui::AnyElement> {
             // Close turns Windows' red under the pointer, the others grey.
             .hover(move |b| {
                 if close {
-                    b.bg(gpui::rgb(0xc42b1c)).text_color(gpui::white())
+                    b.bg(gpui::rgb(crate::window::theme::CLOSE_HOVERED)).text_color(gpui::white())
                 } else {
                     b.bg(theme.control)
                 }

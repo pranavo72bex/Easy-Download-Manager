@@ -31,6 +31,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// How often a digest or a ZIP's reading still under way is looked at.
 const POLL: Duration = Duration::from_millis(200);
@@ -434,7 +435,7 @@ impl Render for Properties {
                 div()
                     .flex()
                     .flex_col()
-                    .gap(px(4.0))
+                    .gap(px(space::XS))
                     .child(native::enabled(
                         can,
                         div()
@@ -443,7 +444,7 @@ impl Render for Properties {
                             .overflow_y_scroll()
                             .flex()
                             .flex_col()
-                            .gap(px(4.0))
+                            .gap(px(space::XS))
                             .children(files),
                     ))
                     .when(matches!(row.state, State::Running | State::Queued), |d| {
@@ -544,13 +545,13 @@ impl Render for Properties {
                     .border_1()
                     .border_color(theme.separator)
                     .bg(theme.background)
-                    .p(px(4.0))
+                    .p(px(space::XS))
                     .children(files.into_iter().map(|file| {
                         let size = (!file.is_folder()).then(|| format::bytes(file.size));
                         div()
                             .flex()
                             .items_center()
-                            .gap(px(8.0))
+                            .gap(px(space::M))
                             .h(px(20.0))
                             .child(
                                 div()

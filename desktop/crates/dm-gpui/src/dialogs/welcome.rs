@@ -23,6 +23,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// Written once the welcome has been shown.
 const WELCOMED: &str = "welcomed";
@@ -181,7 +182,7 @@ impl Render for Welcome {
                             cx.notify();
                         })),
                     )
-                    .child(div().pl(px(20.0)).child(native::note(
+                    .child(div().pl(px(space::XXL)).child(native::note(
                         t("So browser downloads always reach dm. Change this later in Options › General."),
                         theme.muted,
                         &screen,

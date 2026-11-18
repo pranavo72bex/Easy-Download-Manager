@@ -27,6 +27,7 @@ use gpui::{
 use crate::window::list::Downloads;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// A row being dragged: which one, and the list it was dragged from.
 pub(crate) struct DraggedRow {
@@ -119,8 +120,8 @@ impl Render for DraggedFile {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .px_2()
-            .py(px(2.0))
-            .rounded(px(4.0))
+            .py(px(space::XXS))
+            .rounded(px(space::CORNER_S))
             .border_1()
             .border_color(self.theme.separator)
             .bg(self.theme.window)

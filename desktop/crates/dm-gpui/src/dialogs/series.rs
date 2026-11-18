@@ -24,6 +24,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// How many of the series' addresses show at once; the rest scroll.
 const SHOWN: usize = 6;
@@ -216,7 +217,7 @@ impl Render for Series {
                             .border_1()
                             .border_color(theme.separator)
                             .bg(theme.background)
-                            .p(px(4.0))
+                            .p(px(space::XS))
                             .when(listed.is_empty(), |d| {
                                 d.child(native::note(
                                     t("Each address the series makes is listed here."),

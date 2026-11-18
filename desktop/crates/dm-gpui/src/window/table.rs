@@ -28,6 +28,7 @@ use crate::window::list::{kind_picture, Downloads, ROW_HEIGHT};
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The header's height, in points.
 pub const HEADER_HEIGHT: f32 = 24.0;
@@ -385,8 +386,8 @@ impl Render for DraggedColumn {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .px_2()
-            .py(px(2.0))
-            .rounded(px(4.0))
+            .py(px(space::XXS))
+            .rounded(px(space::CORNER_S))
             .border_1()
             .border_color(self.theme.separator)
             .bg(self.theme.window)
@@ -621,7 +622,7 @@ fn row_cells(
                     .child(screen.label(said))
                     .when_some(fraction, |c, f| {
                         let track = div()
-                            .mt(px(2.0))
+                            .mt(px(space::XXS))
                             .w_full()
                             .h(px(3.0))
                             .rounded_full()
@@ -686,7 +687,7 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
         .items_center()
         .pt(px(40.0))
         .px(px(crate::widgets::native::MARGIN))
-        .gap(px(4.0))
+        .gap(px(space::XS))
         .child(
             div()
                 .text_size(px(16.0))
@@ -700,7 +701,7 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
         .when(next_step, |empty| {
             empty
                 .child(
-                    div().pt(px(8.0)).child(
+                    div().pt(px(space::M)).child(
                         crate::widgets::native::button(
                             "add-a-download",
                             t("Add a download").into(),
@@ -715,7 +716,7 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
                 )
                 .child(
                     div()
-                        .pt(px(8.0))
+                        .pt(px(space::M))
                         .text_size(px(crate::widgets::native::SMALL_TEXT))
                         .text_color(theme.muted)
                         .child(
@@ -961,7 +962,7 @@ fn row_buttons(
                 .flex()
                 .items_center()
                 .justify_center()
-                .rounded(px(4.0))
+                .rounded(px(space::CORNER_S))
                 .bg(theme.control)
                 .hover(|s| s.bg(theme.stripe))
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())

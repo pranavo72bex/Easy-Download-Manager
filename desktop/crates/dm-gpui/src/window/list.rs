@@ -26,6 +26,7 @@ use gpui::{
 
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
+use crate::widgets::space;
 use dm_desktop_base::columns::Column;
 use dm_shell::app::places::{Place, Places};
 
@@ -1994,13 +1995,13 @@ impl Downloads {
 pub(crate) fn kind_picture(kind: Option<dm_core::Category>) -> (&'static str, gpui::Rgba) {
     use dm_core::Category as K;
     match kind {
-        Some(K::Videos) => ("icons/kind-videos.svg", gpui::rgb(0x8e44ad)),
-        Some(K::Audio) => ("icons/kind-audio.svg", gpui::rgb(0xe67e22)),
-        Some(K::Documents) => ("icons/kind-documents.svg", gpui::rgb(0x2b6cc4)),
-        Some(K::Apps) => ("icons/kind-apps.svg", gpui::rgb(0x3d8b37)),
-        Some(K::Archives) => ("icons/kind-archives.svg", gpui::rgb(0xb7931f)),
-        Some(K::Pictures) => ("icons/kind-pictures.svg", gpui::rgb(0xc0395a)),
-        _ => ("icons/kind-other.svg", gpui::rgb(0x7f8c8d)),
+        Some(K::Videos) => ("icons/kind-videos.svg", gpui::rgb(crate::window::theme::KIND_VIDEOS)),
+        Some(K::Audio) => ("icons/kind-audio.svg", gpui::rgb(crate::window::theme::KIND_AUDIO)),
+        Some(K::Documents) => ("icons/kind-documents.svg", gpui::rgb(crate::window::theme::KIND_DOCUMENTS)),
+        Some(K::Apps) => ("icons/kind-apps.svg", gpui::rgb(crate::window::theme::KIND_APPS)),
+        Some(K::Archives) => ("icons/kind-archives.svg", gpui::rgb(crate::window::theme::KIND_ARCHIVES)),
+        Some(K::Pictures) => ("icons/kind-pictures.svg", gpui::rgb(crate::window::theme::KIND_PICTURES)),
+        _ => ("icons/kind-other.svg", gpui::rgb(crate::window::theme::KIND_OTHER)),
     }
 }
 
@@ -2079,8 +2080,8 @@ impl Render for Downloads {
                 .flex()
                 .items_center()
                 .gap(crate::window::zoom::px(crate::widgets::native::LABEL_GAP))
-                .px(crate::window::zoom::px(12.0))
-                .py(crate::window::zoom::px(6.0))
+                .px(crate::window::zoom::px(space::L))
+                .py(crate::window::zoom::px(space::S))
                 .border_b_1()
                 .border_color(theme.separator)
                 .child(
@@ -2352,8 +2353,8 @@ impl Render for Downloads {
                                 d.child(
                                     div()
                                         .id("more-bars")
-                                        .px(crate::window::zoom::px(12.0))
-                                        .py(crate::window::zoom::px(2.0))
+                                        .px(crate::window::zoom::px(space::L))
+                                        .py(crate::window::zoom::px(space::XXS))
                                         .border_b_1()
                                         .border_color(theme.separator)
                                         .text_size(crate::window::zoom::px(

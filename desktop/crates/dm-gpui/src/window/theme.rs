@@ -149,6 +149,18 @@ impl Theme {
     }
 }
 
+/// Each kind of file's colour in the list (B45), the same in Light and Dark: the egui
+/// window's, named here with the rest of the window's colours (gaps row A19).
+pub const KIND_VIDEOS: u32 = 0x8e44ad;
+pub const KIND_AUDIO: u32 = 0xe67e22;
+pub const KIND_DOCUMENTS: u32 = 0x2b6cc4;
+pub const KIND_APPS: u32 = 0x3d8b37;
+pub const KIND_ARCHIVES: u32 = 0xb7931f;
+pub const KIND_PICTURES: u32 = 0xc0395a;
+pub const KIND_OTHER: u32 = 0x7f8c8d;
+/// Windows' close button under the pointer: its caption buttons' red.
+pub const CLOSE_HOVERED: u32 = 0xc42b1c;
+
 /// Under the pointer and pressed, as [`Theme::answering`] moves a face.
 pub const HOVERED: f32 = 0.08;
 /// Pressed.

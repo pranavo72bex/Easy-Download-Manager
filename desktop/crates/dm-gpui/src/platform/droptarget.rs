@@ -21,6 +21,7 @@ use gpui_component::native_menu::NativeMenu;
 use crate::window::list::Downloads;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The card's side, in points.
 const SIDE: f32 = 44.0;
@@ -151,7 +152,7 @@ impl Render for DropTarget {
                 div()
                     .relative()
                     .size_full()
-                    .rounded(px(8.0))
+                    .rounded(px(space::CORNER_L))
                     .border_1()
                     .flex()
                     .items_center()

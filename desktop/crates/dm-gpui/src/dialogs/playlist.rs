@@ -24,6 +24,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// A video's row in the list, in points.
 const ROW: f32 = 22.0;
@@ -200,7 +201,7 @@ impl Render for PlaylistWindow {
                                 .border_1()
                                 .border_color(theme.separator)
                                 .bg(theme.background)
-                                .p(px(4.0))
+                                .p(px(space::XS))
                                 .child(
                                     uniform_list(
                                         "videos",

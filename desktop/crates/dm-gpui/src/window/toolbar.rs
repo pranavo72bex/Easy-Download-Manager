@@ -18,6 +18,7 @@ use crate::window::menus::Run;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The toolbar's height.
 pub const HEIGHT: f32 = 50.0;
@@ -147,7 +148,7 @@ pub fn toolbar(
                 .flex()
                 .flex_col()
                 .items_center()
-                .gap(px(1.0))
+                .gap(px(space::LINE))
                 .px_2()
                 .py_1()
                 .rounded_md()
@@ -216,8 +217,8 @@ impl Render for DraggedButton {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .px_2()
-            .py(px(2.0))
-            .rounded(px(4.0))
+            .py(px(space::XXS))
+            .rounded(px(space::CORNER_S))
             .border_1()
             .border_color(self.theme.separator)
             .bg(self.theme.window)

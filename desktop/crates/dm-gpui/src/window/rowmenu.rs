@@ -18,6 +18,7 @@ use crate::window::menus::Run;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The menu's items, in groups, each with the words it shows (the egui row
 /// menu's own, where it says them differently from the command's title):
@@ -273,7 +274,7 @@ pub(crate) fn item(
         .mx_1()
         .px_2()
         .h(px(22.0))
-        .rounded(px(4.0))
+        .rounded(px(space::CORNER_S))
         .flex()
         .items_center()
         .gap_1()
@@ -306,7 +307,7 @@ pub(crate) fn panel(
                 .aria_label(name)
                 .min_w(px(220.0))
                 .py_1()
-                .rounded(px(6.0))
+                .rounded(px(space::CORNER_M))
                 .border_1()
                 .border_color(theme.separator)
                 .bg(theme.menu)
@@ -330,7 +331,7 @@ fn separator(theme: Theme) -> gpui::AnyElement {
     div()
         .mx_2()
         .my_1()
-        .h(px(1.0))
+        .h(px(space::LINE))
         .bg(theme.separator)
         .into_any_element()
 }

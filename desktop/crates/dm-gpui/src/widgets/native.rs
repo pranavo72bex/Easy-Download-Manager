@@ -19,6 +19,7 @@ use crate::window::a11y::{Greyed, Told};
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The measure each system's own dialogs use: macOS's (AppKit's, measured
 /// on the system's own dialog), Windows 11's (WinUI's) or GNOME's
@@ -144,7 +145,7 @@ pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme:
         .child(
             gpui::Styled::h(field, px(CONTROL))
                 .text_size(px(TEXT))
-                .px(px(6.0))
+                .px(px(space::S))
                 .py(px(0.0))
                 .rounded(px(RADIUS))
                 .bg(theme.field)
@@ -298,7 +299,7 @@ pub fn checkbox(
         })
         .flex()
         .items_center()
-        .gap(px(6.0))
+        .gap(px(space::S))
         .child(tick_box(ticked, theme))
         .child(screen.label(words))
 }
@@ -395,7 +396,7 @@ pub fn radio(
         })
         .flex()
         .items_center()
-        .gap(px(6.0))
+        .gap(px(space::S))
         .child(
             div()
                 .size(px(14.0))
@@ -593,7 +594,7 @@ pub fn time_picker_of(
     div()
         .flex()
         .items_center()
-        .gap(px(4.0))
+        .gap(px(space::XS))
         .child(crate::widgets::popup::button_of(
             fields.0,
             item,

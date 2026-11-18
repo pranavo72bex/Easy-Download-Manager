@@ -27,6 +27,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// What the update check has found, shared by the main window and About.
 pub type Checked = Arc<Mutex<Update>>;
@@ -118,7 +119,7 @@ impl Render for About {
                             .gap(px(native::BUTTON_GAP))
                             .children(links),
                     )
-                    .child(div().w_full().h(px(1.0)).my(px(4.0)).bg(theme.separator))
+                    .child(div().w_full().h(px(space::LINE)).my(px(space::XS)).bg(theme.separator))
                     .child(
                         native::button(
                             "check",
@@ -418,8 +419,8 @@ impl Downloads {
                 .flex()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
-                .px(px(12.0))
-                .py(px(6.0))
+                .px(px(space::L))
+                .py(px(space::S))
                 .border_b_1()
                 .border_color(theme.separator)
                 .child(

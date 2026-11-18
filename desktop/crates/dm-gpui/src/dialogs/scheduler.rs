@@ -29,6 +29,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The date of "Once, on this date" as three pop-ups, year, month and day, this year and the
 /// next four (gaps row U32): typed as "YYYY-MM-DD", a wrong one was refused only at OK.
@@ -46,7 +47,7 @@ fn date_picker(date: &str, theme: Theme, screen: &Screen) -> gpui::Div {
     div()
         .flex()
         .items_center()
-        .gap(px(4.0))
+        .gap(px(space::XS))
         .child(crate::widgets::popup::button(
             "date-day",
             days[(d as usize).saturating_sub(1).min(30)].clone(),
@@ -221,11 +222,11 @@ impl Render for Scheduler {
             .flex_none()
             .flex()
             .flex_col()
-            .gap(px(2.0))
+            .gap(px(space::XXS))
             .child(
                 div()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .mb(px(4.0))
+                    .mb(px(space::XS))
                     .child(screen.label(t("Queues"))),
             )
             .children(self.queues.iter().enumerate().map(|(i, queue)| {
@@ -236,7 +237,7 @@ impl Render for Scheduler {
                     .role(Role::ListItem)
                     .aria_label(dm_desktop_base::i18n::name(queue))
                     .h(px(24.0))
-                    .px(px(8.0))
+                    .px(px(space::M))
                     .flex()
                     .items_center()
                     .rounded(px(native::RADIUS))
@@ -249,7 +250,7 @@ impl Render for Scheduler {
             }))
             .child(
                 div()
-                    .mt(px(8.0))
+                    .mt(px(space::M))
                     .flex()
                     .gap(px(native::LABEL_GAP))
                     .child(
@@ -356,7 +357,7 @@ impl Render for Scheduler {
                             )
                             .child(enabled(
                                 !once,
-                                div().pl(px(20.0)).flex().flex_wrap().gap(px(10.0)).children(
+                                div().pl(px(space::XXL)).flex().flex_wrap().gap(px(space::M_L)).children(
                                     DAYS.iter().enumerate().map(|(day, word)| {
                                         let day = day as u8;
                                         let ticked = days.contains(&day);
@@ -421,7 +422,7 @@ impl Render for Scheduler {
                             // cancelled, as Downloads › When done is.
                             .child(screen.label(t("When the scheduled downloads are done")))
                             .child(
-                                div().flex().flex_wrap().gap(px(12.0)).children(
+                                div().flex().flex_wrap().gap(px(space::L)).children(
                                     [
                                         (WhenDone::Nothing, Command::WhenDoneNothing),
                                         (WhenDone::Quit, Command::WhenDoneQuit),
@@ -508,9 +509,9 @@ impl Render for Scheduler {
                     .child(
                         div()
                             .flex()
-                            .gap(px(16.0))
+                            .gap(px(space::XL))
                             .child(queues)
-                            .child(div().w(px(1.0)).flex_none().bg(theme.separator))
+                            .child(div().w(px(space::LINE)).flex_none().bg(theme.separator))
                             .child(hours),
                     )
                     .when(!self.draft.says.is_empty(), |d| {

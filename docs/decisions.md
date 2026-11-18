@@ -7348,3 +7348,20 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 * **Kept so**: `cargo xtask layers` refuses a `#[path]` that leaves its crate's folder, and
   `dm-test-support` as a normal dependency of any crate (no crate lists it among those it may
   use).
+
+## 2026-11-18: The window's spacing named once (gaps row A19, its widgets part)
+
+* **Done**: dm-gpui's `widgets/space.rs` holds the spacing scale (`XXS` 2, `XS` 4, `S` 6, `M` 8,
+  `M_L` 10, `L` 12, `XL` 16, `XXL` 20, `XXXL` 24 points), `LINE` (1: a rule, a border, the gap
+  that shows one) and three corners (`CORNER_S` 4, `CORNER_M` 6, `CORNER_L` 8). The 99 gaps,
+  paddings, margins, one-point lines and corners written as those literals use the names; each
+  value is what it was, so the window looks as it did. The kinds' seven colours and Windows'
+  close-button red moved beside the other colours in `window/theme.rs`.
+* **A scale, not a name per place**: the system's own measures, which differ per system, were
+  already named by their role in `widgets/native.rs` (`MARGIN`, `ROW_GAP`, `LABEL_GAP`...); the
+  rest are the window's own rhythm, where a step is what matters and two places using the same
+  step should move together.
+* **Left as written**: a control's own width or height (`.h`, `.w`, `.size`, `.text_size`), and
+  the few paddings off the scale (3, 5, 7, 9, 14 points), each tuned to match a system's
+  control. `cargo xtask layers` refuses a gap, padding or margin written as a literal on the
+  scale, so the scale stays the one place.

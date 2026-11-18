@@ -33,6 +33,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The window's size: one for every page, so the tabs and the buttons stay
 /// where they are when another page is picked; a page longer than that
@@ -570,7 +571,7 @@ impl Render for Options {
                 .focus(move |s| s.bg(theme.stripe))
                 .aria_label(SharedString::from(t(words)))
                 .aria_selected(on)
-                .px(px(12.0))
+                .px(px(space::L))
                 .h(px(native::CONTROL - 2.0))
                 .flex()
                 .items_center()
@@ -647,7 +648,7 @@ impl Render for Options {
                             .role(Role::TabList)
                             .p(px(1.0))
                             .flex()
-                            .gap(px(1.0))
+                            .gap(px(space::LINE))
                             .rounded(px(native::RADIUS))
                             .border_1()
                             .border_color(theme.control_border)
@@ -669,7 +670,7 @@ impl Render for Options {
                     // The settings its own children, so the page scrolls to one by its
                     // place (Advanced to its proxy section, where a proxy was refused): a
                     // column inside it was its one child, and that scroll went nowhere.
-                    .p(px(16.0))
+                    .p(px(space::XL))
                     .flex()
                     .flex_col()
                     .gap(px(native::ROW_GAP))

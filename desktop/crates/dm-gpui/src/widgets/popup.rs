@@ -18,6 +18,7 @@ use crate::window::a11y::Told;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The choice `index` made in the pop-up `field` (of a list's `item`,
 /// where there is one a row, as a torrent's files each have one).
@@ -109,7 +110,7 @@ pub fn button_of(
         .flex_none()
         .items_center()
         .justify_between()
-        .gap(px(8.0))
+        .gap(px(space::M))
         .rounded(px(RADIUS))
         .border_1()
         .border_color(theme.control_border)

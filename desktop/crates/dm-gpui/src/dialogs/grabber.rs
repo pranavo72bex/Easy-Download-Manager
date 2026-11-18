@@ -28,6 +28,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// A found file's row, in points.
 const ROW: f32 = 22.0;
@@ -399,7 +400,7 @@ impl Render for Grabber {
                                 .border_1()
                                 .border_color(theme.separator)
                                 .bg(theme.background)
-                                .p(px(4.0))
+                                .p(px(space::XS))
                                 .child(
                                     uniform_list(
                                         "found",
@@ -512,7 +513,7 @@ impl Render for Grabber {
                         native::button("find", t("Find files").into(), true, theme, &screen)
                             .on_click(cx.listener(|this, _, window, cx| this.look(window, cx))),
                     ))
-                    .child(div().h(px(1.0)).my(px(4.0)).bg(theme.separator))
+                    .child(div().h(px(space::LINE)).my(px(space::XS)).bg(theme.separator))
                     // Saving, and the saved searches.
                     .child(
                         div()
@@ -561,7 +562,7 @@ impl Render for Grabber {
                                 )
                         }))
                     })
-                    .child(div().h(px(1.0)).my(px(4.0)).bg(theme.separator))
+                    .child(div().h(px(space::LINE)).my(px(space::XS)).bg(theme.separator))
                     .children(state)
                     .child(native::buttons(
                         Vec::new(),

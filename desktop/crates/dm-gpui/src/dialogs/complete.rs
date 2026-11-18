@@ -19,6 +19,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The window's view.
 pub struct Complete {
@@ -133,7 +134,7 @@ impl Render for Complete {
                             .overflow_y_scroll()
                             .flex()
                             .flex_col()
-                            .gap(px(12.0))
+                            .gap(px(space::L))
                             .children(rows.iter().enumerate().map(|(i, row)| {
                                 let name = row.name.clone();
                                 let size = format::bytes(row.size);
@@ -142,12 +143,12 @@ impl Render for Complete {
                                 div()
                                     .flex()
                                     .flex_col()
-                                    .gap(px(4.0))
+                                    .gap(px(space::XS))
                                     .child(
                                         div()
                                             .flex()
                                             .items_center()
-                                            .gap(px(8.0))
+                                            .gap(px(space::M))
                                             .child(
                                                 div()
                                                     .flex_1()

@@ -33,6 +33,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// What a browser's hand-off brought with the address; nothing for one
 /// typed in Add URL.
@@ -568,7 +569,7 @@ fn segment(
             gpui::Toggled::False
         })
         .h(px(native::CONTROL))
-        .px(px(12.0))
+        .px(px(space::L))
         .flex()
         .items_center()
         .rounded(px(native::RADIUS))
@@ -698,7 +699,7 @@ impl Render for Details {
                     div()
                         .flex()
                         .flex_wrap()
-                        .gap(px(6.0))
+                        .gap(px(space::S))
                         .children(list.iter().enumerate().map(|(i, choice)| {
                             let on = picked.as_deref() == Some(choice.quality.as_str());
                             let words = file_info::chip_words(choice);
@@ -712,8 +713,8 @@ impl Render for Details {
                                 .id(("quality", i))
                                 .role(Role::RadioButton)
                                 .aria_label(words.replace('\n', " "))
-                                .px(px(10.0))
-                                .py(px(4.0))
+                                .px(px(space::M_L))
+                                .py(px(space::XS))
                                 .min_w(px(84.0))
                                 .flex()
                                 .flex_col()
@@ -760,7 +761,7 @@ impl Render for Details {
                         .flex_1()
                         .flex()
                         .flex_col()
-                        .gap(px(4.0))
+                        .gap(px(space::XS))
                         .child(
                             div()
                                 .id("zip-contents")
@@ -770,7 +771,7 @@ impl Render for Details {
                                 .border_1()
                                 .border_color(theme.separator)
                                 .bg(theme.background)
-                                .p(px(4.0))
+                                .p(px(space::XS))
                                 .children(files.into_iter().enumerate().map(|(i, file)| {
                                     let takeable =
                                         !file.is_folder() && file.packed <= dm_core::ZIP_MOST_TAKEN;
@@ -779,7 +780,7 @@ impl Render for Details {
                                     div()
                                         .flex()
                                         .items_center()
-                                        .gap(px(8.0))
+                                        .gap(px(space::M))
                                         .h(px(20.0))
                                         .child(
                                             div()
@@ -914,7 +915,7 @@ impl Render for Details {
                     "Shape",
                     div()
                         .flex()
-                        .gap(px(4.0))
+                        .gap(px(space::XS))
                         .children(
                             [
                                 (None, t("As it is")),
@@ -940,7 +941,7 @@ impl Render for Details {
                         "Part as",
                         div()
                             .flex()
-                            .gap(px(4.0))
+                            .gap(px(space::XS))
                             .child(
                                 segment("as-video", t("Video").into(), !gif, theme, &screen)
                                     .on_click(cx.listener(|this, _, _, cx| {
@@ -1001,7 +1002,7 @@ impl Render for Details {
                                 .child(screen.label(tf("and {} more", &[&(self.urls.len() - 1)]))),
                         )
                     })
-                    .child(div().h(px(1.0)).my(px(4.0)).bg(theme.separator))
+                    .child(div().h(px(space::LINE)).my(px(space::XS)).bg(theme.separator))
                     .child(row(
                         "Category",
                         popup::button(
@@ -1132,7 +1133,7 @@ impl Render for Details {
                                 div()
                                     .flex()
                                     .flex_col()
-                                    .gap(px(6.0))
+                                    .gap(px(space::S))
                                     .child(native::note(
                                         t("A file of that name is in the folder already."),
                                         theme.warning,

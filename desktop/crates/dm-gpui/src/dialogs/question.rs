@@ -18,6 +18,7 @@ use gpui::{
 use crate::widgets::native;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// What a question says and offers.
 pub struct Asked {
@@ -223,7 +224,7 @@ impl Render for Question {
                                 div()
                                     .flex()
                                     .flex_col()
-                                    .gap(px(6.0))
+                                    .gap(px(space::S))
                                     .text_size(px(native::SMALL_TEXT))
                                     // A question whose words change as it stands
                                     // keeps room for three lines, or the most its words

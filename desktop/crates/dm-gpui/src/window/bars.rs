@@ -22,6 +22,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// Written once "Not now" is chosen on the add-to-browser bar.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
@@ -38,8 +39,8 @@ fn bar(theme: Theme) -> gpui::Div {
         .flex_wrap()
         .items_center()
         .gap(px(native::LABEL_GAP))
-        .px(px(12.0))
-        .py(px(6.0))
+        .px(px(space::L))
+        .py(px(space::S))
         .border_b_1()
         .border_color(theme.separator)
 }

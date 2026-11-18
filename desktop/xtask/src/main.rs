@@ -476,6 +476,15 @@ fn layers() -> Result<(), String> {
             if is_test_file(&file) {
                 continue;
             }
+            // The window's spacing is a step of `widgets/space.rs` (gaps row A19).
+            if dir == "desktop/crates/dm-gpui/src" {
+                for (line, written) in spacing_literals(&text) {
+                    wrong.push(format!(
+                        "{shown}:{line} writes {written}: a gap, padding or margin on the scale is \
+                         named in dm-gpui's widgets/space.rs (gaps row A19)"
+                    ));
+                }
+            }
             // Where a person's files live is worked out in one place (gaps row X1).
             if !is_folders_module(&file) {
                 for (line, what) in folder_reads(&text) {
@@ -585,6 +594,39 @@ const FOLDER_READS: &[&str] = &[
     "\"Library/Application Support\"",
     "\"Library/LaunchAgents\"",
 ];
+
+/// The methods that space a window's parts: gaps, paddings, margins.
+const SPACING_METHODS: &[&str] = &[
+    "gap", "gap_x", "gap_y", "p", "px", "py", "pt", "pb", "pl", "pr", "m", "mx", "my", "mt", "mb",
+    "ml", "mr",
+];
+
+/// dm-gpui's spacing scale (`widgets/space.rs`), as a literal is written.
+const SPACING_SCALE: &[&str] = &[
+    "2.0", "4.0", "6.0", "8.0", "10.0", "12.0", "16.0", "20.0", "24.0",
+];
+
+/// The lines of `text` (from 1) that space a part by a literal on the scale, with what each
+/// writes. Comments are passed over; a value off the scale is a control's own measure.
+fn spacing_literals(text: &str) -> Vec<(usize, String)> {
+    let mut found = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        if line.trim_start().starts_with("//") {
+            continue;
+        }
+        for method in SPACING_METHODS {
+            for px in ["px(", "crate::window::zoom::px(", "gpui::px("] {
+                for value in SPACING_SCALE {
+                    let written = format!(".{method}({px}{value}))");
+                    if line.contains(&written) {
+                        found.push((i + 1, written));
+                    }
+                }
+            }
+        }
+    }
+    found
+}
 
 /// Whether `file` is `dm_core::folders` itself, or its tests.
 fn is_folders_module(file: &Path) -> bool {
@@ -1025,6 +1067,12 @@ mod tests {
         if let Err(why) = layers() {
             panic!("{why}");
         }
+    }
+
+    #[test]
+    fn spacing_on_the_scale_is_named() {
+        let text = "    .gap(px(4.0))\n    .px(px(space::L))\n    // .p(px(8.0))\n    .pl(px(9.0))\n";
+        assert_eq!(spacing_literals(text), [(1, ".gap(px(4.0))".to_string())]);
     }
 
     #[test]

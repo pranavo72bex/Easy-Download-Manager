@@ -22,6 +22,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// Opens a dialog's window over the middle of the screen, `width` wide and
 /// as tall as it turns out (`fit`), after the update that asked, so the
@@ -351,7 +352,7 @@ impl Render for MoveToQueue {
                             .role(Role::RadioGroup)
                             .flex()
                             .flex_col()
-                            .gap(px(6.0))
+                            .gap(px(space::S))
                             .children(queues),
                     )
                     .child(native::row(
@@ -633,8 +634,8 @@ impl Downloads {
                 .flex()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
-                .px(px(12.0))
-                .py(px(6.0))
+                .px(px(space::L))
+                .py(px(space::S))
                 .border_b_1()
                 .border_color(theme.separator)
                 .child(div().flex_1().child(screen.label(dm_desktop_base::i18n::tf(

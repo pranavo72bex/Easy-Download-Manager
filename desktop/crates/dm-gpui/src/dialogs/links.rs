@@ -25,6 +25,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// A link's row, in points.
 const ROW: f32 = 24.0;
@@ -263,7 +264,7 @@ impl Render for Links {
         };
         let column = |words: &'static str, width: Option<f32>| {
             let d = div()
-                .px(px(4.0))
+                .px(px(space::XS))
                 .whitespace_nowrap()
                 .overflow_hidden()
                 .text_ellipsis();
@@ -365,7 +366,7 @@ impl Render for Links {
                                     .flex()
                                     .h(px(ROW))
                                     .items_center()
-                                    .px(px(4.0))
+                                    .px(px(space::XS))
                                     .border_b_1()
                                     .border_color(theme.separator)
                                     .text_size(px(native::SMALL_TEXT))
@@ -393,7 +394,7 @@ impl Render for Links {
                                                             div()
                                                                 .w(px(w))
                                                                 .flex_none()
-                                                                .px(px(4.0))
+                                                                .px(px(space::XS))
                                                                 .whitespace_nowrap()
                                                                 .overflow_hidden()
                                                                 .text_ellipsis()
@@ -406,7 +407,7 @@ impl Render for Links {
                                                                 .h(px(ROW))
                                                                 .flex()
                                                                 .items_center()
-                                                                .px(px(4.0))
+                                                                .px(px(space::XS))
                                                                 .when(k % 2 == 1, |d| {
                                                                     d.bg(theme.stripe)
                                                                 })

@@ -27,6 +27,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The window's view.
 pub struct ClipLinks {
@@ -214,10 +215,10 @@ impl Render for ClipLinks {
                             .border_1()
                             .border_color(theme.separator)
                             .bg(theme.background)
-                            .p(px(6.0))
+                            .p(px(space::S))
                             .flex()
                             .flex_col()
-                            .gap(px(4.0))
+                            .gap(px(space::XS))
                             .children(rows),
                     )
                     .child(save_to)

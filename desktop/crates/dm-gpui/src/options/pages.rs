@@ -22,6 +22,7 @@ use crate::widgets::popup::{self, Pick};
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 mod dialup;
 
@@ -86,7 +87,7 @@ impl Page {
     fn section(&mut self, words: &str) {
         self.says(words);
         let heading = div()
-            .mt(px(10.0))
+            .mt(px(space::M_L))
             .font_weight(gpui::FontWeight::SEMIBOLD)
             .child(self.screen.label(words.to_string()));
         self.add(heading);
@@ -261,7 +262,7 @@ pub(crate) fn search(
         found.push(
             div()
                 .id(SharedString::from(format!("found-{name}")))
-                .mt(px(10.0))
+                .mt(px(space::M_L))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme.selection)
                 .cursor_pointer()
@@ -490,7 +491,7 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                     .w(px(SCALE_WIDTH))
                     .flex()
                     .flex_col()
-                    .gap(px(2.0))
+                    .gap(px(space::XXS))
                     .child(
                         gpui_component::slider::Slider::new(&slider)
                             .accessibility_label(t("Text size")),
@@ -915,7 +916,7 @@ fn browser(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             div()
                 .flex()
                 .items_center()
-                .gap(px(24.0))
+                .gap(px(space::XXXL))
                 .child(div().w(px(160.0)).child(screen.label(name)))
                 .child(state),
         );
@@ -1170,7 +1171,7 @@ fn folder(
         div()
             .flex()
             .flex_col()
-            .gap(px(4.0))
+            .gap(px(space::XS))
             .child(p.screen.label(t(label)))
             .child(
                 div()
@@ -1228,7 +1229,7 @@ fn folders(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
     // name on disk, as it is.
     let kinds = dm_core::Category::ALL;
     for pair in kinds.chunks(2) {
-        let mut row = div().flex().gap(px(16.0));
+        let mut row = div().flex().gap(px(space::XL));
         for kind in pair {
             let i = kinds.iter().position(|k| k == kind).unwrap_or(0);
             let name = dm_desktop_base::i18n::name(&dm_desktop_base::format::titled(
@@ -1365,7 +1366,7 @@ fn downloads(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Contex
             } else {
                 gpui::Toggled::False
             })
-            .px(px(8.0))
+            .px(px(space::M))
             .h(px(20.0))
             .flex()
             .items_center()
@@ -1385,7 +1386,7 @@ fn downloads(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Contex
             .flex()
             .flex_wrap()
             .items_center()
-            .gap(px(6.0))
+            .gap(px(space::S))
             .child(native::note(t("Presets:"), theme.muted, &screen))
             .children(presets),
     );
@@ -1744,7 +1745,7 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
             .aria_expanded(phone)
             .flex()
             .items_center()
-            .gap(px(4.0))
+            .gap(px(space::XS))
             .text_color(theme.accent)
             .child(screen.label(if phone { "▾" } else { "▸" }))
             .child(screen.label(t("How to use your phone")))
@@ -2237,7 +2238,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
         div()
             .flex()
             .flex_col()
-            .gap(px(4.0))
+            .gap(px(space::XS))
             .child(screen.label(t("Automatic configuration script address (it chooses each site's proxy, in place of the above)")))
             .child(script),
     ));

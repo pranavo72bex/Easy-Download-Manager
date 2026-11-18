@@ -31,6 +31,7 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+use crate::widgets::space;
 
 /// The progress window's view.
 /// The pop-up "When this download is done" (gaps row U36).
@@ -422,7 +423,7 @@ impl Render for Progress {
                     div()
                         .flex()
                         .items_center()
-                        .gap(px(8.0))
+                        .gap(px(space::M))
                         .text_size(px(native::SMALL_TEXT))
                         .child(
                             div()
@@ -530,7 +531,7 @@ impl Render for Progress {
                             .progress_bar(t("Progress"), f64::from(fraction))
                             .h(px(8.0))
                             .flex()
-                            .gap(px(1.0))
+                            .gap(px(space::LINE))
                             .children(pieces.iter().map(|(span, done)| {
                                 div()
                                     // As wide as its share of the file.
@@ -607,7 +608,7 @@ impl Render for Progress {
                                 .aria_expanded(open)
                                 .flex()
                                 .items_center()
-                                .gap(px(4.0))
+                                .gap(px(space::XS))
                                 .child(div().text_color(theme.muted).child(if open {
                                     "▾"
                                 } else {
