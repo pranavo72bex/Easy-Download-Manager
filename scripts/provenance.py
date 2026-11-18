@@ -26,13 +26,20 @@ import shutil
 import subprocess
 import sys
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def _out(*args, cwd=None):
     """What `args` prints, or None if it cannot be run or fails."""
     try:
-        r = subprocess.run(args, capture_output=True, text=True, timeout=30, cwd=cwd)
+        r = subprocess.run(args, capture_output=True, text=True, timeout=30, cwd=cwd, encoding="utf-8", errors="replace")
     except (OSError, subprocess.TimeoutExpired):
         return None
     return r.stdout.strip() if r.returncode == 0 else None
@@ -86,10 +93,10 @@ def system():
         info["memory_gb"] = round(int(mem) / 2**30, 1) if mem else None
     elif sys.platform.startswith("linux"):
         try:
-            text = pathlib.Path("/proc/cpuinfo").read_text()
+            text = pathlib.Path("/proc/cpuinfo").read_text(encoding="utf-8")
             m = re.search(r"^model name\s*:\s*(.+)$", text, re.M)
             info["cpu"] = m.group(1).strip() if m else None
-            m = re.search(r"^MemTotal:\s*(\d+) kB", pathlib.Path("/proc/meminfo").read_text(), re.M)
+            m = re.search(r"^MemTotal:\s*(\d+) kB", pathlib.Path("/proc/meminfo").read_text(encoding="utf-8"), re.M)
             info["memory_gb"] = round(int(m.group(1)) / 2**20, 1) if m else None
         except OSError:
             pass

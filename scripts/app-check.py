@@ -17,6 +17,14 @@ settings name, sorted as they say.
 macOS and Linux; it opens the real window, so it wants a display.
 """
 import json, os, pathlib, shutil, socket, struct, subprocess, sys, tempfile, threading, time
+
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 WINDOWS = sys.platform == "win32"
 if WINDOWS:
     import msvcrt
@@ -178,7 +186,7 @@ def read_frames(data):
 
 
 def lock_is_held(home):
-    with open(home / "instance.lock", "a+") as f:
+    with open(home / "instance.lock", "a+", encoding="utf-8") as f:
         if WINDOWS:
             # dm holds the whole file with LockFileEx; a byte of it is
             # enough to see that, and is given back at once.
@@ -201,7 +209,7 @@ def lock_is_held(home):
 def rows(home):
     if not (home / "queue.json").exists():
         return []
-    return json.loads((home / "queue.json").read_text() or "[]")
+    return json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
 
 
 def hand_off(env, url, ident="one"):
@@ -224,11 +232,11 @@ def windows_of(name):
     """How many windows the process shows, or None where the desktop will not say."""
     if sys.platform == "darwin":
         script = f'tell application "System Events" to count windows of process "{name}"'
-        got = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=10)
+        got = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
         return int(got.stdout.strip()) if got.returncode == 0 and got.stdout.strip().isdigit() else None
     # X11 (Xvfb in the container): the mapped top-level windows titled dm.
     if shutil.which("xwininfo") and os.environ.get("DISPLAY"):
-        got = subprocess.run(["xwininfo", "-root", "-tree"], capture_output=True, text=True, timeout=10)
+        got = subprocess.run(["xwininfo", "-root", "-tree"], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
         if got.returncode != 0:
             return None
         mapped = 0
@@ -239,7 +247,7 @@ def windows_of(name):
             if len(parts) < 2 or not parts[1].startswith('"dm":'):
                 continue
             ident = parts[0]
-            state = subprocess.run(["xwininfo", "-id", ident], capture_output=True, text=True, timeout=10)
+            state = subprocess.run(["xwininfo", "-id", ident], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
             if "IsViewable" in state.stdout:
                 mapped += 1
         return mapped
@@ -293,7 +301,7 @@ def stop_any(home):
     if WINDOWS:
         subprocess.run(["taskkill", "/F", "/IM", BINARY.name], capture_output=True)
     else:
-        got = subprocess.run(["pgrep", "-f", str(BINARY)], capture_output=True, text=True)
+        got = subprocess.run(["pgrep", "-f", str(BINARY)], capture_output=True, text=True, encoding="utf-8", errors="replace")
         for pid in got.stdout.split():
             try:
                 os.kill(int(pid), 15)
@@ -321,7 +329,7 @@ def main():
     # run in six or so, on builds from before and after it was found).
     settings = {"download_dir": str(downloads), "categorize": True, "connections": 4, "attempts": 3,
                 "allow_mcp": True, "show_complete": False}
-    (home / "settings.json").write_text(json.dumps(settings))
+    (home / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
     # The PATH a Dock or login launch has: no Homebrew, no ~/.local/bin. The
     # tools dm runs are found by their usual homes, or they are not found.
     # On Windows, the System32 a Start-menu or browser launch is sure of.
@@ -415,7 +423,7 @@ def main():
 
         print("a proxy that cannot be reached is not gone around")
         with_proxy = {**settings, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": 9}}
-        (home / "settings.json").write_text(json.dumps(with_proxy))
+        (home / "settings.json").write_text(json.dumps(with_proxy), encoding="utf-8")
         (home / "queue.json").unlink(missing_ok=True)
         app = launch(env)
         wait_for("the app never took its lock", lambda: lock_is_held(home))
@@ -426,10 +434,10 @@ def main():
         check("a download behind a dead proxy fails", failed[0]["state"]["kind"], "failed")
         check("and the server was never contacted directly", HITS.get("/proxied.zip", 0), 0)
         stop(app, home)
-        (home / "settings.json").write_text(json.dumps(settings))
+        (home / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
 
         print("a speed limit and a schedule, from the settings file to the transfer")
-        (home / "settings.json").write_text(json.dumps({**settings, "speed_limit": 256}))
+        (home / "settings.json").write_text(json.dumps({**settings, "speed_limit": 256}), encoding="utf-8")
         (home / "queue.json").unlink(missing_ok=True)
         app = launch(env)
         wait_for("the app never took its lock", lambda: lock_is_held(home))
@@ -447,7 +455,7 @@ def main():
         now = time.localtime()
         later = lambda h: f"{(now.tm_hour + h) % 24:02d}:{now.tm_min:02d}"
         closed = {"enabled": True, "from": later(2), "to": later(3), "days": [0, 1, 2, 3, 4, 5, 6]}
-        (home / "settings.json").write_text(json.dumps({**settings, "schedule": closed}))
+        (home / "settings.json").write_text(json.dumps({**settings, "schedule": closed}), encoding="utf-8")
         (home / "queue.json").unlink(missing_ok=True)
         app = launch(env)
         wait_for("the app never took its lock", lambda: lock_is_held(home))
@@ -459,14 +467,14 @@ def main():
         check("outside the schedule's window a download waits", held["state"]["kind"] in ("queued", "paused"))
         check("and the server is not asked for it", HITS.get("/scheduled.zip", 0), 0)
         stop(app, home)
-        (home / "settings.json").write_text(json.dumps(settings))
+        (home / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
 
         print("the login item's launch stays in the tray")
         (home / "control.port").unlink(missing_ok=True)
         app = launch(env, "--hidden", "--control", "0")
         wait_for("the app never took its lock", lambda: lock_is_held(home))
         port_file = home / "control.port"
-        wait_for("the control port was never written", lambda: port_file.exists() and port_file.read_text().strip())
+        wait_for("the control port was never written", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip())
         time.sleep(2)
         hidden = windows_of(BINARY.name)
         if hidden is None:
@@ -474,12 +482,12 @@ def main():
         else:
             check("a --hidden launch shows no window", hidden, 0)
         # It makes no window until one is asked for, and still downloads.
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
-        check("in the tray, the control protocol answers", call("auth", token=(home / "control.token").read_text().strip())["ok"], True)
+        check("in the tray, the control protocol answers", call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())["ok"], True)
         call("downloads.add", urls=[url("tray.zip")])
         wait_for("a download added in the tray never finished",
                  lambda: [r for r in rows(home) if r["url"].endswith("/tray.zip") and r["state"]["kind"] == "completed"])
@@ -521,19 +529,19 @@ def main():
         (home / "control.port").unlink(missing_ok=True)
         app = launch(env, "--control", "0")
         port_file = home / "control.port"
-        wait_for("the control port was never written", lambda: port_file.exists() and port_file.read_text().strip())
-        token = (home / "control.token").read_text().strip()
+        wait_for("the control port was never written", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip())
+        token = (home / "control.token").read_text(encoding="utf-8").strip()
         if WINDOWS:
             unchecked("the token is private", "Windows keeps it private by its folder's permissions, not mode bits")
         else:
             check("the token is private", oct((home / "control.token").stat().st_mode & 0o777), "0o600")
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
         check("a request before the token is refused", call("commands.list")["ok"], False)
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
         check("the token is accepted", call("auth", token=token)["ok"], True)
         ids = [c["id"] for c in call("commands.list")["result"]]
@@ -631,7 +639,7 @@ def main():
         # and after, so a run under Xvfb tells a slow frame from a size kept.
         check("Ctrl (Cmd) with + draws the words and the rows larger",
               larger or {"before": medium, "after": measures()}, True)
-        check("and the text size is kept", json.loads((home / "settings.json").read_text()).get("text_size"), 1.2)
+        check("and the text size is kept", json.loads((home / "settings.json").read_text(encoding="utf-8")).get("text_size"), 1.2)
         human("ui.key", key="0", modifiers=held)
         check("and with 0 they are back at 100%", soon(lambda: measures() == medium), True)
         # Links on the clipboard (issue #32): Save to, as Download links has
@@ -724,9 +732,9 @@ def main():
         (home / "control.port").unlink(missing_ok=True)
         app = launch(env, "--headless", "--control", "0")
         port_file = home / "control.port"
-        wait_for("the headless dm never wrote its port", lambda: port_file.exists() and port_file.read_text().strip())
-        token = (home / "control.token").read_text().strip()
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        wait_for("the headless dm never wrote its port", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip())
+        token = (home / "control.token").read_text(encoding="utf-8").strip()
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
@@ -811,8 +819,8 @@ def main():
         # The setting that lets it find a dm started in the ordinary way.
         print("the command line, found by the setting and not by --control")
         (home / "control.port").unlink(missing_ok=True)
-        settings_now = json.loads((home / "settings.json").read_text())
-        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": True}))
+        settings_now = json.loads((home / "settings.json").read_text(encoding="utf-8"))
+        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": True}), encoding="utf-8")
         app = launch(env, "--headless")
         wait_for("the port the setting opens", lambda: (home / "control.port").exists(), 30)
         found = cli("list")
@@ -828,9 +836,9 @@ def main():
             return json.loads(out.stdout.decode().splitlines()[1])["result"]
         for allowed in (True, False):
             (home / "control.port").unlink(missing_ok=True)
-            (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": allowed}))
+            (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": allowed}), encoding="utf-8")
             app = launch(env, "--headless", "--control", "0")
-            wait_for("the port for the assistant", lambda: (home / "control.port").exists() and (home / "control.port").read_text().strip(), 30)
+            wait_for("the port for the assistant", lambda: (home / "control.port").exists() and (home / "control.port").read_text(encoding="utf-8").strip(), 30)
             answer = assistant()
             if allowed:
                 check("an AI assistant is answered when Options allows it", answer.get("isError"), None)
@@ -838,7 +846,7 @@ def main():
                 check("and refused, in words, when it is off", (answer.get("isError"), "turned off" in answer["content"][0]["text"]), (True, True))
             stop(app, home)
         (home / "control.port").unlink(missing_ok=True)
-        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": True}))
+        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": True}), encoding="utf-8")
         app = launch(env, "--headless")
         wait_for("the port the assistant setting opens by itself", lambda: (home / "control.port").exists(), 30)
         check("the setting alone opens the port, with no --control", assistant().get("isError"), None)
@@ -847,7 +855,7 @@ def main():
               (handed.returncode != 0, b"AI assistants only" in handed.stderr + handed.stdout), (True, True))
         stop(app, home)
         (home / "control.port").unlink(missing_ok=True)
-        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": False}))
+        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": False}), encoding="utf-8")
         app = launch(env, "--headless")
         time.sleep(3)
         check("with it off, there is no port to find", (home / "control.port").exists(), False)
@@ -858,11 +866,11 @@ def main():
         print("the watched folder")
         watched = home / "watched"
         watched.mkdir(exist_ok=True)
-        (home / "settings.json").write_text(json.dumps({**settings_now, "watch_folder": str(watched)}))
+        (home / "settings.json").write_text(json.dumps({**settings_now, "watch_folder": str(watched)}), encoding="utf-8")
         app = launch(env, "--headless")
         time.sleep(2)
         shortcut = watched / "saved.url"
-        shortcut.write_text("[InternetShortcut]\nURL=" + url("watched.zip") + "\n")
+        shortcut.write_text("[InternetShortcut]\nURL=" + url("watched.zip") + "\n", encoding="utf-8")
         old_time = time.time() - 60
         os.utime(shortcut, (old_time, old_time))
         done = wait_for("the watched link never finished",
@@ -871,7 +879,7 @@ def main():
         check("and its file is put aside in done, not deleted",
               (watched / "done" / "saved.url").exists() and not shortcut.exists())
         stop(app, home)
-        (home / "settings.json").write_text(json.dumps(settings_now))
+        (home / "settings.json").write_text(json.dumps(settings_now), encoding="utf-8")
 
     finally:
         server.shutdown()

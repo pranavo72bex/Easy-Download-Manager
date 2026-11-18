@@ -53,6 +53,13 @@ import base64, hashlib, http.server, json, os, pathlib, platform, shutil, signal
 import socketserver, struct, subprocess, sys, tempfile, threading, time, urllib.parse
 import urllib.request
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "chrome"
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
@@ -827,7 +834,7 @@ def devtools(profile):
     def written():
         # On Windows the browser still holds the file while it writes it.
         try:
-            return port_file.exists() and port_file.read_text().split("\n")[0]
+            return port_file.exists() and port_file.read_text(encoding="utf-8").split("\n")[0]
         except OSError:
             return False
     port = wait_for(written, within)
@@ -835,7 +842,7 @@ def devtools(profile):
         said = profile.parent / "chrome-stderr.txt"
         if said.exists():
             print("the browser's last words:", file=sys.stderr)
-            print(said.read_text(errors="replace")[-3000:], file=sys.stderr)
+            print(said.read_text(errors="replace", encoding="utf-8")[-3000:], file=sys.stderr)
         sys.exit("Chrome never opened its DevTools port")
     return f"http://127.0.0.1:{port}"
 
@@ -891,7 +898,7 @@ def save_dialogs():
     if not (os.environ.get("DISPLAY") and shutil.which("xdotool")):
         return None
     found = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^(Save File|Save As)$"],
-                           capture_output=True, text=True, timeout=20).stdout.split()
+                           capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace").stdout.split()
     return found
 
 
@@ -1022,7 +1029,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
                   for r in requests),
           str(row.get("state")))
     check("and the header is not in the queue file (it is kept apart, like cookies)",
-          "Bearer t" not in (engine_home / "queue.json").read_text(), "found in queue.json")
+          "Bearer t" not in (engine_home / "queue.json").read_text(encoding="utf-8"), "found in queue.json")
 
     # 117: eight ways to read an answer; each reaches the panel's list as a page body.
     tab = open_tab(base, "about:blank")
@@ -1491,7 +1498,7 @@ def plays(path):
 
 def queue_rows(home):
     try:
-        return json.loads((home / "queue.json").read_text())
+        return json.loads((home / "queue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 
@@ -1502,7 +1509,7 @@ def main():
     if not BINARY.exists():
         sys.exit(f"no dm binary at {BINARY} — run: (cd desktop && cargo build -p dm-gpui)")
     chrome = find_chrome()
-    manifest = json.loads((EXT / "manifest.json").read_text())
+    manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
     der = base64.b64decode(manifest["key"])
     expected_id = "".join(chr(ord("a") + int(c, 16)) for c in hashlib.sha256(der).hexdigest()[:32])
 
@@ -1524,7 +1531,7 @@ def main():
         "savefile": {"default_directory": str(browser_dl)},
         # Google Chrome blocks an unpacked extension unless Developer mode is on.
         "extensions": {"ui": {"developer_mode": True}},
-    }))
+    }), encoding="utf-8")
 
     # The app, copied out of the checkout, with a home and settings of its own.
     # Named as the program it copies.
@@ -1549,7 +1556,7 @@ def main():
         "show_progress": False,
         "show_complete": False,
         "popups_version": 2,
-    }))
+    }), encoding="utf-8")
     (engine_home / "rules.json").write_text(json.dumps({
         "format": 1, "revision": 999, "exclude": {},
         "sites": [{"host": "127.0.0.1",
@@ -1558,7 +1565,7 @@ def main():
                    "finders": [
             {"player": "div.vp-video",
              "id_path": "*.return.return.memoizedProps.coreVideoPlayerMetaData.videoFBID"}]}],
-    }))
+    }), encoding="utf-8")
     if sys.platform == "win32":
         shim = engine_home / "host.bat"
         # A file of its own for each start's stderr (gaps row 141): while one host
@@ -1580,7 +1587,7 @@ def main():
             ":pick\r\n"
             "set DM_SAID=%RANDOM%%RANDOM%\r\n"
             f'mkdir "{said_dir}\\%DM_SAID%" 2>nul || goto pick\r\n'
-            f'"{host}" %* 2>>"{said_dir}\\%DM_SAID%\\said.txt"\r\n'
+            f'"{host}" %* 2>>"{said_dir}\\%DM_SAID%\\said.txt"\r\n', encoding="utf-8"
         )
     else:
         shim = engine_home / "host.sh"
@@ -1588,7 +1595,7 @@ def main():
             "#!/bin/sh\n"
             f"export DM_HOME='{engine_home}'\n"
             "export DM_NO_SWARM=1\n"
-            f"exec '{host}' \"$@\" 2>>'{engine_home}/host-stderr.txt'\n"
+            f"exec '{host}' \"$@\" 2>>'{engine_home}/host-stderr.txt'\n", encoding="utf-8"
         )
         shim.chmod(0o755)
     hosts = profile / "NativeMessagingHosts"
@@ -1598,7 +1605,7 @@ def main():
         "name": "com.dm.engine", "description": "dm (chrome-check)", "path": str(shim),
         "type": "stdio", "allowed_origins": [f"chrome-extension://{expected_id}/"],
     })
-    registration.write_text(host_manifest)
+    registration.write_text(host_manifest, encoding="utf-8")
     # Brave and Edge read host manifests from their own folder in the real
     # home, whatever profile they run: the folder `dm --register` writes. For
     # the length of the check dm's manifest there names this copy (so Edge
@@ -1636,7 +1643,7 @@ def main():
         # delete the key and with it the registration of the dm they installed.
         backup_file = pathlib.Path.home() / ".cache" / "dm-chrome-check-registry.json"
         try:
-            backup = json.loads(backup_file.read_text())
+            backup = json.loads(backup_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             backup = {}
         installed = pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "dm/NativeMessagingHosts/chromium/com.dm.engine.json"
@@ -1652,7 +1659,7 @@ def main():
             elif was_value:
                 backup[subkey] = was_value
                 backup_file.parent.mkdir(parents=True, exist_ok=True)
-                backup_file.write_text(json.dumps(backup))
+                backup_file.write_text(json.dumps(backup), encoding="utf-8")
             registry_keys.append((subkey, was_value))
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, subkey) as k:
                 winreg.SetValueEx(k, "", 0, winreg.REG_SZ, str(registration))
@@ -1668,7 +1675,7 @@ def main():
             was = None
         borrowed.append((path, was))
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(host_manifest)
+        path.write_text(host_manifest, encoding="utf-8")
 
     server = Server(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -2220,7 +2227,7 @@ def main():
         # wrote (`going.json`), and a line a download comes of it.
         going = {"at_ms": int(time.time() * 1000), "running": 1,
                  "downloads": [{"name": "check-going.iso", "percent": 42, "speed": 2 * 1024 * 1024}]}
-        (engine_home / "going.json").write_text(json.dumps(going))
+        (engine_home / "going.json").write_text(json.dumps(going), encoding="utf-8")
         popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
         loaded(popup, "/popup.html", "#going")
         going_of = "document.getElementById('going').textContent"
@@ -2255,7 +2262,7 @@ def main():
         # dm registered again while the popup stays open: it connects by itself, unopened.
         registration.write_bytes(registered)
         for path, _ in borrowed:
-            path.write_text(host_manifest)
+            path.write_text(host_manifest, encoding="utf-8")
         again = wait_for(lambda: (popup.evaluate(status_of) or "").startswith("Connected") and popup.evaluate(status_of), 20)
         check("once dm can be reached, the open popup says so by itself", bool(again),
               (again or popup.evaluate(status_of) or "")[:200])
@@ -2304,7 +2311,7 @@ def main():
         else:
             subprocess.run(["pkill", "-f", str(host)], check=False)
         server.shutdown()
-        said = "".join(f.read_text(errors="replace") for f in sorted(
+        said = "".join(f.read_text(errors="replace", encoding="utf-8") for f in sorted(
             [*engine_home.glob("host-stderr*.txt"), *engine_home.glob("host-stderr/*/said.txt")]))
         if said.strip():
             print(f"\nhost stderr:\n{said[:2000]}")

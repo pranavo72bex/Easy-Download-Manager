@@ -50,6 +50,13 @@ import threading
 import time
 import urllib.parse
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "lib"))
 sys.path.insert(0, "/qa/lib")
 import content  # noqa: E402

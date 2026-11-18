@@ -40,6 +40,13 @@ import subprocess, sys, tempfile, threading, time, urllib.parse
 
 import drawn  # scripts/drawn.py: where dm says it drew words
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "chrome"
 BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-gpui"))
@@ -79,7 +86,7 @@ def check(name, ok, detail=""):
 
 
 def x(*args, timeout=30):
-    return subprocess.run([str(a) for a in args], capture_output=True, text=True, timeout=timeout)
+    return subprocess.run([str(a) for a in args], capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace")
 
 
 # ------------------------------------------------------------ the server
@@ -313,15 +320,15 @@ def front(window):
 def oracle(home):
     """dm's control protocol, for reading what its window shows."""
     port_file = home / "control.port"
-    if not wait_for(lambda: port_file.exists() and port_file.read_text().strip(), 30):
+    if not wait_for(lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip(), 30):
         return None
     lock = threading.Lock()
     link = {}
 
     def connect():
-        sock = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=60)
+        sock = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=60)
         link["sock"], link["lines"] = sock, sock.makefile("r", encoding="utf-8")
-        ask("auth", token=(home / "control.token").read_text().strip())
+        ask("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
 
     def ask(method, **params):
         link["sock"].sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
@@ -495,7 +502,7 @@ def main():
         "download": {"default_directory": str(browser_dl), "prompt_for_download": False,
                      "directory_upgrade": True},
         "savefile": {"default_directory": str(browser_dl)},
-    }))
+    }), encoding="utf-8")
     (dm_home / "settings.json").write_text(json.dumps({
         "download_dir": str(dm_dl), "categorize": False, "watch_clipboard": False,
         # The progress and completion windows would stand over the window
@@ -507,7 +514,7 @@ def main():
         # turns every pop-up on (the progress windows, and an ask for each
         # download that nothing here answered).
         "ask_caught_downloads": False, "ask_panel_downloads": True, "popups_version": 2,
-    }))
+    }), encoding="utf-8")
     env = dict(os.environ, HOME=str(home), DM_HOME=str(dm_home), ACCESSIBILITY_ENABLED="1")
 
     server = Server(("127.0.0.1", 0), Handler)
@@ -516,7 +523,7 @@ def main():
     screen_reader_on()
 
     print("dm, opened with its window, and registered with the browser")
-    registered = subprocess.run([str(BINARY), "--register"], env=env, capture_output=True, text=True, timeout=30)
+    registered = subprocess.run([str(BINARY), "--register"], env=env, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace")
     manifest = default / "NativeMessagingHosts" / "com.dm.engine.json"
     check(f"`dm-desktop --register` writes {NAME}'s host manifest", manifest.exists(),
           (registered.stdout + registered.stderr).strip()[:300])
@@ -555,7 +562,7 @@ def main():
                   f"profile holds {sorted(p.name for p in profile.iterdir())}", flush=True)
             # What the browser said as it failed to start, which is all
             # there is to go on from a CI run.
-            said = (work / "chromium-stderr.txt").read_text(errors="replace")
+            said = (work / "chromium-stderr.txt").read_text(errors="replace", encoding="utf-8")
             print(f"{NAME} said on stderr:\n" + "\n".join(said.splitlines()[-40:]), flush=True)
             raise
         worker_t = wait_for(lambda: next((t for t in common.targets(base) if t["type"] == "service_worker"

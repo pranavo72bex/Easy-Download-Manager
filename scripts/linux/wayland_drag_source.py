@@ -12,6 +12,13 @@ targets Firefox also offers); what is dropped on it is written to
 import sys
 import gi
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk  # noqa: E402
 
@@ -40,7 +47,7 @@ window.drag_dest_add_uri_targets()
 
 
 def received(_widget, _context, _x, _y, data, _info, _time):
-    with open("/shots/received.txt", "a") as out:
+    with open("/shots/received.txt", "a", encoding="utf-8") as out:
         for uri in data.get_uris() or []:
             out.write(uri + "\n")
 

@@ -17,6 +17,13 @@ test that failed and then passed (flaky). Prints nothing for a clean run.
 import sys
 import xml.etree.ElementTree as ET
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 
 def main(path):
     try:

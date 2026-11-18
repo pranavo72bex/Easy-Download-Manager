@@ -28,6 +28,13 @@ Standard library only.
 """
 import json, os, pathlib, subprocess, sys
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FLOOR_FILE = ROOT / "docs" / "contract-coverage-floor.txt"
 
@@ -44,7 +51,7 @@ def floor():
     for i, arg in enumerate(sys.argv):
         if arg == "--floor" and i + 1 < len(sys.argv):
             return float(sys.argv[i + 1])
-    return float(FLOOR_FILE.read_text().strip())
+    return float(FLOOR_FILE.read_text(encoding="utf-8").strip())
 
 
 def cleared(cwd):
@@ -52,14 +59,14 @@ def cleared(cwd):
     after a change once read dm-protocol's lib.rs at 49.87% on an earlier build's data and
     99.74% when run again (gaps row 207)."""
     subprocess.run(["cargo", "llvm-cov", "clean", "--workspace"], cwd=cwd,
-                   capture_output=True, text=True, check=False)
+                   capture_output=True, text=True, check=False, encoding="utf-8", errors="replace")
 
 
 def measured(cwd, args):
     """llvm-cov's per-file summary for one crate's tests, as JSON."""
     run = subprocess.run(
         ["cargo", "llvm-cov", *args, "--json", "--summary-only"],
-        cwd=cwd, capture_output=True, text=True,
+        cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if run.returncode != 0:
         sys.stderr.write(run.stderr[-4000:])
@@ -71,7 +78,7 @@ def missed_lines(cwd, args, filename):
     """The line numbers of `filename` no test ran, for the report."""
     run = subprocess.run(
         ["cargo", "llvm-cov", "report", *args, "--text"],
-        cwd=cwd, capture_output=True, text=True,
+        cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     lines, inside = [], False
     for row in run.stdout.splitlines():
@@ -112,7 +119,7 @@ def main():
     percent = 100.0 * total_covered / max(total_lines, 1)
     print(f"contract: {percent:.2f}% of {total_lines} lines (floor {least:g}% for each file)")
     if os.environ.get("GITHUB_STEP_SUMMARY"):
-        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
             out.write(f"Contract coverage: {percent:.2f}% of {total_lines} lines, floor {least:g}%\n")
     if failed:
         for short, got, lines in failed:

@@ -28,6 +28,13 @@ import tempfile
 import threading
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
 # The window draws its own title bar on macOS, inside its content, so a
@@ -104,7 +111,7 @@ def main():
         return 0
     work = pathlib.Path(tempfile.mkdtemp(prefix="dm-drag-"))
     helper = work / "drag"
-    (work / "drag.swift").write_text(SWIFT)
+    (work / "drag.swift").write_text(SWIFT, encoding="utf-8")
     subprocess.run(["swiftc", "-O", "-o", str(helper), str(work / "drag.swift")], check=True)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Serve)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -112,7 +119,7 @@ def main():
     target.mkdir()
     home.mkdir()
     # Its own download folder: never the person's.
-    (home / "settings.json").write_text(json.dumps({"download_dir": str(work / "out")}))
+    (home / "settings.json").write_text(json.dumps({"download_dir": str(work / "out")}), encoding="utf-8")
     env = {**os.environ, "DM_HOME": str(home)}
     app = subprocess.Popen([str(BINARY), "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -120,17 +127,17 @@ def main():
     try:
         port_file = home / "control.port"
         for _ in range(200):
-            if port_file.exists() and port_file.read_text().strip():
+            if port_file.exists() and port_file.read_text(encoding="utf-8").strip():
                 break
             time.sleep(0.1)
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
 
-        call("auth", token=(home / "control.token").read_text().strip())
+        call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
         call("downloads.add", urls=[f"http://127.0.0.1:{server.server_port}/dragged.zip"])
         for _ in range(100):
             rows = call("queue.list")["result"]
@@ -143,7 +150,7 @@ def main():
         subprocess.run(["open", str(target)], check=True)
         time.sleep(1.5)
         # Beside dm's window, on the same display.
-        bounds = lambda *who: subprocess.run([str(helper), "bounds", *who], capture_output=True, text=True).stdout.split()
+        bounds = lambda *who: subprocess.run([str(helper), "bounds", *who], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
         dm = bounds(BINARY.name) or bounds("dm")
         finder = bounds("Finder", target.name)
         print("  dm window:", dm, " Finder window:", finder)
@@ -154,7 +161,7 @@ def main():
         fx0, fy0 = int(dx + dw + 20), int(dy)
         moved = subprocess.run(["osascript", "-e",
                                 f'tell application "Finder" to set bounds of front window to {{{fx0}, {fy0}, {fx0 + 500}, {fy0 + 400}}}'],
-                               capture_output=True, text=True)
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
         if moved.returncode:
             print("  could not move the Finder window:", moved.stderr.strip()[:120])
         time.sleep(0.8)

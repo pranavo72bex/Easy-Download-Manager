@@ -195,7 +195,8 @@ cd desktop
 cargo run -p dm-gpui          # the window
 cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
                               # swarm, and the window driven through its control port
-cd crates/dm-gpui && cargo packager --release -p dm-gpui   # a .dmg, NSIS installer, .deb or AppImage
+cargo xtask package           # this system's .dmg, NSIS installer, .deb or AppImage
+                              # (cargo packager, run in crates/dm-gpui for dm-gpui alone)
 ```
 
 The installers are not signed with a paid certificate, so the first launch

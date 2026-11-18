@@ -369,8 +369,8 @@ endif
 # 2026-11-11), so no other computer makes it, in Docker or not.
 build-windows:
 	@echo "the Windows installer and portable .zip are built on Windows: CI's desktop"
-	@echo "workflow, or on a Windows computer with cargo-packager, from desktop/crates/$(WINDOW):"
-	@echo "  cargo packager --release -p $(WINDOW) --formats nsis"
+	@echo "workflow, or on a Windows computer with cargo-packager, from the checkout's root:"
+	@echo "  cargo xtask package"
 	@exit 1
 
 build-extension:

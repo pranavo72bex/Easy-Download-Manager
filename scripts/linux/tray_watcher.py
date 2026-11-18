@@ -8,6 +8,14 @@ register with it, hosts register with it, and it says what is listed and
 whether any host is there. A stand-in for `status-notifier-watcher` where
 that cannot reach the session bus."""
 from gi.repository import Gio, GLib  # noqa: E402
+import sys
+
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 NAME = "org.kde.StatusNotifierWatcher"
 XML = """<node><interface name="org.kde.StatusNotifierWatcher">

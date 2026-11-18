@@ -24,6 +24,13 @@ once as the whole file; both are fixed and pinned by tests.
 """
 import hashlib, json, os, pathlib, shutil, socket, subprocess, sys, tempfile, time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import media_check  # noqa: E402
 
@@ -68,30 +75,30 @@ def main():
         "download_dir": str(downloads), "categorize": False, "connections": 8,
         "stream_quality": "360", "ask_panel_downloads": False,
         "show_progress": False, "show_complete": False,
-    }))
+    }), encoding="utf-8")
     env = dict(os.environ, DM_HOME=str(home), XDG_CACHE_HOME=str(cache))
     app = subprocess.Popen([str(BINARY), "--headless", "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
         port_file = home / "control.port"
         for _ in range(100):
-            if port_file.exists() and port_file.read_text().strip():
+            if port_file.exists() and port_file.read_text(encoding="utf-8").strip():
                 break
             time.sleep(0.2)
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=60)
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=60)
         replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
 
-        call("auth", token=(home / "control.token").read_text().strip())
+        call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
         for _, url, _, _ in CASES:
             call("downloads.add", urls=[url])
 
         def rows():
             q = home / "queue.json"
-            return {r["url"]: r for r in json.loads(q.read_text() or "[]")} if q.exists() else {}
+            return {r["url"]: r for r in json.loads(q.read_text(encoding="utf-8") or "[]")} if q.exists() else {}
 
         started = time.time()
         while time.time() - started < 1500:
@@ -138,7 +145,7 @@ def verify(expect, how, url, kind, path, downloads, root):
         return f"not downloaded ({kind})"
     size = path.stat().st_size if path.is_file() else sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
     target = path if path.is_file() else max((f for f in path.rglob("*") if f.is_file()), key=lambda f: f.stat().st_size)
-    kind_of = subprocess.run(["file", "-b", str(target)], capture_output=True, text=True).stdout.strip()[:60]
+    kind_of = subprocess.run(["file", "-b", str(target)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()[:60]
     if how == "same-as-curl":
         # curl is the second opinion, and a second opinion that failed to
         # arrive is not a disagreement: a reset connection is retried, and

@@ -16,6 +16,13 @@ import time
 import traceback
 import xml.sax.saxutils as sx
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import harness  # noqa: E402
 from scenarios import SCENARIOS  # noqa: E402
@@ -48,7 +55,7 @@ def main():
 
     run = os.environ.get("QA_RUN", "1")
     REPORTS.mkdir(parents=True, exist_ok=True)
-    (REPORTS / f"qa-{run}.json").write_text(json.dumps(results, indent=2))
+    (REPORTS / f"qa-{run}.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     cases = "".join(
         f'<testcase classname="qa" name="{r["name"]}" time="{r["seconds"]}">'
         + (f'<failure message={sx.quoteattr(r["detail"][:200])}>{sx.escape(r["detail"])}</failure>' if r["status"] in ("fail", "error") else "")
@@ -57,7 +64,7 @@ def main():
     bad = sum(r["status"] in ("fail", "error") for r in results)
     skipped = sum(r["status"] == "skip" for r in results)
     (REPORTS / f"qa-{run}.xml").write_text(
-        f'<?xml version="1.0"?><testsuite name="dm-qa" tests="{len(results)}" failures="{bad}" skipped="{skipped}">{cases}</testsuite>\n')
+        f'<?xml version="1.0"?><testsuite name="dm-qa" tests="{len(results)}" failures="{bad}" skipped="{skipped}">{cases}</testsuite>\n', encoding="utf-8")
     print(f"=== {len(results) - bad - skipped} passed, {bad} failed, {skipped} skipped", flush=True)
     sys.exit(1 if bad else 0)
 

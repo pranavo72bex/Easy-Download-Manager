@@ -33,6 +33,13 @@ import tempfile
 import threading
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 SIZE = 4 * 1024 * 1024
 BODY = bytes((i * 13 + 7) & 0xFF for i in range(SIZE))
 
@@ -72,7 +79,7 @@ def ring(home):
     seconds away (gaps row S18)."""
     import socket
     try:
-        port = int((pathlib.Path(home) / "inbox" / "bell").read_text().strip())
+        port = int((pathlib.Path(home) / "inbox" / "bell").read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -139,7 +146,7 @@ def main():
         home = tempfile.mkdtemp(prefix="dm-latency-")
         env = dict(os.environ, DM_HOME=home)
         os.makedirs(os.path.join(home), exist_ok=True)
-        with open(os.path.join(home, "settings.json"), "w") as f:
+        with open(os.path.join(home, "settings.json"), "w", encoding="utf-8") as f:
             json.dump({"download_dir": os.path.join(home, "out")}, f)
         try:
             cold.append(click(dm, env, f"{base}/cold{n}.bin", n * 2))
@@ -149,7 +156,7 @@ def main():
             # Asked to end through its inbox, as an uninstall asks it.
             inbox = os.path.join(home, "inbox")
             os.makedirs(inbox, exist_ok=True)
-            open(os.path.join(inbox, "quit"), "w").close()
+            open(os.path.join(inbox, "quit"), "w", encoding="utf-8").close()
             ring(home)
             time.sleep(1.5)
             subprocess.run(["pkill", "-f", f"{dm} --desktop"], check=False)

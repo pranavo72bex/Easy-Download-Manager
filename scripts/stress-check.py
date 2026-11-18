@@ -45,6 +45,13 @@ import time
 import traceback
 import urllib.parse
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
 MIN_FREE_GB = float(os.environ.get("DM_STRESS_MIN_FREE_GB", "8"))
@@ -61,18 +68,18 @@ FINDINGS = []
 def listening(pid):
     """The TCP sockets `pid` listens on, one per line, as `address:port`."""
     if sys.platform == "win32":
-        out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True).stdout
+        out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         return "\n".join(f.split()[1] for f in out.splitlines()
                          if f.split()[-1:] == [str(pid)] and "LISTENING" in f)
     return subprocess.run(["lsof", "-nP", "-a", "-p", str(pid), "-iTCP", "-sTCP:LISTEN"],
-                          capture_output=True, text=True).stdout
+                          capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
 
 
 def token_readers(path):
     """Who other than this account (and the system, and administrators) may read `path`: a
     Unix file's group and others, or a Windows file's other entries in its access list."""
     if sys.platform == "win32":
-        out = subprocess.run(["icacls", str(path)], capture_output=True, text=True).stdout
+        out = subprocess.run(["icacls", str(path)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         me = os.environ.get("USERNAME", "").lower()
         mine = ("nt authority\\system", "builtin\\administrators", "owner rights")
         others = []
@@ -479,7 +486,7 @@ class DM:
         self._stop = threading.Event()
 
     def start(self):
-        (self.home / "settings.json").write_text(json.dumps(self.settings))
+        (self.home / "settings.json").write_text(json.dumps(self.settings), encoding="utf-8")
         # What a dm that was killed left behind is not this one's: waited for
         # again, or the check would connect to a port nobody listens on.
         for stale in ("control.port", "control.token"):
@@ -500,10 +507,10 @@ class DM:
         return self
 
     def connect(self):
-        port = int((self.home / "control.port").read_text())
+        port = int((self.home / "control.port").read_text(encoding="utf-8"))
         self.conn = socket.create_connection(("127.0.0.1", port), timeout=120)
         self.replies = self.conn.makefile("r", encoding="utf-8")
-        r = self.call("auth", token=(self.home / "control.token").read_text().strip())
+        r = self.call("auth", token=(self.home / "control.token").read_text(encoding="utf-8").strip())
         assert r["ok"], r
 
     def call(self, method, **params):
@@ -555,15 +562,15 @@ def proc_stats(pid):
                   "$p.HandleCount, $p.Threads.Count }")
         try:
             out = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True,
-                                 text=True, timeout=30).stdout.split()
+                                 text=True, timeout=30, encoding="utf-8", errors="replace").stdout.split()
             return float(out[0]) / MB, float(out[1]), int(out[2]), int(out[3])
         except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
             return 0.0, 0.0, 0, 0
     try:
-        out = subprocess.run(["ps", "-o", "rss=,pcpu=", "-p", str(pid)], capture_output=True, text=True).stdout.split()
+        out = subprocess.run(["ps", "-o", "rss=,pcpu=", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
         rss, cpu = float(out[0]) / 1024, float(out[1])
-        fds = len(subprocess.run(["lsof", "-p", str(pid)], capture_output=True, text=True).stdout.splitlines()) - 1
-        threads = len(subprocess.run(["ps", "-M", "-p", str(pid)], capture_output=True, text=True).stdout.splitlines()) - 1
+        fds = len(subprocess.run(["lsof", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.splitlines()) - 1
+        threads = len(subprocess.run(["ps", "-M", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.splitlines()) - 1
         return rss, cpu, max(fds, 0), max(threads, 0)
     except Exception:
         return 0.0, 0.0, 0, 0
@@ -1116,7 +1123,7 @@ def p_control(ctx):
     root = ctx["root"]
     dm = DM(root, name="control").start()
     try:
-        port = int((dm.home / "control.port").read_text())
+        port = int((dm.home / "control.port").read_text(encoding="utf-8"))
         # Bound to loopback only?
         lsof = listening(dm.proc.pid)
         measure("control", f"listening: {lsof.strip().splitlines()[-1] if lsof.strip() else 'none'}")
@@ -1172,7 +1179,7 @@ def p_control(ctx):
             if dm.proc.poll() is not None:
                 finding("high", "control", f"dm crashed on malformed input: {label}")
                 dm.start()
-                port = int((dm.home / "control.port").read_text())
+                port = int((dm.home / "control.port").read_text(encoding="utf-8"))
         # A very long line with no newline (memory).
         rss0 = proc_stats(dm.proc.pid)[0]
         s = socket.create_connection(("127.0.0.1", port), timeout=10)
@@ -1635,7 +1642,7 @@ def fs_counter(root):
     lib = root / ("fs-count.dylib" if darwin else "fs-count.so")
     built = subprocess.run([cc, "-shared", *([] if darwin else ["-fPIC"]), "-o", str(lib),
                             str(ROOT / "scripts" / "fs-count.c"), *([] if darwin else ["-ldl"])],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
     if built.returncode:
         return None, f"scripts/fs-count.c did not build: {built.stderr.strip()[:300]}"
     return {"DYLD_INSERT_LIBRARIES" if darwin else "LD_PRELOAD": str(lib)}, ""
@@ -2189,7 +2196,7 @@ class Answers:
         self._thread = None
 
     def __enter__(self):
-        port = int((self.dm.home / "control.port").read_text())
+        port = int((self.dm.home / "control.port").read_text(encoding="utf-8"))
         conn = socket.create_connection(("127.0.0.1", port), timeout=120)
         replies = conn.makefile("r", encoding="utf-8")
 
@@ -2197,7 +2204,7 @@ class Answers:
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
 
-        assert call("auth", token=(self.dm.home / "control.token").read_text().strip())["ok"]
+        assert call("auth", token=(self.dm.home / "control.token").read_text(encoding="utf-8").strip())["ok"]
 
         def run():
             try:
@@ -2282,10 +2289,10 @@ def p_handlers(ctx):
         return
     image, mount = root / "other.dmg", root / "other"
     made = subprocess.run(["hdiutil", "create", "-size", "1200m", "-fs", "HFS+", "-volname", "dm-move",
-                           str(image)], capture_output=True, text=True)
+                           str(image)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     attached = made.returncode == 0 and subprocess.run(
         ["hdiutil", "attach", str(image), "-mountpoint", str(mount), "-nobrowse"],
-        capture_output=True, text=True).returncode == 0
+        capture_output=True, text=True, encoding="utf-8", errors="replace").returncode == 0
     if not attached:
         finding("info", "handlers", f"the move to another volume skipped: no disk image ({made.stderr.strip()})")
         return
@@ -2346,7 +2353,7 @@ def p_import(ctx):
     limit = 0.1
     count = 10000
     listed = root / "import-10000.txt"
-    listed.write_text("".join(f"{base}/f/im{i}/{MB}/im{i}.bin?rate=1024\n" for i in range(count)))
+    listed.write_text("".join(f"{base}/f/im{i}/{MB}/im{i}.bin?rate=1024\n" for i in range(count)), encoding="utf-8")
 
     def said(dm):
         # What the status bar says after its counts, from what is drawn (ui.inspect describes every row: slow
@@ -2428,13 +2435,6 @@ def p_import(ctx):
 # ----------------------------------------------------------------- main
 
 def main():
-    # A hostile server's names (right-to-left marks, other scripts) are printed as they came:
-    # as UTF-8, not the Windows code page, which cannot write them and ended the run there.
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError):
-            pass
     args = sys.argv[1:]
     if "--list" in args:
         for k, f in PHASES.items():

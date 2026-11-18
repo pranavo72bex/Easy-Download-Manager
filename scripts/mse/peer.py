@@ -17,6 +17,13 @@ import time
 
 import libtorrent as lt
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 SETTINGS = {
     "listen_interfaces": "0.0.0.0:6881",
     "enable_dht": False,

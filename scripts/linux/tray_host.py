@@ -11,6 +11,14 @@ stand in for a panel stand in for this part of one too."""
 import os
 
 from gi.repository import Gio, GLib  # noqa: E402
+import sys
+
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 WATCHER = "org.kde.StatusNotifierWatcher"
 NAME = f"org.kde.StatusNotifierHost-{os.getpid()}"

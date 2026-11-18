@@ -22,13 +22,20 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
 LINK = "https://downloads.example.com/files/dragged-under-wayland.zip"
 HERE = pathlib.Path(__file__).parent
 
 
 def sway(*args):
-    return subprocess.run(["swaymsg", *args], capture_output=True, text=True, timeout=20)
+    return subprocess.run(["swaymsg", *args], capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
 
 
 def tree():
@@ -63,7 +70,7 @@ class Pointer:
 
     def __init__(self):
         self.proc = subprocess.Popen(["/tmp/vpointer", "1280", "800"], stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE, text=True)
+                                     stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
         assert self.proc.stdout.readline().strip() == "ready", "no virtual pointer"
 
     def __call__(self, command):
@@ -75,15 +82,15 @@ class Pointer:
 def control(home):
     """A call on dm's control protocol."""
     port = home / "control.port"
-    wait(lambda: port.exists() and port.read_text().strip(), 30)
-    conn = socket.create_connection(("127.0.0.1", int(port.read_text())), timeout=30)
-    replies = conn.makefile("r")
+    wait(lambda: port.exists() and port.read_text(encoding="utf-8").strip(), 30)
+    conn = socket.create_connection(("127.0.0.1", int(port.read_text(encoding="utf-8"))), timeout=30)
+    replies = conn.makefile("r", encoding="utf-8")
 
     def call(method, **params):
         conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
         return json.loads(replies.readline())
 
-    call("auth", token=(home / "control.token").read_text().strip())
+    call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
     return call
 
 
@@ -103,7 +110,7 @@ def drag(pointer, start, end):
 
 def rows(home):
     try:
-        return json.loads((home / "queue.json").read_text() or "[]")
+        return json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
     except (OSError, ValueError):
         return []
 
@@ -111,7 +118,7 @@ def rows(home):
 def drag_out(home, pointer, dm_rect, src_rect):
     """A finished file dragged from dm's list onto the other window."""
     served = tempfile.mkdtemp(prefix="dm-wl-files-")
-    pathlib.Path(served, "notes.txt").write_text("dragged out of dm under Wayland\n")
+    pathlib.Path(served, "notes.txt").write_text("dragged out of dm under Wayland\n", encoding="utf-8")
     handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=served, **k)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -136,7 +143,7 @@ def drag_out(home, pointer, dm_rect, src_rect):
         subprocess.run(["grim", f"/shots/out-during-{attempt}.png"], capture_output=True)
         pointer("release")
         time.sleep(2)
-        got = received.read_text() if received.exists() else ""
+        got = received.read_text(encoding="utf-8") if received.exists() else ""
         if "notes.txt" in got:
             ok = True
             break
@@ -157,15 +164,15 @@ def drag_out(home, pointer, dm_rect, src_rect):
 def main():
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-wl-"))
     (home / "settings.json").write_text(json.dumps({
-        "download_dir": str(home / "out"), "show_progress": False, "show_complete": False}))
+        "download_dir": str(home / "out"), "show_progress": False, "show_complete": False}), encoding="utf-8")
     env = {**os.environ, "DM_HOME": str(home)}
     env.pop("DISPLAY", None)  # Wayland, not XWayland
     debug = {"WAYLAND_DEBUG": "1"} if os.environ.get("DM_WAYLAND_DEBUG") else {}
     dm = subprocess.Popen([BINARY, "--control", "0"], env={**env, **debug}, stdout=subprocess.DEVNULL,
-                          stderr=open("/shots/dm.log", "w"))
+                          stderr=open("/shots/dm.log", "w", encoding="utf-8"))
     source = subprocess.Popen([sys.executable, str(HERE / "wayland_drag_source.py"), LINK],
                               env={**env, **debug, "GDK_BACKEND": "wayland"},
-                              stdout=subprocess.DEVNULL, stderr=open("/shots/source.log", "w"))
+                              stdout=subprocess.DEVNULL, stderr=open("/shots/source.log", "w", encoding="utf-8"))
     ok = False
     try:
         dm_rect = wait(lambda: window("dm"), 30)

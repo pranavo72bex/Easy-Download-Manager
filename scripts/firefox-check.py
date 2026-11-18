@@ -34,6 +34,13 @@ put back afterwards. The download is served by the same local server
 """
 import importlib.util, json, os, pathlib, shutil, socket, subprocess, sys, tempfile, threading, time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "firefox"
 CACHE = pathlib.Path(os.environ.get("DM_FIREFOX_CACHE") or pathlib.Path.home() / ".cache/dm-firefox")
@@ -165,7 +172,7 @@ def profile(downloads):
         'user_pref("browser.download.useDownloadDir", true);\n'
         'user_pref("browser.download.folderList", 2);\n'
         f'user_pref("browser.download.dir", {json.dumps(str(downloads))});\n'
-        'user_pref("browser.download.always_ask_before_handling_new_types", false);\n'
+        'user_pref("browser.download.always_ask_before_handling_new_types", false);\n', encoding="utf-8"
     )
     return d
 
@@ -182,7 +189,7 @@ def tab_console(rdp, ending):
 
 
 def xdo(*args):
-    return subprocess.run(["xdotool", *args], capture_output=True, text=True, timeout=20).stdout
+    return subprocess.run(["xdotool", *args], capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace").stdout
 
 
 # Which item of the page's context menu the keyboard has reached, read in
@@ -512,9 +519,9 @@ def main():
             "show_progress": False,
             "show_complete": False,
             "popups_version": 2,
-        }))
+        }), encoding="utf-8")
         shim = engine_home / "host.sh"
-        shim.write_text(f"#!/bin/sh\nexport DM_HOME='{engine_home}'\nexec '{host}' \"$@\"\n")
+        shim.write_text(f"#!/bin/sh\nexport DM_HOME='{engine_home}'\nexec '{host}' \"$@\"\n", encoding="utf-8")
         shim.chmod(0o755)
         mozilla_hosts().mkdir(parents=True, exist_ok=True)
         registration = mozilla_hosts() / "com.dm.engine.json"
@@ -523,7 +530,7 @@ def main():
         registration.write_text(json.dumps({
             "name": "com.dm.engine", "description": "dm (firefox-check)", "path": str(shim),
             "type": "stdio", "allowed_extensions": ["easy-download-manager@pranavo72bex.github.io"],
-        }))
+        }), encoding="utf-8")
         server = common.Server(("127.0.0.1", 0), common.Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         origin = f"http://127.0.0.1:{server.server_address[1]}"

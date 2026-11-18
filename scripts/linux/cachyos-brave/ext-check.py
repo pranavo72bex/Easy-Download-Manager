@@ -13,6 +13,13 @@ console message about the extension's address.
 """
 import base64, http.server, json, os, pathlib, shutil, socket, socketserver, struct, subprocess, sys, threading, time, urllib.request, hashlib
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 def say(*a): print(*a, flush=True)
 
 # --- a minimal websocket client (the image has no websocket library)
@@ -61,9 +68,9 @@ class WS:
 
 os.makedirs("/srv", exist_ok=True)
 pathlib.Path("/srv/page.html").write_text('<!doctype html><title>A video</title><body style="margin:0"><video id=v src="/clip.mp4" width=640 height=360 controls></video>'
-    + ('<script nonce=x>navigator.serviceWorker.register("/sw.js")</script>' if os.environ.get("SW") else ""))
-pathlib.Path("/srv/sw.js").write_text("self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));")
-pathlib.Path("/srv/bare.html").write_text('<!doctype html><title>No video yet</title><body style="margin:0;height:400px">')
+    + ('<script nonce=x>navigator.serviceWorker.register("/sw.js")</script>' if os.environ.get("SW") else ""), encoding="utf-8")
+pathlib.Path("/srv/sw.js").write_text("self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));", encoding="utf-8")
+pathlib.Path("/srv/bare.html").write_text('<!doctype html><title>No video yet</title><body style="margin:0;height:400px">', encoding="utf-8")
 pathlib.Path("/srv/clip.mp4").write_bytes(bytes((i * 7) & 255 for i in range(600_000)))
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(s, *a, **k): super().__init__(*a, directory="/srv", **k)
@@ -111,16 +118,16 @@ def run(name, scenario="plain"):
         try: ws.call("Browser.close", wait=10)
         except Exception: pass
         b.wait(30); subprocess.run("pkill -f brave", shell=True); time.sleep(2)
-        pf = pathlib.Path(prof) / "Default/Preferences"; p = json.loads(pf.read_text())
+        pf = pathlib.Path(prof) / "Default/Preferences"; p = json.loads(pf.read_text(encoding="utf-8"))
         for k, v in p.get("extensions", {}).get("settings", {}).items():
             if "dm" in json.dumps(v.get("manifest", {}).get("name", "")) or v.get("path", "").startswith("/root/ext"): v["incognito"] = True
-        pf.write_text(json.dumps(p))
+        pf.write_text(json.dumps(p), encoding="utf-8")
         sp = pathlib.Path(prof) / "Default/Secure Preferences"
         if sp.exists():
-            q = json.loads(sp.read_text())
+            q = json.loads(sp.read_text(encoding="utf-8"))
             for k, v in q.get("extensions", {}).get("settings", {}).items():
                 if v.get("path", "").startswith("/root/ext"): v["incognito"] = True
-            sp.write_text(json.dumps(q))
+            sp.write_text(json.dumps(q), encoding="utf-8")
         b = launch("--incognito", target)
     elif scenario == "restart":
         # the tab was open when Brave last closed; Brave restores it on the next start
@@ -181,7 +188,7 @@ def run(name, scenario="plain"):
         except Exception: b.kill()
         subprocess.run("pkill -f brave", shell=True)
 
-say("== Brave", subprocess.run(["/opt/brave.com/brave/brave", "--version"], capture_output=True, text=True).stdout.strip())
+say("== Brave", subprocess.run(["/opt/brave.com/brave/brave", "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip())
 bad = 0
 scn = os.environ.get("SCENARIO", "plain")
 for name, want in ((("old", False),) if os.path.isdir("/ext-old") else ()) + (("fixed", True),):

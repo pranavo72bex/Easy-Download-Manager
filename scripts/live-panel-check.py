@@ -20,6 +20,13 @@ import pathlib
 import sys
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("chrome_check", HERE / "chrome-check.py")
 cc = importlib.util.module_from_spec(spec)

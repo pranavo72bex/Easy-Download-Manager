@@ -80,6 +80,54 @@ and `every-type-check.py`: every kind of file goes to dm with dm set as
 installed). In sight, never headless; about half an hour. It fails when any
 row fails or was not checked, and `--save-baseline` records the window's
 pictures once a change to them is approved. This is what "QA" means here.
+On Windows, start it from PowerShell, not Git Bash (next section).
+
+## On Windows: what goes wrong, and what to do
+
+What a Windows computer does differently, met on the maintainer's laptop and
+written here so the next person need not meet it again (gaps row X4):
+
+- **UTF-8 is set by each script.** Every Python script under `scripts/` and
+  `qa/` sets UTF-8 for its own output, for the files it reads and writes, and
+  for what it reads from the programs it runs, so plain `python` is enough;
+  `python -X utf8` is no longer needed. Without it, Windows' code page
+  (Windows-1252) turned dm's "—" and "›" into "â€”", and `human-qa.py` read
+  nine browser rows as "not run" (2026-11-11). A new script does the same:
+  the `_stream.reconfigure(encoding="utf-8", errors="replace")` lines after
+  its imports, and `encoding="utf-8"` on every `open`, `read_text`,
+  `write_text`, socket `makefile` and text-mode `subprocess` call. A
+  PowerShell command whose output is read starts with
+  `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;`.
+- **QA from PowerShell, not Git Bash.** Started from Git Bash (or another
+  sandboxed shell), dm's window is pictured solid black: B25's empty window
+  differed by 99.55 % (2026-11-14), from PowerShell by 0.02 %. `human-qa.py`
+  now looks at its first picture and, if it is one colour all over or did
+  not come back, stops there and says so, rather than reporting rows it
+  could not see. Start it from PowerShell or Windows Terminal, naming the
+  build when `CARGO_TARGET_DIR` put it outside `desktop/target`:
+
+  ```powershell
+  $env:DM_BINARY = "D:\dm-target\debug\dm-gpui.exe"
+  python scripts/human-qa.py
+  ```
+- **`CARGO_INCREMENTAL=0` for a debug build.** The window's incremental
+  cache grows with every rebuild until the disk is full. Turn it off, and put
+  the build on a drive with room, before running cargo:
+
+  ```powershell
+  $env:CARGO_INCREMENTAL = "0"; $env:CARGO_TARGET_DIR = "D:\dm-target"
+  ```
+- **Packages: `cargo xtask package`.** `cargo packager` finds its settings
+  only in the window's own folder (`desktop/crates/dm-gpui/Cargo.toml`,
+  `[package.metadata.packager]`): from the checkout's root it found none,
+  and in the workspace without `-p` it packaged every crate that has them.
+  `cargo xtask package`, from the root or `desktop/`, runs it in that folder
+  for `dm-gpui` with this system's formats (NSIS on Windows, `.app` and
+  `.dmg` on macOS, `.deb` and AppImage on Linux); anything after `package`
+  goes to cargo-packager (`--formats`, `--target`, `--out-dir`). With
+  `CARGO_TARGET_DIR` set, the packages go to `<it>\release\bundle`. It needs
+  `cargo install cargo-packager --locked`; a release build takes about
+  25 minutes on a 4-core laptop.
 
 ## Real sites, beside reference A
 

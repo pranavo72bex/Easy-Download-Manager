@@ -12,6 +12,13 @@ import os
 import subprocess
 import sys
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 WORDS = [b"alpha ", b"beta ", b"gamma ", b"delta ", b"download ", b"manager ", b"range ", b"stream\n"]
 
 

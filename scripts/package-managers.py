@@ -25,6 +25,13 @@ import pathlib
 import subprocess
 import sys
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "desktop" / "packaging" / "managers"
 REPO = "pranavo72bex/Easy-Download-Manager"
@@ -39,9 +46,9 @@ FLATPAK_ID = "io.github.pranavo72bex.EasyDownloadManager"
 
 def release():
     if len(sys.argv) > 1:
-        return json.loads(pathlib.Path(sys.argv[1]).read_text())
+        return json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
     raw = subprocess.run(["gh", "release", "download", "-R", REPO, "-p", "latest.json", "-O", "-"],
-                         check=True, capture_output=True, text=True).stdout
+                         check=True, capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
     return json.loads(raw)
 
 
@@ -206,7 +213,7 @@ def main():
     for name, text in files.items():
         path = OUT / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         print("wrote", path.relative_to(ROOT))
 
 

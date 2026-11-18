@@ -30,6 +30,13 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 if len(sys.argv) != 2:
     sys.exit(__doc__)
 source = pathlib.Path(sys.argv[1]).resolve()
@@ -67,32 +74,32 @@ data = program_dir / "dm-data"
 try:
     port_file = data / "control.port"
     for _ in range(200):
-        if port_file.exists() and port_file.read_text().strip():
+        if port_file.exists() and port_file.read_text(encoding="utf-8").strip():
             break
         if app.poll() is not None:
             break
         time.sleep(0.1)
     check("a dm-data folder appears beside the program", data.is_dir())
-    check("its control port is written there", port_file.exists() and port_file.read_text().strip() != "",
+    check("its control port is written there", port_file.exists() and port_file.read_text(encoding="utf-8").strip() != "",
           (app.stderr.read().decode(errors="replace")[-300:] if app.poll() is not None else ""))
     if port_file.exists() and (data / "control.token").exists():
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
 
-        call("auth", token=(data / "control.token").read_text().strip())
+        call("auth", token=(data / "control.token").read_text(encoding="utf-8").strip())
         # Added for later: nothing is fetched, only the list is written.
         added = call("downloads.add", urls=["http://127.0.0.1:9/portable-check.bin"], later=True)
         check("a link can be added", added.get("ok"), str(added)[:200])
         listed = data / "queue.json"
         for _ in range(100):
-            if listed.exists() and "portable-check.bin" in listed.read_text():
+            if listed.exists() and "portable-check.bin" in listed.read_text(encoding="utf-8"):
                 break
             time.sleep(0.1)
-        check("the list is written in dm-data", listed.exists() and "portable-check.bin" in listed.read_text())
+        check("the list is written in dm-data", listed.exists() and "portable-check.bin" in listed.read_text(encoding="utf-8"))
 finally:
     app.terminate()
     try:

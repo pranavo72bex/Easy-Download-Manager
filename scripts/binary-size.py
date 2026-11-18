@@ -22,6 +22,13 @@ import pathlib
 import platform
 import sys
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).resolve().parent
 RECORDED = HERE / "binary-size.json"
 LIMIT = 0.10
@@ -41,13 +48,13 @@ def main():
     if not binary.is_file():
         sys.exit(f"no binary at {binary}")
     size = binary.stat().st_size
-    sizes = json.loads(RECORDED.read_text()) if RECORDED.exists() else {}
+    sizes = json.loads(RECORDED.read_text(encoding="utf-8")) if RECORDED.exists() else {}
     # A build for another machine than this one (the Intel Mac's, made on Apple silicon) is
     # held to that machine's size: `--as=macos-x86_64`.
     key = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--as=")), None) or system()
     if "--record" in sys.argv:
         sizes[key] = size
-        RECORDED.write_text(json.dumps(dict(sorted(sizes.items())), indent=1) + "\n")
+        RECORDED.write_text(json.dumps(dict(sorted(sizes.items())), indent=1) + "\n", encoding="utf-8")
         print(f"{key}: {size:,} bytes recorded")
         return
     was = sizes.get(key)
