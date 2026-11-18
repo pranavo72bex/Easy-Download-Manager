@@ -762,3 +762,86 @@ async fn the_next_client_is_asked_where_one_is_not_served() {
     set_player_clients(Vec::new());
     assert_eq!(names, ["GOOD", TV_CLIENT_NAME]);
 }
+
+/// A signed-in request's `Authorization`, as YouTube's web clients make it: the time, and the
+/// SHA-1 of "time SAPISID origin" in hex (gaps row Y4).
+#[test]
+fn a_sapisid_hash_is_the_time_and_its_sha1() {
+    assert_eq!(
+        sapisid_hash("sapisid-value", "https://www.youtube.com", 1_700_000_000),
+        "SAPISIDHASH 1700000000_ade2239a1ec948ec8b27fe884ba5c1cdc9388057"
+    );
+    assert_ne!(
+        sapisid_hash("sapisid-value", "https://music.youtube.com", 1_700_000_000),
+        sapisid_hash("sapisid-value", "https://www.youtube.com", 1_700_000_000),
+        "the origin is in the hash"
+    );
+}
+
+#[test]
+fn a_refusal_for_want_of_a_sign_in_is_told_from_others() {
+    let said = |status: &str, reason: &str| {
+        wants_sign_in(&json!({"playabilityStatus": {"status": status, "reason": reason}}))
+    };
+    assert!(said("LOGIN_REQUIRED", "Sign in to confirm your age"));
+    assert!(said("LOGIN_REQUIRED", "This video is private"));
+    assert!(said("AGE_CHECK_REQUIRED", ""));
+    assert!(said("AGE_VERIFICATION_REQUIRED", ""));
+    assert!(said(
+        "UNPLAYABLE",
+        "Join this channel to get access to members-only content like this video"
+    ));
+    assert!(said("ERROR", "This video is private."));
+    assert!(!said("OK", ""));
+    assert!(!said("UNPLAYABLE", "Video unavailable"));
+    assert!(!said(
+        "ERROR",
+        "This video has been removed by the uploader"
+    ));
+    assert!(!wants_sign_in(&json!({})));
+}
+
+#[test]
+fn a_session_is_one_that_names_a_sapisid() {
+    let at = "https://www.youtube.com/watch?v=abc";
+    let signed = crate::cookies::SignIn::new(at, "SID=s; SAPISID=sap; HSID=h").unwrap();
+    let session = Session::for_player(Some(&signed), "https://www.youtube.com").unwrap();
+    assert_eq!(session.sapisid, "sap");
+    assert_eq!(
+        session.cookie,
+        "SID=s; SAPISID=sap; HSID=h; PREF=hl=en&tz=UTC; SOCS=CAI"
+    );
+    // The name newer sessions give it.
+    let newer = crate::cookies::SignIn::new(at, "__Secure-3PAPISID=three; SID=s").unwrap();
+    let session = Session::for_player(Some(&newer), "https://www.youtube.com").unwrap();
+    assert_eq!(session.sapisid, "three");
+    // None that can be signed with, and none for another host.
+    let unsigned = crate::cookies::SignIn::new(at, "PREF=f6=1; SID=s").unwrap();
+    assert!(Session::for_player(Some(&unsigned), "https://www.youtube.com").is_none());
+    assert!(Session::for_player(Some(&signed), "https://m.youtube.com").is_none());
+    assert!(Session::for_player(None, "https://www.youtube.com").is_none());
+}
+
+#[test]
+fn a_signed_in_read_asks_the_tv_client_then_the_web_one_at_the_pages_version() {
+    let page = r#"<script>ytcfg.set({"INNERTUBE_CLIENT_VERSION":"2.20261101.00.00"});</script>"#;
+    let asked: Vec<(String, String, String)> = signed_in_clients(page)
+        .into_iter()
+        .map(|c| (c.name, c.version, c.id))
+        .collect();
+    assert_eq!(
+        asked,
+        [
+            (
+                TV_CLIENT_NAME.into(),
+                TV_CLIENT_VERSION.into(),
+                TV_CLIENT_ID.into()
+            ),
+            ("WEB".into(), "2.20261101.00.00".into(), "1".into()),
+        ]
+    );
+    assert_eq!(
+        signed_in_clients("<html></html>")[1].version,
+        WEB_CLIENT_VERSION
+    );
+}

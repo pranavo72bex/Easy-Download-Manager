@@ -54,6 +54,11 @@ const TV_AGENT: &str = "Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/5
 /// The browser the watch page is asked as.
 const PAGE_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
+/// The web client's version where the page names none (a stand-in's).
+const WEB_CLIENT_VERSION: &str = "2.20261020.00.00";
+/// Where YouTube's web clients say they ask from: a signed-in request's `Origin` and the
+/// origin its `SAPISIDHASH` is made with (gaps row Y4).
+const WEB_ORIGIN: &str = "https://www.youtube.com";
 /// The most one request for a stream asks for, as a player does for
 /// these addresses (`http_chunk_size`): the server slows a response past it.
 const CHUNK: u64 = 10 << 20;
@@ -298,12 +303,26 @@ async fn ask_player(
 }
 
 /// The player's answer for video `id`, asked as `asked_as`; an error unless it plays.
+#[cfg(test)]
 async fn ask_player_as(
     client: &reqwest::Client,
     origin: &str,
     id: &str,
     facts: &PageFacts,
     asked_as: &PlayerClient,
+) -> Result<Value, Error> {
+    plays(player_answer(client, origin, id, facts, asked_as, None).await?)
+}
+
+/// The player's answer for video `id`, asked as `asked_as`, whatever it says of playing: with
+/// the browser's `session` where one is given (gaps row Y4).
+async fn player_answer(
+    client: &reqwest::Client,
+    origin: &str,
+    id: &str,
+    facts: &PageFacts,
+    asked_as: &PlayerClient,
+    session: Option<&Session>,
 ) -> Result<Value, Error> {
     let mut who = serde_json::Map::new();
     for (key, value) in &asked_as.context {
@@ -334,15 +353,32 @@ async fn ask_player_as(
         .header(reqwest::header::USER_AGENT, &asked_as.agent)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header("X-Youtube-Client-Name", &asked_as.id)
-        .header("X-Youtube-Client-Version", &asked_as.version)
-        .header(reqwest::header::ORIGIN, origin);
+        .header("X-Youtube-Client-Version", &asked_as.version);
+    ask = match session {
+        // As YouTube's web clients ask signed in: the session's cookies, and its hash made
+        // for the web's origin, which the request says it is from.
+        Some(session) => ask
+            .header(reqwest::header::COOKIE, &session.cookie)
+            .header(
+                reqwest::header::AUTHORIZATION,
+                sapisid_hash(&session.sapisid, WEB_ORIGIN, unix_now()),
+            )
+            .header("X-Goog-AuthUser", "0")
+            .header("X-Origin", WEB_ORIGIN)
+            .header(reqwest::header::ORIGIN, WEB_ORIGIN),
+        None => ask.header(reqwest::header::ORIGIN, origin),
+    };
     if let Some(visitor) = &facts.visitor {
         ask = ask.header("X-Goog-Visitor-Id", visitor);
     }
     let answer = crate::redirects::send(ask.body(body.to_string())).await?;
     let answered = text_capped(Error::refused_or(answer).await?, PAGE_MOST).await?;
-    let player: Value = serde_json::from_str(&answered)
-        .map_err(|e| Error::Internal(format!("the player API answered no JSON ({e})")))?;
+    serde_json::from_str(&answered)
+        .map_err(|e| Error::Internal(format!("the player API answered no JSON ({e})")))
+}
+
+/// The player's answer where it plays, else what YouTube says of why not.
+fn plays(player: Value) -> Result<Value, Error> {
     let status = player
         .pointer("/playabilityStatus/status")
         .and_then(Value::as_str)
@@ -355,6 +391,88 @@ async fn ask_player_as(
         return Err(Error::Internal(format!("YouTube says: {reason}")));
     }
     Ok(player)
+}
+
+/// Whether the player refuses for want of a sign-in: an age check, a private video, a
+/// members-only one, or a plain "sign in" (gaps row Y4).
+fn wants_sign_in(player: &Value) -> bool {
+    let said = |at: &str| {
+        player
+            .pointer(at)
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_ascii_lowercase()
+    };
+    let status = said("/playabilityStatus/status");
+    let reason = said("/playabilityStatus/reason");
+    matches!(
+        status.as_str(),
+        "login_required" | "age_check_required" | "age_verification_required"
+    ) || (matches!(
+        status.as_str(),
+        "unplayable" | "error" | "content_check_required"
+    ) && ["sign in", "members", "private", "age-restricted"]
+        .iter()
+        .any(|word| reason.contains(word)))
+}
+
+/// The browser's session for a signed-in ask of the player: the cookies the page handed over
+/// (or the cookies file holds) for YouTube, with the `SAPISID` its hash is made from. Held in
+/// memory for the one read it is for; never written to a file or a log (gaps row Y4).
+struct Session {
+    cookie: String,
+    sapisid: String,
+}
+
+impl Session {
+    /// The session for the player at `origin`, where its cookies name a `SAPISID` (else
+    /// `__Secure-3PAPISID`, the name newer sessions give the same value).
+    fn for_player(sign_in: Option<&crate::cookies::SignIn>, origin: &str) -> Option<Session> {
+        let theirs = crate::cookies::header_with(sign_in, &format!("{origin}/youtubei/v1/player"))?;
+        let named = |wanted: &str| {
+            theirs
+                .split(';')
+                .filter_map(|pair| pair.trim().split_once('='))
+                .find(|(name, _)| name.trim() == wanted)
+                .map(|(_, value)| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        };
+        let sapisid = named("SAPISID").or_else(|| named("__Secure-3PAPISID"))?;
+        Some(Session {
+            cookie: format!("{theirs}; PREF=hl=en&tz=UTC; SOCS=CAI"),
+            sapisid,
+        })
+    }
+}
+
+/// The `Authorization` YouTube's web clients send with a signed-in request: the time, and the
+/// SHA-1 of the time, the session's `SAPISID` and the origin asked from.
+fn sapisid_hash(sapisid: &str, origin: &str, now: u64) -> String {
+    use sha1::Digest;
+    let digest = sha1::Sha1::digest(format!("{now} {sapisid} {origin}").as_bytes());
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    format!("SAPISIDHASH {now}_{hex}")
+}
+
+/// Seconds since 1970, as a `SAPISIDHASH` is timed.
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// The clients a video that wants a sign-in is asked as again with the browser's session: dm's
+/// own TV client, then the web client at the version the watch page names (gaps row Y4).
+fn signed_in_clients(page: &str) -> Vec<PlayerClient> {
+    let web = PlayerClient {
+        name: "WEB".into(),
+        version: client_version(page).unwrap_or_else(|| WEB_CLIENT_VERSION.to_string()),
+        id: "1".into(),
+        agent: PAGE_AGENT.into(),
+        context: Vec::new(),
+    };
+    vec![own_client(), web]
 }
 
 /// Where YouTube is: its own host, or a test's stand-in.
@@ -972,10 +1090,24 @@ async fn read_within(
     // Each client in turn until one answers with streams dm can fetch: a client YouTube
     // stops serving, or whose addresses this player's checks could not be answered for
     // (gaps row Y3), is passed over for the next.
+    // A video that wants a sign-in is asked again, with the browser's session where the page
+    // handed one over (gaps row Y4); without one, the refusal stands as YouTube words it.
+    let session = Session::for_player(sign_in, &origin);
+    let mut asks: Vec<(PlayerClient, bool)> =
+        player_clients().into_iter().map(|c| (c, false)).collect();
+    let mut at = 0;
     let mut failed = None;
     let mut found = None;
-    for asked_as in &player_clients() {
-        let player = match ask_player_as(client, &origin, id, &facts, asked_as).await {
+    while let Some((asked_as, signed)) = asks.get(at).cloned() {
+        at += 1;
+        let with = session.as_ref().filter(|_| signed);
+        let answer = player_answer(client, &origin, id, &facts, &asked_as, with).await;
+        if let Ok(refused) = &answer {
+            if session.is_some() && !asks.iter().any(|(_, s)| *s) && wants_sign_in(refused) {
+                asks.extend(signed_in_clients(&page).into_iter().map(|c| (c, true)));
+            }
+        }
+        let player = match answer.and_then(plays) {
             Ok(player) => player,
             Err(e) => {
                 failed = Some(e);

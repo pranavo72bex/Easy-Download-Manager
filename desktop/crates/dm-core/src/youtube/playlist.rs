@@ -9,7 +9,8 @@
 use serde_json::{json, Value};
 
 use super::{
-    client_version, initial_data, origin, text_capped, walk, PAGE_AGENT, PAGE_MOST, WITHIN,
+    client_version, initial_data, origin, text_capped, walk, PAGE_AGENT, PAGE_MOST,
+    WEB_CLIENT_VERSION, WITHIN,
 };
 use crate::Error;
 
@@ -252,7 +253,7 @@ async fn read_playlist_within(
         ));
     }
     // The page's own client version, for the browse API; a stand-in gives none.
-    let version = client_version(&page).unwrap_or_else(|| "2.20261020.00.00".to_string());
+    let version = client_version(&page).unwrap_or_else(|| WEB_CLIENT_VERSION.to_string());
     while let Some(next) = token.take() {
         if playlist.entries.len() >= PLAYLIST_MOST {
             playlist.cut_short = true;
