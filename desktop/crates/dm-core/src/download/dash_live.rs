@@ -322,7 +322,7 @@ pub(super) async fn record(
                 if passed_over.insert(inits) {
                     if let Some(tx) = &report {
                         let said =
-                            crate::download::NOTES[2].replace("{}", &passed_over.len().to_string());
+                            crate::download::NOTES[3].replace("{}", &passed_over.len().to_string());
                         let _ = tx.send(Update::Note(said)).await;
                     }
                 }

@@ -46,6 +46,11 @@ async fn serve_live(
         .route(
             "/live/init.mp4",
             get(move || async move { Response::new(Body::from(init)) }),
+        )
+        // An advert's first piece, in a format unlike the stream's.
+        .route(
+            "/live/ad-init.mp4",
+            get(|| async { Response::new(Body::from(&b"an advert in another format"[..])) }),
         );
     for (n, piece) in pieces.into_iter().enumerate() {
         app = app.route(
@@ -148,4 +153,52 @@ async fn a_live_recording_stopped_keeps_what_it_has() {
         .unwrap();
     let (got, _) = samples_in(&done.path);
     assert_eq!(got, samples[..6], "the two pieces listed, once each");
+}
+
+/// A period in another format (an advert) is passed over, and the row says so with the note
+/// of parts left out, not another note (gaps row Y18).
+#[tokio::test]
+async fn a_period_in_another_format_is_passed_over_with_its_note() {
+    fn two_periods(n: usize) -> String {
+        let kind = if n < 2 {
+            r#"type="dynamic" minimumUpdatePeriod="PT0.1S""#
+        } else {
+            r#"type="static" mediaPresentationDuration="PT0.3S""#
+        };
+        format!(
+            r#"<MPD {kind}><Period id="p" start="PT0S"><AdaptationSet mimeType="video/mp4">
+            <SegmentTemplate timescale="90000" initialization="init.mp4" media="seg-$Time$.m4s">
+            <SegmentTimeline><S t="0" d="9000" r="1"/></SegmentTimeline></SegmentTemplate>
+            <Representation id="v" bandwidth="9" height="360"/></AdaptationSet></Period>
+            <Period id="ad" start="PT0.2S"><AdaptationSet mimeType="video/mp4">
+            <SegmentTemplate timescale="90000" initialization="ad-init.mp4" media="ad-$Time$.m4s">
+            <SegmentTimeline><S t="0" d="9000"/></SegmentTimeline></SegmentTemplate>
+            <Representation id="v" bandwidth="9" height="360"/></AdaptationSet></Period></MPD>"#
+        )
+    }
+    let (url, asked, samples) = serve_live(two_periods).await;
+    let dir = tempfile::tempdir().unwrap();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+    let done = crate::download::download_reporting(
+        &crate::reqwest_defaults(),
+        &url,
+        &options(dir.path()),
+        Some(tx),
+    )
+    .await
+    .unwrap();
+    let (got, _) = samples_in(&done.path);
+    assert_eq!(got, samples[..6], "the stream's two pieces, not the advert");
+    let asked = asked.lock().unwrap().clone();
+    assert!(
+        !asked.iter().any(|p| p.starts_with("/live/ad-0")),
+        "{asked:?}"
+    );
+    let mut notes = Vec::new();
+    while let Ok(update) = rx.try_recv() {
+        if let Update::Note(said) = update {
+            notes.push(said);
+        }
+    }
+    assert_eq!(notes, [crate::download::NOTES[3].replace("{}", "1")]);
 }
