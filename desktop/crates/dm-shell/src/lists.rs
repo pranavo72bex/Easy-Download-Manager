@@ -831,6 +831,8 @@ async fn crawl_until_watched(
     Ok(found)
 }
 
+pub mod offline;
+
 /// A download's address as a window shows it: a password in it is replaced
 /// by dots, the rest kept (`dm_core::shown_url`, beside `Entry::redacted`).
 pub use dm_core::shown_url;
