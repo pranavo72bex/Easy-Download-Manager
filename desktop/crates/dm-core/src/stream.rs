@@ -56,6 +56,9 @@ pub struct Key {
     pub uri: String,
     /// The playlist's own IV, where it declared one. Hex, `0x` optional.
     pub iv: Option<String>,
+    /// SAMPLE-AES: the samples inside the segment are scrambled, not the segment, and are put
+    /// in the clear once it is joined (`dm_media::sealed`, gaps row Y16).
+    pub sample: bool,
 }
 
 /// One piece of the stream.
@@ -249,54 +252,27 @@ fn lines(text: &str) -> Vec<&str> {
 /// repeated, a silent film, ciphertext — so they are refused, not saved
 /// as a file that is not one. `master` is the master playlist where
 /// there was one; `media` the media playlist that would be fetched, and
-/// `media_url` where it was served from, which its entries are relative to.
+/// `_media_url` where it was served from, which its entries are relative to.
 pub fn beyond_dm(
     master: Option<&str>,
     audio_group: Option<&str>,
     media: &str,
-    media_url: &str,
+    _media_url: &str,
 ) -> Option<&'static str> {
-    let upper = media.to_ascii_uppercase();
-    // Keys that differ, not key lines: some packagers restate the same key
-    // before every segment, which dm decrypts as one key.
-    let keys: std::collections::BTreeSet<String> = lines(media)
-        .iter()
-        .filter(|l| l.to_ascii_uppercase().starts_with("#EXT-X-KEY"))
-        .map(|l| l.trim().to_string())
-        .collect();
     // A key that changes part-way is each segment's own (`Part::key`), fetched once each, as
-    // a player does (gaps row Y16): refused before.
-    /* One initialisation segment leads the file; a second, different one
-     * belongs to the segments after it, and joined as one file they decode
-     * against the wrong one. Restated unchanged, it is still one — however
-     * it is written: compared as the addresses they resolve to, so
-     * `URI="i.mp4"` and `URI="./i.mp4"`, or the same line with its
-     * attributes in another order, are one segment. The one place this is
-     * decided; `media_playlist` reads only what passed here. */
-    let maps: std::collections::BTreeSet<String> = lines(media)
-        .iter()
-        .filter(|l| l.to_ascii_uppercase().starts_with("#EXT-X-MAP"))
-        .map(|l| {
-            attribute(l, "URI")
-                .and_then(|uri| join(media_url, &uri).ok())
-                .unwrap_or_else(|| l.trim().to_string())
-        })
-        .collect();
-    if maps.len() > 1 {
-        return Some("this stream changes its initialisation segment part-way through");
-    }
-    // An initialisation segment listed after a key that encrypts is
-    // encrypted too; `METHOD=NONE` encrypts nothing.
-    let encrypting = keys
-        .iter()
-        .any(|k| !k.to_ascii_uppercase().contains("METHOD=NONE"));
-    if encrypting {
-        let key_at = upper.find("#EXT-X-KEY");
-        let map_at = upper.find("#EXT-X-MAP");
-        if let (Some(k), Some(m)) = (key_at, map_at) {
-            if m > k {
-                return Some("this stream's initialisation segment is encrypted");
-            }
+    // a player does (gaps row Y16): refused before. So is an initialisation segment that
+    // changes part-way (an advert break): each starts a run of its own, decoded with its own
+    // (`media_playlist`, `mp4mux`'s runs); a pair of playlists still refuses it (`changes_map`).
+    /* An initialisation segment listed under an AES-128 key is encrypted with it;
+     * `METHOD=NONE` encrypts nothing, and SAMPLE-AES scrambles the samples, never the
+     * initialisation segment. */
+    let mut sealing = false;
+    for line in lines(media) {
+        let upper = line.to_ascii_uppercase();
+        if upper.starts_with("#EXT-X-KEY") {
+            sealing = attribute(line, "METHOD").is_some_and(|m| m.eq_ignore_ascii_case("AES-128"));
+        } else if upper.starts_with("#EXT-X-MAP") && sealing {
+            return Some("this stream's initialisation segment is encrypted");
         }
     }
     // Sound apart from the picture: the chosen rendition's audio group,
@@ -309,6 +285,34 @@ pub fn beyond_dm(
         }
     }
     None
+}
+
+/// Whether a media playlist's initialisation segment changes part-way: a second, different one
+/// belongs to the segments after it. Restated unchanged it is still one, however it is written:
+/// compared as the addresses they resolve to, so `URI="i.mp4"` and `URI="./i.mp4"`, or the same
+/// line with its attributes in another order, are one segment. A single playlist is joined run
+/// by run (gaps row Y16); a pair of them is not, and is refused.
+pub fn changes_map(media: &str, media_url: &str) -> bool {
+    let maps: std::collections::BTreeSet<String> = lines(media)
+        .iter()
+        .filter(|l| l.to_ascii_uppercase().starts_with("#EXT-X-MAP"))
+        .map(|l| {
+            attribute(l, "URI")
+                .and_then(|uri| join(media_url, &uri).ok())
+                .unwrap_or_else(|| l.trim().to_string())
+        })
+        .collect();
+    maps.len() > 1
+}
+
+/// Whether a media playlist's samples are scrambled by SAMPLE-AES: put in the clear once its
+/// segments are joined (gaps row Y16), which a live recording or a pair of playlists does not
+/// do, and refuses.
+pub fn sample_scrambled(media: &str) -> bool {
+    lines(media).iter().any(|l| {
+        l.to_ascii_uppercase().starts_with("#EXT-X-KEY")
+            && attribute(l, "METHOD").is_some_and(|m| m.eq_ignore_ascii_case("SAMPLE-AES"))
+    })
 }
 
 /// The playlist of the sound a rendition plays with, where its audio group
@@ -449,7 +453,12 @@ pub fn media_playlist(
     quality: Quality,
 ) -> Result<Stream, Error> {
     let mut parts: Vec<Part> = Vec::new();
+    // The initialisation segment in force, and whether it has been put before a segment yet:
+    // each one leads the segments after it, until the next (gaps row Y16).
     let mut init: Option<Part> = None;
+    let mut init_placed = false;
+    // Media segments so far: what numbers them, initialisation segments not counted.
+    let mut media = 0u64;
     let mut key = None;
     let mut container = "ts";
     let mut sequence = 0u64;
@@ -481,6 +490,10 @@ pub fn media_playlist(
                 }
                 None => None,
             };
+            if let Some(init) = init.as_ref().filter(|_| !init_placed) {
+                parts.push(init.clone());
+                init_placed = true;
+            }
             parts.push(Part {
                 url,
                 range,
@@ -492,9 +505,10 @@ pub fn media_playlist(
                  * number by one, and the number *is* the initialisation
                  * vector for a playlist that declares none — so a stream that
                  * is both fMP4 and AES-128 would decrypt to noise. */
-                sequence: sequence + parts.len() as u64,
+                sequence: sequence + media,
                 key: key.clone(),
             });
+            media += 1;
             continue;
         }
         let upper = row.to_ascii_uppercase();
@@ -531,7 +545,9 @@ pub fn media_playlist(
                 key = None;
                 continue;
             }
-            if method != "AES-128" {
+            // SAMPLE-AES with a clear key: the samples are put in the clear once the segments
+            // are joined (gaps row Y16).
+            if method != "AES-128" && method != "SAMPLE-AES" {
                 return Err(Error::Internal(format!(
                     "this stream uses {method} encryption, which dm cannot decrypt"
                 )));
@@ -551,36 +567,40 @@ pub fn media_playlist(
             key = Some(Key {
                 uri: join(url, &uri)?,
                 iv: attribute(row, "IV"),
+                sample: method == "SAMPLE-AES",
             });
             continue;
         }
 
         if upper.starts_with("#EXT-X-MAP") {
             if let Some(uri) = attribute(row, "URI") {
-                // Restated, it is the same one: `beyond_dm` has already
-                // sent a stream whose initialisation segment changes to
-                // refused, so the first is the only one.
-                if init.is_none() {
-                    let range = match attribute(row, "BYTERANGE") {
-                        Some(text) => match byte_range(&text)? {
-                            (len, Some(first)) => Some((first, first.saturating_add(len) - 1)),
-                            (_, None) => {
-                                return Err(Error::Internal(
-                                    "the initialisation segment's byte range has no start".into(),
-                                ))
-                            }
-                        },
-                        None => None,
-                    };
+                let range = match attribute(row, "BYTERANGE") {
+                    Some(text) => match byte_range(&text)? {
+                        (len, Some(first)) => Some((first, first.saturating_add(len) - 1)),
+                        (_, None) => {
+                            return Err(Error::Internal(
+                                "the initialisation segment's byte range has no start".into(),
+                            ))
+                        }
+                    },
+                    None => None,
+                };
+                let url = join(url, &uri)?;
+                // Restated, it is the same one, and is not put in again.
+                let same = init
+                    .as_ref()
+                    .is_some_and(|i| i.url == url && i.range == range);
+                if !same {
                     init = Some(Part {
-                        url: join(url, &uri)?,
+                        url,
                         init: true,
                         sequence: 0,
                         range,
                         duration: 0.0,
-                        // Never encrypted where it leads the key (`beyond_dm`).
+                        // Never encrypted where an AES-128 key is in force (`beyond_dm`).
                         key: None,
                     });
+                    init_placed = false;
                 }
                 container = "mp4";
             }
@@ -622,11 +642,6 @@ pub fn media_playlist(
         container = "m4a";
     }
 
-    // The initialisation segment leads the file or nothing will decode.
-    if let Some(init) = init {
-        parts.insert(0, init);
-    }
-
     // The stream's key, where one is: its first encrypted segment's; each segment keeps its
     // own, as the key may change part-way (gaps row Y16).
     let _ = key;
@@ -647,9 +662,16 @@ pub fn media_playlist(
 /// afterwards). `None` where no segment overlaps, or the playlist gave no
 /// lengths (`#EXTINF`) to place them by.
 pub fn cover(stream: &Stream, from: f64, to: f64) -> Option<(Stream, f64, f64)> {
-    let mut parts: Vec<Part> = stream.parts.iter().filter(|p| p.init).cloned().collect();
+    let mut parts: Vec<Part> = Vec::new();
     let (mut at, mut starts, mut ends, mut any) = (0.0f64, 0.0f64, 0.0f64, false);
-    for part in stream.parts.iter().filter(|p| !p.init) {
+    // The initialisation segment of the segments that follow it, put in before the first of
+    // them taken: where it changes part-way, each run keeps its own (gaps row Y16).
+    let mut init: Option<&Part> = None;
+    for part in &stream.parts {
+        if part.init {
+            init = Some(part);
+            continue;
+        }
         let end = at + part.duration;
         if part.duration > 0.0 && at < to && end > from {
             if !any {
@@ -657,6 +679,9 @@ pub fn cover(stream: &Stream, from: f64, to: f64) -> Option<(Stream, f64, f64)> 
                 any = true;
             }
             ends = end;
+            if let Some(init) = init.take() {
+                parts.push(init.clone());
+            }
             parts.push(part.clone());
         }
         at = end;

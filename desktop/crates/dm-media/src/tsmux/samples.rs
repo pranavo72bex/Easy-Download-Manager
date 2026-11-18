@@ -42,7 +42,11 @@ pub(super) fn take_picture(
     let mut sample = Vec::with_capacity(data.len() + 16);
     let mut key = false;
     let hevc = stream.kind == HEVC;
+    let lock = stream.lock.filter(|_| stream.sealed);
     for unit in nal_units(data) {
+        // A scrambled slice in the clear (SAMPLE-AES, gaps row Y16); any other as it is.
+        let cleared = lock.and_then(|(key, iv)| crate::sealed::clear_nal(unit, &key, &iv));
+        let unit = cleared.as_deref().unwrap_or(unit);
         let Some(head) = unit.first() else {
             continue;
         };

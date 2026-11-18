@@ -55,6 +55,12 @@ const SOUNDS: [u8; 5] = [AAC, MPEG1_AUDIO, MPEG2_AUDIO, AC3, EAC3];
 /// pictures, AVS; LATM AAC. A stream with one is refused whole rather than
 /// put into an MP4 without it.
 const OTHERS: [u8; 5] = [0x01, 0x02, 0x10, 0x42, 0x11];
+/// What HLS's SAMPLE-AES calls H.264 and ADTS AAC whose samples are scrambled, and AC-3 and
+/// E-AC-3 that are (Apple's transport-stream signalling for its sample encryption).
+const SEALED_H264: u8 = 0xdb;
+const SEALED_AAC: u8 = 0xcf;
+const SEALED_AC3: u8 = 0xc1;
+const SEALED_EAC3: u8 = 0xc2;
 
 /// The shape of a sound stream, from its first frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,17 +133,31 @@ struct Elementary {
     /// `EXT-X-DISCONTINUITY` (an advert, another encoder) starts its clock afresh, which read
     /// as it is put pictures back in time (gaps row Y16).
     shift: i64,
+    /// Its samples are scrambled (HLS's SAMPLE-AES, gaps row Y16): each PES is put in the clear
+    /// with the key and vector of the segment it came in.
+    sealed: bool,
+    /// The key and vector of the PES being gathered, and of the one being taken.
+    gathering: crate::sealed::Lock,
+    lock: crate::sealed::Lock,
 }
 
 /// Puts the transport stream at `input` into an MP4 at `out`, with scratch
 /// files beside `out` that are gone when it returns. Returns its length.
 pub fn to_mp4(input: &Path, out: &Path) -> Result<u64, String> {
+    to_mp4_clear(input, out, &crate::sealed::Locks::default())
+}
+
+/// [`to_mp4`] of a stream whose pictures and sound are scrambled by HLS's SAMPLE-AES (gaps row
+/// Y16): each segment's samples put in the clear with its key and vector (`locks`, by where each
+/// segment starts in `input`), as Apple's "MPEG-2 Stream Encryption Format for HTTP Live
+/// Streaming" describes. H.264 and ADTS AAC; scrambled AC-3 is refused.
+pub fn to_mp4_clear(input: &Path, out: &Path, locks: &crate::sealed::Locks) -> Result<u64, String> {
     let scratch = |what: &str| {
         let mut name = out.as_os_str().to_owned();
         name.push(format!(".{what}"));
         PathBuf::from(name)
     };
-    let mut streams = read_ts(input, &scratch)?;
+    let mut streams = read_ts_locked(input, &scratch, locks)?;
     let result = build(&mut streams, out);
     for stream in &streams {
         let _ = std::fs::remove_file(&stream.path);

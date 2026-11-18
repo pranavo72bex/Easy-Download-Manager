@@ -17,6 +17,10 @@ publish = false
 testing = []
 
 [dependencies]
+# HLS's SAMPLE-AES with a clear key (`sealed.rs`, gaps row Y16): AES-128-CBC on a sample's
+# blocks; already in the build through dm-core's whole-segment AES-128.
+aes.workspace = true
+cbc.workspace = true
 # `shape::Shape` is kept in the queue's file.
 serde = { workspace = true, features = ["derive"] }
 # AAC-LC decoding where the system has no decoder dm calls (`aac.rs`).

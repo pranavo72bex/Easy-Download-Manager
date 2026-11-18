@@ -154,6 +154,7 @@ pub(super) fn picture_track(
         edits,
         edits_timescale: TIMESCALE,
         samples,
+        descriptions: Vec::new(),
         start: None,
     })
 }
@@ -274,6 +275,7 @@ pub(super) fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Resul
         edits,
         edits_timescale: TIMESCALE,
         samples,
+        descriptions: Vec::new(),
         start: None,
     })
 }

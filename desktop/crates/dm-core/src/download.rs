@@ -38,6 +38,7 @@ mod dash;
 mod dash_live;
 mod files;
 mod hls;
+mod hls_sealed;
 mod http;
 mod mirrors;
 mod plain;
