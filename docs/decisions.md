@@ -7802,3 +7802,18 @@ number: both sides already pick the best sound by the same rule, and the MP3 lin
 limit), as the 2026-10-27 decision intended before that fallback was removed. Not done: a new
 field on `Choice` (it would pass through the browser's hand-over and the queue). Its tests were
 written on the Windows laptop and not run: run on the Mac.
+
+## 2026-11-18: A read follows only the rows that changed (gaps row 181)
+
+The session keeps the rows of its last read and finds what the next read changed by pointer,
+once (`snapshot::Changes`). The queue copies a row before changing it while a read holds it, so
+the same pointer means the same row. The detector, When done's watch, the events, `going.json`
+and the finished rows' sizes follow only those places, and the window takes only those rows into
+its own. Rows that came, went or moved still mean a read of every row. The detector keeps the
+read before as what changed, not a second map, so `Session::before` answers for one id. A
+finished row whose file is missing is still looked for at every read, as before. The window sorts
+again only where a changed row compares otherwise under the sort: the sort depends on the rows
+alone and keeps ties in the rows' order, so an unchanged key leaves the order unchanged. Not
+done: views of their own or `.cached()` for the window's parts, and following state changes
+through names, places and the filter. Written with no build on the Windows laptop, its time
+bounds (5 ms, 2 ms in debug) guessed: compiled, run and measured on the Mac.

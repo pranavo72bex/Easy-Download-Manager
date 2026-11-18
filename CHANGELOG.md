@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Faster with a long list: each look at the queue examines only the downloads that changed, not every row, and the window is not drawn again when nothing on it changed.
 - YouTube: a quality picked from the list downloads the very format it was listed from; where the video's reading lacks it, the nearest quality is fetched instead of failing with "no stream at that quality", and a page without its own player data is listed from dm's own reading.
 - Security: a name a public site leads to is connected to at its public addresses only, and is refused, in the words of an inward redirect, where it leads only inside this computer or its network, including a name that answers public and then 127.0.0.1 (DNS rebinding).
 - Torrents: the BitTorrent library is upstream 9.1.0 (a bencode nesting limit, a piece-offset bounds fix, a listener panic fixed) as published plus dm's patch in `desktop/vendor/patches`, remade by `desktop/vendor/vendor.sh`; its web interface, examples and test files are no longer in the tree.
