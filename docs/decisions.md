@@ -7567,3 +7567,110 @@ drafting rather than publishing a manifest every dm would refuse. This differs f
 2026-10-25/27, when an unset secret broke 0.8.0: the key in the code is a placeholder with no
 private half until the maintainer runs step 3 of `docs/RELEASING.md`, and until then a release
 tag stops at the signing step. Tests make a fresh pair each run, so no private key is committed.
+
+## 2026-11-18: A release's provenance: its crates and its digests, signed (gaps row W21)
+
+A release's provenance is `crates.txt` plus `SHA256SUMS` signed by F6's update key (one key, one
+signer in `update_key.rs`), not a second key; a SHA256SUMS signature cannot pass as a manifest
+signature, as it is not JSON. The crate list comes from `cargo tree -e normal,build --target all`
+(features as a build without tests resolves them), each crate's source from `cargo metadata`;
+metadata alone merged in test-only features and listed about 120 crates the programs do not
+contain. `cargo xtask verify-release <dir>` checks a download. Installers are not claimed
+reproducible: no second build has been compared, and `docs/RELEASING.md` says what differs and to
+compare the program inside each. R1 (signing the installers) waits for the maintainer's word.
+
+## 2026-11-18: The help, a page for each part, held whole by a check (gaps row W9)
+
+The help is `docs/user-guide.md` plus pages in `docs/guide/` (one per Options tab and per dialog,
+the topics, and `failures.md`). Its completeness is held by `cargo xtask help-check`, which reads
+the sentences from the source (`NOTES`, the error types' `#[error]` texts, the network and file
+error words, dm-core's and dm-net's `Error::Internal` and `Connection` sentences, and the words of
+Options' pages) rather than a hand list, so a new sentence fails the check until it has an entry.
+An entry is the sentence word for word, with `…` for a placeholder. Help's search in the window
+waits for the maintainer: the Help menu is held by `docs/parity.md` and two window tests.
+
+## 2026-11-18: Pages saved for offline reading, the engine (gaps row F2)
+
+The Grabber's scope decides which pages are read. Their stylesheets, scripts, pictures and fonts
+are fetched wherever they are hosted, as a browser would, but only for pages within scope, and
+paths left out stay out. Pages are rewritten byte by byte rather than decoded, so a page in any
+ASCII-compatible charset keeps every byte but the rewritten addresses; the server's charset is
+written in when the page does not say its own, and UTF-16 pages are kept whole. Links to saved
+files become relative paths; every other web address becomes absolute, so no saved file points
+to a file that is not there. `<base href>` is removed once read, and an integrity check is removed
+for a file now read from the disk. The folder tree is host/path, each page `.html` with a query's
+digest in its name, collisions numbered; a path over 180 bytes, or one under a name that is
+already a file, goes straight into the site's folder. Limits: 100 pages (as the Grabber), 2000
+files, 32 MB a file, 1 GB a save. The window's box waits for the maintainer (contract B60, B61).
+
+## 2026-11-18: MP3 at the standard's bit rates; Opus by the system's decoder (gaps row Y25)
+
+The encoder takes any MPEG-1 Layer III rate from 32 to 320 kbit/s (`mp3::KBPS`) as a parameter of
+its callers; with none it makes what it always made (192 stereo, 128 mono, byte for byte), and
+dm's download asks for none, as no window offers a choice: a control in Options or the quality
+list changes a listed window (B43) and waits for the maintainer's word. Opus in a WebM is read by
+the system's own decoder, as AAC is (2026-10-31): on Windows, Media Foundation's WebM reader and
+Opus decoder (`mf::opus_decoder`); `mp3::takes` converts a WebM only when its sound is Opus and
+the system decodes it, and a Vorbis or soundless WebM is refused in words. Its words are read
+from its Info and Matroska tags (`mkvmux::tags`) for the ID3 header. Checked on a WebM of silent
+Opus packets the test makes, and on YouTube's format 251 against the same video's 140 (0.999
+correlated). Not taken: an Opus decoder of dm's own (RFC 6716's SILK, CELT and hybrid) or a crate
+(the maintainer's word first); macOS (AudioToolbox reads no WebM) and Linux stay owed.
+
+## 2026-11-18: YouTube formats served only as numbered pieces (gaps row Y14)
+
+A format typed `FORMAT_STREAM_TYPE_OTF` has no single file of byte ranges: `&sq=0` is its first
+boxes, and the pieces follow as `&sq=1` on. It used to be dropped, which cost such a video its
+higher qualities. It is now read and chosen by the usual rules, except that a part never takes it
+(it has no index to cut by). dm's reading marks it `http_dash_segments`. The first piece says how
+many pieces follow (`Segment-Count: N`, read from its bytes), and the DASH piece fetcher
+(`download::dash::download_numbered`) fetches `&sq=0` to `&sq=N` like any DASH track's pieces,
+then gathers them into one file, joined with the sound as before. The player's answer carries no
+count, so it comes from the stream itself. That wording is unconfirmed on a real video, so where
+the first piece gives no count, or the numbered fetch fails before any piece after it is whole,
+the video is read again without its numbered formats and fetched as before (the same quality as
+before this row, nothing new on the row, a log line): a video must not do worse than it did.
+Dropped: reading YouTube's DASH manifest (`dashManifestUrl`), which needs a second address solved.
+
+## 2026-11-18: A video that wants a sign-in is asked again with the browser's session (gaps row Y4)
+
+When the player says a sign-in is wanted (`LOGIN_REQUIRED`, an age check, or a private or
+members-only reason) and the session for YouTube holds a `SAPISID` (or `__Secure-3PAPISID`), dm
+asks again as its own TV client and then as the web client at the version the watch page names.
+The request carries the cookies, `Authorization: SAPISIDHASH <time>_<sha1(time SAPISID origin)>`
+and `Origin`/`X-Origin` `https://www.youtube.com`, as YouTube's web clients send them. The TV
+client is asked first because its streams have plain addresses that need no proof-of-origin
+token. A session with no SAPISID is not used, as nothing can be signed with it. The session lives
+only in memory for that read, and a hop to another host drops it. Without a session the refusal
+and its wording are unchanged.
+
+## 2026-11-18: Archives with a password: dm's own AES, the password proved before anything is written (gaps row F10)
+
+A ZIP's AES (AE-1, AE-2; 128, 192, 256 bits) is dm's own, over the aes and sha1 crates already
+built: PBKDF2-HMAC-SHA1 with 1000 rounds, a little-endian counter from 1, and the 10-byte
+HMAC-SHA1 code. It is not the zip crate's `aes-crypto` feature, which would add hmac 0.13, pbkdf2
+0.13 and constant_time_eq to the tree. The older PKWARE cipher is the zip crate's, which needs no
+feature. A 7z's AES-256 is dm's own: CBC, and a SHA-256 key over 2^n rounds of salt, UTF-16LE
+password and round number, n at most 24 as 7-Zip allows. dm decrypts a folder of AES alone or AES
+under Copy, LZMA or LZMA2, in either coder order (7-Zip lists the reading coder first, py7zr AES
+first), and an encrypted list of files. A ZIP password is its UTF-8 bytes. With no password the
+error is `Encrypted`, with today's words; with a wrong one, `WrongPassword`. A 7z and the PKWARE
+cipher carry no reliable check of the password, so it is proved before the folder is made: a
+ZIP's smallest locked file is read in full; a 7z's encrypted list of files is checked against its
+checksum, or else its first encrypted file against its CRC, once a key. Damaged encrypted bytes
+therefore read as a wrong password. The ZIP fixtures come from libarchive, the 7z ones from py7zr
+(libarchive writes no encrypted 7z). The window does not ask for a password yet: it has no prompt
+with a text field, and a new dialog needs the maintainer's word.
+
+## 2026-11-18: CI reports the contract's rows and watches dm's benchmark against itself (gaps row R5)
+
+`contract-linux.yml` runs `linux-human-qa.sh` unchanged on ubuntu-latest for each pull request,
+each push to main, and by hand. It is continue-on-error (reported, not gating): the person's run
+of `human-qa.py` in sight stays the gate. `bench.yml` runs dm's release alone weekly and compares
+it, through `bench/against-last.mjs`, with the `bench-dm` artifact of the last passing run on the
+same branch. A parameter is worse at more than 20% plus the harness's slack (0.25 s, 150 ms, 0.5
+point, 3 MiB). The machine-bound times (fast, big40) are scaled by ceiling-now over ceiling-then
+both ways, unlike the frozen floor's min(1, …): the previous run is a measurement on another
+shared runner, not a bar that may only tighten. Only passing runs become the previous numbers, so
+a regression keeps failing until it is fixed or a hand run with `accept` takes it. Reference A's
+frozen baseline is read for the parameters' names and directions only, and never edited.

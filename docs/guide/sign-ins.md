@@ -25,9 +25,9 @@ download from it: see [Options › Sign-ins](options-sign-ins.md). It is sent
 only over `https://`. dm signs in with whatever the server asks for: Basic,
 Digest, or NTLM (Windows' own sign-in, which some company servers use).
 
-You can also put the login in the address itself:
-`https://name:password@files.example.com/report.pdf`. A login in the
-address is used in place of the one Options keeps.
+You can also put the login in the address itself: after `https://`,
+write the name, a colon, the password and `@`, then the server's name.
+A login in the address is used in place of the one Options keeps.
 
 ## A cookies file
 

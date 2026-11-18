@@ -307,15 +307,16 @@ pub(super) async fn download_numbered(
         .unwrap_or_default();
     // Where the first piece cannot be had or does not say how many follow, the caller falls
     // back to the video's other formats (`NUMBERED_UNREAD`); a stop is a stop.
-    let first = match fetch_capped(client, &numbered_address(url, 0), FIRST_PIECE_MOST, options)
-        .await
-    {
-        Ok(first) => first,
-        Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
-        Err(why) => return Err(numbered_unread(&why.to_string())),
-    };
+    let first =
+        match fetch_capped(client, &numbered_address(url, 0), FIRST_PIECE_MOST, options).await {
+            Ok(first) => first,
+            Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+            Err(why) => return Err(numbered_unread(&why.to_string())),
+        };
     let Some(count) = segment_count(&first.body) else {
-        return Err(numbered_unread("its first piece does not say how many follow"));
+        return Err(numbered_unread(
+            "its first piece does not say how many follow",
+        ));
     };
     let track = Track {
         medium: if ext == "m4a" {
@@ -377,7 +378,9 @@ pub(super) async fn download_numbered(
 
 /// [`NUMBERED_UNREAD`], with why noted in the log.
 fn numbered_unread(why: &str) -> Error {
-    eprintln!("dm: a stream's numbered pieces could not be read ({why}); its other formats are fetched");
+    eprintln!(
+        "dm: a stream's numbered pieces could not be read ({why}); its other formats are fetched"
+    );
     Error::Internal(NUMBERED_UNREAD.into())
 }
 
@@ -936,7 +939,10 @@ pub(super) mod tests {
         assert_eq!(segment_count(&first("Segment-Count: lots")), None);
         assert_eq!(segment_count(&first("Segment-Count: 99999999999999")), None);
         assert_eq!(segment_count(&first("Segment-Count: 200001")), None);
-        assert_eq!(segment_count(&first("Segment-Count: 200000")), Some(200_000));
+        assert_eq!(
+            segment_count(&first("Segment-Count: 200000")),
+            Some(200_000)
+        );
     }
     use crate::mp4mux::testing::{fragmented, plain};
     use axum::body::Body;

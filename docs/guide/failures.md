@@ -370,6 +370,7 @@ between two times.
 - `a part of a file can be cut only from a server that serves byte ranges and says how long the file is`
 - `this stream carries no index of its pieces, so a part of it cannot be cut: only a video whose streams do (YouTube's MP4) can`
 - `this video's streams are not plain files with an index, so a part of it cannot be cut`
+- `this video's streams are numbered pieces with no index, so a part of it cannot be cut`
 - `this file has no index (moov) to cut a part by`
   A part cannot be cut from this video, for the reason given. Download the
   whole video instead.

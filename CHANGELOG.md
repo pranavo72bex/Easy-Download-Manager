@@ -5,6 +5,14 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- CI: the behaviour contract's rows run on Linux in Docker for every pull request, with held, failed and not-checked rows in the run summary (reported, not gating), and a weekly benchmark compares dm with its own last numbers and fails on a regression.
+- Archives with a password: dm's extraction engine opens ZIPs encrypted with AES (128, 192 or 256 bits) or the older PKWARE cipher, and 7z archives encrypted with AES-256 (their lists of files too), and tells a missing password from a wrong one before anything is written. The window does not ask for the password yet.
+- A video that wants a sign-in (age-restricted, private, members-only) is read with the browser's session, signed in as YouTube's own clients ask; the session is never written to disk.
+- YouTube: a video whose best qualities are served only as numbered pieces now offers and downloads them (fetched piece by piece and joined with the sound), where it used to fall back to a lower quality.
+- An MP3 can be made at any MPEG-1 Layer III bit rate from 32 to 320 kbit/s (192 stays the default), and on Windows from a video's Opus sound in a WebM, with its title, artist, date and page in the ID3 header.
+- The Grabber's engine can save a site's pages to read offline: the pages within its scope, with the stylesheets, scripts, pictures and fonts they need, links between them made relative and every other address left absolute (the window's option comes with the maintainer's approval).
+- The help explains every Options page, every dialog, videos' qualities, sign-ins, proxies and the speed limiter, and what each failure or note on a download means with what to do next; `cargo xtask help-check` fails where a sentence a person can see has no entry.
+- Each release carries `crates.txt` (every crate and version it is built from) and `SHA256SUMS` signed by the project's key; `cargo xtask verify-release <folder>` checks a download, and `docs/RELEASING.md` says how to build the same bytes.
 - Updates: dm believes a release's `latest.json` (and the site rules it carries) only with the project's Ed25519 signature beside it (`latest.json.sig`), and refuses an unsigned, foreign or changed manifest; `cargo xtask update-key` and `cargo xtask sign-manifest`, and the release job signs with the `DM_UPDATE_SIGNING_KEY` secret.
 - Translating dm: `docs/guide/translating.md` says how to mend a language, read the strings no native speaker has read yet, or start a new one from `desktop/assets/i18n/template/catalog.json`; `cargo xtask i18n` lists each language's missing and unread strings, and `--issue <code>` writes the issue a reader can take.
 - Subtitles: SRT and WebVTT writers; a YouTube reading lists the translated caption tracks (not fetched); a test reads the finished MP4's text track back.

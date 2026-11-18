@@ -683,7 +683,10 @@ fn the_reading_is_in_the_shape_the_downloader_reads() {
     let numbered = &reading["formats"][6];
     assert_eq!(numbered["protocol"], "http_dash_segments");
     assert_eq!(numbered["filesize"], Value::Null);
-    assert_eq!(numbered["filesize_approx"], 0, "1 bit a second for 19 seconds");
+    assert_eq!(
+        numbered["filesize_approx"], 0,
+        "1 bit a second for 19 seconds"
+    );
     assert!(reading["formats"][0].get("filesize_approx").is_none());
     let sound = choose(&formats, Quality::Audio, Some("webm"), None).unwrap();
     let alone = reading_json("jNQXAC9IVRw", "x", None, &formats, &sound, Path::new("/s"));
