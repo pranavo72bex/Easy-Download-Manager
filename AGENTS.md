@@ -48,7 +48,10 @@ extension that hands it the browser's downloads.
   the same app (`docs/architecture/`). `crates/dm-desktop-base` is what the
   desktop program does that is not drawing, with no window toolkit: `Desktop`
   (the application's `Platform`), the login item, the control port, MCP, the
-  command line, the words (`i18n`, its catalogs in `assets/i18n`) and
+  command line, the words (`i18n`, its catalogs in `assets/i18n`: a string added to the
+  window goes into every catalog, into `template/catalog.json` with an empty translation,
+  and, translated without a native speaker, into each `unread/<code>.json`; `cargo xtask
+  i18n` counts them, `docs/guide/translating.md`) and
   numbers (`format`), and the system's services. `crates/dm-gpui` is the
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
   no web view, plus the tray: one file per part of the window, in five

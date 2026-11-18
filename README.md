@@ -528,6 +528,7 @@ Mac, `~/.local/share/dm` on Linux.
 - [How it works](docs/how-it-works.md)
 - [Testing](docs/testing.md)
 - [Where to start changing it](AGENTS.md)
+- [Translating dm](docs/guide/translating.md): mend a language, read one, or start a new one
 - [The open work list](docs/gaps.md)
 - [Privacy](PRIVACY.md)
 

@@ -584,8 +584,10 @@ desktop/
   crates/dm-test-support/ what the crates' tests share (the logins and secrets they use);
                           only ever a dev-dependency
   assets/                 what is not code: icons/ (the window's), app-icons/ and macos/
-                          (the installers'), i18n/ (the catalogs), rules/ (rules.json)
-  xtask/                  cargo xtask scorecard | layers | privacy | secrets
+                          (the installers'), i18n/ (the catalogs, with template/ the file
+                          a new language starts from and unread/ each language's strings no
+                          native speaker has read: docs/guide/translating.md), rules/ (rules.json)
+  xtask/                  cargo xtask scorecard | layers | privacy | secrets | i18n
   packaging/PKGBUILD      the Arch package
 shared/naming-cases.json  filename cases the engine's naming is held to
 scripts/package.sh        builds the extension and the store zips

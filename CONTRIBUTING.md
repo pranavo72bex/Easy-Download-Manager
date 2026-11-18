@@ -9,6 +9,13 @@ what you downloaded (a link, if it is public), what you expected, what dm
 did, and your operating system and dm version (About). For a security
 problem, see [SECURITY.md](SECURITY.md) instead.
 
+## Translating
+
+Each language is one file of the English and its translation.
+[docs/guide/translating.md](docs/guide/translating.md) says how to mend one,
+read the strings no native speaker has read yet, or start a new one from
+the template, and how `cargo xtask i18n` checks it.
+
 ## Before writing code
 
 Read [AGENTS.md](AGENTS.md): it maps the code and says where each kind of
