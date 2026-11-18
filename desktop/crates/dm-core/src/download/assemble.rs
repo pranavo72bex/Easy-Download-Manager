@@ -238,100 +238,214 @@ pub(super) fn copy_parts_blocking(
 pub(super) const SEAM_WINDOW: u64 = 512;
 
 /// Once range `index` is whole: each seam between it and a neighbour that is whole too, and the
-/// file's last bytes where it is the last range, asked for again and compared with the bytes on
-/// disk, as reference A looks at its seams a second time. A seam is asked for once, by whichever
-/// of its two ranges is whole second, so the end of every range is looked at in the same request
-/// as the start of the next, while the download goes on. The seams used to be asked one after
-/// another after the last byte, with every range's end asked apart as well: the finish waited out
-/// eight round trips, and each range's end was fetched twice over (gaps rows 171 and 177).
+/// file's last bytes where it is the last range, claimed for asking again and compared with the
+/// bytes on disk, as reference A looks at its seams a second time. A seam is claimed once, by
+/// whichever of its two ranges is whole second, so the end of every range is looked at in the
+/// same request as the start of the next, while the download goes on. The seams used to be asked
+/// one after another after the last byte, with every range's end asked apart as well: the finish
+/// waited out eight round trips, and each range's end was fetched twice over (gaps rows 171 and
+/// 177).
 ///
-/// A range's own checks, two at most (a seam either side, or a seam and the file's end), are
-/// asked at once rather than one after the other, on whichever connections are free (the finished
-/// ranges leave theirs open): the range whole last is the one the download waits for, and it
-/// nearly always has two to ask, so its finish waited a round trip of the link more than it
-/// needed. In `bench` per_conn, whose server answers a new request 4 ms after it comes, the last
-/// byte of the file to Completed went from 14 to 18 ms to 9 to 12 (traced, 2026-11-11).
+/// The spans are handed on to the download's checks (`ask_handed`), not asked on the range's own
+/// connection: that connection takes its next work at once, a range to halve or to fetch, where
+/// it used to wait out a round trip or two of its checks first (gaps row S4). The checks go out
+/// on the places of the connections that are done with ranges, as many at once as there are such
+/// places, so the server is never asked more at once than the download's connections asked of it,
+/// and a site limited to so many connections sees no more (`Options::host_limits`). At the end,
+/// the range whole last finds the others' places free and its two checks (a seam either side, or
+/// a seam and the file's end) go out at once, as they did on its own connection (2026-11-11).
 ///
 /// A request that fails or is not answered as a range proves nothing and is let pass; bytes that
 /// differ, or the whole file answered under the validator (another version of it), are a finding,
 /// and the file is fetched again on one connection (`Job::disagreed`).
-///
-/// `one_at_a_time` where the server limits the download (`ranged::limits`): asked one after the
-/// other, and no more once one is refused. False where one was refused, so the caller asks none
-/// after it.
-pub(super) async fn check_seams(
+pub(super) async fn hand_on(job: &Job, index: usize) {
+    let spans = claim(job, index).await;
+    if spans.is_empty() {
+        return;
+    }
+    crate::lock(&job.handed.due).extend(spans);
+    job.handed.told.notify_one();
+}
+
+/// The seams of range `index` where the server limits the download (`ranged::limits`), asked once
+/// no range is being asked for, one after the other, and no more once one is refused. False where
+/// one was refused, so the caller asks none after it.
+pub(super) async fn check_seams(client: &reqwest::Client, job: &Job, index: usize) -> bool {
+    let spans = claim(job, index).await;
+    ask_all(client, job, spans, true).await
+}
+
+/// A span of the file to ask for again: the range whole second that claimed it, where it is, and
+/// the ranges as they stood then.
+pub(super) struct Span {
+    index: usize,
+    low: u64,
+    high: u64,
+    segments: Arc<Vec<Segment>>,
+}
+
+/// The checks the ranges have handed on, and the places they go out on (`hand_on`,
+/// `ask_handed`).
+#[derive(Default)]
+pub(super) struct Handed {
+    /// Claimed, not yet asked.
+    due: std::sync::Mutex<std::collections::VecDeque<Span>>,
+    /// The connections still looking for ranges, any of which may hand on more.
+    fetching: AtomicUsize,
+    /// The places of the connections done with ranges that fetched any: as many checks as this go
+    /// out at once.
+    freed: AtomicUsize,
+    /// Told when a check is handed on or a connection is done with ranges.
+    told: tokio::sync::Notify,
+}
+
+impl Handed {
+    /// A download of `connections` connections, each looking for ranges.
+    pub(super) fn begin(&self, connections: usize) {
+        self.fetching.store(connections, Ordering::SeqCst);
+    }
+
+    /// A connection done with ranges, however it ended; its place is free for a check where it
+    /// fetched any (one that never did has asked the server for nothing).
+    pub(super) fn done(&self, fetched: bool) {
+        if fetched {
+            self.freed.fetch_add(1, Ordering::SeqCst);
+        }
+        let _ = self
+            .fetching
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1));
+        self.told.notify_one();
+    }
+}
+
+/// Asks the checks the ranges hand on (`hand_on`) while the download goes on, as many at once as
+/// the connections done with ranges have left places (`Handed::freed`). Ends once no connection
+/// is looking for ranges and nothing is being asked, or once the server limits the download,
+/// whose checks wait until no range is being asked for (`ranged::run`); what is left then is
+/// asked by `ask_left`.
+pub(super) async fn ask_handed(client: &reqwest::Client, job: &Job) -> Result<(), Error> {
+    let handed = &job.handed;
+    let mut asking = futures_util::stream::FuturesUnordered::new();
+    loop {
+        let told = handed.told.notified();
+        if !job.limits.limited() {
+            while asking.len() < handed.freed.load(Ordering::SeqCst) {
+                let Some(span) = crate::lock(&handed.due).pop_front() else {
+                    break;
+                };
+                asking.push(async move {
+                    ask(client, job, &span).await;
+                });
+            }
+        }
+        if asking.is_empty()
+            && (job.limits.limited() || handed.fetching.load(Ordering::SeqCst) == 0)
+        {
+            return Ok(());
+        }
+        tokio::select! {
+            _ = asking.next(), if !asking.is_empty() => {}
+            () = told => {}
+        }
+        job.control.check()?;
+    }
+}
+
+/// The checks handed on that `ask_handed` left, asked once no range is being asked for: at once,
+/// or `one_at_a_time` where the server limits the download, no more once one is refused. False
+/// where one was refused.
+pub(super) async fn ask_left(client: &reqwest::Client, job: &Job, one_at_a_time: bool) -> bool {
+    let spans: Vec<Span> = crate::lock(&job.handed.due).drain(..).collect();
+    ask_all(client, job, spans, one_at_a_time).await
+}
+
+/// The spans range `index`, now whole, is to have asked again: each seam with a neighbour whole
+/// too that no other range has claimed, and the file's end where it is the last range.
+async fn claim(job: &Job, index: usize) -> Vec<Span> {
+    use std::sync::atomic::Ordering::SeqCst;
+    let segments = job.segments.lock().await;
+    let Some(me) = segments.get(index).filter(|s| s.finished()) else {
+        return Vec::new();
+    };
+    let mut spans = Vec::new();
+    // The range just before this one in the file, and the one just after it.
+    let before = segments
+        .iter()
+        .position(|s| s.end.checked_add(1) == Some(me.start));
+    let after = segments
+        .iter()
+        .position(|s| me.end.checked_add(1) == Some(s.start));
+    for (lower, higher) in [(before, Some(index)), (Some(index), after)] {
+        let (Some(lower), Some(higher)) = (lower, higher) else {
+            continue;
+        };
+        let (low_side, high_side) = (&segments[lower], &segments[higher]);
+        // A seam is known by the range that starts at it, whose start never moves.
+        let claimed = || {
+            job.seams_checked
+                .get(higher)
+                .is_some_and(|checked| !checked.swap(true, SeqCst))
+        };
+        if low_side.finished() && high_side.finished() && claimed() {
+            let seam = high_side.start;
+            spans.push((
+                seam - low_side.span().min(SEAM_WINDOW),
+                seam + high_side.span().min(SEAM_WINDOW) - 1,
+            ));
+        }
+    }
+    let last = job
+        .size
+        .is_some_and(|size| me.end.checked_add(1) == Some(size));
+    if last && !job.end_checked.swap(true, SeqCst) {
+        spans.push((me.end + 1 - me.span().min(SEAM_WINDOW), me.end));
+    }
+    if spans.is_empty() {
+        return Vec::new();
+    }
+    let segments = Arc::new(segments.clone());
+    spans
+        .into_iter()
+        .map(|(low, high)| Span {
+            index,
+            low,
+            high,
+            segments: Arc::clone(&segments),
+        })
+        .collect()
+}
+
+/// Asks `span` again; bytes that differ mark the download (`Job::disagreed`).
+async fn ask(client: &reqwest::Client, job: &Job, span: &Span) -> Look {
+    let (low, high) = (span.low, span.high);
+    let look = span_agrees(client, job, span.index, &span.segments, low, high).await;
+    if matches!(look, Look::Differs) {
+        job.disagreed.store(true, Ordering::SeqCst);
+    }
+    look
+}
+
+/// Asks `spans` at once, or `one_at_a_time`, no more once one is refused. False where one was
+/// refused.
+async fn ask_all(
     client: &reqwest::Client,
     job: &Job,
-    index: usize,
+    spans: Vec<Span>,
     one_at_a_time: bool,
 ) -> bool {
-    use std::sync::atomic::Ordering::SeqCst;
-    let (spans, segments) = {
-        let segments = job.segments.lock().await;
-        let Some(me) = segments.get(index).filter(|s| s.finished()) else {
-            return true;
-        };
-        let mut spans = Vec::new();
-        // The range just before this one in the file, and the one just after it.
-        let before = segments
-            .iter()
-            .position(|s| s.end.checked_add(1) == Some(me.start));
-        let after = segments
-            .iter()
-            .position(|s| me.end.checked_add(1) == Some(s.start));
-        for (lower, higher) in [(before, Some(index)), (Some(index), after)] {
-            let (Some(lower), Some(higher)) = (lower, higher) else {
-                continue;
-            };
-            let (low_side, high_side) = (&segments[lower], &segments[higher]);
-            // A seam is known by the range that starts at it, whose start never moves.
-            let claimed = || {
-                job.seams_checked
-                    .get(higher)
-                    .is_some_and(|checked| !checked.swap(true, SeqCst))
-            };
-            if low_side.finished() && high_side.finished() && claimed() {
-                let seam = high_side.start;
-                spans.push((
-                    seam - low_side.span().min(SEAM_WINDOW),
-                    seam + high_side.span().min(SEAM_WINDOW) - 1,
-                ));
+    let refused = |look: &Look| matches!(look, Look::Unproven { refused: true });
+    if one_at_a_time {
+        for span in &spans {
+            if refused(&ask(client, job, span).await) {
+                return false;
             }
         }
-        let last = job
-            .size
-            .is_some_and(|size| me.end.checked_add(1) == Some(size));
-        if last && !job.end_checked.swap(true, SeqCst) {
-            spans.push((me.end + 1 - me.span().min(SEAM_WINDOW), me.end));
-        }
-        if spans.is_empty() {
-            return true;
-        }
-        (spans, segments.clone())
-    };
-    let looks = if one_at_a_time {
-        let mut looks = Vec::with_capacity(spans.len());
-        for &(low, high) in &spans {
-            let look = span_agrees(client, job, index, &segments, low, high).await;
-            let refused = matches!(look, Look::Unproven { refused: true });
-            looks.push(look);
-            if refused {
-                break;
-            }
-        }
-        looks
+        true
     } else {
-        let asked = spans
-            .iter()
-            .map(|&(low, high)| span_agrees(client, job, index, &segments, low, high));
-        futures_util::future::join_all(asked).await
-    };
-    if looks.iter().any(|look| matches!(look, Look::Differs)) {
-        job.disagreed.store(true, SeqCst);
+        let asked = spans.iter().map(|span| ask(client, job, span));
+        let looks = futures_util::future::join_all(asked).await;
+        !looks.iter().any(refused)
     }
-    !looks
-        .iter()
-        .any(|look| matches!(look, Look::Unproven { refused: true }))
 }
 
 /// What a span asked for again showed.
