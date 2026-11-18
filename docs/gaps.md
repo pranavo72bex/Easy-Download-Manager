@@ -45,6 +45,8 @@ to not push the code"); push only when the maintainer says so. Done today, in th
   there in step 8.
 
 Pick up in this order:
+0. On this laptop, while A10 waits for the Mac: work-order step 1's row **210** (the queue's
+   snapshot, 40 ms in debug at 10,000 rows; then `ui-bench.py --only many` three runs).
 1. **A10**'s rest (each system's `cfg` behind `platform/`, ~70 files across the crates) is
    mostly macOS and Linux code this laptop cannot compile: do it on the Mac.
 2. Then "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
