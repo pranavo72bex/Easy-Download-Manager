@@ -120,7 +120,7 @@ fn a_tone_keeps_its_pitch_and_length_through_the_resampler() {
 fn the_fixture_becomes_an_mp3_through_the_built_in_decoder() {
     let fixture = crate::fixtures().join("mp4/tone.stereo.m4a");
     let pcm = read(&fixture).unwrap();
-    let bytes = crate::mp3::encode_all(&pcm.samples, pcm.channels, pcm.rate).unwrap();
+    let bytes = crate::mp3::encode_all(&pcm.samples, pcm.channels, pcm.rate, None).unwrap();
     let (mut at, mut frames) = (0usize, 0u64);
     while at + 4 <= bytes.len() {
         assert_eq!(

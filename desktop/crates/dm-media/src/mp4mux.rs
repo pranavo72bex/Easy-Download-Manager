@@ -151,8 +151,12 @@ pub fn picture_kind(bytes: &[u8]) -> Option<&'static str> {
 
 /// The words an MP4 or M4A says of itself (`moov/udta/meta/ilst`), as [`join_cut_tagged`]
 /// writes them; empty where it says none or is not one. Only its top-level boxes' headers and
-/// its `moov` are read, not its media.
+/// its `moov` are read, not its media. A WebM's are its Info's title and Matroska tags
+/// (`mkvmux::tags`; its cover and chapters are not read).
 pub fn tags_of(path: &Path) -> Tags {
+    if crate::mkvmux::is_webm(path) {
+        return crate::mkvmux::tags(path);
+    }
     fn moov_of(path: &Path) -> Option<Vec<u8>> {
         use std::io::{Read as _, Seek as _, SeekFrom};
         let mut file = File::open(path).ok()?;

@@ -12,9 +12,11 @@
 //! each granule's 576 lines are quantized at the finest global gain whose
 //! Huffman coding fits the frame, and written with the side information a
 //! decoder reads. There is no psychoacoustic model and no bit reservoir:
-//! every frame carries its own bits, at a rate (192 kbit/s for stereo)
-//! where that is transparent enough for speech and music from a video.
-//! Its tables are in `mp3/tables.rs`.
+//! every frame carries its own bits, at a rate (192 kbit/s for stereo
+//! unless another of the standard's is asked for, [`KBPS`]) where that is
+//! transparent enough for speech and music from a video. Its tables are in
+//! `mp3/tables.rs`. The sound comes from AAC (an M4A, an MP4) or from Opus
+//! (a WebM, where the system decodes Opus: [`takes`]).
 
 pub mod decode;
 mod tables;
@@ -38,28 +40,82 @@ pub fn possible() -> bool {
     }
 }
 
-/// The sound of `source` (an M4A, or an MP4's sound) as an MP3's bytes: read by the system's
-/// decoder ([`decode::read`]) and encoded here, its tags first. dm-core's `mp3::convert` writes
-/// them to the file.
-pub fn convert_bytes(source: &std::path::Path) -> Result<Vec<u8>, String> {
+/// Whether dm can make an MP3 from Opus sound here (a WebM's, as YouTube serves its sound):
+/// on Windows with Media Foundation's Opus decoder, which Windows 10 and 11 carry. macOS
+/// (AudioToolbox reads no WebM) and Linux (no Opus decoder in dm) not yet (gaps row Y25).
+pub fn opus_possible() -> bool {
+    #[cfg(windows)]
+    {
+        crate::mf::opus_decoder()
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
+/// Whether the finished file at `path` is a sound dm makes an MP3 from: AAC in an M4A, an MP4
+/// or an ADTS file (by its name, as always), or Opus in a WebM where [`opus_possible`].
+pub fn takes(path: &std::path::Path) -> bool {
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "m4a" | "mp4" | "aac" => true,
+        "webm" | "weba" | "mka" => {
+            opus_possible() && crate::mkvmux::sound_codec(path).as_deref() == Some("A_OPUS")
+        }
+        _ => false,
+    }
+}
+
+/// The sound of `source` (an M4A, an MP4's sound, or a WebM's Opus) as an MP3's bytes at `kbps`
+/// kbit/s (`None`: [`default_kbps`]): read by the system's decoder ([`decode::read`]) and
+/// encoded here, its tags first. dm-core's `mp3::convert` writes them to the file.
+pub fn convert_bytes(source: &std::path::Path, kbps: Option<u32>) -> Result<Vec<u8>, String> {
+    if crate::mkvmux::is_webm(source) {
+        match crate::mkvmux::sound_codec(source).as_deref() {
+            Some("A_OPUS") if opus_possible() => {}
+            Some("A_OPUS") => {
+                return Err("this system has no Opus decoder dm can make an MP3 with".into())
+            }
+            Some(other) => {
+                return Err(format!(
+                    "an MP3 is made from AAC or Opus sound, not {}",
+                    other.trim_start_matches("A_")
+                ))
+            }
+            None => return Err("the file has no sound to save as MP3".into()),
+        }
+    }
+    // A wrong rate is refused before the sound is read.
+    if let Some(kbps) = kbps {
+        Encoder::at(2, 44100, Some(kbps))?;
+    }
     let pcm = decode::read(source)?;
     if pcm.samples.is_empty() {
         return Err("the file has no sound to save as MP3".into());
     }
     let mut bytes = id3(&crate::mp4mux::tags_of(source));
-    bytes.extend(encode_all(&pcm.samples, pcm.channels, pcm.rate)?);
+    bytes.extend(encode_all(&pcm.samples, pcm.channels, pcm.rate, kbps)?);
     Ok(bytes)
 }
 
-/// The whole of `samples` as an MP3, on every core: the same bytes as one
-/// [`Encoder`] fed them all. Each frame carries its own bits (no
+/// The whole of `samples` as an MP3 at `kbps` kbit/s (`None`: [`default_kbps`]), on every
+/// core: the same bytes as one [`Encoder`] fed them all. Each frame carries its own bits (no
 /// reservoir), so the frames are cut into runs, one a core; each run's
 /// encoder first takes the two frames before it, whose output is dropped,
 /// so its filterbank and MDCT carry what one long run's would, and it
 /// counts frames from where its run starts, so the padding falls where
 /// one run puts it.
-pub fn encode_all(samples: &[i16], channels: usize, rate: u32) -> Result<Vec<u8>, String> {
-    let probe = Encoder::new(channels, rate)?;
+pub fn encode_all(
+    samples: &[i16],
+    channels: usize,
+    rate: u32,
+    kbps: Option<u32>,
+) -> Result<Vec<u8>, String> {
+    let probe = Encoder::at(channels, rate, kbps)?;
     let whole = FRAME * channels;
     let frames = samples.len().div_ceil(whole);
     let cores = std::thread::available_parallelism()
@@ -84,7 +140,7 @@ pub fn encode_all(samples: &[i16], channels: usize, rate: u32) -> Result<Vec<u8>
             .iter()
             .map(|&(first, last)| {
                 scope.spawn(move || -> Result<Vec<u8>, String> {
-                    let mut encoder = Encoder::new(channels, rate)?;
+                    let mut encoder = Encoder::at(channels, rate, kbps)?;
                     let lead = LEAD.min(first);
                     let from = first - lead;
                     encoder.frames = from as u64;
@@ -180,10 +236,26 @@ pub fn id3(tags: &crate::mp4mux::Tags) -> Vec<u8> {
 
 use std::f64::consts::PI;
 
-/// MPEG-1 Layer III bit rates, kbit/s, by their index.
+/// MPEG-1 Layer III bit rates, kbit/s, by their index (0 is "free format", never written).
 const BITRATES: [u32; 15] = [
     0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
 ];
+
+/// The bit rates an MP3 can be asked for, kbit/s: every one MPEG-1 Layer III has
+/// (ISO/IEC 11172-3), for one channel or two.
+pub const KBPS: [u32; 14] = [
+    32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
+];
+
+/// The bit rate an MP3 is made at when none is asked for, as dm always made it: 192 kbit/s
+/// for two channels, 128 for one.
+pub fn default_kbps(channels: usize) -> u32 {
+    if channels == 2 {
+        192
+    } else {
+        128
+    }
+}
 /// The largest value a Huffman table can carry: 15 and 13 linbits.
 const MAX_VALUE: i32 = 15 + 8191;
 
@@ -216,8 +288,14 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    /// An encoder for `channels` (1 or 2) at `rate` (32000, 44100 or 48000).
+    /// An encoder for `channels` (1 or 2) at `rate` (32000, 44100 or 48000), at the bit rate
+    /// dm makes an MP3 at when none is asked for ([`default_kbps`]).
     pub fn new(channels: usize, rate: u32) -> Result<Encoder, String> {
+        Encoder::at(channels, rate, None)
+    }
+
+    /// [`Encoder::new`] at `kbps` kbit/s, one of [`KBPS`] (`None`: [`default_kbps`]).
+    pub fn at(channels: usize, rate: u32, kbps: Option<u32>) -> Result<Encoder, String> {
         let rate_index = match rate {
             44100 => 0,
             48000 => 1,
@@ -227,8 +305,14 @@ impl Encoder {
         if !(1..=2).contains(&channels) {
             return Err(format!("MP3 holds one or two channels, not {channels}"));
         }
-        let bitrate = if channels == 2 { 192 } else { 128 };
-        let bitrate_index = BITRATES.iter().position(|b| *b == bitrate).unwrap_or(11) as u32;
+        let bitrate = kbps.unwrap_or(default_kbps(channels));
+        let Some(bitrate_index) = BITRATES.iter().skip(1).position(|b| *b == bitrate) else {
+            return Err(format!(
+                "an MP3 is made at 32 to 320 kbit/s ({}), not {bitrate}",
+                KBPS.map(|k| k.to_string()).join(", ")
+            ));
+        };
+        let bitrate_index = bitrate_index as u32 + 1;
         let mut matrix = Box::new([[0.0; 64]; 32]);
         for (k, row) in matrix.iter_mut().enumerate() {
             for (i, m) in row.iter_mut().enumerate() {
