@@ -4,9 +4,10 @@
 # Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""The "Download video" panel on real video sites other than YouTube, by hand only.
+"""The "Download video" panel on real video sites other than YouTube, by hand and in the daily site watch.
 
-Like youtube-check.py this goes to the real sites, so it is not in CI. It
+Like youtube-check.py this goes to the real sites, so it is in no CI run a change starts,
+only in the daily site watch (`--public`, below). It
 reuses chrome-check.py's setup (a visible browser with dm's extension and the
 app behind it) and, for each site, opens a public page that plays without a
 sign-in, plays the video, hovers it, reads the panel and its list, clicks the
@@ -15,6 +16,11 @@ file's own structure: is there a picture, is there a sound, how long is it.
 
     python3 scripts/sites-check.py [site ...]        # vimeo facebook facebook-watch tiktok x x2 reddit instagram
                                                      # dailymotion rumble twitch twitch-clip bilibili peertube
+    python3 scripts/sites-check.py --public          # the sites docs/site-list.md says need no sign-in
+    python3 scripts/sites-check.py --json out.json   # also each site's result as JSON (site-table.py)
+
+`--public` is what the daily site watch runs (.github/workflows/sites.yml, gaps row W6),
+with YouTube left to youtube-check.py.
 
 No credentials are used and nobody is signed in: a site that puts a login wall
 in front of its video is reported as that, not worked around.
@@ -123,7 +129,29 @@ SITES = {
                       && !document.querySelector('input[name="password"], input[name="pass"]')
                       && !/login|challenge|accounts/.test(location.pathname))()"""},
 }
-WANT = sys.argv[1:] or list(SITES)
+# The sites docs/site-list.md marks "Sign-in: no" (the maintainer's own account opens
+# Facebook's and Reddit's), YouTube left to youtube-check.py, and Blender's PeerTube.
+PUBLIC = ("vimeo", "tiktok", "x", "x2", "instagram", "dailymotion", "rumble", "twitch", "twitch-clip",
+          "bilibili", "peertube")
+
+
+def arguments(argv):
+    """The sites named (or --public's), and --json's file if one is named."""
+    names, json_out, public = [], None, False
+    args = iter(argv)
+    for a in args:
+        if a == "--public":
+            public = True
+        elif a == "--json":
+            json_out = next(args, None)
+        elif a.startswith("--json="):
+            json_out = a.split("=", 1)[1]
+        else:
+            names.append(a)
+    return names + [n for n in PUBLIC if public and n not in names] or list(SITES), json_out
+
+
+WANT, JSON_OUT = arguments(sys.argv[1:])
 
 RECT = """(() => { const allVideos = () => { const out = []; const promoted = v => { for (let e = v; e; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null)) { if (/promoted|-ad$/i.test(((e.className || '') + '').split(' ').join(' ') + ' ' + (e.localName || ''))) return true; } return false; }; const walk = r => { r.querySelectorAll('video').forEach(v => { if (!promoted(v)) out.push(v); }); r.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); }); }; walk(document); return out; }; const v = allVideos()
     .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
@@ -487,6 +515,7 @@ def sites(base, origin, engine_dl, engine_home, worker):
         except Exception as e:  # one site breaking must not stop the others
             r = {"site": name, "result": f"check failed: {e!r}"}
         results.append(r)
+        DONE.append(r)
         print("SITE", json.dumps(r, default=str), flush=True)
         cc.check(f"{name}: a whole video with sound lands in dm's folder", r.get("result") == "OK", r.get("result", ""))
     print("\nSUMMARY")
@@ -494,5 +523,29 @@ def sites(base, origin, engine_dl, engine_home, worker):
         print(f"  {r['site']:12} {r.get('result')}   lines={r.get('lines')}")
 
 
+DONE = []
+
+
+def write_json():
+    """Each wanted site's result for site-table.py; a site the run never reached
+    (the browser or the extension did not start) is said to be that."""
+    spec = importlib.util.spec_from_file_location("site_table", HERE / "site-table.py")
+    table = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(table)
+    checks = list(cc.results)
+    first = next(((n, d) for ok, n, d in checks if not ok), None)
+    rows = [{"site": r["site"], "status": table.site_status(r), "detail": table.site_detail(r),
+             "url": r.get("url") or r.get("found")} for r in DONE]
+    reached = {r["site"] for r in DONE}
+    rows += [{"site": n, "status": "error",
+              "detail": "the check stopped before this site" + (f": {first[0]} ({first[1]})" if first else "")}
+             for n in WANT if n not in reached]
+    table.write_result(JSON_OUT, "sites-check", rows, checks, signed_in=bool(SIGNIN))
+
+
 cc.panel_checks = sites
-cc.main()
+try:
+    cc.main()
+finally:
+    if JSON_OUT:
+        write_json()

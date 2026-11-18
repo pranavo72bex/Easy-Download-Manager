@@ -232,9 +232,21 @@ test and the release gate. `--phases engine` runs one phase; `--list` prints eve
 | `scripts/launch-latency.py` | How long from a browser click (a `download.start` to the native host) to dm's first request for the file, with dm closed (cold) and running (warm). Numbers for comparing two builds, not a pass or a fail | `xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-desktop` |
 | `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s. Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
 
-By hand only (they reach real sites, so they are not in CI):
+By hand only (they reach real sites, so no change's CI runs them):
 `scripts/youtube-check.py`, `scripts/live-panel-check.py`,
 `scripts/real-sites.py`, `scripts/out-of-box-check.py`, `scripts/video-sites-check.py`.
+
+**The daily site watch** (`.github/workflows/sites.yml`, gaps row W6) runs two of them each day
+on Linux under Xvfb, with a release dm in a new browser profile signed in nowhere and
+`DM_SKIP_LOCAL=1`: `youtube-check.py --json` and `sites-check.py --public --json` (the sites
+`docs/site-list.md` says need no sign-in). `scripts/site-table.py` turns their JSON into the
+README's site table (between `<!-- site-table:start -->` and `<!-- site-table:end -->`; the run's
+`site-table.md` artifact, put in by hand with `--readme README.md`, since CI commits nothing) and,
+when a site is broken or the check could not reach it, one issue labelled `site-watch` with the
+failing sites and the end of each log, added to while it stays open and closed by the first run
+that passes. A login wall, a bot check, or a file still arriving when the wait ended is *not
+judged*, as `video-sites-check.py` judges it; a day on which nothing could be judged is a red run
+and no issue. `python3 scripts/site-table.py --self-test` checks the judging and the table.
 
 ## On Linux, in Docker
 

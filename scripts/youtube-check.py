@@ -4,17 +4,19 @@
 # Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""The "Download video" panel on a real YouTube page, by hand only.
+"""The "Download video" panel on a real YouTube page, by hand and in the daily site watch.
 
 Every other check runs against servers on loopback; this one goes to
-youtube.com, so it is not in CI and runs only when someone asks it to. In a window rather than with
+youtube.com, so it is in no CI run a change starts: it runs when someone asks it to, and
+each day in the site watch (.github/workflows/sites.yml, gaps row W6, with DM_SKIP_LOCAL=1
+for the YouTube page alone and `--json` for scripts/site-table.py). In a window rather than with
 DM_CHROME_HEADLESS=1, a pointer resting over the browser can fail its
 pointer checks (the panel hid, or a drag ended at the pointer): the browser
 likely sends a mouse move at the real pointer after the page changes. It
 runs chrome-check.py's setup and its local checks, but replaces the panel
 step with a real watch page ("Me at the zoo", 19 seconds):
 
-    python3 scripts/youtube-check.py [watch-url] [screenshot.png]
+    python3 scripts/youtube-check.py [watch-url] [screenshot.png] [--json result.json]
 
 It hovers the playing player, checks the panel is there and in its corner,
 rests the pointer for five seconds (YouTube restarts playback and fades its
@@ -41,8 +43,24 @@ cc = importlib.util.module_from_spec(spec)
 sys.modules["chrome_check"] = cc
 spec.loader.exec_module(cc)
 
-URL = sys.argv[1] if len(sys.argv) > 1 else "https://www.youtube.com/watch?v=jNQXAC9IVRw"
-SHOT = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else None
+
+def arguments(argv):
+    """The places given, and --json's file if one is named."""
+    places, json_out = [], None
+    args = iter(argv)
+    for a in args:
+        if a == "--json":
+            json_out = next(args, None)
+        elif a.startswith("--json="):
+            json_out = a.split("=", 1)[1]
+        else:
+            places.append(a)
+    return places, json_out
+
+
+ARGS, JSON_OUT = arguments(sys.argv[1:])
+URL = ARGS[0] if ARGS else "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+SHOT = pathlib.Path(ARGS[1]) if len(ARGS) > 1 else None
 RECT = """(() => { const v = [...document.querySelectorAll('video')]
     .sort((a, b) => b.clientWidth - a.clientWidth)[0];
   if (!v) return null; const r = v.getBoundingClientRect();
@@ -194,5 +212,19 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     cc.check("YouTube: no errors from dm on the page", not errors, "; ".join(errors)[:300])
 
 
+def write_json():
+    """The YouTube checks as one row of scripts/site-table.py's table."""
+    spec = importlib.util.spec_from_file_location("site_table", HERE / "site-table.py")
+    table = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(table)
+    checks = list(cc.results)
+    row = table.youtube_row([{"ok": ok, "name": n, "detail": d} for ok, n, d in checks])
+    table.write_result(JSON_OUT, "youtube-check", [{**row, "url": URL}], checks)
+
+
 cc.panel_checks = youtube
-cc.main()
+try:
+    cc.main()
+finally:
+    if JSON_OUT:
+        write_json()

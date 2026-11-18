@@ -423,6 +423,13 @@ You do not need to install anything for video.
 The extension sends the page's sign-in along with the video, so a site that
 checks you are not a bot lets the download through.
 
+Which video sites worked in the last daily check, signed out:
+
+<!-- site-table:start -->
+No daily check has run yet: the table is filled from the first scheduled run of
+`.github/workflows/sites.yml` by `scripts/site-table.py`.
+<!-- site-table:end -->
+
 Queues, the Scheduler, the Grabber, a page's links and torrents are described in
 [docs/user-guide.md](docs/user-guide.md), which dm's **Help** menu opens.
 

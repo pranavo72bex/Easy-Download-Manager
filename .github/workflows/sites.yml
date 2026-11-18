@@ -1,0 +1,159 @@
+name: Sites, daily
+
+# The site watch (gaps row W6). Video sites change their pages and players without notice, and
+# until this ran a break was found by a user (rows 204, 205 and 209 were found late). Every day,
+# and by hand, a release dm and its extension are put in a new browser profile, signed in
+# nowhere, under a virtual display, and the real sites are checked as a person uses them: a
+# video played, the Download video panel clicked, the file landing whole in dm's folder.
+# youtube-check.py does YouTube (dm's own reader); sites-check.py --public the sites
+# docs/site-list.md says need no sign-in. Both write JSON, which scripts/site-table.py turns
+# into the README's site table (an artifact and the run's summary; CI does not commit it) and,
+# when a site is broken, an issue: one, labelled site-watch and found by that label, added to
+# each day the watch still fails and closed by the first run that passes. A login wall or a bot
+# check is written down as not judged, not as dm failing. A schedule runs only from the default
+# branch (main).
+on:
+  schedule:
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: site-watch
+  cancel-in-progress: false
+
+jobs:
+  sites:
+    name: Real sites, signed out, through the panel
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop
+          shared-key: site-watch-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Linux libraries dm links and the browser needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb \
+            libnss3 libgbm1 libxkbcommon0 libxkbcommon-x11-0 libxdamage1 libxfixes3 libxrandr2 \
+            libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+          # What the window draws with where there is no GPU (as ci.yml's browser job).
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libgl1-mesa-dri libegl1
+          sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
+
+      - name: Build dm (release) and the extension
+        id: build
+        run: |
+          echo "WATCH=$RUNNER_TEMP/site-watch" >> "$GITHUB_ENV"
+          (cd desktop && cargo build --release -p dm-gpui --locked)
+          sh scripts/package.sh
+
+      - name: The table's own workings
+        id: selftest
+        run: python3 scripts/site-table.py --self-test
+
+      # Neither check ends the job: what they found is judged below, from their JSON.
+      - name: YouTube, through dm's own reader
+        timeout-minutes: 30
+        env:
+          DM_SKIP_LOCAL: "1"
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set +e
+          mkdir -p "$WATCH"
+          DM_BINARY="$PWD/desktop/target/release/dm-gpui" \
+            xvfb-run -a -s '-screen 0 1280x800x24' \
+            python3 scripts/youtube-check.py --json "$WATCH/youtube.json" 2>&1 | tee "$WATCH/youtube.log"
+          echo "youtube-check.py ended with ${PIPESTATUS[0]}"
+          exit 0
+
+      - name: The other public video sites
+        # Also after YouTube's step ran out of time.
+        if: always() && steps.selftest.outcome == 'success'
+        timeout-minutes: 100
+        env:
+          DM_SKIP_LOCAL: "1"
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set +e
+          mkdir -p "$WATCH"
+          DM_BINARY="$PWD/desktop/target/release/dm-gpui" \
+            xvfb-run -a -s '-screen 0 1280x800x24' \
+            python3 scripts/sites-check.py --public --json "$WATCH/sites.json" 2>&1 | tee "$WATCH/sites.log"
+          echo "sites-check.py ended with ${PIPESTATUS[0]}"
+          exit 0
+
+      - name: The site table, and what failed
+        id: judge
+        # Not after a failed build: that is the build's red run, not a site's issue.
+        if: always() && steps.selftest.outcome == 'success'
+        run: |
+          python3 scripts/site-table.py "$WATCH/youtube.json" "$WATCH/sites.json" \
+            --out "$WATCH/site-table.md" --issue "$WATCH/issue.md" \
+            --log "$WATCH/youtube.log" --log "$WATCH/sites.log"
+          cat "$WATCH/site-table.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: site-watch
+          path: ${{ runner.temp }}/site-watch
+          if-no-files-found: warn
+
+      - name: Open the issue, or add to the open one
+        if: always() && steps.judge.outcome == 'success' && steps.judge.outputs.failed != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create site-watch --color B60205 \
+            --description "A video site the daily site watch found broken" 2>/dev/null || true
+          open=$(gh issue list --label site-watch --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body-file "$WATCH/issue.md"
+          else
+            gh issue create --title "Site watch: a video site does not work in dm" \
+              --label site-watch --body-file "$WATCH/issue.md"
+          fi
+
+      - name: Close the issue once the sites work again
+        if: always() && steps.judge.outcome == 'success' && steps.judge.outputs.failed == '0' && steps.judge.outputs.passed != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for n in $(gh issue list --label site-watch --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Every site the watch could judge worked in $RUN."
+          done
+
+      - name: The run's verdict
+        if: always() && steps.judge.outcome == 'success'
+        env:
+          FAILED: ${{ steps.judge.outputs.failed }}
+          PASSED: ${{ steps.judge.outputs.passed }}
+          FAILING: ${{ steps.judge.outputs.failing }}
+        run: |
+          if [ "$FAILED" != "0" ]; then
+            echo "::error::the site watch found sites not working in dm: $FAILING"
+            exit 1
+          fi
+          if [ "$PASSED" = "0" ]; then
+            # Every site met a login wall or a bot check: the watch was blind today, which is
+            # worth a red run but not an issue about dm.
+            echo "::warning::every site met a login wall or bot check; nothing of dm was judged"
+            exit 1
+          fi
