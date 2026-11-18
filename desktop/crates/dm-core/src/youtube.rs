@@ -483,6 +483,16 @@ fn origin() -> String {
         .unwrap_or_else(|| "https://www.youtube.com".to_string())
 }
 
+/// A `www.youtube.com` address on the test's stand-in where one is named (`DM_YOUTUBE_HOST`),
+/// else as it is.
+pub(crate) fn on_stand_in(url: &str) -> String {
+    let url = url.trim();
+    match url.strip_prefix("https://www.youtube.com") {
+        Some(rest) if rest.starts_with('/') => format!("{}{rest}", origin()),
+        _ => url.to_string(),
+    }
+}
+
 /// What the watch page says that the player API needs.
 #[derive(Debug, Default, PartialEq)]
 struct PageFacts {
@@ -908,10 +918,73 @@ fn choose(
     Some(vec![(*picture).clone(), sound])
 }
 
+/// [`choose`], the picture a list line was built from first (gaps row Y9): the list is read
+/// from the watch page's own data and the download from a client's answer, which can lack that
+/// format or hold another at its height. Taken by its format number where the answer has it,
+/// with the sound [`choose`] would join it with; else as [`choose`] takes the line's height,
+/// frame rate and container, the next lower where that height is missing, and, where nothing
+/// is that low, the nearest above rather than no stream at all.
+fn choose_named(
+    formats: &[Format],
+    format: Option<u64>,
+    quality: Quality,
+    container: Option<&str>,
+    frame_rate: Option<u32>,
+) -> Option<Vec<Format>> {
+    let Some(itag) = format.filter(|_| quality != Quality::Audio) else {
+        return choose(formats, quality, container, frame_rate);
+    };
+    let named = formats
+        .iter()
+        .find(|f| f.video && !f.secondary && f.height > 0 && f.itag == itag);
+    if let Some(picture) = named {
+        let with_sounds: Vec<Format> = formats
+            .iter()
+            .filter(|f| !f.video || f.itag == itag)
+            .cloned()
+            .collect();
+        if let Some(chosen) = choose(
+            &with_sounds,
+            Quality::Best,
+            Some(picture.container.as_str()),
+            None,
+        ) {
+            return Some(chosen);
+        }
+    }
+    choose(formats, quality, container, frame_rate).or_else(|| {
+        let Quality::UpTo(limit) = quality else {
+            return None;
+        };
+        let side = |f: &Format| {
+            if f.width > 0 && f.width < f.height {
+                f.width
+            } else {
+                f.height
+            }
+        };
+        let above = formats
+            .iter()
+            .filter(|f| f.video && !f.secondary && f.height > 0)
+            .map(side)
+            .filter(|s| *s > u64::from(limit))
+            .min()?;
+        choose(
+            formats,
+            Quality::UpTo(u32::try_from(above).ok()?),
+            container,
+            frame_rate,
+        )
+    })
+}
+
 tokio::task_local! {
     /// Set while a video is read with its formats served only as numbered pieces left out
     /// ([`read_for_without_numbered`]).
     static WITHOUT_NUMBERED: ();
+    /// The format number of the picture a list line was built from, while a download reads its
+    /// video ([`read_for`], `Options::format`; gaps row Y9).
+    static FORMAT_ASKED: u64;
 }
 
 /// [`read_for`] with the formats served only as numbered pieces left out, as they were before
@@ -963,7 +1036,7 @@ pub async fn read_for(
     } else {
         (options.quality, None)
     };
-    read_at(
+    let reading = read_at(
         &client,
         url,
         quality,
@@ -974,8 +1047,11 @@ pub async fn read_for(
         codec,
         options.sign_in.as_ref(),
         staging,
-    )
-    .await
+    );
+    match options.format {
+        Some(format) => FORMAT_ASKED.scope(format, reading).await,
+        None => reading.await,
+    }
 }
 
 /// A YouTube watch page read, as `videopage::download_page` wants a reading:
@@ -1254,15 +1330,25 @@ async fn read_within(
             }));
         }
     }
+    // The picture the list line was built from, by its format number (gaps row Y9).
+    let asked = FORMAT_ASKED.try_with(|format| *format).ok();
     let chosen = if muxed {
-        choose(&cuttable, quality, container, frame_rate).map(|mut pair| {
+        choose_named(&cuttable, asked, quality, container, frame_rate).map(|mut pair| {
             pair.truncate(1);
             pair
         })
     } else {
-        choose(&cuttable, quality, container, frame_rate)
+        choose_named(&cuttable, asked, quality, container, frame_rate)
     }
     .ok_or_else(|| Error::Internal("no stream at that quality".into()))?;
+    if let Some(asked) = asked.filter(|a| !chosen.iter().any(|f| f.itag == *a)) {
+        // Nothing new is said on the row; the log says what was taken instead.
+        let took: Vec<String> = chosen.iter().map(|f| f.itag.to_string()).collect();
+        eprintln!(
+            "dm: {id}: format {asked} is not in this reading; took {}",
+            took.join("+")
+        );
+    }
     // The TV client's answer names no title; the page does.
     let title = player
         .pointer("/videoDetails/title")
@@ -1716,6 +1802,8 @@ fn reading_json(
             "height": if f.video { Some(f.height) } else { None },
             "fps": if f.video && f.fps > 0 { Some(f.fps) } else { None },
             "tbr": f.bitrate / 1000,
+            // A sound's own rate, by which the list built from this reading picks its best.
+            "abr": if f.video { None } else { Some(f.bitrate / 1000) },
             "filesize": f.size,
             "http_headers": {"User-Agent": TV_AGENT},
             "downloader_options": {"http_chunk_size": CHUNK},

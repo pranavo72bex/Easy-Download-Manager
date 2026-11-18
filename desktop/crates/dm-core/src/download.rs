@@ -123,6 +123,10 @@ pub struct Options {
     /// language and whether it is the speech-recognised one. The download is
     /// that caption file alone.
     pub caption: Option<(String, bool)>,
+    /// The format number (YouTube's `itag`) of the picture a list line was built from
+    /// (`Quality::format_of`): taken where the download's own reading has it, else the
+    /// nearest by `quality`, `container` and `frame_rate` (gaps row Y9).
+    pub format: Option<u64>,
     /// How many times one connection tries a range (or the probe) before
     /// the download fails, where the failure is the kind waiting can fix.
     /// Zero keeps trying until it gets through, or is paused or cancelled.

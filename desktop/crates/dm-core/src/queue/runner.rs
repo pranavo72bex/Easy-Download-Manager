@@ -340,6 +340,8 @@ impl Queue {
                         options.quality = crate::stream::Quality::named(quality);
                         options.container = crate::stream::Quality::container_of(quality);
                         options.frame_rate = crate::stream::Quality::frame_rate_of(quality);
+                        // The picture the line was listed from, by its format number (gaps row Y9).
+                        options.format = crate::stream::Quality::format_of(quality);
                         // A caption line: the caption file alone, in no container.
                         options.caption = crate::stream::Quality::caption_of(quality);
                         if options.caption.is_some() {

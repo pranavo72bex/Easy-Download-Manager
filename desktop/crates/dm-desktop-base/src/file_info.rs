@@ -338,10 +338,9 @@ pub fn default_choice(
 /// A quality's chip: its height and container over its size ("1080p MP4"
 /// over "275.0 MB"), the sound alone said so.
 pub fn chip_words(choice: &dm_core::videopage::Choice) -> String {
-    let (head, ext) = choice
-        .quality
-        .split_once('/')
-        .unwrap_or((&choice.quality, ""));
+    // Without the format number a picture line carries (gaps row Y9), as it read before.
+    let word = dm_core::Quality::without_format(&choice.quality);
+    let (head, ext) = word.split_once('/').unwrap_or((word, ""));
     let top = if head == "audio" {
         format!("{} {}", t("Sound only"), ext.to_ascii_uppercase())
     } else if let Ok(side) = head.parse::<u32>() {
@@ -566,6 +565,9 @@ mod choice_tests {
         assert!(chip.starts_with("1080p"), "{chip}");
         assert!(chip.contains("MP4\n"), "{chip}");
         assert!(chip.ends_with(&crate::format::bytes(2048)), "{chip}");
+        // The format number a line carries (gaps row Y9) is not shown.
+        let numbered = chip_words(&choice("1080/mp4/f137", "MP4 1920×1080", Some(2048)));
+        assert_eq!(numbered, chip);
         let sound = chip_words(&choice("audio/m4a", "M4A audio", None));
         assert!(sound.ends_with("M4A"), "{sound}");
         assert!(!sound.contains('\n'), "no size, no second line: {sound}");

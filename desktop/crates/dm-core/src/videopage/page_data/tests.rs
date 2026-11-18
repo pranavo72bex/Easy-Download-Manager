@@ -36,7 +36,7 @@ fn each_caption_track_is_a_line_after_the_sound() {
     assert_eq!(
         lines,
         [
-            ("720p MP4", "720/mp4"),
+            ("720p MP4", "720/mp4/f136"),
             ("M4A audio", "audio/m4a"),
             ("TTML file, EN subtitles", "caption/en"),
             ("TTML file, HI subtitles (ASR)", "caption/hi/asr"),
@@ -61,9 +61,9 @@ fn a_height_at_two_frame_rates_is_two_lines_from_the_pages_own_data() {
     assert_eq!(
         lines,
         [
-            ("720p MP4 60 fps", "720/mp4/60"),
-            ("720p MP4", "720/mp4/30"),
-            ("480p MP4", "480/mp4"),
+            ("720p MP4 60 fps", "720/mp4/60/f298"),
+            ("720p MP4", "720/mp4/30/f136"),
+            ("480p MP4", "480/mp4/f135"),
             ("M4A audio", "audio/m4a"),
         ]
     );
@@ -79,8 +79,8 @@ fn a_pages_own_data_gives_the_list() {
     assert_eq!(
         said,
         [
-            ("1080p MP4", "1080/mp4", Some(8500)),
-            ("720p MP4", "720/mp4", Some(2500)),
+            ("1080p MP4", "1080/mp4/f137", Some(8500)),
+            ("720p MP4", "720/mp4/f136", Some(2500)),
             ("M4A audio", "audio/m4a", Some(500)),
         ]
     );
@@ -99,7 +99,7 @@ fn a_portrait_videos_qualities_are_named_by_the_shorter_side() {
         .into_iter()
         .map(|c| c.quality)
         .collect();
-    assert_eq!(words, ["1080/mp4", "720/mp4", "audio/m4a"]);
+    assert_eq!(words, ["1080/mp4/f1", "720/mp4/f2", "audio/m4a"]);
 }
 
 #[test]

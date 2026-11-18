@@ -167,6 +167,25 @@ impl Quality {
             .filter(|r| *r > 0)
     }
 
+    /// The format number a panel's picture line names, after its container and frame rate
+    /// ("1080/mp4/f137" and "720/mp4/60/f298" name 137 and 298): the picture the list was
+    /// built from, which the download takes where its own reading has it (gaps row Y9).
+    pub fn format_of(word: &str) -> Option<u64> {
+        let mut parts = word.trim().split('/');
+        parts.next()?;
+        parts.next()?;
+        parts.find_map(format_number)
+    }
+
+    /// A panel's quality word without the format number [`Quality::format_of`] reads
+    /// ("1080/mp4/f137" is "1080/mp4"), as it was written before the list carried one.
+    pub fn without_format(word: &str) -> &str {
+        match word.rsplit_once('/') {
+            Some((head, last)) if head.contains('/') && format_number(last).is_some() => head,
+            _ => word,
+        }
+    }
+
     /// The word `named` reads back.
     pub fn word(self) -> String {
         match self {
@@ -175,6 +194,13 @@ impl Quality {
             Quality::Audio => "audio".into(),
         }
     }
+}
+
+/// A quality word's part that is a format number, "f137": 137.
+fn format_number(part: &str) -> Option<u64> {
+    let digits = part.trim().strip_prefix('f')?;
+    let plain = digits.len() <= 9 && digits.bytes().all(|b| b.is_ascii_digit());
+    digits.parse::<u64>().ok().filter(|_| plain)
 }
 
 fn join(base: &str, relative: &str) -> Result<String, Error> {

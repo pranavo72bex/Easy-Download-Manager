@@ -67,7 +67,9 @@ fn a_pages_formats_become_one_choice_per_height_and_the_sound_alone() {
     let list = choices(&described);
     let labels: Vec<&str> = list.iter().map(|c| c.label.as_str()).collect();
     assert_eq!(labels, ["720p MP4", "360p MP4", "M4A audio"]);
-    assert_eq!(list[0].quality, "720/mp4");
+    // The picture's format number, for the download to take that very one (gaps row Y9).
+    assert_eq!(list[0].quality, "720/mp4/f136");
+    assert_eq!(Quality::format_of(&list[0].quality), Some(136));
     assert_eq!(
         list[0].size,
         Some(10_000),
@@ -107,13 +109,35 @@ fn a_height_at_two_frame_rates_is_two_lines() {
     assert_eq!(
         lines,
         [
-            ("720p MP4 60 fps", "720/mp4/60"),
-            ("720p MP4", "720/mp4/30"),
-            ("480p MP4", "480/mp4"),
+            ("720p MP4 60 fps", "720/mp4/60/f298"),
+            ("720p MP4", "720/mp4/30/f136"),
+            ("480p MP4", "480/mp4/f135"),
             ("M4A audio", "audio/m4a"),
         ]
     );
     assert_eq!(list[0].size, Some(15_000));
+    // The format number after the frame rate leaves the rest of the word as it was read.
+    for (word, height, rate, format) in [
+        ("720/mp4/60/f298", 720, Some(60), Some(298)),
+        ("720/mp4/30/f136", 720, Some(30), Some(136)),
+        ("480/mp4/f135", 480, None, Some(135)),
+        ("480/mp4", 480, None, None),
+        ("audio/m4a", 0, None, None),
+    ] {
+        if height > 0 {
+            assert_eq!(Quality::named(word), Quality::UpTo(height), "{word}");
+        }
+        assert_eq!(Quality::frame_rate_of(word), rate, "{word}");
+        assert_eq!(Quality::format_of(word), format, "{word}");
+        assert!(Quality::container_of(word).is_some(), "{word}");
+    }
+    assert_eq!(Quality::without_format("720/mp4/60/f298"), "720/mp4/60");
+    assert_eq!(Quality::without_format("480/mp4/f135"), "480/mp4");
+    assert_eq!(Quality::without_format("480/mp4"), "480/mp4");
+    assert_eq!(Quality::without_format("audio/flac"), "audio/flac");
+    // A container's place, not a format number's.
+    assert_eq!(Quality::format_of("720/f136"), None);
+    assert_eq!(Quality::format_of("720/mp4/fx"), None);
     assert_eq!(Quality::named("720/mp4/60"), Quality::UpTo(720));
     assert_eq!(Quality::container_of("720/mp4/60").as_deref(), Some("mp4"));
     assert_eq!(Quality::frame_rate_of("720/mp4/60"), Some(60));

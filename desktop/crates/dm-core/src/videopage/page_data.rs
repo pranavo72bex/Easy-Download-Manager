@@ -10,9 +10,10 @@
 //! already holds every picture and sound the video comes in, with sizes, in
 //! `ytInitialPlayerResponse`: one request of under a second. Only the list
 //! is read this way. The addresses are not there (the player streams by
-//! SABR), so what is downloaded is still the full reading of the page. Where
-//! the data is missing or says anything but "playable", nothing is returned
-//! and the caller fails the download, saying why.
+//! SABR), so what is downloaded is still the full reading of the page, and each
+//! picture line carries its format number for that reading to take (gaps row Y9).
+//! Where the data is missing or says anything but "playable", nothing is returned
+//! and the list is dm's own reading's.
 
 use serde_json::Value;
 
@@ -56,9 +57,9 @@ fn is_own_watch_page(url: &str) -> bool {
     }
 }
 
-/// Fetches the page and lists what it holds, or `None` for anything that
-/// should be failed instead: no connection in time, a consent or sign-in
-/// page, a live stream, a video the page does not play.
+/// Fetches the page and lists what it holds, or `None` where it holds no list: no connection
+/// in time, a consent or sign-in page, a live stream, a video the page does not play (the list
+/// is then dm's own reading's, `list_choices`).
 pub(super) async fn fetch_choices(
     url: &str,
     proxy: Option<&str>,
@@ -76,6 +77,9 @@ pub(super) async fn fetch_choices(
         builder = builder.proxy(reqwest::Proxy::all(proxy).ok()?);
     }
     let client = builder.build().ok()?;
+    // A test's stand-in for YouTube, where one is named.
+    let url = crate::youtube::on_stand_in(url);
+    let url = url.as_str();
     // `SOCS` answers the consent page some countries are sent to first.
     let mut cookie = String::from("SOCS=CAI");
     if let Some(theirs) = crate::cookies::header_with(sign_in, url) {
@@ -172,9 +176,10 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
             )
         });
     let audio_size = audio.and_then(size);
-    // Height, faster than 30 frames a second, label, container, size, frame rate: a height at
-    // two frame rates is two lines, as reference A lists "720p HD 60 fps" and "720p HD".
-    let mut by_height: Vec<(u32, bool, String, String, Option<u64>, u64)> = Vec::new();
+    // Height, faster than 30 frames a second, label, container, size, frame rate and format
+    // number: a height at two frame rates is two lines, as reference A lists "720p HD 60 fps"
+    // and "720p HD".
+    let mut by_height: Vec<super::choices::Slot> = Vec::new();
     for f in formats {
         let Some((true, ext)) = kind(f) else {
             continue;
@@ -195,16 +200,17 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
         let total = size(f).map(|s| s + audio_size.unwrap_or(0));
         let fps = f.get("fps").and_then(Value::as_u64).unwrap_or(0);
         let fast = fps > 30;
+        let itag = f.get("itag").and_then(Value::as_u64);
         let rank = |ext: &str, size: Option<u64>| (ext == "mp4", size);
         match by_height
             .iter_mut()
             .find(|slot| slot.0 == height && slot.1 == fast)
         {
             Some(slot) if rank(&ext, total) > rank(&slot.3, slot.4) => {
-                *slot = (height, fast, label, ext, total, fps)
+                *slot = (height, fast, label, ext, total, fps, itag)
             }
             Some(_) => {}
-            None => by_height.push((height, fast, label, ext, total, fps)),
+            None => by_height.push((height, fast, label, ext, total, fps, itag)),
         }
     }
     by_height.sort_by_key(|slot| (std::cmp::Reverse(slot.0), std::cmp::Reverse(slot.1)));
@@ -216,7 +222,7 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
         .collect();
     let mut list: Vec<Choice> = by_height
         .into_iter()
-        .map(|(height, fast, label, ext, size, fps)| {
+        .map(|(height, fast, label, ext, size, fps, itag)| {
             // The quality word is the picture's shorter side, which is what
             // the chooser and the selector measure: a portrait video's
             // width (720 for 720x1280).
@@ -237,7 +243,7 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
             };
             Choice {
                 label,
-                quality,
+                quality: super::choices::with_format(quality, itag),
                 size,
             }
         })

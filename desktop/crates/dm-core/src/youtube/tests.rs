@@ -647,6 +647,63 @@ fn the_line_picked_names_the_frame_rate_fetched() {
     assert_eq!(picture(None), Some(298));
 }
 
+/// A list line's picture is taken by its format number where the reading has it, though the
+/// height's rules would take another; where it has not, the line's height and frame rate, the
+/// next lower, and with nothing that low the nearest above (gaps row Y9).
+#[test]
+fn the_line_picked_is_taken_by_its_format_number_else_the_nearest() {
+    let formats: Vec<Format> = [
+        r#"{"itag":136,"mimeType":"video/mp4; codecs=\"avc1\"","width":1280,"height":720,"fps":30,"bitrate":1000,"url":"https://r1.example/v?itag=136"}"#,
+        r#"{"itag":398,"mimeType":"video/mp4; codecs=\"av01\"","width":1280,"height":720,"fps":30,"bitrate":3000,"url":"https://r1.example/v?itag=398"}"#,
+        r#"{"itag":298,"mimeType":"video/mp4; codecs=\"avc1\"","width":1280,"height":720,"fps":60,"bitrate":2000,"url":"https://r1.example/v?itag=298"}"#,
+        r#"{"itag":247,"mimeType":"video/webm; codecs=\"vp9\"","width":1280,"height":720,"fps":30,"bitrate":1500,"url":"https://r1.example/v?itag=247"}"#,
+        r#"{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","bitrate":128000,"url":"https://r1.example/v?itag=140"}"#,
+        r#"{"itag":251,"mimeType":"audio/webm; codecs=\"opus\"","bitrate":140000,"url":"https://r1.example/v?itag=251"}"#,
+    ]
+    .iter()
+    .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
+    .collect();
+    let took = |format, quality, container, rate| {
+        choose_named(&formats, format, quality, container, rate)
+            .map(|chosen| chosen.iter().map(|f| f.itag).collect::<Vec<_>>())
+    };
+    // The height's rules alone take the biggest bitrate at 720 and 30 frames a second.
+    assert_eq!(
+        took(None, Quality::UpTo(720), Some("mp4"), Some(30)),
+        Some(vec![398, 140])
+    );
+    // The line's own picture, with the sound its container takes.
+    assert_eq!(
+        took(Some(136), Quality::UpTo(720), Some("mp4"), Some(30)),
+        Some(vec![136, 140])
+    );
+    assert_eq!(
+        took(Some(247), Quality::UpTo(720), Some("webm"), None),
+        Some(vec![247, 251])
+    );
+    // A 1080p line whose picture this reading lacks: the next lower at its frame rate.
+    assert_eq!(
+        took(Some(137), Quality::UpTo(1080), Some("mp4"), Some(60)),
+        Some(vec![298, 140])
+    );
+    assert_eq!(
+        took(Some(137), Quality::UpTo(1080), Some("mp4"), None),
+        Some(vec![298, 140])
+    );
+    // A 360p line with nothing that low: the nearest above, not no stream at all.
+    assert_eq!(
+        took(Some(134), Quality::UpTo(360), Some("mp4"), None),
+        Some(vec![298, 140])
+    );
+    // Without a format number nothing that low is still nothing, as before.
+    assert_eq!(took(None, Quality::UpTo(360), Some("mp4"), None), None);
+    // The sound alone is never a picture's number.
+    assert_eq!(
+        took(Some(136), Quality::Audio, Some("m4a"), None),
+        Some(vec![140])
+    );
+}
+
 #[test]
 fn the_reading_is_in_the_shape_the_downloader_reads() {
     let mut formats = formats();
