@@ -8,6 +8,9 @@ description = "dm's own checks: the scorecard, the layering of the crates, and t
 
 [dependencies]
 toml.workspace = true
+# `update-key` and `sign-manifest`: the update manifest's Ed25519 key and signature (gaps row F6).
+ring.workspace = true
+base64.workspace = true
 
 [dev-dependencies]
 # The logins and secrets tests use (gaps row X10).

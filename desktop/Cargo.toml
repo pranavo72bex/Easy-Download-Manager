@@ -80,6 +80,9 @@ rcgen = "0.14"
 reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider", "system-proxy", "socks", "http2"] }
 retina = "0.4"
 rfd = "0.17"
+# Ed25519 for the update manifest's signature (gaps row F6): already in the tree as rustls's
+# provider, so no second crypto library.
+ring = "0.17"
 serde = "1"
 serde_json = "1"
 sha1 = "0.11"

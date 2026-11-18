@@ -616,6 +616,21 @@ jobs:
             > installers/latest.json
           cat installers/latest.json
 
+      # dm believes a manifest only with the project's signature beside it,
+      # `latest.json.sig` (gaps row F6; dm-shell's app/update.rs). The private
+      # key is the repository secret DM_UPDATE_SIGNING_KEY, made by
+      # `cargo xtask update-key` (docs/RELEASING.md); the signer refuses a key
+      # that is not the one dm carries. Without it this step fails and nothing
+      # is drafted: an unsigned release is one every dm since F6 refuses.
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+      - name: Sign the update manifest
+        working-directory: desktop
+        env:
+          DM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
+        run: cargo xtask sign-manifest ../installers/latest.json
+
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true
