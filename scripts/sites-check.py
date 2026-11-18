@@ -18,6 +18,13 @@ file's own structure: is there a picture, is there a sound, how long is it.
                                                      # dailymotion rumble twitch twitch-clip bilibili peertube
     python3 scripts/sites-check.py --public          # the sites docs/site-list.md says need no sign-in
     python3 scripts/sites-check.py --json out.json   # also each site's result as JSON (site-table.py)
+    python3 scripts/sites-check.py --file-hosts      # dropbox google-drive mediafire (below)
+
+The file-storage services (gaps row W7) are checked without a browser: each one's public share
+address is given to dm as Add URL gives it (the control protocol's `downloads.add`, dm started
+headless on a throwaway home), and the file itself must land under the service's own name, not
+the share page's HTML. A large file is not fetched whole: it passes once its row has the
+service's name and size and bytes are arriving, and is then cancelled.
 
 `--public` is what the daily site watch runs (.github/workflows/sites.yml, gaps row W6),
 with YouTube left to youtube-check.py.
@@ -36,6 +43,10 @@ typed, read or kept by the check, and the throwaway profile goes with the run.
 """
 import importlib.util
 import base64
+import shutil
+import socket
+import subprocess
+import tempfile
 import json
 import os
 import pathlib
@@ -134,6 +145,24 @@ SITES = {
 PUBLIC = ("vimeo", "tiktok", "x", "x2", "instagram", "dailymotion", "rumble", "twitch", "twitch-clip",
           "bilibili", "peertube")
 
+# File-storage services' public share addresses ("anyone with the link"), signed out (gaps row
+# W7). None of these files is the service's own: each is a public file linked from a project's
+# public page, looked at on 2026-11-18. A file that goes is replaced by another public one
+# (SITES_URL_<NAME> names one for a run). `name` is what the service's own Content-Disposition
+# calls it; `size`, where given, is a file not fetched whole (`enough` bytes, then cancelled).
+FILE_HOSTS = {
+    # A `dl=0` share page (the new `/scl/fi/` kind, its `rlkey` kept), from a library's README.
+    "dropbox": {"url": "https://www.dropbox.com/scl/fi/3o8ooqje4f497npxdeiwg/test.txt"
+                       "?rlkey=x9jsd8u7k147x6fzc7stxozqe&dl=0",
+                "name": "test.txt"},
+    # A file's share page, 476 MB: Drive asks "can't scan this file for viruses" first.
+    "google-drive": {"url": "https://drive.google.com/file/d/1l_5RK28JRL19wpT22B-DY9We3TVXnnQQ/view?usp=sharing",
+                     "name": "fcn8s_from_caffe.npz", "size": 498881336, "enough": 4 * 1024 * 1024},
+    # A file page with its Download button, 656 KB, linked from an add-on's forum page.
+    "mediafire": {"url": "https://www.mediafire.com/file/0wpllm9h07b60b2/OWUL_Caster_Panel.zip/file",
+                  "name": "OWUL_Caster_Panel.zip"},
+}
+
 
 def arguments(argv):
     """The sites named (or --public's), and --json's file if one is named."""
@@ -142,6 +171,8 @@ def arguments(argv):
     for a in args:
         if a == "--public":
             public = True
+        elif a == "--file-hosts":
+            names += [n for n in FILE_HOSTS if n not in names]
         elif a == "--json":
             json_out = next(args, None)
         elif a.startswith("--json="):
@@ -534,18 +565,107 @@ def write_json():
     spec.loader.exec_module(table)
     checks = list(cc.results)
     first = next(((n, d) for ok, n, d in checks if not ok), None)
-    rows = [{"site": r["site"], "status": table.site_status(r), "detail": table.site_detail(r),
+    rows = [{"site": r["site"], "status": table.site_status(r), "detail": r.get("detail") or table.site_detail(r),
              "url": r.get("url") or r.get("found")} for r in DONE]
     reached = {r["site"] for r in DONE}
     rows += [{"site": n, "status": "error",
               "detail": "the check stopped before this site" + (f": {first[0]} ({first[1]})" if first else "")}
-             for n in WANT if n not in reached]
+             for n in WANT + HOSTS_WANTED if n not in reached]
     table.write_result(JSON_OUT, "sites-check", rows, checks, signed_in=bool(SIGNIN))
 
 
+def file_host_rows(names):
+    """Each file host's share address given to dm as Add URL gives it, dm headless on a throwaway
+    home: the file must land (or, for a large one, arrive) under the service's own name."""
+    root = pathlib.Path(tempfile.mkdtemp(prefix="dm-file-hosts-"))
+    home, downloads = root / "home", root / "downloads"
+    for d in (home, downloads):
+        d.mkdir()
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(downloads), "categorize": False,
+        "show_progress": False, "show_complete": False,
+    }), encoding="utf-8")
+    app = subprocess.Popen([str(cc.BINARY), "--headless", "--control", "0"], env=dict(os.environ, DM_HOME=str(home)),
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        port = cc.wait_for(lambda: (home / "control.port").exists()
+                           and (home / "control.port").read_text(encoding="utf-8").strip(), 20)
+        if not port:
+            raise RuntimeError("dm did not open its control port")
+        conn = socket.create_connection(("127.0.0.1", int(port)), timeout=60)
+        replies = conn.makefile("r", encoding="utf-8")
+
+        def call(method, **params):
+            conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
+            return json.loads(replies.readline())
+
+        call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
+        for name in names:
+            site = FILE_HOSTS[name]
+            url = os.environ.get("SITES_URL_" + name.upper().replace("-", "_")) or site["url"]
+            out = {"site": name, "url": url}
+            try:
+                out.update(one_file_host(call, home, url, site))
+            except Exception as e:  # one host breaking must not stop the others
+                out["result"] = f"check failed: {e!r}"
+            DONE.append(out)
+            print("SITE", json.dumps(out, default=str), flush=True)
+            cc.check(f"{name}: the share address lands the file under its own name",
+                     out.get("result") == "OK", out.get("detail") or out.get("result", ""))
+        conn.close()
+    finally:
+        app.terminate()
+        try:
+            app.wait(15)
+        except subprocess.TimeoutExpired:
+            app.kill()
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def one_file_host(call, home, url, site):
+    """One share address through `downloads.add`, judged on its row and what landed."""
+    call("downloads.add", urls=[url])
+    deadline = time.time() + int(os.environ.get("SITES_FINISH_WAIT", "240"))
+    row = None
+    while time.time() < deadline:
+        row = next((r for r in cc.queue_rows(home) if r.get("url") == url), None)
+        kind = ((row or {}).get("state") or {}).get("kind")
+        progress = (row or {}).get("progress") or {}
+        if kind in ("completed", "failed", "cancelled"):
+            break
+        if (site.get("enough") and row and row.get("filename") == site["name"]
+                and progress.get("total") == site.get("size")
+                and (progress.get("downloaded") or 0) >= site["enough"]):
+            call("downloads.cancel", ids=[row["id"]])
+            return {"result": "OK", "detail": f"{site['name']}, {site['size']} bytes, named and arriving; "
+                                              f"cancelled after {progress['downloaded']} bytes"}
+        time.sleep(1)
+    if not row:
+        return {"result": "dm made no row for the address"}
+    state = row.get("state") or {}
+    if state.get("kind") != "completed":
+        why = next((str(v) for k, v in state.items() if k != "kind"), "")
+        return {"result": f"the file did not land ({state.get('kind')}): {why[:200]}", "dm_rows": [row]}
+    path = pathlib.Path(row.get("path") or "")
+    if path.name != site["name"]:
+        return {"result": f"landed as {path.name}, not {site['name']}"}
+    head = path.read_bytes()[:256].lstrip().lower() if path.is_file() else b""
+    if head.startswith((b"<!doctype", b"<html")):
+        return {"result": f"{path.name} is the share page's HTML, not the file"}
+    return {"result": "OK", "detail": f"{path.name}, {path.stat().st_size} bytes, landed"}
+
+
+HOSTS_WANTED = [n for n in WANT if n in FILE_HOSTS]
+WANT = [n for n in WANT if n not in FILE_HOSTS]
+
 cc.panel_checks = sites
 try:
-    cc.main()
+    if HOSTS_WANTED:
+        file_host_rows(HOSTS_WANTED)
+    if WANT:
+        cc.main()
 finally:
     if JSON_OUT:
         write_json()
+if not WANT and any(not ok for ok, _, _ in cc.results):
+    sys.exit(1)

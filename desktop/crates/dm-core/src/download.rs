@@ -1018,6 +1018,15 @@ async fn fetch_reporting(
         return crate::live::download_live(url, options, report).await;
     }
 
+    /* A file-storage service's share address (Dropbox, Google Drive, MediaFire) is a page
+     * about the file: what its Download button fetches is fetched in its place, under the
+     * name the service gives the file, a large Drive file's "can't scan for viruses" question
+     * answered (gaps row W7). Found again at each start, as the address a service gives for
+     * the file may not last. Every other address is fetched as it is. */
+    let found = crate::filehost::file_address(client, url);
+    let shared = or_stop(&options.control, found).await?;
+    let url = shared.as_deref().unwrap_or(url);
+
     // A site with a limit of its own is fetched on that many connections,
     // whatever the setting says; decided once, here, for every path below. So is a server found
     // in this run of dm to serve no more at once (`agents::remember_ceiling`).

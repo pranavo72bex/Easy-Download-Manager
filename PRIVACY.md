@@ -22,6 +22,15 @@ rest itself too: joining picture and sound, subtitles, and live RTMP (RTMPS and
 RTMPT too), RTSP (RTSPS too) and MMS streams. No program is downloaded and run,
 and nothing installed on your computer is run in dm's place.
 
+## Share links of file-storage services
+
+A Dropbox, Google Drive or MediaFire share link you give dm is fetched the way
+the service's own Download button fetches it: Dropbox's file at the same
+address, Google Drive's from `drive.usercontent.google.com` (answering its
+"can't scan this file for viruses" question for a large file), MediaFire's
+from the download server its file page names. These requests go only to that
+service, only for a link you gave, and carry no cookie or sign-in.
+
 ## What the extension handles
 
 **Downloads your browser starts.** When the browser begins a download, the
