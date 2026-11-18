@@ -18,7 +18,7 @@ use super::backend::Backend;
 use super::detect::{Detected, Detector, DryWatch};
 use super::power::WhenDone;
 use super::schedule::{looked_after, work_left, AtEnd, Step, Watch};
-use super::snapshot::Snapshot;
+use super::snapshot::{Changes, Snapshot};
 use super::watch::Watched;
 use crate::Settings;
 
@@ -30,6 +30,10 @@ use crate::Settings;
 pub struct Session {
     detector: Detector,
     dry: DryWatch,
+    /// The rows of the last read, held so that what the next read changed
+    /// is found by their pointers (`Changes`): held, none of them is changed
+    /// in place by the queue (gaps row 181).
+    rows: Vec<Arc<Entry>>,
     watched: Watched,
     /// Downloads the browser handed over: a moment ago, and a row waiting
     /// for a fresh link (`handoff::Hands`).
@@ -235,6 +239,9 @@ pub struct Read {
     pub detected: Detected,
     /// Problems met (a command run after a download that could not start).
     pub problems: Vec<String>,
+    /// Which rows are not the entries the last read had: a presentation
+    /// that keeps the last read's rows looks at only those (gaps row 181).
+    pub changes: Changes,
 }
 
 impl Session {
@@ -255,12 +262,23 @@ impl Session {
             }
             adds.running > 0
         };
-        let snapshot = backend.snapshot();
-        let detected = self.detector.read_holding(&snapshot.rows, hold_new);
-        self.events.publish(&snapshot.rows);
+        self.read_from(backend.snapshot(), hold_new, settings)
+    }
+
+    /// [`Self::read`] of `snapshot`, the queue read with new rows held
+    /// unjudged where `hold_new`.
+    fn read_from(&mut self, snapshot: Snapshot, hold_new: bool, settings: &Settings) -> Read {
+        // What changed, found once by pointer and followed by each of what
+        // comes next: at 10,000 rows with a few downloads running, each of
+        // them had looked every row up at every read (gaps row 181).
+        let changes = Changes::between(&self.rows, &snapshot.rows);
+        self.rows.clone_from(&snapshot.rows);
+        let detected = self.detector.read_changes(&snapshot.rows, hold_new, &changes);
+        self.dry.follow(&snapshot.rows, &changes);
+        self.events.publish_changes(&snapshot.rows, &changes);
         let home = crate::settings::home();
         self.going
-            .publish(&home, &snapshot.rows, &detected.failed, || {
+            .publish(&home, &snapshot.rows, &changes, &detected.failed, || {
                 crate::host::browser_seen(&home)
             });
         let mut problems = Vec::new();
@@ -281,6 +299,7 @@ impl Session {
             snapshot,
             detected,
             problems,
+            changes,
         }
     }
 
@@ -321,17 +340,24 @@ impl Session {
         done
     }
 
-    /// Each row's state at the read before the latest (When done's dry-queue
-    /// watch compares the latest rows with it).
-    pub fn before(&self) -> &HashMap<Id, State> {
-        self.detector.before()
+    /// The row `id`'s state at the read before the latest, none where it
+    /// was not listed then (When done's dry-queue watch compares the latest
+    /// rows with it).
+    pub fn before(&self, id: Id) -> Option<&State> {
+        self.detector.before(id)
     }
 
     /// Whether the queue has just run dry since the read before (When done:
     /// the sound and the action it arms are the presentation's to start).
-    /// Call once per read, after it.
+    /// Call once per read, after it, with its rows (as read, or as shown):
+    /// worked out from the rows whose state the read changed, not from
+    /// every row (gaps row 181).
     pub fn ran_dry(&mut self, rows: &[Arc<Entry>]) -> bool {
-        self.dry.look(rows, self.detector.before())
+        if rows.len() != self.rows.len() {
+            // Not the read's rows: compared with the read before, every one.
+            return self.dry.look(rows, &self.detector.before_all());
+        }
+        self.dry.look_moved(self.detector.moved())
     }
 
     /// The speed limit last put in force, in bytes a second.
@@ -790,3 +816,7 @@ mod large_queue {
 /// by hand in release (`large_queue_under_load`).
 #[cfg(test)]
 mod under_load_tests;
+
+/// A read of 10,000 rows where a few changed (gaps row 181).
+#[cfg(test)]
+mod wake_tests;

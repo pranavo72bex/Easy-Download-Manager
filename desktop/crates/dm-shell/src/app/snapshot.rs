@@ -11,10 +11,10 @@
 //! the queue changed it. A presentation reads a snapshot when it is told of a
 //! change (`changes`), never per frame.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
-use dm_core::{Entry, Id, Swarm};
+use dm_core::{Entry, Id, State, Swarm};
 
 /// A download waiting to be tried again: its try, of how many, why the last
 /// failed, and when the next is due.
@@ -33,11 +33,62 @@ pub struct Snapshot {
     pub allowance_spent: bool,
 }
 
+/// Which rows of a read are not the entries the read before had, found by
+/// pointer: the queue hands out a row it did not change as the same shared
+/// entry, and copies one before changing it while a read still holds it, so a
+/// read that keeps the last read's rows can tell what changed without looking
+/// inside a row it did not (gaps row 181).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Changes {
+    /// Rows came, went or moved, or there was no read before: every row is
+    /// to be looked at.
+    #[default]
+    Every,
+    /// The same rows in the same order: these places, in order, hold
+    /// another entry than they did.
+    At(Vec<usize>),
+}
+
+impl Changes {
+    /// How `now` differs from `before`, the rows of the read before, which
+    /// the caller held since (so none of their entries was changed in place).
+    pub fn between(before: &[Arc<Entry>], now: &[Arc<Entry>]) -> Changes {
+        if before.len() != now.len() {
+            return Changes::Every;
+        }
+        let mut at = Vec::new();
+        for (i, (was, is)) in before.iter().zip(now).enumerate() {
+            if Arc::ptr_eq(was, is) {
+                continue;
+            }
+            if was.id != is.id {
+                return Changes::Every;
+            }
+            at.push(i);
+        }
+        Changes::At(at)
+    }
+
+    /// The places that changed, where the rows are the same in the same
+    /// order; none where every row is to be looked at.
+    pub fn at(&self) -> Option<&[usize]> {
+        match self {
+            Changes::Every => None,
+            Changes::At(at) => Some(at),
+        }
+    }
+}
+
 /// Each finished file's size on disk, by the path it was read at: a stream
 /// put into an MP4 is not the size of the joined stream the engine counted.
 /// Read once a path.
 #[derive(Debug, Default)]
-pub struct SavedSizes(HashMap<Id, Saved>);
+pub struct SavedSizes {
+    sizes: HashMap<Id, Saved>,
+    /// The places of the finished rows whose file could not be read at the
+    /// last apply: looked for again at each, as every row once was.
+    missing: BTreeMap<usize, Id>,
+}
 
 /// A finished file's size, by the path it was read at, and the row last
 /// given it: the queue's row and the copy with the size, handed out again
@@ -50,162 +101,134 @@ struct Saved {
     given: Option<(Arc<Entry>, Arc<Entry>)>,
 }
 
+/// What [`SavedSizes::give`] made of a row.
+#[derive(Debug, PartialEq, Eq)]
+enum Given {
+    /// Not finished, or no file named: as the queue has it.
+    Not,
+    /// Finished, but its file could not be read.
+    Missing,
+    /// Given its file's size.
+    Sized,
+}
+
 impl SavedSizes {
     /// Gives each finished row of `rows` its file's size on disk, as
     /// downloaded and as the whole. A row is copied only where the figures
     /// differ: an unchanged row stays the queue's own, which is how the
     /// next read knows it. Rows no longer finished are forgotten.
     pub fn apply(&mut self, rows: &mut [Arc<Entry>]) {
-        use dm_core::State;
         // Gathered once: a search of every row for each size kept was ten
         // thousand finished rows times ten thousand rows, at every read.
-        let finished: std::collections::HashSet<Id> = rows
+        let finished: HashSet<Id> = rows
             .iter()
             .filter(|r| r.state == State::Completed)
             .map(|r| r.id)
             .collect();
-        self.0.retain(|id, _| finished.contains(id));
-        for row in rows.iter_mut() {
-            if row.state != State::Completed || row.path.is_empty() {
-                continue;
-            }
-            if !self
-                .0
-                .get(&row.id)
-                .is_some_and(|saved| saved.path == row.path)
-            {
-                match std::fs::metadata(&row.path) {
-                    Ok(meta) if meta.is_file() => {
-                        self.0.insert(
-                            row.id,
-                            Saved {
-                                path: row.path.clone(),
-                                size: meta.len(),
-                                given: None,
-                            },
-                        );
-                    }
-                    _ => continue,
-                }
-            }
-            let Some(saved) = self.0.get_mut(&row.id) else {
-                continue;
-            };
-            let size = saved.size;
-            if row.progress.total != Some(size) || row.progress.downloaded != size {
-                if let Some((queues, given)) = &saved.given {
-                    if Arc::ptr_eq(queues, row) {
-                        *row = Arc::clone(given);
-                        continue;
-                    }
-                }
-                let queues = Arc::clone(row);
-                let copy = Arc::make_mut(row);
-                copy.progress.total = Some(size);
-                copy.progress.downloaded = size;
-                saved.given = Some((queues, Arc::clone(row)));
+        self.sizes.retain(|id, _| finished.contains(id));
+        self.missing.clear();
+        for (at, row) in rows.iter_mut().enumerate() {
+            if self.give(row) == Given::Missing {
+                self.missing.insert(at, row.id);
             }
         }
+    }
+
+    /// [`Self::apply`] to `rows` where only those at the places `at` (in
+    /// order) are new since the last apply, the rest the rows that apply
+    /// left, in the same order: only those at `at` are looked at, and the
+    /// rows whose file was missing looked for again, as `apply` looks for
+    /// them. At 10,000 finished rows, a read where a few changed had looked
+    /// every one up (gaps row 181). Where a missing file is found now, the
+    /// row's place, not among `at`.
+    pub fn apply_at(&mut self, rows: &mut [Arc<Entry>], at: &[usize]) -> Vec<usize> {
+        for &i in at {
+            self.missing.remove(&i);
+            let Some(row) = rows.get_mut(i) else {
+                continue;
+            };
+            if row.state != State::Completed {
+                self.sizes.remove(&row.id);
+                continue;
+            }
+            if self.give(row) == Given::Missing {
+                self.missing.insert(i, row.id);
+            }
+        }
+        let again: Vec<(usize, Id)> = self
+            .missing
+            .iter()
+            .filter(|(i, _)| at.binary_search(*i).is_err())
+            .map(|(i, id)| (*i, *id))
+            .collect();
+        let mut found = Vec::new();
+        for (i, id) in again {
+            match rows.get_mut(i) {
+                Some(row) if row.id == id => {
+                    if self.give(row) == Given::Sized {
+                        self.missing.remove(&i);
+                        found.push(i);
+                    }
+                }
+                _ => {
+                    self.missing.remove(&i);
+                }
+            }
+        }
+        found
+    }
+
+    /// Gives `row` its file's size, where it is finished: read once a path,
+    /// and the same copy while the queue's row is the same.
+    fn give(&mut self, row: &mut Arc<Entry>) -> Given {
+        if row.state != State::Completed || row.path.is_empty() {
+            return Given::Not;
+        }
+        if !self
+            .sizes
+            .get(&row.id)
+            .is_some_and(|saved| saved.path == row.path)
+        {
+            match std::fs::metadata(&row.path) {
+                Ok(meta) if meta.is_file() => {
+                    self.sizes.insert(
+                        row.id,
+                        Saved {
+                            path: row.path.clone(),
+                            size: meta.len(),
+                            given: None,
+                        },
+                    );
+                }
+                _ => return Given::Missing,
+            }
+        }
+        let Some(saved) = self.sizes.get_mut(&row.id) else {
+            return Given::Missing;
+        };
+        let size = saved.size;
+        if row.progress.total != Some(size) || row.progress.downloaded != size {
+            if let Some((queues, given)) = &saved.given {
+                if Arc::ptr_eq(queues, row) {
+                    *row = Arc::clone(given);
+                    return Given::Sized;
+                }
+            }
+            let queues = Arc::clone(row);
+            let copy = Arc::make_mut(row);
+            copy.progress.total = Some(size);
+            copy.progress.downloaded = size;
+            saved.given = Some((queues, Arc::clone(row)));
+        }
+        Given::Sized
     }
 
     /// Forgets every size read, so each is read again.
     pub fn clear(&mut self) {
-        self.0.clear();
+        self.sizes.clear();
+        self.missing.clear();
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_finished_row_takes_its_files_size_on_disk_read_once_a_path() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("joined.mp4");
-        std::fs::write(&path, vec![0u8; 700]).unwrap();
-        let row = |state: dm_core::State| -> Arc<Entry> {
-            Arc::new(
-                serde_json::from_value(serde_json::json!({
-                    "id": 1,
-                    "url": "http://example.com/v",
-                    "state": serde_json::to_value(state).unwrap(),
-                    "progress": {"downloaded": 900, "total": 900, "speed": 0.0, "eta": null},
-                    "filename": "joined.mp4",
-                    "path": path.display().to_string(),
-                }))
-                .unwrap(),
-            )
-        };
-        let mut sizes = SavedSizes::default();
-        let mut running = vec![row(dm_core::State::Running)];
-        sizes.apply(&mut running);
-        assert_eq!(
-            running[0].progress.total,
-            Some(900),
-            "not finished: as counted"
-        );
-        let mut rows = vec![row(dm_core::State::Completed)];
-        sizes.apply(&mut rows);
-        assert_eq!(
-            (rows[0].progress.downloaded, rows[0].progress.total),
-            (700, Some(700))
-        );
-        // Read once: a change on disk is not seen until the sizes are cleared.
-        std::fs::write(&path, vec![0u8; 1000]).unwrap();
-        let mut again = vec![row(dm_core::State::Completed)];
-        sizes.apply(&mut again);
-        assert_eq!(again[0].progress.total, Some(700));
-        sizes.clear();
-        sizes.apply(&mut again);
-        assert_eq!(again[0].progress.total, Some(1000));
-        // The same figures: the row is not copied.
-        let before = Arc::clone(&again[0]);
-        sizes.apply(&mut again);
-        assert!(Arc::ptr_eq(&before, &again[0]));
-        // The queue's row, read again unchanged, is given the same copy:
-        // a read that changed nothing hands out the same rows.
-        let queues = row(dm_core::State::Completed);
-        let mut first = vec![Arc::clone(&queues)];
-        sizes.apply(&mut first);
-        let mut second = vec![Arc::clone(&queues)];
-        sizes.apply(&mut second);
-        assert_eq!(second[0].progress.total, Some(1000));
-        assert!(Arc::ptr_eq(&first[0], &second[0]));
-    }
-
-    /// A read costs each finished row once, not once per row of the list:
-    /// ten thousand finished rows were about 10^8 comparisons a read (gaps
-    /// row 181), seconds in a debug build; now a few milliseconds.
-    #[test]
-    fn ten_thousand_finished_rows_are_read_in_linear_time() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("f.bin");
-        std::fs::write(&path, vec![0u8; 10]).unwrap();
-        let mut rows: Vec<Arc<Entry>> = (1..=10_000u64)
-            .map(|id| {
-                Arc::new(
-                    serde_json::from_value(serde_json::json!({
-                        "id": id,
-                        "url": "http://example.com/f",
-                        "state": serde_json::to_value(dm_core::State::Completed).unwrap(),
-                        "progress": {"downloaded": 10, "total": 10, "speed": 0.0, "eta": null},
-                        "filename": "f.bin",
-                        "path": path.display().to_string(),
-                    }))
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let mut sizes = SavedSizes::default();
-        sizes.apply(&mut rows);
-        let started = std::time::Instant::now();
-        for _ in 0..5 {
-            sizes.apply(&mut rows);
-        }
-        let each = started.elapsed() / 5;
-        assert!(
-            each < std::time::Duration::from_millis(100),
-            "a read of 10,000 finished rows took {each:?}"
-        );
-    }
-}
+mod tests;

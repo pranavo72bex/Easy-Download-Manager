@@ -34,6 +34,8 @@ use std::sync::{Arc, Mutex, Weak};
 
 use dm_core::{Entry, Id, State};
 
+use super::snapshot::Changes;
+
 /// What happened to one download.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DownloadEvent {
@@ -167,6 +169,13 @@ impl Events {
     /// subscriber what happened. The first read seeds it: what was already
     /// there is not told as added.
     pub fn publish(&mut self, rows: &[Arc<Entry>]) {
+        self.publish_changes(rows, &Changes::Every);
+    }
+
+    /// [`Self::publish`] of `rows`, which `changes` says how they differ
+    /// from the last read's: where they are the same rows in the same order,
+    /// only those at the places it names are compared (gaps row 181).
+    pub fn publish_changes(&mut self, rows: &[Arc<Entry>], changes: &Changes) {
         self.subscribers.retain(|s| s.strong_count() > 0);
         // Nobody listening: no work at all (the window today). The first read
         // after someone subscribes seeds again.
@@ -183,6 +192,25 @@ impl Events {
         let stamp = self.stamp;
         let mut lifecycle = Vec::new();
         let mut progress = Vec::new();
+        // The same rows as the last read, in its order, which this publisher
+        // was told of: only those that changed are compared. A row passed
+        // over keeps an older stamp, which only a read of every row reads.
+        if let Some(at) = changes.at().filter(|at| {
+            seeded
+                && rows.len() == self.last.len()
+                && at
+                    .iter()
+                    .all(|&i| rows.get(i).is_some_and(|r| self.last.contains_key(&r.id)))
+        }) {
+            for row in at.iter().filter_map(|&i| rows.get(i)) {
+                if let Some(seen) = self.last.get_mut(&row.id) {
+                    seen.stamp = stamp;
+                    compare(seen, row, &mut lifecycle, &mut progress);
+                }
+            }
+            self.tell(lifecycle, progress);
+            return;
+        }
         // How many of the last read's rows this read has: fewer, and some left.
         let (was, mut matched) = (self.last.len(), 0usize);
         // Updated in place, each row stamped with this read: a map of 10,000
@@ -193,32 +221,7 @@ impl Events {
                 Some(seen) => {
                     seen.stamp = stamp;
                     matched += 1;
-                    // The same shared entry: nothing in it changed.
-                    if Arc::ptr_eq(&seen.entry, row) {
-                        continue;
-                    }
-                    let before = &seen.entry;
-                    if before.state != row.state {
-                        lifecycle.push(DownloadEvent::StateChanged {
-                            id,
-                            state: row.state.clone(),
-                        });
-                        match &row.state {
-                            State::Completed => lifecycle.push(DownloadEvent::Completed(id)),
-                            State::Failed(why) => lifecycle.push(DownloadEvent::Failed {
-                                id,
-                                error: why.clone(),
-                            }),
-                            _ => {}
-                        }
-                    }
-                    if before.progress.downloaded != row.progress.downloaded
-                        || before.progress.total != row.progress.total
-                        || before.progress.speed.to_bits() != row.progress.speed.to_bits()
-                    {
-                        progress.push((id, row.progress));
-                    }
-                    seen.entry = Arc::clone(row);
+                    compare(seen, row, &mut lifecycle, &mut progress);
                 }
                 None => {
                     if seeded {
@@ -251,6 +254,11 @@ impl Events {
                 lifecycle.extend(gone.into_iter().map(DownloadEvent::Removed));
             }
         }
+        self.tell(lifecycle, progress);
+    }
+
+    /// Tells every subscriber `lifecycle` and `progress`, where there is any.
+    fn tell(&self, lifecycle: Vec<DownloadEvent>, progress: Vec<(Id, dm_core::Progress)>) {
         if lifecycle.is_empty() && progress.is_empty() {
             return;
         }
@@ -269,6 +277,43 @@ impl Events {
             }
         }
     }
+}
+
+/// What happened to the row `seen` at the last read, now `row`: its state
+/// and progress compared, and `row` kept for the next. The same shared
+/// entry is passed over without looking inside it.
+fn compare(
+    seen: &mut Seen,
+    row: &Arc<Entry>,
+    lifecycle: &mut Vec<DownloadEvent>,
+    progress: &mut Vec<(Id, dm_core::Progress)>,
+) {
+    if Arc::ptr_eq(&seen.entry, row) {
+        return;
+    }
+    let id = row.id;
+    let before = &seen.entry;
+    if before.state != row.state {
+        lifecycle.push(DownloadEvent::StateChanged {
+            id,
+            state: row.state.clone(),
+        });
+        match &row.state {
+            State::Completed => lifecycle.push(DownloadEvent::Completed(id)),
+            State::Failed(why) => lifecycle.push(DownloadEvent::Failed {
+                id,
+                error: why.clone(),
+            }),
+            _ => {}
+        }
+    }
+    if before.progress.downloaded != row.progress.downloaded
+        || before.progress.total != row.progress.total
+        || before.progress.speed.to_bits() != row.progress.speed.to_bits()
+    {
+        progress.push((id, row.progress));
+    }
+    seen.entry = Arc::clone(row);
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

@@ -8,6 +8,7 @@
 //! the rows in sight named and their files looked for off the window's thread, a
 //! click by the row's download, and the row at the top of the view held.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use dm_core::{Entry, State};
@@ -39,10 +40,175 @@ impl Downloads {
                 .said
                 .as_ref()
                 .is_some_and(|(_, at)| at.elapsed() < crate::window::statusbar::SAID_FOR + IDLE)
-            || self
-                .rows
+            || self.timed_rows > 0
+    }
+
+    /// One read of the application into the window's rows (`Downloads::read`); whether
+    /// anything the window shows may have changed.
+    ///
+    /// A row the queue did not change is the queue's own `Arc` again, so what changed is found
+    /// by comparing pointers, once, in the session's read (`Read::changes`). Where the rows are
+    /// the same in the same order, only the rows that changed are taken, given their sizes and
+    /// compared: at 10,000 rows with a few downloads running, each read had looked at every row
+    /// several times (gaps row 181). Where only figures moved (a running download's bytes, rate,
+    /// time left), the names, places and choice worked out from the rows stand. They are worked
+    /// out again where a row was added, removed or changed otherwise; and the names of the rows
+    /// on screen and of those chosen every two seconds while anything changes, as a waiting
+    /// row's name follows its folder (`name_it_will_get_after`).
+    pub(super) fn read_rows(&mut self) -> bool {
+        let queue_changed = dm_shell::app::changes::take();
+        let settings = self.backend.settings();
+        let read = self.session.read(&self.backend, &settings);
+        // What it detected and the problems it met are the tick's.
+        let mut changed = queue_changed || !read.problems.is_empty();
+        self.detected.push(read.detected);
+        self.problems.extend(read.problems);
+        // What the read told beside the rows, which a row's words are said
+        // from (ranges tried again, swarms, files taken by a later row, the
+        // download limit), as the egui window sets it.
+        dm_desktop_base::rows::set_retrying(read.snapshot.retrying);
+        dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
+        dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
+        dm_desktop_base::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
+        // The window's rows are the last read's, in its order, as the queue's rows are compared
+        // with: a size told by a dialog (rare) or a read of everything takes every row.
+        let follows = !self.read_all
+            && self.sizes_told.is_empty()
+            && read.snapshot.rows.len() == self.rows.len();
+        let taken = match read.changes.at() {
+            Some(at) if follows => self.take_changed(&read.snapshot.rows, at),
+            _ => self.take_every(read.snapshot.rows),
+        };
+        changed |= taken.changed || taken.moved;
+        let moved = taken.moved;
+        if self.session.ran_dry(&self.rows) {
+            self.ran_dry = true;
+        }
+        // Every row's finishing words where the rows are placed again, else
+        // those of the rows that changed.
+        self.keep_whens(&settings.language, moved, taken.finished_at);
+        if moved {
+            self.named_at = Some(Instant::now());
+            // The queues the rows name, for Start Queue's and Stop Queue's
+            // arrows, the menu bar and the side panel: worked out from the
+            // rows where they changed, not asked of the engine at each read
+            // and each tick, a pass over every row under the queue's lock
+            // each time (gaps row 181).
+            self.queue_list = dm_core::queue_names(self.rows.iter().map(|r| &**r));
+            // Each row by the name its file will get, as the egui window
+            // shows it: a waiting second copy reads "name (1)".
+            self.earlier = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
+            let every: Vec<usize> = (0..self.rows.len()).collect();
+            self.shown_names.clear();
+            self.name_rows(&every, &settings);
+            dm_desktop_base::rows::set_superseded(&self.rows);
+            // A row taken off the list is no longer chosen.
+            let ids: std::collections::HashSet<dm_core::Id> =
+                self.rows.iter().map(|r| r.id).collect();
+            self.selected.retain(|id| ids.contains(id));
+            self.places.place_rows(&self.rows, &settings.categories());
+        } else if changed && self.named_at.is_none_or(|at| at.elapsed() >= NAMES_EVERY) {
+            // A waiting row's name follows its folder (a file of its name
+            // arriving there makes it "name (1)"), so while anything changes
+            // the rows on screen and those chosen are named again every two
+            // seconds; the rest are named again when the list itself changes.
+            // Every row named again every two seconds was, at 10,000 waiting
+            // rows, 5,000 looks at the disk a second (gaps row 181).
+            self.named_at = Some(Instant::now());
+            let seen = self.rows_seen();
+            self.name_rows(&seen, &settings);
+        }
+        // The frame this read is for is drawn with these settings, not a
+        // second copy of them.
+        self.drawn = std::rc::Rc::new(settings);
+        self.drawn_fresh = true;
+        // Sorted again where a figure it sorts by may have moved: where a
+        // row that changed compares otherwise than it did under the sort
+        // (the sort is of the rows alone, its ties kept in the rows' order).
+        if moved || (changed && self.sort.is_some() && taken.sort_moved) {
+            self.reshow();
+        }
+        changed
+    }
+
+    /// The rows of a read, `rows`, all taken: given their sizes on disk and compared with the
+    /// last read's, every one.
+    fn take_every(&mut self, mut rows: Vec<Arc<Entry>>) -> Taken {
+        let mut taken = Taken::default();
+        // A finished row's size is its file's, read once from the disk.
+        self.saved.apply(&mut rows);
+        // A size told by a dialog stands only until the row has its own.
+        if !self.sizes_told.is_empty() {
+            self.sizes_told.retain(|id, _| {
+                rows.iter().any(|r| {
+                    r.id == *id && r.progress.total.is_none() && r.progress.downloaded == 0
+                })
+            });
+            for row in &mut rows {
+                if let Some(size) = self.sizes_told.get(&row.id) {
+                    Arc::make_mut(row).progress.total = Some(*size);
+                }
+            }
+        }
+        let same_rows = rows.len() == self.rows.len()
+            && rows
                 .iter()
-                .any(|r| r.state == State::Running || r.delete_after.is_some())
+                .zip(&self.rows)
+                .all(|(new, old)| new.id == old.id);
+        taken.moved = !same_rows || std::mem::take(&mut self.read_all);
+        if same_rows {
+            for (new, old) in rows.iter().zip(&self.rows) {
+                if Arc::ptr_eq(new, old) {
+                    continue;
+                }
+                taken.changed = true;
+                taken.finished_at.extend(new.finished_at);
+                if !placed_alike(old, new) {
+                    taken.moved = true;
+                    break;
+                }
+            }
+        }
+        // Sorted again at any change, as every row was looked at.
+        taken.sort_moved = true;
+        self.timed_rows = rows.iter().filter(|r| timed(r)).count();
+        self.rows = rows;
+        taken
+    }
+
+    /// The rows at `at` of a read, `queue`, taken into the window's rows, which are the last
+    /// read's in the same order: only they are given their sizes and compared, with the rows
+    /// whose files were missing, looked for again (`SavedSizes::apply_at`).
+    fn take_changed(&mut self, queue: &[Arc<Entry>], at: &[usize]) -> Taken {
+        let mut taken = Taken::default();
+        let mut olds: Vec<(usize, Arc<Entry>)> = at
+            .iter()
+            .filter_map(|&i| {
+                let new = Arc::clone(queue.get(i)?);
+                Some((i, std::mem::replace(self.rows.get_mut(i)?, new)))
+            })
+            .collect();
+        // A row whose file was missing, unchanged in the queue: it was shown as the queue's.
+        for i in self.saved.apply_at(&mut self.rows, at) {
+            if let Some(row) = queue.get(i) {
+                olds.push((i, Arc::clone(row)));
+            }
+        }
+        for (i, old) in olds {
+            let new = &self.rows[i];
+            if Arc::ptr_eq(&old, new) {
+                continue;
+            }
+            taken.changed = true;
+            taken.finished_at.extend(new.finished_at);
+            taken.moved |= !placed_alike(&old, new);
+            taken.sort_moved |= self.sort.is_some_and(|(column, _)| {
+                dm_desktop_base::columns::compare(column, &old, new) != std::cmp::Ordering::Equal
+            });
+            self.timed_rows =
+                (self.timed_rows + usize::from(timed(new))).saturating_sub(usize::from(timed(&old)));
+        }
+        taken
     }
 
     /// Keeps the words for when each row finished (`format::Whens`), as the
@@ -211,6 +377,26 @@ impl Downloads {
         let at = (-offset / height).floor().max(0.0) as usize;
         Some((self.id_at(at)?, at, height, offset))
     }
+}
+
+/// What a read took into the window's rows (`Downloads::read_rows`).
+#[derive(Default)]
+struct Taken {
+    /// A row is not the entry it was.
+    changed: bool,
+    /// A row was added, taken away, moved, or changed in more than its figures: names, places
+    /// and the rows shown are worked out again.
+    moved: bool,
+    /// A changed row compares otherwise than it did under the sort chosen.
+    sort_moved: bool,
+    /// When the changed rows finished, for their words (`keep_whens`).
+    finished_at: Vec<u64>,
+}
+
+/// Whether what `row` shows moves with the clock: a running download's figures, a file's days
+/// before the Trash.
+fn timed(row: &Entry) -> bool {
+    row.state == State::Running || row.delete_after.is_some()
 }
 
 /// Whether a wake draws the window again: where the read found a change,

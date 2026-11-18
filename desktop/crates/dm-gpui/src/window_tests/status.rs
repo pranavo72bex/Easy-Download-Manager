@@ -137,3 +137,36 @@ fn a_row_dragged_onto_another_takes_its_place() {
     });
     assert_eq!(names(&mut h), ["deep.pdf", "file.zip", "other.pdf"]);
 }
+
+/// A wake that changed nothing on screen draws nothing; one where a row changed draws the
+/// window once (gaps row 181). Counted as the window is built (`Downloads::renders`).
+#[test]
+fn a_wake_that_changed_nothing_draws_nothing_and_a_changed_row_draws_once() {
+    let world = world();
+    let mut h = world.harness();
+    let id = h.view(|view| {
+        view.backend
+            .add_with(
+                "http://127.0.0.1:9/waiting.bin",
+                dm_core::AddOptions {
+                    later: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+    });
+    h.until("the row to be listed", |h| h.rows().len() == 1);
+    // The reads after a row comes name and place it; then the wakes have nothing to show.
+    let mut drawn = Vec::new();
+    for _ in 0..20 {
+        drawn.push(h.wake_counting_renders());
+        if drawn.ends_with(&[0, 0]) {
+            break;
+        }
+    }
+    assert!(drawn.ends_with(&[0, 0]), "wakes drew {drawn:?}");
+    assert_eq!(h.wake_counting_renders(), 0, "nothing changed, nothing drawn");
+    h.view(|view| view.backend.set_description(id, "changed"));
+    assert_eq!(h.wake_counting_renders(), 1, "a row changed: drawn once");
+    assert_eq!(h.wake_counting_renders(), 0, "and not again");
+}

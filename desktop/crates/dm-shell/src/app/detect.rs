@@ -17,6 +17,8 @@ use std::sync::Arc;
 
 use dm_core::{Entry, Id, State};
 
+use super::snapshot::Changes;
+
 /// What happened since the last read, each in the rows' order.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Detected {
@@ -42,7 +44,12 @@ pub struct Detector {
     finished_told: HashSet<Id>,
     failed_told: HashSet<Id>,
     last: HashMap<Id, State>,
-    before: HashMap<Id, State>,
+    /// Each row whose state at the read before the latest differs from its state at the
+    /// latest: its state then, none where it was not listed. With `last`, the read before,
+    /// kept in what changed rather than in a second map of every row (gaps row 181).
+    moved: HashMap<Id, Option<State>>,
+    /// The map a read of every row is built in: the one the read before it had.
+    spare: HashMap<Id, State>,
     own: HashSet<Id>,
     /// New rows seen while rows were being added off the presentation's
     /// thread (`Session::adding`), not judged yet: whether each is the
@@ -64,11 +71,34 @@ impl Detector {
         self.ready
     }
 
-    /// Each row's state at the read before the latest: what a watch that
-    /// runs after a read compares the latest rows with (the queue running
-    /// dry, for When done).
-    pub fn before(&self) -> &HashMap<Id, State> {
-        &self.before
+    /// The row `id`'s state at the read before the latest, none where it
+    /// was not listed then: what a watch that runs after a read compares
+    /// the latest rows with (the queue running dry, for When done).
+    pub fn before(&self, id: Id) -> Option<&State> {
+        match self.moved.get(&id) {
+            Some(was) => was.as_ref(),
+            None => self.last.get(&id),
+        }
+    }
+
+    /// Every row's state at the read before the latest, by id.
+    pub fn before_all(&self) -> HashMap<Id, State> {
+        let mut before = self.last.clone();
+        for (id, was) in &self.moved {
+            match was {
+                Some(state) => before.insert(*id, state.clone()),
+                None => before.remove(id),
+            };
+        }
+        before
+    }
+
+    /// The rows whose state the latest read changed: each one's state at the read before
+    /// (none where it was not listed) and at the latest (none where it is gone).
+    pub fn moved(&self) -> impl Iterator<Item = (Option<&State>, Option<&State>)> + '_ {
+        self.moved
+            .iter()
+            .map(|(id, was)| (was.as_ref(), self.last.get(id)))
     }
 
     /// Whether the last read had the row `id`.
@@ -88,46 +118,110 @@ impl Detector {
     /// until that is done (gaps row 183). A browser's hand-off among them is
     /// told then, a little late, rather than an imported row taken for one.
     pub fn read_holding(&mut self, rows: &[Arc<Entry>], hold_new: bool) -> Detected {
+        self.read_changes(rows, hold_new, &Changes::Every)
+    }
+
+    /// [`Self::read_holding`] of `rows`, which `changes` says how they differ
+    /// from the rows of the last read: where they are the same rows in the
+    /// same order, only those at the places it names are looked at, and a
+    /// read where a few of 10,000 rows changed costs a few lookups, not
+    /// 10,000 (gaps row 181).
+    pub fn read_changes(
+        &mut self,
+        rows: &[Arc<Entry>],
+        hold_new: bool,
+        changes: &Changes,
+    ) -> Detected {
+        if let Some(at) = changes.at() {
+            // No row came or went, so none is new: only a row held unjudged
+            // at the last read, to be judged now, needs every row.
+            let same = self.ready
+                && (hold_new || self.held.is_empty())
+                && rows.len() == self.last.len()
+                && at
+                    .iter()
+                    .all(|&i| rows.get(i).is_some_and(|r| self.last.contains_key(&r.id)));
+            if same {
+                return self.read_at(rows, at);
+            }
+        }
+        self.read_every(rows, hold_new)
+    }
+
+    /// The rows at `at` of `rows` compared with the last read, whose rows
+    /// they are, in the same order.
+    fn read_at(&mut self, rows: &[Arc<Entry>], at: &[usize]) -> Detected {
+        let mut detected = Detected::default();
+        self.moved.clear();
+        for row in at.iter().filter_map(|&i| rows.get(i)) {
+            if self.last.get(&row.id) == Some(&row.state) {
+                continue;
+            }
+            let was = self.last.insert(row.id, row.state.clone());
+            self.tell(row, &mut detected);
+            self.moved.insert(row.id, was);
+        }
+        detected
+    }
+
+    /// Told of `row`, whose state is not the one the last read had: a
+    /// finish or a failure, once each.
+    fn tell(&mut self, row: &Entry, detected: &mut Detected) {
+        if !matches!(row.state, State::Failed(_)) {
+            self.failed_told.remove(&row.id);
+        }
+        if matches!(row.state, State::Failed(_)) && self.failed_told.insert(row.id) && self.ready {
+            detected.failed.push(row.id);
+            if super::rules::link_expired(row) {
+                detected.expired.push(row.id);
+            }
+        }
+        if row.state == State::Completed && self.finished_told.insert(row.id) && self.ready {
+            detected.finished.push(row.id);
+        }
+    }
+
+    /// Every row of `rows` compared with the last read.
+    fn read_every(&mut self, rows: &[Arc<Entry>], hold_new: bool) -> Detected {
         let mut detected = Detected::default();
         // What the next read compares with, built in the map of the read
         // before last. Each row is looked up once in the last read: at
         // 10,000 rows the read's lookups and maps were most of its cost
         // (gaps row 210).
-        let mut next = std::mem::take(&mut self.before);
+        let mut next = std::mem::take(&mut self.spare);
         next.clear();
         next.reserve(rows.len());
+        self.moved.clear();
         // The rows new since the last read, or held unjudged there, that are
         // not this presentation's own, in the rows' order.
         let mut fresh: Vec<&Arc<Entry>> = Vec::new();
+        let mut listed = 0usize;
         for row in rows {
             let was = self.last.get(&row.id);
+            let new = was.is_none();
+            listed += usize::from(!new);
             // In the same state as at the last read, which brought what was
             // told of it up to date: nothing to tell or forget.
             if was != Some(&row.state) {
-                if !matches!(row.state, State::Failed(_)) {
-                    self.failed_told.remove(&row.id);
-                }
-                if matches!(row.state, State::Failed(_))
-                    && self.failed_told.insert(row.id)
-                    && self.ready
-                {
-                    detected.failed.push(row.id);
-                    if super::rules::link_expired(row) {
-                        detected.expired.push(row.id);
-                    }
-                }
-                if row.state == State::Completed && self.finished_told.insert(row.id) && self.ready
-                {
-                    detected.finished.push(row.id);
-                }
+                let was = was.cloned();
+                self.moved.insert(row.id, was);
+                self.tell(row, &mut detected);
             }
             if self.ready
-                && (was.is_none() || self.held.contains(&row.id))
+                && (new || self.held.contains(&row.id))
                 && !self.own.contains(&row.id)
             {
                 fresh.push(row);
             }
             next.insert(row.id, row.state.clone());
+        }
+        // The rows gone since the last read: listed then, not now.
+        if listed < self.last.len() {
+            for (id, state) in &self.last {
+                if !next.contains_key(id) {
+                    self.moved.insert(*id, Some(state.clone()));
+                }
+            }
         }
         if self.ready && hold_new {
             self.held.extend(fresh.iter().map(|row| row.id));
@@ -158,7 +252,7 @@ impl Detector {
         }
         self.own.retain(|id| next.contains_key(id));
         self.held.retain(|id| next.contains_key(id));
-        self.before = std::mem::replace(&mut self.last, next);
+        self.spare = std::mem::replace(&mut self.last, next);
         self.ready = true;
         detected
     }
@@ -177,6 +271,24 @@ pub struct DryWatch {
     /// The list has been looked at once: rows already finished then are
     /// history, not news.
     primed: bool,
+    /// The rows that are busy (`busy`), followed read by read (`follow`)
+    /// for [`Self::look_moved`].
+    busy: HashSet<Id>,
+}
+
+/// Whether `row` is something dm will finish by itself: downloading,
+/// waiting its turn, or held by a schedule.
+fn busy(row: &Entry) -> bool {
+    match row.state {
+        State::Running | State::Queued => true,
+        State::Paused => row.paused_by_schedule,
+        _ => false,
+    }
+}
+
+/// Whether a row in `state` has settled: finished or failed.
+fn settled(state: &State) -> bool {
+    matches!(state, State::Completed | State::Failed(_))
 }
 
 impl DryWatch {
@@ -191,30 +303,73 @@ impl DryWatch {
         last: &HashMap<Id, State>,
     ) -> bool {
         let rows: Vec<&Entry> = rows.iter().map(|r| r.borrow()).collect();
-        let settled = rows.iter().any(|r| {
-            matches!(r.state, State::Completed | State::Failed(_))
-                && last.get(&r.id).is_some_and(|was| *was != r.state)
-        });
-        if settled {
+        let changed = rows
+            .iter()
+            .any(|r| settled(&r.state) && last.get(&r.id).is_some_and(|was| *was != r.state));
+        let new = rows
+            .iter()
+            .any(|r| settled(&r.state) && !last.contains_key(&r.id));
+        self.judge(changed, new, rows.iter().any(|r| busy(r)))
+    }
+
+    /// The busy rows of a read, `rows`, followed: only those at the places
+    /// `changes` names where it names them (gaps row 181).
+    pub fn follow(&mut self, rows: &[Arc<Entry>], changes: &Changes) {
+        match changes.at() {
+            Some(at) => {
+                for row in at.iter().filter_map(|&i| rows.get(i)) {
+                    if busy(row) {
+                        self.busy.insert(row.id);
+                    } else {
+                        self.busy.remove(&row.id);
+                    }
+                }
+            }
+            None => {
+                self.busy.clear();
+                self.busy
+                    .extend(rows.iter().filter(|r| busy(r)).map(|r| r.id));
+            }
+        }
+    }
+
+    /// [`Self::look`] at the rows followed (`follow`), from the rows whose
+    /// state the latest read changed (`Detector::moved`): each one's state
+    /// at the read before and now. The same answer, without a look at every
+    /// row.
+    pub fn look_moved<'a>(
+        &mut self,
+        moved: impl Iterator<Item = (Option<&'a State>, Option<&'a State>)>,
+    ) -> bool {
+        let (mut changed, mut new) = (false, false);
+        for (was, now) in moved {
+            if now.is_some_and(settled) {
+                if was.is_some() {
+                    changed = true;
+                } else {
+                    new = true;
+                }
+            }
+        }
+        let busy = !self.busy.is_empty();
+        self.judge(changed, new, busy)
+    }
+
+    /// Whether the queue has just run dry, where a row listed before has
+    /// settled since (`changed`), a row not listed before came settled
+    /// (`new`), and something is `busy`.
+    fn judge(&mut self, changed: bool, new: bool, busy: bool) -> bool {
+        if changed {
             self.settled_seen = true;
         }
         // A row added and finished between two looks: it was downloading,
         // though no look saw it so, and it settled. A 1 MB file handed over
         // under When done › Exit never fired it.
         let primed = std::mem::replace(&mut self.primed, true);
-        if primed
-            && rows.iter().any(|r| {
-                matches!(r.state, State::Completed | State::Failed(_)) && !last.contains_key(&r.id)
-            })
-        {
+        if primed && new {
             self.settled_seen = true;
             self.busy_seen = true;
         }
-        let busy = rows.iter().any(|r| match r.state {
-            State::Running | State::Queued => true,
-            State::Paused => r.paused_by_schedule,
-            _ => false,
-        });
         if busy {
             self.busy_seen = true;
             return false;
