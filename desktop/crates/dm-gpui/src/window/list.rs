@@ -113,7 +113,7 @@ mod sorting;
 
 use questions::countdown_question;
 use refresh::clicked;
-use refresh::{needs_drawing, placed_alike, NAMES_EVERY};
+use refresh::needs_drawing;
 pub(crate) use rowline::{kind_picture, line};
 use sorting::sort_command;
 
@@ -320,6 +320,12 @@ pub struct Downloads {
     earlier: std::collections::HashMap<dm_core::Id, usize>,
     /// The next read works everything out again (the settings changed).
     pub(crate) read_all: bool,
+    /// How many rows move with the clock (running, or a file's days
+    /// before the Trash), kept by the read (`moves_with_time`).
+    timed_rows: usize,
+    /// How many times the window was built: a wake that changed nothing
+    /// builds it no more (gaps row 181).
+    pub(crate) renders: u64,
     /// When each row finished, in words, kept by the read (`keep_whens`).
     pub(crate) whens: dm_desktop_base::format::Whens,
     /// Set when a second launch, the browser or the Dock asks for the window.
@@ -447,6 +453,8 @@ impl Downloads {
             earlier: Default::default(),
             // The first read works it all out: an empty list's queues too.
             read_all: true,
+            timed_rows: 0,
+            renders: 0,
             whens: Default::default(),
             show_asked,
             opener_said: Default::default(),
@@ -616,28 +624,8 @@ impl Downloads {
                     let _ = in_own_window(&this, cx, |this, _, cx| this.quit(cx));
                     return;
                 }
-                if in_own_window(&this, cx, |this, window, cx| {
-                    let beside = this.shown_beside();
-                    let changed = this.read();
-                    this.taskbar_follow(window);
-                    this.tick(cx);
-                    this.watch_asks(cx);
-                    let answered = this.answer_requests(window, cx);
-                    // Drawn again only where something shown may have
-                    // changed: a wake that changed nothing drew the whole
-                    // window for nothing (gaps row 181).
-                    if needs_drawing(
-                        changed,
-                        answered,
-                        this.moves_with_time(),
-                        beside != this.shown_beside(),
-                    ) {
-                        cx.notify();
-                    }
-                    this.look_for_files(cx);
-                })
-                .is_none()
-                {
+                let done = in_own_window(&this, cx, |this, window, cx| this.wake(window, cx));
+                if done.is_none() {
                     return;
                 }
                 looked = Instant::now();
@@ -645,6 +633,28 @@ impl Downloads {
         })
         .detach();
         this
+    }
+
+    /// One wake: the queue read, the tick's work, the control port
+    /// answered, and the window drawn again only where something shown may
+    /// have changed: a wake that changed nothing drew the whole window for
+    /// nothing (gaps row 181).
+    pub(crate) fn wake(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let beside = self.shown_beside();
+        let changed = self.read();
+        self.taskbar_follow(window);
+        self.tick(cx);
+        self.watch_asks(cx);
+        let answered = self.answer_requests(window, cx);
+        if needs_drawing(
+            changed,
+            answered,
+            self.moves_with_time(),
+            beside != self.shown_beside(),
+        ) {
+            cx.notify();
+        }
+        self.look_for_files(cx);
     }
 
     /// How far the downloads are, on the taskbar button, so a minimized
@@ -1781,17 +1791,8 @@ impl Downloads {
     }
 
     /// One read of the application: the rows and what follows from them.
-    /// Says whether anything the window shows may have changed.
-    ///
-    /// A row the queue did not change is the queue's own `Arc` again, so
-    /// what changed is found by comparing pointers. Where only figures
-    /// moved (a running download's bytes, rate, time left), the names,
-    /// places and choice worked out from the rows stand: worked out again
-    /// at every read, they were most of a read of 10,000 rows (gaps row
-    /// 181). They are worked out again where a row was added, removed or
-    /// changed otherwise; and the names of the rows on screen and of those
-    /// chosen every two seconds while anything changes, as a waiting row's
-    /// name follows its folder (`name_it_will_get_after`).
+    /// Says whether anything the window shows may have changed
+    /// (`read_rows`).
     pub(crate) fn read(&mut self) -> bool {
         let first = crate::port::FRAMES.load(Ordering::Relaxed) == 0;
         if first {
@@ -1800,107 +1801,6 @@ impl Downloads {
         let changed = self.read_rows();
         if first {
             dm_core::finish_trace::mark("start: a read before the first frame ends");
-        }
-        changed
-    }
-
-    fn read_rows(&mut self) -> bool {
-        let queue_changed = dm_shell::app::changes::take();
-        let settings = self.backend.settings();
-        let read = self.session.read(&self.backend, &settings);
-        // What it detected and the problems it met are the tick's.
-        let mut changed = queue_changed || !read.problems.is_empty();
-        self.detected.push(read.detected);
-        self.problems.extend(read.problems);
-        // What the read told beside the rows, which a row's words are said
-        // from (ranges tried again, swarms, files taken by a later row, the
-        // download limit), as the egui window sets it.
-        dm_desktop_base::rows::set_retrying(read.snapshot.retrying);
-        dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
-        dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
-        dm_desktop_base::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
-        let mut rows = read.snapshot.rows;
-        // A finished row's size is its file's, read once from the disk.
-        self.saved.apply(&mut rows);
-        // A size told by a dialog stands only until the row has its own.
-        if !self.sizes_told.is_empty() {
-            self.sizes_told.retain(|id, _| {
-                rows.iter().any(|r| {
-                    r.id == *id && r.progress.total.is_none() && r.progress.downloaded == 0
-                })
-            });
-            for row in &mut rows {
-                if let Some(size) = self.sizes_told.get(&row.id) {
-                    std::sync::Arc::make_mut(row).progress.total = Some(*size);
-                }
-            }
-        }
-        let same_rows = rows.len() == self.rows.len()
-            && rows
-                .iter()
-                .zip(&self.rows)
-                .all(|(new, old)| new.id == old.id);
-        let mut moved = !same_rows || std::mem::take(&mut self.read_all);
-        let mut finished_at = Vec::new();
-        if same_rows {
-            for (new, old) in rows.iter().zip(&self.rows) {
-                if std::sync::Arc::ptr_eq(new, old) {
-                    continue;
-                }
-                changed = true;
-                finished_at.extend(new.finished_at);
-                if !placed_alike(old, new) {
-                    moved = true;
-                    break;
-                }
-            }
-        }
-        changed |= moved;
-        self.rows = rows;
-        if self.session.ran_dry(&self.rows) {
-            self.ran_dry = true;
-        }
-        // Every row's finishing words where the rows are placed again, else
-        // those of the rows that changed.
-        self.keep_whens(&settings.language, moved, finished_at);
-        if moved {
-            self.named_at = Some(Instant::now());
-            // The queues the rows name, for Start Queue's and Stop Queue's
-            // arrows, the menu bar and the side panel: worked out from the
-            // rows where they changed, not asked of the engine at each read
-            // and each tick, a pass over every row under the queue's lock
-            // each time (gaps row 181).
-            self.queue_list = dm_core::queue_names(self.rows.iter().map(|r| &**r));
-            // Each row by the name its file will get, as the egui window
-            // shows it: a waiting second copy reads "name (1)".
-            self.earlier = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
-            let every: Vec<usize> = (0..self.rows.len()).collect();
-            self.shown_names.clear();
-            self.name_rows(&every, &settings);
-            dm_desktop_base::rows::set_superseded(&self.rows);
-            // A row taken off the list is no longer chosen.
-            let ids: std::collections::HashSet<dm_core::Id> =
-                self.rows.iter().map(|r| r.id).collect();
-            self.selected.retain(|id| ids.contains(id));
-            self.places.place_rows(&self.rows, &settings.categories());
-        } else if changed && self.named_at.is_none_or(|at| at.elapsed() >= NAMES_EVERY) {
-            // A waiting row's name follows its folder (a file of its name
-            // arriving there makes it "name (1)"), so while anything changes
-            // the rows on screen and those chosen are named again every two
-            // seconds; the rest are named again when the list itself changes.
-            // Every row named again every two seconds was, at 10,000 waiting
-            // rows, 5,000 looks at the disk a second (gaps row 181).
-            self.named_at = Some(Instant::now());
-            let seen = self.rows_seen();
-            self.name_rows(&seen, &settings);
-        }
-        // The frame this read is for is drawn with these settings, not a
-        // second copy of them.
-        self.drawn = std::rc::Rc::new(settings);
-        self.drawn_fresh = true;
-        // Sorted again where a figure it sorts by may have moved.
-        if moved || (changed && self.sort.is_some()) {
-            self.reshow();
         }
         changed
     }
@@ -1959,6 +1859,7 @@ impl Downloads {
 
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.renders += 1;
         if crate::port::FRAMES.fetch_add(1, Ordering::Relaxed) == 0 {
             dm_core::finish_trace::mark("start: first frame drawn");
         }

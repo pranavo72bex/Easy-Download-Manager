@@ -12,6 +12,7 @@
 //! asks (`downloads.list`). What it wrote is stamped, so a dm that quit mid-download is not taken
 //! for one still fetching.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -19,6 +20,8 @@ use std::time::{Duration, Instant};
 use dm_core::{Entry, Id, State};
 use dm_protocol::{Going, LastFailure};
 use serde::{Deserialize, Serialize};
+
+use super::snapshot::Changes;
 
 /// The most downloads the popup lists; the rest are counted.
 pub const MOST: usize = 5;
@@ -61,8 +64,12 @@ fn name_of(row: &Entry) -> String {
 
 /// The downloads running among `rows`, the fastest first, [`MOST`] at most, and how many run.
 pub fn running(rows: &[Arc<Entry>]) -> (Vec<Going>, usize) {
+    running_of(rows.iter())
+}
+
+/// [`running`] of the rows `rows`, in the list's order.
+fn running_of<'a>(rows: impl Iterator<Item = &'a Arc<Entry>>) -> (Vec<Going>, usize) {
     let mut going: Vec<Going> = rows
-        .iter()
         .filter(|r| r.state == State::Running)
         .map(|r| Going {
             name: name_of(r),
@@ -87,6 +94,10 @@ pub struct Publisher {
     written: Option<(Published, Instant)>,
     /// The last failure seen.
     failed: Option<LastFailure>,
+    /// Where the running rows were at the last read (`publish`), followed
+    /// by the rows that changed rather than looked for among every row
+    /// (gaps row 181).
+    running_at: BTreeSet<usize>,
 }
 
 impl Publisher {
@@ -96,6 +107,19 @@ impl Publisher {
     pub fn next(
         &mut self,
         rows: &[Arc<Entry>],
+        failed: &[Id],
+        now: Instant,
+        now_ms: u64,
+    ) -> Option<Published> {
+        let going = running(rows);
+        self.next_with(rows, going, failed, now, now_ms)
+    }
+
+    /// [`Self::next`], the downloads running among `rows` worked out already.
+    fn next_with(
+        &mut self,
+        rows: &[Arc<Entry>],
+        (downloads, running): (Vec<Going>, usize),
         failed: &[Id],
         now: Instant,
         now_ms: u64,
@@ -112,7 +136,6 @@ impl Publisher {
                 });
             }
         }
-        let (downloads, running) = running(rows);
         let wanted = Published {
             at_ms: now_ms,
             downloads,
@@ -142,18 +165,41 @@ impl Publisher {
 
     /// [`Publisher::next`], written into `home` where `browser` says a browser's extension has
     /// talked to this dm: nobody else reads the file, so it costs nobody else a write. Asked only
-    /// when a write is due. A write that fails costs the popup its list, nothing else.
+    /// when a write is due. A write that fails costs the popup its list, nothing else. Called
+    /// at every read, with how its rows differ from the last read's (`changes`): the running
+    /// rows are followed by the rows that changed.
     pub fn publish(
         &mut self,
         home: &Path,
         rows: &[Arc<Entry>],
+        changes: &Changes,
         failed: &[Id],
         browser: impl FnOnce() -> bool,
     ) {
+        match changes.at() {
+            Some(at) => {
+                for &i in at {
+                    if rows.get(i).is_some_and(|r| r.state == State::Running) {
+                        self.running_at.insert(i);
+                    } else {
+                        self.running_at.remove(&i);
+                    }
+                }
+            }
+            None => {
+                self.running_at = rows
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, r)| r.state == State::Running)
+                    .map(|(i, _)| i)
+                    .collect();
+            }
+        }
+        let going = running_of(self.running_at.iter().filter_map(|&i| rows.get(i)));
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_millis() as u64);
-        if let Some(wanted) = self.next(rows, failed, Instant::now(), now_ms) {
+        if let Some(wanted) = self.next_with(rows, going, failed, Instant::now(), now_ms) {
             if browser() {
                 let _ = write(home, &wanted);
             }

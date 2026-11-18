@@ -494,6 +494,17 @@ impl Harness {
         self.cx.run_until_parked();
     }
 
+    /// One wake of the window, as the queue or its clock wakes it, run until it parks, with no
+    /// frame asked for beyond what the wake itself asks (`step` draws every window again, as a
+    /// display's refresh does): how many times the main window was built for it (gaps row
+    /// 181). The test platform draws a window as soon as it is told it changed.
+    pub(crate) fn wake_counting_renders(&mut self) -> u64 {
+        let before = self.view(|view| view.renders);
+        self.wakes.send(Wake::Now);
+        self.cx.run_until_parked();
+        self.view(|view| view.renders) - before
+    }
+
     /// Asks the window `method` with `params`, as the control port does, and its answer.
     pub(crate) fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
         let (reply, answer) = mpsc::channel();

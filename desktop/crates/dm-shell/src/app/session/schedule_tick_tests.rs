@@ -100,7 +100,6 @@ fn the_read_before_is_kept_for_the_dry_queue_watch() {
     let settings = backend.settings();
     let mut session = Session::default();
     session.read(&backend, &settings);
-    assert!(session.before().is_empty());
     let id = backend
         .add_with(
             "http://127.0.0.1:9/a.bin",
@@ -111,7 +110,8 @@ fn the_read_before_is_kept_for_the_dry_queue_watch() {
         )
         .unwrap();
     let seen = session.read(&backend, &settings);
+    assert_eq!(session.before(id), None, "not listed at the read before");
     let state_then = seen.snapshot.rows[0].state.clone();
     session.read(&backend, &settings);
-    assert_eq!(session.before().get(&id), Some(&state_then));
+    assert_eq!(session.before(id), Some(&state_then));
 }
