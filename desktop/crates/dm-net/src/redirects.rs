@@ -65,7 +65,19 @@ pub async fn execute(
     let mut previous: Vec<Url> = Vec::new();
     loop {
         let again = request.try_clone();
-        let res = client.execute(request).await?;
+        let res = match client.execute(request).await {
+            Ok(res) => res,
+            // A name a public address led to that the resolver found inside alone: refused as
+            // an inward redirect is, and not asked again (gaps row 200).
+            Err(e) if crate::dns::refused_inside(&e) => {
+                let to = e.url().map(Url::as_str).unwrap_or_default().to_string();
+                return Err(Error::Internal(format!(
+                    "{} ({to})",
+                    crate::INWARD_REDIRECT
+                )));
+            }
+            Err(e) => return Err(e.into()),
+        };
         let status = res.status();
         if !sends_on(status) {
             return Ok(res);
@@ -205,7 +217,8 @@ fn referer_across(page: &HeaderValue, to: &Url) -> Option<HeaderValue> {
 /// using dm to reach what it cannot reach itself; a download that started
 /// inside (a server at home, a test's) may go on to another inside address.
 /// Judged by the address as written; a public-looking name it judges is then
-/// held by the resolver to public addresses (`dns::must_be_public`).
+/// held by the resolver to public addresses (`dns::must_be_public`), so the
+/// address connected to is judged too, after the lookup (gaps row 200).
 pub(crate) fn inward(to: &Url, previous: &[Url]) -> bool {
     // A hop counts as inside by its address as written, or by where its name was found to lead
     // when dm connected to it: an intranet's own names (`files.company.example` at 10.x) lead
@@ -219,7 +232,10 @@ pub(crate) fn inward(to: &Url, previous: &[Url]) -> bool {
     // addresses, so it cannot be pointed inside once judged here (DNS rebinding, gaps row 200).
     if from_public && !inside(to) {
         if let Some(url::Host::Domain(name)) = to.host() {
-            crate::dns::must_be_public(name);
+            // Where it cannot be held, it is not let through unheld.
+            if !crate::dns::must_be_public(name) {
+                return true;
+            }
         }
     }
     from_public && inside(to)

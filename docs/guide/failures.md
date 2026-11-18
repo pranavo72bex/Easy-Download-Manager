@@ -109,6 +109,12 @@ failure: the download worked.
   a loop. Click **Open the page** in the download's window, or open the
   page in your browser, and download from there: that hands dm the real
   link.
+- `the address sent dm on to one inside this computer or its own network, which a public site has no business reaching, so dm stopped`
+  A site out on the internet sent dm to this computer or to your own
+  network: by a redirect, by an address in a playlist or mirror list, or
+  by a name that leads there. dm does not let a public site reach what it
+  cannot reach itself. If the address really is yours (a server at home
+  or at work), give dm that address directly, in **Add URL**.
 - `the server sent … bytes of a file it said was …`
   The server ended the file before the size it had announced. Click
   **Retry**; dm asks again for the bytes that are missing.
