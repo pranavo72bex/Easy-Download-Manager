@@ -7,9 +7,10 @@ ours, and no analytics.
 
 Only if you turn it on (Options › General, off by default), dm looks for a
 newer version about once a week, as Help › Check for updates does when you
-click it: it fetches the release's `latest.json` from GitHub. That request
-carries nothing about you or your downloads; GitHub sees an address asking
-for a public file, as it does for any download.
+click it: it fetches the release's `latest.json`, and the signature beside
+it that shows the project made it, from GitHub. Those requests carry nothing
+about you or your downloads; GitHub sees an address asking for a public
+file, as it does for any download.
 
 ## Video sites
 

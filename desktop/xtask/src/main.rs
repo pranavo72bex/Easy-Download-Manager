@@ -31,6 +31,7 @@ mod baseline;
 mod check;
 mod headers;
 mod package;
+mod update_key;
 
 use std::path::{Path, PathBuf};
 
@@ -46,13 +47,15 @@ fn main() {
             parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
         }
         "secrets" => secrets().map(|()| "no credential is written into a tracked file".to_string()),
+        "update-key" => update_key::update_key(),
+        "sign-manifest" => update_key::sign_manifest(&root(), std::env::args().nth(2).as_deref()),
         "headers" if std::env::args().nth(2).as_deref() == Some("fix") => headers::fix(&root())
             .map(|n| format!("a copyright and licence header written into {n} files")),
         "headers" => {
             licence_headers().map(|()| "every source file carries its licence header".to_string())
         }
         _ => Err(
-            "usage: cargo xtask <check|package [packager options]|scorecard|layers|privacy|parity|secrets|headers [fix]>"
+            "usage: cargo xtask <check|package [packager options]|scorecard|layers|privacy|parity|secrets|headers [fix]|update-key|sign-manifest <latest.json>>"
                 .to_string(),
         ),
     };

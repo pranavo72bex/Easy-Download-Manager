@@ -337,3 +337,128 @@ fn the_weekly_check_is_stamped_when_due_and_wanted() {
     };
     assert!(weekly(&off, 1_000 + 2 * WEEK).is_none(), "not wanted");
 }
+
+/// A key pair for the tests alone, made afresh each run: no private key is written anywhere.
+fn test_pair() -> (ring::signature::Ed25519KeyPair, String) {
+    use base64::Engine as _;
+    use ring::signature::KeyPair as _;
+    let pkcs8 =
+        ring::signature::Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new()).unwrap();
+    let pair = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+    let public = base64::engine::general_purpose::STANDARD.encode(pair.public_key().as_ref());
+    (pair, public)
+}
+
+fn signature_of(pair: &ring::signature::Ed25519KeyPair, bytes: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(pair.sign(bytes).as_ref())
+}
+
+/// A stand-in for the releases page: `manifest` at /latest.json and, when given, `signature`
+/// at /latest.json.sig (a 404 without); the manifest's address.
+async fn serve_manifest(manifest: Vec<u8>, signature: Option<String>) -> String {
+    let mut app = axum::Router::new().route(
+        "/latest.json",
+        axum::routing::get(move || {
+            let body = manifest.clone();
+            async move { body }
+        }),
+    );
+    if let Some(signature) = signature {
+        app = app.route(
+            "/latest.json.sig",
+            axum::routing::get(move || {
+                let body = signature.clone();
+                async move { body }
+            }),
+        );
+    }
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let at = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{at}/latest.json")
+}
+
+const MANIFEST: &str = r#"{"version":"9.9.9","installers":[],"sha256":{}}"#;
+
+#[tokio::test]
+async fn a_manifest_signed_by_the_projects_key_is_believed() {
+    let (pair, public) = test_pair();
+    let client = dm_core::reqwest_defaults();
+    let signed = signature_of(&pair, MANIFEST.as_bytes());
+    let at = serve_manifest(MANIFEST.into(), Some(format!("{signed}\n"))).await;
+    assert_eq!(
+        fetch_manifest(&client, &at, &public).await,
+        Ok(Some(MANIFEST.to_owned()))
+    );
+}
+
+#[tokio::test]
+async fn a_manifest_unsigned_signed_by_another_key_or_changed_is_refused() {
+    let (pair, public) = test_pair();
+    let (theirs, _) = test_pair();
+    let client = dm_core::reqwest_defaults();
+    let refused = Err(UNSIGNED.to_owned());
+
+    let unsigned = serve_manifest(MANIFEST.into(), None).await;
+    assert_eq!(fetch_manifest(&client, &unsigned, &public).await, refused);
+
+    let wrong_key = serve_manifest(
+        MANIFEST.into(),
+        Some(signature_of(&theirs, MANIFEST.as_bytes())),
+    )
+    .await;
+    assert_eq!(fetch_manifest(&client, &wrong_key, &public).await, refused);
+
+    // One byte changed after signing: a version, for one.
+    let changed = MANIFEST.replace("9.9.9", "9.9.8");
+    let tampered = serve_manifest(
+        changed.into_bytes(),
+        Some(signature_of(&pair, MANIFEST.as_bytes())),
+    )
+    .await;
+    assert_eq!(fetch_manifest(&client, &tampered, &public).await, refused);
+
+    let junk = serve_manifest(MANIFEST.into(), Some("not a signature".into())).await;
+    assert_eq!(fetch_manifest(&client, &junk, &public).await, refused);
+    let empty = serve_manifest(MANIFEST.into(), Some(String::new())).await;
+    assert_eq!(fetch_manifest(&client, &empty, &public).await, refused);
+}
+
+#[tokio::test]
+async fn no_release_at_all_is_not_a_refusal() {
+    let (_, public) = test_pair();
+    let client = dm_core::reqwest_defaults();
+    let at = serve_manifest(MANIFEST.into(), None).await;
+    let missing = at.replace("latest.json", "nothing.json");
+    assert_eq!(fetch_manifest(&client, &missing, &public).await, Ok(None));
+}
+
+#[test]
+fn a_signature_is_checked_against_exactly_the_bytes_and_a_whole_key() {
+    let (pair, public) = test_pair();
+    let good = signature_of(&pair, MANIFEST.as_bytes());
+    assert!(signed_by(&public, MANIFEST.as_bytes(), &good));
+    assert!(signed_by(
+        &format!(" {public}\n"),
+        MANIFEST.as_bytes(),
+        &format!("{good}\r\n")
+    ));
+    assert!(!signed_by(&public, b"", &good));
+    assert!(!signed_by("", MANIFEST.as_bytes(), &good));
+    assert!(
+        !signed_by("AAAA", MANIFEST.as_bytes(), &good),
+        "not a whole key"
+    );
+    // The key dm carries is a whole Ed25519 key, and nobody's signature here is its.
+    use base64::Engine as _;
+    assert_eq!(
+        base64::engine::general_purpose::STANDARD
+            .decode(SIGNING_KEY)
+            .unwrap()
+            .len(),
+        32
+    );
+    assert!(!signed_by(SIGNING_KEY, MANIFEST.as_bytes(), &good));
+    assert_eq!(signature_at(ENDPOINT), format!("{ENDPOINT}.sig"));
+}

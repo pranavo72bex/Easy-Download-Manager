@@ -8,9 +8,10 @@
 //! Asked for rather than acted on: a download manager that restarted itself
 //! mid-transfer to install a fix would be worse than the bug. The release's
 //! own `latest.json` says what is current and where each installer is, so
-//! there is no server to run. When a newer one is out, a presentation offers
-//! to download the installer for this machine, as any other download in its
-//! own queue; the person opens it when they choose. Reading the manifest,
+//! there is no server to run; it is believed only with the project's
+//! signature beside it ([`SIGNING_KEY`], gaps row F6). When a newer one is
+//! out, a presentation offers to download the installer for this machine, as
+//! any other download in its own queue; the person opens it when they choose. Reading the manifest,
 //! the version, the installer and its digest, and the rules are the
 //! application's; what is said of an [`Update`] is the presentation's.
 
@@ -38,6 +39,87 @@ pub const RELEASES: &str =
 /// Where the update check reads the latest release's manifest (`latest.json`).
 pub const ENDPOINT: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest/download/latest.json";
+
+/// The Ed25519 public key (base64 of its 32 bytes) a release's `latest.json` must be signed by
+/// (gaps row F6). The private half is the maintainer's alone, kept as the release job's
+/// secret `DM_UPDATE_SIGNING_KEY` and never in this repository; `cargo xtask update-key` makes
+/// a pair and `cargo xtask sign-manifest` signs with it, refusing a key that is not this one.
+/// A digest in a manifest proves nothing when whoever can change the release can change both,
+/// so a manifest without this key's signature is not believed.
+///
+/// PLACEHOLDER: nobody holds this key's private half, so every manifest is refused until the
+/// maintainer pastes the public line `cargo xtask update-key` prints here (docs/RELEASING.md).
+pub const SIGNING_KEY: &str = "N+iRa+mAw4CjOdREwEfr3Tlh+l7YoSsNSCkzBtKV1kc=";
+
+/// Where a manifest's signature is published: beside it, its name with `.sig` added, the
+/// base64 of the 64-byte Ed25519 signature of the manifest's exact bytes.
+pub fn signature_at(manifest: &str) -> String {
+    format!("{manifest}.sig")
+}
+
+/// The most bytes of a signature file read: a signature is 88 characters of base64.
+const SIGNATURE_CAP: usize = 1024;
+
+/// Whether `signature` (base64, from `latest.json.sig`) is `key`'s (base64) Ed25519 signature
+/// of exactly the bytes of `manifest`. Whitespace around either is allowed; anything else that
+/// is not a whole key and a whole signature is not.
+pub fn signed_by(key: &str, manifest: &[u8], signature: &str) -> bool {
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let (Ok(key), Ok(signature)) = (b64.decode(key.trim()), b64.decode(signature.trim())) else {
+        return false;
+    };
+    key.len() == 32
+        && ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
+            .verify(manifest, &signature)
+            .is_ok()
+}
+
+/// Why a manifest is refused when it carries no signature by the project's key, or one that
+/// does not match its bytes: said after "Could not reach the update server:" as the other
+/// reasons are.
+pub const UNSIGNED: &str = "the release is not signed by the project";
+
+/// Fetches the manifest at `endpoint` and its signature beside it ([`signature_at`]), and gives
+/// the manifest only when `key` signed exactly those bytes. `Ok(None)` when the server has no
+/// release at all (404 for the manifest); [`UNSIGNED`] for a missing, wrong or malformed
+/// signature, or a manifest changed after it was signed.
+pub async fn fetch_manifest(
+    client: &dm_core::reqwest::Client,
+    endpoint: &str,
+    key: &str,
+) -> Result<Option<String>, String> {
+    let res = dm_core::redirects::send(client.get(endpoint))
+        .await
+        .map_err(|e| e.to_string())?;
+    if res.status() == dm_core::reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !res.status().is_success() {
+        return Err(format!("the server answered {}", res.status()));
+    }
+    let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+    let sig = dm_core::redirects::send(client.get(signature_at(endpoint)))
+        .await
+        .map_err(|e| e.to_string())?;
+    if sig.status() == dm_core::reqwest::StatusCode::NOT_FOUND {
+        return Err(UNSIGNED.into());
+    }
+    if !sig.status().is_success() {
+        return Err(format!("the server answered {}", sig.status()));
+    }
+    let sig = sig.bytes().await.map_err(|e| e.to_string())?;
+    let sig = (sig.len() <= SIGNATURE_CAP)
+        .then(|| std::str::from_utf8(&sig).ok())
+        .flatten()
+        .unwrap_or_default();
+    if !signed_by(key, &bytes, sig) {
+        return Err(UNSIGNED.into());
+    }
+    String::from_utf8(bytes.to_vec())
+        .map(Some)
+        .map_err(|e| e.to_string())
+}
 
 /// What the update check has found so far.
 #[derive(Debug, Clone, PartialEq)]
@@ -259,17 +341,10 @@ pub fn check(
     let client = backend.client();
     backend.runtime.spawn(async move {
         let outcome = async {
-            let res = dm_core::redirects::send(client.get(ENDPOINT))
-                .await
-                .map_err(|e| e.to_string())?;
-            if res.status() == dm_core::reqwest::StatusCode::NOT_FOUND {
+            // Believed only with the project's signature (gaps row F6).
+            let Some(text) = fetch_manifest(&client, ENDPOINT, SIGNING_KEY).await? else {
                 return Ok(Update::NoRelease);
-            }
-            if !res.status().is_success() {
-                return Err(format!("the server answered {}", res.status()));
-            }
-            let bytes = res.bytes().await.map_err(|e| e.to_string())?;
-            let text = String::from_utf8(bytes.to_vec()).map_err(|e| e.to_string())?;
+            };
             let published = version_in(&text).ok_or("the release names no version")?;
             *dm_core::lock(&LATEST_NOTES) = notes_in(&text);
             // Newer site rules ride along, whether or not dm itself is newer. A refusal
@@ -306,13 +381,8 @@ pub fn check(
 pub fn fresh_rules(backend: &crate::app::backend::Backend) {
     let client = backend.client();
     backend.runtime.spawn(async move {
-        let Ok(res) = dm_core::redirects::send(client.get(ENDPOINT)).await else {
-            return;
-        };
-        if !res.status().is_success() {
-            return;
-        }
-        let Ok(text) = res.text().await else {
+        // The rules ride in the manifest, so they too need its signature.
+        let Ok(Some(text)) = fetch_manifest(&client, ENDPOINT, SIGNING_KEY).await else {
             return;
         };
         if let Some(entry) = rules_in(&text, RELEASES) {

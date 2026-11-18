@@ -21,6 +21,8 @@ dm-assets.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha2.workspace = true
+# The update manifest's Ed25519 signature (gaps row F6); already rustls's provider.
+ring.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "time", "sync", "net"] }
 url.workspace = true
 # Reading a crawled page no further than its cap.

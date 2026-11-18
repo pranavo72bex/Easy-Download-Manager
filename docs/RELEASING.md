@@ -12,7 +12,7 @@ bought, and no amount of code substitutes for one.
 | | State |
 |---|---|
 | Installers build | Verified — a `.dmg` and a `.app` were produced on macOS, and the Arch package was built in Arch's own container |
-| Update check | `latest.json` is written by the release job, with each installer's SHA-256; dm reads it and says when a newer version is out, and checks the installer it downloads against that digest. The manifest is not signed (no key has been bought); the installer is checked against its digest. It does not install anything |
+| Update check | `latest.json` is written by the release job, with each installer's SHA-256; the release job signs it with the project's Ed25519 key (`latest.json.sig` beside it), and dm believes it only with that signature (the public key is built into `dm-shell/src/app/update.rs`), says when a newer version is out, and checks the installer it downloads against the manifest's digest. Until the maintainer makes the key (step 3 below) dm carries a placeholder and the release job's signing step fails. It does not install anything yet (gaps row F6) |
 | macOS is notarised | Needs an Apple Developer ID — $99/year |
 | Windows is signed | Not yet. A paid Authenticode certificate would do it; the free route is SignPath Foundation's (the README's Code signing policy is what it asks release pages to carry), and until then SmartScreen warns on first launch |
 | Firefox add-on is installable permanently | Signed by Mozilla (unlisted) in `release.yml` when `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` are set; 3.0.0 was signed by hand |
@@ -45,6 +45,43 @@ Authenticode signing is configured under `packager.windows` in
 thumbprint or a sign command). Without it, SmartScreen warns until enough people install it
 anyway.
 
+### 3. The update-signing key (once, before the next `desktop-v` tag)
+
+dm believes a release's `latest.json` only when `latest.json.sig` beside it
+is the signature of the project's Ed25519 key (gaps row F6). The key is free
+and made here; nobody but the maintainer holds its private half.
+
+```sh
+cd desktop
+cargo xtask update-key
+```
+
+It prints two lines:
+
+- the **public key**: paste it as `SIGNING_KEY` in
+  `desktop/crates/dm-shell/src/app/update.rs`, replacing the placeholder,
+  and commit that;
+- the **private key**: set it as the repository secret, and keep a copy
+  offline (a password manager). Never commit it or paste it anywhere else.
+
+```sh
+gh secret set DM_UPDATE_SIGNING_KEY       # paste the private line
+```
+
+The `release` job runs `cargo xtask sign-manifest ../installers/latest.json`
+with that secret; the signer refuses a key whose public half is not the one
+dm carries, so a missing secret, the placeholder or a mismatched pair fails
+the job before anything is drafted. To sign a manifest by hand:
+
+```sh
+DM_UPDATE_SIGNING_KEY='…' cargo xtask sign-manifest path/latest.json   # writes path/latest.json.sig
+```
+
+A dm built with one key refuses every manifest signed by another. Losing
+the private key, or replacing it, means the dms already installed can no
+longer believe an update: they would have to be updated from the releases
+page by hand. Keep the copy.
+
 ## Cutting a release
 
 ```sh
@@ -62,7 +99,8 @@ git push origin main --tags
 ```
 
 The tag is what runs the `bundle` job. It builds a `.dmg`, a Windows
-installer, a `.deb` and an `.AppImage`, writes `latest.json`, and opens a
+installer, a `.deb` and an `.AppImage`, writes `latest.json`, signs it
+(`latest.json.sig`, step 3 above), and opens a
 **draft** release —
 deliberately draft, so a broken build is not something anybody downloads before
 you have looked at it.
