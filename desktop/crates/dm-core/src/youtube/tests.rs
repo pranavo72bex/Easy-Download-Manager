@@ -474,10 +474,13 @@ fn xtags_are_read_from_the_address_or_from_inside_its_cipher() {
 }
 
 #[test]
-fn locked_and_streamed_only_formats_are_left_out_and_the_rest_read() {
+fn locked_formats_are_left_out_and_the_rest_read() {
     let formats = formats();
     let itags: Vec<u64> = formats.iter().map(|f| f.itag).collect();
-    assert_eq!(itags, [137, 248, 136, 140, 251, 140]);
+    // The one served only as numbered pieces is read too, marked as such (gaps row Y14).
+    assert_eq!(itags, [137, 248, 136, 140, 251, 140, 99]);
+    assert!(formats[6].numbered);
+    assert!(formats.iter().take(6).all(|f| !f.numbered));
     assert!(formats[5].secondary, "the loudness variant is not chosen");
     assert_eq!(formats[3].ext(), "m4a");
     assert_eq!(formats[1].ext(), "webm");
@@ -510,8 +513,10 @@ fn the_quality_asked_chooses_the_stream_it_names() {
     );
     assert_eq!(
         itags(choose(&formats, Quality::UpTo(100), None, None)),
-        None
+        Some(vec![99, 140]),
+        "the numbered pieces' picture, the only one that small"
     );
+    assert_eq!(itags(choose(&formats, Quality::UpTo(0), None, None)), None);
 }
 
 #[test]
@@ -673,7 +678,13 @@ fn the_reading_is_in_the_shape_the_downloader_reads() {
     assert_eq!(pair[0]["downloader_options"]["http_chunk_size"], 10_485_760);
     assert_eq!(pair[1]["ext"], "m4a");
     assert_eq!(pair[1]["vcodec"], "none");
-    assert_eq!(reading["formats"].as_array().unwrap().len(), 6);
+    assert_eq!(reading["formats"].as_array().unwrap().len(), 7);
+    // Numbered pieces are said to be so, with a size about from the bitrate and length.
+    let numbered = &reading["formats"][6];
+    assert_eq!(numbered["protocol"], "http_dash_segments");
+    assert_eq!(numbered["filesize"], Value::Null);
+    assert_eq!(numbered["filesize_approx"], 0, "1 bit a second for 19 seconds");
+    assert!(reading["formats"][0].get("filesize_approx").is_none());
     let sound = choose(&formats, Quality::Audio, Some("webm"), None).unwrap();
     let alone = reading_json("jNQXAC9IVRw", "x", None, &formats, &sound, Path::new("/s"));
     assert_eq!(alone["ext"], "webm");

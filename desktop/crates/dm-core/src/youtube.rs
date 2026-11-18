@@ -487,6 +487,10 @@ struct Format {
     /// (`initRange`, `indexRange`), for cutting a part of it (`clip`).
     init: Option<(u64, u64)>,
     index: Option<(u64, u64)>,
+    /// Served only as numbered pieces (`FORMAT_STREAM_TYPE_OTF`: `&sq=0` its first boxes, then
+    /// `&sq=1` on), not as one file of byte ranges: fetched by the DASH piece fetcher (gaps row
+    /// Y14), and never cut into a part, having no index.
+    numbered: bool,
 }
 
 /// Which of a video's sound tracks a stream is. A video made in one
@@ -575,13 +579,13 @@ fn xtags(url: Option<&str>, cipher: Option<&str>) -> Vec<(String, String)> {
 
 impl Format {
     fn of(f: &Value) -> Option<Format> {
-        // A locked (DRM) stream, one streamed as a whole only, a live one.
-        if f.get("drmFamilies").is_some()
-            || f.get("type").and_then(Value::as_str) == Some("FORMAT_STREAM_TYPE_OTF")
-            || f.get("targetDurationSec").is_some()
-        {
+        // A locked (DRM) stream, a live one. One served only as numbered pieces is read, and
+        // fetched piece by piece (gaps row Y14): it was left out, and a video served that way
+        // lost its higher qualities.
+        if f.get("drmFamilies").is_some() || f.get("targetDurationSec").is_some() {
             return None;
         }
+        let numbered = f.get("type").and_then(Value::as_str) == Some("FORMAT_STREAM_TYPE_OTF");
         let mime = f.get("mimeType")?.as_str()?.to_string();
         let (kind, rest) = mime.split_once('/')?;
         let container = rest.split(';').next()?.trim().to_ascii_lowercase();
@@ -662,6 +666,7 @@ impl Format {
             voice,
             init: range("initRange"),
             index: range("indexRange"),
+            numbered,
         })
     }
 
@@ -783,6 +788,25 @@ fn choose(
     }
     let sound = sound.or_else(best_audio)?;
     Some(vec![(*picture).clone(), sound])
+}
+
+tokio::task_local! {
+    /// Set while a video is read with its formats served only as numbered pieces left out
+    /// ([`read_for_without_numbered`]).
+    static WITHOUT_NUMBERED: ();
+}
+
+/// [`read_for`] with the formats served only as numbered pieces left out, as they were before
+/// dm fetched them (gaps row Y14): what a download falls back to where their first piece does
+/// not say how many follow, or none of them could be fetched.
+pub async fn read_for_without_numbered(
+    url: &str,
+    options: &crate::download::Options,
+    staging: &Path,
+) -> Result<String, Error> {
+    WITHOUT_NUMBERED
+        .scope((), read_for(url, options, staging))
+        .await
 }
 
 /// [`read`] for a download's options: through the proxy they name, at the
@@ -1022,6 +1046,7 @@ async fn read_within(
         // `bv+ba` takes them; the formats with both in one file only where
         // there is nothing apart, and then one alone (a picture with its own
         // sound and a sound beside it made a file with two sound tracks).
+        let without_numbered = WITHOUT_NUMBERED.try_with(|()| ()).is_ok();
         let streams_at = |at: &str| -> Vec<Format> {
             player
                 .pointer(at)
@@ -1029,6 +1054,7 @@ async fn read_within(
                 .into_iter()
                 .flatten()
                 .filter_map(Format::of)
+                .filter(|f| !(without_numbered && f.numbered))
                 .collect()
         };
         let mut formats = streams_at("/streamingData/adaptiveFormats");
@@ -1081,6 +1107,8 @@ async fn read_within(
     let cuttable: Vec<Format> = formats
         .iter()
         .filter(|f| !mp4_only || f.container == "mp4" || f.container == "m4a")
+        // Nor from numbered pieces, which have no index to cut by.
+        .filter(|f| !mp4_only || !f.numbered)
         // A picture in the codec asked for (AV1, for a GIF made on Linux).
         .filter(|f| !f.video || codec.is_none_or(|c| f.codec.starts_with(c)))
         .cloned()
@@ -1544,10 +1572,11 @@ fn reading_json(
     staging: &Path,
 ) -> Value {
     let describe = |f: &Format| {
-        json!({
+        let mut described = json!({
             "format_id": f.itag.to_string(),
             "url": f.url,
-            "protocol": "https",
+            // Numbered pieces (`&sq=N`), fetched by the DASH piece fetcher; else one file.
+            "protocol": if f.numbered { "http_dash_segments" } else { "https" },
             "ext": f.ext(),
             "vcodec": if f.video { f.codec.as_str() } else { "none" },
             "acodec": if f.video { "none" } else { f.codec.as_str() },
@@ -1562,7 +1591,13 @@ fn reading_json(
             // and its index are.
             "dm_init_range": f.init.map(|(a, b)| format!("{a}-{b}")),
             "dm_index_range": f.index.map(|(a, b)| format!("{a}-{b}")),
-        })
+        });
+        // Numbered pieces state no size: about, from the bitrate and the video's length, for
+        // the quality list's sizes.
+        if let (true, None, Some(seconds)) = (f.numbered, f.size, duration) {
+            described["filesize_approx"] = json!(f.bitrate / 8 * seconds);
+        }
+        described
     };
     let ext = chosen
         .first()

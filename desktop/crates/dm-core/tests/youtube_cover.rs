@@ -402,7 +402,6 @@ fn player(id: &str, call: usize, origin: &str) -> Response {
             Some("Nothing"),
             vec![
                 json!({"itag": 22, "mimeType": MP4, "drmFamilies": ["w"], "url": format!("{r}/drm")}),
-                json!({"itag": 99, "mimeType": MP4, "type": "FORMAT_STREAM_TYPE_OTF", "url": format!("{r}/otf")}),
                 json!({"itag": 98, "mimeType": MP4, "targetDurationSec": 5, "url": format!("{r}/live")}),
                 json!({"itag": 97, "mimeType": "text/vtt", "url": format!("{r}/text")}),
                 json!({"itag": 96, "mimeType": MP4, "width": 1, "height": 1}),
