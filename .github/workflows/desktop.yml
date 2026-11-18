@@ -211,6 +211,19 @@ jobs:
             crate: dm-gpui
             target: x86_64-apple-darwin
             size-key: macos-x86_64
+          # Windows on Arm (gaps row R3): built on GitHub's Arm Windows
+          # runner, as Linux arm64 is on its Arm runner, an installer of its
+          # own (dm_<version>_arm64-setup.exe) and a portable zip
+          # (dm_<version>_arm64-portable.zip). The update check offers that
+          # installer to an arm64 Windows (`update::installer_in`). The target
+          # is named, so the build is Arm's whatever the runner's Rust is.
+          - name: Windows on Arm (NSIS installer)
+            os: windows-11-arm
+            formats: nsis
+            artifact: windows-arm64
+            crate: dm-gpui
+            target: aarch64-pc-windows-msvc
+            size-key: windows-arm64
 
     runs-on: ${{ matrix.os }}
     # Where cargo puts the build: under the target's own folder when one is named.
@@ -218,10 +231,54 @@ jobs:
       OUT: ${{ matrix.target && format('target/{0}/release', matrix.target) || 'target/release' }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      # The toolchain step below needs rustup already there on Windows; the
+      # Arm Windows runner's image may come without it, so its Arm build is
+      # put there first (gaps row R3). Nothing is done where it is present.
+      - name: rustup, on Windows on Arm
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+            $init = Join-Path $env:RUNNER_TEMP 'rustup-init.exe'
+            Invoke-WebRequest https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe -OutFile $init
+            & $init -y --default-toolchain none --profile minimal
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Add-Content $env:GITHUB_PATH (Join-Path $env:USERPROFILE '.cargo\bin')
+          }
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
           targets: ${{ matrix.target }}
+      # ring (rustls' cryptography) builds its C and assembly for Arm Windows
+      # with clang alone, not MSVC's cl (cargo check for that target stops at
+      # "failed to find tool clang" without it). The runner's own where it
+      # has one (on the path, LLVM's folder, Visual Studio's Clang tools),
+      # else LLVM's Arm64 Windows build, installed silently.
+      - name: clang, on Windows on Arm
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: pwsh
+        run: |
+          if (Get-Command clang -ErrorAction SilentlyContinue) { clang --version; exit 0 }
+          $dirs = @(Join-Path $env:ProgramFiles 'LLVM\bin')
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (Test-Path $vswhere) {
+            $vs = & $vswhere -latest -products * -property installationPath
+            if ($vs) { $dirs += Join-Path $vs 'VC\Tools\Llvm\ARM64\bin' }
+          }
+          foreach ($d in $dirs) {
+            if (Test-Path (Join-Path $d 'clang.exe')) {
+              Add-Content $env:GITHUB_PATH $d
+              & (Join-Path $d 'clang.exe') --version
+              exit 0
+            }
+          }
+          $setup = Join-Path $env:RUNNER_TEMP 'llvm-setup.exe'
+          Invoke-WebRequest https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-woa64.exe -OutFile $setup
+          Start-Process $setup -ArgumentList '/S' -Wait
+          $d = Join-Path $env:ProgramFiles 'LLVM\bin'
+          if (-not (Test-Path (Join-Path $d 'clang.exe'))) { throw 'no clang.exe after installing LLVM' }
+          Add-Content $env:GITHUB_PATH $d
+          & (Join-Path $d 'clang.exe') --version
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -333,16 +390,18 @@ jobs:
       # program alone, with the empty file named `portable` that makes dm keep
       # its settings and list in a `dm-data` folder beside it
       # (dm_shell::settings::PORTABLE_MARKER). Zipped under a folder of its
-      # own, so unzipping it does not scatter files.
+      # own, so unzipping it does not scatter files. Windows on Arm's is
+      # named arm64, as its installer is, and holds its own build.
       - name: The portable zip
         if: runner.os == 'Windows'
         shell: pwsh
         working-directory: .
         run: |
           $version = (Select-String -Path desktop/crates/${{ matrix.crate }}/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
-          $dir = Join-Path desktop/target/release/bundle "dm_${version}_x64-portable"
+          $arch = if ('${{ matrix.target }}' -like 'aarch64-*') { 'arm64' } else { 'x64' }
+          $dir = Join-Path desktop/target/release/bundle "dm_${version}_${arch}-portable"
           New-Item -ItemType Directory -Path $dir | Out-Null
-          Copy-Item desktop/target/release/${{ matrix.crate }}.exe $dir
+          Copy-Item "desktop/$env:OUT/${{ matrix.crate }}.exe" $dir
           New-Item -ItemType File -Path (Join-Path $dir 'portable') | Out-Null
           Copy-Item desktop/packaging/portable-readme.txt (Join-Path $dir 'README.txt')
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
@@ -374,7 +433,12 @@ jobs:
         include:
           - { os: ubuntu-22.04, artifact: linux-x86_64 }
           - { os: ubuntu-22.04-arm, artifact: linux-arm64 }
-          - { os: windows-latest, artifact: windows }
+          # `machine`: the PE machine type the installed dm-gpui.exe must
+          # be, x64 (8664) or ARM64 (AA64): the Arm runner runs an x64
+          # program too, under emulation, so passing smoke.py alone would not
+          # say the Arm build is Arm's (gaps row R3).
+          - { os: windows-latest, artifact: windows, machine: '8664' }
+          - { os: windows-11-arm, artifact: windows-arm64, machine: AA64 }
           - { os: macos-latest, artifact: macos }
           # The Intel build run where it can be: under Rosetta on the Apple
           # silicon runner, as many Intel apps run on a person's Mac.
@@ -438,6 +502,14 @@ jobs:
           # The GPUI window, the one dm ships.
           $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter 'dm-gpui.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $exe) { throw 'the installer put no dm-gpui.exe anywhere' }
+          # The machine it is built for, from its PE header: the 16-bit
+          # machine field four bytes after the "PE\0\0" the offset at 0x3C names.
+          $bytes = [IO.File]::ReadAllBytes($exe.FullName)
+          $pe = [BitConverter]::ToInt32($bytes, 0x3C)
+          if ([BitConverter]::ToUInt32($bytes, $pe) -ne 0x4550) { throw 'dm-gpui.exe has no PE header' }
+          $machine = '{0:X4}' -f [BitConverter]::ToUInt16($bytes, $pe + 4)
+          Write-Output "dm-gpui.exe is for machine 0x$machine"
+          if ($machine -ne '${{ matrix.machine }}') { throw "dm-gpui.exe is for machine 0x$machine, not 0x${{ matrix.machine }}" }
           # The runner has no graphics driver: GPUI draws through Direct3D 11
           # on Windows' own software adapter (WARP), with nothing beside the
           # program, as a computer with no GPU does (docs/decisions.md,

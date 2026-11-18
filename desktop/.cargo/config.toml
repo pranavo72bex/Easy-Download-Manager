@@ -4,6 +4,9 @@ xtask = "run --quiet -p xtask --"
 
 # The C runtime linked into the Windows binary rather than loaded from
 # VCRUNTIME140.dll, which a clean Windows does not have and the installer
-# does not bring: without it dm would not start there at all.
+# does not bring: without it dm would not start there at all. The same on
+# Windows on Arm (gaps row R3), whose installer brings no runtime either.
 [target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+[target.aarch64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]

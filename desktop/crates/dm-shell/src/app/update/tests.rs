@@ -234,6 +234,41 @@ fn the_installer_for_this_machine_is_picked_by_its_name() {
     );
 }
 
+/// Windows on Arm has an installer of its own (gaps row R3): an arm64 Windows is offered the
+/// `_arm64-setup.exe`, an x64 one the `_x64-setup.exe`, and neither a portable zip.
+#[test]
+fn an_arm64_windows_is_offered_the_arm64_installer() {
+    let base = format!("{RELEASES}desktop-v1.2.3");
+    let manifest = serde_json::json!({
+        "version": "1.2.3",
+        "installers": [
+            format!("{base}/dm_1.2.3_aarch64.dmg"),
+            format!("{base}/dm_1.2.3_arm64-portable.zip"),
+            format!("{base}/dm_1.2.3_arm64.deb"),
+            format!("{base}/dm_1.2.3_x64-portable.zip"),
+            format!("{base}/dm_1.2.3_x64-setup.exe"),
+            format!("{base}/dm_1.2.3_arm64-setup.exe"),
+        ],
+    })
+    .to_string();
+    assert_eq!(
+        installer_in(&manifest, "windows", "aarch64", false),
+        Some(format!("{base}/dm_1.2.3_arm64-setup.exe"))
+    );
+    assert_eq!(
+        installer_in(&manifest, "windows", "x86_64", false),
+        Some(format!("{base}/dm_1.2.3_x64-setup.exe"))
+    );
+    // A release from before Windows on Arm was built: nothing for an arm64 Windows, rather
+    // than the x64 installer, which it would run only under emulation.
+    let older = serde_json::json!({
+        "version": "1.2.3",
+        "installers": [format!("{base}/dm_1.2.3_x64-setup.exe")],
+    })
+    .to_string();
+    assert_eq!(installer_in(&older, "windows", "aarch64", false), None);
+}
+
 /// A proxy on loopback that refuses every tunnel, and how many it was asked
 /// for: what the update check reaches in place of the update server.
 fn refusing_proxy(runtime: &tokio::runtime::Runtime) -> (u16, std::sync::Arc<Mutex<Vec<String>>>) {
