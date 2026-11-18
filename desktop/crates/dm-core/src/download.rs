@@ -822,15 +822,16 @@ pub async fn download_reporting(
         other => other?,
     };
     // Its sound as an MP3, where that was asked for: an M4A (or an MP4's
-    // sound) read by the system's decoder and encoded by dm (`mp3`).
+    // sound), or a WebM's Opus where the system decodes Opus, read by the
+    // system's decoder and encoded by dm (`mp3::takes`), at 192 kbit/s.
     let ext = done
         .path
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
-    if options.mp3 && matches!(ext.as_str(), "m4a" | "mp4" | "aac") {
+    if options.mp3 && crate::mp3::takes(&done.path) {
         let target = done.path.with_extension("mp3");
-        let bytes = crate::mp3::convert_async(done.path.clone(), target.clone())
+        let bytes = crate::mp3::convert_async(done.path.clone(), target.clone(), None)
             .await
             .map_err(|why| Error::Internal(format!("the MP3 could not be made: {why}")))?;
         let _ = tokio::fs::remove_file(&done.path).await;

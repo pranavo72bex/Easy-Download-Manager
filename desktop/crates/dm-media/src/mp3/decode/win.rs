@@ -4,7 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The sound of a file read by Media Foundation's source reader: the
-//! system's decoder turns AAC (an M4A's, an MP4's sound; also an MP3) into
+//! system's decoder turns AAC (an M4A's, an MP4's sound; also an MP3), or
+//! Opus in a WebM (its WebM reader and Opus decoder, gaps row Y25), into
 //! 16-bit samples, at most two channels, at a rate MP3 has. A Windows "N"
 //! edition has no AAC decoder until the Media Feature Pack is added; the
 //! read then fails in words and `mp3::possible` says no beforehand.

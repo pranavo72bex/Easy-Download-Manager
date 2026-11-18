@@ -4,10 +4,10 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Windows Media Foundation, the system's own decoders, as far as a video's
-//! sound saved as MP3 (`mp3/decode/win.rs`) and a part saved as GIF
-//! (`frames/win.rs`) need them: COM and Media Foundation started for the
-//! length of one call and undone when it ends, a source reader over a sound
-//! file, and the system's H.264 decoder. A Windows "N" edition has neither
+//! sound saved as MP3 (`mp3/decode/win.rs`: AAC, and Opus in a WebM) and a
+//! part saved as GIF (`frames/win.rs`) need them: COM and Media Foundation
+//! started for the length of one call and undone when it ends, a source
+//! reader over a sound file, and the system's H.264 decoder. A Windows "N" edition has neither
 //! the AAC nor the H.264 decoder until the Media Feature Pack is added; the
 //! probes say so and the quality list then does not offer what cannot be
 //! made.
@@ -19,7 +19,7 @@ use std::sync::OnceLock;
 use windows::core::{Interface, GUID, PCWSTR};
 use windows::Win32::Media::MediaFoundation::{
     IMFActivate, IMFAttributes, IMFSourceReader, IMFTransform, MFAudioFormat_AAC,
-    MFCreateAttributes, MFCreateFile, MFCreateSourceReaderFromByteStream,
+    MFAudioFormat_Opus, MFCreateAttributes, MFCreateFile, MFCreateSourceReaderFromByteStream,
     MFCreateSourceReaderFromURL, MFMediaType_Audio, MFMediaType_Video, MFShutdown, MFStartup,
     MFTEnumEx, MFVideoFormat_H264, MFSTARTUP_FULL, MFT_CATEGORY_AUDIO_DECODER,
     MFT_CATEGORY_VIDEO_DECODER, MFT_ENUM_FLAG_LOCALMFT, MFT_ENUM_FLAG_SORTANDFILTER,
@@ -73,7 +73,8 @@ impl Drop for Started {
 
 /// A source reader over the sound file at `path`. A file the reader cannot
 /// tell the kind of by its name (a staged part with another extension) is
-/// opened as a byte stream said to be an MP4.
+/// opened as a byte stream said to be a WebM where it starts as one, else an
+/// MP4.
 pub(crate) fn reader(path: &Path) -> Result<IMFSourceReader, String> {
     let wide: Vec<u16> = path
         .as_os_str()
@@ -99,10 +100,12 @@ pub(crate) fn reader(path: &Path) -> Result<IMFSourceReader, String> {
         )
         .map_err(|e| format!("{} could not be opened ({e})", path.display()))?;
         if let Ok(hint) = stream.cast::<IMFAttributes>() {
-            let mime: Vec<u16> = "video/mp4"
-                .encode_utf16()
-                .chain(std::iter::once(0))
-                .collect();
+            let kind = if crate::mkvmux::is_webm(path) {
+                "video/webm"
+            } else {
+                "video/mp4"
+            };
+            let mime: Vec<u16> = kind.encode_utf16().chain(std::iter::once(0)).collect();
             let _ = hint.SetString(&MF_BYTESTREAM_CONTENT_TYPE, PCWSTR(mime.as_ptr()));
         }
         MFCreateSourceReaderFromByteStream(&stream, attributes)
@@ -163,6 +166,19 @@ pub(crate) fn aac_decoder() -> bool {
             MFT_CATEGORY_AUDIO_DECODER,
             MFMediaType_Audio,
             MFAudioFormat_AAC,
+        )
+    })
+}
+
+/// Whether the system can decode Opus (a WebM's sound, YouTube's): Windows 10 and 11 carry
+/// Media Foundation's Opus decoder and its WebM reader.
+pub(crate) fn opus_decoder() -> bool {
+    static FOUND: OnceLock<bool> = OnceLock::new();
+    *FOUND.get_or_init(|| {
+        decoder_present(
+            MFT_CATEGORY_AUDIO_DECODER,
+            MFMediaType_Audio,
+            MFAudioFormat_Opus,
         )
     })
 }

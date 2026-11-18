@@ -7,7 +7,7 @@ use super::*;
 
 /// [`convert_bytes`] written to `target`, as dm-core's `mp3::convert` does; the MP3's length.
 fn convert(source: &std::path::Path, target: &std::path::Path) -> Result<u64, String> {
-    let bytes = convert_bytes(source)?;
+    let bytes = convert_bytes(source, None)?;
     std::fs::write(target, &bytes).map_err(|e| e.to_string())?;
     Ok(bytes.len() as u64)
 }
@@ -320,22 +320,22 @@ fn encoding_on_every_core_gives_the_bytes_one_run_gives() {
     samples.extend(tones(44100));
     samples.extend(tones(44100));
     assert_eq!(
-        encode_all(&samples, 2, 44100).unwrap(),
+        encode_all(&samples, 2, 44100, None).unwrap(),
         encode(&samples, 2, 44100)
     );
 }
 
 /// An MP3 decoded by a decoder that is not dm's (symphonia's), one frame
 /// a packet: the Linux build's stand-in for the system decoders that
-/// play the files back in the macOS and Windows checks.
-#[cfg(target_os = "linux")]
+/// play the files back in the macOS and Windows checks, and on every
+/// system the check of each bit rate.
 fn heard(bytes: &[u8]) -> crate::mp3::decode::Pcm {
     use symphonia_bundle_mp3::MpaDecoder;
     use symphonia_core::codecs::audio::well_known::CODEC_ID_MP3;
     use symphonia_core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions};
     use symphonia_core::packet::PacketRef;
     use symphonia_core::units::{Duration, Timestamp};
-    const KBPS: [u64; 15] = [
+    const KBPS_AT: [u64; 15] = [
         0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
     ];
     const RATES: [u32; 3] = [44100, 48000, 32000];
@@ -350,7 +350,7 @@ fn heard(bytes: &[u8]) -> crate::mp3::decode::Pcm {
             (0xFF, 0xFA),
             "no frame at {at}"
         );
-        let kbps = KBPS[usize::from(bytes[at + 2] >> 4)];
+        let kbps = KBPS_AT[usize::from(bytes[at + 2] >> 4)];
         rate = RATES[usize::from((bytes[at + 2] >> 2) & 3)];
         channels = if bytes[at + 3] >> 6 == 3 { 1 } else { 2 };
         let size =
@@ -378,7 +378,6 @@ fn heard(bytes: &[u8]) -> crate::mp3::decode::Pcm {
 
 /// How alike two interleaved sounds are on their first channel, at the
 /// shift that matches best: signal-to-noise in dB.
-#[cfg(target_os = "linux")]
 fn alike(input: &[i16], out: &[i16], channels: usize, rate: u32) -> (f64, usize) {
     let left = |s: &[i16], i: usize| f64::from(s[i * channels]);
     let span = rate as usize / 2;
@@ -442,3 +441,9 @@ fn an_aac_sound_is_saved_as_an_mp3_that_plays_it() {
     let seconds = out.samples.len() as f64 / 2.0 / 44100.0;
     assert!((seconds - 2.0).abs() < 0.1, "{seconds} s");
 }
+
+/// Each of MPEG-1 Layer III's bit rates (gaps row Y25).
+mod rates;
+
+/// Opus in a WebM as the sound an MP3 is made from (gaps row Y25).
+mod opus;

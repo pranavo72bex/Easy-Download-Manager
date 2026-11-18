@@ -20,10 +20,11 @@ pub fn choice_after(m4a_size: Option<u64>) -> Option<crate::videopage::Choice> {
     })
 }
 
-/// Saves the sound of `source` (an M4A, or an MP4's sound) as an MP3 at
-/// `target` ([`convert_bytes`]). Returns the MP3's length.
-pub fn convert(source: &Path, target: &Path) -> Result<u64, String> {
-    let bytes = convert_bytes(source)?;
+/// Saves the sound of `source` (an M4A, an MP4's sound, or a WebM's Opus where [`takes`]) as an
+/// MP3 at `target`, at `kbps` kbit/s (`None`: 192 for stereo, as always; [`convert_bytes`]).
+/// Returns the MP3's length.
+pub fn convert(source: &Path, target: &Path, kbps: Option<u32>) -> Result<u64, String> {
+    let bytes = convert_bytes(source, kbps)?;
     crate::write_atomic(target, &bytes)
         .map_err(|e| format!("the MP3 could not be written: {e}"))?;
     Ok(bytes.len() as u64)
@@ -31,8 +32,12 @@ pub fn convert(source: &Path, target: &Path) -> Result<u64, String> {
 
 /// [`convert`], off the async runtime, with a turn at the computer's heavy work (`heavy`, gaps
 /// row 185).
-pub async fn convert_async(source: PathBuf, target: PathBuf) -> Result<u64, String> {
-    crate::heavy::run(move || convert(&source, &target))
+pub async fn convert_async(
+    source: PathBuf,
+    target: PathBuf,
+    kbps: Option<u32>,
+) -> Result<u64, String> {
+    crate::heavy::run(move || convert(&source, &target, kbps))
         .await
         .map_err(|e| format!("making the MP3 stopped: {e}"))?
 }
