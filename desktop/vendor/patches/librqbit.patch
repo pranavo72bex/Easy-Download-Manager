@@ -1,0 +1,1221 @@
+dm's change to librqbit 9.1.0 (crates.io, Apache-2.0), applied to the
+published crate with webui/, resources/, examples/, Cargo.lock,
+Cargo.toml.orig and .cargo_vcs_info.json removed first. Made again by
+desktop/vendor/vendor.sh; explained in desktop/vendor/README.md. Each changed
+line in the code is marked `dm:`. The text before each file's section says
+what its hunks do, in order; git apply skips it.
+
+Cargo.toml:
+  1. http-api brings axum-extra and the dual-stack listener's axum support,
+     which only the HTTP API uses; dm does not turn it on, so no axum is built
+     (gaps row P7).
+  2. rust-tls asks for reqwest's rustls without a provider of its own
+     (`rustls` brought aws-lc-rs, a C library built with cmake) and for
+     rustls itself, whose ring provider session.rs installs (gaps row P7).
+  3. The three [[example]] targets are left out with examples/.
+  4. axum-extra made optional (with 1).
+  5. The dual-stack sockets' `axum` feature moved into http-api (with 1).
+  6. num-bigint, rc4 and sha1 for encrypted peer connections (src/mse.rs,
+     gaps row 150).
+  7. rustls with ring, optional, for rust-tls (with 2).
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 804cce9..c472976 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -41,9 +41,14 @@ default-tls = [
+     "librqbit-core/sha1-crypto-hash",
+ ]
+ disable-upload = []
++# dm: axum-extra and the dual-stack listener's axum support are the HTTP
++# API's alone, so they come with it; without it (as dm builds librqbit) no
++# axum is built (desktop/vendor/README.md).
+ http-api = [
+     "axum",
++    "axum-extra",
+     "tower-http",
++    "librqbit-dualstack-sockets/axum",
+ ]
+ http-api-client = []
+ miri = []
+@@ -52,8 +57,13 @@ postgres = [
+     "home",
+ ]
+ prometheus = ["metrics-exporter-prometheus"]
++# dm: reqwest's rustls without its own provider (its `rustls` feature brings
++# aws-lc-rs, a C library built with cmake); ring, the provider dm uses
++# everywhere else, is installed by `Session::new_with_opts` instead
++# (desktop/vendor/README.md).
+ rust-tls = [
+-    "reqwest/rustls",
++    "reqwest/rustls-no-provider",
++    "rustls",
+     "sha1w/sha1-ring",
+     "librqbit-core/sha1-ring",
+ ]
+@@ -73,23 +83,8 @@ webui = []
+ name = "librqbit"
+ path = "src/lib.rs"
+ 
+-[[example]]
+-name = "custom_storage"
+-path = "examples/custom_storage.rs"
+-
+-[[example]]
+-name = "simulate_traffic"
+-path = "examples/simulate_traffic.rs"
+-required-features = [
+-    "http-api",
+-    "webui",
+-    "tracing-subscriber-utils",
+-    "prometheus",
+-]
+-
+-[[example]]
+-name = "ubuntu"
+-path = "examples/ubuntu.rs"
++# dm: examples/ is not vendored (desktop/vendor/README.md), so its three
++# [[example]] targets are left out.
+ 
+ [dependencies.anyhow]
+ version = "1"
+@@ -121,6 +116,7 @@ optional = true
+ [dependencies.axum-extra]
+ version = "0.12"
+ features = ["query"]
++optional = true
+ 
+ [dependencies.backon]
+ version = "1.5"
+@@ -190,7 +186,6 @@ default-features = false
+ 
+ [dependencies.librqbit-dualstack-sockets]
+ version = "0.7"
+-features = ["axum"]
+ 
+ [dependencies.librqbit-lsd]
+ version = "9.1.0"
+@@ -235,6 +230,16 @@ version = "9.1.0"
+ default-features = false
+ package = "librqbit-peer-protocol"
+ 
++# dm: encrypted peer connections (src/mse.rs, desktop/vendor/README.md).
++[dependencies.num-bigint]
++version = "0.4"
++
++[dependencies.rc4]
++version = "0.2"
++
++[dependencies.sha1]
++version = "0.11"
++
+ [dependencies.rand]
+ version = "0.10"
+ 
+@@ -250,6 +255,17 @@ features = [
+ ]
+ default-features = false
+ 
++# dm: the provider `rust-tls` installs (ring), named so reqwest has one.
++[dependencies.rustls]
++version = "0.23"
++optional = true
++default-features = false
++features = [
++    "ring",
++    "std",
++    "tls12",
++]
++
+ [dependencies.rlimit]
+ version = "0.11"
+ 
+src/lib.rs:
+  1. The encrypted connections' module, `mse`.
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 29843e0..0311c5f 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -61,6 +61,8 @@ mod ip_ranges;
+ pub mod limits;
+ mod listen;
+ mod merge_streams;
++// dm: encrypted peer connections (desktop/vendor/README.md).
++mod mse;
+ mod peer_connection;
+ mod peer_info_reader;
+ mod piece_tracker;
+src/mse.rs (new, dm's own): BitTorrent's Message Stream Encryption
+(MSE/PE): a 768-bit Diffie-Hellman exchange, then RC4, both ways; `initiate`
+for a connection made, `accept` for one taken (a plaintext one passed
+through), `plaintext_refused` for the errors after which a peer is asked again
+encrypted. With its own tests (`cargo test --lib mse`).
+
+diff --git a/src/mse.rs b/src/mse.rs
+new file mode 100644
+index 0000000..023e5f6
+--- /dev/null
++++ b/src/mse.rs
+@@ -0,0 +1,588 @@
++//! dm: BitTorrent Message Stream Encryption (MSE, also called PE), the
++//! obfuscated handshake and RC4 stream other clients use, so a peer that
++//! accepts only encrypted connections is reached, and one that connects
++//! encrypted is taken (desktop/vendor/README.md, dm's gaps row 150).
++//!
++//! The exchange, as the specification lays it out (A connects, B answers):
++//!
++//! 1. A→B: Diffie-Hellman Ya, PadA
++//! 2. B→A: Diffie-Hellman Yb, PadB
++//! 3. A→B: HASH('req1', S), HASH('req2', SKEY) xor HASH('req3', S),
++//!    ENCRYPT(VC, crypto_provide, len(PadC), PadC, len(IA)), ENCRYPT(IA)
++//! 4. B→A: ENCRYPT(VC, crypto_select, len(PadD), PadD), ENCRYPT2(payload)
++//! 5. A→B: ENCRYPT2(payload)
++//!
++//! The group is the 768-bit prime below with generator 2; HASH is SHA-1; SKEY
++//! is the torrent's info hash; VC is eight zero bytes; ENCRYPT is RC4 keyed
++//! HASH('keyA', S, SKEY) from A and HASH('keyB', S, SKEY) from B, with the
++//! first 1024 bytes of each keystream thrown away. This side always asks for
++//! RC4 (crypto 2) and sends its BitTorrent handshake after the exchange, not
++//! inside it (len(IA) 0); as B it takes an initial payload a peer sends.
++
++use std::io::IoSliceMut;
++use std::pin::Pin;
++use std::task::{Context, Poll};
++
++use anyhow::{Context as _, bail};
++use librqbit_core::hash_id::Id20;
++use num_bigint::BigUint;
++use rc4::{KeyInit, Rc4, StreamCipher};
++use sha1::{Digest, Sha1};
++use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
++
++use crate::type_aliases::{BoxAsyncReadVectored, BoxAsyncWrite};
++use crate::vectored_traits::AsyncReadVectored;
++
++/// The specification's prime, 768 bits.
++const PRIME: &str = "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A63A36210000000000090563";
++/// A public key and the shared secret, in bytes.
++const KEY_LEN: usize = 96;
++/// The verification constant.
++const VC: [u8; 8] = [0; 8];
++/// Crypto methods, as bits of `crypto_provide` and `crypto_select`.
++const CRYPTO_PLAINTEXT: u32 = 0x01;
++const CRYPTO_RC4: u32 = 0x02;
++/// The longest any of the pads may be.
++const MAX_PAD: usize = 512;
++/// What the plaintext BitTorrent handshake starts with.
++const PLAINTEXT_START: &[u8; 20] = b"\x13BitTorrent protocol";
++
++fn prime() -> BigUint {
++    BigUint::parse_bytes(PRIME.as_bytes(), 16).expect("the specification's prime is valid hex")
++}
++
++/// `n` as `KEY_LEN` big-endian bytes.
++fn to_key_bytes(n: &BigUint) -> [u8; KEY_LEN] {
++    let bytes = n.to_bytes_be();
++    let mut out = [0u8; KEY_LEN];
++    out[KEY_LEN - bytes.len()..].copy_from_slice(&bytes);
++    out
++}
++
++/// A private key of 160 bits and its public key.
++fn key_pair() -> (BigUint, [u8; KEY_LEN]) {
++    let secret = BigUint::from_bytes_be(&rand::random::<[u8; 20]>());
++    let public = BigUint::from(2u32).modpow(&secret, &prime());
++    (secret, to_key_bytes(&public))
++}
++
++/// The shared secret from the peer's public key; a key that would make it
++/// trivial (0, 1, or P-1 and above) is refused.
++fn shared_secret(secret: &BigUint, theirs: &[u8]) -> anyhow::Result<[u8; KEY_LEN]> {
++    let p = prime();
++    let y = BigUint::from_bytes_be(theirs);
++    if y <= BigUint::from(1u32) || y >= &p - 1u32 {
++        bail!("the peer's encryption key is not one that can be used");
++    }
++    Ok(to_key_bytes(&y.modpow(secret, &p)))
++}
++
++fn hash(parts: &[&[u8]]) -> [u8; 20] {
++    let mut sha = Sha1::new();
++    for part in parts {
++        sha.update(part);
++    }
++    let mut out = [0u8; 20];
++    out.copy_from_slice(&sha.finalize());
++    out
++}
++
++/// RC4 keyed `key`, past the first 1024 bytes of its keystream.
++fn cipher(key: &[u8; 20]) -> Rc4 {
++    let mut rc4 = Rc4::new_from_slice(key).expect("a 20-byte key is a valid RC4 key");
++    let mut discard = [0u8; 1024];
++    rc4.apply_keystream(&mut discard);
++    rc4
++}
++
++/// Random padding, 0 to `MAX_PAD` bytes.
++fn padding() -> Vec<u8> {
++    let len = usize::from(rand::random::<u16>()) % (MAX_PAD + 1);
++    (0..len).map(|_| rand::random::<u8>()).collect()
++}
++
++fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
++    haystack.windows(needle.len()).position(|w| w == needle)
++}
++
++/// Reads until `got` holds at least `need` bytes.
++async fn fill(
++    read: &mut BoxAsyncReadVectored,
++    got: &mut Vec<u8>,
++    need: usize,
++) -> anyhow::Result<()> {
++    let mut chunk = [0u8; 1024];
++    while got.len() < need {
++        let n = read
++            .read(&mut chunk)
++            .await
++            .context("reading the encryption handshake")?;
++        if n == 0 {
++            bail!("the peer closed the connection during the encryption handshake");
++        }
++        got.extend_from_slice(&chunk[..n]);
++    }
++    Ok(())
++}
++
++/// Reads at least one more byte into `got`.
++async fn more(read: &mut BoxAsyncReadVectored, got: &mut Vec<u8>) -> anyhow::Result<()> {
++    let need = got.len() + 1;
++    fill(read, got, need).await
++}
++
++/// Whether a plaintext handshake failed the way a peer that wants encryption
++/// refuses one: it closed or reset the connection instead of answering.
++pub(crate) fn plaintext_refused(e: &crate::Error) -> bool {
++    matches!(
++        e,
++        crate::Error::PeerDisconnectedReadingHandshake
++            | crate::Error::ReadHandshake(_)
++            | crate::Error::WriteHandshake(_)
++    )
++}
++
++/// The connecting side of the exchange: returns the connection's halves,
++/// encrypted, for the BitTorrent handshake to go over.
++pub(crate) async fn initiate(
++    mut read: BoxAsyncReadVectored,
++    mut write: BoxAsyncWrite,
++    info_hash: Id20,
++) -> anyhow::Result<(BoxAsyncReadVectored, BoxAsyncWrite)> {
++    let skey = info_hash.0;
++    let (secret, public) = key_pair();
++    // 1: our public key and padding.
++    write.write_all(&[&public[..], &padding()].concat()).await?;
++    // 2: theirs, then padding of a length we are not told.
++    let mut got = Vec::new();
++    fill(&mut read, &mut got, KEY_LEN).await?;
++    let s = shared_secret(&secret, &got[..KEY_LEN])?;
++    let mut encrypt = cipher(&hash(&[b"keyA", &s, &skey]));
++    let decrypt_key = hash(&[b"keyB", &s, &skey]);
++
++    // 3: which torrent, proven by the shared secret; what we offer.
++    let mut message = Vec::with_capacity(40 + 16);
++    message.extend_from_slice(&hash(&[b"req1", &s]));
++    let req2 = hash(&[b"req2", &skey]);
++    let req3 = hash(&[b"req3", &s]);
++    message.extend(req2.iter().zip(req3.iter()).map(|(a, b)| a ^ b));
++    let mut offer = Vec::with_capacity(16);
++    offer.extend_from_slice(&VC);
++    offer.extend_from_slice(&CRYPTO_RC4.to_be_bytes());
++    offer.extend_from_slice(&0u16.to_be_bytes()); // len(PadC)
++    offer.extend_from_slice(&0u16.to_be_bytes()); // len(IA)
++    encrypt.apply_keystream(&mut offer);
++    message.extend_from_slice(&offer);
++    write.write_all(&message).await?;
++    write.flush().await?;
++
++    // 4: their verification constant, encrypted, after their padding: the
++    // first eight bytes of their keystream, as VC is zeros.
++    let mut decrypt = cipher(&decrypt_key);
++    let mut vc = VC;
++    decrypt.apply_keystream(&mut vc);
++    let at = loop {
++        if let Some(i) = find(&got[KEY_LEN..], &vc) {
++            break KEY_LEN + i;
++        }
++        if got.len() > KEY_LEN + MAX_PAD + VC.len() {
++            bail!("the peer did not answer the encryption handshake");
++        }
++        more(&mut read, &mut got).await?;
++    };
++    let fields = at + VC.len();
++    fill(&mut read, &mut got, fields + 6).await?;
++    let mut head = got[fields..fields + 6].to_vec();
++    decrypt.apply_keystream(&mut head);
++    let select = u32::from_be_bytes([head[0], head[1], head[2], head[3]]);
++    let pad_d = usize::from(u16::from_be_bytes([head[4], head[5]]));
++    if pad_d > MAX_PAD {
++        bail!("the peer's encryption handshake is malformed");
++    }
++    if select != CRYPTO_RC4 {
++        bail!("the peer did not choose encryption");
++    }
++    let payload = fields + 6 + pad_d;
++    fill(&mut read, &mut got, payload).await?;
++    let mut pad = got[fields + 6..payload].to_vec();
++    decrypt.apply_keystream(&mut pad);
++    let mut early = got[payload..].to_vec();
++    decrypt.apply_keystream(&mut early);
++    Ok((
++        Box::new(EncryptedRead::new(read, Some(decrypt), early)),
++        Box::new(EncryptedWrite::new(write, Some(encrypt))),
++    ))
++}
++
++/// The answering side: a plaintext handshake is passed through untouched
++/// (unless `require` says only encrypted ones are taken); an encrypted one is
++/// answered for whichever of `info_hashes` it names. Returns the halves for
++/// the BitTorrent handshake to be read from.
++pub(crate) async fn accept(
++    mut read: BoxAsyncReadVectored,
++    mut write: BoxAsyncWrite,
++    require: bool,
++    info_hashes: &[Id20],
++) -> anyhow::Result<(BoxAsyncReadVectored, BoxAsyncWrite)> {
++    let mut got = Vec::new();
++    fill(&mut read, &mut got, PLAINTEXT_START.len()).await?;
++    if got[..PLAINTEXT_START.len()] == PLAINTEXT_START[..] {
++        if require {
++            bail!("a plaintext connection, where only encrypted ones are taken");
++        }
++        // Read for the encryption check: given back to the handshake reader.
++        return Ok((Box::new(EncryptedRead::new(read, None, got)), write));
++    }
++
++    // 1: their public key, then padding.
++    fill(&mut read, &mut got, KEY_LEN).await?;
++    let (secret, public) = key_pair();
++    let s = shared_secret(&secret, &got[..KEY_LEN])?;
++    // 2: ours.
++    write.write_all(&[&public[..], &padding()].concat()).await?;
++    write.flush().await?;
++
++    // 3: found by HASH('req1', S), after their padding.
++    let req1 = hash(&[b"req1", &s]);
++    let at = loop {
++        if let Some(i) = find(&got[KEY_LEN..], &req1) {
++            break KEY_LEN + i;
++        }
++        if got.len() > KEY_LEN + MAX_PAD + req1.len() {
++            bail!("the peer's encryption handshake named nothing");
++        }
++        more(&mut read, &mut got).await?;
++    };
++    let named = at + 20;
++    fill(&mut read, &mut got, named + 20).await?;
++    let req3 = hash(&[b"req3", &s]);
++    let skey = info_hashes
++        .iter()
++        .map(|h| h.0)
++        .find(|skey| {
++            let req2 = hash(&[b"req2", skey]);
++            req2.iter()
++                .zip(req3.iter())
++                .map(|(a, b)| a ^ b)
++                .eq(got[named..named + 20].iter().copied())
++        })
++        .context("the encrypted connection is for no torrent here")?;
++    let mut decrypt = cipher(&hash(&[b"keyA", &s, &skey]));
++    let mut encrypt = cipher(&hash(&[b"keyB", &s, &skey]));
++
++    let fields = named + 20;
++    fill(&mut read, &mut got, fields + 14).await?;
++    let mut head = got[fields..fields + 14].to_vec();
++    decrypt.apply_keystream(&mut head);
++    if head[..8] != VC {
++        bail!("the peer's encryption handshake did not verify");
++    }
++    let provide = u32::from_be_bytes([head[8], head[9], head[10], head[11]]);
++    let pad_c = usize::from(u16::from_be_bytes([head[12], head[13]]));
++    if pad_c > MAX_PAD {
++        bail!("the peer's encryption handshake is malformed");
++    }
++    let ia_len_at = fields + 14 + pad_c;
++    fill(&mut read, &mut got, ia_len_at + 2).await?;
++    let mut tail = got[fields + 14..ia_len_at + 2].to_vec();
++    decrypt.apply_keystream(&mut tail);
++    let ia_len = usize::from(u16::from_be_bytes([tail[pad_c], tail[pad_c + 1]]));
++    let payload = ia_len_at + 2 + ia_len;
++    fill(&mut read, &mut got, payload).await?;
++    // The initial payload, encrypted whatever is chosen after.
++    let mut early = got[ia_len_at + 2..payload].to_vec();
++    decrypt.apply_keystream(&mut early);
++
++    let select = if provide & CRYPTO_RC4 != 0 {
++        CRYPTO_RC4
++    } else if provide & CRYPTO_PLAINTEXT != 0 && !require {
++        CRYPTO_PLAINTEXT
++    } else {
++        bail!("the peer offered no encryption this side takes");
++    };
++    // 4: our verification constant and choice, no padding.
++    let mut reply = Vec::with_capacity(14);
++    reply.extend_from_slice(&VC);
++    reply.extend_from_slice(&select.to_be_bytes());
++    reply.extend_from_slice(&0u16.to_be_bytes());
++    encrypt.apply_keystream(&mut reply);
++    write.write_all(&reply).await?;
++    write.flush().await?;
++
++    let mut rest = got[payload..].to_vec();
++    if select == CRYPTO_RC4 {
++        decrypt.apply_keystream(&mut rest);
++        early.extend_from_slice(&rest);
++        Ok((
++            Box::new(EncryptedRead::new(read, Some(decrypt), early)),
++            Box::new(EncryptedWrite::new(write, Some(encrypt))),
++        ))
++    } else {
++        early.extend_from_slice(&rest);
++        Ok((Box::new(EncryptedRead::new(read, None, early)), write))
++    }
++}
++
++/// A connection's reading half: bytes already read (and decrypted) given
++/// first, then the rest, decrypted where there is a cipher.
++pub(crate) struct EncryptedRead<R> {
++    inner: R,
++    cipher: Option<Rc4>,
++    early: Vec<u8>,
++    at: usize,
++}
++
++impl<R> EncryptedRead<R> {
++    fn new(inner: R, cipher: Option<Rc4>, early: Vec<u8>) -> Self {
++        Self {
++            inner,
++            cipher,
++            early,
++            at: 0,
++        }
++    }
++
++    /// Copies what is left of the early bytes into `out`; how many.
++    fn give_early(&mut self, out: &mut [u8]) -> usize {
++        let n = out.len().min(self.early.len() - self.at);
++        out[..n].copy_from_slice(&self.early[self.at..self.at + n]);
++        self.at += n;
++        if self.at == self.early.len() {
++            self.early = Vec::new();
++            self.at = 0;
++        }
++        n
++    }
++}
++
++impl<R: AsyncRead + Unpin> AsyncRead for EncryptedRead<R> {
++    fn poll_read(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        buf: &mut ReadBuf<'_>,
++    ) -> Poll<std::io::Result<()>> {
++        let this = self.get_mut();
++        if this.at < this.early.len() {
++            let n = this.give_early(buf.initialize_unfilled());
++            buf.advance(n);
++            return Poll::Ready(Ok(()));
++        }
++        let before = buf.filled().len();
++        std::task::ready!(Pin::new(&mut this.inner).poll_read(cx, buf))?;
++        if let Some(cipher) = this.cipher.as_mut() {
++            cipher.apply_keystream(&mut buf.filled_mut()[before..]);
++        }
++        Poll::Ready(Ok(()))
++    }
++}
++
++impl<R: AsyncReadVectored + Unpin> AsyncReadVectored for EncryptedRead<R> {
++    fn poll_read_vectored(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        vec: &mut [IoSliceMut<'_>],
++    ) -> Poll<std::io::Result<usize>> {
++        let this = self.get_mut();
++        if this.at < this.early.len() {
++            let mut total = 0;
++            for slice in vec.iter_mut() {
++                if this.at >= this.early.len() {
++                    break;
++                }
++                total += this.give_early(slice);
++            }
++            return Poll::Ready(Ok(total));
++        }
++        let n = std::task::ready!(Pin::new(&mut this.inner).poll_read_vectored(cx, vec))?;
++        if let Some(cipher) = this.cipher.as_mut() {
++            let mut left = n;
++            for slice in vec.iter_mut() {
++                if left == 0 {
++                    break;
++                }
++                let k = slice.len().min(left);
++                cipher.apply_keystream(&mut slice[..k]);
++                left -= k;
++            }
++        }
++        Poll::Ready(Ok(n))
++    }
++}
++
++/// A connection's writing half, encrypting where there is a cipher. What it
++/// has encrypted is written whole before it takes more, so the keystream
++/// never runs ahead of what the peer gets.
++pub(crate) struct EncryptedWrite<W> {
++    inner: W,
++    cipher: Option<Rc4>,
++    pending: Vec<u8>,
++    at: usize,
++    /// The length of the caller's buffer the pending bytes were made from,
++    /// answered once they are all written.
++    taken: Option<usize>,
++}
++
++impl<W> EncryptedWrite<W> {
++    fn new(inner: W, cipher: Option<Rc4>) -> Self {
++        Self {
++            inner,
++            cipher,
++            pending: Vec::new(),
++            at: 0,
++            taken: None,
++        }
++    }
++}
++
++impl<W: AsyncWrite + Unpin> EncryptedWrite<W> {
++    /// Writes out what is pending.
++    fn drain(&mut self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
++        while self.at < self.pending.len() {
++            let n = std::task::ready!(
++                Pin::new(&mut self.inner).poll_write(cx, &self.pending[self.at..])
++            )?;
++            if n == 0 {
++                return Poll::Ready(Err(std::io::ErrorKind::WriteZero.into()));
++            }
++            self.at += n;
++        }
++        self.pending.clear();
++        self.at = 0;
++        Poll::Ready(Ok(()))
++    }
++}
++
++impl<W: AsyncWrite + Unpin> AsyncWrite for EncryptedWrite<W> {
++    fn poll_write(
++        self: Pin<&mut Self>,
++        cx: &mut Context<'_>,
++        buf: &[u8],
++    ) -> Poll<std::io::Result<usize>> {
++        let this = self.get_mut();
++        let Some(cipher) = this.cipher.as_mut() else {
++            return Pin::new(&mut this.inner).poll_write(cx, buf);
++        };
++        if this.taken.is_none() {
++            if buf.is_empty() {
++                return Poll::Ready(Ok(0));
++            }
++            this.pending.clear();
++            this.pending.extend_from_slice(buf);
++            cipher.apply_keystream(&mut this.pending);
++            this.at = 0;
++            this.taken = Some(buf.len());
++        }
++        std::task::ready!(this.drain(cx))?;
++        Poll::Ready(Ok(this.taken.take().unwrap_or(0)))
++    }
++
++    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
++        let this = self.get_mut();
++        std::task::ready!(this.drain(cx))?;
++        Pin::new(&mut this.inner).poll_flush(cx)
++    }
++
++    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
++        let this = self.get_mut();
++        std::task::ready!(this.drain(cx))?;
++        Pin::new(&mut this.inner).poll_shutdown(cx)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::vectored_traits::AsyncReadVectoredIntoCompat;
++
++    fn halves(stream: tokio::io::DuplexStream) -> (BoxAsyncReadVectored, BoxAsyncWrite) {
++        let (r, w) = tokio::io::split(stream);
++        (Box::new(r.into_vectored_compat()), Box::new(w))
++    }
++
++    fn id(byte: u8) -> Id20 {
++        Id20::new([byte; 20])
++    }
++
++    /// Both sides of the exchange agree, and what each writes after it the
++    /// other reads, while the bytes on the wire are not the bytes sent.
++    #[tokio::test]
++    async fn an_encrypted_connection_carries_both_ways() {
++        let (a, b) = tokio::io::duplex(64 * 1024);
++        let (ar, aw) = halves(a);
++        let (br, bw) = halves(b);
++        let torrents = [id(1), id(7), id(9)];
++        let (initiated, accepted) =
++            tokio::join!(initiate(ar, aw, id(7)), accept(br, bw, true, &torrents));
++        let (mut ar, mut aw) = initiated.unwrap();
++        let (mut br, mut bw) = accepted.unwrap();
++        let hello = b"\x13BitTorrent protocol and the rest of a handshake";
++        aw.write_all(hello).await.unwrap();
++        aw.flush().await.unwrap();
++        let mut got = vec![0u8; hello.len()];
++        br.read_exact(&mut got).await.unwrap();
++        assert_eq!(&got[..], &hello[..]);
++        let answer: Vec<u8> = (0..20_000u32).map(|i| (i % 251) as u8).collect();
++        bw.write_all(&answer).await.unwrap();
++        bw.flush().await.unwrap();
++        let mut got = vec![0u8; answer.len()];
++        ar.read_exact(&mut got).await.unwrap();
++        assert_eq!(got, answer);
++    }
++
++    /// A plaintext handshake is passed through whole where it is taken, and
++    /// refused where only encrypted connections are.
++    #[tokio::test]
++    async fn a_plaintext_handshake_is_passed_through_or_refused() {
++        for require in [false, true] {
++            let (a, b) = tokio::io::duplex(1024);
++            let (_ar, mut aw) = halves(a);
++            let (br, bw) = halves(b);
++            let mut handshake = PLAINTEXT_START.to_vec();
++            handshake.extend_from_slice(&[0u8; 48]);
++            aw.write_all(&handshake).await.unwrap();
++            aw.flush().await.unwrap();
++            match accept(br, bw, require, &[id(1)]).await {
++                Ok((mut br, _)) => {
++                    assert!(
++                        !require,
++                        "a plaintext handshake was taken where it is refused"
++                    );
++                    let mut got = vec![0u8; handshake.len()];
++                    br.read_exact(&mut got).await.unwrap();
++                    assert_eq!(got, handshake);
++                }
++                Err(e) => assert!(require, "refused: {e:#}"),
++            }
++        }
++    }
++
++    /// An encrypted connection for a torrent this side does not have is
++    /// refused, not answered for another.
++    #[tokio::test]
++    async fn an_encrypted_connection_for_another_torrent_is_refused() {
++        let (a, b) = tokio::io::duplex(64 * 1024);
++        let (ar, aw) = halves(a);
++        let (br, bw) = halves(b);
++        let here = [id(1), id(2)];
++        let (initiated, accepted) =
++            tokio::join!(initiate(ar, aw, id(5)), accept(br, bw, false, &here));
++        assert!(accepted.is_err());
++        drop(initiated);
++    }
++
++    /// The keystream is RC4 past its first 1024 bytes, and the specification's
++    /// prime is the one written down (its top and bottom bytes).
++    #[test]
++    fn the_constants_are_the_specifications() {
++        let p = to_key_bytes(&prime());
++        assert_eq!(p[..8], [0xFF; 8]);
++        assert_eq!(p[KEY_LEN - 4..], [0x00, 0x09, 0x05, 0x63]);
++        let mut plain = cipher(&[3u8; 20]);
++        let mut full = Rc4::new_from_slice(&[3u8; 20]).unwrap();
++        let mut skipped = [0u8; 1024 + 16];
++        full.apply_keystream(&mut skipped);
++        let mut ours = [0u8; 16];
++        plain.apply_keystream(&mut ours);
++        assert_eq!(ours[..], skipped[1024..]);
++    }
++}
+src/peer_connection.rs:
+  1. `PeerConnectionOptions::require_encryption`: only encrypted connections,
+     made and taken (off in dm; the tests use it).
+  2. `Connected`: a connection with its BitTorrent handshakes exchanged.
+  3. The `AsyncWriteExt` import moves into `connect_and_handshake`.
+  4. An outgoing connection is tried in plaintext first, as upstream, and
+     encrypted again where the peer hangs up on that (`plaintext_refused`);
+     the connect and handshake become `connect_and_handshake`, which runs
+     `mse::initiate` before the BitTorrent handshake when asked to.
+
+diff --git a/src/peer_connection.rs b/src/peer_connection.rs
+index ca2690c..35de6e1 100644
+--- a/src/peer_connection.rs
++++ b/src/peer_connection.rs
+@@ -83,6 +83,11 @@ pub struct PeerConnectionOptions {
+     /// one at a stream's read position after a seek, is requested only after
+     /// those, so a smaller window makes streams react faster to seeks.
+     pub max_request_window: Option<usize>,
++    /// dm: only encrypted connections (MSE), made and taken. Off, a peer is
++    /// asked in plaintext first and encrypted where it refuses that, and
++    /// both kinds are taken.
++    #[serde(default)]
++    pub require_encryption: bool,
+ }
+ 
+ pub(crate) struct PeerConnection<H> {
+@@ -116,6 +121,16 @@ pub(crate) async fn with_timeout<T>(
+     fut.await
+ }
+ 
++/// dm: a connection with its BitTorrent handshakes exchanged.
++struct Connected {
++    ckind: ConnectionKind,
++    handshake_supports_extended: bool,
++    read_buf: ReadBuf,
++    write_buf: Box<[u8; MAX_MSG_LEN]>,
++    read: BoxAsyncReadVectored,
++    write: BoxAsyncWrite,
++}
++
+ struct ManagePeerArgs {
+     handshake_supports_extended: bool,
+     read_buf: ReadBuf,
+@@ -212,7 +227,6 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
+         outgoing_chan: tokio::sync::mpsc::UnboundedReceiver<WriterRequest>,
+         have_broadcast: tokio::sync::broadcast::Receiver<ValidPieceIndex>,
+     ) -> Result<()> {
+-        use tokio::io::AsyncWriteExt;
+         let rwtimeout = self
+             .options
+             .read_write_timeout
+@@ -223,60 +237,111 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
+             .connect_timeout
+             .unwrap_or_else(|| Duration::from_secs(10));
+ 
++        // dm: in plaintext first, as before; a peer that hangs up on that may
++        // take only encrypted connections (MSE), and is asked again so.
++        let require = self.options.require_encryption;
++        let connected = match self
++            .connect_and_handshake(require, connect_timeout, rwtimeout)
++            .await
++        {
++            Err(e) if !require && crate::mse::plaintext_refused(&e) => {
++                trace!("plaintext handshake refused ({e:#}): asking again, encrypted");
++                self.connect_and_handshake(true, connect_timeout, rwtimeout)
++                    .await?
++            }
++            other => other?,
++        };
++        let Connected {
++            ckind,
++            handshake_supports_extended,
++            read_buf,
++            write_buf,
++            read,
++            write,
++        } = connected;
++
++        self.manage_peer(ManagePeerArgs {
++            handshake_supports_extended,
++            read_buf,
++            write_buf,
++            read,
++            write,
++            outgoing_chan,
++            have_broadcast,
++        })
++        .instrument(trace_span!("", kind=%ckind))
++        .await
++    }
++
++    /// dm: connects and exchanges BitTorrent handshakes, over an encrypted
++    /// connection (`crate::mse`) where `encrypted` says.
++    async fn connect_and_handshake(
++        &self,
++        encrypted: bool,
++        connect_timeout: Duration,
++        rwtimeout: Duration,
++    ) -> Result<Connected> {
++        use tokio::io::AsyncWriteExt;
++
+         let now = Instant::now();
+-        let (ckind, mut read, mut write) = with_timeout(
++        let (ckind, read, write) = with_timeout(
+             "connecting",
+             connect_timeout,
+             self.connector.connect(self.addr),
+         )
+         .await?;
++        self.handler.on_connected(now.elapsed());
+ 
+-        async move {
+-            self.handler.on_connected(now.elapsed());
++        let (mut read, mut write) = if encrypted {
++            with_timeout("encrypting", rwtimeout * 2, async {
++                crate::mse::initiate(read, write, self.info_hash)
++                    .await
++                    .map_err(Error::Anyhow)
++            })
++            .await?
++        } else {
++            (read, write)
++        };
+ 
+-            let mut write_buf = Box::new([0u8; MAX_MSG_LEN]);
+-            let handshake = Handshake::new(self.info_hash, self.peer_id);
+-            let hsz = handshake.serialize_unchecked_len(&mut *write_buf);
+-            with_timeout(
+-                "writing",
+-                rwtimeout,
+-                write
+-                    .write_all(&write_buf[..hsz])
+-                    .map_err(Error::WriteHandshake),
+-            )
+-            .await?;
++        let mut write_buf = Box::new([0u8; MAX_MSG_LEN]);
++        let handshake = Handshake::new(self.info_hash, self.peer_id);
++        let hsz = handshake.serialize_unchecked_len(&mut *write_buf);
++        with_timeout(
++            "writing",
++            rwtimeout,
++            write
++                .write_all(&write_buf[..hsz])
++                .map_err(Error::WriteHandshake),
++        )
++        .await?;
+ 
+-            let mut read_buf = ReadBuf::new();
+-            let h = read_buf.read_handshake(&mut read, rwtimeout).await?;
+-            let handshake_supports_extended = h.supports_extended();
+-            trace!(
+-                peer_id=?h.peer_id,
+-                decoded_id=?try_decode_peer_id(h.peer_id),
+-                "connected",
+-            );
+-            if h.info_hash != self.info_hash {
+-                return Err(Error::WrongInfoHash);
+-            }
++        let mut read_buf = ReadBuf::new();
++        let h = read_buf.read_handshake(&mut read, rwtimeout).await?;
++        let handshake_supports_extended = h.supports_extended();
++        trace!(
++            peer_id=?h.peer_id,
++            decoded_id=?try_decode_peer_id(h.peer_id),
++            encrypted,
++            "connected",
++        );
++        if h.info_hash != self.info_hash {
++            return Err(Error::WrongInfoHash);
++        }
+ 
+-            if h.peer_id == self.peer_id {
+-                return Err(Error::ConnectingToOurselves);
+-            }
++        if h.peer_id == self.peer_id {
++            return Err(Error::ConnectingToOurselves);
++        }
+ 
+-            self.handler.on_handshake(h, ckind).map_err(Error::Anyhow)?;
++        self.handler.on_handshake(h, ckind).map_err(Error::Anyhow)?;
+ 
+-            self.manage_peer(ManagePeerArgs {
+-                handshake_supports_extended,
+-                read_buf,
+-                write_buf,
+-                read,
+-                write,
+-                outgoing_chan,
+-                have_broadcast,
+-            })
+-            .await
+-        }
+-        .instrument(trace_span!("", kind=%ckind))
+-        .await
++        Ok(Connected {
++            ckind,
++            handshake_supports_extended,
++            read_buf,
++            write_buf,
++            read,
++            write,
++        })
+     }
+ 
+     async fn manage_peer(&self, args: ManagePeerArgs) -> Result<()> {
+src/session.rs:
+  1. Under rust-tls ring is made the process's TLS provider where none is,
+     as reqwest is built without one (a client built with none panics).
+  2. An incoming connection's reader is no longer `mut` here (it is rebound
+     below).
+  3. An incoming connection goes through `mse::accept`, which answers an
+     encrypted one for whichever of the session's torrents it names and passes
+     a plaintext one through (unless only encrypted ones are taken).
+  4. The listener takes every finished check, a failed one too: with the
+     pattern `Some(Ok(..))` a failed check disabled the branch, so the checks
+     still under way (an encrypted handshake, several round trips) were not
+     polled until another connection came in. Upstream 9.1.0's own
+     `else => continue` (no panic when every branch is disabled) is kept.
+  5. A torrent's peer options merge `require_encryption`.
+  6. A torrent's options carry `peer_require_encryption`.
+  7, 8. Upstream's test_torrent_file_from_info_and_bytes is left out, with
+     the imports only it used: it reads a .torrent from resources/, which is
+     not vendored.
+
+diff --git a/src/session.rs b/src/session.rs
+index 5e02415..221b588 100644
+--- a/src/session.rs
++++ b/src/session.rs
+@@ -710,6 +710,16 @@ impl Session {
+                 .client_name_and_version
+                 .unwrap_or_else(|| crate::client_name_and_version().to_owned());
+ 
++            // dm: reqwest is built without a TLS provider of its own under
++            // `rust-tls` (Cargo.toml), and a client built with none panics.
++            // ring is made the process's default unless one already is (an
++            // Err here only says one is); every client this session and its
++            // trackers use then has it.
++            #[cfg(feature = "rust-tls")]
++            if rustls::crypto::CryptoProvider::get_default().is_none() {
++                let _ = rustls::crypto::ring::default_provider().install_default();
++            }
++
+             let reqwest_client = {
+                 let builder = if let Some(proxy_url) = proxy_url {
+                     let proxy = reqwest::Proxy::all(proxy_url)
+@@ -912,7 +922,7 @@ impl Session {
+         self: Arc<Self>,
+         addr: SocketAddr,
+         kind: ConnectionKind,
+-        mut reader: BoxAsyncReadVectored,
++        reader: BoxAsyncReadVectored,
+         writer: BoxAsyncWrite,
+     ) -> anyhow::Result<(Arc<TorrentStateLive>, CheckedIncomingConnection)> {
+         let rwtimeout = self
+@@ -936,6 +946,29 @@ impl Session {
+             bail!("Incoming ip {incoming_ip} is not in allowlist");
+         }
+ 
++        // dm: an encrypted connection (MSE) is answered for whichever of
++        // this session's torrents it names; a plaintext one is passed through
++        // unless only encrypted ones are taken.
++        let info_hashes: Vec<Id20> = self
++            .db
++            .read()
++            .torrents
++            .values()
++            .map(|t| t.info_hash())
++            .collect();
++        let (mut reader, writer) = tokio::time::timeout(
++            rwtimeout * 2,
++            crate::mse::accept(
++                reader,
++                writer,
++                self.peer_opts.require_encryption,
++                &info_hashes,
++            ),
++        )
++        .await
++        .context("timeout in the encryption handshake")?
++        .context("error in the encryption handshake")?;
++
+         let mut read_buf = ReadBuf::new();
+         let h = read_buf
+             .read_handshake(&mut reader, rwtimeout)
+@@ -1009,7 +1042,14 @@ impl Session {
+                         }
+                     }
+                 },
+-                Some(Ok((live, checked))) = futs.next(), if !futs.is_empty() => {
++                // dm: every finished check is taken, a failed one too. With the
++                // pattern `Some(Ok(..))`, a failed check disabled this branch
++                // until the next connection came in, and the checks still
++                // under way were not polled meanwhile: an encrypted handshake,
++                // which takes several round trips, stalled behind any refused
++                // connection and timed out.
++                Some(checked) = futs.next(), if !futs.is_empty() => {
++                    let Ok((live, checked)) = checked else { continue };
+                     let (addr, kind) = (checked.addr, checked.kind);
+                     if let Err(e) = live.add_incoming_peer(checked) {
+                         warn!(?addr, ?kind, "error handing over incoming connection: {e:#}");
+@@ -1048,6 +1088,7 @@ impl Session {
+             max_request_window: other
+                 .max_request_window
+                 .or(self.peer_opts.max_request_window),
++            require_encryption: other.require_encryption || self.peer_opts.require_encryption,
+         }
+     }
+ 
+@@ -1364,6 +1405,7 @@ impl Session {
+                     peer_connect_timeout: peer_opts.connect_timeout,
+                     peer_read_write_timeout: peer_opts.read_write_timeout,
+                     peer_max_request_window: peer_opts.max_request_window,
++                    peer_require_encryption: peer_opts.require_encryption,
+                     allow_overwrite: opts.overwrite,
+                     output_folder,
+                     ratelimits: opts.ratelimits,
+@@ -1820,11 +1862,7 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
+ 
+ #[cfg(test)]
+ mod tests {
+-    use buffers::ByteBuf;
+-    use itertools::Itertools;
+-    use librqbit_core::torrent_metainfo::{TorrentMetaV1, torrent_from_bytes};
+-
+-    use super::{is_bare_info_hash, torrent_file_from_info_bytes};
++    use super::is_bare_info_hash;
+ 
+     #[test]
+     fn test_is_bare_info_hash() {
+@@ -1843,25 +1881,7 @@ mod tests {
+         ));
+     }
+ 
+-    #[test]
+-    fn test_torrent_file_from_info_and_bytes() {
+-        fn get_trackers(info: &TorrentMetaV1<ByteBuf>) -> Vec<url::Url> {
+-            info.iter_announce()
+-                .filter_map(|t| std::str::from_utf8(t.as_ref()).ok().map(|t| t.to_owned()))
+-                .filter_map(|t| t.parse().ok())
+-                .collect_vec()
+-        }
+-
+-        let orig_full_torrent =
+-            include_bytes!("../resources/ubuntu-21.04-desktop-amd64.iso.torrent");
+-        let parsed = torrent_from_bytes(&orig_full_torrent[..]).unwrap();
+-        let parsed_trackers = get_trackers(&parsed);
+-
+-        let generated_torrent =
+-            torrent_file_from_info_bytes(parsed.info.raw_bytes.as_ref(), &parsed_trackers).unwrap();
+-        let generated_parsed = torrent_from_bytes(generated_torrent.as_ref()).unwrap();
+-        assert_eq!(parsed.info_hash, generated_parsed.info_hash);
+-        assert_eq!(parsed.info, generated_parsed.info);
+-        assert_eq!(parsed_trackers, get_trackers(&generated_parsed));
+-    }
++    // dm: upstream's test_torrent_file_from_info_and_bytes reads
++    // resources/ubuntu-21.04-desktop-amd64.iso.torrent, and resources/ is not
++    // vendored (desktop/vendor/README.md).
+ }
+src/storage/filesystem/fs.rs:
+  1. Every file name of a torrent is checked before any file is made.
+  2. `plain_relative`: plain parts only, no root, no `..`, no drive and, on
+     Windows, no `:` (a name such as `D:x` made `PathBuf::push` start again on
+     drive D:, so files were made outside the torrent's folder; gaps row
+     159 b), with its tests (`cargo test --lib dm_tests`).
+
+diff --git a/src/storage/filesystem/fs.rs b/src/storage/filesystem/fs.rs
+index 749e6af..6e0844b 100644
+--- a/src/storage/filesystem/fs.rs
++++ b/src/storage/filesystem/fs.rs
+@@ -127,6 +127,15 @@ impl TorrentStorage for FilesystemStorage {
+         shared: &ManagedTorrentShared,
+         metadata: &TorrentMetadata,
+     ) -> anyhow::Result<()> {
++        // dm: every file's name checked before any file is made (gaps row 159 b).
++        for file_details in metadata.file_infos.iter() {
++            if !file_details.attrs.padding && !plain_relative(&file_details.relative_filename) {
++                anyhow::bail!(
++                    "the torrent names a file outside its folder: {:?}",
++                    file_details.relative_filename
++                );
++            }
++        }
+         let mut files = Vec::<OpenedFile>::new();
+         for file_details in metadata.file_infos.iter() {
+             let mut full_path = self.output_folder.clone();
+@@ -167,3 +176,48 @@ impl TorrentStorage for FilesystemStorage {
+         Ok(())
+     }
+ }
++
++/// dm: whether a torrent's file name stays in the torrent's folder: plain
++/// parts only, no root, no `..`, no drive. On Windows a part such as `D:x`
++/// made `PathBuf::push` start again on drive D: (and `name:stream` names a
++/// stream of a file), so such a torrent created empty files outside the
++/// output folder before dm's own check refused it (dm's gaps row 159 b).
++fn plain_relative(path: &std::path::Path) -> bool {
++    use std::path::Component;
++    let mut parts = 0;
++    for part in path.components() {
++        match part {
++            Component::Normal(name) => {
++                if cfg!(windows) && name.to_string_lossy().contains(':') {
++                    return false;
++                }
++                parts += 1;
++            }
++            _ => return false,
++        }
++    }
++    parts > 0
++}
++
++#[cfg(test)]
++mod dm_tests {
++    use super::plain_relative;
++    use std::path::Path;
++
++    #[test]
++    fn a_torrents_file_name_must_stay_in_its_folder() {
++        assert!(plain_relative(Path::new("Sintel/Sintel.mp4")));
++        assert!(plain_relative(Path::new("a.txt")));
++        assert!(!plain_relative(Path::new("")));
++        assert!(!plain_relative(Path::new("../outside.txt")));
++        assert!(!plain_relative(Path::new("a/../../outside.txt")));
++        assert!(!plain_relative(Path::new("/etc/passwd")));
++        #[cfg(windows)]
++        {
++            assert!(!plain_relative(Path::new("D:x")));
++            assert!(!plain_relative(Path::new(r"C:\Windows\x.dll")));
++            assert!(!plain_relative(Path::new(r"\server\share\x")));
++            assert!(!plain_relative(Path::new("folder/name:stream")));
++        }
++    }
++}
+src/torrent_state/live/mod.rs:
+  1, 2. Each peer's connection options take `peer_require_encryption`.
+
+diff --git a/src/torrent_state/live/mod.rs b/src/torrent_state/live/mod.rs
+index 804ef26..50fd09b 100644
+--- a/src/torrent_state/live/mod.rs
++++ b/src/torrent_state/live/mod.rs
+@@ -495,6 +495,7 @@ impl TorrentStateLive {
+         let options = PeerConnectionOptions {
+             connect_timeout: self.shared.options.peer_connect_timeout,
+             read_write_timeout: self.shared.options.peer_read_write_timeout,
++            require_encryption: self.shared.options.peer_require_encryption,
+             ..Default::default()
+         };
+         let peer_connection = PeerConnection::new(
+@@ -560,6 +561,7 @@ impl TorrentStateLive {
+         let options = PeerConnectionOptions {
+             connect_timeout: state.shared.options.peer_connect_timeout,
+             read_write_timeout: state.shared.options.peer_read_write_timeout,
++            require_encryption: state.shared.options.peer_require_encryption,
+             ..Default::default()
+         };
+         let peer_connection = PeerConnection::new(
+src/torrent_state/mod.rs:
+  1. `ManagedTorrentOptions::peer_require_encryption`.
+
+diff --git a/src/torrent_state/mod.rs b/src/torrent_state/mod.rs
+index db47001..b2db02e 100644
+--- a/src/torrent_state/mod.rs
++++ b/src/torrent_state/mod.rs
+@@ -113,6 +113,8 @@ pub(crate) struct ManagedTorrentOptions {
+     pub peer_connect_timeout: Option<Duration>,
+     pub peer_read_write_timeout: Option<Duration>,
+     pub peer_max_request_window: Option<usize>,
++    /// dm: only encrypted peer connections (`PeerConnectionOptions`).
++    pub peer_require_encryption: bool,
+     pub allow_overwrite: bool,
+     pub output_folder: PathBuf,
+     pub ratelimits: LimitsConfig,

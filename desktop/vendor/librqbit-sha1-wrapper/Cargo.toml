@@ -12,7 +12,7 @@
 [package]
 edition = "2024"
 name = "librqbit-sha1-wrapper"
-version = "9.0.1"
+version = "9.1.0"
 build = false
 autolib = false
 autobins = false

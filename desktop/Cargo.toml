@@ -64,7 +64,7 @@ hyper = { version = "1", features = ["server", "http2"] }
 hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
 js-sys = "0.3"
 libc = "0.2"
-librqbit = { version = "9.0.1", default-features = false, features = ["rust-tls"] }
+librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
 md-5 = "0.11.0"
 md4 = "0.11"
 memory-stats = "1.2.0"

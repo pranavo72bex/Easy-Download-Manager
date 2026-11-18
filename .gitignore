@@ -47,3 +47,8 @@ graphify-out/
 # The benchmark: reference A named only here; results are per machine
 bench/local.json
 bench/results/
+
+# A test run inside a vendored crate (desktop/vendor/README.md) makes a lock
+# file of its own there; dm's build uses desktop/Cargo.lock.
+desktop/vendor/librqbit/Cargo.lock
+desktop/vendor/librqbit-sha1-wrapper/Cargo.lock

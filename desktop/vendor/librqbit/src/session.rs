@@ -153,6 +153,13 @@ pub struct Session {
     client_name_and_version: String,
 }
 
+/// A 40 character hex string is a v1 info hash. Checking the length alone
+/// also matches URLs that happen to be 40 characters long, such as
+/// https://nyaa.si/download/1234567.torrent.
+fn is_bare_info_hash(s: &str) -> bool {
+    s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
 async fn torrent_from_url(
     reqwest_client: &reqwest::Client,
     url: &str,
@@ -748,7 +755,7 @@ impl Session {
 
             let blocklist = if let Some(blocklist_url) = opts.blocklist_url {
                 info!(url = blocklist_url, "loading p2p blocklist");
-                let bl = IpRanges::load_from_url(&blocklist_url)
+                let bl = IpRanges::load_from_url(&reqwest_client, &blocklist_url)
                     .await
                     .with_context(|| format!("error reading blocklist from {blocklist_url}"))?;
                 info!(len = bl.len(), "loaded blocklist");
@@ -759,7 +766,7 @@ impl Session {
 
             let allowlist = if let Some(allowlist_url) = opts.allowlist_url {
                 info!(url = allowlist_url, "loading p2p allowlist");
-                let al = IpRanges::load_from_url(&allowlist_url)
+                let al = IpRanges::load_from_url(&reqwest_client, &allowlist_url)
                     .await
                     .with_context(|| format!("error reading allowlist from {allowlist_url}"))?;
                 info!(len = al.len(), "loaded allowlist");
@@ -1048,6 +1055,7 @@ impl Session {
                         warn!(?addr, ?kind, "error handing over incoming connection: {e:#}");
                     }
                 },
+                else => continue,
             }
         }
     }
@@ -1077,6 +1085,9 @@ impl Session {
             keep_alive_interval: other
                 .keep_alive_interval
                 .or(self.peer_opts.keep_alive_interval),
+            max_request_window: other
+                .max_request_window
+                .or(self.peer_opts.max_request_window),
             require_encryption: other.require_encryption || self.peer_opts.require_encryption,
         }
     }
@@ -1133,7 +1144,9 @@ impl Session {
         async move {
             let mut opts = opts.unwrap_or_default();
             let add_res = match add {
-                AddTorrent::Url(magnet) if magnet.starts_with("magnet:") || magnet.len() == 40 => {
+                AddTorrent::Url(magnet)
+                    if magnet.starts_with("magnet:") || is_bare_info_hash(&magnet) =>
+                {
                     let magnet = Magnet::parse(&magnet)
                         .context("provided path is not a valid magnet URL")?;
                     let info_hash = magnet
@@ -1391,6 +1404,7 @@ impl Session {
                     force_tracker_interval: opts.force_tracker_interval,
                     peer_connect_timeout: peer_opts.connect_timeout,
                     peer_read_write_timeout: peer_opts.read_write_timeout,
+                    peer_max_request_window: peer_opts.max_request_window,
                     peer_require_encryption: peer_opts.require_encryption,
                     allow_overwrite: opts.overwrite,
                     output_folder,
@@ -1848,31 +1862,26 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
 
 #[cfg(test)]
 mod tests {
-    use buffers::ByteBuf;
-    use itertools::Itertools;
-    use librqbit_core::torrent_metainfo::{TorrentMetaV1, torrent_from_bytes};
-
-    use super::torrent_file_from_info_bytes;
+    use super::is_bare_info_hash;
 
     #[test]
-    fn test_torrent_file_from_info_and_bytes() {
-        fn get_trackers(info: &TorrentMetaV1<ByteBuf>) -> Vec<url::Url> {
-            info.iter_announce()
-                .filter_map(|t| std::str::from_utf8(t.as_ref()).ok().map(|t| t.to_owned()))
-                .filter_map(|t| t.parse().ok())
-                .collect_vec()
-        }
-
-        let orig_full_torrent =
-            include_bytes!("../resources/ubuntu-21.04-desktop-amd64.iso.torrent");
-        let parsed = torrent_from_bytes(&orig_full_torrent[..]).unwrap();
-        let parsed_trackers = get_trackers(&parsed);
-
-        let generated_torrent =
-            torrent_file_from_info_bytes(parsed.info.raw_bytes.as_ref(), &parsed_trackers).unwrap();
-        let generated_parsed = torrent_from_bytes(generated_torrent.as_ref()).unwrap();
-        assert_eq!(parsed.info_hash, generated_parsed.info_hash);
-        assert_eq!(parsed.info, generated_parsed.info);
-        assert_eq!(parsed_trackers, get_trackers(&generated_parsed));
+    fn test_is_bare_info_hash() {
+        assert!(is_bare_info_hash(
+            "08ada5a7a6183aae1e09d831df6748d566095a10"
+        ));
+        assert!(is_bare_info_hash(
+            "08ADA5A7A6183AAE1E09D831DF6748D566095A10"
+        ));
+        // 40 characters, but a URL.
+        assert!(!is_bare_info_hash(
+            "https://nyaa.si/download/2164312.torrent"
+        ));
+        assert!(!is_bare_info_hash(
+            "08ada5a7a6183aae1e09d831df6748d566095a1"
+        ));
     }
+
+    // dm: upstream's test_torrent_file_from_info_and_bytes reads
+    // resources/ubuntu-21.04-desktop-amd64.iso.torrent, and resources/ is not
+    // vendored (desktop/vendor/README.md).
 }

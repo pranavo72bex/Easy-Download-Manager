@@ -112,6 +112,7 @@ pub(crate) struct ManagedTorrentOptions {
     pub force_tracker_interval: Option<Duration>,
     pub peer_connect_timeout: Option<Duration>,
     pub peer_read_write_timeout: Option<Duration>,
+    pub peer_max_request_window: Option<usize>,
     /// dm: only encrypted peer connections (`PeerConnectionOptions`).
     pub peer_require_encryption: bool,
     pub allow_overwrite: bool,
