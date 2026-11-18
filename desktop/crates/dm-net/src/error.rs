@@ -281,6 +281,12 @@ pub(crate) fn network(error: &reqwest::Error) -> String {
     if let Some(why) = error.url().and_then(crate::pac::refusal) {
         return format!("the proxy configuration script gave no way to this site: {why}");
     }
+    // A name a public address led to, found inside alone (`dns::LedInside`): an inward
+    // redirect's words, not a name that could not be found (gaps row 200).
+    if crate::dns::refused_inside(error) {
+        let to = error.url().map(reqwest::Url::as_str).unwrap_or_default();
+        return format!("{} ({to})", crate::INWARD_REDIRECT);
+    }
     let mut innermost = String::new();
     let mut refused = false;
     let mut cause: Option<&dyn std::error::Error> = Some(error);

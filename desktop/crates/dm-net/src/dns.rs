@@ -3,13 +3,20 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! A name looked up once a minute, not once a connection (gaps row S19).
+//! A name looked up once a minute, not once a connection (gaps row S19), and the addresses a
+//! connection is made to judged after the lookup (gaps row 200).
 //!
 //! Every client dm builds had reqwest look a host's name up again for each connection it
 //! opened, through the blocking pool: eight connections to one server, a reconnect after a cut,
 //! each halving's new request, all asked the system again. Here each name's addresses are kept
 //! for [`KEEP`] after a lookup, and a lookup that fails is not kept, so a name that comes back
 //! is found at the next try.
+//!
+//! A name a public address led to ([`must_be_public`]) is connected to at its public addresses
+//! alone, judged from the answer the connection is then made to, so a name that answers public
+//! when judged and `127.0.0.1` when connected to (DNS rebinding) reaches nothing inside: the
+//! resolver's answer is the only one reqwest connects to. As FTP connects its data connection
+//! to the control connection's peer and not to the address the server names.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -35,22 +42,37 @@ static KEPT: LazyLock<Mutex<Names>> = LazyLock::new(Default::default);
 /// download's redirects and the pieces its playlist names, and the lookups after them.
 pub(crate) const HELD_PUBLIC: Duration = Duration::from_secs(600);
 
+/// The most names held to public addresses at once. Past it a public address leads nowhere new
+/// until the oldest run out ([`must_be_public`]): letting one go would let a playlist naming
+/// thousands of hosts free the one it means to point inside.
+const MOST_HELD: usize = 4096;
+
 /// Names a public address led to ([`must_be_public`]), and when.
 static PUBLIC_ONLY: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Default::default);
 
 /// Holds `name` to public addresses for [`HELD_PUBLIC`]: a public page, playlist, mirror list or
-/// redirect led to it (`redirects::inward`), so where it resolves to addresses inside alone
-/// (this computer, its network), it is refused, as an inside address written there is. A name
-/// that resolves to a public address when judged and to an inside one when connected to (DNS
-/// rebinding) is caught here, at the connection (gaps row 200). At most [`MOST`] names.
-pub(crate) fn must_be_public(name: &str) {
-    let mut held = crate::lock(&PUBLIC_ONLY);
-    if held.len() >= MOST {
+/// redirect led to it (`redirects::inward`), so a connection to it is made to its public
+/// addresses alone, and where it has none it is refused, as an inside address written there is.
+/// A name that resolves to a public address when judged and to an inside one when connected to
+/// (DNS rebinding) is caught here, at the connection (gaps row 200).
+///
+/// False where `name` could not be held: [`MOST_HELD`] names are, none run out. The hop is then
+/// refused as an inward one, rather than let through unheld.
+#[must_use]
+pub(crate) fn must_be_public(name: &str) -> bool {
+    hold(&mut crate::lock(&PUBLIC_ONLY), name.to_ascii_lowercase())
+}
+
+/// Adds `name` to `held` ([`must_be_public`]), false where [`MOST_HELD`] names are held.
+fn hold(held: &mut HashMap<String, Instant>, name: String) -> bool {
+    if held.len() >= MOST_HELD && !held.contains_key(&name) {
         held.retain(|_, at| at.elapsed() < HELD_PUBLIC);
+        if held.len() >= MOST_HELD {
+            return false;
+        }
     }
-    if held.len() < MOST {
-        held.insert(name.to_ascii_lowercase(), Instant::now());
-    }
+    held.insert(name, Instant::now());
+    true
 }
 
 /// Whether `name` was found lately to lead inside alone: a hop dm connected to inside.
@@ -60,17 +82,55 @@ pub(crate) fn leads_inside(name: &str) -> bool {
     })
 }
 
-/// Whether `name`'s addresses take a name held to public ones inside: every one of them inside.
-fn led_inside(name: &str, addrs: &[SocketAddr]) -> bool {
+/// What a connection to `name` may use of `addrs`: all of them, unless a public address led to
+/// it ([`must_be_public`]); then its public ones alone, the address connected to judged as an
+/// inside address written there is, and none public is a refusal ([`LedInside`]).
+fn judged(name: &str, addrs: Vec<SocketAddr>) -> Result<Vec<SocketAddr>, LedInside> {
     let held = crate::lock(&PUBLIC_ONLY)
         .get(name)
         .is_some_and(|at| at.elapsed() < HELD_PUBLIC);
-    held && !addrs.is_empty() && addrs.iter().all(|a| crate::redirects::inside_ip(a.ip()))
+    if !held || addrs.is_empty() {
+        return Ok(addrs);
+    }
+    let public: Vec<SocketAddr> = addrs
+        .into_iter()
+        .filter(|a| !crate::redirects::inside_ip(a.ip()))
+        .collect();
+    if public.is_empty() {
+        return Err(LedInside(name.to_string()));
+    }
+    Ok(public)
 }
 
-/// The error a name led inside is refused with.
-fn refused(name: &str) -> Box<dyn std::error::Error + Send + Sync> {
-    format!("{name} leads to an address inside this computer's network, from a public one").into()
+/// A name a public address led to that leads inside alone: refused at the lookup, so no
+/// connection is made (gaps row 200). Said in the words of an inward redirect
+/// (`redirects::execute`, `error::network`).
+#[derive(Debug)]
+pub struct LedInside(String);
+
+impl std::fmt::Display for LedInside {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} leads to an address inside this computer's network, from a public one",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for LedInside {}
+
+/// Whether `error`, or anything under it, is the resolver refusing a name a public address led
+/// inside ([`LedInside`]).
+pub fn refused_inside(error: &(dyn std::error::Error + 'static)) -> bool {
+    let mut cause = Some(error);
+    while let Some(next) = cause {
+        if next.is::<LedInside>() {
+            return true;
+        }
+        cause = next.source();
+    }
+    false
 }
 
 /// The resolver every client is built with (`http_client::builder_with`).
@@ -111,79 +171,39 @@ impl Resolve for Kept {
     fn resolve(&self, name: Name) -> Resolving {
         let name = name.as_str().to_ascii_lowercase();
         if let Some(addrs) = kept(&name) {
-            if led_inside(&name, &addrs) {
-                return Box::pin(async move { Err(refused(&name)) });
-            }
-            return Box::pin(async move { Ok(Box::new(addrs.into_iter()) as Addrs) });
+            // The answer judged is the answer connected to: the kept one, not a second lookup.
+            let answer: Result<Addrs, Failure> = judged(&name, addrs)
+                .map(|addrs| Box::new(addrs.into_iter()) as Addrs)
+                .map_err(Failure::from);
+            return Box::pin(async move { answer });
         }
         Box::pin(async move {
-            // The port is the connector's to set, as reqwest's own resolver leaves it.
-            let found: Vec<SocketAddr> =
-                tokio::net::lookup_host((name.as_str(), 0)).await?.collect();
+            let found = look_up(&name).await?;
             if !found.is_empty() {
                 keep(&name, &found);
             }
-            if led_inside(&name, &found) {
-                return Err(refused(&name));
-            }
-            Ok(Box::new(found.into_iter()) as Addrs)
+            let addrs = judged(&name, found)?;
+            Ok::<Addrs, Failure>(Box::new(addrs.into_iter()))
         })
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Why a lookup failed, as reqwest takes it.
+type Failure = Box<dyn std::error::Error + Send + Sync>;
 
-    /// A name is looked up once and kept; the kept addresses are what a second ask gets.
-    #[tokio::test]
-    async fn a_name_is_looked_up_once_and_kept() {
-        let first: Vec<SocketAddr> = Kept
-            .resolve("localhost".parse().unwrap())
-            .await
-            .unwrap()
-            .collect();
-        assert!(!first.is_empty());
-        assert_eq!(kept("localhost"), Some(first.clone()));
-        let again: Vec<SocketAddr> = Kept
-            .resolve("localhost".parse().unwrap())
-            .await
-            .unwrap()
-            .collect();
-        assert_eq!(again, first);
+/// `name`'s addresses, from the system.
+async fn look_up(name: &str) -> std::io::Result<Vec<SocketAddr>> {
+    // A test's own answer for a name, in place of the system's (`tests::answers`).
+    #[cfg(test)]
+    let answered = tests::answer(name);
+    #[cfg(not(test))]
+    let answered: Option<Vec<SocketAddr>> = None;
+    if let Some(found) = answered {
+        return Ok(found);
     }
-
-    /// A name a public address led to, which resolves inside alone, is refused at the
-    /// connection; one never led to, or that also resolves outside, is not (gaps row 200).
-    #[tokio::test]
-    async fn a_public_name_that_leads_inside_is_refused() {
-        let loopback: SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let public: SocketAddr = "93.184.215.14:0".parse().unwrap();
-        keep("rebinds.example", &[loopback]);
-        keep("home-nas.example", &[loopback]);
-        keep("both.example", &[loopback, public]);
-        let resolve = |name: &'static str| async move {
-            Kept.resolve(name.parse().unwrap())
-                .await
-                .map(|addrs| addrs.collect::<Vec<_>>())
-        };
-        // Typed or handed over directly: a name of one's own network goes inside.
-        assert!(resolve("home-nas.example").await.is_ok());
-        // A public page led to it.
-        let page = url::Url::parse("https://cdn.example/index.m3u8").unwrap();
-        for name in ["rebinds.example", "both.example"] {
-            let to = url::Url::parse(&format!("https://{name}/seg1.ts")).unwrap();
-            assert!(!crate::redirects::inward(&to, std::slice::from_ref(&page)));
-        }
-        let why = resolve("rebinds.example").await.unwrap_err().to_string();
-        assert!(why.contains("rebinds.example"), "{why}");
-        assert_eq!(resolve("both.example").await.unwrap().len(), 2);
-        // An intranet's own name, found inside, leads on to another inside.
-        keep("files.intranet.example", &[loopback]);
-        keep("mirror.intranet.example", &[loopback]);
-        let from = url::Url::parse("https://files.intranet.example/a").unwrap();
-        let to = url::Url::parse("https://mirror.intranet.example/a").unwrap();
-        assert!(!crate::redirects::inward(&to, &[from]));
-        assert!(resolve("mirror.intranet.example").await.is_ok());
-    }
+    // The port is the connector's to set, as reqwest's own resolver leaves it.
+    Ok(tokio::net::lookup_host((name, 0)).await?.collect())
 }
+
+#[cfg(test)]
+mod tests;
