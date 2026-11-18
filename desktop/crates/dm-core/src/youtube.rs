@@ -1147,6 +1147,11 @@ async fn read_within(
     if !captions.is_empty() {
         reading["requested_subtitles"] = Value::Object(captions);
     }
+    // The languages YouTube translates them into, listed and not fetched.
+    let translated = translations_named(&player);
+    if !translated.is_empty() {
+        reading["translated_subtitles"] = Value::Object(translated);
+    }
     // The player script read, for a record of which one answered (the weekly check).
     if let Some(path) = &js_path {
         reading["player"] = json!(path);
@@ -1161,21 +1166,8 @@ const CAPTIONS_MOST: usize = 8;
 /// each language's WebVTT address): those a person wrote, else the speech-recognised one, on
 /// YouTube's own address alone (gaps row Y6).
 fn captions_named(player: &Value) -> serde_json::Map<String, Value> {
-    let tracks: Vec<&Value> = player
-        .pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .collect();
-    let asr = |t: &&Value| t.get("kind").and_then(Value::as_str) == Some("asr");
-    let written: Vec<&Value> = tracks.iter().copied().filter(|t| !asr(t)).collect();
-    let chosen = if written.is_empty() {
-        tracks.into_iter().filter(asr).take(1).collect()
-    } else {
-        written
-    };
     let mut named = serde_json::Map::new();
-    for track in chosen {
+    for track in captions_chosen(player) {
         if named.len() >= CAPTIONS_MOST {
             break;
         }
@@ -1195,13 +1187,103 @@ fn captions_named(player: &Value) -> serde_json::Map<String, Value> {
     named
 }
 
+/// The caption tracks a reading takes, by the choice `captions_named` says, in the player's
+/// order.
+fn captions_chosen(player: &Value) -> Vec<&Value> {
+    let tracks: Vec<&Value> = player
+        .pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .collect();
+    let asr = |t: &&Value| t.get("kind").and_then(Value::as_str) == Some("asr");
+    let written: Vec<&Value> = tracks.iter().copied().filter(|t| !asr(t)).collect();
+    if written.is_empty() {
+        tracks.into_iter().filter(asr).take(1).collect()
+    } else {
+        written
+    }
+}
+
+/// The translated caption tracks the player offers (`translated_subtitles`: each language's
+/// WebVTT address and name), listed only, never fetched: the first chosen track YouTube can
+/// translate (`isTranslatable`), in each language the player's `translationLanguages` names
+/// that no chosen track is already in, as YouTube's own `tlang`; at most 8, on YouTube's own
+/// address alone (gaps row Y6).
+fn translations_named(player: &Value) -> serde_json::Map<String, Value> {
+    let chosen = captions_chosen(player);
+    let mut named = serde_json::Map::new();
+    let Some(base) = chosen
+        .iter()
+        .find(|t| t.get("isTranslatable").and_then(Value::as_bool) == Some(true))
+        .and_then(|t| t.get("baseUrl").and_then(Value::as_str))
+    else {
+        return named;
+    };
+    let own: Vec<&str> = chosen
+        .iter()
+        .filter_map(|t| t.get("languageCode").and_then(Value::as_str))
+        .collect();
+    let languages = player
+        .pointer("/captions/playerCaptionsTracklistRenderer/translationLanguages")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten();
+    for language in languages {
+        if named.len() >= CAPTIONS_MOST {
+            break;
+        }
+        let Some(code) = language.get("languageCode").and_then(Value::as_str) else {
+            continue;
+        };
+        let plain = !code.is_empty()
+            && code
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'));
+        if !plain || own.contains(&code) || named.contains_key(code) {
+            continue;
+        }
+        let Ok(url) = caption_address(base, "vtt") else {
+            return named;
+        };
+        let Ok(mut url) = url::Url::parse(&url) else {
+            return named;
+        };
+        let kept: Vec<(String, String)> = url
+            .query_pairs()
+            .filter(|(k, _)| k != "tlang")
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect();
+        url.query_pairs_mut()
+            .clear()
+            .extend_pairs(kept)
+            .append_pair("tlang", code);
+        let name = language
+            .pointer("/languageName/simpleText")
+            .and_then(Value::as_str)
+            .unwrap_or(code);
+        named.insert(
+            code.to_string(),
+            json!({ "url": url.to_string(), "ext": "vtt", "name": name }),
+        );
+    }
+    named
+}
+
 /// A caption track's address in `format` (`vtt`, `ttml`): on YouTube's own `https` address
-/// alone, its own `fmt` replaced; else why not.
+/// alone (or a test's stand-in, `DM_YOUTUBE_HOST`, named in full), its own `fmt` replaced;
+/// else why not.
 fn caption_address(base: &str, format: &str) -> Result<String, &'static str> {
     let mut url = url::Url::parse(base)
         .or_else(|_| url::Url::parse(&format!("https://www.youtube.com{base}")))
         .map_err(|_| "the captions' address is not one")?;
-    if url.host_str() != Some("www.youtube.com") || url.scheme() != "https" {
+    let youtube = url.host_str() == Some("www.youtube.com") && url.scheme() == "https";
+    let stand_in = std::env::var("DM_YOUTUBE_HOST")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .and_then(|v| url::Url::parse(&v).ok())
+        .is_some_and(|o| o.origin() == url.origin());
+    if !youtube && !stand_in {
         return Err("the captions are not on YouTube");
     }
     let kept: Vec<(String, String)> = url

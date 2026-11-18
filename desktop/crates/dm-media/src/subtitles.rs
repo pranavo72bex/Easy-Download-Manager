@@ -8,7 +8,8 @@
 //! A video's subtitles are fetched as WebVTT files beside it,
 //! `name.en.vtt`, and put into the video by dm. dm reads
 //! their cues here and the MP4 and WebM writers carry them as text tracks
-//! (`mp4mux`, `mkvmux`), one per language, so a player offers them.
+//! (`mp4mux`, `mkvmux`), one per language, so a player offers them. They can
+//! also be written out as SRT or WebVTT files (`to_srt`, `to_vtt`, `write_beside`).
 //!
 //! The files came from a server: anything unreadable is skipped, never a
 //! panic.
@@ -16,6 +17,10 @@
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 
 use std::path::{Path, PathBuf};
+
+mod write;
+
+pub use write::{to_srt, to_vtt, write_beside, Format};
 
 /// One cue: when it shows and hides, in milliseconds, and its text.
 #[derive(Debug, Clone, PartialEq, Eq)]
