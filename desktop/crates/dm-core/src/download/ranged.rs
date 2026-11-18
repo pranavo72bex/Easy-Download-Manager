@@ -324,6 +324,13 @@ pub(super) async fn run(
             wave_over_seen.clone(),
         ))
     });
+    /* The checks whole ranges hand on, asked beside the ranges on the places of the connections
+     * done with them, so a range's connection takes its next work at once (gaps row S4). */
+    job.handed.begin(workers.max(1) + helpers);
+    running.spawn({
+        let (client, job) = (client.clone(), Arc::clone(job));
+        async move { ask_handed(&client, &job).await }
+    });
     for ordinal in 0..workers.max(1) + helpers {
         let helper = ordinal >= workers.max(1);
         // Which of the connections `grow` lets in this one is.
@@ -343,6 +350,11 @@ pub(super) async fn run(
             wave_over_seen.clone(),
         );
         running.spawn(async move {
+            // However it ends, the checks are told it is done with ranges.
+            let mut leaving = Leaving {
+                job: Arc::clone(&job),
+                fetched: false,
+            };
             /* Counted among the connections at work (`active`): one with a range of its own from
              * the start, a helper from when it takes one, and neither while it waits as one a
              * limiting server turned away past the most it serves at once (`limits::rejoin`). */
@@ -485,6 +497,7 @@ pub(super) async fn run(
                         None
                     };
                     let turned_away = AtomicBool::new(false);
+                    leaving.fetched = true;
                     let (index, fetched) = fetch_chain(
                         &client,
                         &job,
@@ -650,16 +663,35 @@ pub(super) async fn run(
         .await;
         fetched?;
     }
-    /* The seams of a server that limits requests, checked now that no range is being asked for,
-     * one at a time: a check sent beside a range's request took the request the server would
-     * have taken. A refused check proves nothing, and once one is refused the rest are not
-     * asked (gaps row 197). */
-    for index in job.limits.take_due() {
-        if !check_seams(client, job, index, true).await {
-            break;
+    /* The checks handed on that no place was left for (those of a range fetched just above, or
+     * handed on before the server was seen to limit the download), and the seams of a server
+     * that limits requests, checked now that no range is being asked for; where it limits, one
+     * at a time: a check sent beside a range's request took the request the server would have
+     * taken. A refused check proves nothing, and once one is refused the rest are not asked
+     * (gaps row 197). */
+    let limited = job.limits.limited();
+    if ask_left(client, job, limited).await {
+        for index in job.limits.take_due() {
+            if !check_seams(client, job, index).await {
+                break;
+            }
         }
     }
     Ok(())
+}
+
+/// A connection of `run`, which tells the checks handed on that it is done with ranges however
+/// it ends, and whether its place at the server is free for one (`Handed::done`).
+struct Leaving {
+    job: Arc<Job>,
+    /// Whether it has asked the server for a range.
+    fetched: bool,
+}
+
+impl Drop for Leaving {
+    fn drop(&mut self) {
+        self.job.handed.done(self.fetched);
+    }
 }
 
 /// Which planned range the `counter`th one taken is: the first is range 0, the probe's answer's;
@@ -1062,17 +1094,18 @@ pub(super) async fn fetch_segment(
          * so one place decides whether a file is complete rather than two
          * disagreeing about it. */
         Err(Error::Incomplete { .. }) => Ok(None),
-        /* Its seams with the ranges either side that are whole, asked for again (`check_seams`):
-         * at once, or, where the server limits this download, once no range is being asked for
-         * (`run`), as a check sent beside a range's request took the request the server would
-         * have taken. */
+        /* Its seams with the ranges either side that are whole, to be asked for again: handed on
+         * to be asked beside the ranges (`hand_on`), so this connection takes its next work at
+         * once; or, where the server limits this download, asked once no range is being asked
+         * for (`run`), as a check sent beside a range's request took the request the server
+         * would have taken. */
         Ok(onward) if resumable => {
             crate::finish_trace::mark("a range whole");
             if job.limits.limited() {
                 job.limits.check_later(index);
             } else {
-                check_seams(client, job, index, false).await;
-                crate::finish_trace::mark("its seams checked");
+                hand_on(job, index).await;
+                crate::finish_trace::mark("its seams handed on");
             }
             Ok(onward)
         }

@@ -306,10 +306,13 @@ struct Job {
     /// not get one file (`assemble::check_seams`).
     disagreed: std::sync::atomic::AtomicBool,
     /// Which seams have been asked for again, by the range that starts at the seam: each is
-    /// asked once, by whichever of its two ranges is whole second.
+    /// claimed once, by whichever of its two ranges is whole second.
     seams_checked: Vec<std::sync::atomic::AtomicBool>,
     /// Whether the file's last bytes have been asked for again.
     end_checked: std::sync::atomic::AtomicBool,
+    /// The checks of the seams and of the file's end that whole ranges have handed on, asked on
+    /// the places of the connections done with ranges (`assemble::hand_on`).
+    handed: Handed,
     /// The staged file, held open from its making until the finished file is placed or the
     /// download stops (`ranged::release_staged`). macOS writes out what a file still holds in
     /// memory when its last open handle is closed, before the close returns: in the end of a
@@ -1274,6 +1277,7 @@ async fn fetch_reporting(
             .map(|_| std::sync::atomic::AtomicBool::new(false))
             .collect(),
         end_checked: std::sync::atomic::AtomicBool::new(false),
+        handed: Handed::default(),
         holding: std::sync::Mutex::new(None),
         stopping: Arc::default(),
         segments: Mutex::new(segments),

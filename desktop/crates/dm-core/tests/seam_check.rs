@@ -370,3 +370,195 @@ async fn seams_that_differ_when_asked_for_again_restart_the_file_on_one_connecti
         "the row was not told why: {said:?}"
     );
 }
+
+/// One request to [`Paced`]: when it came, the range it asked for (`None` for an open end), whether
+/// it was a check, and when its answer was sent whole.
+#[derive(Debug, Clone)]
+struct PacedAsk {
+    came: std::time::Duration,
+    from: usize,
+    to: Option<usize>,
+    check: bool,
+    sent: Arc<std::sync::Mutex<Option<std::time::Duration>>>,
+}
+
+/// A server of `pattern(size)` that answers each check (a closed range of under 2 KiB asked under
+/// the validator) `check_late` after it comes, the answer from the file's start (the probe's, which
+/// is range 0's) 16 KiB every 12 ms, and every other range 64 KiB every 10 ms; with when each
+/// request came and when its answer was sent whole or let go.
+struct Paced {
+    data: Vec<u8>,
+    check_late: std::time::Duration,
+    started: std::time::Instant,
+    log: std::sync::Mutex<Vec<PacedAsk>>,
+}
+
+/// A place among the requests [`Paced`] serves, held until the answer is sent or let go.
+struct Serving {
+    paced: Arc<Paced>,
+    sent: Arc<std::sync::Mutex<Option<std::time::Duration>>>,
+}
+
+impl Drop for Serving {
+    fn drop(&mut self) {
+        *self.sent.lock().unwrap() = Some(self.paced.started.elapsed());
+    }
+}
+
+async fn paced(State(p): State<Arc<Paced>>, headers: HeaderMap) -> Response {
+    use futures_util::StreamExt as _;
+    let total = p.data.len();
+    let (from, to) = headers
+        .get("range")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("bytes="))
+        .and_then(|v| v.split_once('-'))
+        .map(|(a, b)| (a.parse::<usize>().unwrap_or(0), b.parse::<usize>().ok()))
+        .unwrap_or((0, None));
+    let check = headers.contains_key("if-range") && to.is_some_and(|to| to - from < 2048);
+    let sent = Arc::new(std::sync::Mutex::new(None));
+    p.log.lock().unwrap().push(PacedAsk {
+        came: p.started.elapsed(),
+        from,
+        to,
+        check,
+        sent: sent.clone(),
+    });
+    let place = Arc::new(Serving {
+        paced: p.clone(),
+        sent,
+    });
+    if check {
+        tokio::time::sleep(p.check_late).await;
+    }
+    let b = to.unwrap_or(total - 1).min(total - 1);
+    let (piece, every) = match (check, from) {
+        (true, _) => (b - from + 1, 0),
+        (false, 0) => (16 * 1024, 12),
+        (false, _) => (64 * 1024, 10),
+    };
+    let chunks: Vec<Vec<u8>> = p.data[from..=b].chunks(piece).map(<[u8]>::to_vec).collect();
+    let body = futures_util::stream::iter(chunks).then(move |chunk| {
+        let _held = place.clone();
+        async move {
+            tokio::time::sleep(std::time::Duration::from_millis(every)).await;
+            Ok::<_, std::io::Error>(chunk)
+        }
+    });
+    Response::builder()
+        .status(StatusCode::PARTIAL_CONTENT)
+        .header("accept-ranges", "bytes")
+        .header("content-range", format!("bytes {from}-{b}/{total}"))
+        .header("content-length", b - from + 1)
+        .header("etag", "\"s\"")
+        .body(Body::from_stream(body))
+        .unwrap()
+}
+
+async fn serve_paced(size: usize, check_late: std::time::Duration) -> (String, Arc<Paced>) {
+    let p = Arc::new(Paced {
+        data: pattern(size),
+        check_late,
+        started: std::time::Instant::now(),
+        log: std::sync::Mutex::new(Vec::new()),
+    });
+    let app = axum::Router::new().fallback(paced).with_state(p.clone());
+    let addr = common::serve(app).await;
+    (format!("http://127.0.0.1:{}/f.bin", addr.port()), p)
+}
+
+/// The range whole first takes its next work at once, not after its checks are answered (gaps
+/// row S4). Two connections: the last range, served fast, is whole long before range 0, served
+/// slowly from the probe, and its connection halves range 0. The check of the file's end that
+/// range asks is answered 1.5 s late here; asked on its own connection before the range's took
+/// more work, the halving came only once it was answered, when range 0 was nearly whole and no
+/// longer worth halving.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_range_whole_takes_its_next_work_without_waiting_for_its_checks() {
+    let (size, late) = (4 * MB, std::time::Duration::from_millis(1500));
+    let (url, served) = serve_paced(size, late).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 2,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &opts).await.expect("download");
+    assert_eq!(std::fs::read(&done.path).unwrap(), pattern(size));
+    let log = served.log.lock().unwrap().clone();
+    let last = log
+        .iter()
+        .find(|a| !a.check && a.from > 0 && a.to == Some(size - 1))
+        .unwrap_or_else(|| panic!("no request for the last range: {log:?}"));
+    let whole = last.sent.lock().unwrap().expect("the last range was sent");
+    let next = log
+        .iter()
+        .filter(|a| !a.check && a.came >= last.came && a.from != last.from)
+        .map(|a| a.came)
+        .min()
+        .unwrap_or_else(|| panic!("nothing was asked after the last range: {log:?}"));
+    assert!(
+        next < whole + late / 3,
+        "the next range was asked {:?} after the last range was whole, with its check {late:?} late: {log:?}",
+        next.saturating_sub(whole)
+    );
+    // Every seam was still asked for again, and the file's end.
+    let checks = log.iter().filter(|a| a.check).count();
+    // Every range is asked for as a closed range; what has no range at all looks for a checksum
+    // file beside the download, once it is whole.
+    let ranges = log.iter().filter(|a| !a.check && a.to.is_some()).count();
+    assert_eq!(checks, ranges, "{checks} checks for {ranges} ranges: {log:?}");
+}
+
+/// The most requests [`Paced`] served at once, each from `LET_GO` after it came until its answer
+/// was sent or let go. An answer the client lets go part-way (a range halved under its
+/// connection, or the probe's at range 0's end) is seen gone only at the server's next write or
+/// the one after, 10 to 24 ms later here, while the connection has already asked for its next
+/// range: counted from when they came, the two looked like one request too many.
+fn most_at_once(log: &[PacedAsk]) -> usize {
+    const LET_GO: std::time::Duration = std::time::Duration::from_millis(40);
+    let mut edges = Vec::new();
+    for asked in log {
+        let from = asked.came + LET_GO;
+        let to = asked.sent.lock().unwrap().expect("every answer ended");
+        if to > from {
+            edges.push((from, 1i32));
+            edges.push((to, -1i32));
+        }
+    }
+    // An answer that ends as another begins is not served beside it.
+    edges.sort();
+    let (mut now, mut most) = (0i32, 0i32);
+    for (_, step) in edges {
+        now += step;
+        most = most.max(now);
+    }
+    usize::try_from(most).unwrap_or(0)
+}
+
+/// The checks go out beside the ranges on the connections the download has, never on more: a
+/// site limited to three connections never serves four requests at once, with every check
+/// answered late so that it overlaps the ranges still being fetched (gaps row S4).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn checks_beside_the_ranges_never_ask_more_than_a_sites_limit_of_connections() {
+    let (size, late) = (6 * MB, std::time::Duration::from_millis(300));
+    let (url, served) = serve_paced(size, late).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 8,
+        host_limits: vec![dm_core::HostLimit {
+            host: "127.0.0.1".into(),
+            connections: 3,
+        }],
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &opts).await.expect("download");
+    assert_eq!(std::fs::read(&done.path).unwrap(), pattern(size));
+    let log = served.log.lock().unwrap().clone();
+    let most = most_at_once(&log);
+    assert!(most <= 3, "{most} requests at once to a site limited to 3: {log:?}");
+    let checks = log.iter().filter(|a| a.check).count();
+    // Every range is asked for as a closed range; what has no range at all looks for a checksum
+    // file beside the download, once it is whole.
+    let ranges = log.iter().filter(|a| !a.check && a.to.is_some()).count();
+    assert_eq!(checks, ranges, "{checks} checks for {ranges} ranges: {log:?}");
+}
