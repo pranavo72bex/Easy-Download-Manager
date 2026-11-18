@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Torrents: the BitTorrent library is upstream 9.1.0 (a bencode nesting limit, a piece-offset bounds fix, a listener panic fixed) as published plus dm's patch in `desktop/vendor/patches`, remade by `desktop/vendor/vendor.sh`; its web interface, examples and test files are no longer in the tree.
+- Windows: logging off, shutting down or restarting with downloads running stops each one as a pause does and waits for it (2 s at most) before dm ends, in the window and in `--headless`; Ctrl+Break in a console ends dm as Ctrl+C does.
+- Where the desktop has no file chooser (a Linux desktop with neither the portal's nor zenity's), Import and Export ask for the file's path in a small window instead of doing nothing; a path that is not a full one, or a list that cannot be read or written, is said there and the window stays open.
 - criterion benches for range planning, naming and a read of 10,000 rows (`cargo bench -p dm-core --bench plan`, `--bench naming`, `cargo bench -p dm-shell --bench large_list`), run by hand and never in CI.
 - A range that comes whole no longer waits for its seam checks before taking more work: the checks go out on the connections that have finished their ranges, never more at once than the download already had open.
 - HLS: a stream whose initialisation segment changes part-way (advert breaks) is saved as one MP4, with picture and sound in step across each break; streams scrambled by SAMPLE-AES with a clear key, as transport streams or fragmented MP4 (`cbcs`), are saved in the clear.

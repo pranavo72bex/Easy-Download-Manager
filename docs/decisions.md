@@ -7723,3 +7723,48 @@ queue rather than made-up rows, so the read includes the snapshot, the detector 
 it carries its own do-nothing platform, as dm-shell's test backend exists only in its unit tests
 and dm-test-support may not depend on dm-shell. Written on the Windows laptop after builds
 stopped there: none has run yet (the Mac's first run records the numbers).
+
+## 2026-11-18: A typed path for Import and Export; a sentence about one row dropped (gaps row U41)
+
+Where the desktop has no file chooser (`can_choose_file` false: a Linux desktop with neither the
+portal's nor zenity's), Import and Export open a small window of their own asking for the file's
+path, in the egui window's words ("No file picker here: type the path."), where they did
+nothing; it follows B42 (a window of its own, its close button Cancel). A path that is not a full
+one, or a list that cannot be read or written, is said there and the window stays open. Windows
+and macOS always have a chooser, so nothing changes there.
+The egui window's rule that a sentence about one row ("Trying … again with the sign-in.") stands
+until that row has run, then goes (`forget_said_about`), is dropped from the GPUI window. The
+GPUI status bar shows any sentence for 12 seconds only (`statusbar::SAID_FOR`), whatever it
+names, so it can no longer stay up long after the download it spoke of has finished, which was
+the rule's reason. Clearing it sooner when the row stops would need the main list's read in
+`window/list.rs`, for no gain a person would see. Written on the Windows laptop with no build:
+compiled first on the Mac.
+
+## 2026-11-18: Windows ends dm's session through windows, not signals (gaps row 186)
+
+A logoff, shutdown or restart on Windows sends `WM_QUERYENDSESSION` and `WM_ENDSESSION` to
+top-level windows, and the process may be ended once they answer; a console's logoff and shutdown
+events never reach a program with user32 loaded. GPUI's hidden window calls `exit(0)` right after
+its quit handlers, so the window does its Exit work (`wind_down`: `Backend::shut_down`, the port
+closed, the frame saved) in `on_app_quit`. dm also keeps a hidden tool window of its own
+(`signals/session_end.rs`) that stops and awaits the downloads before it answers `WM_ENDSESSION`:
+it covers `--headless`, which has no GPUI window, and a system dialog holding the window's thread.
+A second `Queue::shut_down` beside the first is harmless (it finds the rows stopping, or nothing).
+Ctrl+Break is listened for as Windows' nearest to SIGTERM. `stress-check.py quit` ends dm on
+Windows as a logoff does. Rejected: counting the bytes dm received twice from the test through
+reqwest's `connector_layer` (`Conn` is opaque); that check needs a counter in `ranged.rs`'s read
+loop. Written with no build on the Windows laptop: compiled and run on Windows next.
+
+## 2026-11-18: The BitTorrent library as published 9.1.0 plus dm's patch (gaps row P3)
+
+librqbit and its SHA-1 wrapper are vendored as the published 9.1.0 crates, remade by
+`desktop/vendor/vendor.sh` (SHA-256 pinned, nothing of theirs run), with dm's changes kept as
+`desktop/vendor/patches/*.patch`, each hunk explained (encrypted peer connections, the listener's
+collected checks, file names checked before any file is made, one crypto library and no axum,
+pure-Rust SHA-1). The other `librqbit-*` crates come from crates.io at 9.1.0. Files the build
+does not use are not vendored (webui, resources, examples, the crates' own locks,
+`Cargo.toml.orig`, cargo's marks), and upstream's one test that needs `resources/` is left out by
+the patch. Upstream's `else => continue` in the listener is kept beside dm's own fix there. An
+upgrade: change the version and hashes, run the script, mend the hunks that fail, write the patch
+again as a `git diff`. 9.1.0 accepts `socks5h://`; dm-core's `swarm_proxy` still rewrites it to
+`socks5://` (behaviour unchanged; its comment is now out of date).
