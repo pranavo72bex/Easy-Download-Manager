@@ -93,6 +93,9 @@ windows-sys = { workspace = true, features = [
   "Win32_Media_Audio",
   # A wake timer for the schedule (wake.rs).
   "Win32_System_Threading",
+  # The hidden window that hears the session end (signals/session_end.rs):
+  # this executable's module, for its class.
+  "Win32_System_LibraryLoader",
   # Whether the person is busy: fullscreen, a game, Focus Assist (quiet.rs).
   "Win32_UI_Shell",
   # High Contrast: whether it is on, and the colours it sets (contrast.rs).

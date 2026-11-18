@@ -554,6 +554,18 @@ impl Downloads {
             this.display = window.display(cx).map(|d| u64::from(d.id()));
         })
         .detach();
+        // GPUI ending dm without Exit: on Windows, the session ending (a
+        // logoff, a shutdown or restart) quits GPUI from its own window, which
+        // ends the process as soon as this returns. The downloads are stopped
+        // and awaited here first, as Exit stops them (gaps row 186).
+        cx.on_app_quit(|this, _| {
+            if !this.quit_asked {
+                this.wind_down();
+                this.quit_asked = true;
+            }
+            async {}
+        })
+        .detach();
         cx.observe_window_appearance(window, |_, window, cx| {
             // The text fields and menus (gpui-component's) follow too.
             gpui_component::Theme::sync_system_appearance(Some(window), cx);
