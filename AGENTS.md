@@ -347,7 +347,7 @@ until the queue/queues rename.)
 | **heavy work** | Work that grows with a file's length and costs the computer, not the network (a digest, a join), run a few at a time. | `crate::heavy::run`. |
 | **turns** | How a download's connections ask a server that has gone away: one at a time, evenly, so it is asked about ten times a second, not hundreds. | `retry::Together`. |
 | **note** | A line a download puts on its row while it runs ("checked beside…"), in every language. | `Update::Note`, `dm_core::NOTES` (`download/mod.rs`). |
-| **digest** / **checksum** | A file's hash, typed in, given by the browser or found in a file beside it (a **sidecar**), checked once the file is whole. | `dm_core::Checksum` (`checksum.rs`); `download/sidecar.rs`. |
+| **digest** / **checksum** | A file's hash, typed in, given by the browser, named by the server's answer (`Repr-Digest`, `Digest`, `Content-MD5`) or found in a file beside it (a **sidecar**), checked once the file is whole. | `dm_core::Checksum` (`checksum.rs`, `from_headers`); `download/sidecar.rs`. |
 | **mirror** | Another place the same file can be fetched from (a Metalink lists them); its ranges are shared out between them where they agree. | `metalink::Metalink`, `download/mirrors.rs`. |
 | **second path** | A second network (a phone's connection, a second Wi-Fi) that every other connection of a ranged download goes out on. | `dm_core::second_path` (one file for each system). |
 | **live** | A stream with no end (RTMP, RTSP, MMS, or a live HLS or DASH playlist), recorded until its server or the person stops it. | `dm_core::live`, `download/dash_live.rs`. |

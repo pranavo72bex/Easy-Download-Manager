@@ -259,3 +259,172 @@ async fn hashing_reads_more_than_one_buffer() {
     assert_eq!(once.len(), 64);
     assert_eq!(digest(&path, Algorithm::Sha256).await.unwrap(), once);
 }
+
+/// A header map of `(name, value)` pairs, a name given twice sent twice.
+fn headers(pairs: &[(&str, &str)]) -> reqwest::header::HeaderMap {
+    let mut map = reqwest::header::HeaderMap::new();
+    for (name, value) in pairs {
+        map.append(
+            reqwest::header::HeaderName::from_bytes(name.as_bytes()).unwrap(),
+            reqwest::header::HeaderValue::from_str(value).unwrap(),
+        );
+    }
+    map
+}
+
+fn b64(bytes: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+/// The SHA-256, SHA-512 and MD5 of `abc`, as bytes and as hex.
+fn abc() -> ([Vec<u8>; 3], [String; 3]) {
+    let sha256 = Sha256::digest(b"abc").to_vec();
+    let sha512 = Sha512::digest(b"abc").to_vec();
+    let md5 = Md5::digest(b"abc").to_vec();
+    let hex = [
+        crate::hex::encode(&sha256),
+        crate::hex::encode(&sha512),
+        crate::hex::encode(&md5),
+    ];
+    ([sha256, sha512, md5], hex)
+}
+
+/// Each of the three headers gives the file's digest in hex (gaps row W19).
+#[test]
+fn a_digest_header_of_each_kind_is_read() {
+    let ([sha256, sha512, md5], [h256, h512, hmd5]) = abc();
+    let want = |algorithm, expected: &str| {
+        Some(Checksum {
+            algorithm,
+            expected: expected.to_owned(),
+        })
+    };
+    let repr = format!("sha-256=:{}:", b64(&sha256));
+    assert_eq!(
+        from_headers(&headers(&[("Repr-Digest", &repr)]), true),
+        want(Algorithm::Sha256, &h256)
+    );
+    let legacy = format!("SHA-512={}", b64(&sha512));
+    assert_eq!(
+        from_headers(&headers(&[("Digest", &legacy)]), true),
+        want(Algorithm::Sha512, &h512)
+    );
+    assert_eq!(
+        from_headers(&headers(&[("Content-MD5", &b64(&md5))]), true),
+        want(Algorithm::Md5, &hmd5)
+    );
+    // Without its padding, with parameters, and in a second header line.
+    let unpadded = format!("SHA-256={}", b64(&sha256).trim_end_matches('='));
+    assert_eq!(
+        from_headers(&headers(&[("Digest", &unpadded)]), true),
+        want(Algorithm::Sha256, &h256)
+    );
+    let second = format!("sha-256=:{}:;x=1", b64(&sha256));
+    assert_eq!(
+        from_headers(
+            &headers(&[("Repr-Digest", "unixsum=:AAAA:"), ("Repr-Digest", &second)]),
+            true
+        ),
+        want(Algorithm::Sha256, &h256)
+    );
+}
+
+/// The strongest hash offered is taken, a `Repr-Digest` before the older forms at one strength.
+#[test]
+fn the_strongest_digest_offered_is_taken() {
+    let ([sha256, sha512, md5], [h256, h512, _]) = abc();
+    let several = format!(
+        "md5=:{}:, sha-512=:{}:, sha-256=:{}:",
+        b64(&md5),
+        b64(&sha512),
+        b64(&sha256)
+    );
+    let found = from_headers(&headers(&[("Repr-Digest", &several)]), true).unwrap();
+    assert_eq!((found.algorithm, found.expected), (Algorithm::Sha512, h512));
+
+    let legacy = format!("MD5={}, SHA-256={}", b64(&md5), b64(&sha256));
+    let found = from_headers(
+        &headers(&[("Digest", &legacy), ("Content-MD5", &b64(&md5))]),
+        true,
+    )
+    .unwrap();
+    assert_eq!(
+        (found.algorithm, &found.expected),
+        (Algorithm::Sha256, &h256)
+    );
+
+    // At one strength the `Repr-Digest`'s is taken, whichever header came first.
+    let other = b64(&Sha256::digest(b"abd"));
+    let found = from_headers(
+        &headers(&[
+            ("Digest", &format!("SHA-256={other}")),
+            ("Repr-Digest", &format!("sha-256=:{}:", b64(&sha256))),
+        ]),
+        true,
+    )
+    .unwrap();
+    assert_eq!(found.expected, h256);
+}
+
+/// A hash dm does not know, a value of the wrong length, or one that is not base64 is passed
+/// over; a part of the file has no digest but its `Repr-Digest`, and a compressed answer none.
+#[test]
+fn a_digest_that_is_not_the_files_is_not_taken() {
+    let ([sha256, _, md5], [h256, _, _]) = abc();
+    for (name, value) in [
+        ("Repr-Digest", "unixsum=:AAAA:".to_owned()),
+        ("Repr-Digest", format!("sha-256=:{}:", b64(&md5))),
+        ("Repr-Digest", format!("sha-256={}", b64(&sha256))),
+        ("Digest", format!("SHA-256={}", h256)),
+        ("Digest", "SHA-256=not*base64".to_owned()),
+        ("Digest", format!("CRC32C={}", b64(&[1, 2, 3, 4]))),
+        ("Content-MD5", b64(&sha256)),
+        ("Want-Repr-Digest", "sha-256=1".to_owned()),
+    ] {
+        assert_eq!(
+            from_headers(&headers(&[(name, &value)]), true),
+            None,
+            "{name}: {value}"
+        );
+    }
+
+    let legacy = [
+        ("Digest", format!("SHA-256={}", b64(&sha256))),
+        ("Content-MD5", b64(&md5)),
+    ];
+    for (name, value) in &legacy {
+        assert_eq!(
+            from_headers(&headers(&[(name, value)]), false),
+            None,
+            "{name}"
+        );
+    }
+    let repr = format!("sha-256=:{}:", b64(&sha256));
+    assert_eq!(
+        from_headers(&headers(&[("Repr-Digest", &repr)]), false).map(|c| c.expected),
+        Some(h256.clone())
+    );
+    assert_eq!(
+        from_headers(
+            &headers(&[("Repr-Digest", &repr), ("Content-Encoding", "identity")]),
+            true
+        )
+        .map(|c| c.expected),
+        Some(h256)
+    );
+    for coding in ["gzip", "br", "zstd"] {
+        assert_eq!(
+            from_headers(
+                &headers(&[
+                    ("Repr-Digest", &repr),
+                    ("Digest", &legacy[0].1),
+                    ("Content-Encoding", coding)
+                ]),
+                true
+            ),
+            None,
+            "{coding}"
+        );
+    }
+}
