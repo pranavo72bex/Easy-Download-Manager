@@ -52,6 +52,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             record_limit: None,
             frame_rate: None,
             caption: None,
+            format: None,
             sign_in: None,
             save_name: None,
             accept_page: false,

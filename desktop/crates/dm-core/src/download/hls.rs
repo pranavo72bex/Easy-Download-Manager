@@ -1339,6 +1339,7 @@ mod coverage_tests {
             record_limit: None,
             frame_rate: None,
             caption: None,
+            format: None,
         }
     }
 

@@ -59,8 +59,8 @@ pub fn choices(described: &str) -> Vec<Choice> {
         });
     let audio_size = audio.and_then(size_of);
 
-    // Height, faster than 30 frames a second, label, container, size, frame rate.
-    let mut by_height: Vec<(u32, bool, String, String, Option<u64>, u64)> = Vec::new();
+    // Height, faster than 30 frames a second, label, container, size, frame rate, format number.
+    let mut by_height: Vec<Slot> = Vec::new();
     for f in &formats {
         let Some(height) = f.get("height").and_then(|v| v.as_u64()).map(|h| h as u32) else {
             continue;
@@ -88,6 +88,11 @@ pub fn choices(described: &str) -> Vec<Choice> {
         let ext = ext.to_ascii_lowercase();
         let fps = f.get("fps").and_then(|v| v.as_f64()).unwrap_or(0.0).round() as u64;
         let fast = fps > 30;
+        // YouTube's format numbers: another reader's names ("hls-720") are not carried.
+        let itag = f
+            .get("format_id")
+            .and_then(|v| v.as_str())
+            .and_then(|id| id.parse::<u64>().ok());
         // MP4 at a height wherever there is one; another container only where MP4 has nothing that tall.
         let rank = |ext: &str, size: Option<u64>| (ext == "mp4", size);
         match by_height
@@ -95,10 +100,10 @@ pub fn choices(described: &str) -> Vec<Choice> {
             .find(|slot| slot.0 == height && slot.1 == fast)
         {
             Some(slot) if rank(&ext, size) > rank(&slot.3, slot.4) => {
-                *slot = (height, fast, label, ext, size, fps)
+                *slot = (height, fast, label, ext, size, fps, itag)
             }
             Some(_) => {}
-            None => by_height.push((height, fast, label, ext, size, fps)),
+            None => by_height.push((height, fast, label, ext, size, fps, itag)),
         }
     }
     by_height.sort_by_key(|slot| (std::cmp::Reverse(slot.0), std::cmp::Reverse(slot.1)));
@@ -110,7 +115,7 @@ pub fn choices(described: &str) -> Vec<Choice> {
         .collect();
     let mut list: Vec<Choice> = by_height
         .into_iter()
-        .map(|(height, fast, label, ext, size, fps)| {
+        .map(|(height, fast, label, ext, size, fps, itag)| {
             // The quality word is the picture's shorter side, which is what
             // the chooser and the selector measure: a portrait video's
             // width (720 for 720x1280).
@@ -137,7 +142,7 @@ pub fn choices(described: &str) -> Vec<Choice> {
             };
             Choice {
                 label,
-                quality,
+                quality: with_format(quality, itag),
                 size,
             }
         })
@@ -151,6 +156,20 @@ pub fn choices(described: &str) -> Vec<Choice> {
         });
     }
     list
+}
+
+/// One picture line while a list is built: height, faster than 30 frames a second, label,
+/// container, size, frame rate and format number.
+pub(super) type Slot = (u32, bool, String, String, Option<u64>, u64, Option<u64>);
+
+/// A picture line's quality word with the format number of the picture it was listed from
+/// ("1080/mp4/f137"), so the download takes that very picture where its own reading has it
+/// (`Quality::format_of`, gaps row Y9).
+pub(super) fn with_format(word: String, itag: Option<u64>) -> String {
+    match itag {
+        Some(itag) => format!("{word}/f{itag}"),
+        None => word,
+    }
 }
 
 /// A picture's line as a person reads it: its class ("4K", "1080p") and
@@ -196,9 +215,10 @@ pub fn class_name(width: u32, height: u32) -> String {
 }
 
 /// What a page offers, for the panel's list. A YouTube watch page is read
-/// from its own player data ([`list_choices_fast`], under a second).
-/// Non-YouTube sites have no quality list: their video comes from
-/// the browser extension's caught player requests.
+/// from its own player data ([`list_choices_fast`], under a second), and
+/// where that holds no list, from dm's own reading of the video, the one a
+/// download makes (gaps row Y9). Non-YouTube sites have no quality list:
+/// their video comes from the browser extension's caught player requests.
 pub async fn list_choices(
     url: &str,
     _referrer: Option<&str>,
@@ -208,7 +228,52 @@ pub async fn list_choices(
     if let Some(list) = list_choices_fast(url, proxy, sign_in).await {
         return Ok(list);
     }
+    if page_data::is_watch_page(url) {
+        return Ok(list_from_reading(url, proxy, sign_in).await);
+    }
     Ok(Vec::new())
+}
+
+/// How long the list waits for dm's own reading of a video whose page held none.
+const READING_WITHIN: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The list from dm's own reading of a YouTube video, as a download reads it: empty where it
+/// cannot be read in [`READING_WITHIN`], or is live.
+async fn list_from_reading(
+    url: &str,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Vec<Choice> {
+    let client = match crate::proxy::route_for(proxy, url) {
+        Some(proxy) => {
+            let built = reqwest::Proxy::all(proxy)
+                .and_then(|proxy| crate::builder().proxy(proxy).build());
+            match built {
+                Ok(client) => client,
+                Err(_) => return Vec::new(),
+            }
+        }
+        None => crate::client(),
+    };
+    // The reading names the file it would save, which the list does not use.
+    let staging = std::env::temp_dir();
+    let reading = crate::youtube::read(
+        &client,
+        url,
+        crate::Quality::Best,
+        None,
+        false,
+        sign_in,
+        &staging,
+    );
+    match tokio::time::timeout(READING_WITHIN, reading).await {
+        Ok(Ok(text)) => with_mp3(choices(&text)),
+        Ok(Err(why)) => {
+            eprintln!("dm: {url}: its qualities could not be read: {why}");
+            Vec::new()
+        }
+        Err(_) => Vec::new(),
+    }
 }
 
 /// `list` with the sound as MP3 offered after its M4A sound, where dm can

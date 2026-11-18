@@ -1138,6 +1138,7 @@ impl Settings {
                 .then(|| std::time::Duration::from_secs(self.record_minutes * 60)),
             frame_rate: None,
             caption: None,
+            format: None,
             sign_in: None,
             save_name: None,
             title_hint: None,

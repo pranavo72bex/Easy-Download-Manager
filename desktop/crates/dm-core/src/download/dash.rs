@@ -980,6 +980,7 @@ pub(super) mod tests {
             record_limit: None,
             frame_rate: None,
             caption: None,
+            format: None,
             sign_in: None,
             save_name: None,
             accept_page: false,

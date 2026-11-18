@@ -199,6 +199,7 @@ fn options_in(dir: &Path) -> Options {
         record_limit: None,
         frame_rate: None,
         caption: None,
+        format: None,
         sign_in: None,
         save_name: None,
         accept_page: false,
