@@ -40,7 +40,8 @@ cd ../browser && cargo test                     # the extension's decisions, on 
   [parity.md](parity.md) and [zoo.md](zoo.md); a test fails if it is stale.
 - Tests use their own temporary directories and never touch a real
   Downloads folder or browser profile. A password or token in a test comes
-  from `desktop/test-support/secrets.rs`, never from the code.
+  from `dm_test_support::secrets` (`desktop/crates/dm-test-support`), never
+  from the code.
 
 ## The testing plan, and where each part lives
 

@@ -113,7 +113,8 @@ Smallest first:
    whole `cargo test --workspace` is still owed ("Resume here", step 1).
 5. ~~X1~~ done 2026-11-18: `dm_core::folders` answers where a person's files live (15 places
    moved to it, `dirs` out of dm-shell); `cargo xtask layers` refuses those reads elsewhere.
-6. X10: test helpers under a `test-support` feature.
+6. ~~X10~~ done 2026-11-18: `desktop/crates/dm-test-support` (the tests' secrets), a
+   dev-dependency only; `cargo xtask layers` refuses a `#[path]` out of a crate.
 7. A19 (the `widgets` part: spacing and colours named once), A10 (a system's code in `platform/`).
 8. A6: `dm-media`, `dm-torrent`, `dm-net` out of dm-core. About ten crates is the aim, not the
    hundreds a large team keeps.
@@ -553,7 +554,6 @@ of 60 in the base and 16 of 98 in the window, 307 lines in all (`secretstore/too
 | X5  | The window toolkit is three different sources: macOS builds the published `gpui-pre`, Linux a patched copy (`vendor/gpui-pre-linux`) and Windows another (`vendor/gpui-pre-windows`, 13,545 lines, 9 `dm:` marks, row 211's change among them; row A17 counts the Linux copy only). A fix made in one copy is not looked for in the other, and a new GPUI is carried over twice by hand | OPEN · M (with A17) | A17's patches cover both copies; `desktop/vendor/README.md` has one table (the change, the copy it is in, why the other systems do not need it, whether upstream has been told); a check that every `dm:` mark is in that table |
 | X6  | No one page says what each system does and how far it has been proved. What differs (the tray, Mica, the jump list, sheets, a drag out, IME, the secret store, the JavaScript engine, the packages) is spread over `docs/migration/PLATFORM_GAP_ANALYSIS.md`, `docs/parity.md` and `docs/windows-checklist.md`; what is owed on which system is prose inside this file's rows ("owed on Windows", "owed to the final Linux pass"), and G7's row was stale on 2026-11-17 | OPEN · M (with D5, D6) | `docs/platforms.md`: for each system how it is built, tested, packaged and put through QA with one command each; a table of what differs and why; a table of rows still owed on each system with the commit last checked. This file's rows point at it rather than each telling it again |
 | X7  | One task, a different command on each system: `make` (436 lines, written for `uname`) on macOS and Linux, hand-typed `cargo` and PowerShell on Windows; 19 checks are `sh` scripts and seven are Linux's own (`linux-human-qa.sh`, `linux-gui-check.sh`, …) beside the Python ones | OPEN · M (the part of A16 that needs nobody's word: the contract's `python3 scripts/human-qa.py` stays as it is) | `cargo xtask build`, `package`, `test` and `qa` do the same thing on the three systems and are what `Makefile`, CI and the docs call; `qa` runs `human-qa.py` as the contract says, with what that system needs set for it |
-| X10 | Test helpers are shared by reaching across folders: `desktop/test-support/secrets.rs` is pulled in by `#[path = "../../../test-support/secrets.rs"]` from five files in four crates, `dm-core/tests/common/` is the engine's own and cannot be used by the window's tests, and no crate has a `test-support` feature (GPUI's own crates each have one, and dm-gpui already asks GPUI for it) | OPEN · S to M | Each crate that has fakes or fixtures offers them under a `test-support` feature, used by the others' dev-dependencies; no `#[path]` out of a crate, checked by xtask; the shipped binary's size unchanged |
 
 ### D. Docs: true, short, and enough for a newcomer
 

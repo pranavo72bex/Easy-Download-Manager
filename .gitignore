@@ -8,7 +8,7 @@ __pycache__/
 .claude/
 human-shots/
 
-# Local test logins and secrets (desktop/test-support/secrets.rs); never pushed.
+# Local test logins and secrets (desktop/crates/dm-test-support/src/secrets.rs); never pushed.
 .env
 .env.*
 !.env.example

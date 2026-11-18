@@ -23,7 +23,7 @@ to the floor in docs/contract-coverage-floor.txt (95% of lines, the maintainer's
 
 A file under the floor fails the run, naming the file and its lines not run, so code added
 untested to the contract shows before a merge. Test helpers shared between crates
-(desktop/test-support) are not the contract and are not counted. Needs cargo-llvm-cov.
+(desktop/crates/dm-test-support) are not the contract and are not counted. Needs cargo-llvm-cov.
 Standard library only.
 """
 import json, os, pathlib, subprocess, sys
@@ -37,7 +37,7 @@ PARTS = [
     ("extension", ROOT / "desktop", ["-p", "dm-catcher"], "/browser/src/"),
     ("native host", ROOT / "desktop", ["-p", "dm-shell"], "/crates/dm-shell/src/host"),
 ]
-NOT_COUNTED = ("/test-support/", "/tests/", "tests.rs", "_tests.rs")
+NOT_COUNTED = ("/dm-test-support/", "/tests/", "tests.rs", "_tests.rs")
 
 
 def floor():

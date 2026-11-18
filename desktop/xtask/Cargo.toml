@@ -8,3 +8,7 @@ description = "dm's own checks: the scorecard, the layering of the crates, and t
 
 [dependencies]
 toml.workspace = true
+
+[dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+dm-test-support.workspace = true

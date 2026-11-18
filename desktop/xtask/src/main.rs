@@ -347,6 +347,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
+        "desktop/crates/dm-test-support/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
         "browser/Cargo.toml",
@@ -365,6 +366,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-js/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
+        "desktop/crates/dm-test-support/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
         "desktop/xtask/Cargo.toml",
@@ -391,6 +393,9 @@ fn layers() -> Result<(), String> {
             "dm-assets" => (&[], true, true),
             // dm's own JavaScript: the language alone, no window and no sockets (gaps row F15).
             "dm-js" => (&[], true, true),
+            // What the tests share (gaps row X10): nothing of dm's, and no crate may ship it, as
+            // none lists it among those it may depend on (only `[dev-dependencies]` name it).
+            "dm-test-support" => (&[], true, true),
             // The engine: no window, no browser.
             "dm-core" => (&["dm-js"], true, false),
             // Around the window but not the window.
@@ -445,6 +450,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
+        "desktop/crates/dm-test-support/src",
         "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-gpui/src",
         "browser/src",
@@ -487,11 +493,74 @@ fn layers() -> Result<(), String> {
             }
         }
     }
+    // No `#[path]` out of a crate's folder (gaps row X10): what tests share is the
+    // `dm-test-support` crate, named in `[dev-dependencies]`.
+    for krate in [
+        "desktop/crates/dm-assets",
+        "desktop/crates/dm-js",
+        "desktop/crates/dm-protocol",
+        "desktop/crates/dm-core",
+        "desktop/crates/dm-shell",
+        "desktop/crates/dm-test-support",
+        "desktop/crates/dm-desktop-base",
+        "desktop/crates/dm-gpui",
+        "desktop/xtask",
+        "browser",
+    ] {
+        let home = root.join(krate);
+        for sub in ["src", "tests", "benches", "examples"] {
+            for file in walk(&home.join(sub)) {
+                if file.extension().is_none_or(|e| e != "rs") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&file).unwrap_or_default();
+                for (line, target) in paths_out_of(&text, &file, &home) {
+                    let shown = file.strip_prefix(&root).unwrap_or(&file).display();
+                    wrong.push(format!(
+                        "{shown}:{line} includes {target} by `#[path]` from outside {krate}: \
+                         put what is shared in `dm-test-support` (gaps row X10)"
+                    ));
+                }
+            }
+        }
+    }
     if wrong.is_empty() {
         Ok(())
     } else {
         Err(wrong.join("\n"))
     }
+}
+
+/// The `#[path = "..."]` attributes of `file` (whose text is `text`) naming a file outside the
+/// crate folder `home`, each with its line (from 1) and the path written. The path is taken
+/// against `file`'s folder and `..` resolved by its words, without asking the disk.
+fn paths_out_of(text: &str, file: &Path, home: &Path) -> Vec<(usize, String)> {
+    let base = file.parent().unwrap_or(Path::new(""));
+    let mut found = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        let Some(target) = line
+            .trim()
+            .strip_prefix("#[path = \"")
+            .and_then(|rest| rest.strip_suffix("\"]"))
+        else {
+            continue;
+        };
+        let mut at: Vec<std::path::Component> = Vec::new();
+        for part in base.join(target).components() {
+            match part {
+                std::path::Component::ParentDir => {
+                    at.pop();
+                }
+                std::path::Component::CurDir => {}
+                other => at.push(other),
+            }
+        }
+        let resolved: PathBuf = at.iter().collect();
+        if !resolved.starts_with(home) {
+            found.push((i + 1, target.to_string()));
+        }
+    }
+    found
 }
 
 /// Whether `file` is a module's tests by its name: `tests.rs`, or `<what>_tests.rs` beside it
@@ -879,8 +948,7 @@ fn parity_evidence() -> Result<(), String> {
 }
 
 #[cfg(test)]
-#[path = "../../test-support/secrets.rs"]
-mod test_secrets;
+use dm_test_support::secrets as test_secrets;
 
 #[cfg(test)]
 mod tests {
@@ -957,6 +1025,20 @@ mod tests {
         if let Err(why) = layers() {
             panic!("{why}");
         }
+    }
+
+    #[test]
+    fn a_path_attribute_stays_inside_its_crate() {
+        let home = Path::new("/r/desktop/crates/dm-core");
+        let file = home.join("tests/live.rs");
+        let text = "#[path = \"common/mp4_samples.rs\"]\nmod a;\n\
+                    #[path = \"../../../test-support/secrets.rs\"]\nmod b;\n";
+        assert_eq!(
+            paths_out_of(text, &file, home),
+            [(3, "../../../test-support/secrets.rs".to_string())]
+        );
+        let inside = home.join("src/media.rs");
+        assert!(paths_out_of("#[path = \"media/tests.rs\"]", &inside, home).is_empty());
     }
 
     #[test]

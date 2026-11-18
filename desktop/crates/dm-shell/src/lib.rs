@@ -29,7 +29,6 @@ pub mod settings;
 pub mod shell;
 /// The tests' logins and secrets, never written in the code.
 #[cfg(test)]
-#[path = "../../../test-support/secrets.rs"]
-pub(crate) mod test_secrets;
+pub(crate) use dm_test_support::secrets as test_secrets;
 
 pub use settings::{home, Settings};

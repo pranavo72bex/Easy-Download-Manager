@@ -1376,8 +1376,7 @@ pub fn extension_for_mime(mime: &str) -> Option<&'static str> {
 }
 
 #[cfg(test)]
-#[path = "../../../test-support/secrets.rs"]
-mod test_secrets;
+use dm_test_support::secrets as test_secrets;
 
 #[cfg(test)]
 mod tests;

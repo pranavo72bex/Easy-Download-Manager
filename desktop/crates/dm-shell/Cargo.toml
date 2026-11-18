@@ -32,6 +32,8 @@ futures-util.workspace = true
 libc.workspace = true
 
 [dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+dm-test-support.workspace = true
 proptest.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tempfile.workspace = true

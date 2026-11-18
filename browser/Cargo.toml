@@ -42,4 +42,6 @@ web-sys = { workspace = true, features = [
 
 # The decisions fed random and hostile input on the host (tests/fuzz.rs).
 [dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+dm-test-support.workspace = true
 proptest.workspace = true

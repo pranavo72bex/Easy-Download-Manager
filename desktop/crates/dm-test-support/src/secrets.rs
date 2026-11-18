@@ -8,11 +8,8 @@
 //! Each is `DM_TEST_<NAME>` from the environment, or from a `.env` file at
 //! the repository's root (kept out of git; `.env.example` lists the names),
 //! and otherwise made up afresh for this run — so a test never depends on a
-//! value anyone could read in the source, and CI needs none set. Included by
-//! path (`#[path = …] mod secrets;`) in each crate's tests, which share no
-//! crate they could import it from.
-
-#![allow(dead_code)]
+//! value anyone could read in the source, and CI needs none set. A crate's
+//! tests reach it as `dm_test_support::secrets`.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};

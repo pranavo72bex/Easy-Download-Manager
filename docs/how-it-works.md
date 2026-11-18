@@ -550,6 +550,8 @@ desktop/
                           and window_tests/ the window's tests
   crates/dm-assets/       the files below compiled in: the window's pictures, the catalogs,
                           the shipped site rules
+  crates/dm-test-support/ what the crates' tests share (the logins and secrets they use);
+                          only ever a dev-dependency
   assets/                 what is not code: icons/ (the window's), app-icons/ and macos/
                           (the installers'), i18n/ (the catalogs), rules/ (rules.json)
   xtask/                  cargo xtask scorecard | layers | privacy | secrets

@@ -105,6 +105,8 @@ windows = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+dm-test-support.workspace = true
 # The AV1 reader is tested on every system, though only Linux builds it in;
 # libc for the C library's EAGAIN, rav1d's "not now", on Windows too.
 rav1d.workspace = true

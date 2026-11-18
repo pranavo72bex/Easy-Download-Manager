@@ -127,8 +127,7 @@ pub mod subtitles;
 
 /// The tests' logins and secrets, never written in the code.
 #[cfg(test)]
-#[path = "../../../test-support/secrets.rs"]
-pub(crate) mod test_secrets;
+pub(crate) use dm_test_support::secrets as test_secrets;
 
 pub use second_path::{
     interfaces, on_second, set_second_client, set_second_path, system_name, Interface,

@@ -43,7 +43,7 @@ and how to run it, including on Linux in Docker.
 ### Logins and secrets in tests
 
 No password, token or cookie is written in the code, not even a made-up
-one for a test. A test asks `desktop/test-support/secrets.rs` for one by
+one for a test. A test asks `dm_test_support::secrets` for one by
 name; it is `DM_TEST_<NAME>` from the environment or from a `.env` file at
 the repository's root, and otherwise made up for that run. `.env` is in
 `.gitignore`; `.env.example` lists the names. `cargo xtask secrets`, run by

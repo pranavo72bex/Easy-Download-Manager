@@ -7330,3 +7330,21 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   `"Library/LaunchAgents"` in shipped code outside `folders.rs` (comments and test files are
   passed over). `XDG_DATA_DIRS` in `processes.rs` names a variable an AppImage's child is given,
   not a folder read, so it is not refused.
+
+## 2026-11-18: What tests share, in a crate of its own (gaps row X10)
+
+* **Done**: `desktop/test-support/secrets.rs`, pulled in by `#[path]` from seven files in six
+  crates (dm-core's lib and its integration tests' `common`, dm-shell, dm-protocol, dm-gpui,
+  xtask, the extension), is `dm_test_support::secrets` in `desktop/crates/dm-test-support`,
+  named in each crate's `[dev-dependencies]`; the callers' `test_secrets` name is kept by a
+  `use ... as`. Nothing a person runs changed: the crate is never a normal dependency, so it
+  is not in the program.
+* **A crate, not a `test-support` feature on each crate**: the only thing shared is the
+  secrets, which belong to no crate's subject, and dm-core may depend on nothing of dm's but
+  dm-js, so a feature on any existing crate would add an edge the layering refuses or carry
+  test code in a shipped crate behind a flag. dm-core's own fixtures (`tests/common/`: its
+  `Options`, a server, a temporary folder) stay its own until a second crate needs them; they
+  would then move into `dm-test-support` behind a dev-dependency on dm-core.
+* **Kept so**: `cargo xtask layers` refuses a `#[path]` that leaves its crate's folder, and
+  `dm-test-support` as a normal dependency of any crate (no crate lists it among those it may
+  use).

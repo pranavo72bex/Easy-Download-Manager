@@ -46,8 +46,7 @@ pub use streams::*;
 pub use timing::*;
 
 #[cfg(test)]
-#[path = "../../desktop/test-support/secrets.rs"]
-mod test_secrets;
+use dm_test_support::secrets as test_secrets;
 
 #[cfg(test)]
 mod tests;

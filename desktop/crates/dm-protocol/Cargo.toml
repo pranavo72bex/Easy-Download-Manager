@@ -16,6 +16,8 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 
 [dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+dm-test-support.workspace = true
 proptest.workspace = true
 # Only to check that the key in extension/manifest.json still yields the id
 # named here, the way Chrome derives it.
