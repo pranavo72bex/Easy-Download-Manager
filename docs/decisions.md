@@ -7510,3 +7510,60 @@ build is held to 0x8664). `+crt-static` for the target, as for x64, since the in
 no C runtime. The update check needed no change: `installer_in` already took `arm64` for
 `aarch64`, and an arm64 Windows is offered nothing rather than the x64 installer when a release
 has no Arm one.
+
+## 2026-11-18: Each window's size in one table (gaps row X2)
+
+The sizes of the windows of a fixed size live in one table, `native::WindowSize` (a row for each
+window, read with `here()`; the fields named `macos`, `windows` and `gnome` through
+`native::Each`), where three bare numbers in a fixed order were written where each window was
+made. The ten windows of one size on every system are rows too (`Each::all`). Windows sized by
+what they hold (About, a question, Details, the limiter, a row's dialogs) still work their size
+out where they open. `native::pick` stays private to `native.rs` for its own measures. A test
+holds every row to the numbers it had; Windows' sizes are to be set again in that table later.
+
+## 2026-11-18: Subtitles written out, read back, translations listed (gaps row Y6)
+
+- A test reads the finished MP4's `tx3g` track back from its sample tables: the YouTube
+  stand-in serves captions, and with Options' subtitles on the file carries the written track
+  with its times and words; with them off nothing is fetched. The stand-in's own origin
+  (`DM_YOUTUBE_HOST`, the whole origin) is the one other caption address taken.
+- `subtitles::to_srt`, `to_vtt` and `write_beside` (dm-media) write SRT and WebVTT from the cues
+  dm read. SRT keeps italic, bold and underline and reads the entities; WebVTT keeps the text as
+  written; a `-->` in the text cannot start a timing line. Not called by default: files left
+  beside a video change what a person gets, so that waits for the maintainer's word.
+- Translations are listed, not fetched: the reading's `translated_subtitles` holds the languages
+  YouTube translates the first translatable chosen track into (`tlang`, at most 8). The choice of
+  2026-11-12 stands: none is fetched or put into the video, and the panel's list (B34) is as it
+  was.
+
+## 2026-11-18: Strings no native speaker has read, in lists of their own (gaps row W23)
+
+Unread strings are tracked in `desktop/assets/i18n/unread/<code>.json`, a list of the English of
+each string no native speaker has read; a reader deletes a line to mark it read. A marker inside
+the catalog's own text would have shown in the window. New languages start from
+`desktop/assets/i18n/template/catalog.json` (every string, empty translations); a test keeps it
+equal to the catalogs. Both live in subfolders because the browser tests read every top-level
+`i18n/*.json` as a language. `cargo xtask i18n` uses its own small JSON reader so it can report
+line numbers and strings given twice, and adds no dependency. It fails only on malformed files;
+missing and unread strings are work, not faults. The lists were seeded with row 5's 91 strings
+still in the catalogs (commits f3f280ff, 8772014e, b2973017, d61e62e3 and d6097923); about 416 a
+language changed since 2026-10-24 with no recorded native read, which is the maintainer's to
+decide.
+
+## 2026-11-18: The update manifest is signed, by a key the maintainer makes (gaps row F6)
+
+`latest.json` is believed only with `latest.json.sig` beside it: base64 of the Ed25519 signature
+of the manifest's exact bytes, by the public key built into `dm-shell/src/app/update.rs`
+(`SIGNING_KEY`), checked with `ring` (already rustls's provider). The signature is a separate
+file rather than a field in the manifest, so nothing has to be put into a fixed form before
+signing, and the manifest stays exactly what an installed 0.9.0, `scripts/package-managers.py`
+and `scripts/linux-human-qa.sh` already read. The price is a second request to the same releases
+address; if a release is published between the two, that one check fails and the next passes. A
+missing, foreign, malformed or mismatched signature is refused as "the release is not signed by
+the project", in the update failure's existing words. The site rules in the manifest need the
+same signature. `cargo xtask update-key` makes the pair; `cargo xtask sign-manifest` signs with
+`DM_UPDATE_SIGNING_KEY` and refuses a key dm does not carry, so the release job fails before
+drafting rather than publishing a manifest every dm would refuse. This differs from
+2026-10-25/27, when an unset secret broke 0.8.0: the key in the code is a placeholder with no
+private half until the maintainer runs step 3 of `docs/RELEASING.md`, and until then a release
+tag stops at the signing step. Tests make a fresh pair each run, so no private key is committed.

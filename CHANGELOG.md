@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Updates: dm believes a release's `latest.json` (and the site rules it carries) only with the project's Ed25519 signature beside it (`latest.json.sig`), and refuses an unsigned, foreign or changed manifest; `cargo xtask update-key` and `cargo xtask sign-manifest`, and the release job signs with the `DM_UPDATE_SIGNING_KEY` secret.
+- Translating dm: `docs/guide/translating.md` says how to mend a language, read the strings no native speaker has read yet, or start a new one from `desktop/assets/i18n/template/catalog.json`; `cargo xtask i18n` lists each language's missing and unread strings, and `--issue <code>` writes the issue a reader can take.
+- Subtitles: SRT and WebVTT writers; a YouTube reading lists the translated caption tracks (not fetched); a test reads the finished MP4's text track back.
 - Windows on Arm: each release builds `dm_<version>_arm64-setup.exe` and `dm_<version>_arm64-portable.zip` on an Arm Windows machine, installs and runs them there, and dm's update check offers the Arm installer to an Arm Windows.
 - A daily check of the real video sites, signed out (`.github/workflows/sites.yml`): a broken site opens one issue with the check's log, closed when the sites work again; `scripts/site-table.py` makes the README's site table from the last run.
 - A server's `Repr-Digest`, `Digest` or `Content-MD5` header now checks the finished file as a checksum file beside it does; a mismatch fails the download and says so.
