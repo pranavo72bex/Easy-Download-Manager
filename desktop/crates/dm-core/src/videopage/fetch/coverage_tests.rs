@@ -298,3 +298,23 @@ fn the_table_of_agents_is_bounded() {
     assert!(given.contains(&crate::BROWSER_AGENT));
     assert_eq!(interned("Bounded/0 (coverage)"), "Bounded/0 (coverage)");
 }
+
+/// Numbered pieces (`http_dash_segments`) are fetched by the DASH piece fetcher where dm's own
+/// reading says so (gaps row Y14); any other reading's are not dm's to fetch as files.
+#[test]
+fn numbered_pieces_are_planned_from_dms_own_reading_alone() {
+    let reading = |by: &str| {
+        read(
+            &serde_json::json!({"filename": "/s/a.mp4", "read_by": by, "requested_formats": [
+                {"format_id": "137", "ext": "mp4", "protocol": "http_dash_segments",
+                 "url": "https://r1.example/v?itag=137"},
+                {"format_id": "140", "ext": "m4a", "protocol": "https",
+                 "url": "https://r1.example/a?itag=140"}]})
+            .to_string(),
+        )
+    };
+    let plan = reading("dm").plan(Path::new("/s")).unwrap();
+    assert!(plan.streams[0].numbered);
+    assert!(!plan.streams[1].numbered);
+    assert_eq!(reading("another").plan(Path::new("/s")), None);
+}

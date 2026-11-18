@@ -227,7 +227,6 @@ struct Info {
     #[serde(default)]
     n_entries: Option<u64>,
     #[serde(default)]
-    #[allow(dead_code)]
     read_by: Option<String>,
     /// When the site serves the one format chosen (Unix seconds).
     #[serde(default)]
@@ -362,6 +361,9 @@ struct Stream {
     /// reading said, for cutting a part of it.
     init: Option<(u64, u64)>,
     index: Option<(u64, u64)>,
+    /// Served only as numbered pieces (`http_dash_segments`, `&sq=N`), fetched by the DASH
+    /// piece fetcher rather than as one file (gaps row Y14).
+    numbered: bool,
 }
 
 impl Stream {
@@ -419,8 +421,12 @@ impl Read {
         let mut streams = Vec::new();
         for format in formats {
             let plain = matches!(format.protocol.as_deref(), Some("http" | "https"));
+            // dm's own reading of a stream served as numbered pieces (gaps row Y14).
+            let numbered = format.protocol.as_deref() == Some("http_dash_segments")
+                && info.read_by.as_deref() == Some("dm");
             let url = format.url.as_deref()?;
-            if !plain || !(url.starts_with("https://") || url.starts_with("http://")) {
+            if !(plain || numbered) || !(url.starts_with("https://") || url.starts_with("http://"))
+            {
                 return None;
             }
             let id: String = format
@@ -462,6 +468,7 @@ impl Read {
                 ),
                 init: range_of(format.dm_init_range.as_deref()),
                 index: range_of(format.dm_index_range.as_deref()),
+                numbered,
             });
         }
         Some(Plan { streams, produced })
@@ -672,9 +679,13 @@ async fn fetch_stream(
         chunk: stream.chunk,
         headers: stream.headers.clone(),
     };
-    let done =
+    let done = if stream.numbered {
+        crate::download::download_numbered_stream_with(client, &stream.url, &opts, report, hints)
+            .await?
+    } else {
         crate::download::download_video_stream_with(client, &stream.url, &opts, report, hints)
-            .await?;
+            .await?
+    };
     tokio::fs::rename(&done.path, &stream.target).await?;
     let _ = tokio::fs::remove_dir_all(&own).await;
     Ok(())
@@ -689,6 +700,13 @@ async fn fetch_part(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<(), Error> {
+    // dm's reading of a part leaves numbered pieces out: they have no index to cut by.
+    if stream.numbered {
+        return Err(Error::Internal(
+            "this video's streams are numbered pieces with no index, so a part of it cannot be cut"
+                .into(),
+        ));
+    }
     let source = crate::clip::Source {
         url: stream.url.clone(),
         init: stream.init,

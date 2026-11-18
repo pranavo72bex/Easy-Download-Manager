@@ -282,6 +282,118 @@ pub(super) async fn download_media_pair(
     .await
 }
 
+/// A stream served only as numbered pieces, as YouTube serves some of a video's formats
+/// (`FORMAT_STREAM_TYPE_OTF`, gaps row Y14): `&sq=0` is its first boxes and says how many
+/// pieces follow it (`Segment-Count: N`), and `&sq=1` to `&sq=N` are those pieces. Every piece
+/// is fetched as a DASH track's are, on as many connections as are set, kept when whole across
+/// a stop, and gathered in order into one file, placed under `options.save_name` (its
+/// extension says picture or sound, MP4 or WebM).
+pub(super) async fn download_numbered(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let name = options
+        .save_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .unwrap_or("video.mp4")
+        .to_string();
+    let ext = Path::new(&name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let first = fetch_capped(client, &numbered_address(url, 0), FIRST_PIECE_MOST, options).await?;
+    let count = segment_count(&first.body).ok_or_else(|| {
+        Error::Internal(
+            "the stream is served in numbered pieces, and its first did not say how many".into(),
+        )
+    })?;
+    let track = Track {
+        medium: if ext == "m4a" {
+            Medium::Audio
+        } else {
+            Medium::Video
+        },
+        id: String::new(),
+        bandwidth: 0,
+        height: 0,
+        webm: ext == "webm",
+        indexed: None,
+        seams: Vec::new(),
+        pieces: (0..=count)
+            .map(|n| dash::Piece {
+                url: numbered_address(url, n),
+                range: None,
+                lock: None,
+                millis: 0,
+            })
+            .collect(),
+    };
+    // The pieces are kept for this stream's count alone; its address changes when it is read
+    // again, its pieces do not.
+    let signature = format!("numbered {count}");
+    fs::create_dir_all(&options.parts_dir).await?;
+    hls::keep_only_parts_of(&options.parts_dir, &signature).await?;
+    fs::create_dir_all(&options.dest_dir).await?;
+    let downloaded = Arc::new(AtomicU64::new(0));
+    let meter = report.map(|tx| {
+        crate::download::ranged::watch_estimating(Arc::clone(&downloaded), None, None, tx)
+    });
+    let fetched = fetch_tracks(client, &[&track], options, &downloaded).await;
+    if let Some((handle, finished)) = meter {
+        let _ = finished.send(());
+        let _ = handle.await;
+    }
+    let files = fetched?;
+    options.control.check()?;
+    let (path, bytes, category) = finish(&name, None, &files, options).await?;
+    Ok(Finished {
+        left_behind: None,
+        path,
+        bytes,
+        connections: 1,
+        category,
+        verified: options.checksum.is_some(),
+        mirrors: 1,
+    })
+}
+
+/// The most the first of a stream's numbered pieces is believed to be: its first boxes and
+/// the words on how many pieces follow are kilobytes.
+const FIRST_PIECE_MOST: usize = 4 * 1024 * 1024;
+
+/// The most numbered pieces a stream is believed to have: a piece is seconds long, and this
+/// is days of video.
+const NUMBERED_MOST: u64 = 200_000;
+
+/// `url` asking for its piece `n` (`&sq=n`), the rest of the address as it came.
+pub(crate) fn numbered_address(url: &str, n: u64) -> String {
+    let joint = if url.contains('?') { '&' } else { '?' };
+    format!("{url}{joint}sq={n}")
+}
+
+/// How many numbered pieces follow the first, as it says (`Segment-Count: N`); `None` where it
+/// does not say, or names none or more than [`NUMBERED_MOST`].
+pub(crate) fn segment_count(first: &[u8]) -> Option<u64> {
+    const SAID: &[u8] = b"Segment-Count:";
+    let at = first.windows(SAID.len()).position(|w| w == SAID)? + SAID.len();
+    let rest = &first[at..];
+    let digits: String = rest
+        .iter()
+        .skip_while(|b| **b == b' ')
+        .take_while(|b| b.is_ascii_digit())
+        .take(10)
+        .map(|b| char::from(*b))
+        .collect();
+    digits
+        .parse::<u64>()
+        .ok()
+        .filter(|n| (1..=NUMBERED_MOST).contains(n))
+}
+
 /// The value of one query parameter of a URL, where it has it.
 pub(crate) fn query_of(url: &str, key: &str) -> Option<String> {
     let query = url.split_once('?')?.1.split('#').next()?;
@@ -759,6 +871,36 @@ pub(super) mod tests {
         assert_eq!(size_of_tracks(&[&timed]), (None, Some(4_000_000)));
         let silent = track(vec![piece(None, 0)]);
         assert_eq!(size_of_tracks(&[&silent]), (None, None));
+    }
+
+    /// A stream of numbered pieces: each asked for by its number, the rest of the address as
+    /// it came, and how many there are read from its first (gaps row Y14).
+    #[test]
+    fn numbered_pieces_are_asked_by_number_and_counted_from_the_first() {
+        assert_eq!(
+            numbered_address("https://r1.example/v?itag=137&n=A%3D", 0),
+            "https://r1.example/v?itag=137&n=A%3D&sq=0"
+        );
+        assert_eq!(
+            numbered_address("https://r1.example/v", 12),
+            "https://r1.example/v?sq=12"
+        );
+        let first = |words: &str| {
+            let mut bytes = b"\0\0\0\x10ftypdash".to_vec();
+            bytes.extend_from_slice(words.as_bytes());
+            bytes
+        };
+        assert_eq!(
+            segment_count(&first("Sequence-Number: 0\r\nSegment-Count: 1199\r\n")),
+            Some(1199)
+        );
+        assert_eq!(segment_count(&first("Segment-Count:42")), Some(42));
+        assert_eq!(segment_count(&first("Sequence-Number: 0\r\n")), None);
+        assert_eq!(segment_count(&first("Segment-Count: 0")), None);
+        assert_eq!(segment_count(&first("Segment-Count: lots")), None);
+        assert_eq!(segment_count(&first("Segment-Count: 99999999999999")), None);
+        assert_eq!(segment_count(&first("Segment-Count: 200001")), None);
+        assert_eq!(segment_count(&first("Segment-Count: 200000")), Some(200_000));
     }
     use crate::mp4mux::testing::{fragmented, plain};
     use axum::body::Body;
