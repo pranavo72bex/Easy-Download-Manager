@@ -40,6 +40,14 @@ proptest.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tempfile.workspace = true
 axum.workspace = true
+# The benches (benches/), run by hand and never in CI (gaps row 190).
+criterion.workspace = true
+
+# Run by hand (`cargo bench -p dm-shell --bench large_list`), never by `cargo test` or CI:
+# criterion's own main, not the test harness (docs/testing.md, Benchmarks; gaps row 190).
+[[bench]]
+name = "large_list"
+harness = false
 
 # A browser's pipes to the native host, kept from the dm it starts
 # (`host::launch_desktop`): inherited, they held the host's answer open.

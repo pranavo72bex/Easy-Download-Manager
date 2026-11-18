@@ -221,6 +221,36 @@ What a release binary is made of: `cargo bloat --release -p dm-gpui --crates` wi
 `CARGO_PROFILE_RELEASE_STRIP=false` (it reads the symbols); the last record is in
 `docs/decisions.md` (2026-11-11, the release profile measured for `dm-gpui`).
 
+## Benchmarks (criterion)
+
+Microbenchmarks, with the `criterion` crate, of the code a large list leans on (gaps row 190).
+They are run by hand, on a quiet machine, to compare two builds on that machine; **they never
+gate CI**, and no CI job runs them, as shared runners are too noisy for them. `cargo test`
+neither builds nor runs them (it would only with `--benches`). From `desktop/`:
+
+| Bench | What it times | Command |
+|---|---|---|
+| `plan` | Range planning (`dm_core::plan`): 512 KiB to 1 TiB, 1 to 64 connections, an unknown length, a server without ranges | `cargo bench -p dm-core --bench plan` |
+| `naming` | `sanitize_name`, `filename_for`, and each waiting download's free name in a folder where half the names are taken, asking the disk for each (`nth_free_name`) and with the folder listed once (`nth_free_name_with`), at 100, 1,000 and 10,000 names | `cargo bench -p dm-core --bench naming` |
+| `large_list` | A read of 10,000 rows (and 4 running) on a real queue: `Session::read` (the window's, and with two event subscribers), `SavedSizes::apply` (first read and unchanged), `Places` (placing, counting every place, the filter) and `earlier_of_the_same_name` | `cargo bench -p dm-shell --bench large_list` |
+
+They build with the release profile (`opt-level = "z"`, `dm-core` at 3, LTO), so they time what
+ships, and the first build takes minutes. One benchmark is picked by a filter after `--`
+(`cargo bench -p dm-core --bench naming -- free_name/listed`); a quick look is
+`-- --warm-up-time 1 --measurement-time 2`.
+
+A change is judged against a baseline saved on the same machine:
+
+```sh
+git switch main      && cargo bench -p dm-shell --bench large_list -- --save-baseline main
+git switch my-change && cargo bench -p dm-shell --bench large_list -- --baseline main
+```
+
+criterion prints each time's change and whether it is outside the noise (`--noise-threshold`,
+1% by default); its results are under `$CARGO_TARGET_DIR/criterion/`. A baseline is that
+machine's alone and is never committed. A result a change rests on goes into its entry in
+`docs/decisions.md` with the machine, the two commits and both medians (AGENTS.md rule 10).
+
 ## Video sites: the compatibility test plan
 
 `python scripts/video-sites-check.py` runs the video website compatibility test plan (the

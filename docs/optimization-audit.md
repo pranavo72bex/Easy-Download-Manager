@@ -199,7 +199,7 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 | cargo nextest | MET | `desktop.yml:106` |
 | cargo llvm-cov | MET | `desktop.yml:135-141`, against `docs/coverage-floor.txt` |
 | cargo flamegraph, OS profilers (Instruments, WPR/WPA, perf) | NOT MET (row 190) | `docs/testing.md` says nothing about profiling |
-| criterion | NOT MET (row 190) | dm has no `[[bench]]`. The engine's timing tests are pass or fail (`dm-core/tests/throughput.rs`) |
+| criterion | MET (row 190) | `[[bench]]`s `plan` and `naming` (dm-core) and `large_list` (dm-shell, a read of 10,000 rows), run by hand and never in CI (`docs/testing.md`, Benchmarks) |
 | cargo bloat | NOT MET (row 190) | Not used |
 | cargo tree | MET | Used for duplicates (`docs/decisions.md:4094`) |
 
