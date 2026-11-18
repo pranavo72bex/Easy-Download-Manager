@@ -11,8 +11,8 @@
 
 Writes, under desktop/packaging/managers/:
   homebrew/easy-download-manager.rb   a Homebrew cask (both Mac dmgs)
-  scoop/easy-download-manager.json    a Scoop manifest (the Windows portable zip)
-  winget/<version>/*.yaml             the three winget files (the Windows setup.exe)
+  scoop/easy-download-manager.json    a Scoop manifest (the Windows portable zips, x64 and arm64)
+  winget/<version>/*.yaml             the three winget files (the Windows setup.exes, x64 and arm64)
   flatpak/<app id>.yml                a Flatpak manifest (the Linux .deb, both arches)
 
 Each points at the release's own files with the digests latest.json gives,
@@ -52,13 +52,24 @@ def release():
     return json.loads(raw)
 
 
-def asset(rel, name):
-    """The address and digest of one of the release's files; stops if it has none."""
+def maybe(rel, name):
+    """The address and digest of one of the release's files, or None if it has none."""
     digest = rel["sha256"].get(name)
     url = next((u for u in rel["installers"] if u.rsplit("/", 1)[-1] == name), None)
-    if not digest or not url:
+    return (url, digest) if digest and url else None
+
+
+def asset(rel, name):
+    """The address and digest of one of the release's files; stops if it has none."""
+    found = maybe(rel, name)
+    if not found:
         sys.exit(f"latest.json names no {name}")
-    return url, digest
+    return found
+
+
+# Windows' processors as Scoop, winget and the release's file names call them. arm64 (Windows
+# on Arm, gaps row R3) only where the release has its files: 0.10.0 and older have none.
+WINDOWS_ARCHES = (("64bit", "x64", "x64"), ("arm64", "arm64", "arm64"))
 
 
 def homebrew(rel, v):
@@ -93,15 +104,24 @@ end
 
 
 def scoop(rel, v):
-    url, digest = asset(rel, f"dm_{v}_x64-portable.zip")
-    folder = f"dm_{v}_x64-portable"
+    asset(rel, f"dm_{v}_x64-portable.zip")
+    arches, updates = {}, {}
+    for key, name, _ in WINDOWS_ARCHES:
+        found = maybe(rel, f"dm_{v}_{name}-portable.zip")
+        if not found:
+            continue
+        url, digest = found
+        arches[key] = {"url": url, "hash": digest, "extract_dir": f"dm_{v}_{name}-portable"}
+        updates[key] = {
+            "url": f"{HOME}/releases/download/desktop-v$version/dm_$version_{name}-portable.zip",
+            "extract_dir": f"dm_$version_{name}-portable",
+        }
     return json.dumps({
         "version": v,
         "description": SUMMARY,
         "homepage": HOME,
         "license": LICENCE,
-        "architecture": {"64bit": {"url": url, "hash": digest}},
-        "extract_dir": folder,
+        "architecture": arches,
         "bin": [["dm-gpui.exe", "dm"]],
         "shortcuts": [["dm-gpui.exe", "dm"]],
         # The portable copy keeps its settings and list in dm-data beside it.
@@ -112,16 +132,19 @@ def scoop(rel, v):
             "& \"$($dir -replace '\\\\[^\\\\]+$', '\\current')\\dm-gpui.exe\" --register | Out-Null"
         ],
         "checkver": {"github": HOME, "regex": "desktop-v([\\d.]+)"},
-        "autoupdate": {
-            "architecture": {"64bit": {
-                "url": f"{HOME}/releases/download/desktop-v$version/dm_$version_x64-portable.zip"}},
-            "extract_dir": "dm_$version_x64-portable",
-        },
+        "autoupdate": {"architecture": updates},
     }, indent=4) + "\n"
 
 
 def winget(rel, v):
-    url, digest = asset(rel, f"dm_{v}_x64-setup.exe")
+    asset(rel, f"dm_{v}_x64-setup.exe")
+    installers = ""
+    for _, name, arch in WINDOWS_ARCHES:
+        found = maybe(rel, f"dm_{v}_{name}-setup.exe")
+        if found:
+            installers += (f"- Architecture: {arch}\n"
+                           f"  InstallerUrl: {found[0]}\n"
+                           f"  InstallerSha256: {found[1].upper()}\n")
     head = (f"PackageIdentifier: {WINGET_ID}\nPackageVersion: {v}\n")
     version = head + ("DefaultLocale: en-US\nManifestType: version\nManifestVersion: 1.6.0\n")
     installer = head + (
@@ -131,9 +154,7 @@ def winget(rel, v):
         "Protocols:\n- magnet\n"
         "FileExtensions:\n- torrent\n"
         "Installers:\n"
-        "- Architecture: x64\n"
-        f"  InstallerUrl: {url}\n"
-        f"  InstallerSha256: {digest.upper()}\n"
+        f"{installers}"
         "ManifestType: installer\nManifestVersion: 1.6.0\n")
     locale = head + (
         "PackageLocale: en-US\n"

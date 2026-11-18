@@ -1,0 +1,7 @@
+# actionlint (the packaging lint's "Workflows" step, desktop.yml): runner labels GitHub has that
+# actionlint 1.7.7 does not know yet. windows-11-arm is GitHub's Arm Windows runner, which builds
+# and runs the Windows on Arm installer (gaps row R3); without this the lint refuses it as an
+# unknown label and the release jobs, which wait on the lint, never run.
+self-hosted-runner:
+  labels:
+    - windows-11-arm

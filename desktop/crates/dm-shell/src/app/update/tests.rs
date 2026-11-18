@@ -269,6 +269,42 @@ fn an_arm64_windows_is_offered_the_arm64_installer() {
     assert_eq!(installer_in(&older, "windows", "aarch64", false), None);
 }
 
+/// Arm Linux: a dm running as the arm64 AppImage is offered the `_aarch64.AppImage`, never the
+/// x86_64 one, the arm64 .deb or .rpm, or the Mac's `_aarch64.dmg`; one installed from a
+/// package is left to its package manager, as on x86_64.
+#[test]
+fn an_arm64_linux_appimage_is_offered_the_arm64_appimage() {
+    let base = format!("{RELEASES}desktop-v1.2.3");
+    let manifest = serde_json::json!({
+        "version": "1.2.3",
+        "installers": [
+            format!("{base}/dm-1.2.3-1.aarch64.rpm"),
+            format!("{base}/dm_1.2.3_aarch64.dmg"),
+            format!("{base}/dm_1.2.3_arm64.deb"),
+            format!("{base}/dm_1.2.3_x86_64.AppImage"),
+            format!("{base}/dm_1.2.3_aarch64.AppImage"),
+        ],
+    })
+    .to_string();
+    assert_eq!(
+        installer_in(&manifest, "linux", "aarch64", true),
+        Some(format!("{base}/dm_1.2.3_aarch64.AppImage"))
+    );
+    assert_eq!(
+        installer_in(&manifest, "linux", "x86_64", true),
+        Some(format!("{base}/dm_1.2.3_x86_64.AppImage"))
+    );
+    assert_eq!(installer_in(&manifest, "linux", "aarch64", false), None);
+    // A release with no arm64 AppImage: nothing, rather than the x86_64 one, which an Arm
+    // Linux cannot run.
+    let x86_only = serde_json::json!({
+        "version": "1.2.3",
+        "installers": [format!("{base}/dm_1.2.3_x86_64.AppImage")],
+    })
+    .to_string();
+    assert_eq!(installer_in(&x86_only, "linux", "aarch64", true), None);
+}
+
 /// A proxy on loopback that refuses every tunnel, and how many it was asked
 /// for: what the update check reaches in place of the update server.
 fn refusing_proxy(runtime: &tokio::runtime::Runtime) -> (u16, std::sync::Arc<Mutex<Vec<String>>>) {

@@ -431,8 +431,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-22.04, artifact: linux-x86_64 }
-          - { os: ubuntu-22.04-arm, artifact: linux-arm64 }
+          # `elf`: the processor `file` must name for the installed Linux
+          # binary, so an Arm package is Arm's however the runner is labelled.
+          - { os: ubuntu-22.04, artifact: linux-x86_64, elf: x86-64 }
+          - { os: ubuntu-22.04-arm, artifact: linux-arm64, elf: aarch64 }
           # `machine`: the PE machine type the installed dm-gpui.exe must
           # be, x64 (8664) or ARM64 (AA64): the Arm runner runs an x64
           # program too, under emulation, so passing smoke.py alone would not
@@ -458,7 +460,7 @@ jobs:
       - name: Linux display
         if: runner.os == 'Linux'
         # Mesa's software Vulkan too: the window draws with it where there is no GPU.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb mesa-vulkan-drivers libgl1-mesa-dri libegl1
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb mesa-vulkan-drivers libgl1-mesa-dri libegl1 file
 
       - name: The .deb, through apt
         if: runner.os == 'Linux'
@@ -468,6 +470,8 @@ jobs:
           package=$(dpkg-deb -f "$deb" Package)
           sudo apt-get install -y "./$deb"
           binary=$(dpkg -L "$package" | grep '/bin/' | head -1)
+          file -L "$binary"
+          file -L "$binary" | grep -q ' ${{ matrix.elf }},'
           xvfb-run -a -s '-screen 0 1280x800x24' python3 scripts/smoke.py "$binary"
           sudo apt-get remove -y "$package"
           test ! -e "$binary"

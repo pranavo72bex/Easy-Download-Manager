@@ -99,8 +99,10 @@ git tag desktop-v0.2.0
 git push origin main --tags
 ```
 
-The tag is what runs the `bundle` job. It builds a `.dmg`, a Windows
-installer, a `.deb` and an `.AppImage`, writes `latest.json`, signs it
+The tag is what runs the `bundle` job. It builds, for each processor, a
+`.dmg` (Apple silicon and Intel), a Windows installer and portable zip (x64
+and Arm), and a `.deb`, `.AppImage` and `.rpm` (x86_64 and arm64), installs
+and runs each on a runner of its own processor, writes `latest.json`, signs it
 (`latest.json.sig`, step 3 above), writes the crate list (`crates.txt`) and
 the signed digests of every file (`SHA256SUMS`, `SHA256SUMS.sig`; "Checking
 a release" below), checks them, and opens a
@@ -253,9 +255,11 @@ python3 scripts/package-managers.py
 ```
 
 It writes `desktop/packaging/managers/`: a Homebrew cask (both Mac dmgs), a
-Scoop manifest (the Windows portable zip, registered with the browser from
-Scoop's `current` folder), the three winget files (the setup.exe) and a Flatpak
-manifest (the .deb repackaged, both arches). Each carries the digests
+Scoop manifest (the Windows portable zips, registered with the browser from
+Scoop's `current` folder), the three winget files (the setup.exes) and a Flatpak
+manifest (the .deb repackaged, both arches). Scoop and winget name Windows on
+Arm's files (`arm64`) beside the x64 ones from the first release that has them;
+0.10.0's name x64 alone. Each carries the digests
 `latest.json` gives. Submitting them:
 
 - Homebrew: a tap of your own (`pranavo72bex/homebrew-dm`, `Casks/`). The main

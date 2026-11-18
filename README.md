@@ -91,7 +91,9 @@ computer, and the extension for your browser:
 |---|---|
 | Windows 10 or 11 | `dm_…_x64-setup.exe` |
 | Windows 10 or 11, without installing (portable) | `dm_…_x64-portable.zip` |
+| Windows 11 on an Arm processor (Snapdragon and others) | `dm_…_arm64-setup.exe` (`_arm64-portable.zip` without installing) |
 | Mac with an Apple chip (M1 or newer) | `dm_…_aarch64.dmg` |
+| Mac with an Intel chip | `dm_…_x64.dmg` |
 | Ubuntu, Debian, Linux Mint, Pop!_OS | `dm_…_amd64.deb` (`_arm64.deb` on ARM) |
 | Fedora, openSUSE, RHEL | `dm-…x86_64.rpm` (`aarch64.rpm` on ARM) |
 | Any other Linux | `dm_…_x86_64.AppImage` (`_aarch64.AppImage` on ARM) |
@@ -101,7 +103,8 @@ computer, and the extension for your browser:
 | Chrome, Edge, Brave, Vivaldi or Opera | `dm-chrome-….zip` |
 | Firefox | Nothing to download: it installs from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/) |
 
-Not built yet: Macs with an Intel chip.
+Windows on Arm's own files come with the release after 0.10.0; until then
+the `x64` installer runs there, under Windows' emulation.
 
 How the Windows installer is signed: see the [Code signing policy](#code-signing-policy).
 
@@ -116,7 +119,8 @@ you the first time. That is expected; here is how to get past it.
 1. If your browser says the file "isn't commonly downloaded" or might be
    harmful, open its downloads list and choose **Keep** (in Edge: **…** →
    **Keep** → **Show more** → **Keep anyway**).
-2. Double-click `dm_…_x64-setup.exe`.
+2. Double-click `dm_…_x64-setup.exe` (`dm_…_arm64-setup.exe` on an Arm
+   processor).
 3. If you see **"Windows protected your PC"**, click **More info**, then
    **Run anyway**.
 4. Click through the installer.
@@ -139,7 +143,7 @@ when you sign in. To let the browser extension hand downloads to this copy, run
 <details>
 <summary><strong>Mac</strong></summary>
 
-1. Double-click `dm_…_aarch64.dmg`.
+1. Double-click `dm_…_aarch64.dmg` (`dm_…_x64.dmg` on an Intel Mac).
 2. Drag **dm** into the **Applications** folder.
 3. Open **Applications** and double-click **dm**. When macOS says it cannot
    check dm, click **Done** (or **Cancel**).
@@ -157,7 +161,7 @@ Double-click `dm_…_amd64.deb` and click **Install**. Or, in a terminal in
 the folder you downloaded it to:
 
 ```sh
-sudo apt install ./dm_*_amd64.deb
+sudo apt install ./dm_*_amd64.deb   # ./dm_*_arm64.deb on ARM
 ```
 
 </details>
@@ -177,8 +181,9 @@ sudo zypper install ./dm-*.rpm     # openSUSE
 <details>
 <summary><strong>Any other Linux (AppImage)</strong></summary>
 
-1. Right-click `dm_…_x86_64.AppImage` → **Properties** → **Permissions**,
-   and tick **Allow executing file as program**.
+1. Right-click `dm_…_x86_64.AppImage` (`dm_…_aarch64.AppImage` on ARM) →
+   **Properties** → **Permissions**, and tick **Allow executing file as
+   program**.
 2. Double-click it.
 
 Keep the AppImage where it is once you have opened it: your browser is

@@ -484,7 +484,11 @@ and is not carried over.
       passed against the real `dm-desktop.exe`, the egui window's program, there (`windows-check.yml`,
       2026-10-21), which found and fixed a native host that held the
       browser's pipes open through the dm it started. `scripts/windows-check.sh`
-      compiles it from this Mac. Unchecked: a whole `human-qa.py` run on an
+      compiles it from this Mac. Windows on Arm (gaps R3): the release
+      workflow builds `aarch64-pc-windows-msvc` on `windows-11-arm` into an
+      installer and a portable zip of its own; the workspace passes clippy
+      `-D warnings` for that target (from the Mac, 2026-11-18); not yet run
+      on an Arm Windows. Unchecked: a whole `human-qa.py` run on an
       installer built after the review fixes of 2026-11-11 (G7), and the
       release workflow's installer from a draft (G8)
 - [x] Installer — `cargo packager` (no Tauri) builds a 7.9 MB dmg and
