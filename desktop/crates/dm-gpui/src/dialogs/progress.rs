@@ -26,12 +26,12 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::a11y::Told;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The progress window's view.
 /// The pop-up "When this download is done" (gaps row U36).

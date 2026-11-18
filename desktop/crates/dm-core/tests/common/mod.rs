@@ -11,6 +11,7 @@
 
 #![allow(dead_code)] // each test binary uses a different part of this
 
+#[allow(unused_imports)] // as above: not every test binary asks for a secret
 pub use dm_test_support::secrets;
 
 use std::net::SocketAddr;

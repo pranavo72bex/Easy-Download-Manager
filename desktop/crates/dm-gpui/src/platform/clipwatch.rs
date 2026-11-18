@@ -17,11 +17,11 @@ use dm_shell::app::links::Looked;
 use gpui::{div, prelude::*, Context};
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// How often the clipboard is looked at while it is watched.
 pub(crate) const EVERY: Duration = Duration::from_secs(1);

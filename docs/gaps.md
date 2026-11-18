@@ -11,36 +11,38 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
-## Resume here (2026-11-17, night: stopped at the maintainer's word, "we will continue rest tomorrow")
+## Resume here (2026-11-18)
 
-Everything is committed and pushed to `main`. Done today, in the order of "Work order" below:
-X8, A15, X9 (each checked and pushed), then A13 (pushed with `cargo check`, clippy `-D warnings`
-and xtask's tests passing, but **its whole `cargo test --workspace` run had not finished**).
+Committed on `main` on this laptop and **not pushed** (the maintainer, 2026-11-18: "make sure
+to not push the code"); push only when the maintainer says so. Done today, in the order of
+"Work order" below:
+- A13's whole `cargo test --workspace --no-fail-fast` on Windows: 103 of 104 test binaries
+  passed; xtask's layers test found `window/list.rs` at 2525 lines, now split (2448).
+- X1 (`dm_core::folders`), X10 (`desktop/crates/dm-test-support`) and A19's widgets part
+  (`widgets/space.rs`, the colours in `theme.rs`). Checked: clippy `-D warnings` on the
+  workspace, all targets; the tests of xtask, dm-test-support, dm-protocol, dm-shell,
+  dm-desktop-base, the extension, dm-gpui (388) and `dm-core --lib folders`. Not yet run on
+  this tree: the whole `cargo test --workspace` (it comes once, after the moves: step 8).
+
 Pick up in this order:
-
-1. **A13's test run.** `D:\t\a13.log` holds the run started at 21:10 that night: if it ends with
-   `done`, read its `FAILED` and `panicked` lines; if not (the session ended under it), run again
-   from `desktop/` with `CARGO_TARGET_DIR=D:/dm-target`:
-   `cargo test --workspace --locked --no-fail-fast` (about an hour on the laptop). Anything that
-   fails is most likely a test that read its own file's source by path: 83 inline test modules
-   moved to `foo/tests.rs` (or `foo/<what>_tests.rs`), and dm-gpui's files moved into
-   `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`. Fix, then commit.
-2. **X1** (one `folders` module), written but not applied: `D:\t\x1\` holds `folders.rs`, its
-   `folders_tests.rs` and `x1.py`, which puts them in as `dm-core/src/folders.rs` and
-   `folders/tests.rs`, declares `pub mod folders`, rewrites the 15 places that read `HOME`,
-   `USERPROFILE`, `XDG_*`, `ProgramFiles`/`LOCALAPPDATA`, `Library/...` or the `dirs` crate
-   (`dm-desktop-base` autostart, desktop, login, system_theme; `dm-gpui` dialogs/welcome;
-   `dm-shell` register, settings, shell) and drops `dirs` from dm-shell. Run it from the
-   repository root (`python D:/t/x1/x1.py`), then `cargo check --workspace --all-targets`, fix
-   unused imports. Still to write: the `cargo xtask layers` rule that refuses `dirs::`, `"HOME"`,
-   `"USERPROFILE"`, `"APPDATA"`, `"LOCALAPPDATA"`, `"XDG_CONFIG_HOME"`, `"XDG_DATA_HOME"`,
-   `"Library/Application Support"` and `"Library/LaunchAgents"` in shipped code outside
-   `dm-core/src/folders.rs` (`processes.rs`'s list of AppRun's variables names
-   `XDG_DATA_DIRS`, not a folder read, so that name is not refused). Each answer must stay as
-   it was: `home_variable` is `$HOME` alone (macOS's login checks), `home` is the `dirs` crate's.
-   Test: `cargo test -p dm-core folders`, `-p dm-shell`, `-p dm-desktop-base`, xtask; clippy.
-3. Then "Work order" → "First of all", in turn: X10, A19's widgets part with A10, A6; then
-   "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
+1. **A6** step 1, `dm-media` out of dm-core: aac, fmp4, frames (with `av1.rs`, `win.rs`), gif,
+   mf, mkvmux, mp3 (with `decode/`, `tables.rs`), mp4mux, tsmux, subtitles and shape
+   (`decode.rs` is HTTP bodies, not media: it stays). Mapped 2026-11-18: what they need from
+   the rest is `write_atomic` (gif, mp3), `heavy::run` (gif, mp3's async wrappers),
+   `youtube::video_id` (`gif::possible_for`) and `videopage::Choice` (`mp3::choice_after`);
+   six `tokio::task::spawn_blocking` wrappers (mkvmux, mp4mux 2, tsmux, tsmux/packed 2). Plan:
+   dm-media free of tokio and of dm's crates (no sockets, as the layering asks); dm-core keeps
+   thin facade modules (`pub use dm_media::mp3::*;` plus the async wrappers and the two
+   functions that need youtube or videopage) so every `crate::mp4mux::...` path and the
+   integration tests' `dm_core::...` paths stay; the blocking writers return bytes and dm-core
+   writes them with `write_atomic`. Its deps: symphonia-core, symphonia-codec-aac, windows
+   (Media Foundation's features), rav1d (Linux), libc, serde; `opt-level = 3` in the release
+   profile as dm-core has. `missing_docs` is on: an item made `pub` for dm-core needs its doc.
+   macOS's AudioToolbox and VideoToolbox code (`mp3/decode`, `frames.rs`) cannot be compiled
+   here: build it on the Mac before closing.
+2. **A10**'s rest (each system's `cfg` behind `platform/`, ~70 files across the crates) is
+   mostly macOS and Linux code this laptop cannot compile: do it on the Mac.
+3. Then "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
    maintainer at the screen: do the rest first and ask for those together).
 
 Notes for this laptop: no git identity is set; commit with
@@ -110,7 +112,9 @@ Smallest first:
    (step 8).
 4. ~~A13~~ done 2026-11-17: dm-gpui in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`;
    `foo.rs` beside `foo/` everywhere; 83 inline test modules moved out; xtask holds both. Its
-   whole `cargo test --workspace` is still owed ("Resume here", step 1).
+   whole `cargo test --workspace --no-fail-fast` on Windows, 2026-11-18: 103 of 104 test
+   binaries passed; xtask's layers test found `window/list.rs` at 2525 lines, split into
+   `list/questions.rs` and `list/rowline.rs` (2448).
 5. ~~X1~~ done 2026-11-18: `dm_core::folders` answers where a person's files live (15 places
    moved to it, `dirs` out of dm-shell); `cargo xtask layers` refuses those reads elsewhere.
 6. ~~X10~~ done 2026-11-18: `desktop/crates/dm-test-support` (the tests' secrets), a

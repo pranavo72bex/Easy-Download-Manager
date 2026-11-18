@@ -24,10 +24,10 @@ use gpui::{
     WeakEntity, Window,
 };
 
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// A row being dragged: which one, and the list it was dragged from.
 pub(crate) struct DraggedRow {

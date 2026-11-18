@@ -14,11 +14,11 @@
 use gpui::{div, prelude::*, Action, App, Role, SharedString, Window};
 use gpui_component::native_menu::NativeMenu;
 
+use crate::widgets::space;
 use crate::window::a11y::Told;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The choice `index` made in the pop-up `field` (of a list's `item`,
 /// where there is one a row, as a torrent's files each have one).

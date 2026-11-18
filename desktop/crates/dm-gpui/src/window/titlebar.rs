@@ -26,11 +26,11 @@ use gpui_component::input::Input;
 use gpui_component::native_menu::NativeMenu;
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// Whether the top bar is the window's title bar (macOS, Windows), or a
 /// row under the desktop's own (Linux, where a program drawing its title
@@ -406,7 +406,8 @@ fn window_buttons(theme: Theme, maximized: bool) -> Vec<gpui::AnyElement> {
             // Close turns Windows' red under the pointer, the others grey.
             .hover(move |b| {
                 if close {
-                    b.bg(gpui::rgb(crate::window::theme::CLOSE_HOVERED)).text_color(gpui::white())
+                    b.bg(gpui::rgb(crate::window::theme::CLOSE_HOVERED))
+                        .text_color(gpui::white())
                 } else {
                     b.bg(theme.control)
                 }

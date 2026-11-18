@@ -18,11 +18,11 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// Opens a dialog's window over the middle of the screen, `width` wide and
 /// as tall as it turns out (`fit`), after the update that asked, so the

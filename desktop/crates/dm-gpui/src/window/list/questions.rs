@@ -11,6 +11,51 @@
 
 use super::*;
 
+/// When done's countdown as it stands: what dm will do and in how many
+/// seconds; `None` once it is over or cancelled.
+pub(super) fn countdown_question(view: &Downloads) -> Option<crate::dialogs::question::Asked> {
+    use dm_desktop_base::i18n::{t, tf};
+    let (action, at) = view.session.countdown?;
+    let left = at
+        .saturating_duration_since(std::time::Instant::now())
+        .as_secs();
+    Some(crate::dialogs::question::Asked {
+        title: t("Downloads are done").into(),
+        lines: vec![tf("dm will {} in {} seconds.", &[&t(action.verb()), &left]).into()],
+        named: None,
+        detail: None,
+        toggle: None,
+        ticked: false,
+        // Cancel, the default, rightmost: Return and Escape both stop it.
+        buttons: vec![t("Cancel").into(), t("Now").into()],
+        default: 0,
+        escape: 0,
+    })
+}
+
+/// Where Exit stands in "Exit dm?"'s buttons.
+pub(super) const EXIT: usize = 1;
+
+/// "Exit dm?" as the list stands (`asks::exit`). Keep downloading (Stay,
+/// once nothing runs) stands rightmost and Exit beside it, each where it is
+/// whatever the words say: a download finishing while it is open changes
+/// the words and moves the default to Exit, and moves no button.
+pub(super) fn exit_question(view: &Downloads) -> crate::dialogs::question::Asked {
+    let (busy, waiting) = view.running_and_waiting();
+    let ask = dm_desktop_base::asks::exit(busy, waiting);
+    crate::dialogs::question::Asked {
+        title: ask.title.into(),
+        lines: vec![ask.sentence.into()],
+        named: None,
+        detail: None,
+        toggle: None,
+        ticked: false,
+        buttons: vec![ask.keep.into(), ask.exit.into()],
+        default: if ask.finished { EXIT } else { 0 },
+        escape: 0,
+    }
+}
+
 impl Downloads {
     /// "Cancel this download?", asked before a download is cancelled: what
     /// was fetched is discarded.

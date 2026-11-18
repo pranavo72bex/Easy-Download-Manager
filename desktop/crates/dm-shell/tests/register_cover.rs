@@ -31,7 +31,7 @@ fn redirect_home(home: &Path) {
     // environment while it is set.
     unsafe { std::env::set_var("HOME", home) };
     assert_eq!(
-        dirs::home_dir().as_deref(),
+        dm_core::folders::home().as_deref(),
         Some(home),
         "HOME did not redirect the home directory; stopping before anything is written"
     );

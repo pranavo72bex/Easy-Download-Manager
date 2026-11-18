@@ -27,11 +27,11 @@ use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native;
 use crate::widgets::popup::{self, Pick};
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// How often a digest or a ZIP's reading still under way is looked at.
 const POLL: Duration = Duration::from_millis(200);

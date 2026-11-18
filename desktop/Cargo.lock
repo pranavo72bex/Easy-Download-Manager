@@ -2017,6 +2017,7 @@ name = "dm-catcher"
 version = "3.5.0"
 dependencies = [
  "dm-protocol",
+ "dm-test-support",
  "futures-channel",
  "futures-util",
  "js-sys",
@@ -2043,6 +2044,7 @@ dependencies = [
  "crc32fast",
  "dirs 7.0.0",
  "dm-js",
+ "dm-test-support",
  "flate2",
  "futures-util",
  "getrandom 0.4.3",
@@ -2122,6 +2124,7 @@ dependencies = [
  "dm-desktop-base",
  "dm-protocol",
  "dm-shell",
+ "dm-test-support",
  "embed-resource",
  "futures-lite",
  "futures-util",
@@ -2154,6 +2157,7 @@ version = "0.10.0"
 name = "dm-protocol"
 version = "0.10.0"
 dependencies = [
+ "dm-test-support",
  "proptest",
  "serde",
  "serde_json",
@@ -2166,10 +2170,10 @@ version = "0.10.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
- "dirs 7.0.0",
  "dm-assets",
  "dm-core",
  "dm-protocol",
+ "dm-test-support",
  "futures-util",
  "libc",
  "proptest",
@@ -2181,6 +2185,10 @@ dependencies = [
  "url",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "dm-test-support"
+version = "0.10.0"
 
 [[package]]
 name = "document-features"
@@ -10691,6 +10699,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 name = "xtask"
 version = "0.10.0"
 dependencies = [
+ "dm-test-support",
  "toml 1.1.5+spec-1.1.0",
 ]
 

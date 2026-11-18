@@ -359,14 +359,14 @@ fn a_download_folder_from_home_is_expanded_and_a_relative_one_is_not_kept() {
         .clamped()
         .download_dir
     };
-    let home = dirs::home_dir().unwrap();
+    let home = dm_core::folders::home().unwrap();
     assert_eq!(at("~/Downloads"), home.join("Downloads"));
     assert_eq!(at("Downloads"), Settings::default().download_dir);
 }
 
 #[test]
 fn a_folder_for_one_download_is_made_full_or_refused() {
-    let home = dirs::home_dir().unwrap();
+    let home = dm_core::folders::home().unwrap();
     let caller = std::env::temp_dir().join("caller");
     assert_eq!(full_folder("~/x", None), Some(home.join("x")));
     assert_eq!(full_folder("out", Some(&caller)), Some(caller.join("out")));
@@ -408,7 +408,7 @@ fn a_parts_folder_is_a_full_path_or_dms_own() {
         .clamped()
         .parts_dir
     };
-    let home = dirs::home_dir().unwrap();
+    let home = dm_core::folders::home().unwrap();
     assert_eq!(
         at("~/dm-parts"),
         home.join("dm-parts").display().to_string()
@@ -1352,7 +1352,9 @@ fn a_test_of_this_crate_keeps_its_settings_out_of_the_real_home() {
         assert!(Settings::path().starts_with(std::env::temp_dir()));
         assert_ne!(
             home(),
-            dirs::data_local_dir().unwrap_or_default().join("dm-engine")
+            dm_core::folders::local_data()
+                .unwrap_or_default()
+                .join("dm-engine")
         );
     }
 }
@@ -1486,7 +1488,7 @@ fn the_side_panels_width_is_bounded_and_kept() {
 #[cfg(not(windows))]
 #[test]
 fn a_folder_in_home_is_written_with_a_tilde_and_read_back() {
-    let home = dirs::home_dir().unwrap();
+    let home = dm_core::folders::home().unwrap();
     let inside = home.join("Downloads").join("Films");
     assert_eq!(
         home_short(&inside.display().to_string()),

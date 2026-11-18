@@ -15,11 +15,11 @@ use gpui::{
 };
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The window's view.
 pub struct Complete {

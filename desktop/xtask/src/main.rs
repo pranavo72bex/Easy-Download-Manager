@@ -554,8 +554,9 @@ fn paths_out_of(text: &str, file: &Path, home: &Path) -> Vec<(usize, String)> {
         else {
             continue;
         };
+        let joined = base.join(target);
         let mut at: Vec<std::path::Component> = Vec::new();
-        for part in base.join(target).components() {
+        for part in joined.components() {
             match part {
                 std::path::Component::ParentDir => {
                     at.pop();
@@ -1071,7 +1072,8 @@ mod tests {
 
     #[test]
     fn spacing_on_the_scale_is_named() {
-        let text = "    .gap(px(4.0))\n    .px(px(space::L))\n    // .p(px(8.0))\n    .pl(px(9.0))\n";
+        let text =
+            "    .gap(px(4.0))\n    .px(px(space::L))\n    // .p(px(8.0))\n    .pl(px(9.0))\n";
         assert_eq!(spacing_literals(text), [(1, ".gap(px(4.0))".to_string())]);
     }
 

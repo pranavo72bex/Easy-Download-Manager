@@ -19,11 +19,11 @@ use gpui::{
 use gpui_component::input::InputState;
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// Written once the welcome has been shown.
 const WELCOMED: &str = "welcomed";

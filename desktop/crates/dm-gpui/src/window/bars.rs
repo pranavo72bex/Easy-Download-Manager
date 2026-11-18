@@ -18,11 +18,11 @@ use dm_desktop_base::i18n::{t, tf, tn};
 use gpui::{div, prelude::*, Context};
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// Written once "Not now" is chosen on the add-to-browser bar.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";

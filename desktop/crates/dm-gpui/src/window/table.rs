@@ -24,11 +24,11 @@ use gpui::{
 
 use crate::window::a11y::Told;
 
+use crate::widgets::space;
 use crate::window::list::{kind_picture, Downloads, ROW_HEIGHT};
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The header's height, in points.
 pub const HEADER_HEIGHT: f32 = 24.0;

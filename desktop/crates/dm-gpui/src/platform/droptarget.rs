@@ -18,10 +18,10 @@ use gpui::{
 };
 use gpui_component::native_menu::NativeMenu;
 
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The card's side, in points.
 const SIDE: f32 = 44.0;

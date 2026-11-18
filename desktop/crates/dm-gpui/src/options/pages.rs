@@ -19,10 +19,10 @@ use gpui::{div, prelude::*, AnyElement, Context, SharedString, Window};
 use crate::options::Options;
 use crate::widgets::native;
 use crate::widgets::popup::{self, Pick};
+use crate::widgets::space;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 mod dialup;
 

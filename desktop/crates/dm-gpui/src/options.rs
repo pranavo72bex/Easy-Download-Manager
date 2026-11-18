@@ -29,11 +29,11 @@ use gpui_component::slider::{SliderEvent, SliderState};
 
 use crate::widgets::native;
 use crate::widgets::popup::Pick;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The window's size: one for every page, so the tabs and the buttons stay
 /// where they are when another page is picked; a page longer than that

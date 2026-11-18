@@ -29,11 +29,11 @@ use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native;
 use crate::widgets::popup::{self, Pick};
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// What a browser's hand-off brought with the address; nothing for one
 /// typed in Add URL.
@@ -1002,7 +1002,12 @@ impl Render for Details {
                                 .child(screen.label(tf("and {} more", &[&(self.urls.len() - 1)]))),
                         )
                     })
-                    .child(div().h(px(space::LINE)).my(px(space::XS)).bg(theme.separator))
+                    .child(
+                        div()
+                            .h(px(space::LINE))
+                            .my(px(space::XS))
+                            .bg(theme.separator),
+                    )
                     .child(row(
                         "Category",
                         popup::button(

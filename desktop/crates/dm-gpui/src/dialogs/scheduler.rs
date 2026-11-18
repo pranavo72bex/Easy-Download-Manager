@@ -25,11 +25,11 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native::{self, enabled};
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The date of "Once, on this date" as three pop-ups, year, month and day, this year and the
 /// next four (gaps row U32): typed as "YYYY-MM-DD", a wrong one was refused only at OK.

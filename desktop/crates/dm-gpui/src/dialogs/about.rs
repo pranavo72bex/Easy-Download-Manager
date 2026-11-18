@@ -23,11 +23,11 @@ use gpui::{
 };
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// What the update check has found, shared by the main window and About.
 pub type Checked = Arc<Mutex<Update>>;
@@ -119,7 +119,13 @@ impl Render for About {
                             .gap(px(native::BUTTON_GAP))
                             .children(links),
                     )
-                    .child(div().w_full().h(px(space::LINE)).my(px(space::XS)).bg(theme.separator))
+                    .child(
+                        div()
+                            .w_full()
+                            .h(px(space::LINE))
+                            .my(px(space::XS))
+                            .bg(theme.separator),
+                    )
                     .child(
                         native::button(
                             "check",

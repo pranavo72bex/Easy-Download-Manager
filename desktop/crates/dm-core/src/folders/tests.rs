@@ -31,6 +31,9 @@ fn linux_settings_are_in_xdg_config_home_else_under_home() {
     assert_eq!(xdg_config_in(env(&[])), None);
 }
 
+// A list of folders is split by the system's separator (`:` on Linux, `;` on Windows), and
+// these are Linux's.
+#[cfg(unix)]
 #[test]
 fn linux_data_is_the_persons_first_then_the_systems() {
     let set = env(&[
@@ -86,7 +89,10 @@ fn windows_programs_are_the_program_folders_that_are_set() {
 fn the_home_variable_is_home_then_windows_profile() {
     let windows = env(&[("USERPROFILE", r"C:\Users\a")]);
     assert_eq!(home_variable_in(&windows), None);
-    assert_eq!(home_or_profile_in(&windows), Some(PathBuf::from(r"C:\Users\a")));
+    assert_eq!(
+        home_or_profile_in(&windows),
+        Some(PathBuf::from(r"C:\Users\a"))
+    );
     let both = env(&[("HOME", "/home/a"), ("USERPROFILE", r"C:\Users\a")]);
     assert_eq!(home_or_profile_in(both), Some(PathBuf::from("/home/a")));
 }

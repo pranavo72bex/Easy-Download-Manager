@@ -58,7 +58,9 @@ pub fn home_or_profile() -> Option<PathBuf> {
 
 /// [`home_or_profile`] in the environment `var`.
 pub fn home_or_profile_in(var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
-    var("HOME").or_else(|| var("USERPROFILE")).map(PathBuf::from)
+    var("HOME")
+        .or_else(|| var("USERPROFILE"))
+        .map(PathBuf::from)
 }
 
 /// Linux's folder for a person's settings: `$XDG_CONFIG_HOME`, or `~/.config`.

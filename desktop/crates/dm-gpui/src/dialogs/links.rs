@@ -21,11 +21,11 @@ use gpui_component::input::{InputEvent, InputState};
 use crate::widgets::native;
 use crate::widgets::popup::{self, Pick};
 use crate::widgets::savefolder::{self, Saves};
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// A link's row, in points.
 const ROW: f32 = 24.0;

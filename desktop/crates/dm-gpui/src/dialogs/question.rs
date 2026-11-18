@@ -16,9 +16,9 @@ use gpui::{
 };
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// What a question says and offers.
 pub struct Asked {

@@ -12,13 +12,13 @@ use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
 use gpui::{div, prelude::*, svg, Context, Role, Window};
 
+use crate::widgets::space;
 use crate::window::a11y::Told;
 use crate::window::list::Downloads;
 use crate::window::menus::Run;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-use crate::widgets::space;
 
 /// The toolbar's height.
 pub const HEIGHT: f32 = 50.0;

@@ -20,13 +20,11 @@ use dm_core::{Entry, State};
 use dm_desktop_base::boot::Wake;
 use dm_shell::app::backend::Backend;
 use dm_shell::app::session::Session;
-use gpui::{
-    div, prelude::*, Context, FocusHandle, Role, SharedString, UniformListScrollHandle, Window,
-};
+use gpui::{div, prelude::*, Context, FocusHandle, Role, UniformListScrollHandle, Window};
 
+use crate::widgets::space;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
-use crate::widgets::space;
 use dm_desktop_base::columns::Column;
 use dm_shell::app::places::{Place, Places};
 
@@ -80,51 +78,6 @@ fn clock(running: bool, ticking: bool) -> Duration {
     }
 }
 
-/// When done's countdown as it stands: what dm will do and in how many
-/// seconds; `None` once it is over or cancelled.
-fn countdown_question(view: &Downloads) -> Option<crate::dialogs::question::Asked> {
-    use dm_desktop_base::i18n::{t, tf};
-    let (action, at) = view.session.countdown?;
-    let left = at
-        .saturating_duration_since(std::time::Instant::now())
-        .as_secs();
-    Some(crate::dialogs::question::Asked {
-        title: t("Downloads are done").into(),
-        lines: vec![tf("dm will {} in {} seconds.", &[&t(action.verb()), &left]).into()],
-        named: None,
-        detail: None,
-        toggle: None,
-        ticked: false,
-        // Cancel, the default, rightmost: Return and Escape both stop it.
-        buttons: vec![t("Cancel").into(), t("Now").into()],
-        default: 0,
-        escape: 0,
-    })
-}
-
-/// Where Exit stands in "Exit dm?"'s buttons.
-const EXIT: usize = 1;
-
-/// "Exit dm?" as the list stands (`asks::exit`). Keep downloading (Stay,
-/// once nothing runs) stands rightmost and Exit beside it, each where it is
-/// whatever the words say: a download finishing while it is open changes
-/// the words and moves the default to Exit, and moves no button.
-fn exit_question(view: &Downloads) -> crate::dialogs::question::Asked {
-    let (busy, waiting) = view.running_and_waiting();
-    let ask = dm_desktop_base::asks::exit(busy, waiting);
-    crate::dialogs::question::Asked {
-        title: ask.title.into(),
-        lines: vec![ask.sentence.into()],
-        named: None,
-        detail: None,
-        toggle: None,
-        ticked: false,
-        buttons: vec![ask.keep.into(), ask.exit.into()],
-        default: if ask.finished { EXIT } else { 0 },
-        escape: 0,
-    }
-}
-
 /// When the list's bars show, as each system's own lists show theirs: always on Windows and
 /// Linux, under the pointer on macOS (gaps row U43).
 fn scrollbar_mode() -> gpui_base::ScrollbarMode {
@@ -155,10 +108,13 @@ mod later;
 mod questions;
 mod refresh;
 mod removal;
+mod rowline;
 mod sorting;
 
+use questions::countdown_question;
 use refresh::clicked;
 use refresh::{needs_drawing, placed_alike, NAMES_EVERY};
+pub(crate) use rowline::{kind_picture, line};
 use sorting::sort_command;
 
 /// The main window's view: the application, and the rows it last read.
@@ -1987,42 +1943,6 @@ impl Downloads {
         self.said = Some((sentence, std::time::Instant::now()));
         self.said_schedule_wait = false;
     }
-}
-
-/// A row's picture of its file's kind, and the kind's colour (B45): told
-/// apart by shape (a play mark, a note, lines, a window, a zip, a hill and a
-/// sun, a plain sheet), in the egui window's colours.
-pub(crate) fn kind_picture(kind: Option<dm_core::Category>) -> (&'static str, gpui::Rgba) {
-    use dm_core::Category as K;
-    match kind {
-        Some(K::Videos) => ("icons/kind-videos.svg", gpui::rgb(crate::window::theme::KIND_VIDEOS)),
-        Some(K::Audio) => ("icons/kind-audio.svg", gpui::rgb(crate::window::theme::KIND_AUDIO)),
-        Some(K::Documents) => ("icons/kind-documents.svg", gpui::rgb(crate::window::theme::KIND_DOCUMENTS)),
-        Some(K::Apps) => ("icons/kind-apps.svg", gpui::rgb(crate::window::theme::KIND_APPS)),
-        Some(K::Archives) => ("icons/kind-archives.svg", gpui::rgb(crate::window::theme::KIND_ARCHIVES)),
-        Some(K::Pictures) => ("icons/kind-pictures.svg", gpui::rgb(crate::window::theme::KIND_PICTURES)),
-        _ => ("icons/kind-other.svg", gpui::rgb(crate::window::theme::KIND_OTHER)),
-    }
-}
-
-/// What a row's line says, in the shell: its name and its state.
-pub(crate) fn line(row: &Entry) -> (SharedString, SharedString) {
-    let name = if row.filename.is_empty() {
-        dm_shell::app::names::provisional(&row.url)
-    } else {
-        row.filename.clone()
-    };
-    let state = match &row.state {
-        State::Running => match row.progress.total {
-            Some(total) if total > 0 => {
-                format!("{}%", row.progress.downloaded.saturating_mul(100) / total)
-            }
-            _ => dm_desktop_base::format::bytes(row.progress.downloaded),
-        },
-        State::Failed(why) => format!("Failed: {why}"),
-        other => format!("{other:?}"),
-    };
-    (name.into(), state.into())
 }
 
 impl Render for Downloads {
