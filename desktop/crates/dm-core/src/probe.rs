@@ -52,6 +52,10 @@ pub async fn probe(
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Probe, Error> {
+    // A file host's share address is asked about as its file is, as the download fetches it
+    // (gaps row W7); every other address as it is.
+    let shared = crate::filehost::file_address(client, url).await?;
+    let url = shared.as_deref().unwrap_or(url);
     let ProbeWithBody {
         probe, response, ..
     } = probe_get(client, url, referrer, sign_in, None).await?;

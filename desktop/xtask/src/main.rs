@@ -771,6 +771,9 @@ const ALLOWED_HOSTS: &[&str] = &[
     "github.com",
     // Asked only for a YouTube video a person asked for (`youtube.rs`).
     "youtube.com",
+    // Asked only for a Google Drive share address a person gave, as Drive's own Download
+    // button asks it (`dm-core/src/filehost.rs`, gaps row W7).
+    "drive.usercontent.google.com",
     "microsoftedge.microsoft.com",
     "addons.mozilla.org",
 ];
