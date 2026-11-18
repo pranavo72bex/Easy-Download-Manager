@@ -136,12 +136,6 @@ impl ListFile {
         self.busy = true;
         window.remove_window();
     }
-
-    /// The path as it stands in the field, for the window's tests.
-    #[cfg(test)]
-    pub(crate) fn typed(&self, cx: &App) -> String {
-        self.path.read(cx).value().to_string()
-    }
 }
 
 impl Render for ListFile {
@@ -282,6 +276,16 @@ fn open_now(view: WeakEntity<Downloads>, save: bool, cx: &mut App) {
 impl native::CloseButton for ListFile {
     fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
         self.cancel(window);
+    }
+}
+
+/// For the window's tests, below the window's own source: `i18n_check` reads a file only up to
+/// its first test-only item, and the words above it would read as said nowhere.
+#[cfg(test)]
+impl ListFile {
+    /// The path as it stands in the field.
+    pub(crate) fn typed(&self, cx: &App) -> String {
+        self.path.read(cx).value().to_string()
     }
 }
 

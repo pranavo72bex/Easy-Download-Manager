@@ -704,8 +704,12 @@ fn a_finished_rows_size_is_its_files() {
     });
     let path = h.rows()[0].path.clone();
     std::fs::write(&path, vec![0u8; 1000]).unwrap();
-    // The sizes read once from the disk, read again.
-    h.view(|view| view.saved = Default::default());
+    // The sizes read once from the disk, read again, at a read of every row: an unchanged row
+    // is otherwise not looked at again (gaps row 181).
+    h.view(|view| {
+        view.saved = Default::default();
+        view.read_all = true;
+    });
     h.until("the file's own size", |h| {
         h.rows()[0].progress.total == Some(1000)
     });
