@@ -25,7 +25,7 @@ finished on this tree. **Next, on the Mac: step 8 on this tree** (`cargo test --
 `youtube_cover.rs` Unix tests of Y6 and Y14, A10, and the window checks of X2).
 
 Still being coded when this was pushed (each on a branch of its own in `D:\dm-wt\<branch>`,
-merged when it reports; merged and pushed after, none compiled or run here since its last edits: S4, 190, U41, 186, P3; still being coded: 186, W7, 200. Waiting for the
+merged when it reports; merged and pushed after, none compiled or run here since its last edits: S4, 190, U41, 186, P3, 200, Y9; still being coded: 181, W7. Waiting for the
 maintainer's word (asked in each row): F2's Grabber box (B60, B61), F10's password dialog, W9's
 search in Help, Y25's bit-rate choice (B43), Y6's subtitle files beside a video, W23's 416 strings
 changed since 2026-10-24, F6's real update key and `DM_UPDATE_SIGNING_KEY` secret (the next

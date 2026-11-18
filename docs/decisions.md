@@ -7768,3 +7768,37 @@ the patch. Upstream's `else => continue` in the listener is kept beside dm's own
 upgrade: change the version and hashes, run the script, mend the hunks that fail, write the patch
 again as a `git diff`. 9.1.0 accepts `socks5h://`; dm-core's `swarm_proxy` still rewrites it to
 `socks5://` (behaviour unchanged; its comment is now out of date).
+
+## 2026-11-18: A held name is connected to at its public addresses alone (gaps row 200)
+
+A name a public address leads to (a redirect, a playlist or DASH piece, a mirror, a page link)
+that looks public is held for 10 minutes (`dns::must_be_public`, since 2026-11-12). dm's
+resolver now drops inside addresses from the very answer reqwest connects to, and refuses the
+name (`dns::LedInside`) where none remain, so an answer that is both public and inside no longer
+reaches inside, and a name that answers public and then 127.0.0.1 is refused once it turns: the
+judged answer and the connected one are the same kept answer, with no second lookup. The refusal
+is said in `INWARD_REDIRECT`'s words and is not retried (`redirects::execute`,
+`error::network`). At most 4,096 names are held; a new one past that is refused as inward rather
+than let through unheld. A first hop, a typed address, a LAN name typed by choice and redirects
+between inside hosts are unchanged. Under an HTTP or `socks5h` proxy the proxy resolves, so only
+an address written inside is judged; `socks5` resolves through dm's resolver and is judged. Tests
+answer names through a test-only override in `dns::look_up`, never the hosts file. Left:
+`videopage::page_data::fetch_choices` and RTMPT build clients of their own outside the resolver;
+a held name is refused for 10 minutes even when a person then types it. Written with no build:
+compiled and run on the Mac.
+
+## 2026-11-18: A quality line names its picture's format number (gaps row Y9)
+
+The list is read from the watch page's own player data and the download from a client's answer,
+which can lack a listed format or hold another at that height. Each picture line's quality word
+therefore ends with the format number of the picture it was listed from (`1080/mp4/f137`, after
+the container and any frame rate), so old words and the existing readers are unaffected, and
+the chip in Download details drops it. The download takes that format where its reading has it,
+with the sound its container takes; otherwise the line's height, frame rate and container by the
+existing rules, then the next lower, and with nothing that low the nearest higher picture rather
+than failing; the log names what was taken. The row's words are unchanged. Sound lines carry no
+number: both sides already pick the best sound by the same rule, and the MP3 line keys on
+`audio/m4a`. Where the page holds no player data, the list is built from dm's own reading (30 s
+limit), as the 2026-10-27 decision intended before that fallback was removed. Not done: a new
+field on `Choice` (it would pass through the browser's hand-over and the queue). Its tests were
+written on the Windows laptop and not run: run on the Mac.

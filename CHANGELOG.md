@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- YouTube: a quality picked from the list downloads the very format it was listed from; where the video's reading lacks it, the nearest quality is fetched instead of failing with "no stream at that quality", and a page without its own player data is listed from dm's own reading.
+- Security: a name a public site leads to is connected to at its public addresses only, and is refused, in the words of an inward redirect, where it leads only inside this computer or its network, including a name that answers public and then 127.0.0.1 (DNS rebinding).
 - Torrents: the BitTorrent library is upstream 9.1.0 (a bencode nesting limit, a piece-offset bounds fix, a listener panic fixed) as published plus dm's patch in `desktop/vendor/patches`, remade by `desktop/vendor/vendor.sh`; its web interface, examples and test files are no longer in the tree.
 - Windows: logging off, shutting down or restarting with downloads running stops each one as a pause does and waits for it (2 s at most) before dm ends, in the window and in `--headless`; Ctrl+Break in a console ends dm as Ctrl+C does.
 - Where the desktop has no file chooser (a Linux desktop with neither the portal's nor zenity's), Import and Export ask for the file's path in a small window instead of doing nothing; a path that is not a full one, or a list that cannot be read or written, is said there and the window stays open.
