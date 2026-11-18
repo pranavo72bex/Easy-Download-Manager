@@ -30,6 +30,13 @@ import sys
 import time
 import urllib.parse
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("chrome_check", HERE / "chrome-check.py")
 cc = importlib.util.module_from_spec(spec)
@@ -197,9 +204,9 @@ def one(base, name, site, engine_home, worker):
 
 def sites(base, origin, engine_dl, engine_home, worker):
     # A new install's catch rules, which chrome-check's own checks narrowed to .bin and .pdf.
-    settings = json.loads((engine_home / "settings.json").read_text())
+    settings = json.loads((engine_home / "settings.json").read_text(encoding="utf-8"))
     settings["catch"] = DEFAULT_CATCH
-    (engine_home / "settings.json").write_text(json.dumps(settings))
+    (engine_home / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
     worker.evaluate("chrome.storage.local.set({'dm.catch': %s})" % json.dumps(DEFAULT_CATCH))
     worker.evaluate("dmReady.then(m => m.forget_app())")
     results = []

@@ -32,6 +32,13 @@ import tempfile
 import threading
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs"
@@ -90,12 +97,12 @@ class Dm:
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         port = home / "control.port"
         for _ in range(200):
-            if port.exists() and port.read_text().strip():
+            if port.exists() and port.read_text(encoding="utf-8").strip():
                 break
             time.sleep(0.1)
-        self.conn = socket.create_connection(("127.0.0.1", int(port.read_text())), timeout=60)
+        self.conn = socket.create_connection(("127.0.0.1", int(port.read_text(encoding="utf-8"))), timeout=60)
         self.replies = self.conn.makefile("r", encoding="utf-8")
-        self.call("auth", token=(home / "control.token").read_text().strip())
+        self.call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
 
     def call(self, method, **params):
         self.conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
@@ -156,7 +163,7 @@ def take(look, base, work):
     # so the window is pictured as a person leaves it.
     (home / "settings.json").write_text(json.dumps({
         "theme": look, "download_dir": str(downloads), "show_progress": False, "show_complete": False,
-    }))
+    }), encoding="utf-8")
     dm = Dm(home)
     try:
         suffix = "" if look == "light" else "-dark"

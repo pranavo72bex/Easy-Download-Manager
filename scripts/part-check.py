@@ -33,6 +33,13 @@ import sys
 import time
 import urllib.parse
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("chrome_check", HERE / "chrome-check.py")
 cc = importlib.util.module_from_spec(spec)
@@ -88,12 +95,12 @@ class Control:
     """dm's control port, as a script reaches it: Download details is answered there."""
 
     def __init__(self, home):
-        port = cc.wait_for(lambda: (home / "control.port").exists() and (home / "control.port").read_text().strip(), 60)
+        port = cc.wait_for(lambda: (home / "control.port").exists() and (home / "control.port").read_text(encoding="utf-8").strip(), 60)
         if not port:
             raise RuntimeError("dm opened no control port (was it running before its settings were changed?)")
         self.conn = socket.create_connection(("127.0.0.1", int(port)), timeout=30)
         self.replies = self.conn.makefile("r", encoding="utf-8")
-        self.call("auth", token=(home / "control.token").read_text().strip())
+        self.call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
 
     def call(self, method, **params):
         self.conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
@@ -196,9 +203,9 @@ def parts(base, origin, engine_dl, engine_home, worker):
     # Download details on, as a new install has it, and the port the check answers it through;
     # written before the app first starts, at the first hand-off below.
     settings = engine_home / "settings.json"
-    kept = json.loads(settings.read_text())
+    kept = json.loads(settings.read_text(encoding="utf-8"))
     kept.update({"ask_panel_downloads": True, "allow_command_line": True})
-    settings.write_text(json.dumps(kept))
+    settings.write_text(json.dumps(kept), encoding="utf-8")
     wanted = [a for a in sys.argv[1:] if a in PAGES] or list(PAGES)
     for name in wanted:
         print(f"\n{name}: {PAGES[name]['url']}", flush=True)

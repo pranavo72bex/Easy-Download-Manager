@@ -36,6 +36,13 @@ import time
 import urllib.parse
 import http.server
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("sc", ROOT / "scripts/stress-check.py")
 sc = importlib.util.module_from_spec(spec)
@@ -703,13 +710,13 @@ def p_watch(ctx):
     try:
         n = 300
         for i in range(n):
-            (watch / f"l{i}.url").write_text(f"[InternetShortcut]\nURL={base}/f/wf{i}/{20000 + i}/wf{i}.bin\n")
-        (watch / "empty.txt").write_text("")
+            (watch / f"l{i}.url").write_text(f"[InternetShortcut]\nURL={base}/f/wf{i}/{20000 + i}/wf{i}.bin\n", encoding="utf-8")
+        (watch / "empty.txt").write_text("", encoding="utf-8")
         (watch / "big.txt").write_bytes((f"{base}/f/wfbig/1000/wfbig.bin\n").encode() + b"x" * (8 * MB))
         (watch / "binary.url").write_bytes(os.urandom(100000))
-        (watch / "two.txt").write_text(f"{base}/f/wfa/1000/wfa.bin\n{base}/f/wfb/1000/wfb.bin\n")
+        (watch / "two.txt").write_text(f"{base}/f/wfa/1000/wfa.bin\n{base}/f/wfb/1000/wfb.bin\n", encoding="utf-8")
         outside = root / "outside.txt"
-        outside.write_text(f"{base}/f/wfoutside/1000/wfoutside.bin\n")
+        outside.write_text(f"{base}/f/wfoutside/1000/wfoutside.bin\n", encoding="utf-8")
         try:
             os.symlink(outside, watch / "link.txt")
         except OSError:
@@ -762,7 +769,7 @@ def p_scheduler(ctx):
                 finding("high", "scheduler", f"outside the scheduled window {done} downloads finished and {running} ran")
             # Lifting the schedule must release them.
             if not want_run:
-                s = json.loads((dm.home / "settings.json").read_text())
+                s = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
                 r = dm.call("command.run", id="scheduler.toggle") if False else None
         finally:
             dm.stop()
@@ -926,7 +933,7 @@ def p_torrent(ctx):
     """Torrents on loopback only, inside a sandbox that refuses every other connection."""
     root = ctx["root"]
     profile = root / "loopback-only.sb"
-    profile.write_text(SANDBOX)
+    profile.write_text(SANDBOX, encoding="utf-8")
     # macOS: sandbox-exec. Linux: a container started with `--network none`
     # (scripts/linux-stress.sh) is the sandbox, and the probe below proves it.
     jail = ["sandbox-exec", "-f", str(profile)] if sys.platform == "darwin" else []
@@ -944,13 +951,13 @@ ls = socket.socket(); ls.bind(("127.0.0.1", 0)); ls.listen(1)
 c = socket.create_connection(ls.getsockname(), timeout=3)
 print("LEAKS" if bad else "HOLDS", bad)
 '''
-    held = subprocess.run([*jail, sys.executable, "-c", probe], capture_output=True, text=True, timeout=60)
+    held = subprocess.run([*jail, sys.executable, "-c", probe], capture_output=True, text=True, timeout=60, encoding="utf-8", errors="replace")
     measure("torrent", f"the loopback-only sandbox: {held.stdout.strip() or held.stderr.strip()[:100]}")
     if "HOLDS" not in held.stdout:
         finding("info", "torrent", "skipped: the sandbox that keeps the torrent test off the public network could not be shown to hold")
         return
     build = subprocess.run(["cargo", "test", "-p", "dm-core", "--release", "--test", "torrent_stress", "--no-run", "--message-format=json"],
-                           cwd=ROOT / "desktop", capture_output=True, text=True, timeout=1500)
+                           cwd=ROOT / "desktop", capture_output=True, text=True, timeout=1500, encoding="utf-8", errors="replace")
     binary = None
     for line in build.stdout.splitlines():
         try:
@@ -985,7 +992,7 @@ print("LEAKS" if bad else "HOLDS", bad)
     for test in ("parallel_swarms", "many_files", "paths_outside_the_folder", "swarm_with_a_piece_missing", "pause_and_resume", "magnet_through_a_tracker"):
         try:
             run = subprocess.run([*jail, binary, "--ignored", "--nocapture", "--test-threads=1", test],
-                                 env=env, capture_output=True, text=True, timeout=400)
+                                 env=env, capture_output=True, text=True, timeout=400, encoding="utf-8", errors="replace")
         except subprocess.TimeoutExpired:
             finding("medium", "torrent", f"{test}: did not finish in 400 s")
             continue
@@ -1123,12 +1130,12 @@ def p_fulldisk(ctx):
     base, root = ctx["base"], ctx["root"]
     image = root / "small.dmg"
     mount = root / "small-volume"
-    made = subprocess.run(["hdiutil", "create", "-size", "30m", "-fs", "HFS+", "-volname", "dmfull", "-ov", str(image)], capture_output=True, text=True)
+    made = subprocess.run(["hdiutil", "create", "-size", "30m", "-fs", "HFS+", "-volname", "dmfull", "-ov", str(image)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if made.returncode:
         finding("low", "fulldisk", f"no disk image could be made: {made.stderr.strip()}")
         return
     mount.mkdir()
-    attached = subprocess.run(["hdiutil", "attach", "-nobrowse", "-mountpoint", str(mount), str(image)], capture_output=True, text=True)
+    attached = subprocess.run(["hdiutil", "attach", "-nobrowse", "-mountpoint", str(mount), str(image)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if attached.returncode:
         finding("low", "fulldisk", f"the disk image would not attach: {attached.stderr.strip()}")
         return
@@ -1206,14 +1213,14 @@ def p_detach(ctx):
     name = f"dmdrive{os.getpid()}"
     mount = pathlib.Path("/Volumes") / name
     made = subprocess.run(["hdiutil", "create", "-size", "250m", "-type", "SPARSE", "-fs", "HFS+",
-                           "-volname", name, "-ov", str(image)], capture_output=True, text=True)
+                           "-volname", name, "-ov", str(image)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if made.returncode:
         finding("low", "detach", f"no disk image could be made: {made.stderr.strip()}")
         return
 
     def attach():
         return subprocess.run(["hdiutil", "attach", "-nobrowse", str(image)],
-                              capture_output=True, text=True).returncode == 0 and mount.is_dir()
+                              capture_output=True, text=True, encoding="utf-8", errors="replace").returncode == 0 and mount.is_dir()
     if not attach():
         finding("low", "detach", "the disk image would not attach")
         return
@@ -1225,7 +1232,7 @@ def p_detach(ctx):
             wait_for(lambda: any(r["progress"]["downloaded"] > 5 * MB for r in dm.rows()
                                  if r["state"]["kind"] == "running"), 60)
             had = dm.rows()[0]["progress"]["downloaded"]
-            pulled = subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True, text=True)
+            pulled = subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True, text=True, encoding="utf-8", errors="replace")
             check("detach", "the volume was detached by force, and its folder went with it",
                   pulled.returncode == 0 and not mount.exists(), pulled.stderr.strip())
             t = time.time()
@@ -1269,12 +1276,6 @@ OPT_IN = {"realtorrent": p_realtorrent, "proxytls": p_proxytls, "fulldisk": p_fu
 # ----------------------------------------------------------------- main
 
 def main():
-    # Names and answers from hostile servers, printed as UTF-8 rather than the Windows code page.
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError):
-            pass
     args = sys.argv[1:]
     if "--list" in args:
         for k, f in PHASES.items():

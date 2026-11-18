@@ -34,6 +34,13 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import media_check  # noqa: E402
 
@@ -60,7 +67,7 @@ def ring(home):
     seconds away (gaps row S18)."""
     import socket
     try:
-        port = int((pathlib.Path(home) / "inbox" / "bell").read_text().strip())
+        port = int((pathlib.Path(home) / "inbox" / "bell").read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -83,8 +90,6 @@ def rows(home):
 
 
 def main():
-    # Titles in any script printed, whatever the console's code page (Windows).
-    sys.stdout.reconfigure(errors="replace")
     if not BINARY.exists():
         print("building dm…")
         subprocess.run(["cargo", "build", "--release", "-p", BINARY.stem], cwd=ROOT / "desktop", check=True)
@@ -95,7 +100,7 @@ def main():
         "categorize": False,
         "show_progress": False,
         "show_complete": False,
-    }))
+    }), encoding="utf-8")
     if sys.platform == "win32":
         # What Windows itself gives a program, and only Windows' own folders on PATH: its
         # network needs SystemRoot, and nothing a person installed is found.
@@ -124,7 +129,7 @@ def main():
                 request["quality"] = quality
             # Whole, then named: dm reads only finished files.
             tmp = inbox / f".case{n}.tmp"
-            tmp.write_text(json.dumps(request))
+            tmp.write_text(json.dumps(request), encoding="utf-8")
             tmp.rename(inbox / f"case{n}.json")
             ring(home)
             # One at a time, so each row is known by its order.

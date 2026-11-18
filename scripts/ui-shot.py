@@ -30,6 +30,13 @@ import tempfile
 import threading
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
 SIZE = 2 * 1024 * 1024
@@ -85,17 +92,17 @@ def main():
         "theme": os.environ.get("DM_SHOT_THEME", "system"),
         # DM_SHOT_LANG=de|fr|... photographs it in that language.
         "language": os.environ.get("DM_SHOT_LANG", ""),
-    }))
+    }), encoding="utf-8")
     env = dict(os.environ, DM_HOME=str(home))
     app = subprocess.Popen([BINARY, "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         port_file = home / "control.port"
         for _ in range(100):
-            if port_file.exists() and port_file.read_text().strip():
+            if port_file.exists() and port_file.read_text(encoding="utf-8").strip():
                 break
             time.sleep(0.1)
-        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
@@ -106,7 +113,7 @@ def main():
                 print(method, round(time.time() - started, 2), str(reply)[:100])
             return reply
 
-        call("auth", token=(home / "control.token").read_text().strip())
+        call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
         for name in ("Ubuntu-24.04-desktop.iso", "Annual report.pdf", "holiday-video.mp4",
                      "song.mp3", "slow-archive.zip", "missing-installer.dmg"):
             call("downloads.add", urls=[f"{origin}/files/{name}"])

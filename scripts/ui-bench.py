@@ -79,6 +79,13 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 spec = importlib.util.spec_from_file_location("stress_check", HERE / "stress-check.py")
@@ -139,9 +146,9 @@ def cpu_seconds(pid):
     if sys.platform == "win32":
         out = subprocess.run(["powershell", "-NoProfile", "-Command",
                               f"(Get-Process -Id {pid}).TotalProcessorTime.TotalSeconds"],
-                             capture_output=True, text=True).stdout.strip()
+                             capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
         return float(out or 0)
-    out = subprocess.run(["ps", "-o", "time=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    out = subprocess.run(["ps", "-o", "time=", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
     # [[dd-]hh:]mm:ss[.ss]
     days, _, clock = out.rpartition("-")
     parts = [float(p) for p in clock.split(":")]
@@ -155,7 +162,7 @@ def resident_mb(pid):
     rss = sc.proc_stats(pid)[0]
     footprint = None
     if sys.platform == "darwin" and shutil.which("footprint"):
-        out = subprocess.run(["footprint", "-p", str(pid)], capture_output=True, text=True).stdout
+        out = subprocess.run(["footprint", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         for line in out.splitlines():
             if "phys_footprint:" in line:
                 amount, unit = line.split("phys_footprint:")[1].split()[:2]
@@ -581,7 +588,7 @@ def main():
         shutil.rmtree(root, ignore_errors=True)
 
     stored = baseline_path()
-    baseline = json.loads(stored.read_text()) if stored.exists() else None
+    baseline = json.loads(stored.read_text(encoding="utf-8")) if stored.exists() else None
     print(f"\nBaseline: {stored.relative_to(ROOT) if baseline else 'none for this system'}"
           + (f" ({prov.line(baseline['provenance'])})" if baseline else ""))
     print(table(results, baseline))
@@ -590,11 +597,11 @@ def main():
     out = pathlib.Path(args.json) if args.json else \
         ROOT / "desktop/target/ui-bench" / time.strftime("%Y-%m-%dT%H-%M-%S.json")
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(record, indent=1))
+    out.write_text(json.dumps(record, indent=1), encoding="utf-8")
     print(f"\nwritten to {out}")
     if args.save_baseline:
         BASELINES.mkdir(exist_ok=True)
-        stored.write_text(json.dumps(record, indent=1) + "\n")
+        stored.write_text(json.dumps(record, indent=1) + "\n", encoding="utf-8")
         print(f"saved as the baseline for this system: {stored.relative_to(ROOT)}")
 
 

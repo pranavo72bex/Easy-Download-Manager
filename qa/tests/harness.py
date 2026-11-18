@@ -94,7 +94,7 @@ class DM:
         self.conn = None
 
     def start(self):
-        (self.home / "settings.json").write_text(json.dumps(self.settings))
+        (self.home / "settings.json").write_text(json.dumps(self.settings), encoding="utf-8")
         for stale in ("control.port", "control.token"):
             (self.home / stale).unlink(missing_ok=True)
         self.errlog = open(self.root / "stderr.log", "ab")
@@ -103,15 +103,15 @@ class DM:
                                      stdout=subprocess.DEVNULL, stderr=self.errlog)
         deadline = time.time() + 60
         while not ((self.home / "control.port").exists() and (self.home / "control.token").exists()
-                   and (self.home / "control.port").read_text().strip()):
+                   and (self.home / "control.port").read_text(encoding="utf-8").strip()):
             if self.proc.poll() is not None:
                 raise Fail(f"dm exited at start ({self.proc.returncode}): {self.log()[-800:]}")
             if time.time() > deadline:
                 raise Fail("dm never opened its control port")
             time.sleep(0.1)
-        self.conn = socket.create_connection(("127.0.0.1", int((self.home / "control.port").read_text())), timeout=60)
-        self.replies = self.conn.makefile("r")
-        r = self.call("auth", token=(self.home / "control.token").read_text().strip())
+        self.conn = socket.create_connection(("127.0.0.1", int((self.home / "control.port").read_text(encoding="utf-8"))), timeout=60)
+        self.replies = self.conn.makefile("r", encoding="utf-8")
+        r = self.call("auth", token=(self.home / "control.token").read_text(encoding="utf-8").strip())
         check(r.get("ok"), f"auth refused: {r}")
         return self
 
@@ -155,7 +155,7 @@ class DM:
 
     def log(self):
         try:
-            return (self.root / "stderr.log").read_text(errors="replace")
+            return (self.root / "stderr.log").read_text(errors="replace", encoding="utf-8")
         except OSError:
             return ""
 
@@ -164,12 +164,12 @@ class DM:
         pid = self.proc.pid
         proc = pathlib.Path(f"/proc/{pid}")
         if proc.exists():
-            status = (proc / "status").read_text()
+            status = (proc / "status").read_text(encoding="utf-8")
             rss = int(next(l.split()[1] for l in status.splitlines() if l.startswith("VmRSS")))
             threads = int(next(l.split()[1] for l in status.splitlines() if l.startswith("Threads")))
             return rss, len(list((proc / "fd").iterdir())), threads
-        out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True).stdout.split()
-        fds = len(subprocess.run(["lsof", "-p", str(pid)], capture_output=True, text=True).stdout.splitlines()) - 1
+        out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
+        fds = len(subprocess.run(["lsof", "-p", str(pid)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.splitlines()) - 1
         return int(out[0]) if out else 0, fds, 0
 
     def stop(self, kill=False):

@@ -32,6 +32,13 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import drawn  # noqa: E402  (scripts/drawn.py: where dm says it drew words)
 
@@ -87,26 +94,26 @@ def oracle(home):
     failure to say what the window held: diagnostics, never the check."""
     import socket
     port_file = home / "control.port"
-    if not wait_for(lambda: port_file.exists() and port_file.read_text().strip(), 20):
+    if not wait_for(lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip(), 20):
         return None
     # The file outlives the dm that wrote it: after an exit, or a dm that
     # never opened, its port answers nobody. Diagnostics, so no oracle then.
     try:
-        sock = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=10)
+        sock = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=10)
     except (OSError, ValueError):
         return None
-    lines = sock.makefile("r")
+    lines = sock.makefile("r", encoding="utf-8")
 
     def call(method, **params):
         sock.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
         return json.loads(lines.readline()).get("result") or {}
 
-    call("auth", token=(home / "control.token").read_text().strip())
+    call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
     return call
 
 
 def x(*args):
-    return subprocess.run(list(args), capture_output=True, text=True, timeout=20)
+    return subprocess.run(list(args), capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
 
 
 def wait_for(probe, seconds):
@@ -604,7 +611,7 @@ def finished(home, url, seconds):
 
 def queue_rows(home):
     try:
-        return json.loads((home / "queue.json").read_text())
+        return json.loads((home / "queue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 
@@ -619,7 +626,7 @@ def state_of(home, url):
 
 def settings_of(home):
     try:
-        return json.loads((home / "settings.json").read_text())
+        return json.loads((home / "settings.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -692,7 +699,7 @@ def finished_files_by_hand(home, base, site, good, evil):
           str(settings_of(home).get("watch_folder")))
     link = f"{base}/from-folder.zip"
     saved = watched / "saved-link.url"
-    saved.write_text(f"[InternetShortcut]\nURL={link}\n")
+    saved.write_text(f"[InternetShortcut]\nURL={link}\n", encoding="utf-8")
     old = time.time() - 60
     os.utime(saved, (old, old))
     check("a link saved there appears in dm's list and downloads", wait_for(lambda: state_of(home, link) == "completed", 60),
@@ -735,7 +742,7 @@ def extract_and_command_line(home, env):
         folder = path.with_suffix("")
         check("the files land in a folder beside the archive",
               wait_for(lambda: (folder / "docs" / "deep" / "note.txt").exists(), 15), str(folder))
-        check("with their contents", (folder / "readme.txt").read_text() == "hello from the archive"
+        check("with their contents", (folder / "readme.txt").read_text(encoding="utf-8") == "hello from the archive"
               if (folder / "readme.txt").exists() else False)
         check("the archive is still there", path.exists())
         said = (ORACLE("ui.inspect") or {}).get("said", "")
@@ -764,7 +771,7 @@ def extract_and_command_line(home, env):
 
         # The command line, against this dm (started with --control 0).
         def cli(*args):
-            return subprocess.run([str(BINARY), *args], env=env, capture_output=True, text=True, timeout=30)
+            return subprocess.run([str(BINARY), *args], env=env, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace")
         listed = cli("list")
         check("`dm list` shows the downloads, one a line",
               listed.returncode == 0 and "good.zip" in listed.stdout and "completed" in listed.stdout,
@@ -1168,20 +1175,20 @@ def start_on_login(home, env):
     # the login item alone by design, so that every test's fresh home does not
     # register one on the computer running it. A real login launch has no
     # DM_HOME, and keeps its home under XDG_DATA_HOME.
-    saved = json.loads((home / "settings.json").read_text())
+    saved = json.loads((home / "settings.json").read_text(encoding="utf-8"))
     env = {k: v for k, v in env.items() if k != "DM_HOME"}
     env = dict(env, XDG_CONFIG_HOME=str(config), XDG_CONFIG_DIRS=str(home / "no-system-autostart"),
                XDG_DATA_HOME=str(home / "xdg-data"))
     own = home / "xdg-data" / "dm-engine"
     own.mkdir(parents=True, exist_ok=True)
     settings = own / "settings.json"
-    settings.write_text(json.dumps(dict(saved, start_on_login=True)))
+    settings.write_text(json.dumps(dict(saved, start_on_login=True)), encoding="utf-8")
     entry = config / "autostart" / "dm.desktop"
 
     # Turned on: the next launch writes the entry, aimed at this dm.
     first = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     written = wait_for(entry.exists, 15)
-    text = entry.read_text() if written else ""
+    text = entry.read_text(encoding="utf-8") if written else ""
     check("turning it on writes an autostart entry", written)
     check("which starts this dm into the tray", f"Exec={BINARY} --hidden\n" in text, text)
     end(first)
@@ -1204,7 +1211,7 @@ def start_on_login(home, env):
     wait_for(lambda: not pid(), 15)
 
     # Turned off: the next launch removes it.
-    settings.write_text(json.dumps(dict(saved, start_on_login=False)))
+    settings.write_text(json.dumps(dict(saved, start_on_login=False)), encoding="utf-8")
     last = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     check("turning it off removes the entry", wait_for(lambda: not entry.exists(), 15))
     return last
@@ -1222,7 +1229,7 @@ def main():
         # Three attempts, not a person's ten: the failing download's scene
         # would otherwise sit through minutes of half-minute retries.
         "attempts": 3,
-    }))
+    }), encoding="utf-8")
     env = dict(os.environ, DM_HOME=str(home))
     screen_reader_on()
     app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -1252,7 +1259,7 @@ def main():
                 x("xdotool", "key", "Tab")
             def said():
                 log = pathlib.Path(orca_log)
-                text = log.read_text(errors="replace") if log.exists() else ""
+                text = log.read_text(errors="replace", encoding="utf-8") if log.exists() else ""
                 return [line.split("SPEECH OUTPUT: ", 1)[1].split("{")[0].strip()
                         for line in text.splitlines() if "SPEECH OUTPUT: " in line]
             heard = wait_for(lambda: [s for s in said() if "push button" in s], 15) and said()
@@ -1297,7 +1304,7 @@ def main():
         check("a left click on the tray icon brings the window back", wait_for(dm_windows, 10))
 
         tray_menu(SPEED_LIMITER)
-        settings = lambda: json.loads((home / "settings.json").read_text())
+        settings = lambda: json.loads((home / "settings.json").read_text(encoding="utf-8"))
         limited = wait_for(lambda: settings().get("speed_limit", 0) > 0, 10)
         check("the tray menu's Speed limiter turns the limiter on", limited, str(settings().get("speed_limit")))
         # And off again: left on, it held every later download of the run
@@ -1308,7 +1315,7 @@ def main():
 
         # A real drag and drop: a file of links dragged from a GTK window.
         links = home / "links.txt"
-        links.write_text("http://127.0.0.1:9/one.zip\nhttp://127.0.0.1:9/two.zip\n")
+        links.write_text("http://127.0.0.1:9/one.zip\nhttp://127.0.0.1:9/two.zip\n", encoding="utf-8")
         source = subprocess.Popen([sys.executable, str(pathlib.Path(__file__).with_name("drag_source.py")),
                                    str(links)])
         src = wait_for(lambda: x("xdotool", "search", "--name", "^drag me$").stdout.split(), 15)
@@ -1327,7 +1334,7 @@ def main():
                 time.sleep(0.05)
             time.sleep(0.5)
             x("xdotool", "mouseup", "1")
-        rows = lambda: json.loads((home / "queue.json").read_text()) if (home / "queue.json").exists() else []
+        rows = lambda: json.loads((home / "queue.json").read_text(encoding="utf-8")) if (home / "queue.json").exists() else []
         added = wait_for(lambda: len([r for r in rows() if r["url"].endswith((".zip"))]) >= 2, 15)
         check("a file of links dropped on the window is read and its links queued",
               added, f"{[r['url'] for r in rows()]}")

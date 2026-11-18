@@ -21,6 +21,13 @@ that needs: the extension built (sh scripts/package.sh) and dm built.
 """
 import importlib.util, json, os, pathlib, shutil, signal, subprocess, sys, tempfile, threading, time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path.cwd()
 spec = importlib.util.spec_from_file_location("cc", ROOT / "scripts/chrome-check.py")
 cc = importlib.util.module_from_spec(spec)

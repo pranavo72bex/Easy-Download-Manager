@@ -25,12 +25,26 @@ extension (`sh scripts/package.sh`) and Microsoft Edge. DM_BINARY and
 DM_QA_EDGE name others. The download folder and dm's home are made under
 /tmp/dm-human-qa and removed at the end. Standard library only.
 
+It sets UTF-8 for itself (its output, the files it reads and writes, and
+what it reads from the programs it runs), so `python -X utf8` is not needed
+on Windows. On Windows, start it from PowerShell or Windows Terminal, not
+from Git Bash: from there dm's window is pictured solid black, and the run
+stops at its first picture saying so rather than reporting rows it could
+not see.
+
 On Linux, `sh scripts/linux-human-qa.sh` runs it in a Debian container on an X
 display, against a release's own .deb and extension or a build of the
 checkout, with Chromium in Edge's place; its window pictures are compared
 with docs/behaviour-baseline/gpui/linux, drawn in that container.
 """
 import hashlib, json, os, pathlib, re, shutil, signal, socket, struct, subprocess, sys, threading, time, traceback, zlib
+
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTRACT = ROOT / "docs" / "behaviour-contract.md"
@@ -121,11 +135,16 @@ $o
 '''
 
 
+# Put before a PowerShell command whose output is read: it writes UTF-8, as it is read here,
+# not the console's OEM code page (gaps row X4).
+PS_UTF8 = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+
+
 def win32_titles(pid, close=""):
     """The titles of a process's visible windows on Windows; with `close`, the
     window of that title is sent WM_CLOSE, as its × button does."""
-    out = subprocess.run(["powershell", "-NoProfile", "-Command", WIN32_WINDOWS % (pid, close)],
-                         capture_output=True, text=True).stdout
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", PS_UTF8 + WIN32_WINDOWS % (pid, close)],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
@@ -155,8 +174,8 @@ public class U {
 
 
 def win32_run(body):
-    return subprocess.run(["powershell", "-NoProfile", "-Command", WIN32_HEAD + body],
-                          capture_output=True, text=True).stdout
+    return subprocess.run(["powershell", "-NoProfile", "-Command", PS_UTF8 + WIN32_HEAD + body],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
 
 
 def win32_windows(pid):
@@ -392,15 +411,15 @@ class Dm:
     def start(self):
         (self.home / "control.port").unlink(missing_ok=True)
         self.proc = subprocess.Popen([str(BINARY), "--control", "0"], env=dict(os.environ, DM_HOME=str(self.home)),
-                                     stdout=subprocess.DEVNULL, stderr=open(WORK / "dm-stderr.txt", "a"))
+                                     stdout=subprocess.DEVNULL, stderr=open(WORK / "dm-stderr.txt", "a", encoding="utf-8"))
         port = self.home / "control.port"
         for _ in range(200):
-            if port.exists() and port.read_text().strip():
+            if port.exists() and port.read_text(encoding="utf-8").strip():
                 break
             time.sleep(0.1)
-        self.conn = socket.create_connection(("127.0.0.1", int(port.read_text())), timeout=60)
+        self.conn = socket.create_connection(("127.0.0.1", int(port.read_text(encoding="utf-8"))), timeout=60)
         self.replies = self.conn.makefile("r", encoding="utf-8")
-        self.call("auth", token=(self.home / "control.token").read_text().strip())
+        self.call("auth", token=(self.home / "control.token").read_text(encoding="utf-8").strip())
         pause(1.5)
 
     def call(self, method, **params):
@@ -637,6 +656,22 @@ def png_pixels(path):
     return width, height, (samples if colour in (2, 6) and depth == 8 else 3), rows
 
 
+class NotPictured(Exception):
+    """dm's window could not be pictured: nothing the walk sees can be told from what a person sees."""
+
+
+def flat(path):
+    """Whether a picture is one colour all over: a window pictured from a shell that
+    cannot see the screen (Git Bash on Windows) comes back solid black (2026-11-14)."""
+    width, height, step, rows = png_pixels(path)
+    counts = {}
+    for line in rows[::4]:
+        for x in range(0, width, 7):
+            px = line[x * step:x * step + 3]
+            counts[px] = counts.get(px, 0) + 1
+    return bool(counts) and max(counts.values()) >= 0.995 * sum(counts.values())
+
+
 def differing(a, b):
     """The share of pixels that differ visibly between two pictures, or None
     where their sizes differ."""
@@ -694,7 +729,12 @@ def walk(dm, origin):
     files = f"{origin}/files"
 
     print("\nAdding a download", flush=True)
-    dm.picture("empty-window")
+    shot = dm.picture("empty-window")
+    if shot is None or flat(shot):
+        raise NotPictured(
+            "dm's window " + ("could not be pictured" if shot is None else f"was pictured one colour all over ({shot})")
+            + ": this shell cannot see the screen, so no row can be checked as a person sees it."
+            + (" Start it from PowerShell or Windows Terminal, not Git Bash." if sys.platform == "win32" else ""))
     dm.open_add_url()
     dm.picture("add-url", dialog=True)
     dm.click("OK")
@@ -799,13 +839,13 @@ def walk(dm, origin):
     pause(0.8)
     held = ""
     if sys.platform == "win32":
-        held = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
-                              capture_output=True, text=True, timeout=10).stdout
+        held = subprocess.run(["powershell", "-NoProfile", "-Command", PS_UTF8 + "Get-Clipboard -Raw"],
+                              capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace").stdout
     elif sys.platform == "darwin":
-        held = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=10).stdout
+        held = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace").stdout
     elif shutil.which("xclip"):
         held = subprocess.run(["xclip", "-selection", "clipboard", "-o"],
-                              capture_output=True, text=True, timeout=10).stdout
+                              capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace").stdout
     check("B55", "Copy details puts the host, the status and the setup on the clipboard, no path or query",
           "State: failed" in held and "Host: " in held and "Headers sent:" in held and "?" not in held
           and "/missing.bin" not in held, held[:200])
@@ -1569,7 +1609,7 @@ def edge(script, *args):
                          env=dict(os.environ, CHROME_PATH=EDGE, DM_BINARY=str(BINARY),
                                   PYTHONIOENCODING="utf-8"),
                          capture_output=True, encoding="utf-8", errors="replace")
-    (WORK / f"edge-{script}.txt").write_text(run.stdout + run.stderr)
+    (WORK / f"edge-{script}.txt").write_text(run.stdout + run.stderr, encoding="utf-8")
     said = {}
     for line in run.stdout.splitlines():
         m = re.match(r"\s+(PASS|FAIL)\s+(.*?)(?: — (.*))?$", line)
@@ -1628,7 +1668,7 @@ def new_install(origin):
     progress window as it starts, and a Download complete window when it ends."""
     home = WORK / "new-install"
     (home / "downloads").mkdir(parents=True)
-    (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads"), "theme": "dark"}))
+    (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads"), "theme": "dark"}), encoding="utf-8")
     dm = Dm(home)
     dm.start()
     try:
@@ -1662,7 +1702,7 @@ def new_install(origin):
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
-    rows = re.findall(r"^\| (B\d\d) \|", CONTRACT.read_text(), re.M)
+    rows = re.findall(r"^\| (B\d\d) \|", CONTRACT.read_text(encoding="utf-8"), re.M)
     shutil.rmtree(WORK, ignore_errors=True)
     home = WORK / "home"
     (home / "downloads").mkdir(parents=True)
@@ -1672,7 +1712,7 @@ def main():
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "theme": "dark", "popups_version": 2,
         "show_progress": False, "show_complete": False,
-        "ask_caught_downloads": False, "ask_panel_downloads": False}))
+        "ask_caught_downloads": False, "ask_panel_downloads": False}), encoding="utf-8")
     origin = start_server()
     print(f"dm: {BINARY}\nthe contract: {len(rows)} rows\nserver: {origin}", flush=True)
     # An address on the clipboard is offered in Add URL (as it should be), so
@@ -1681,10 +1721,13 @@ def main():
     held = clipboard_held()
     dm = Dm(home)
     dm.start()
+    stopped = None
     try:
         walk(dm, origin)
+    except NotPictured as e:   # every row after it would be reported wrongly: the run stops here
+        stopped = str(e)
     except Exception as e:   # a step that broke is a failure of its row, and the rest still run
-        (WORK / "walk-trace.txt").write_text(traceback.format_exc())
+        (WORK / "walk-trace.txt").write_text(traceback.format_exc(), encoding="utf-8")
         check("WALK", "the walk through the window ran to its end", False, repr(e) + f" dm_exit={dm.proc.poll()} " + traceback.format_exc().replace(chr(10), " | ")[-700:])
     finally:
         try:
@@ -1692,6 +1735,8 @@ def main():
         except Exception:
             dm.proc.kill()
         clipboard_restore(held)
+    if stopped:
+        sys.exit(f"\nSTOPPED, no row checked: {stopped}")
     new_install(origin)
     browser()
 
@@ -1707,7 +1752,7 @@ def main():
             print(f"  FAIL         {row}  " + "; ".join(w for ok, w, _ in got if not ok), flush=True)
     if "WALK" in RESULTS:
         failed.append("WALK")
-    (WORK / "result.json").write_text(json.dumps({r: RESULTS.get(r, []) for r in rows + ["WALK"]}, indent=1))
+    (WORK / "result.json").write_text(json.dumps({r: RESULTS.get(r, []) for r in rows + ["WALK"]}, indent=1), encoding="utf-8")
     print(f"\n{len(rows) - len([f for f in failed if f != 'WALK'])} of {len(rows)} rows hold"
           f"{'' if not failed else '; failing or not checked: ' + ', '.join(failed)}", flush=True)
     print(f"pictures and the full record: {WORK}", flush=True)

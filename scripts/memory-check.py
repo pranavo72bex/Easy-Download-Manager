@@ -32,6 +32,13 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or (
     "D:/dm-target/release/dm-gpui.exe" if sys.platform == "win32"
@@ -57,7 +64,7 @@ def sample(pid):
     script = (f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; "
               "if ($p) { '{0} {1} {2} {3}' -f $p.WorkingSet64, $p.PrivateMemorySize64, $p.Threads.Count, $p.HandleCount }")
     out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                         capture_output=True, text=True, timeout=30).stdout.split()
+                         capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace").stdout.split()
     if len(out) != 4:
         return None
     working, private, threads, handles = (int(v) for v in out)
@@ -66,7 +73,7 @@ def sample(pid):
 
 def sample_mac(pid):
     def run(*args):
-        return subprocess.run(args, capture_output=True, text=True, timeout=30).stdout
+        return subprocess.run(args, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace").stdout
     resident = run("ps", "-o", "rss=", "-p", str(pid)).strip()
     if not resident:
         return None
@@ -122,7 +129,7 @@ def main():
             "provenance": made_by,
             "budget_mb": {"working": WORKING_BUDGET_MB, "private": PRIVATE_BUDGET_MB},
             "samples": [dict(zip(("working_mb", "private_mb", "threads", "handles"), r)) for r in rows],
-        }, indent=1))
+        }, indent=1), encoding="utf-8")
     over = []
     if statistics.mean(working) > WORKING_BUDGET_MB:
         over.append(f"working set {statistics.mean(working):.1f} MB over {WORKING_BUDGET_MB:.0f} MB")

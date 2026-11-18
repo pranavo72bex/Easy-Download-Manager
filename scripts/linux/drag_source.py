@@ -11,6 +11,13 @@ import sys
 
 import gi
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, Gtk  # noqa: E402
 

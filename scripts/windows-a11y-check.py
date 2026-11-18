@@ -33,6 +33,13 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # Each dialog opened: its command, the title of its window, and the buttons (or a
@@ -101,18 +108,12 @@ def until(what, check, seconds=15.0):
 
 
 def main():
-    # Names hold "…" and "›": as UTF-8 in a log, not the Windows code page.
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError):
-            pass
     if sys.platform != "win32":
         sys.exit("Windows only: on Linux, scripts/linux-gui-check.sh asks AT-SPI the same")
     exe = binary()
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-a11y-"))
     (home / "downloads").mkdir()
-    (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads")}))
+    (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads")}), encoding="utf-8")
     reader = home / "uia.ps1"
     reader.write_text(UIA, encoding="utf-8")
     env = dict(os.environ, DM_HOME=str(home))
@@ -123,7 +124,7 @@ def main():
     conn = None
     try:
         port_file = home / "control.port"
-        port = until("dm's control port", lambda: port_file.exists() and port_file.read_text().strip(), 90)
+        port = until("dm's control port", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip(), 90)
         conn = socket.create_connection(("127.0.0.1", int(port)), timeout=60)
         replies = conn.makefile("r", encoding="utf-8")
 
@@ -138,7 +139,7 @@ def main():
             texts = (call("ui.texts").get("result") or {}).get("texts", [])
             return {t["text"] for t in texts if t.get("window") == "dialog"}
 
-        call("auth", token=(home / "control.token").read_text().strip())
+        call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
         until("dm's window", lambda: call("ui.inspect").get("ok"), 30)
         time.sleep(1.5)
         for command, title, wanted in DIALOGS:

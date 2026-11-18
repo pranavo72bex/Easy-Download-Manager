@@ -34,6 +34,13 @@ import tempfile
 import threading
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 BINARY = os.environ.get("DM_BINARY") or "dm-gpui"
 # Made up afresh for each run, never written in the repository (a secret scanner reads its history),
 # and never printed: a check that fails names the file, not what it found there.
@@ -124,15 +131,15 @@ class Dm:
         env = dict(os.environ, DM_HOME=str(self.home))
         env.pop("DM_NO_SECRET_STORE", None)
         self.proc = subprocess.Popen([BINARY, "--control", "0"], env=env, stdout=subprocess.DEVNULL,
-                                     stderr=open(self.home.parent / "dm-stderr.txt", "a"))
+                                     stderr=open(self.home.parent / "dm-stderr.txt", "a", encoding="utf-8"))
         port = self.home / "control.port"
         for _ in range(300):
-            if port.exists() and port.read_text().strip():
+            if port.exists() and port.read_text(encoding="utf-8").strip():
                 break
             time.sleep(0.1)
-        self.conn = socket.create_connection(("127.0.0.1", int(port.read_text())), timeout=30)
+        self.conn = socket.create_connection(("127.0.0.1", int(port.read_text(encoding="utf-8"))), timeout=30)
         self.replies = self.conn.makefile("r", encoding="utf-8")
-        self.call("auth", token=(self.home / "control.token").read_text().strip())
+        self.call("auth", token=(self.home / "control.token").read_text(encoding="utf-8").strip())
 
     def call(self, method, **params):
         self.conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
@@ -165,7 +172,7 @@ def store_items():
     if not shutil.which("secret-tool"):
         return []
     got = subprocess.run(["secret-tool", "search", "--all", "--unlock", "service", "dm"],
-                         capture_output=True, text=True, timeout=20)
+                         capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
     items, current = [], {}
     for line in (got.stdout + got.stderr).splitlines():
         line = line.strip()
@@ -183,7 +190,7 @@ def store_lookup(name):
     if not shutil.which("secret-tool"):
         return b""
     got = subprocess.run(["secret-tool", "lookup", "service", "dm", "name", name],
-                         capture_output=True, text=True, timeout=20)
+                         capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
     return decoded(got.stdout) if got.returncode == 0 else b""
 
 
@@ -209,7 +216,7 @@ def main():
     home = work / "home"
     home.mkdir()
     # A Sign-in written in clear by an earlier dm: moved into the store on the first read.
-    (home / "settings.json").write_text(json.dumps({"site_logins": [SIGN_IN]}))
+    (home / "settings.json").write_text(json.dumps({"site_logins": [SIGN_IN]}), encoding="utf-8")
     server = Server(("127.0.0.1", 0), Serve)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
@@ -243,7 +250,7 @@ def main():
           not held, str(held))
     sealed_file = home / "secrets.json"
     try:
-        envelope = json.loads(sealed_file.read_text())
+        envelope = json.loads(sealed_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         envelope = {}
     check("the rows' secrets file is sealed (ChaCha20-Poly1305, under the key the store keeps)",
@@ -254,7 +261,7 @@ def main():
     check("the Secret Service keeps the key that seals it (32 bytes; its value is not printed)",
           len(store_lookup("dm:queue-secrets-key")) == 32)
     check("and the Sign-in's password, which the settings file keeps empty",
-          sign_in_kept(items) and json.loads((home / "settings.json").read_text())["site_logins"][0]["password"] == "",
+          sign_in_kept(items) and json.loads((home / "settings.json").read_text(encoding="utf-8"))["site_logins"][0]["password"] == "",
           f"{len(items)} items under dm's service")
     dm.stop()
     before = {p: max([e["t"] for e in LOG if e["path"] == p] or [0]) for p in ("/auth/a.bin", "/cookie/b.bin")}
@@ -281,7 +288,7 @@ def main():
     check("and both files are whole", len(whole) == 2 and all(whole), str(whole))
     check("the Sign-in is still kept after the restart",
           sign_in_kept(store_items())
-          and json.loads((home / "settings.json").read_text())["site_logins"][0]["password"] == "")
+          and json.loads((home / "settings.json").read_text(encoding="utf-8"))["site_logins"][0]["password"] == "")
     held = files_holding(work, SECRETS)
     check("and still nothing in dm's home or what it printed holds a secret in clear", not held, str(held))
     dm.stop()

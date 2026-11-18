@@ -21,10 +21,17 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).parent
 # gui.py's helpers (real clicks over AT-SPI, typing, the local server),
 # without running its own session.
-exec(compile((HERE / "gui.py").read_text().replace("\nmain()\n", "\n"), str(HERE / "gui.py"), "exec"))
+exec(compile((HERE / "gui.py").read_text(encoding="utf-8").replace("\nmain()\n", "\n"), str(HERE / "gui.py"), "exec"))
 
 SHOTS = pathlib.Path("/shots")
 VIDEO = os.environ.get("DM_VIDEO", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
@@ -52,7 +59,7 @@ def newcomer():
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-new-"))
     env = {**os.environ, "DM_HOME": str(home)}
     app = dm_popen([str(BINARY), "--control", "0"], env=env,
-                   stdout=subprocess.DEVNULL, stderr=open(SHOTS / "dm.log", "w"))
+                   stdout=subprocess.DEVNULL, stderr=open(SHOTS / "dm.log", "w", encoding="utf-8"))
     try:
         check("dm opens a window", wait_for(dm_windows, 30))
         ORACLE = oracle(home)

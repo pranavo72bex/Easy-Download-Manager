@@ -36,9 +36,26 @@ cargo test
 cd .. && sh scripts/package.sh     # builds dist/chrome and dist/firefox
 ```
 
+`cargo xtask package`, from the repository's root or `desktop/`, makes this
+system's installers (it needs `cargo install cargo-packager --locked`).
+
 `docs/how-it-works.md` explains how the app and the extension fit together
 and how to load the extension unpacked. `docs/testing.md` lists every check
 and how to run it, including on Linux in Docker.
+
+### On Windows
+
+- Run the checks, `scripts/human-qa.py` above all, from PowerShell or
+  Windows Terminal, not Git Bash: from Git Bash dm's window is pictured
+  solid black, and `human-qa.py` stops at its first picture saying so.
+- Plain `python` is enough: every Python script sets UTF-8 for itself
+  (`python -X utf8` is no longer needed). A new script does the same.
+- Turn off incremental builds and put the build on a drive with room before
+  a debug build, or its cache fills the disk:
+  `$env:CARGO_INCREMENTAL = "0"; $env:CARGO_TARGET_DIR = "D:\dm-target"`.
+  Then `$env:DM_BINARY` names the build for the Python checks.
+
+`docs/testing.md`, "On Windows: what goes wrong, and what to do", says why.
 
 ### Logins and secrets in tests
 

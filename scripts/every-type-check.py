@@ -26,6 +26,13 @@ import pathlib
 import sys
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("chrome_check", HERE / "chrome-check.py")
 cc = importlib.util.module_from_spec(spec)
@@ -40,9 +47,9 @@ KINDS = ["firmware.bin", "readme.txt", "archive.zip", "setup.exe", "disk.dmg", "
 
 def every_type(base, origin, engine_dl, engine_home, worker):
     settings_file = engine_home / "settings.json"
-    settings = json.loads(settings_file.read_text())
+    settings = json.loads(settings_file.read_text(encoding="utf-8"))
     settings.pop("catch", None)                     # the app's own default: no list
-    settings_file.write_text(json.dumps(settings))
+    settings_file.write_text(json.dumps(settings), encoding="utf-8")
     print("  dm set as installed (no type list); waiting a minute for the extension to ask it again", flush=True)
     time.sleep(62)
     browser_dl = engine_home.parent / "browser-downloads"

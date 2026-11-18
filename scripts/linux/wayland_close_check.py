@@ -23,6 +23,13 @@ import sys
 import tempfile
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
 HERE = pathlib.Path(__file__).parent
 failed = 0
@@ -45,7 +52,7 @@ def wait(probe, seconds):
 
 
 def windows(pid):
-    out = subprocess.run(["swaymsg", "-t", "get_tree"], capture_output=True, text=True).stdout
+    out = subprocess.run(["swaymsg", "-t", "get_tree"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
     found = []
 
     def walk(node):
@@ -63,10 +70,10 @@ def windows(pid):
 
 class Control:
     def __init__(self, home):
-        port = int(wait(lambda: (home / "control.port").exists() and (home / "control.port").read_text().strip(), 30))
+        port = int(wait(lambda: (home / "control.port").exists() and (home / "control.port").read_text(encoding="utf-8").strip(), 30))
         self.sock = socket.create_connection(("127.0.0.1", port), timeout=10)
-        self.file = self.sock.makefile("rw")
-        self.call("auth", {"token": (home / "control.token").read_text().strip()})
+        self.file = self.sock.makefile("rw", encoding="utf-8")
+        self.call("auth", {"token": (home / "control.token").read_text(encoding="utf-8").strip()})
 
     def call(self, method, params=None):
         self.file.write(json.dumps({"id": 1, "method": method, "params": params or {}}) + "\n")

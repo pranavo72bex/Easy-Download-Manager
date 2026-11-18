@@ -87,6 +87,13 @@ import time
 import urllib.parse
 import urllib.request
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
@@ -228,7 +235,7 @@ class Dm:
             "start_on_login": False, "check_updates": False, "cookies_file": "", "watch_clipboard": False,
             **settings,
         }
-        (self.home / "settings.json").write_text(json.dumps(self.settings))
+        (self.home / "settings.json").write_text(json.dumps(self.settings), encoding="utf-8")
         self.app = None
         self.conn = None
 
@@ -238,12 +245,12 @@ class Dm:
         self.stderr = open(self.home / "stderr.txt", "ab")
         self.app = subprocess.Popen([str(BINARY), "--headless", "--control", "0"], env=env,
                                     stdout=subprocess.DEVNULL, stderr=self.stderr)
-        port = wait(lambda: (self.home / "control.port").exists() and (self.home / "control.port").read_text().strip(), 60)
+        port = wait(lambda: (self.home / "control.port").exists() and (self.home / "control.port").read_text(encoding="utf-8").strip(), 60)
         if not port:
             raise DmError(f"dm did not open its control port within 60 s (see {self.home / 'stderr.txt'})")
         self.conn = socket.create_connection(("127.0.0.1", int(port)), timeout=120)
         self.replies = self.conn.makefile("r", encoding="utf-8")
-        self.call("auth", token=(self.home / "control.token").read_text().strip())
+        self.call("auth", token=(self.home / "control.token").read_text(encoding="utf-8").strip())
         return self
 
     def call(self, method, **params):
@@ -363,7 +370,7 @@ def media(path):
     playable = "No" if not whole else ("Yes (structure whole)" if not info.get("unread") else "Not read (no reader for this container)")
     if whole and FFMPEG:
         run = subprocess.run([FFMPEG, "-v", "error", "-xerror", "-i", str(path), "-f", "null", "-"],
-                             capture_output=True, text=True, timeout=900)
+                             capture_output=True, text=True, timeout=900, encoding="utf-8", errors="replace")
         playable = "Yes (decoded by ffmpeg, no error)" if run.returncode == 0 else f"No (ffmpeg: {run.stderr.strip()[:120]})"
         whole = run.returncode == 0
     summary = "" if info.get("unread") else media_check.summary(info)
@@ -804,7 +811,7 @@ def engine_phase(work):
             size = 4 * MB
             url = server.file("nowhere.bin", size)
             blocker = dm.downloads / "not-a-folder"
-            blocker.write_text("a file where the download's folder should be")
+            blocker.write_text("a file where the download's folder should be", encoding="utf-8")
             try:
                 ident = dm.add(url, folder=str(blocker))
             except DmError as e:
@@ -1142,7 +1149,7 @@ def edge_version():
 
 def extension_version():
     try:
-        return json.loads((ROOT / "dist" / "chrome" / "manifest.json").read_text())["version"]
+        return json.loads((ROOT / "dist" / "chrome" / "manifest.json").read_text(encoding="utf-8"))["version"]
     except (OSError, ValueError, KeyError):
         return "?"
 
@@ -1338,12 +1345,6 @@ def write_report(folder, meta, phases):
 
 
 def main():
-    # dm's words hold "—" and "›": as UTF-8 in a log, not the Windows code page.
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError):
-            pass
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--phases", default="engine,public-url,public-panel")
     ap.add_argument("--auth", default="", help="sites for the optional signed-in suite: " + ",".join(AUTH_SITES))
@@ -1366,11 +1367,11 @@ def main():
         pathlib.Path(base).mkdir(parents=True, exist_ok=True)
     work = pathlib.Path(tempfile.mkdtemp(prefix="dm-video-sites-", dir=base))
     report = pathlib.Path(os.environ.get("DM_VIDEO_REPORT") or work / "report")
-    version = subprocess.run([str(BINARY), "--version"], capture_output=True, text=True, timeout=120).stdout.strip()
+    version = subprocess.run([str(BINARY), "--version"], capture_output=True, text=True, timeout=120, encoding="utf-8", errors="replace").stdout.strip()
     meta = {"date": datetime.datetime.now().isoformat(timespec="seconds"),
             "dm version/build": f"{version} ({BINARY})",
             "git commit": subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
-                                         cwd=str(ROOT)).stdout.strip(),
+                                         cwd=str(ROOT), encoding="utf-8", errors="replace").stdout.strip(),
             "Operating system": f"{platform.system()} {platform.release()} ({platform.version()})",
             "Browser and extension version": f"{edge_version()}, dm extension {extension_version()}"
                                              if "public-panel" in phases or args.auth else "not used",

@@ -30,6 +30,13 @@ import tempfile
 import threading
 import time
 
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 BINARY = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 BODY = bytes((i * 7 + 3) & 0xFF for i in range(4 * 1024 * 1024))
 
@@ -153,7 +160,7 @@ def main():
     work = pathlib.Path(tempfile.mkdtemp(prefix="dm-smoke-"))
     home, out = work / "home", work / "downloads"
     home.mkdir()
-    (home / "settings.json").write_text(json.dumps({"download_dir": str(out), "connections": 4}))
+    (home / "settings.json").write_text(json.dumps({"download_dir": str(out), "connections": 4}), encoding="utf-8")
     env = dict(os.environ, DM_HOME=str(home))
     server = Server(("127.0.0.1", 0), Files)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -168,7 +175,7 @@ def main():
         port_file.unlink(missing_ok=True)
         app = launch([str(BINARY), "--headless", "--control", "0"], env)
         deadline = time.time() + 60
-        while not (port_file.exists() and port_file.read_text().strip()):
+        while not (port_file.exists() and port_file.read_text(encoding="utf-8").strip()):
             if app.poll() is not None:
                 fail(f"dm exited at start ({app.returncode}): {app.stderr.read().decode(errors='replace')[:500]}")
             if time.time() > deadline:
@@ -176,14 +183,14 @@ def main():
             time.sleep(0.1)
         ok("starts with no window")
 
-        control = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        control = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = control.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             control.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
 
-        call("auth", token=(home / "control.token").read_text().strip())
+        call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
         url = f"http://127.0.0.1:{server.server_address[1]}/smoke.bin"
         call("downloads.add", urls=[url])
         deadline = time.time() + 120

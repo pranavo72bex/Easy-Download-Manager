@@ -13,7 +13,15 @@ navigation), reload, go back, open an embed, stop the extension's service
 worker, close a tab, raise the panel by moving over the player.
 """
 import base64, socket, struct, json, os, pathlib, random, shutil, subprocess, sys, time, urllib.request
-src = pathlib.Path("/scripts/ext-check.py").read_text()
+
+# UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+src = pathlib.Path("/scripts/ext-check.py").read_text(encoding="utf-8")
 exec(src[src.index("class WS"):src.index("os.makedirs(\"/srv\"")])  # the websocket client
 def say(*a): print(*a, flush=True)
 import http.server, socketserver, threading
