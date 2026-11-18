@@ -36,6 +36,58 @@ fn a_videos_written_captions_are_named_as_webvtt() {
     assert!(captions_named(&json!({})).is_empty());
 }
 
+/// The languages YouTube translates a chosen track into are listed (not fetched), as WebVTT
+/// with its `tlang`, none a chosen track is already in, at most 8 (gaps row Y6).
+#[test]
+fn translated_tracks_are_listed_from_the_first_translatable_chosen_track() {
+    let languages: Vec<Value> = ["de", "en", "fr", "es", "it", "ja", "ko", "pt", "ru", "zh", "nl"]
+        .iter()
+        .map(|code| json!({"languageCode": code, "languageName": {"simpleText": format!("name {code}")}}))
+        .chain([json!({"languageCode": "../x"}), json!({"languageName": {"simpleText": "none"}})])
+        .collect();
+    let player = json!({"captions": {"playerCaptionsTracklistRenderer": {
+        "captionTracks": [
+            {"languageCode": "en", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&lang=en&fmt=srv3&tlang=xx", "isTranslatable": true},
+            {"languageCode": "de", "kind": "asr", "baseUrl": "https://www.youtube.com/api/timedtext?v=x&lang=de&kind=asr", "isTranslatable": true}
+        ],
+        "translationLanguages": languages
+    }}});
+    let listed = translations_named(&player);
+    let codes: Vec<&String> = listed.keys().collect();
+    assert_eq!(codes.len(), 8, "{codes:?}");
+    assert!(
+        !listed.contains_key("en"),
+        "the chosen track's own language"
+    );
+    assert!(
+        listed.contains_key("de"),
+        "the speech-recognised track was not chosen"
+    );
+    assert!(!listed.contains_key("../x"));
+    let fr = listed["fr"]["url"].as_str().unwrap();
+    assert_eq!(
+        fr,
+        "https://www.youtube.com/api/timedtext?v=x&lang=en&fmt=vtt&tlang=fr"
+    );
+    assert_eq!(listed["fr"]["ext"], "vtt");
+    assert_eq!(listed["fr"]["name"], "name fr");
+    // The reading's own tracks are untouched by them.
+    assert_eq!(captions_named(&player).len(), 1);
+
+    // Nothing listed where no chosen track can be translated, or none is offered.
+    let fixed = json!({"captions": {"playerCaptionsTracklistRenderer": {
+        "captionTracks": [{"languageCode": "en", "baseUrl": "https://www.youtube.com/api/timedtext?v=x"}],
+        "translationLanguages": [{"languageCode": "fr"}]
+    }}});
+    assert!(translations_named(&fixed).is_empty());
+    let elsewhere = json!({"captions": {"playerCaptionsTracklistRenderer": {
+        "captionTracks": [{"languageCode": "en", "baseUrl": "https://elsewhere.example/t?v=x", "isTranslatable": true}],
+        "translationLanguages": [{"languageCode": "fr"}]
+    }}});
+    assert!(translations_named(&elsewhere).is_empty());
+    assert!(translations_named(&json!({})).is_empty());
+}
+
 #[test]
 fn a_link_says_where_it_starts_in_each_of_youtubes_ways() {
     let at = |u: &str| start_of(u);

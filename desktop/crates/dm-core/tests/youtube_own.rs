@@ -10,7 +10,8 @@
 //! nothing else is available to fall back on, so the download is the reader's.
 //!
 //! One test in this binary: the stand-in is named by environment variables,
-//! which are the process's.
+//! which are the process's. The stand-in also serves the video's captions, which go into the
+//! finished MP4 as a text track with Options' subtitles on (gaps row Y6).
 
 mod common;
 
@@ -253,6 +254,15 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
                 let answer = serde_json::json!({
                     "playabilityStatus": {"status": "OK"},
                     "videoDetails": {"videoId": id, "title": "Talk: a \"test\"", "lengthSeconds": "4"},
+                    "captions": {"playerCaptionsTracklistRenderer": {
+                        "captionTracks": [
+                            {"languageCode": "en", "isTranslatable": true,
+                             "baseUrl": format!("{origin}/api/timedtext?v={id}&lang=en&fmt=srv3")},
+                            {"languageCode": "en", "kind": "asr",
+                             "baseUrl": format!("{origin}/api/timedtext?v={id}&lang=en&kind=asr")}
+                        ],
+                        "translationLanguages": [{"languageCode": "fr", "languageName": {"simpleText": "French"}}]
+                    }},
                     "streamingData": {"adaptiveFormats": [
                         {"itag": 137, "mimeType": "video/mp4; codecs=\"avc1.640028\"", "width": 1920, "height": 1080,
                          "bitrate": 4000000, "contentLength": picture_len.to_string(), "url": format!("{origin}/picture?itag=137&n=abc"),
@@ -308,6 +318,14 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
                         "/sound" if query.contains("n=DEF") && query.contains("sig=XYZ") => {
                             ranged(&sound, &headers)
                         }
+                        // The written English track, as WebVTT; no other.
+                        "/api/timedtext"
+                            if query.contains("lang=en")
+                                && query.ends_with("fmt=vtt")
+                                && !query.contains("kind=asr") =>
+                        {
+                            text(StatusCode::OK, "text/vtt", CAPTIONS.into())
+                        }
                         _ => text(StatusCode::FORBIDDEN, "text/plain", format!("not solved: {uri}")),
                     }
                 }
@@ -348,6 +366,12 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
         !seen.iter().any(|u| u.starts_with("/locked")),
         "a locked stream was asked for: {seen:?}"
     );
+    // Subtitles off (Options' default): no caption fetched, no text track.
+    assert!(
+        !seen.iter().any(|u| u.starts_with("/api/timedtext")),
+        "captions were fetched with subtitles off: {seen:?}"
+    );
+    assert!(text_tracks(&joined).is_empty());
     // Nothing was fetched to answer the checks: no tool and no script.
     assert!(
         !dir.path().join("tools").exists(),
@@ -443,6 +467,191 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
         .join("out")
         .join("Talk_ a _test_ [jNQXAC9IVRw].mp4")
         .is_file());
+
+    // With Options' subtitles on, the written track (not the speech-recognised one, nor a
+    // translation) is fetched as WebVTT and the finished MP4 carries it as a text track, read
+    // back here with its times and words.
+    requests.0.lock().unwrap().clear();
+    let with = tempdir();
+    let mut subs = options(with.path());
+    subs.subtitles = true;
+    let done = videopage::download_page(&client(), page, &subs, None)
+        .await
+        .expect("the video with its subtitles did not download");
+    let asked: Vec<String> = requests.0.lock().unwrap().clone();
+    let captions: Vec<&String> = asked
+        .iter()
+        .filter(|u| u.starts_with("/api/timedtext"))
+        .collect();
+    assert_eq!(captions.len(), 1, "one caption track fetched: {asked:?}");
+    assert!(
+        captions[0].contains("lang=en") && captions[0].contains("fmt=vtt"),
+        "{captions:?}"
+    );
+    assert!(!captions[0].contains("kind=asr") && !captions[0].contains("tlang"));
+    let joined = std::fs::read(&done.path).unwrap();
+    assert_eq!(
+        text_tracks(&joined),
+        [(
+            "tx3g".to_string(),
+            "eng".to_string(),
+            vec![
+                (500, 1500, "Hello there".to_string()),
+                (2000, 3250, "A & B\nline two".to_string()),
+            ]
+        )]
+    );
+    // Picture and sound are still in it beside the text.
+    let has = |kind: &[u8]| joined.windows(4).filter(|w| *w == kind).count();
+    assert_eq!(has(b"trak"), 3, "picture, sound and text");
+    // The fetched file went inside; none is left beside the video.
+    let left: Vec<String> = std::fs::read_dir(done.path.parent().unwrap())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".vtt"))
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
+}
+
+/// The stand-in's English captions.
+const CAPTIONS: &str = "WEBVTT\nKind: captions\nLanguage: en\n\n\
+00:00:00.500 --> 00:00:01.500 align:start position:0%\nHello <i>there</i>\n\n\
+00:00:02.000 --> 00:00:03.250\nA &amp; B\nline two\n";
+
+/// The boxes directly inside `data`: each one's kind and body.
+fn boxes(data: &[u8]) -> Vec<([u8; 4], &[u8])> {
+    let mut at = 0;
+    let mut out = Vec::new();
+    while at + 8 <= data.len() {
+        let size = be32(data, at) as usize;
+        let kind: [u8; 4] = data[at + 4..at + 8].try_into().unwrap();
+        let (head, size) = match size {
+            0 => (8, data.len() - at),
+            1 => (
+                16,
+                u64::from_be_bytes(data[at + 8..at + 16].try_into().unwrap()) as usize,
+            ),
+            _ => (8, size),
+        };
+        out.push((kind, &data[at + head..at + size]));
+        at += size;
+    }
+    out
+}
+
+/// The body of the first box of `kind` directly inside `data`.
+fn child<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
+    boxes(data)
+        .into_iter()
+        .find(|(k, _)| k == kind)
+        .map(|(_, body)| body)
+}
+
+fn be32(data: &[u8], at: usize) -> u32 {
+    u32::from_be_bytes(data[at..at + 4].try_into().unwrap())
+}
+
+/// A text track read back: its sample entry, its language and its cues.
+type TextTrack = (String, String, Vec<(u64, u64, String)>);
+
+/// An MP4's subtitle tracks, read back from its sample tables: each one's sample entry, its
+/// language and its cues (start and end in milliseconds, and text); the empty samples between
+/// cues left out.
+fn text_tracks(mp4: &[u8]) -> Vec<TextTrack> {
+    let moov = child(mp4, b"moov").expect("a finished MP4 has its moov");
+    boxes(moov)
+        .into_iter()
+        .filter(|(kind, _)| kind == b"trak")
+        .filter_map(|(_, trak)| {
+            let mdia = child(trak, b"mdia")?;
+            let hdlr = child(mdia, b"hdlr")?;
+            if !matches!(&hdlr[8..12], b"sbtl" | b"text") {
+                return None;
+            }
+            let mdhd = child(mdia, b"mdhd")?;
+            let (timescale, language_at) = if mdhd[0] == 1 {
+                (u64::from(be32(mdhd, 20)), 32)
+            } else {
+                (u64::from(be32(mdhd, 12)), 20)
+            };
+            let packed = u16::from_be_bytes([mdhd[language_at], mdhd[language_at + 1]]);
+            let language: String = [10, 5, 0]
+                .iter()
+                .map(|shift| char::from(((packed >> shift) & 0x1f) as u8 + 0x60))
+                .collect();
+            let stbl = child(child(mdia, b"minf")?, b"stbl")?;
+            let stsd = child(stbl, b"stsd")?;
+            let entry = String::from_utf8_lossy(&stsd[12..16]).into_owned();
+            let stts = child(stbl, b"stts")?;
+            let durations: Vec<u64> = (0..be32(stts, 4) as usize)
+                .flat_map(|i| {
+                    let (count, each) = (be32(stts, 8 + 8 * i), be32(stts, 12 + 8 * i));
+                    std::iter::repeat_n(u64::from(each), count as usize)
+                })
+                .collect();
+            let stsz = child(stbl, b"stsz")?;
+            let (fixed, count) = (be32(stsz, 4), be32(stsz, 8) as usize);
+            let sizes: Vec<usize> = (0..count)
+                .map(|i| if fixed != 0 { fixed } else { be32(stsz, 12 + 4 * i) } as usize)
+                .collect();
+            let chunks: Vec<usize> = match child(stbl, b"stco") {
+                Some(stco) => (0..be32(stco, 4) as usize)
+                    .map(|i| be32(stco, 8 + 4 * i) as usize)
+                    .collect(),
+                None => {
+                    let co64 = child(stbl, b"co64")?;
+                    (0..be32(co64, 4) as usize)
+                        .map(|i| {
+                            u64::from_be_bytes(co64[8 + 8 * i..16 + 8 * i].try_into().unwrap())
+                                as usize
+                        })
+                        .collect()
+                }
+            };
+            let stsc = child(stbl, b"stsc")?;
+            let runs: Vec<(usize, usize)> = (0..be32(stsc, 4) as usize)
+                .map(|i| {
+                    (
+                        be32(stsc, 8 + 12 * i) as usize,
+                        be32(stsc, 12 + 12 * i) as usize,
+                    )
+                })
+                .collect();
+            let mut offsets = Vec::new();
+            for (n, start) in chunks.iter().enumerate() {
+                let per = runs
+                    .iter()
+                    .rev()
+                    .find(|(first, _)| *first <= n + 1)
+                    .map_or(0, |run| run.1);
+                let mut at = *start;
+                for _ in 0..per {
+                    let Some(size) = sizes.get(offsets.len()) else {
+                        break;
+                    };
+                    offsets.push(at);
+                    at += size;
+                }
+            }
+            assert_eq!(offsets.len(), sizes.len(), "every sample is in a chunk");
+            let mut time = 0;
+            let mut cues = Vec::new();
+            for ((at, size), duration) in offsets.iter().zip(&sizes).zip(&durations) {
+                let sample = &mp4[*at..at + size];
+                let length = usize::from(u16::from_be_bytes([sample[0], sample[1]]));
+                if length > 0 {
+                    cues.push((
+                        time * 1000 / timescale,
+                        (time + duration) * 1000 / timescale,
+                        String::from_utf8(sample[2..2 + length].to_vec()).unwrap(),
+                    ));
+                }
+                time += duration;
+            }
+            Some((entry, language, cues))
+        })
+        .collect()
 }
 
 /// The test's player: the real one's shape, small.
