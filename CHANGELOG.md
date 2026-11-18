@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A Dropbox, Google Drive or MediaFire share link given to Add URL downloads the file itself under its own name, answering Drive's "can't scan this file for viruses" question for large files, instead of saving the share page.
 - Faster with a long list: each look at the queue examines only the downloads that changed, not every row, and the window is not drawn again when nothing on it changed.
 - YouTube: a quality picked from the list downloads the very format it was listed from; where the video's reading lacks it, the nearest quality is fetched instead of failing with "no stream at that quality", and a page without its own player data is listed from dm's own reading.
 - Security: a name a public site leads to is connected to at its public addresses only, and is refused, in the words of an inward redirect, where it leads only inside this computer or its network, including a name that answers public and then 127.0.0.1 (DNS rebinding).

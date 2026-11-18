@@ -7817,3 +7817,20 @@ alone and keeps ties in the rows' order, so an unchanged key leaves the order un
 done: views of their own or `.cached()` for the window's parts, and following state changes
 through names, places and the filter. Written with no build on the Windows laptop, its time
 bounds (5 ms, 2 ms in debug) guessed: compiled, run and measured on the Mac.
+
+## 2026-11-18: A file-storage service's share link becomes the file's own address (gaps row W7)
+
+A share address is turned into the file's own address in dm-core (`filehost`), not through the
+shipped `rules.json`: those rules feed the extension's page reading and are additive data, and
+they cannot say "fetch this page and submit its form". The address is resolved in `probe()` and
+again at each start of the download, so a short-lived address (Drive's uuid, MediaFire's
+download key) is fresh on every resume; the queue row keeps the share address the person gave.
+Only Dropbox (`dl=1`), Google Drive (`drive.usercontent.google.com/download`, the large-file
+"can't scan this file for viruses" form answered, GET only, https, a google.com action) and
+MediaFire (the file page's download button, an https `*.mediafire.com` address) are done, as
+their public behaviour was seen signed out on 2026-11-18. Where a service answers otherwise, the
+address is left as it is (the page question, B40), never an error of its own. The requests carry
+no cookie and read at most 2 MiB of a page. OneDrive, MEGA, iCloud and the wait or check hosts
+stay hand-overs. Tried and dropped: OneDrive's documented
+`api.onedrive.com/v1.0/shares/u!…/root/content` (404 for a public link in 2026). Written with no
+build on the Windows laptop: compiled and run on the Mac, then `sites-check.py --file-hosts`.
