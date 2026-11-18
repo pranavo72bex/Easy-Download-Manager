@@ -27,6 +27,8 @@
 //!   issue a reader of that language takes.
 //! - `crates-list`, `sign-release` and `verify-release` say what a release is built from and
 //!   sign the digest of each of its files, so anyone can check one (`release.rs`, gaps row W21).
+//! - `help-check` fails where a sentence a person can see (a row's note, a failure the engine
+//!   says, a word of Options) has no entry in the help (`help.rs`, `docs/guide/`).
 //! - `package` makes this system's installers with cargo-packager, run where its settings are
 //!   (`package.rs`); it and the others work from the repository's root too
 //!   (`.cargo/config.toml` there).
@@ -35,6 +37,7 @@
 mod baseline;
 mod check;
 mod headers;
+mod help;
 mod i18n;
 mod package;
 mod release;
@@ -46,6 +49,7 @@ fn main() {
     let job = std::env::args().nth(1).unwrap_or_default();
     let result = match job.as_str() {
         "check" => check::run(&root()),
+        "help-check" => help::run(&root()),
         "i18n" => i18n::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "package" => package::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "scorecard" => write_scorecard(),
@@ -66,7 +70,7 @@ fn main() {
             licence_headers().map(|()| "every source file carries its licence header".to_string())
         }
         _ => Err(
-            "usage: cargo xtask <check|package [packager options]|i18n [<code>|--issue <code>]|scorecard|layers|privacy|parity|secrets|headers [fix]|update-key|sign-manifest <latest.json>|crates-list <file>|sign-release <dir>|verify-release <dir>>"
+            "usage: cargo xtask <check|package [packager options]|i18n [<code>|--issue <code>]|help-check|scorecard|layers|privacy|parity|secrets|headers [fix]|update-key|sign-manifest <latest.json>|crates-list <file>|sign-release <dir>|verify-release <dir>>"
                 .to_string(),
         ),
     };
