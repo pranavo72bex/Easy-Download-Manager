@@ -197,13 +197,17 @@ cargo test --workspace        # the engine against a real HTTP server, a loopbac
                               # swarm, and the window driven through its control port
 cargo xtask package           # this system's .dmg, NSIS installer, .deb or AppImage
                               # (cargo packager, run in crates/dm-gpui for dm-gpui alone)
+cargo xtask verify-release <folder>   # a downloaded release against its signed SHA256SUMS
 ```
 
 The installers are not signed with a paid certificate, so the first launch
 needs a nudge: on macOS, right-click the app and choose Open rather than
 double-clicking, and on Windows tell SmartScreen to run it anyway. That is
 Gatekeeper working as designed — see [RELEASING.md](RELEASING.md) for what
-is signed and what a certificate would change.
+is signed and what a certificate would change. Each release carries the
+list of crates it is built from (`crates.txt`) and the digests of its files,
+signed by the project's key (`SHA256SUMS`, `SHA256SUMS.sig`); RELEASING.md's
+"Checking a release" says how to check them and how to build the same bytes.
 
 To have the browser hand downloads to it:
 

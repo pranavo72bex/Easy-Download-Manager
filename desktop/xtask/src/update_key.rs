@@ -11,6 +11,7 @@
 //! `cargo xtask sign-manifest <latest.json>` signs a manifest with the key in that variable,
 //! writing `latest.json.sig` beside it, and refuses a key that is not the one dm carries: a
 //! release signed by any other key is a release every dm would refuse.
+//! The same key signs a release's list of digests (`release.rs`, gaps row W21).
 
 use base64::Engine as _;
 use ring::signature::{Ed25519KeyPair, KeyPair};
@@ -74,24 +75,47 @@ pub fn sign(private: &str, carried: &str, manifest: &[u8]) -> Result<String, Str
     }
     let signature = b64().encode(pair.sign(manifest).as_ref());
     // Checked as dm checks it, so a release is never published with a signature dm refuses.
-    let key = ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, pair.public_key());
-    key.verify(
-        manifest,
-        &b64().decode(&signature).map_err(|e| e.to_string())?,
-    )
-    .map_err(|_| "the signature made does not check".to_string())?;
+    if !signed_by(&public, manifest, &signature) {
+        return Err("the signature made does not check".to_string());
+    }
     Ok(signature)
+}
+
+/// Whether `signature` (base64) is `key`'s (base64, 32 bytes) Ed25519 signature of exactly
+/// `message`: the check dm makes (`dm-shell`'s `update::signed_by`), here for
+/// `verify-release` (gaps row W21).
+pub fn signed_by(key: &str, message: &[u8], signature: &str) -> bool {
+    let (Ok(key), Ok(signature)) = (b64().decode(key.trim()), b64().decode(signature.trim()))
+    else {
+        return false;
+    };
+    key.len() == 32
+        && ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
+            .verify(message, &signature)
+            .is_ok()
+}
+
+/// The public key dm carries, read from its source under `root` (the repository).
+pub fn carried(root: &Path) -> Result<String, String> {
+    let source =
+        std::fs::read_to_string(root.join(CARRIED_IN)).map_err(|e| format!("{CARRIED_IN}: {e}"))?;
+    carried_key(&source)
+        .map(str::to_string)
+        .ok_or(format!("{CARRIED_IN} has no SIGNING_KEY"))
+}
+
+/// The signature of `message` by the key in [`ENV`], refused unless that key is the one dm
+/// carries: what `sign-manifest` and `sign-release` both sign with.
+pub fn sign_with_env(root: &Path, message: &[u8]) -> Result<String, String> {
+    let private = std::env::var(ENV).map_err(|_| format!("{ENV} is not set"))?;
+    sign(&private, &carried(root)?, message)
 }
 
 /// `cargo xtask sign-manifest <file>`: `<file>.sig` written beside `<file>`.
 pub fn sign_manifest(root: &Path, file: Option<&str>) -> Result<String, String> {
     let file = file.ok_or("usage: cargo xtask sign-manifest <latest.json>")?;
-    let private = std::env::var(ENV).map_err(|_| format!("{ENV} is not set"))?;
-    let source =
-        std::fs::read_to_string(root.join(CARRIED_IN)).map_err(|e| format!("{CARRIED_IN}: {e}"))?;
-    let carried = carried_key(&source).ok_or(format!("{CARRIED_IN} has no SIGNING_KEY"))?;
     let manifest = std::fs::read(file).map_err(|e| format!("{file}: {e}"))?;
-    let signature = sign(&private, carried, &manifest)?;
+    let signature = sign_with_env(root, &manifest)?;
     let out = format!("{file}.sig");
     std::fs::write(&out, signature).map_err(|e| format!("{out}: {e}"))?;
     Ok(format!("signed {file}: {out}"))
@@ -113,6 +137,9 @@ mod tests {
         assert!(key
             .verify(manifest, &b64().decode(&signature).unwrap())
             .is_ok());
+        assert!(signed_by(&public, manifest, &signature));
+        assert!(!signed_by(&public, br#"{"version":"9.9.8"}"#, &signature));
+        assert!(!signed_by("junk", manifest, &signature));
         let (other, _) = new_pair().unwrap();
         let refused = sign(&private, &other, manifest).unwrap_err();
         assert!(refused.contains("not the one dm carries"), "{refused}");

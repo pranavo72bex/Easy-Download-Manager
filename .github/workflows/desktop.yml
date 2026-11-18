@@ -631,6 +631,23 @@ jobs:
           DM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
         run: cargo xtask sign-manifest ../installers/latest.json
 
+      # What the release is built from and that its files are the ones published
+      # (gaps row W21): `crates.txt`, every crate and version in the app and the
+      # extension, from Cargo.lock; `SHA256SUMS`, the digest of every file here
+      # (latest.json, its signature and the crate list too), and `SHA256SUMS.sig`,
+      # its signature by the same key as latest.json's. Checked against the key dm
+      # carries before anything is drafted; anyone checks a download the same way
+      # (`cargo xtask verify-release`, docs/RELEASING.md). Fails without the secret
+      # as the step above does.
+      - name: The crate list and the signed digests
+        working-directory: desktop
+        env:
+          DM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
+        run: |
+          cargo xtask crates-list ../installers/crates.txt
+          cargo xtask sign-release ../installers
+          cargo xtask verify-release ../installers
+
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true

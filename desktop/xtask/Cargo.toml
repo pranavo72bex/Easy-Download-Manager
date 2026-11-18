@@ -11,6 +11,8 @@ toml.workspace = true
 # `update-key` and `sign-manifest`: the update manifest's Ed25519 key and signature (gaps row F6).
 ring.workspace = true
 base64.workspace = true
+# `crates-list`: what a release is built from, read from `cargo metadata` (gaps row W21).
+serde_json.workspace = true
 
 [dev-dependencies]
 # The logins and secrets tests use (gaps row X10).

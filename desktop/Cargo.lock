@@ -10754,6 +10754,7 @@ dependencies = [
  "base64 0.22.1",
  "dm-test-support",
  "ring",
+ "serde_json",
  "toml 1.1.5+spec-1.1.0",
 ]
 
