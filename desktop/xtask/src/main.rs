@@ -22,6 +22,9 @@
 //!
 //! - `check` runs everything that needs no window, the app's and the extension's, in one command
 //!   (`check.rs`): formatting, lints, licences, the tests (and through them the checks above).
+//! - `i18n` says, per language, which strings its catalog lacks and which no native speaker
+//!   has read yet (`i18n.rs`, `docs/guide/translating.md`); `i18n --issue <code>` writes the
+//!   issue a reader of that language takes.
 //! - `package` makes this system's installers with cargo-packager, run where its settings are
 //!   (`package.rs`); it and the others work from the repository's root too
 //!   (`.cargo/config.toml` there).
@@ -30,6 +33,7 @@
 mod baseline;
 mod check;
 mod headers;
+mod i18n;
 mod package;
 
 use std::path::{Path, PathBuf};
@@ -38,6 +42,7 @@ fn main() {
     let job = std::env::args().nth(1).unwrap_or_default();
     let result = match job.as_str() {
         "check" => check::run(&root()),
+        "i18n" => i18n::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "package" => package::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
@@ -52,7 +57,7 @@ fn main() {
             licence_headers().map(|()| "every source file carries its licence header".to_string())
         }
         _ => Err(
-            "usage: cargo xtask <check|package [packager options]|scorecard|layers|privacy|parity|secrets|headers [fix]>"
+            "usage: cargo xtask <check|package [packager options]|i18n [<code>|--issue <code>]|scorecard|layers|privacy|parity|secrets|headers [fix]>"
                 .to_string(),
         ),
     };
