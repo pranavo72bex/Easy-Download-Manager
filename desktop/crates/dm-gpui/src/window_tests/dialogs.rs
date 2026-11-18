@@ -8,8 +8,7 @@
 //! top bar's search box, `docs/decisions.md` 2026-11-10, with no dialog to close), and two of
 //! egui's own drawing (no field outlined in egui's selection stroke; a dialog with egui's
 //! deepest shadow standing whole inside the main window, where a GPUI dialog is a window of
-//! its own). Waiting on the GPUI window: Browse…, Import and Export with no system chooser
-//! taking a typed path (gaps row U41), and a saved Grabber search under Grabber projects in the
+//! its own). Waiting on the GPUI window: a saved Grabber search under Grabber projects in the
 //! side panel (gaps row U40).
 
 use dm_core::State;
@@ -1277,8 +1276,8 @@ fn import_says_the_lines_it_could_not_read() {
 }
 
 /// A list that cannot be written is said so, with why: the file panel chose a folder that is
-/// not there. (The egui window's dialog for a path typed by hand, where there is no file
-/// panel, kept itself open with it; the GPUI window has no such dialog yet, gaps row U41.)
+/// not there. (The dialog for a path typed by hand, where there is no file panel, keeps itself
+/// open with it: `import_and_export_take_a_typed_path_without_a_file_chooser`.)
 #[test]
 fn a_list_that_cannot_be_written_keeps_its_dialog_open() {
     let world = world();
@@ -1294,6 +1293,51 @@ fn a_list_that_cannot_be_written_keeps_its_dialog_open() {
         "{}",
         h.said()
     );
+}
+
+/// Where there is no file chooser, Import and Export ask for the file's path, rather than
+/// doing nothing (gaps row U41): a path that is not a full one, or a list that cannot be
+/// written or read, is said in the dialog, which stays open with the path to be put right.
+#[test]
+fn import_and_export_take_a_typed_path_without_a_file_chooser() {
+    let world = world();
+    let mut h = world.harness();
+    *world.fake.no_chooser.lock().unwrap() = true;
+    h.add_url(&world.url("file.zip"), "Add for later");
+    h.until("the row", |h| !h.rows().is_empty());
+    h.command("program.export");
+    h.until("Export's dialog", |h| h.dialog_open("Export the list"));
+    h.until_shown("No file picker here: type the path.");
+    let offered = h.dialog(|d: &mut crate::dialogs::listfile::ListFile, _, cx| d.typed(cx));
+    assert!(offered.ends_with("downloads.dmlist"), "{offered}");
+    let nowhere = world.dir.path().join("no such folder").join("list.dmlist");
+    h.type_into("File's path", &nowhere.display().to_string());
+    h.click("OK");
+    h.until("the write refused", |h| h.shows_part("could not be written"));
+    assert!(h.dialog_open("Export the list"), "closed with the path lost");
+    let file = world.dir.path().join("typed.dmlist");
+    h.type_into("File's path", &file.display().to_string());
+    h.click("OK");
+    h.until("the list written", |_| file.is_file());
+    h.until("Export's dialog closed", |h| !h.dialog_open("Export the list"));
+
+    let other = crate::harness::world::world();
+    let mut other_h = other.harness();
+    *other.fake.no_chooser.lock().unwrap() = true;
+    other_h.command("program.import");
+    other_h.until("Import's dialog", |h| h.dialog_open("Import a list"));
+    other_h.type_into("File's path", "relative.dmlist");
+    other_h.click("OK");
+    other_h.until("the path refused", |h| h.shows_part("full path"));
+    let missing = other.dir.path().join("missing.dmlist");
+    other_h.type_into("File's path", &missing.display().to_string());
+    other_h.click("OK");
+    other_h.until("the read refused", |h| h.shows_part("could not be read"));
+    assert!(other_h.dialog_open("Import a list"), "closed with the path lost");
+    other_h.type_into("File's path", &file.display().to_string());
+    other_h.click("OK");
+    other_h.until("the list imported", |h| h.rows().len() == 1);
+    other_h.until("Import's dialog closed", |h| !h.dialog_open("Import a list"));
 }
 
 /// Several links copied at once are all offered, through the dialog that lists them; only the

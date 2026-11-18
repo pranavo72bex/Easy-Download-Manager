@@ -6,13 +6,15 @@
 //! The main window's commands that act on files and lists, as the egui
 //! window's do: open, preview, show in Finder and extract a download's file;
 //! import a list (asked first where some of it is listed already) and
-//! export the list; select every row shown; Help. Each rule is the
-//! application's; the window says what came of it.
+//! export the list, the file typed where there is no chooser; select every
+//! row shown; Help. Each rule is the application's; the window says what
+//! came of it.
 
 use dm_core::Entry;
 use dm_desktop_base::i18n::{t, tf, tn};
 use gpui::Context;
 
+use crate::dialogs::listfile::{untold, Told};
 use crate::window::list::Downloads;
 
 impl Downloads {
@@ -112,23 +114,51 @@ impl Downloads {
 
     /// Import: a list chosen in the system's open panel, added (a .torrent
     /// is a download, not a list); where some of its addresses are listed
-    /// already, asked first whether to skip them or add them again.
+    /// already, asked first whether to skip them or add them again. Where
+    /// the desktop has no file chooser, the path is typed instead
+    /// (`listfile`, gaps row U41).
     pub(crate) fn import(&mut self, cx: &mut Context<Self>) {
+        if self.typed_list_path(false, cx) {
+            return;
+        }
         crate::platform::services::ask_then(
             crate::platform::services::Asked::file(false, ""),
             cx,
-            |view: &mut Self, path, cx| view.import_from(&path, cx),
+            |view: &mut Self, path, cx| view.import_from(&path, untold(), cx),
         );
     }
 
-    /// Import of the list at `path`, chosen in the panel. The list is read,
-    /// and what of it is listed already counted, off the window's thread
-    /// (gaps row 183).
-    fn import_from(&mut self, path: &std::path::Path, cx: &mut Context<Self>) {
+    /// Opens the dialog that takes Import's or Export's (`save`) file as a
+    /// typed path, where the desktop has no file chooser to ask with: both
+    /// did nothing there. False where the panel is to be asked.
+    fn typed_list_path(&mut self, save: bool, cx: &mut Context<Self>) -> bool {
+        let typed = crate::dialogs::listfile::typed_instead(
+            self.backend.platform.can_choose_file(),
+            crate::platform::services::chosen_ahead_waits(),
+        );
+        if typed {
+            crate::dialogs::listfile::open(cx.entity().downgrade(), save, cx);
+        }
+        typed
+    }
+
+    /// Import of the list at `path`, chosen in the panel or typed. The list
+    /// is read, and what of it is listed already counted, off the window's
+    /// thread (gaps row 183); whether it could be is `told`.
+    pub(crate) fn import_from(
+        &mut self,
+        path: &std::path::Path,
+        told: Told,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(local) = dm_desktop_base::add_url::local_torrent(&path.to_string_lossy()) {
             let items = vec![(local, dm_core::AddOptions::default())];
-            if let Err(e) = self.add_items(items, cx) {
-                self.say(e);
+            match self.add_items(items, cx) {
+                Ok(_) => told(Ok(()), cx),
+                Err(e) => {
+                    self.say(e.clone());
+                    told(Err(e), cx);
+                }
             }
             return;
         }
@@ -143,11 +173,18 @@ impl Downloads {
                 (path, read)
             },
             |view, (path, read), cx| match read {
-                Ok((text, already, total)) => view.import_read(text, already, total, cx),
-                Err(e) => view.say(tf(
-                    "{} could not be read: {}",
-                    &[&path.display(), &dm_desktop_base::format::file_error(&e)],
-                )),
+                Ok((text, already, total)) => {
+                    told(Ok(()), cx);
+                    view.import_read(text, already, total, cx);
+                }
+                Err(e) => {
+                    let why = tf(
+                        "{} could not be read: {}",
+                        &[&path.display(), &dm_desktop_base::format::file_error(&e)],
+                    );
+                    view.say(why.clone());
+                    told(Err(why), cx);
+                }
             },
             cx,
         );
@@ -228,29 +265,47 @@ impl Downloads {
         );
     }
 
-    /// Export: the list written where the system's save panel says, off
-    /// the window's thread (a long list is a long file), and said once it
-    /// is.
+    /// Export: the list written where the system's save panel says, or
+    /// where a path typed says where the desktop has no file chooser.
     pub(crate) fn export(&mut self, cx: &mut Context<Self>) {
+        if self.typed_list_path(true, cx) {
+            return;
+        }
         crate::platform::services::ask_then(
             crate::platform::services::Asked::file(true, "downloads.dmlist"),
             cx,
-            |view: &mut Self, path, cx| {
-                view.later(
-                    move |backend| {
-                        let written = std::fs::write(&path, backend.export());
-                        (path, written)
-                    },
-                    |view, (path, written), _| match written {
-                        Ok(()) => view.say(tf("Exported to {}.", &[&path.display()])),
-                        Err(e) => view.say(tf(
-                            "{} could not be written: {}",
-                            &[&path.display(), &dm_desktop_base::format::file_error(&e)],
-                        )),
-                    },
-                    cx,
-                );
+            |view: &mut Self, path, cx| view.export_to(path, untold(), cx),
+        );
+    }
+
+    /// The list written to `path`, off the window's thread (a long list is
+    /// a long file), and said once it is; whether it could be is `told`.
+    pub(crate) fn export_to(
+        &mut self,
+        path: std::path::PathBuf,
+        told: Told,
+        cx: &mut Context<Self>,
+    ) {
+        self.later(
+            move |backend| {
+                let written = std::fs::write(&path, backend.export());
+                (path, written)
             },
+            |view, (path, written), cx| match written {
+                Ok(()) => {
+                    view.say(tf("Exported to {}.", &[&path.display()]));
+                    told(Ok(()), cx);
+                }
+                Err(e) => {
+                    let why = tf(
+                        "{} could not be written: {}",
+                        &[&path.display(), &dm_desktop_base::format::file_error(&e)],
+                    );
+                    view.say(why.clone());
+                    told(Err(why), cx);
+                }
+            },
+            cx,
         );
     }
 }

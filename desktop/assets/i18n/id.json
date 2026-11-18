@@ -908,5 +908,10 @@
  "User-Agent": "User-Agent",
  "Request headers": "Header permintaan",
  "Name: value | Name: value": "Nama: nilai | Nama: nilai",
- "No folder picker here: type the path.": "Tidak ada pemilih folder: ketik jalurnya."
+ "No folder picker here: type the path.": "Tidak ada pemilih folder: ketik jalurnya.",
+ "No file picker here: type the path.": "Tidak ada pemilih berkas: ketik jalurnya.",
+ "File's path": "Jalur berkas",
+ "Type the file's full path, such as {}.": "Ketik jalur lengkap berkas, seperti {}.",
+ "Export the list": "Ekspor daftar",
+ "Import a list": "Impor daftar"
 }

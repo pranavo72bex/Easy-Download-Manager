@@ -908,5 +908,10 @@
  "User-Agent": "User-Agent",
  "Request headers": "Intestazioni della richiesta",
  "Name: value | Name: value": "Nome: valore | Nome: valore",
- "No folder picker here: type the path.": "Nessun selettore di cartelle: digita il percorso."
+ "No folder picker here: type the path.": "Nessun selettore di cartelle: digita il percorso.",
+ "No file picker here: type the path.": "Nessun selettore di file: digita il percorso.",
+ "File's path": "Percorso del file",
+ "Type the file's full path, such as {}.": "Digita il percorso completo del file, come {}.",
+ "Export the list": "Esporta l'elenco",
+ "Import a list": "Importa un elenco"
 }

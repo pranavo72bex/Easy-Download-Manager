@@ -112,6 +112,8 @@ pub(crate) struct Fake {
     pub(crate) login: std::sync::Mutex<Option<bool>>,
     pub(crate) opened: std::sync::Mutex<Vec<String>>,
     pub(crate) chosen: std::sync::Mutex<Option<std::path::PathBuf>>,
+    /// The desktop has no file chooser (a Linux desktop with no portal for one, nor zenity).
+    pub(crate) no_chooser: std::sync::Mutex<bool>,
 }
 
 impl dm_shell::app::platform::Platform for Fake {
@@ -179,6 +181,9 @@ impl dm_shell::app::platform::Platform for Fake {
     }
     fn choose_folder(&self) -> Option<std::path::PathBuf> {
         self.chosen.lock().unwrap().clone()
+    }
+    fn can_choose_file(&self) -> bool {
+        !*self.no_chooser.lock().unwrap()
     }
 }
 

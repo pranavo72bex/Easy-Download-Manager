@@ -908,5 +908,10 @@
  "User-Agent": "User-Agent",
  "Request headers": "Nagłówki żądania",
  "Name: value | Name: value": "Nazwa: wartość | Nazwa: wartość",
- "No folder picker here: type the path.": "Brak selektora folderów: wpisz ścieżkę."
+ "No folder picker here: type the path.": "Brak selektora folderów: wpisz ścieżkę.",
+ "No file picker here: type the path.": "Brak selektora plików: wpisz ścieżkę.",
+ "File's path": "Ścieżka pliku",
+ "Type the file's full path, such as {}.": "Wpisz pełną ścieżkę pliku, np. {}.",
+ "Export the list": "Eksportuj listę",
+ "Import a list": "Importuj listę"
 }

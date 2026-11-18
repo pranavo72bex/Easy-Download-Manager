@@ -908,5 +908,10 @@
  "User-Agent": "ユーザーエージェント",
  "Request headers": "リクエストヘッダー",
  "Name: value | Name: value": "名前: 値 | 名前: 値",
- "No folder picker here: type the path.": "フォルダー選択がありません。パスを入力してください。"
+ "No folder picker here: type the path.": "フォルダー選択がありません。パスを入力してください。",
+ "No file picker here: type the path.": "ファイル選択がありません。パスを入力してください。",
+ "File's path": "ファイルのパス",
+ "Type the file's full path, such as {}.": "{} のように、ファイルのフルパスを入力してください。",
+ "Export the list": "リストをエクスポート",
+ "Import a list": "リストをインポート"
 }

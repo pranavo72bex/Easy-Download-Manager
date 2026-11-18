@@ -908,5 +908,10 @@
  "User-Agent": "사용자 에이전트",
  "Request headers": "요청 헤더",
  "Name: value | Name: value": "이름: 값 | 이름: 값",
- "No folder picker here: type the path.": "폴더 선택기가 없습니다. 경로를 입력하세요."
+ "No folder picker here: type the path.": "폴더 선택기가 없습니다. 경로를 입력하세요.",
+ "No file picker here: type the path.": "파일 선택기가 없습니다. 경로를 입력하세요.",
+ "File's path": "파일 경로",
+ "Type the file's full path, such as {}.": "{}처럼 파일의 전체 경로를 입력하세요.",
+ "Export the list": "목록 내보내기",
+ "Import a list": "목록 가져오기"
 }

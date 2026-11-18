@@ -908,5 +908,10 @@
  "User-Agent": "User-Agent",
  "Request headers": "Заголовки запроса",
  "Name: value | Name: value": "Имя: значение | Имя: значение",
- "No folder picker here: type the path.": "Выбора папки нет: введите путь."
+ "No folder picker here: type the path.": "Выбора папки нет: введите путь.",
+ "No file picker here: type the path.": "Выбора файла нет: введите путь.",
+ "File's path": "Путь к файлу",
+ "Type the file's full path, such as {}.": "Введите полный путь к файлу, например {}.",
+ "Export the list": "Экспортировать список",
+ "Import a list": "Импортировать список"
 }

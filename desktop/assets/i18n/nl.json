@@ -908,5 +908,10 @@
  "User-Agent": "User-agent",
  "Request headers": "Aanvraagheaders",
  "Name: value | Name: value": "Naam: waarde | Naam: waarde",
- "No folder picker here: type the path.": "Geen mapkiezer hier: typ het pad."
+ "No folder picker here: type the path.": "Geen mapkiezer hier: typ het pad.",
+ "No file picker here: type the path.": "Geen bestandskiezer hier: typ het pad.",
+ "File's path": "Pad van het bestand",
+ "Type the file's full path, such as {}.": "Typ het volledige pad van het bestand, zoals {}.",
+ "Export the list": "De lijst exporteren",
+ "Import a list": "Een lijst importeren"
 }

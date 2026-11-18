@@ -108,3 +108,19 @@ Click a magnet link or open a `.torrent` file and dm downloads it.
 files, with a button to make it dm. The first torrent makes Windows ask
 whether dm may use the network: allow it and other peers can reach dm, so
 torrents go faster.
+
+## Import and Export
+
+**Tasks › Export…** writes every download in the list to a `.dmlist` file;
+**Tasks › Import…** adds the downloads in such a file, or in a plain list of
+links, one to a line. When some of them are already in the list, dm asks
+first ([Some are already in the list](guide/questions.md#some-are-already-in-the-list)).
+
+Where the computer has no file panel to choose the file with (a Linux
+desktop without one), a small window, "Export the list" or "Import a list",
+says "No file picker here: type the path." Type the file's full path under
+**File's path** (`~` is your home folder) and click **OK**; Export offers
+`downloads.dmlist` in the download folder. A path that is not a full one is
+answered with "Type the file's full path, such as …", and a file that
+cannot be read or written is said there too; the window stays open with
+the path to be put right.

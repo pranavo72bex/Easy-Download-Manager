@@ -243,6 +243,21 @@ Torrents and proxies are under "Torrents" below.
   earlier run. Windows' words follow. Click **Retry**; if it fails again,
   **Redownload** starts the file from the beginning.
 
+## Lists (Import and Export)
+
+- `No file picker here: type the path.`
+  Shown in "Import a list" or "Export the list" where the computer has no
+  file panel to choose the list's file with (a Linux desktop without one).
+  Type the file's full path under **File's path** and click **OK**.
+- `Type the file's full path, such as ….`
+  The path typed is not a full one (from the drive or `/`, or `~` for your
+  home folder). Type it whole, as the example shows.
+- `… could not be read: …`
+- `… could not be written: …`
+  Import could not read the list, or Export could not write it; the file's
+  error follows in plain words. Check the path, or choose a folder dm may
+  write to, and click **OK** again: the window stays open with the path.
+
 ## Checksums
 
 A checksum is a fingerprint of a file. dm checks the finished file against
