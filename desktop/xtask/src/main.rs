@@ -25,6 +25,8 @@
 //! - `i18n` says, per language, which strings its catalog lacks and which no native speaker
 //!   has read yet (`i18n.rs`, `docs/guide/translating.md`); `i18n --issue <code>` writes the
 //!   issue a reader of that language takes.
+//! - `crates-list`, `sign-release` and `verify-release` say what a release is built from and
+//!   sign the digest of each of its files, so anyone can check one (`release.rs`, gaps row W21).
 //! - `package` makes this system's installers with cargo-packager, run where its settings are
 //!   (`package.rs`); it and the others work from the repository's root too
 //!   (`.cargo/config.toml` there).
@@ -35,6 +37,7 @@ mod check;
 mod headers;
 mod i18n;
 mod package;
+mod release;
 mod update_key;
 
 use std::path::{Path, PathBuf};
@@ -54,13 +57,16 @@ fn main() {
         "secrets" => secrets().map(|()| "no credential is written into a tracked file".to_string()),
         "update-key" => update_key::update_key(),
         "sign-manifest" => update_key::sign_manifest(&root(), std::env::args().nth(2).as_deref()),
+        "crates-list" => release::write_crates_list(&root(), std::env::args().nth(2).as_deref()),
+        "sign-release" => release::sign_release(&root(), std::env::args().nth(2).as_deref()),
+        "verify-release" => release::verify_release(&root(), std::env::args().nth(2).as_deref()),
         "headers" if std::env::args().nth(2).as_deref() == Some("fix") => headers::fix(&root())
             .map(|n| format!("a copyright and licence header written into {n} files")),
         "headers" => {
             licence_headers().map(|()| "every source file carries its licence header".to_string())
         }
         _ => Err(
-            "usage: cargo xtask <check|package [packager options]|i18n [<code>|--issue <code>]|scorecard|layers|privacy|parity|secrets|headers [fix]|update-key|sign-manifest <latest.json>>"
+            "usage: cargo xtask <check|package [packager options]|i18n [<code>|--issue <code>]|scorecard|layers|privacy|parity|secrets|headers [fix]|update-key|sign-manifest <latest.json>|crates-list <file>|sign-release <dir>|verify-release <dir>>"
                 .to_string(),
         ),
     };

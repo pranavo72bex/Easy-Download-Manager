@@ -14,6 +14,7 @@ bought, and no amount of code substitutes for one.
 | Installers build | Verified — a `.dmg` and a `.app` were produced on macOS, and the Arch package was built in Arch's own container |
 | Update check | `latest.json` is written by the release job, with each installer's SHA-256; the release job signs it with the project's Ed25519 key (`latest.json.sig` beside it), and dm believes it only with that signature (the public key is built into `dm-shell/src/app/update.rs`), says when a newer version is out, and checks the installer it downloads against the manifest's digest. Until the maintainer makes the key (step 3 below) dm carries a placeholder and the release job's signing step fails. It does not install anything yet (gaps row F6) |
 | macOS is notarised | Needs an Apple Developer ID — $99/year |
+| What is in a release, and that it is the release | Each release carries `crates.txt` (every crate and version the app and the extension are built from) and `SHA256SUMS` with `SHA256SUMS.sig` (the digest of every file, signed by the same key as `latest.json`); `cargo xtask verify-release` checks a download (below, gaps row W21). Not yet run at a tag. A second build compared byte for byte has not been made: what is and is not reproducible is said under "Building the same bytes" |
 | Windows is signed | Not yet. A paid Authenticode certificate would do it; the free route is SignPath Foundation's (the README's Code signing policy is what it asks release pages to carry), and until then SmartScreen warns on first launch |
 | Firefox add-on is installable permanently | Signed by Mozilla (unlisted) in `release.yml` when `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` are set; 3.0.0 was signed by hand |
 
@@ -100,7 +101,9 @@ git push origin main --tags
 
 The tag is what runs the `bundle` job. It builds a `.dmg`, a Windows
 installer, a `.deb` and an `.AppImage`, writes `latest.json`, signs it
-(`latest.json.sig`, step 3 above), and opens a
+(`latest.json.sig`, step 3 above), writes the crate list (`crates.txt`) and
+the signed digests of every file (`SHA256SUMS`, `SHA256SUMS.sig`; "Checking
+a release" below), checks them, and opens a
 **draft** release —
 deliberately draft, so a broken build is not something anybody downloads before
 you have looked at it.
@@ -111,6 +114,116 @@ release notes, keep that line (put the notes under it).
 
 To build installers without releasing anything, run the workflow by hand
 (`workflow_dispatch`); the artefacts are attached to the run instead.
+
+## Checking a release
+
+Every release carries, beside its installers (gaps row W21):
+
+- `crates.txt`: every crate and version the app (`dm-gpui`) and the browser
+  extension (`dm-catcher`) are built from, every system's together, each with
+  where it comes from: crates.io and the SHA-256 `desktop/Cargo.lock` pins for
+  it, a git repository, a copy vendored in `desktop/vendor/`, or dm's own
+  folder. Written by `cargo xtask crates-list <file>` from the lock file
+  (`cargo tree` without dev-dependencies, for every target), so what a test
+  alone uses is not in it.
+- `SHA256SUMS`: the SHA-256 of every file of the release (the installers, the
+  zips, `latest.json` and its signature, `crates.txt`), one `<digest>  <name>`
+  a line, as `sha256sum` writes it.
+- `SHA256SUMS.sig`: the Ed25519 signature of `SHA256SUMS`, base64, by the
+  project's key, the one that signs `latest.json` (step 3 above). The release
+  job makes both with `cargo xtask sign-release ../installers`, which refuses a
+  key that is not the one dm carries, then checks them with
+  `verify-release` before anything is drafted.
+
+To check what you downloaded, put the files in one folder (all of them, or
+yours with `SHA256SUMS` and `SHA256SUMS.sig`) and, from a checkout of the
+release's tag:
+
+```sh
+cd desktop
+cargo xtask verify-release ~/Downloads/dm-0.10.0
+```
+
+It checks the signature against the public key dm carries
+(`SIGNING_KEY` in `desktop/crates/dm-shell/src/app/update.rs`), then each file
+present against its line, and `latest.json.sig` against `latest.json` when
+both are there. A changed file, a changed line or another key fails it; files
+the list names that are not in the folder are said and left unchecked.
+
+Without Rust, the digests alone (this does not check who wrote them):
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS                     # Linux
+shasum -a 256 -c --ignore-missing SHA256SUMS                 # macOS
+Get-FileHash dm_0.10.0_x64-setup.exe -Algorithm SHA256       # Windows PowerShell: compare by eye
+```
+
+and the signature with OpenSSL 3, `KEY` being `SIGNING_KEY` from that file:
+
+```sh
+KEY='…'
+{ printf '302a300506032b6570032100' | xxd -r -p; printf '%s' "$KEY" | base64 -d; } > dm-key.der
+base64 -d SHA256SUMS.sig > SHA256SUMS.sig.bin
+openssl pkeyutl -verify -pubin -keyform DER -inkey dm-key.der -rawin   -in SHA256SUMS -sigfile SHA256SUMS.sig.bin           # "Signature Verified Successfully"
+```
+
+(the hex is the fixed DER prefix of an Ed25519 public key; the 32 bytes of
+the key follow it).
+
+### Building the same bytes
+
+What fixes a build, and how to repeat the release job's:
+
+- **Rust**: `rust-toolchain.toml` at the repository's root pins the toolchain
+  (1.98.1 when this was written; the release jobs pin the same). rustup
+  installs it on the first `cargo` in the checkout.
+- **Crates**: `desktop/Cargo.lock`, with `--locked` so nothing in it moves;
+  `crates.txt` is what it resolved to for the release. The patched crates are
+  in `desktop/vendor/`, in the checkout.
+- **Profile**: `[profile.release]` in `desktop/Cargo.toml` (size first, LTO,
+  one codegen unit, stripped, a few crates at `opt-level = 3`); the extension
+  is the `extension` profile.
+- **Flags**: `CARGO_BUILD_RUSTFLAGS="$(sh scripts/release-flags.sh)"`, which
+  writes the checkout, Cargo's folders and the home folder under neutral names
+  so a build elsewhere carries the same paths. Windows keeps its own target
+  flags (`+crt-static`, `desktop/.cargo/config.toml`), which Cargo takes over
+  these.
+- **Target**: the release's are `x86_64-unknown-linux-gnu` and
+  `aarch64-unknown-linux-gnu` (built on Ubuntu 22.04), `x86_64-pc-windows-msvc`,
+  `aarch64-pc-windows-msvc`, `aarch64-apple-darwin` and `x86_64-apple-darwin`
+  (`.github/workflows/desktop.yml`, the `bundle` job).
+
+```sh
+git checkout desktop-v0.10.0
+cd desktop
+CARGO_BUILD_RUSTFLAGS="$(sh ../scripts/release-flags.sh)"   cargo build --release --locked -p dm-gpui --target x86_64-unknown-linux-gnu
+```
+
+and for the extension, `sh scripts/package.sh` (the same profile, flags,
+`--locked`, and the wasm-bindgen version the lock names).
+
+What is and is not reproducible today, honestly: **no second build has yet
+been compared byte for byte with a release**, so nothing here is claimed
+bit-for-bit. What is known:
+
+- The installers and zips will not match as files: `.deb`, AppImage, `.dmg`,
+  NSIS and zip archives record the time they were made. Compare the program
+  inside instead: `dm-gpui.exe` in the Windows portable zip, `usr/bin/dm-gpui`
+  in the `.deb` (`dpkg-deb -x`), `dm.app/Contents/MacOS/dm-gpui` in the
+  `.dmg`, `dm_catcher_bg.wasm` in the extension's zips.
+- Windows: the build machine's paths stay in the binary (the remapping flags
+  do not reach it, above), and the MSVC linker may write the time into the
+  program's header unless told not to (`/Brepro`); expect a Windows build to
+  differ until both are looked at.
+- Linux: C code in some crates (ring among them) is compiled with the
+  system's compiler and linked against its glibc, so expect a build to
+  compare only on the same Ubuntu 22.04 image.
+- macOS: the bundle is signed ad hoc on the runner; the signature is part of
+  the file compared.
+
+Comparing a second build at a tag, and closing what differs, is what is left
+of gaps row W21; signing the installers themselves is R1's, at the
+maintainer's word.
 
 ## Arch
 
