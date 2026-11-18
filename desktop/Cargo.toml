@@ -10,7 +10,7 @@ resolver = "2"
 # browser/ (the extension, built for wasm32-unknown-unknown) is a member from outside this folder:
 # one lock file and one target folder for both sides, and `cargo test --workspace` tests its
 # deciding parts too (gaps row A15). Its manifest names this workspace (`package.workspace`).
-members = ["crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-protocol", "crates/dm-shell", "crates/dm-test-support", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
+members = ["crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-protocol", "crates/dm-shell", "crates/dm-test-support", "crates/dm-torrent", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
 # A patched copy, used through [patch.crates-io], not a member.
 exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
 
@@ -26,6 +26,7 @@ dm-js = { path = "crates/dm-js" }
 dm-media = { path = "crates/dm-media" }
 dm-protocol = { path = "crates/dm-protocol" }
 dm-shell = { path = "crates/dm-shell" }
+dm-torrent = { path = "crates/dm-torrent" }
 # Tests' alone: only ever a dev-dependency (gaps row X10).
 dm-test-support = { path = "crates/dm-test-support" }
 

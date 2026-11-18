@@ -346,6 +346,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-assets/Cargo.toml",
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-media/Cargo.toml",
+        "desktop/crates/dm-torrent/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
@@ -366,6 +367,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-js/Cargo.toml",
         "desktop/crates/dm-media/Cargo.toml",
+        "desktop/crates/dm-torrent/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
@@ -398,11 +400,14 @@ fn layers() -> Result<(), String> {
             // dm's own media code (gaps row A6): files in, files out; nothing of dm's, no window,
             // no sockets and no async runtime.
             "dm-media" => (&[], true, true),
+            // BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate that names
+            // librqbit; its sockets are the swarm's, and nothing of dm's.
+            "dm-torrent" => (&[], true, false),
             // What the tests share (gaps row X10): nothing of dm's, and no crate may ship it, as
             // none lists it among those it may depend on (only `[dev-dependencies]` name it).
             "dm-test-support" => (&[], true, true),
             // The engine: no window, no browser.
-            "dm-core" => (&["dm-js", "dm-media"], true, false),
+            "dm-core" => (&["dm-js", "dm-media", "dm-torrent"], true, false),
             // Around the window but not the window.
             "dm-shell" => (&["dm-assets", "dm-core", "dm-protocol"], true, false),
             // What the desktop program does that is not drawing: any window
@@ -443,6 +448,14 @@ fn layers() -> Result<(), String> {
             if no_sockets && SOCKETS.contains(&d.as_str()) {
                 wrong.push(format!("{} may not open connections ({d})", c.name));
             }
+            // BitTorrent's engine is named in one crate (gaps rows A6, P3); a test may still
+            // run a peer of its own with it.
+            if d == "librqbit" && c.name != "dm-torrent" {
+                wrong.push(format!(
+                    "{} may not use librqbit: BitTorrent's engine is dm-torrent's",
+                    c.name
+                ));
+            }
         }
     }
     // A file that grows into a monolith is split before it is changed again:
@@ -453,6 +466,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-assets/src",
         "desktop/crates/dm-js/src",
         "desktop/crates/dm-media/src",
+        "desktop/crates/dm-torrent/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
@@ -514,6 +528,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-assets",
         "desktop/crates/dm-js",
         "desktop/crates/dm-media",
+        "desktop/crates/dm-torrent",
         "desktop/crates/dm-protocol",
         "desktop/crates/dm-core",
         "desktop/crates/dm-shell",

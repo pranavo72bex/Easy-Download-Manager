@@ -7399,3 +7399,24 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   needed), so its macOS code (AudioToolbox, VideoToolbox) and Linux code (rav1d) compile as
   moved. dm-core cannot be checked so (ring's build wants that system's C compiler); its facades
   have no system's code. Linking and running them on macOS and Linux are step 8's.
+
+## 2026-11-18: BitTorrent's engine behind dm's own words: dm-torrent (gaps rows A6 step 2, P3)
+
+* **Done**: `desktop/crates/dm-torrent` is the one crate that names librqbit. It offers a
+  `Session` (started from a `Setup`: output folder, private or not, listening or not, blocklist,
+  cancel token, both ceilings, a SOCKS5 proxy), a `Torrent` added to it from a `Source` (a
+  magnet or a .torrent's bytes) with its `files`, `stats` (`Stats`, `State`), name, info-hash and
+  folder, and `metainfo` (a .torrent's trackers and its info dictionary byte for byte). dm-core's
+  `torrent.rs` drives a download and a finished torrent's sharing through these, call for call
+  as it drove librqbit; every message a person can see is worded as it was. librqbit stays a
+  dev-dependency of dm-core: its torrent tests run a librqbit peer of their own and make
+  .torrent files with it.
+* **Not a move of `torrent.rs`**: what a torrent download means to dm (the row's options, its
+  stop, the staged folder and the move into place, the .torrent fetched over HTTP with the
+  row's sign-in, `Swarm`, the sharing registry, tiers) is woven into the engine
+  (`download::{Options, Finished, Update, or_stop, finish, claim_dir}`, `auth`, `cookies`,
+  `probe`, `category`), and the queue calls it, so a crate holding it would need dm-core and
+  dm-core would need it. The line is drawn at the library instead: the part that would change
+  if librqbit were replaced piece by piece (row P3) is dm-torrent's, and nothing else names it.
+* **Kept so**: `cargo xtask layers` lets dm-core depend on dm-torrent and dm-torrent on none of
+  dm's crates; it may open sockets (the swarm's), and no window toolkit.

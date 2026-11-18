@@ -2046,6 +2046,7 @@ dependencies = [
  "dm-js",
  "dm-media",
  "dm-test-support",
+ "dm-torrent",
  "flate2",
  "futures-util",
  "getrandom 0.4.3",
@@ -2201,6 +2202,15 @@ dependencies = [
 [[package]]
 name = "dm-test-support"
 version = "0.10.0"
+
+[[package]]
+name = "dm-torrent"
+version = "0.10.0"
+dependencies = [
+ "bytes",
+ "librqbit",
+ "tokio-util",
+]
 
 [[package]]
 name = "document-features"

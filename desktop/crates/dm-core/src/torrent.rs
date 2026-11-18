@@ -6,7 +6,8 @@
 //! BitTorrent, the one kind of download the browser side cannot do at all.
 //!
 //! An extension has no sockets, so a magnet link is the clearest case of
-//! something only the desktop engine can take. This wraps `librqbit` in the
+//! something only the desktop engine can take. This wraps `librqbit` (through `dm-torrent`,
+//! the one crate that names it) in the
 //! same shape as the HTTP downloader: given a URL and the shared `Options`,
 //! it reports progress and returns a `Finished`, so the queue drives a
 //! torrent exactly as it drives a file and nothing above this line has to
@@ -23,8 +24,8 @@ use std::time::{Duration, Instant};
 
 use std::path::{Path, PathBuf};
 
+use dm_torrent::{Session, Setup, Source, State};
 use futures_util::StreamExt;
-use librqbit::{AddTorrent, AddTorrentOptions, Session, SessionOptions, TorrentStatsState};
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
 
@@ -46,15 +47,14 @@ pub struct Swarm {
 }
 
 impl Swarm {
-    /// The swarm as librqbit's sample counts it, with the upload speed since
+    /// The swarm as the engine's sample counts it, with the upload speed since
     /// the sample before (`before`, `dt` seconds earlier).
-    fn of(stats: &librqbit::TorrentStats, before: Option<u64>, dt: f64) -> Swarm {
-        let peers = stats.live.as_ref().map(|l| &l.snapshot.peer_stats);
-        let connected = peers.map_or(0, |p| p.live);
+    fn of(stats: &dm_torrent::Stats, before: Option<u64>, dt: f64) -> Swarm {
+        let connected = stats.peers_connected.unwrap_or(0);
         let uploaded = stats.uploaded_bytes;
         Swarm {
             connected,
-            known: peers.map_or(0, |p| p.seen).max(connected),
+            known: stats.peers_seen.unwrap_or(0).max(connected),
             uploaded,
             upload_speed: match before {
                 Some(before) if dt > 0.0 => uploaded.saturating_sub(before) as f64 / dt,
@@ -397,11 +397,11 @@ fn tcp_trackers_of_magnet(magnet: &str) -> Result<String, Error> {
 /// A `.torrent` with only the trackers a proxy carries, its info dictionary
 /// kept byte for byte so it is still the same torrent.
 fn tcp_trackers_of(metainfo: &[u8]) -> Result<Vec<u8>, Error> {
-    let parsed = librqbit::torrent_from_bytes(metainfo)
+    let parsed = dm_torrent::metainfo(metainfo)
         .map_err(|e| Error::Internal(format!("this file is not a torrent: {e}")))?;
     let trackers: Vec<String> = parsed
-        .iter_announce()
-        .map(|t| String::from_utf8_lossy(t.as_ref()).into_owned())
+        .trackers
+        .into_iter()
         .filter(|t| tcp_tracker(t))
         .collect();
     let Some(first) = trackers.first() else {
@@ -423,7 +423,7 @@ fn tcp_trackers_of(metainfo: &[u8]) -> Result<Vec<u8>, Error> {
     }
     out.extend_from_slice(b"ee");
     string(&mut out, b"info");
-    out.extend_from_slice(parsed.info.raw_bytes.as_ref());
+    out.extend_from_slice(&parsed.info);
     out.push(b'e');
     Ok(out)
 }
@@ -496,37 +496,21 @@ pub async fn download_torrent(
         ),
         None => None,
     };
-    let session = Session::new_with_opts(
-        output.clone(),
-        SessionOptions {
-            // Off: dm's queue is the record of what to resume, and a second
-            // one in librqbit's own state file would be a thing to keep in
-            // step for no gain.
-            persistence: None,
-            // The DHT on, for magnets with no tracker, but without its state
-            // file: that file is one per user, so a second session (two
-            // torrents at once, or a resume while the paused one is still
-            // closing) failed to start with "error initializing persistent
-            // DHT". Each session finds peers afresh on a port of its own.
-            // Off behind a proxy, and local discovery with it: both are UDP,
-            // which a SOCKS5 connection cannot carry, so they went out
-            // directly with the info-hash and the real address.
-            // A magnet then needs a tracker.
-            dht: (!private).then(|| librqbit::DhtSessionConfig {
-                persistence: None,
-                ..Default::default()
-            }),
-            disable_local_service_discovery: private,
-            blocklist_url,
-            cancellation_token: Some(token.clone()),
-            ratelimits: librqbit::limits::LimitsConfig {
-                download_bps: download_cap(options).await,
-                upload_bps: None,
-            },
-            connect,
-            ..Default::default()
-        },
-    )
+    /* No state file of the engine's: dm's queue is the record of what to
+     * resume. The DHT on, for magnets with no tracker; off behind a proxy, and
+     * local discovery with it: both are UDP, which a SOCKS5 connection cannot
+     * carry, so they went out directly with the info-hash and the real
+     * address. A magnet then needs a tracker. */
+    let session = Session::start(Setup {
+        output: output.clone(),
+        private,
+        listen: false,
+        blocklist_url,
+        cancel: token.clone(),
+        download_bps: download_cap(options).await,
+        upload_bps: None,
+        socks5: connect,
+    })
     .await
     .map_err(|e| Error::Internal(format!("the torrent engine would not start: {e}")))?;
 
@@ -535,17 +519,14 @@ pub async fn download_torrent(
     let _guard = CancelOnDrop(token.clone());
 
     let add = if is_magnet(url) {
-        // In the spelling librqbit looks for: it matches `magnet:` exactly.
+        // In the spelling the engine looks for: it matches `magnet:` exactly.
         let rest = url.trim().get(7..).unwrap_or_default();
         let magnet = format!("magnet:{rest}");
-        AddTorrent::Url(
-            if proxied {
-                tcp_trackers_of_magnet(&magnet)?
-            } else {
-                magnet
-            }
-            .into(),
-        )
+        Source::Magnet(if proxied {
+            tcp_trackers_of_magnet(&magnet)?
+        } else {
+            magnet
+        })
     } else if let Some(path) = local_file(url) {
         // A .torrent on this computer, opened with dm from a file manager.
         let bytes = tokio::fs::read(&path).await.map_err(|e| {
@@ -554,7 +535,7 @@ pub async fn download_torrent(
                 path.display()
             ))
         })?;
-        AddTorrent::TorrentFileBytes(
+        Source::File(
             if proxied {
                 tcp_trackers_of(&bytes)?
             } else {
@@ -576,7 +557,7 @@ pub async fn download_torrent(
             ),
         )
         .await?;
-        AddTorrent::TorrentFileBytes(
+        Source::File(
             if proxied {
                 tcp_trackers_of(&bytes)?
             } else {
@@ -588,10 +569,7 @@ pub async fn download_torrent(
 
     // What it was added from, to add it again over the finished files when it is
     // kept shared (gaps row 147).
-    let again: Option<AddTorrent<'static>> = options.torrent.share.map(|_| match &add {
-        AddTorrent::Url(link) => AddTorrent::Url(link.to_string().into()),
-        AddTorrent::TorrentFileBytes(bytes) => AddTorrent::TorrentFileBytes(bytes.clone()),
-    });
+    let again: Option<Source> = options.torrent.share.map(|_| add.clone());
 
     /* Raced against the row's control: a magnet's metadata comes from its
      * peers, and with no peer answering the add waits with no end. Awaited
@@ -599,41 +577,26 @@ pub async fn download_torrent(
      * Stopped here, the guard below cancels the token, which shuts the
      * session and its half-made lookup down with it. */
     let added = crate::download::or_stop(&options.control, async {
+        // Over the files already on disk (`Session::add`); the files a person left ticked,
+        // where they left some out.
         session
-            .add_torrent(
-                add,
-                Some(AddTorrentOptions {
-                    // Resume from and seed the files already on disk: a
-                    // paused torrent that could not overwrite its own parts
-                    // would start from nothing every time it resumed.
-                    overwrite: true,
-                    // The files a person left ticked, where they left some out.
-                    only_files: options.torrent.only.clone(),
-                    ..Default::default()
-                }),
-            )
+            .add(add, options.torrent.only.clone(), None)
             .await
             .map_err(|e| Error::Internal(format!("the torrent could not be added: {e}")))
     })
     .await?;
-    let handle = added
-        .into_handle()
-        .ok_or_else(|| Error::Internal("the torrent produced no handle".into()))?;
+    let handle = added.ok_or_else(|| Error::Internal("the torrent produced no handle".into()))?;
 
     /* A file name inside the torrent is the swarm's to choose: one with a
      * drive, a stream suffix or a device name would land outside the folder
      * the files go in. Refused as soon as the list is known. The torrent is
      * removed without deleting files: a delete would act on that path. */
     let escaping = handle
-        .with_metadata(|metadata| {
-            metadata
-                .file_infos
-                .iter()
-                .any(|file| !plain_torrent_path(&file.relative_filename))
-        })
+        .files()
+        .map(|files| files.iter().any(|file| !plain_torrent_path(&file.relative)))
         .unwrap_or(false);
     if escaping {
-        let _ = session.delete(handle.id().into(), false).await;
+        let _ = session.forget(handle.id(), false).await;
         token.cancel();
         return Err(Error::Internal(
             "the torrent names a file outside its own folder, so it was not downloaded".into(),
@@ -643,12 +606,12 @@ pub async fn download_torrent(
     // Its files, once known, for a person to choose from.
     if let Some(tx) = &report {
         let files = handle
-            .with_metadata(|metadata| {
-                metadata
-                    .file_infos
+            .files()
+            .map(|files| {
+                files
                     .iter()
                     .map(|file| TorrentFile {
-                        name: file.relative_filename.to_string_lossy().replace('\\', "/"),
+                        name: file.relative.to_string_lossy().replace('\\', "/"),
                         size: file.len,
                         wanted: true,
                         priority: Priority::Normal,
@@ -663,11 +626,9 @@ pub async fn download_torrent(
 
     // A digest is for one file: refused as soon as the metadata shows more,
     // rather than after the whole tree was fetched for nothing.
-    let several = handle
-        .with_metadata(|metadata| metadata.file_infos.len() > 1)
-        .unwrap_or(false);
+    let several = handle.files().map(|files| files.len() > 1).unwrap_or(false);
     if several && options.checksum.is_some() {
-        let _ = session.delete(handle.id().into(), true).await;
+        let _ = session.forget(handle.id(), true).await;
         token.cancel();
         return Err(Error::Internal(
             "a checksum cannot be checked over a torrent of several files".into(),
@@ -682,11 +643,12 @@ pub async fn download_torrent(
     let tiered_total = (tiers.len() > 1)
         .then(|| {
             handle
-                .with_metadata(|metadata| {
+                .files()
+                .map(|files| {
                     tiers
                         .iter()
                         .flatten()
-                        .filter_map(|&i| metadata.file_infos.get(i).map(|f| f.len))
+                        .filter_map(|&i| files.get(i).map(|f| f.len))
                         .sum::<u64>()
                 })
                 .ok()
@@ -710,7 +672,7 @@ pub async fn download_torrent(
             Err(stop) => {
                 token.cancel();
                 if matches!(stop, Error::Cancelled) {
-                    let _ = session.delete(handle.id().into(), true).await;
+                    let _ = session.forget(handle.id(), true).await;
                 }
                 return Err(stop);
             }
@@ -724,8 +686,8 @@ pub async fn download_torrent(
         // second's allowance, and set twice a second it let a torrent run at
         // three times its share.
         let cap = download_cap(options).await;
-        if session.ratelimits.get_download_bps() != cap {
-            session.ratelimits.set_download_bps(cap);
+        if session.download_bps() != cap {
+            session.set_download_bps(cap);
         }
 
         let stats = handle.stats();
@@ -751,20 +713,20 @@ pub async fn download_torrent(
             let now = Instant::now();
             let dt = (now - last).as_secs_f64();
             let total = tiered_total.or((stats.total_bytes > 0).then_some(stats.total_bytes));
-            /* Never less than already reported. librqbit's count
+            /* Never less than already reported. The engine's count
              * drops when a piece fails its hash and is fetched again, and
              * while it checks what is on disk; a row whose bar went back
              * read as a download losing data. The high-water mark, held to
              * the total, catches up once the piece arrives again. */
-            // While it initialises, librqbit's count is how much of what is
+            // While it initialises, the engine's count is how much of what is
             // on disk it has checked, not what it has: a fresh torrent showed
             // a piece "downloaded" with no peer connected, now and then.
             let have = match stats.state {
-                TorrentStatsState::Initializing { .. } => last_done.unwrap_or(0),
+                State::Initializing => last_done.unwrap_or(0),
                 _ => stats.progress_bytes,
             };
             let done = high_water(last_done, have, total);
-            // Measured rather than read off librqbit's own estimator, so the
+            // Measured rather than read off the engine's own estimator, so the
             // number is in the same units and computed the same way as every
             // other row.
             let speed = match last_done {
@@ -801,14 +763,14 @@ pub async fn download_torrent(
             tier += 1;
             let asked: std::collections::HashSet<usize> =
                 tiers[..=tier].iter().flatten().copied().collect();
-            if let Err(e) = session.update_only_files(&handle, &asked).await {
+            if let Err(e) = session.ask_for(&handle, &asked).await {
                 token.cancel();
                 return Err(Error::Internal(format!(
                     "the torrent's next files could not be asked for: {e}"
                 )));
             }
         }
-        if let TorrentStatsState::Error = stats.state {
+        if let State::Error = stats.state {
             token.cancel();
             return Err(Error::Internal(
                 stats.error.unwrap_or_else(|| "the torrent failed".into()),
@@ -818,17 +780,16 @@ pub async fn download_torrent(
         tokio::time::sleep(TICK).await;
     }
 
-    let name = handle
-        .name()
-        .unwrap_or_else(|| handle.info_hash().as_string());
+    let name = handle.name().unwrap_or_else(|| handle.info_hash());
     let bytes = handle.stats().total_bytes;
 
-    /* Where librqbit put it, read from the handle rather than guessed from
+    /* Where the engine put it, read from the handle rather than guessed from
      * the name: one file is written straight into the output folder under
      * its own name, and only a tree gets a folder named for the torrent. */
     let staged = handle
-        .with_metadata(|metadata| match metadata.file_infos.as_slice() {
-            [only] => handle.output_folder().join(&only.relative_filename),
+        .files()
+        .map(|files| match files.as_slice() {
+            [only] => handle.output_folder().join(&only.relative),
             _ => handle.output_folder().to_path_buf(),
         })
         .map_err(|e| Error::Internal(format!("the finished torrent has no metadata: {e}")))?;
@@ -838,14 +799,13 @@ pub async fn download_torrent(
      * would look like files that were fetched. */
     // Every tier's files: `only` is the first tier's alone where there are several.
     if let Some(only) = &options.torrent.wanted() {
-        let _ = handle.with_metadata(|metadata| {
-            for (i, file) in metadata.file_infos.iter().enumerate() {
+        if let Ok(files) = handle.files() {
+            for (i, file) in files.iter().enumerate() {
                 if !only.contains(&i) {
-                    let _ =
-                        std::fs::remove_file(handle.output_folder().join(&file.relative_filename));
+                    let _ = std::fs::remove_file(handle.output_folder().join(&file.relative));
                 }
             }
-        });
+        }
     }
 
     // Forgotten by the session, files kept, so nothing holds them open
@@ -853,7 +813,7 @@ pub async fn download_torrent(
     let id = handle.id();
     drop(handle);
     session
-        .delete(id.into(), false)
+        .forget(id, false)
         .await
         .map_err(|e| Error::Internal(format!("the finished torrent could not be released: {e}")))?;
     drop(session);
@@ -911,7 +871,7 @@ pub async fn download_torrent(
 fn keep_sharing(
     path: PathBuf,
     folder: PathBuf,
-    again: AddTorrent<'static>,
+    again: Source,
     only: Option<Vec<usize>>,
     size: u64,
     share: Share,
@@ -959,7 +919,7 @@ fn keep_sharing(
 async fn share_until(
     path: &Path,
     folder: PathBuf,
-    again: AddTorrent<'static>,
+    again: Source,
     only: Option<Vec<usize>>,
     size: u64,
     share: Share,
@@ -973,48 +933,28 @@ async fn share_until(
     let upload_bps = u32::try_from(share.upload_kbps.saturating_mul(crate::KB))
         .ok()
         .and_then(NonZeroU32::new);
-    let session = Session::new_with_opts(
-        folder.clone(),
-        SessionOptions {
-            persistence: None,
-            // As the download's own session (see there): no DHT state file, and no UDP
-            // behind a proxy.
-            dht: (!private).then(|| librqbit::DhtSessionConfig {
-                persistence: None,
-                ..Default::default()
-            }),
-            disable_local_service_discovery: private,
-            // Reachable by peers, on a port of the system's choosing (no UPnP): sharing is what
-            // the person turned on. Not behind a proxy, which would show the real address.
-            listen: (!proxied).then(librqbit::ListenerOptions::default),
-            cancellation_token: Some(token.clone()),
-            ratelimits: librqbit::limits::LimitsConfig {
-                // Nothing is fetched: the files are whole, or the sharing ends.
-                download_bps: NonZeroU32::new(1),
-                upload_bps,
-            },
-            connect,
-            ..Default::default()
-        },
-    )
+    // As the download's own session (see there): no UDP behind a proxy.
+    let session = Session::start(Setup {
+        output: folder.clone(),
+        private,
+        // Reachable by peers: sharing is what the person turned on. Not behind a proxy, which
+        // would show the real address.
+        listen: !proxied,
+        blocklist_url: None,
+        cancel: token.clone(),
+        // Nothing is fetched: the files are whole, or the sharing ends.
+        download_bps: NonZeroU32::new(1),
+        upload_bps,
+        socks5: connect,
+    })
     .await
     .map_err(|e| format!("its session would not start: {e}"))?;
     let _guard = CancelOnDrop(token.clone());
     let added = session
-        .add_torrent(
-            again,
-            Some(AddTorrentOptions {
-                overwrite: true,
-                output_folder: Some(folder.to_string_lossy().into_owned()),
-                only_files: only,
-                ..Default::default()
-            }),
-        )
+        .add(again, only, Some(&folder))
         .await
         .map_err(|e| format!("it could not be added again: {e}"))?;
-    let handle = added
-        .into_handle()
-        .ok_or_else(|| "it produced no handle".to_string())?;
+    let handle = added.ok_or_else(|| "it produced no handle".to_string())?;
     let listening = session.listen_addr();
     let deadline = Instant::now() + Duration::from_secs(share.minutes.saturating_mul(60));
     let goal = (size as f64 * share.ratio).ceil() as u64;
@@ -1024,12 +964,12 @@ async fn share_until(
         }
         let stats = handle.stats();
         match stats.state {
-            TorrentStatsState::Initializing { .. } => {}
-            TorrentStatsState::Error => {
+            State::Initializing => {}
+            State::Error => {
                 break;
             }
             _ if !stats.finished => {
-                let _ = session.delete(handle.id().into(), false).await;
+                let _ = session.forget(handle.id(), false).await;
                 return Err("its files are no longer whole".into());
             }
             _ => {}
@@ -1050,11 +990,11 @@ async fn share_until(
             () = tokio::time::sleep(TICK) => {}
         }
     }
-    let _ = session.delete(handle.id().into(), false).await;
+    let _ = session.forget(handle.id(), false).await;
     Ok(())
 }
 
-/// What a torrent reports as downloaded: librqbit's count, held to the
+/// What a torrent reports as downloaded: the engine's count, held to the
 /// total and never below what was reported before.
 fn high_water(before: Option<u64>, progress: u64, total: Option<u64>) -> u64 {
     progress
@@ -1188,14 +1128,14 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
 
 /// How the swarm is reached when a proxy is configured.
 ///
-/// librqbit can carry trackers and peers over SOCKS5 and nothing else. An
+/// The engine can carry trackers and peers over SOCKS5 and nothing else. An
 /// HTTP proxy cannot carry a peer connection, so a torrent on a machine with
 /// one configured is refused with the reason rather than sent out around it.
-fn swarm_proxy(proxy: Option<&str>) -> Result<Option<librqbit::ConnectionOptions>, Error> {
+fn swarm_proxy(proxy: Option<&str>) -> Result<Option<String>, Error> {
     let Some(proxy) = proxy else {
         return Ok(None);
     };
-    /* librqbit names SOCKS5 `socks5://` and refuses `socks5h://`, which is
+    /* The engine names SOCKS5 `socks5://` and refuses `socks5h://`, which is
      * what dm's settings hand out so names resolve at the proxy. Peers are
      * addresses already; only a tracker's name differs between the two. */
     let proxy = match proxy.strip_prefix("socks5h://") {
@@ -1209,18 +1149,15 @@ fn swarm_proxy(proxy: Option<&str>) -> Result<Option<librqbit::ConnectionOptions
                 .into(),
         ));
     }
-    Ok(Some(librqbit::ConnectionOptions {
-        proxy_url: Some(proxy),
-        ..Default::default()
-    }))
+    Ok(Some(proxy))
 }
 
-/// The shared download ceiling, in the shape librqbit wants it.
+/// The shared download ceiling, in the shape the engine wants it.
 ///
 /// This torrent's part of the limiter every HTTP download shares, re-read
 /// every tick, so one ceiling governs files, torrents and video runs
 /// together as they start and stop. Zero
-/// — no limit — becomes `None`, which is librqbit's word for the same thing.
+/// — no limit — becomes `None`, which is the engine's word for the same thing.
 async fn download_cap(options: &Options) -> Option<NonZeroU32> {
     let bps = options.limiter.part().await;
     u32::try_from(bps).ok().and_then(NonZeroU32::new)

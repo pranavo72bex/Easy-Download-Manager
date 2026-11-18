@@ -508,7 +508,7 @@ desktop/
     proxy.rs              routing downloads through a proxy
     checksum.rs           verifying a finished file against a published hash
     metalink.rs           reading a list of mirrors for one file
-    torrent.rs            magnets and .torrent files, via librqbit
+    torrent.rs            magnets and .torrent files, through dm-torrent's session
     dash.rs               DASH manifests read by dm: templates, lists, byte ranges, the picture
                           and sound chosen (the fetching is download/dash.rs)
     stream.rs             HLS playlists
@@ -550,6 +550,10 @@ desktop/
     aac.rs, frames.rs, mf.rs   the decoders: AAC, and a video's pictures (the system's on macOS
                           and Windows, Media Foundation in mf.rs; AV1 by rav1d on Linux)
     shape.rs, subtitles.rs     a picture cropped to a shape; subtitles read and written
+  crates/dm-torrent/      BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate
+                          that names librqbit; a session, a torrent added to it, its stats and
+                          files, a .torrent's trackers. What a download means to dm stays in
+                          dm-core's torrent.rs
   crates/dm-protocol/     what the extension and the host say, and the catch rule
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup;
                           app/ the application layer every window drives

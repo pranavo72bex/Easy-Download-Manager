@@ -63,11 +63,8 @@ cbc.workspace = true
 # Seals the file of a row's secrets under a key the operating system's store keeps (`secretstore.rs`).
 chacha20poly1305.workspace = true
 # BitTorrent, the one kind of download the browser side cannot do at all: an
-# extension has no sockets. rustls to match reqwest above, so the binary
-# carries one TLS stack rather than two; in the vendored copy `rust-tls`
-# means ring and the pure-Rust SHA-1, so no second crypto library (aws-lc,
-# built in C with cmake) and no axum come with it (desktop/vendor/README.md).
-librqbit.workspace = true
+# extension has no sockets. Its engine (librqbit) behind dm's own words (gaps rows A6, P3).
+dm-torrent.workspace = true
 tokio-util.workspace = true
 dirs.workspace = true
 zip.workspace = true
@@ -93,6 +90,8 @@ windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Securit
 dm-test-support.workspace = true
 # The small MP4 and WebM files dm-media makes for tests (`mp4mux::testing`).
 dm-media = { workspace = true, features = ["testing"] }
+# The torrent tests' own seeding peer, and the .torrent files they make.
+librqbit.workspace = true
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.
 proptest.workspace = true
