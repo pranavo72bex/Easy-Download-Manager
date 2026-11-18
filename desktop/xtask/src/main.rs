@@ -368,6 +368,7 @@ fn layers() -> Result<(), String> {
     let crates = [
         "desktop/crates/dm-assets/Cargo.toml",
         "desktop/crates/dm-protocol/Cargo.toml",
+        "desktop/crates/dm-safari/Cargo.toml",
         "desktop/crates/dm-media/Cargo.toml",
         "desktop/crates/dm-torrent/Cargo.toml",
         "desktop/crates/dm-net/Cargo.toml",
@@ -389,6 +390,7 @@ fn layers() -> Result<(), String> {
     for member in [
         "desktop/crates/dm-assets/Cargo.toml",
         "desktop/crates/dm-protocol/Cargo.toml",
+        "desktop/crates/dm-safari/Cargo.toml",
         "desktop/crates/dm-js/Cargo.toml",
         "desktop/crates/dm-media/Cargo.toml",
         "desktop/crates/dm-torrent/Cargo.toml",
@@ -459,6 +461,9 @@ fn layers() -> Result<(), String> {
             ),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
+            // Safari's extension's program (gaps row R4): it starts dm's host for each message
+            // and links nothing of dm's, no window and no sockets.
+            "dm-safari" => (&[], true, true),
             other => {
                 wrong.push(format!("{other} is not a crate the layering knows"));
                 continue;
@@ -497,6 +502,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-torrent/src",
         "desktop/crates/dm-net/src",
         "desktop/crates/dm-protocol/src",
+        "desktop/crates/dm-safari/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-test-support/src",
@@ -560,6 +566,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-torrent",
         "desktop/crates/dm-net",
         "desktop/crates/dm-protocol",
+        "desktop/crates/dm-safari",
         "desktop/crates/dm-core",
         "desktop/crates/dm-shell",
         "desktop/crates/dm-test-support",
@@ -684,7 +691,12 @@ fn spacing_literals(text: &str) -> Vec<(usize, String)> {
 /// Whether `file` is `dm_core::folders` itself, or its tests.
 fn is_folders_module(file: &Path) -> bool {
     let shown = file.to_string_lossy().replace('\\', "/");
-    shown.ends_with("dm-core/src/folders.rs") || shown.contains("dm-core/src/folders/")
+    shown.ends_with("dm-core/src/folders.rs")
+        || shown.contains("dm-core/src/folders/")
+        // Safari's extension's program reads no folder: it gives the host it starts the
+        // person's own `HOME`, which the extension's sandbox replaced, and the host then asks
+        // `dm_core::folders` as it always does (gaps row R4).
+        || shown.ends_with("dm-safari/src/relay.rs")
 }
 
 /// The lines of `text` (numbered from 1) that read one of [`FOLDER_READS`], with what each
@@ -798,6 +810,7 @@ fn privacy() -> Result<(), String> {
         "desktop/crates/dm-torrent/src",
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-protocol/src",
+        "desktop/crates/dm-safari/src",
         "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-gpui/src",
         "browser/src",

@@ -75,6 +75,7 @@ fn the_panel_is_put_in_by_the_browser_and_fetched_from_no_page() {
     for manifest in [
         include_str!("../../../extension/manifest.json"),
         include_str!("../../../extension/manifest.firefox.json"),
+        include_str!("../../../extension/manifest.safari.json"),
     ] {
         assert!(!manifest.contains("web_accessible_resources"));
         assert!(manifest.contains("\"scripting\""));
@@ -2798,6 +2799,7 @@ fn the_background_and_the_popup_have_no_javascript_of_their_own() {
     for manifest in [
         include_str!("../../../extension/manifest.json"),
         include_str!("../../../extension/manifest.firefox.json"),
+        include_str!("../../../extension/manifest.safari.json"),
     ] {
         assert!(manifest.contains("\"pkg/background.js\""));
     }
@@ -2812,6 +2814,7 @@ fn the_hello_says_this_extensions_version_and_what_it_can_do() {
     for manifest in [
         include_str!("../../../extension/manifest.json"),
         include_str!("../../../extension/manifest.firefox.json"),
+        include_str!("../../../extension/manifest.safari.json"),
     ] {
         let manifest: Value = serde_json::from_str(manifest).unwrap();
         assert_eq!(manifest["version"], greeting.extension_version.as_str());
@@ -3031,4 +3034,20 @@ fn the_popup_lists_what_the_app_fetches_and_its_last_failure() {
         downloads_listed(&Reply::started("s", true).to_frame()),
         None
     );
+}
+
+#[test]
+fn safari_alone_talks_to_the_app_one_message_at_a_time() {
+    assert!(one_message_at_a_time(
+        "safari-web-extension://8C1D3B0A-1C2D-4E5F-9A8B-7C6D5E4F3A2B/"
+    ));
+    assert!(one_message_at_a_time("Safari-Web-Extension://X/"));
+    for port in [
+        "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        "moz-extension://0d4a0c1e-6b1a-4d8e-9f5e-0f5f2c7b9a11/",
+        "",
+        "safari-web-extension",
+    ] {
+        assert!(!one_message_at_a_time(port), "{port}");
+    }
 }

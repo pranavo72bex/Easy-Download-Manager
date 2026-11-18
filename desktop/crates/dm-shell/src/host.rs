@@ -320,6 +320,29 @@ fn file_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<Filed> {
 fn launch_desktop() -> std::io::Result<()> {
     keep_pipes_from_children();
     let executable = std::env::current_exe()?;
+    // Started by dm's Safari extension (desktop/crates/dm-safari), this host runs in the
+    // extension's sandbox, and so would a dm it started itself: the window is opened through
+    // the system instead, as a person's click opens it, outside the sandbox.
+    if std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some() {
+        if let Some(app) = app_bundle(&executable) {
+            let opened = Command::new("/usr/bin/open")
+                .arg("-a")
+                .arg(&app)
+                .args(["--args", "--desktop"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()?;
+            return if opened.success() {
+                Ok(())
+            } else {
+                Err(std::io::Error::other(format!(
+                    "macOS could not open {} ({opened})",
+                    app.display()
+                )))
+            };
+        }
+    }
     let start = |breakaway: bool| {
         let mut command = Command::new(&executable);
         command
@@ -347,6 +370,18 @@ fn launch_desktop() -> std::io::Result<()> {
         command.spawn().map(|_| ())
     };
     start(true).or_else(|_| start(false))
+}
+
+/// The `.app` a program is the executable of (`dm.app/Contents/MacOS/dm-gpui` gives `dm.app`),
+/// or `None` for one outside a bundle.
+pub(crate) fn app_bundle(executable: &Path) -> Option<PathBuf> {
+    let macos = executable.parent()?;
+    let contents = macos.parent()?;
+    let app = contents.parent()?;
+    (macos.file_name()? == "MacOS"
+        && contents.file_name()? == "Contents"
+        && app.extension()? == "app")
+        .then(|| app.to_path_buf())
 }
 
 /// Marks this process's standard handles as not for its children.

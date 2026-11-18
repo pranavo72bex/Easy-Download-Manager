@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Safari on macOS: dm's extension can be built into dm.app as a Safari extension (`make build-safari`, or `sh scripts/safari-extension.sh path/to/dm.app`), with no Xcode. In Safari it hands over the links you choose (the right-click menu, Alt-click, "Download all links"), shows the toolbar popup and the video panel; Safari's own downloads stay with Safari, which gives extensions no way to catch them. Signed ad hoc for now, so Safari runs it only with Develop › Allow Unsigned Extensions; not yet in the .dmg.
 - A Dropbox, Google Drive or MediaFire share link given to Add URL downloads the file itself under its own name, answering Drive's "can't scan this file for viruses" question for large files, instead of saving the share page.
 - Faster with a long list: each look at the queue examines only the downloads that changed, not every row, and the window is not drawn again when nothing on it changed.
 - YouTube: a quality picked from the list downloads the very format it was listed from; where the video's reading lacks it, the nearest quality is fetched instead of failing with "no stream at that quality", and a page without its own player data is listed from dm's own reading.

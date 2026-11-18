@@ -15,6 +15,24 @@ fn a_message_survives_being_framed_and_read_back() {
     assert_eq!(read_frame(&mut &bytes[..]), Some(value));
 }
 
+/// Started by the Safari extension, the host opens the app it is the program of
+/// (`launch_desktop`); a program outside a bundle is started as before.
+#[test]
+fn the_app_a_program_is_in_is_the_bundle_around_its_macos_folder() {
+    assert_eq!(
+        app_bundle(Path::new("/Applications/dm.app/Contents/MacOS/dm-gpui")),
+        Some(PathBuf::from("/Applications/dm.app"))
+    );
+    for elsewhere in [
+        "/usr/bin/dm-desktop",
+        "/Users/x/target/debug/dm-gpui",
+        "/Applications/dm/Contents/MacOS/dm-gpui",
+        "/Applications/dm.app/Contents/Resources/dm-gpui",
+    ] {
+        assert_eq!(app_bundle(Path::new(elsewhere)), None, "{elsewhere}");
+    }
+}
+
 #[test]
 fn a_truncated_stream_ends_rather_than_blocking() {
     // The browser going away mid-message is how this normally ends.

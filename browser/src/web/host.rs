@@ -15,14 +15,37 @@ pub(super) enum Heard {
 /// One connection to the host: a process the browser starts for it, and
 /// stops when it is dropped.
 pub(super) struct Port {
-    port: JsValue,
     heard: UnboundedReceiver<Heard>,
-    on_message: Closure<dyn FnMut(JsValue)>,
-    on_disconnect: Closure<dyn FnMut(JsValue)>,
+    line: Line,
+}
+
+/// How the messages reach the host.
+enum Line {
+    /// A native messaging port (Chrome, Edge, Firefox).
+    Port {
+        port: JsValue,
+        on_message: Closure<dyn FnMut(JsValue)>,
+        on_disconnect: Closure<dyn FnMut(JsValue)>,
+    },
+    /// Safari: each message on its own (`runtime.sendNativeMessage`), to dm's extension inside
+    /// dm.app, which hands it to the same host and gives back its answer, heard here as a port's
+    /// would be (`decide::one_message_at_a_time`).
+    Messages { tell: UnboundedSender<Heard> },
 }
 
 impl Port {
     pub(super) fn open() -> Result<Port, String> {
+        let base = call_on(&api("runtime"), "getURL", &["".into()])
+            .ok()
+            .and_then(|b| b.as_string())
+            .unwrap_or_default();
+        if decide::one_message_at_a_time(&base) {
+            let (tell, heard) = unbounded();
+            return Ok(Port {
+                heard,
+                line: Line::Messages { tell },
+            });
+        }
         let port = call_on(&api("runtime"), "connectNative", &[NATIVE_HOST.into()])?;
         let (tell, heard) = unbounded();
         let told = tell.clone();
@@ -40,15 +63,40 @@ impl Port {
         add_listener(&get(&port, "onMessage"), on_message.as_ref())?;
         add_listener(&get(&port, "onDisconnect"), on_disconnect.as_ref())?;
         Ok(Port {
-            port,
             heard,
-            on_message,
-            on_disconnect,
+            line: Line::Port {
+                port,
+                on_message,
+                on_disconnect,
+            },
         })
     }
 
     pub(super) fn send(&self, request: &Request) -> Result<(), String> {
-        call_on(&self.port, "postMessage", &[to_js(&request.to_frame())]).map(|_| ())
+        let frame = to_js(&request.to_frame());
+        match &self.line {
+            Line::Port { port, .. } => call_on(port, "postMessage", &[frame]).map(|_| ()),
+            Line::Messages { tell } => {
+                let asked = call_on(
+                    &api("runtime"),
+                    "sendNativeMessage",
+                    &[NATIVE_HOST.into(), frame],
+                )?
+                .dyn_into::<Promise>()
+                .map_err(|_| "the browser's sendNativeMessage gave no promise".to_string())?;
+                let tell = tell.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let heard = match JsFuture::from(asked).await {
+                        // A message the host answers nothing to comes back empty.
+                        Ok(reply) if reply.is_undefined() || reply.is_null() => return,
+                        Ok(reply) => Heard::Frame(from_js(&reply)),
+                        Err(why) => Heard::Gone(say(&why)),
+                    };
+                    let _ = tell.unbounded_send(heard);
+                });
+                Ok(())
+            }
+        }
     }
 
     /// The next thing the host says, or why there will be nothing.
@@ -69,18 +117,26 @@ impl Port {
 
 impl Drop for Port {
     fn drop(&mut self) {
+        let Line::Port {
+            port,
+            on_message,
+            on_disconnect,
+        } = &self.line
+        else {
+            return;
+        };
         // Listeners first, so nothing calls into closures about to be freed.
         let _ = call_on(
-            &get(&self.port, "onMessage"),
+            &get(port, "onMessage"),
             "removeListener",
-            &[self.on_message.as_ref().clone()],
+            &[on_message.as_ref().clone()],
         );
         let _ = call_on(
-            &get(&self.port, "onDisconnect"),
+            &get(port, "onDisconnect"),
             "removeListener",
-            &[self.on_disconnect.as_ref().clone()],
+            &[on_disconnect.as_ref().clone()],
         );
-        let _ = call_on(&self.port, "disconnect", &[]);
+        let _ = call_on(port, "disconnect", &[]);
     }
 }
 

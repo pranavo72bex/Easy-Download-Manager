@@ -173,6 +173,13 @@ pack() {
     exit 1
   fi
 
+  # Safari takes no zip: its folder goes into dm.app, inside dm's own Safari extension
+  # (scripts/safari-extension.sh).
+  if [ "${3:-}" = "--no-zip" ]; then
+    echo "  dist/$browser (unpacked)"
+    return 0
+  fi
+
   # Git Bash on Windows has no `zip`: there the store zips came out empty
   # (0 bytes) and nothing said so. Python's zipfile does the same job.
   out="$dist/dm-$browser-$version.zip"
@@ -198,6 +205,7 @@ PY
 echo "packaging dm $version"
 pack chrome manifest.json
 pack firefox manifest.firefox.json
+pack safari manifest.safari.json --no-zip
 
 # The finished folders put where the browser looks, in two renames: the old
 # ones are never half there.
