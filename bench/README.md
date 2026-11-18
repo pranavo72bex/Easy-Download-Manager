@@ -17,6 +17,7 @@ So work on macOS or Linux can aim at the same target as work on Windows.
 | `reference-a-baseline.json` | The frozen baseline: the machine, both apps' settings, the harness's every parameter, the floors, the ceiling and all 84 of reference A's runs. **Never edited.** |
 | `bench.mjs` | The harness: the local server, the scenarios, the sampler. It drives dm (and reference A where `local.json` names it). |
 | `compare.mjs` | Judges a results folder against the baseline, parameter by parameter. Exit 0 only when dm is better everywhere. |
+| `against-last.mjs` | Judges a results folder against an earlier run of dm's own (CI's weekly run, `.github/workflows/bench.yml`; `docs/testing.md`). It never reads the floors. |
 | `ceiling-client.mjs` | The reference client, used by the `ceiling` scenario to measure what the computer itself allows. |
 | `refa-windows.ps1` | Answers reference A's windows during a run (Windows only). |
 | `local.example.json` | The shape of `local.json` (git-ignored), which names reference A's program on the computer that has it. |

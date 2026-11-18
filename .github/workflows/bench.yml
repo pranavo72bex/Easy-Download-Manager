@@ -1,0 +1,151 @@
+name: Benchmark, weekly
+
+# dm's side of the benchmark (bench/, gaps row R5) on a Linux runner, every week and by hand:
+# dm's release build, alone, through bench/bench.mjs's scenarios under a virtual display, then
+# judged by bench/against-last.mjs against dm's own numbers from the last run of this workflow
+# on the same branch that passed (its `bench-dm` artifact). A parameter worse than the last run by
+# more than the tolerance (20% and the harness's slack; the machine-bound scenarios' times scaled
+# by each run's ceiling, as bench/README.md scales the frozen floors) fails the run, naming it.
+# The first run on a branch, or one whose last numbers have expired, has nothing to compare and
+# passes; its numbers become the last.
+#
+# Reference A is not on CI. Its frozen floor (bench/reference-a-baseline.json, never edited) is
+# judged here by compare.mjs for reading only; the side-by-side run beside reference A stays the
+# maintainer's, on the computer that has it. A schedule runs only from the default branch (main).
+on:
+  schedule:
+    - cron: '41 4 * * 2'
+  workflow_dispatch:
+    inputs:
+      accept:
+        description: "Report, but do not fail: for a change meant to move the numbers (this run's become the last)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read # the last run's numbers, an artifact of this workflow
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bench:
+    name: dm against its own last numbers
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop
+          shared-key: bench-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Linux libraries dm links, and a display for its window
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libxkbcommon0 libxkbcommon-x11-0
+          # What the window draws with where there is no GPU (as ci.yml's browser job).
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libgl1-mesa-dri libegl1
+          sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
+
+      - name: The comparison's own workings
+        run: |
+          node bench/against-last.mjs --self-test
+          echo "BENCH=$RUNNER_TEMP/bench" >> "$GITHUB_ENV"
+
+      - name: Build dm (release), the build the baseline is judged against
+        working-directory: desktop
+        run: cargo build --release -p dm-gpui --locked
+
+      # Every scenario but inet (the public internet is never a floor), three repetitions where
+      # the harness takes them (bench/README.md: do not judge by one run).
+      - name: The benchmark, dm alone
+        shell: bash
+        env:
+          BENCH_APPS: dm
+          BENCH_REPS: "3"
+          DM_BINARY: ${{ github.workspace }}/desktop/target/release/dm-gpui
+        run: |
+          mkdir -p "$BENCH"
+          export BENCH_OUT="$BENCH/results" BENCH_WORK="$RUNNER_TEMP/bench-work"
+          xvfb-run -a -s '-screen 0 1280x800x24' node bench/bench.mjs 2>&1 | tee "$BENCH/bench.log"
+          for s in idle fast per_conn flaky outage batch big40 ceiling; do
+            [ -f "$BENCH_OUT/$s.json" ] || { echo "::error::bench.mjs wrote no $s.json"; exit 1; }
+          done
+
+      - name: The last run's numbers (this branch, the last run that passed)
+        id: last
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          id=$(gh run list --workflow bench.yml --branch "$BRANCH" --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$id" ] && gh run download "$id" -n bench-dm -D "$RUNNER_TEMP/bench-last" \
+              && [ -d "$RUNNER_TEMP/bench-last/results" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "run=$id" >> "$GITHUB_OUTPUT"
+            echo "the last numbers: run $id"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "no last numbers on $BRANCH${id:+ (run $id's have expired)}"
+          fi
+
+      - name: dm against its last numbers
+        if: steps.last.outputs.found == 'true'
+        env:
+          LAST: ${{ steps.last.outputs.run }}
+          ACCEPT: ${{ inputs.accept && 'true' || 'false' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs
+        run: |
+          set +e
+          node bench/against-last.mjs "$BENCH/results" "$RUNNER_TEMP/bench-last/results" \
+            --tolerance 20 --markdown "$BENCH/against-last.md"
+          status=$?
+          set -e
+          cat "$BENCH/against-last.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "Last numbers: [run $LAST]($RUN_URL/$LAST)." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" = 1 ] && [ "$ACCEPT" = true ]; then
+            echo "::warning::worse than the last run, accepted by hand: these numbers become the last"
+            exit 0
+          fi
+          [ "$status" = 1 ] && echo "::error::dm is worse than its last run (see the summary for which parameters)"
+          exit "$status"
+
+      - name: The first numbers on this branch
+        if: steps.last.outputs.found != 'true'
+        run: |
+          echo "## dm against its own last numbers" >> "$GITHUB_STEP_SUMMARY"
+          echo "No last numbers on this branch: nothing compared. This run's become the last." >> "$GITHUB_STEP_SUMMARY"
+
+      # For reading only: a CI runner is not the baseline laptop, and the comparison with
+      # reference A is the maintainer's.
+      - name: Reference A's frozen floor, for reading (not gating)
+        if: always()
+        run: |
+          [ -d "$BENCH/results" ] || exit 0
+          node bench/compare.mjs "$BENCH/results" > "$BENCH/compare.txt" 2>&1 || true
+          {
+            echo "<details><summary>Against reference A's frozen floor (compare.mjs, for reading, not gating)</summary>"
+            echo
+            echo '```text'
+            cat "$BENCH/compare.txt"
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: bench-dm
+          path: ${{ runner.temp }}/bench
+          if-no-files-found: warn
+          retention-days: 90

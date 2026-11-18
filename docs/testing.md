@@ -82,6 +82,18 @@ row fails or was not checked, and `--save-baseline` records the window's
 pictures once a change to them is approved. This is what "QA" means here.
 On Windows, start it from PowerShell, not Git Bash (next section).
 
+**On CI, reported and not gating** (`.github/workflows/contract-linux.yml`, gaps row R5). On
+each pull request, each push to main and by hand, CI's Linux runner runs `sh
+scripts/linux-human-qa.sh` exactly as it runs on a machine with Docker: a build of the checkout in
+a Debian 12 container, `human-qa.py` on an X display nobody watches, Chromium in Edge's place.
+The run's artifact (`contract-linux`) holds human-qa.py's words (`human-qa.txt`), its full
+record and the screen pictured every ten seconds; `scripts/human-qa-report.py` writes the rows
+held, failed and not checked into the run's summary, a warning for each failed row. A failed row
+does not fail the workflow (the job and its QA step are `continue-on-error`). It does not replace
+the QA above: the gate before a merge is still a person's run of `human-qa.py`, in sight, and
+nothing here changes its rules or the contract. `python3 scripts/human-qa-report.py --self-test`
+checks the counting.
+
 ## On Windows: what goes wrong, and what to do
 
 What a Windows computer does differently, met on the maintainer's laptop and
@@ -144,6 +156,22 @@ and 10 are frozen in `bench/reference-a-baseline.json` as the floor of every par
 runs dm's release build on Windows, macOS or Linux (and reference A as well, on the computer that
 has it), and `node bench/compare.mjs` judges each parameter. It exits 0 only when dm is better in
 all of them. A parameter where dm is worse is a row in `gaps.md`.
+
+**Weekly on CI, against dm's own last numbers** (`.github/workflows/bench.yml`, gaps row R5).
+Every Tuesday and by hand, a Linux runner builds dm's release, runs `bench.mjs`'s scenarios (all
+but `inet`, `BENCH_REPS=3`) with dm alone under Xvfb, and `node bench/against-last.mjs <now>
+<last>` compares each parameter's median with the last passing run of the workflow on the same
+branch (its `bench-dm` artifact, kept 90 days). A parameter is worse when it is over the last run
+by more than 20% plus the harness's slack (0.25 s, 150 ms, 0.5 point of refetched, 3 MiB); the
+machine-bound scenarios' times (`fast`, `big40`) are scaled by the two runs' ceilings, as
+`bench/README.md` scales the frozen floors, but both ways, since a slower runner this week is not
+dm getting slower. A worse parameter, a file not whole or a scenario missing fails the run and is
+named in the summary; the first run on a branch has nothing to compare and passes. Run by hand
+with `accept` set, a change meant to move the numbers is reported without failing, and its
+numbers become the last. `compare.mjs` against reference A's frozen floor is printed beside it
+for reading only. Neither replaces the benchmark beside reference A on the maintainer's computer,
+and reference A's baseline is never touched. `node bench/against-last.mjs --self-test` checks the
+comparison.
 
 ## The window's cost, against its own baseline
 

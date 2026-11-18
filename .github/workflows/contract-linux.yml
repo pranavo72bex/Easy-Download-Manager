@@ -1,0 +1,80 @@
+name: Contract on Linux (reported, not gating)
+
+# The behaviour contract's rows (docs/behaviour-contract.md) on CI's Linux runner, as
+# scripts/linux-human-qa.sh runs them in Docker on any machine (gaps row R5): a build of the
+# checkout installed in a Debian 12 container, human-qa.py driving dm's real window on an X
+# display, Chromium in Edge's place, the screen pictured every ten seconds. Its words, its record
+# and the pictures are the run's artifact, and scripts/human-qa-report.py writes the rows held,
+# failed and not checked into the run's summary.
+#
+# REPORTED, NOT GATING. A row that fails here does not fail the workflow: the job and its QA step
+# are continue-on-error, and nothing else reads them. The contract's own QA run stays a person's:
+# `python3 scripts/human-qa.py` in a visible window, before a merge and after any change to
+# desktop/, browser/ or extension/ (CLAUDE.md). This run neither replaces it nor changes any of
+# human-qa.py's rules.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request cancels its older run; runs on main finish.
+concurrency:
+  group: contract-linux-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  contract:
+    name: Every row in Docker (reported, not gating)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    # Reported, not gating: whatever this job finds, the workflow passes.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+          targets: wasm32-unknown-unknown
+      # No rust-cache: linux-human-qa.sh mounts ~/.cargo/registry into its container, which
+      # writes there as root.
+
+      # dm's debug build lands in a Docker volume on the runner's own disk.
+      - name: Room on the disk for the container's build
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: The extension (dist/chrome), as linux-human-qa.sh asks for it
+        run: sh scripts/package.sh
+
+      # Exactly as on a person's machine: dm built in the Debian image linux-check.sh uses,
+      # then human-qa.py in Dockerfile.human-qa's image. A failed row ends this step red and
+      # the job goes on.
+      - name: Every row, as linux-human-qa.sh runs them (reported, not gating)
+        id: qa
+        continue-on-error: true
+        timeout-minutes: 150
+        env:
+          DM_SHOTS: ${{ runner.temp }}/human-qa
+          PYTHONUNBUFFERED: "1"
+        run: sh scripts/linux-human-qa.sh
+
+      - name: Rows held, failed and not checked (reported, not gating)
+        if: always()
+        run: |
+          python3 scripts/human-qa-report.py "$RUNNER_TEMP/human-qa/human-qa.txt" \
+            --summary "$GITHUB_STEP_SUMMARY" --annotate
+          echo "linux-human-qa.sh: ${{ steps.qa.outcome }} (reported, not gating; the gate is a person's run in sight)" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: contract-linux
+          path: ${{ runner.temp }}/human-qa
+          if-no-files-found: warn
+          retention-days: 14
