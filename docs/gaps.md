@@ -35,20 +35,19 @@ to not push the code"); push only when the maintainer says so. Done today, in th
   (14), `torrent_names` (1) and `torrent_stress` with `--ignored` (6); `mse_interop` needs
   Docker (step 8); `cargo xtask layers`, which now refuses librqbit outside dm-torrent.
 
+- A6 step 3: `desktop/crates/dm-net`, the network with `Error`, the stop flag and the proxy
+  script's runner (`docs/decisions.md`, 2026-11-18). Checked: clippy `-D warnings` on the
+  workspace, all targets; dm-net's tests (83) and dm-core's lib tests (491: 574 together, as
+  before); dm-core's `auth`, `browser_agent_limited`, `connect_first`, `cookies`, `download`,
+  `errors`, `headers`, `http2_only`, `identify_as`, `ntlm`, `pages`, `proxy` and `second_path`
+  suites; `cargo xtask layers` and `privacy` (which now reads the three new crates). Its macOS
+  and Linux code moved unchanged; every item dm-core names from dm-net checked public. Built
+  there in step 8.
+
 Pick up in this order:
-1. **A6** step 3, `dm-net` out of dm-core. Mapped 2026-11-18: the candidates are
-   `http_client`, `proxy`, `pac`, `dns`, `connect_first`, `second_path`, `ntlm`, `auth`,
-   `cookies`, `redirects`, `agents`, `decode` and `limit` (about 4,300 lines without tests).
-   What ties them to the engine, each to be untangled first: `Error` (error.rs, 479 lines, calls
-   `agents::limited`, `retry::retry_after` and `pac::refusal`); `pac` runs its script through
-   `javascript` (dm-js plus a test's stand-in, `set_host`); `http_client` takes its TLS set-up
-   from `rtmp::tls_config` (which belongs in dm-net, the stream protocols then using it from
-   there); `connect_first` takes `Control` and `Wanted`; most use `crate::lock` (move it to
-   dm-net and re-export it). dm-core keeps every `dm_core::` name by re-exports, as for
-   dm-media.
-2. **A10**'s rest (each system's `cfg` behind `platform/`, ~70 files across the crates) is
+1. **A10**'s rest (each system's `cfg` behind `platform/`, ~70 files across the crates) is
    mostly macOS and Linux code this laptop cannot compile: do it on the Mac.
-3. Then "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
+2. Then "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
    maintainer at the screen: do the rest first and ask for those together).
 
 Notes for this laptop: no git identity is set; commit with
@@ -127,7 +126,7 @@ Smallest first:
    dev-dependency only; `cargo xtask layers` refuses a `#[path]` out of a crate.
 7. ~~A19's widgets part~~ done 2026-11-18 (`widgets/space.rs`, the colours in `theme.rs`);
    A10 (a system's code in `platform/`).
-8. A6: `dm-media` and `dm-torrent` (done 2026-11-18), `dm-net` out of dm-core. About ten crates is the aim, not the
+8. ~~A6~~ coded 2026-11-18: `dm-media`, `dm-torrent`, `dm-net` out of dm-core. About ten crates is the aim, not the
    hundreds a large team keeps.
 Not taken from them: a crate's first file named after the crate (dm keeps `lib.rs`).
 
@@ -532,7 +531,7 @@ why; every file sampled opens with what it is for.
 |-----|-----|--------|---------------|
 | A4  | Names no longer say what things are: the shipped binary is `dm-gpui` while `--help` says `dm-desktop` and the .deb installs a shell wrapper under the old name; `dm-shell` is the application layer, and "shell" also means the window. One word, several layers: scheduler in four crates, Add URL in three, `probe` (ask a server; the control port's answers), `control` (the stop flag; the TCP server), `progress` three times, `rules` four. Items reachable by several paths: 8 re-exports of dm-shell from dm-desktop-base, globs in `dm-core/src/lib.rs:157-161` | OPEN · L · the maintainer's word (the program's name is seen) | `dm-gpui` becomes `dm-desktop` with the binary `dm`, `dm-shell` becomes `dm-app`; the clashes renamed (`dm_core::control` to `stop`, the base's `probe` to `window_api`); no `pub use` across a crate but dm-core's own listed front; login items and browser manifests rewritten by `register::ensure_this_copy`, checked on each system |
 | A5  | `dm-desktop-base` is three things in one flat crate of 45 files: the system's services (16), dialog models and words with no toolkit (20), and the ways dm runs (8). The one binary has 12 modes sent from two places (`dm-gpui/src/main.rs:150-190` and an if-chain in `modes.rs`), and `main.rs` still carries the migration's scaffolding: a demo "Delete the file?" dialog (86-140), `--accessibility` and `--churn` | OPEN · M | Three folders, `platform/`, `view/`, `run/`, each `mod.rs` saying what is in it; one `enum Mode` with `parse` and `run`, tested from a table; the scaffolding removed, or kept only if a check names it |
-| A6  | dm-core is 55 modules and 57,049 lines under one name: the engine (17.9k), media (14.5k), sites (8.0k), stream protocols (8.0k), the network (6.5k), torrents (1.7k); a queue edit recompiles the muxers at `opt-level = 3` | PARTIAL · L: `dm-media` out (2026-11-18, its own tests and dm-core's media tests pass on Windows; built on macOS and Linux in step 8); `dm-torrent` holds librqbit behind dm's own types (2026-11-18, the torrent tests pass on Windows). Left: `dm-net` | Three crates taken out, in this order, each a pure move: `dm-media` (needs only `write_atomic` from the rest), `dm-torrent` (owns librqbit, row P3), `dm-net` (once `Error` and `pac`'s use of `javascript` are untangled); sites stay with the engine. `cargo tree -p dm-engine` has no decoder; `cargo xtask layers` knows the new rules |
+| A6  | dm-core is 55 modules and 57,049 lines under one name: the engine (17.9k), media (14.5k), sites (8.0k), stream protocols (8.0k), the network (6.5k), torrents (1.7k); a queue edit recompiles the muxers at `opt-level = 3` | PARTIAL · L: `dm-media` out (2026-11-18, its own tests and dm-core's media tests pass on Windows; built on macOS and Linux in step 8); `dm-torrent` holds librqbit behind dm's own types and `dm-net` the network (2026-11-18, their tests pass on Windows). Coded, waits for step 8 (`cargo tree -p dm-core` still has the decoders through dm-media: the row's "no decoder" is for a later `dm-engine`, if one is made) | Three crates taken out, in this order, each a pure move: `dm-media` (needs only `write_atomic` from the rest), `dm-torrent` (owns librqbit, row P3), `dm-net` (once `Error` and `pac`'s use of `javascript` are untangled); sites stay with the engine. `cargo tree -p dm-engine` has no decoder; `cargo xtask layers` knows the new rules |
 | A7  | The window's main view is everything at once: `struct Downloads` has 64 fields and 18 `impl` blocks over 17 files; `list.rs` has 68 functions (`carry_out` 249 lines, `new` 231 lines with 8 arguments); and the application's tick is written out twice, in `dm-gpui/src/tick.rs` (361) and `dm-desktop-base/src/headless.rs` (921) | OPEN · L | One `Session::tick() -> Vec<Effect>` in the application crate, used by the window and headless; `Downloads` split into a state struct per concern, none over about 15 fields; `human-qa.py` whole |
 | A8  | Settings is one struct of 80 fields in a 1,615-line file with no version; a new field touches seven places (`Settings`, its 96-line `Default`, `clamped`, the base's `options.rs`, the window's `put`, `options_pages.rs`, the catalogs). Saved files carry no format number (`Entry` has 38 fields, only the journal has a header) and their names are written out as text at 34 sites | OPEN · L | A sub-struct per Options page with `#[serde(flatten)]` (the file on disk unchanged, held by a round-trip test); a `version` field; a `paths` module owning every file name; `"format": N` in each file; "how to add an Options field" (row D5) |
 | A9  | Errors are mostly text: `Error::Internal(String)` made at 211 sites, `State::Failed(String)` saved to disk, `Result<_, String>` 358 times, and the text is matched in product code (`error.rs:157`, `retry.rs:63-66`, sentence constants compared at 8 sites) | OPEN · L | `Failed { kind, said }` with a default for old files; no `.contains("…")` on an error outside tests; one error type per crate; every sentence a person sees unchanged, held by the existing tests |

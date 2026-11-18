@@ -80,7 +80,7 @@ fn ceilings() -> &'static std::sync::Mutex<std::collections::HashMap<String, usi
 /// the same mirror then opens two connections where it would have opened eight and had six
 /// turned away, each of which counts against a server that also limits how often it takes a
 /// request. For this run of dm only: a server's limits change, and a person's setting stands.
-pub(crate) fn remember_ceiling(url: &str, connections: usize) {
+pub fn remember_ceiling(url: &str, connections: usize) {
     if let Some(host) = server_of(url) {
         lock(ceilings()).insert(host, connections.max(1));
     }
@@ -88,7 +88,7 @@ pub(crate) fn remember_ceiling(url: &str, connections: usize) {
 
 /// The most connections `url`'s server was found to serve at once, where it was found to limit
 /// them ([`remember_ceiling`]).
-pub(crate) fn ceiling_for(url: &str) -> Option<usize> {
+pub fn ceiling_for(url: &str) -> Option<usize> {
     server_of(url).and_then(|host| lock(ceilings()).get(&host).copied())
 }
 

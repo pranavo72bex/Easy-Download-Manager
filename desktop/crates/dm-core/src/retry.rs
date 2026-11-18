@@ -642,27 +642,8 @@ async fn wait(control: &Control, total: Duration) -> Result<(), Error> {
     }
 }
 
-/// The `Retry-After` a refusal carried, if it carried a usable one.
-pub fn retry_after(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
-    let value = headers
-        .get(reqwest::header::RETRY_AFTER)?
-        .to_str()
-        .ok()?
-        .trim();
-    if let Ok(seconds) = value.parse::<u64>() {
-        return Some(Duration::from_secs(seconds));
-    }
-    /* The HTTP-date form, measured against the response's own `Date` rather
-     * than this machine's clock: both are the server's, so a local clock
-     * that is wrong cannot turn "in two minutes" into "a day ago" or "next
-     * week". Without a `Date` there is nothing safe to measure from, and the
-     * hint is left alone. */
-    let at = chrono::DateTime::parse_from_rfc2822(value).ok()?;
-    let now = headers.get(reqwest::header::DATE)?.to_str().ok()?;
-    let now = chrono::DateTime::parse_from_rfc2822(now.trim()).ok()?;
-    let wait = (at - now).num_seconds().max(0);
-    Some(Duration::from_secs(wait as u64))
-}
+/// The `Retry-After` a refusal carried (dm-net's, gaps row A6).
+pub use dm_net::retry_after;
 
 #[cfg(test)]
 mod tests;

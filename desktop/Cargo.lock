@@ -2036,15 +2036,14 @@ dependencies = [
  "aes 0.9.3",
  "axum",
  "base64 0.22.1",
- "brotli-decompressor",
  "bytes",
  "cbc 0.2.1",
  "chacha20poly1305",
  "chrono",
  "crc32fast",
  "dirs 7.0.0",
- "dm-js",
  "dm-media",
+ "dm-net",
  "dm-test-support",
  "dm-torrent",
  "flate2",
@@ -2055,7 +2054,6 @@ dependencies = [
  "libc",
  "librqbit",
  "md-5 0.11.0",
- "md4",
  "memory-stats",
  "percent-encoding",
  "proptest",
@@ -2075,7 +2073,6 @@ dependencies = [
  "tokio-socks",
  "tokio-util",
  "url",
- "webpki-roots",
  "windows-sys 0.61.2",
  "zip",
 ]
@@ -2164,6 +2161,38 @@ dependencies = [
  "symphonia-core",
  "tempfile",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "dm-net"
+version = "0.10.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "brotli-decompressor",
+ "bytes",
+ "chrono",
+ "dm-js",
+ "dm-test-support",
+ "flate2",
+ "futures-util",
+ "getrandom 0.4.3",
+ "libc",
+ "md-5 0.11.0",
+ "md4",
+ "percent-encoding",
+ "rcgen",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "url",
+ "webpki-roots",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

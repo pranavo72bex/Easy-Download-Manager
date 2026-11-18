@@ -347,6 +347,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-protocol/Cargo.toml",
         "desktop/crates/dm-media/Cargo.toml",
         "desktop/crates/dm-torrent/Cargo.toml",
+        "desktop/crates/dm-net/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
@@ -368,6 +369,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-js/Cargo.toml",
         "desktop/crates/dm-media/Cargo.toml",
         "desktop/crates/dm-torrent/Cargo.toml",
+        "desktop/crates/dm-net/Cargo.toml",
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
@@ -403,11 +405,14 @@ fn layers() -> Result<(), String> {
             // BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate that names
             // librqbit; its sockets are the swarm's, and nothing of dm's.
             "dm-torrent" => (&[], true, false),
+            // dm's network (gaps row A6): how a server is reached, whatever is fetched; dm-js
+            // runs the proxy script. No window.
+            "dm-net" => (&["dm-js"], true, false),
             // What the tests share (gaps row X10): nothing of dm's, and no crate may ship it, as
             // none lists it among those it may depend on (only `[dev-dependencies]` name it).
             "dm-test-support" => (&[], true, true),
             // The engine: no window, no browser.
-            "dm-core" => (&["dm-js", "dm-media", "dm-torrent"], true, false),
+            "dm-core" => (&["dm-js", "dm-media", "dm-net", "dm-torrent"], true, false),
             // Around the window but not the window.
             "dm-shell" => (&["dm-assets", "dm-core", "dm-protocol"], true, false),
             // What the desktop program does that is not drawing: any window
@@ -467,6 +472,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-js/src",
         "desktop/crates/dm-media/src",
         "desktop/crates/dm-torrent/src",
+        "desktop/crates/dm-net/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-core/src",
         "desktop/crates/dm-shell/src",
@@ -529,6 +535,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-js",
         "desktop/crates/dm-media",
         "desktop/crates/dm-torrent",
+        "desktop/crates/dm-net",
         "desktop/crates/dm-protocol",
         "desktop/crates/dm-core",
         "desktop/crates/dm-shell",
@@ -760,6 +767,9 @@ fn privacy() -> Result<(), String> {
     for dir in [
         "desktop/crates/dm-assets/src",
         "desktop/crates/dm-core/src",
+        "desktop/crates/dm-media/src",
+        "desktop/crates/dm-net/src",
+        "desktop/crates/dm-torrent/src",
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-desktop-base/src",

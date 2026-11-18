@@ -182,7 +182,8 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 ## The desktop client
 
 `desktop/` is all Rust: `dm-core` is the
-engine and has no idea a screen exists; `dm-media` is dm's own media code (the muxers, the MP3
+engine and has no idea a screen exists; `dm-net` is how it reaches a server (the HTTP client,
+proxies, sign-ins, cookies, `Error`); `dm-media` is dm's own media code (the muxers, the MP3
 and GIF encoders, the decoders), files in and files out, which the engine calls; `dm-shell` is the settings, the
 browser hand-off, startup and the application layer; `dm-desktop-base` is what
 the program does that is not drawing (the control port, the command line,
@@ -536,8 +537,9 @@ desktop/
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
     extract/tar.rs        a tar, plain or gzipped, read under the same rules
     extract/sevenz.rs     a 7z under the same rules (sevenz/: header, lzma with LZMA2)
-    control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
-                          target, reply, session, listing, transfer)
+    ftp.rs                FTP (ftp/: transport, target, reply, session, listing, transfer)
+    (the HTTP client, proxies and the proxy script, sign-ins, cookies, the stop flag and
+    `Error` are dm-net's, re-exported under their old paths: `dm_core::client`, `dm_core::pac`)
   crates/dm-media/        dm's own media code (gaps row A6): files in, files out; no sockets, no
                           async runtime, none of dm's other crates
     mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4, WebM or MKV (mp4mux/: read, write,
@@ -550,6 +552,17 @@ desktop/
     aac.rs, frames.rs, mf.rs   the decoders: AAC, and a video's pictures (the system's on macOS
                           and Windows, Media Foundation in mf.rs; AV1 by rav1d on Linux)
     shape.rs, subtitles.rs     a picture cropped to a shape; subtitles read and written
+  crates/dm-net/          dm's network (gaps row A6): how a server is reached, whatever is fetched
+    http_client.rs        the client builder, its TLS (`tls_config`, shared with RTMP, RTSP and
+                          FTPS), `Retry-After`
+    proxy.rs, pac.rs      the proxy in force, the proxy configuration script (run in dm-js through
+                          javascript.rs, where a test may put a stand-in)
+    dns.rs, redirects.rs  names, and where a redirect may go
+    auth.rs, ntlm.rs, cookies.rs   sign-ins (Basic, Digest, NTLM) and the browser's cookies
+    agents.rs, limit.rs, decode.rs   the user agent a site gets, the speed ceiling, a body's
+                          decoding held to a ratio
+    connect_first.rs, second_path.rs   a sign-in to the network first; a second network path
+    control.rs, error.rs  the stop flag a row's work checks; dm's `Error`
   crates/dm-torrent/      BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate
                           that names librqbit; a session, a torrent added to it, its stats and
                           files, a .torrent's trackers. What a download means to dm stays in

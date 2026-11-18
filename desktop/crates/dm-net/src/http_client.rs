@@ -17,11 +17,11 @@ pub fn builder() -> reqwest::ClientBuilder {
 }
 
 /// `builder` given dm's TLS: rustls with ring and the public roots, the
-/// set-up the stream protocols use (`rtmp::tls_config`). Every
+/// set-up the stream protocols use ([`tls_config`]). Every
 /// client is built through this: reqwest is built without a TLS provider of
 /// its own, so one without it could not reach an `https://` address.
 pub fn with_tls(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    match crate::rtmp::tls_config() {
+    match tls_config() {
         Ok(config) => builder.tls_backend_preconfigured((*config).clone()),
         Err(_) => builder,
     }
@@ -292,4 +292,55 @@ mod redirect_tests {
         );
         assert!(said.contains("UnknownIssuer"), "{said}");
     }
+}
+
+/// TLS as a stream server is checked: the public roots, no client
+/// certificate. Shared with dm-core's stream protocols (RTMP, `rtsps://`, FTPS) and every
+/// HTTP client ([`with_tls`]). Made once: the roots were read into a store again
+/// for every client built, a one-off request's included (gaps row S14).
+pub fn tls_config() -> Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, crate::Error> {
+    static MADE: std::sync::OnceLock<
+        Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, String>,
+    > = std::sync::OnceLock::new();
+    MADE.get_or_init(|| make_tls_config().map_err(|e| e.to_string()))
+        .clone()
+        .map_err(crate::Error::Internal)
+}
+
+fn make_tls_config() -> Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, crate::Error> {
+    let mut roots = tokio_rustls::rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    // The provider named rather than taken from the process's default:
+    // ring is the only one compiled in (gaps row P7), but whether a default
+    // is installed depends on whether a torrent session has started yet.
+    let config = tokio_rustls::rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        tokio_rustls::rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|e| crate::Error::Internal(format!("TLS: {e}")))?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    Ok(std::sync::Arc::new(config))
+}
+
+/// The `Retry-After` a refusal carried, if it carried a usable one.
+pub fn retry_after(headers: &reqwest::header::HeaderMap) -> Option<std::time::Duration> {
+    let value = headers
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim();
+    if let Ok(seconds) = value.parse::<u64>() {
+        return Some(std::time::Duration::from_secs(seconds));
+    }
+    /* The HTTP-date form, measured against the response's own `Date` rather
+     * than this machine's clock: both are the server's, so a local clock
+     * that is wrong cannot turn "in two minutes" into "a day ago" or "next
+     * week". Without a `Date` there is nothing safe to measure from, and the
+     * hint is left alone. */
+    let at = chrono::DateTime::parse_from_rfc2822(value).ok()?;
+    let now = headers.get(reqwest::header::DATE)?.to_str().ok()?;
+    let now = chrono::DateTime::parse_from_rfc2822(now.trim()).ok()?;
+    let wait = (at - now).num_seconds().max(0);
+    Some(std::time::Duration::from_secs(wait as u64))
 }

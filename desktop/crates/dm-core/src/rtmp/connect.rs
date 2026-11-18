@@ -41,33 +41,8 @@ async fn open_with(
     Ok(Box::new(tls))
 }
 
-/// TLS as a stream server is checked: the public roots, no client
-/// certificate. Shared with `rtsps://` (`rtsp::bridge`) and every HTTP client
-/// (`http_client::with_tls`). Made once: the roots were read into a store again
-/// for every client built, a one-off request's included (gaps row S14).
-pub(crate) fn tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Error> {
-    static MADE: std::sync::OnceLock<Result<Arc<tokio_rustls::rustls::ClientConfig>, String>> =
-        std::sync::OnceLock::new();
-    MADE.get_or_init(|| make_tls_config().map_err(|e| e.to_string()))
-        .clone()
-        .map_err(Error::Internal)
-}
-
-fn make_tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Error> {
-    let mut roots = tokio_rustls::rustls::RootCertStore::empty();
-    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    // The provider named rather than taken from the process's default:
-    // ring is the only one compiled in (gaps row P7), but whether a default
-    // is installed depends on whether a torrent session has started yet.
-    let config = tokio_rustls::rustls::ClientConfig::builder_with_provider(Arc::new(
-        tokio_rustls::rustls::crypto::ring::default_provider(),
-    ))
-    .with_safe_default_protocol_versions()
-    .map_err(|e| Error::Internal(format!("TLS: {e}")))?
-    .with_root_certificates(roots)
-    .with_no_client_auth();
-    Ok(Arc::new(config))
-}
+/// TLS as a stream server is checked (dm-net's, shared with every HTTP client).
+pub(crate) use dm_net::tls_config;
 
 /// The most one RTMPT answer may carry: far more than the few hundred
 /// milliseconds of stream a server holds between polls.

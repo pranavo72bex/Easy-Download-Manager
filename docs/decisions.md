@@ -7420,3 +7420,27 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
   if librqbit were replaced piece by piece (row P3) is dm-torrent's, and nothing else names it.
 * **Kept so**: `cargo xtask layers` lets dm-core depend on dm-torrent and dm-torrent on none of
   dm's crates; it may open sockets (the swarm's), and no window toolkit.
+
+## 2026-11-18: dm's network, a crate of its own: dm-net (gaps row A6, step 3)
+
+* **Done**: `desktop/crates/dm-net` holds what was dm-core's `agents`, `auth`, `ntlm`,
+  `connect_first`, `control`, `cookies`, `decode`, `dns`, `error`, `hex`, `http_client`,
+  `javascript`, `limit`, `pac`, `processes`, `proxy`, `redirects` and `second_path` (6,300 lines
+  with their tests), with `lock`, `retry_after` (from `retry`) and `tls_config` (from
+  `rtmp/connect.rs`). dm-core re-exports each under its old name, so `dm_core::Error`,
+  `dm_core::client`, `dm_core::pac` and every `crate::` path in the engine are unchanged. dm-core
+  no longer names dm-js, md4, brotli-decompressor or webpki-roots; dm-net does.
+* **The ties the row named, untied by moving them together, not by cutting them**: `Error`
+  calls `agents::limited`, `pac::refusal` and `retry_after`, all now beside it; `pac` runs its
+  script through `javascript` (dm-js and a test's stand-in host), which came along, the YouTube
+  reader then reaching it through dm-core's re-export; `connect_first` takes `Control`, the stop
+  flag, which is the network's as much as the engine's (it depends on `Error` alone). The TLS
+  set-up every HTTP client and the stream protocols share is dm-net's, as the HTTP client was
+  its first user.
+* **Made public for dm-core, as they were**: `decode::{coding_of, decoded, Coding, Stopped}`,
+  `second_path::{fetched_by, client_for_piece, second_client}`, `agents::{ceiling_for,
+  remember_ceiling}`, `javascript::run`, `connect_first::before_download`. The tests of the
+  error's wording and of an AppImage's folders moved from dm-core's `src/tests.rs` with them.
+* **Kept so**: `cargo xtask layers` lets dm-net use dm-js alone and dm-core use dm-net; `cargo
+  xtask privacy` now reads dm-media, dm-net and dm-torrent's shipped code for addresses too (it
+  read dm-core's alone, and these were dm-core's).

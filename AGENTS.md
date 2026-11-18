@@ -37,7 +37,9 @@ extension that hands it the browser's downloads.
   files in, files out, no sockets and no async runtime; dm-core keeps its paths
   (`dm_core::mp4mux`) and calls it off the runtime. `crates/dm-torrent` is the one crate that
   names librqbit, BitTorrent's engine, behind dm's own session, torrent and stats types;
-  dm-core's `torrent.rs` drives it. `crates/dm-shell` is everything around the window that is not
+  dm-core's `torrent.rs` drives it. `crates/dm-net` is how dm reaches a server: the HTTP client
+  and its TLS, proxies and the proxy script, sign-ins, cookies, the speed ceiling, the stop flag
+  and `Error`, re-exported by dm-core under their old names. `crates/dm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
   startup and the inbox, and the application layer (`dm_shell::app`: the
   queue's verbs, the commands, what happened between reads and the typed

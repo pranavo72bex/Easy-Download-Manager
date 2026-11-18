@@ -19,7 +19,9 @@
 // dm's own media code is dm-media's (gaps row A6); the engine's paths to it stay.
 pub use dm_media::aac;
 
-pub mod auth;
+// The network, sign-ins, the stop flag and the proxy script's interpreter are dm-net's (gaps
+// row A6); the engine's paths to them stay.
+pub use dm_net::auth;
 
 mod category;
 
@@ -27,11 +29,11 @@ mod checksum;
 
 mod clip;
 
-mod connect_first;
+pub(crate) use dm_net::connect_first;
 
-mod control;
+pub(crate) use dm_net::control;
 
-pub mod cookies;
+pub use dm_net::cookies;
 
 /// What a row says when the browser's panel handed over a page whose video dm cannot read
 /// itself (any site but YouTube) and no file of the video had been seen (gaps row 155).
@@ -41,7 +43,7 @@ pub const PAGE_NOT_READ: &str = "dm cannot read this page's video itself (it rea
 
 pub mod dash;
 
-mod decode;
+pub(crate) use dm_net::decode;
 
 mod download;
 
@@ -51,7 +53,6 @@ pub use dm_media::fmp4;
 
 pub use dm_media::frames;
 
-mod dns;
 pub mod finish_trace;
 // Where a person's files and the system's folders are (gaps row X1).
 pub mod folders;
@@ -61,11 +62,11 @@ pub mod gif;
 
 pub mod heavy;
 
-pub mod hex;
+pub use dm_net::hex;
 
-pub mod javascript;
+pub use dm_net::javascript;
 
-mod limit;
+pub(crate) use dm_net::limit;
 
 pub mod live;
 
@@ -87,9 +88,9 @@ pub mod mp4mux;
 
 pub mod naming;
 
-pub mod ntlm;
+pub use dm_net::ntlm;
 
-pub mod pac;
+pub use dm_net::pac;
 
 mod plan;
 
@@ -97,13 +98,13 @@ mod probe;
 
 mod progress;
 
-mod proxy;
+pub(crate) use dm_net::proxy;
 
 mod queue;
 
 pub mod quota;
 
-pub mod redirects;
+pub use dm_net::redirects;
 
 pub mod retry;
 
@@ -113,7 +114,7 @@ pub mod rtsp;
 
 mod schedule;
 
-mod second_path;
+pub(crate) use dm_net::second_path;
 
 pub mod secretstore;
 
@@ -139,11 +140,8 @@ pub mod videopage;
 
 pub mod youtube;
 
-mod agents;
-mod error;
+pub(crate) use dm_net::{agents, error, http_client, processes};
 mod files;
-mod http_client;
-mod processes;
 mod zipinfo;
 
 /// The HTTP client crate, for callers that take or build a client of the
@@ -222,16 +220,8 @@ pub use zipinfo::{
     zip_contents, zip_contents_of_file, zip_take_one, ZipEntry, MOST_TAKEN as ZIP_MOST_TAKEN,
 };
 
-/// A lock that is taken even if a thread that held it panicked.
-///
-/// The data under dm's plain mutexes — the problem list, the schedule, the
-/// window's settings — stays meaningful after a panic elsewhere, and a
-/// second panic over a poisoned lock would turn one failure into a crash.
-pub fn lock<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
+/// A lock that is taken even if a thread that held it panicked (dm-net's).
+pub use dm_net::lock;
 
 #[cfg(test)]
 mod tests;

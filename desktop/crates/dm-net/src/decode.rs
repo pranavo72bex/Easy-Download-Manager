@@ -31,15 +31,19 @@ const STEP: usize = 4096;
 /// How much is handed on at a time.
 const SLICE: usize = 1024 * 1024;
 
+/// A coding a server may compress a body in, which dm undoes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Coding {
+pub enum Coding {
+    /// `gzip`, `x-gzip`.
     Gzip,
+    /// `deflate` (zlib).
     Deflate,
+    /// `br`.
     Brotli,
 }
 
 /// The coding a response's body is in, if it is in one dm undoes.
-pub(crate) fn coding_of(headers: &reqwest::header::HeaderMap) -> Option<Coding> {
+pub fn coding_of(headers: &reqwest::header::HeaderMap) -> Option<Coding> {
     let said = headers
         .get(reqwest::header::CONTENT_ENCODING)?
         .to_str()
@@ -56,7 +60,7 @@ pub(crate) fn coding_of(headers: &reqwest::header::HeaderMap) -> Option<Coding> 
 
 /// Why a decoded stream ended before its end, if it did: read by whoever read
 /// the stream once it has ended.
-pub(crate) type Stopped = Arc<Mutex<Option<String>>>;
+pub type Stopped = Arc<Mutex<Option<String>>>;
 
 enum Decoder {
     Gzip(flate2::write::GzDecoder<Vec<u8>>),
@@ -122,7 +126,7 @@ struct State<S> {
 
 /// `inner`'s bytes, undone. The stream ends early (and says why in `stopped`)
 /// on a body that is not what it claims to be or that unpacks beyond reason.
-pub(crate) fn decoded<S>(
+pub fn decoded<S>(
     coding: Coding,
     inner: S,
     stopped: Stopped,

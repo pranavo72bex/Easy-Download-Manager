@@ -8,10 +8,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
-# dm's own JavaScript interpreter (gaps row F15).
-dm-js.workspace = true
 # dm's own media code: the muxers, the MP3 and GIF encoders, the decoders (gaps row A6).
 dm-media.workspace = true
+# dm's network: the HTTP client, proxies, sign-ins, cookies, the stop flag, `Error` (gaps row A6).
+dm-net.workspace = true
 # Already in the tree through reqwest; named for its chunk type.
 bytes.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }
@@ -26,9 +26,8 @@ reqwest.workspace = true
 # FTP through a SOCKS proxy: the handshake, after which the connection is a
 # plain one. HTTP CONNECT is a few lines and is written here.
 tokio-socks.workspace = true
-# rtmps:// streams (rtmp.rs): TLS as reqwest has it, with the same roots.
+# rtmps:// streams (rtmp.rs): TLS as reqwest has it, its set-up dm-net's (`tls_config`).
 tokio-rustls.workspace = true
-webpki-roots.workspace = true
 # rtsp:// streams (rtsp.rs): RTSP, RTP and the H.264, H.265 and AAC
 # depacketizers, which every camera and media server speaks.
 retina.workspace = true
@@ -52,9 +51,7 @@ md-5.workspace = true
 sha1.workspace = true
 # CRC-32 digests the same way; already in the build through flate2 and png.
 crc32fast.workspace = true
-# NTLM sign-ins (`ntlm.rs`): its NT hash is MD4 of the password, and its
-# client challenge must be unpredictable.
-md4.workspace = true
+# Unpredictable bytes: the secrets' file's key, a retry's jitter.
 getrandom.workspace = true
 quick-xml.workspace = true
 url.workspace = true
@@ -69,11 +66,8 @@ tokio-util.workspace = true
 dirs.workspace = true
 zip.workspace = true
 
-# A body a server compresses unasked is undone here and not by reqwest, which
-# gives no count of the bytes on the wire: with it the expansion is held to a
-# ratio (`decode.rs`), as a decompression bomb needs.
+# A .tar.gz extracted (`extract/tar.rs`), a zip's entries read (`zipinfo.rs`).
 flate2.workspace = true
-brotli-decompressor.workspace = true
 
 # Calls into the C library that std does not wrap. Already in the tree through tokio.
 [target.'cfg(unix)'.dependencies]

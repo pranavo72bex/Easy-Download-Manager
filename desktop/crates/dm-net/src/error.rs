@@ -173,7 +173,7 @@ impl Error {
         // A refusal's body is either a short explanation or a whole error
         // page, whose sentence comes after its styles; it is read down to
         // that sentence rather than shown as markup.
-        let retry_after = crate::retry::retry_after(res.headers());
+        let retry_after = crate::retry_after(res.headers());
         /* Read only as far as an explanation goes, and for no longer than
          * a person would wait for one. Read whole (and decompressed whole)
          * before it was cut down, a 500 whose body never ended, or a small

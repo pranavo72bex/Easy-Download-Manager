@@ -51,7 +51,7 @@ const LOOK: Duration = Duration::from_millis(200);
 /// Waits for the connection before a download goes out: `Ok` at once when no
 /// hook is set; `Paused` or `Cancelled` as soon as the download is asked to stop;
 /// the hook's reason, as a sentence for the row, when it will not come up.
-pub(crate) async fn before_download(
+pub async fn before_download(
     control: &Control,
     redialling: impl Fn(Redial) + Send + 'static,
 ) -> Result<(), Error> {

@@ -42,7 +42,7 @@ static ON_SECOND: std::sync::Mutex<Option<HashMap<PathBuf, HashSet<usize>>>> =
 
 /// Range `index` of the download staged in `parts` was taken by a
 /// connection on the second path, or (`second` false) on the first.
-pub(crate) fn fetched_by(parts: &Path, index: usize, second: bool) {
+pub fn fetched_by(parts: &Path, index: usize, second: bool) {
     let mut held = crate::lock(&ON_SECOND);
     let all = held.get_or_insert_with(HashMap::new);
     if second {
@@ -55,11 +55,7 @@ pub(crate) fn fetched_by(parts: &Path, index: usize, second: bool) {
 /// The client for piece `index` of a stream staged in `parts`: every other
 /// piece goes out on the second path where one is chosen, the rest (and all
 /// of them where none is) on `first`. Records which, for `on_second`.
-pub(crate) fn client_for_piece(
-    first: &reqwest::Client,
-    parts: &Path,
-    index: usize,
-) -> reqwest::Client {
+pub fn client_for_piece(first: &reqwest::Client, parts: &Path, index: usize) -> reqwest::Client {
     match second_client() {
         Some(second) if index % 2 == 1 => {
             fetched_by(parts, index, true);
@@ -162,7 +158,7 @@ fn put(client: Option<reqwest::Client>) {
 }
 
 /// The second path's client, where one is set.
-pub(crate) fn second_client() -> Option<reqwest::Client> {
+pub fn second_client() -> Option<reqwest::Client> {
     SECOND.read().ok()?.clone()
 }
 

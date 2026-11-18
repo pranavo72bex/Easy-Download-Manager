@@ -45,7 +45,7 @@ pub fn set_host(host: Option<Host>) {
 }
 
 /// Runs `program`, then `call`, and gives the value of `call` as text, or why there is none.
-pub(crate) async fn run(program: &str, call: &str, within: Duration) -> Result<String, String> {
+pub async fn run(program: &str, call: &str, within: Duration) -> Result<String, String> {
     let host = crate::lock(&HOST).clone();
     if let Some(host) = host {
         return in_host(&host, program, call, within).await;
