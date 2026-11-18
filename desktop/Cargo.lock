@@ -2041,6 +2041,7 @@ dependencies = [
  "chacha20poly1305",
  "chrono",
  "crc32fast",
+ "criterion",
  "dirs 7.0.0",
  "dm-media",
  "dm-net",
@@ -2212,6 +2213,7 @@ version = "0.10.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "criterion",
  "dm-assets",
  "dm-core",
  "dm-protocol",

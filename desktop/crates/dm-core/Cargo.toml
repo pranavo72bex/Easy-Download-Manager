@@ -104,6 +104,18 @@ aes.workspace = true
 cbc.workspace = true
 # A certificate for the rtsps:// bridge's test server.
 rcgen.workspace = true
+# The benches (benches/), run by hand and never in CI (gaps row 190).
+criterion.workspace = true
+
+# Run by hand (`cargo bench -p dm-core --bench <name>`), never by `cargo test` or CI: criterion's
+# own main, not the test harness (docs/testing.md, Benchmarks; gaps row 190).
+[[bench]]
+name = "plan"
+harness = false
+
+[[bench]]
+name = "naming"
+harness = false
 
 # Used as `md5` (checksums and Digest sign-ins), which the name `md-5` hides
 # from cargo-machete.
