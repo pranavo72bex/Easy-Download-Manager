@@ -7691,3 +7691,23 @@ starts. `cbcs` keeps lengths, so a fragmented MP4 is cleared in place, its entry
 `frma` format and `sinf` made `free`, instead of rebuilding the index. Decryption is in dm-media
 (`aes` and `cbc`, already in the build). Refused rather than guessed: SAMPLE-AES AC-3 and E-AC-3,
 packed audio, live recordings and pairs of playlists, and `cbcs` with `seig` sample groups.
+
+## 2026-11-18: A whole range hands its checks on and takes its next work at once (gaps row S4)
+
+A range whole second asked its seams (and the file's end) on its own connection before that
+connection took its next range or halving, a round trip or two each time. Now its spans are
+claimed as before and handed on (`assemble::hand_on`); one task of the download (`ask_handed`)
+asks them on the places of connections done with ranges that fetched one, one check a place, so
+the server is never asked for more at once than the download's own connections asked of it, and
+a site's limit (`host_limits`, a remembered ceiling) holds. A server seen to limit keeps its
+checks until no range is being asked for, one at a time (`ask_left`, `take_due`), as row 197
+decided. At the end the range whole last finds the others' places free, so its two checks still
+go out at once (2026-11-11 evening). Measured with stand-in servers on Windows: with checks
+answered 1.5 s late, the next range used to be asked 3.1 s after the last range was whole and is
+now asked at once; with a limit of 3, the old code asked 4 at once in 2 runs of 3, the new code
+never more than 3. The last edits (the test's count of requests at once, two statements reflowed
+in `assemble.rs`) were made after builds stopped on the laptop: compiled first on the Mac.
+Tried and dropped: having connections waiting for a range to halve ask the checks (a waiting
+connection busy with a slow check missed the moment a range became worth halving, the very delay
+the row removes); a connection of its own for each check (before a server has refused anything
+its limit is unknown, and a check taking a place can get a range refused).

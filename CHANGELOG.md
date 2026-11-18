@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A range that comes whole no longer waits for its seam checks before taking more work: the checks go out on the connections that have finished their ranges, never more at once than the download already had open.
 - HLS: a stream whose initialisation segment changes part-way (advert breaks) is saved as one MP4, with picture and sound in step across each break; streams scrambled by SAMPLE-AES with a clear key, as transport streams or fragmented MP4 (`cbcs`), are saved in the clear.
 - CI: the behaviour contract's rows run on Linux in Docker for every pull request, with held, failed and not-checked rows in the run summary (reported, not gating), and a weekly benchmark compares dm with its own last numbers and fails on a regression.
 - Archives with a password: dm's extraction engine opens ZIPs encrypted with AES (128, 192 or 256 bits) or the older PKWARE cipher, and 7z archives encrypted with AES-256 (their lists of files too), and tells a missing password from a wrong one before anything is written. The window does not ask for the password yet.
