@@ -89,49 +89,61 @@ impl Detector {
     /// told then, a little late, rather than an imported row taken for one.
     pub fn read_holding(&mut self, rows: &[Arc<Entry>], hold_new: bool) -> Detected {
         let mut detected = Detected::default();
+        // What the next read compares with, built in the map of the read
+        // before last. Each row is looked up once in the last read: at
+        // 10,000 rows the read's lookups and maps were most of its cost
+        // (gaps row 210).
+        let mut next = std::mem::take(&mut self.before);
+        next.clear();
+        next.reserve(rows.len());
+        // The rows new since the last read, or held unjudged there, that are
+        // not this presentation's own, in the rows' order.
+        let mut fresh: Vec<&Arc<Entry>> = Vec::new();
         for row in rows {
-            if !matches!(row.state, State::Failed(_)) {
-                self.failed_told.remove(&row.id);
-            }
-            if matches!(row.state, State::Failed(_))
-                && self.failed_told.insert(row.id)
-                && self.ready
-            {
-                detected.failed.push(row.id);
-                if super::rules::link_expired(row) {
-                    detected.expired.push(row.id);
+            let was = self.last.get(&row.id);
+            // In the same state as at the last read, which brought what was
+            // told of it up to date: nothing to tell or forget.
+            if was != Some(&row.state) {
+                if !matches!(row.state, State::Failed(_)) {
+                    self.failed_told.remove(&row.id);
+                }
+                if matches!(row.state, State::Failed(_))
+                    && self.failed_told.insert(row.id)
+                    && self.ready
+                {
+                    detected.failed.push(row.id);
+                    if super::rules::link_expired(row) {
+                        detected.expired.push(row.id);
+                    }
+                }
+                if row.state == State::Completed && self.finished_told.insert(row.id) && self.ready
+                {
+                    detected.finished.push(row.id);
                 }
             }
-            if row.state == State::Completed && self.finished_told.insert(row.id) && self.ready {
-                detected.finished.push(row.id);
+            if self.ready
+                && (was.is_none() || self.held.contains(&row.id))
+                && !self.own.contains(&row.id)
+            {
+                fresh.push(row);
             }
+            next.insert(row.id, row.state.clone());
         }
         if self.ready && hold_new {
-            let fresh = |row: &&Arc<Entry>| {
-                (!self.last.contains_key(&row.id) || self.held.contains(&row.id))
-                    && !self.own.contains(&row.id)
-            };
-            let new: Vec<Id> = rows.iter().filter(fresh).map(|row| row.id).collect();
-            self.held.extend(new);
+            self.held.extend(fresh.iter().map(|row| row.id));
         } else if self.ready {
-            let fresh = |row: &&Arc<Entry>| {
-                (!self.last.contains_key(&row.id) || self.held.contains(&row.id))
-                    && !self.own.contains(&row.id)
-            };
             // Known before: listed at the last read, and not held unjudged
             // there unless it proved to be this presentation's own.
             let known = |id: &Id| {
                 self.last.contains_key(id) && (!self.held.contains(id) || self.own.contains(id))
             };
-            detected.started_elsewhere = rows
+            detected.started_elsewhere = fresh
                 .iter()
-                .filter(fresh)
                 .filter(|row| matches!(row.state, State::Running | State::Queued))
                 .map(|row| row.id)
                 .collect();
-            detected.added_again = rows
+            detected.added_again = fresh
                 .iter()
-                .filter(fresh)
                 .find(|row| {
                     let address = crate::lists::bare(&row.url);
                     rows.iter().any(|other| {
@@ -144,13 +156,9 @@ impl Detector {
                 .map(|row| row.id);
             self.held.clear();
         }
-        let ids: HashSet<Id> = rows.iter().map(|r| r.id).collect();
-        self.own.retain(|id| ids.contains(id));
-        self.held.retain(|id| ids.contains(id));
-        self.before = std::mem::replace(
-            &mut self.last,
-            rows.iter().map(|r| (r.id, r.state.clone())).collect(),
-        );
+        self.own.retain(|id| next.contains_key(id));
+        self.held.retain(|id| next.contains_key(id));
+        self.before = std::mem::replace(&mut self.last, next);
         self.ready = true;
         detected
     }

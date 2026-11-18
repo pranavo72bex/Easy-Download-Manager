@@ -135,11 +135,14 @@ impl Backend {
     }
 
     /// What the window draws from, read at once (`crate::app::snapshot`).
+    /// The rows, the retries and the swarms come from one walk of the queue
+    /// (`Queue::read_shared`): three walked it three times (gaps row 210).
     pub fn snapshot(&self) -> crate::app::snapshot::Snapshot {
+        let read = self.block_on(self.queue.read_shared());
         crate::app::snapshot::Snapshot {
-            rows: self.list_shared(),
-            retrying: self.retrying(),
-            swarms: self.swarms(),
+            rows: read.rows,
+            retrying: read.retrying,
+            swarms: read.swarms,
             allowance_spent: self.queue.allowance_spent().is_some(),
         }
     }

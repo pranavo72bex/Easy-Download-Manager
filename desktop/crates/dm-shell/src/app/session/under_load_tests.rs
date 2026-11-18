@@ -11,6 +11,10 @@ pub(super) struct Costs {
     pub shift: Duration,
     pub pause_resume: Duration,
     pub read: Duration,
+    /// The queue's snapshot alone, what each read starts with (gaps row 210).
+    pub snapshot: Duration,
+    /// The detector's comparison of the rows with the last read, alone.
+    pub detect: Duration,
 }
 
 fn each(runs: u32, mut f: impl FnMut()) -> Duration {
@@ -84,6 +88,15 @@ pub(super) fn exercise(size: usize, runs: u32) -> Costs {
     let read = each(runs, || {
         session.read(&backend, &settings);
     });
+    let snapshot = each(runs, || {
+        std::hint::black_box(backend.snapshot());
+    });
+    // What the read does next with the rows: compares them with the last
+    // read (`Detector`), here with nothing changed since.
+    let rows = backend.snapshot().rows;
+    let detect = each(runs, || {
+        std::hint::black_box(session.detector.read_holding(&rows, false));
+    });
     // Nothing was lost or told differently to either subscriber, and the
     // list is whole.
     let (one, two) = (first.drain(), second.drain());
@@ -100,6 +113,8 @@ pub(super) fn exercise(size: usize, runs: u32) -> Costs {
         shift,
         pause_resume,
         read,
+        snapshot,
+        detect,
     }
 }
 
@@ -126,9 +141,23 @@ fn large_queue_under_load() {
     for size in [100usize, 1_000, 10_000] {
         let costs = exercise(size, 50);
         println!(
-            "{size:>6} rows, 4 running: move {:>9.2?}  pause+resume {:>9.2?}  read (2 subscribers) {:>9.2?}",
-            costs.shift, costs.pause_resume, costs.read
+            "{size:>6} rows, 4 running: move {:>9.2?}  pause+resume {:>9.2?}  read (2 subscribers) {:>9.2?}  snapshot {:>9.2?}  detect {:>9.2?}",
+            costs.shift, costs.pause_resume, costs.read, costs.snapshot, costs.detect
         );
         assert!(costs.read < Duration::from_millis(50), "{:?}", costs.read);
+        // Gaps row 210, at 10,000 rows in a debug build on the 4-core
+        // Windows laptop: the snapshot was three walks of the queue (about
+        // 7 to 12 ms), now one (about 5 to 7 ms); the detector 33 ms, now
+        // about 5 to 9 ms, the read 40 to 66 ms, now about 25 ms.
+        assert!(
+            costs.snapshot < Duration::from_millis(20),
+            "{:?}",
+            costs.snapshot
+        );
+        assert!(
+            costs.detect < Duration::from_millis(20),
+            "{:?}",
+            costs.detect
+        );
     }
 }

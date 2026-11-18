@@ -34,6 +34,7 @@ mod inspect;
 mod journal;
 mod persist;
 mod query;
+pub use query::SharedRead;
 mod queues;
 pub use queues::queue_names;
 mod recheck;

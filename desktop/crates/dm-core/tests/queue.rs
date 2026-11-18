@@ -1880,6 +1880,8 @@ async fn a_row_resumed_while_retrying_starts_its_new_run_without_the_old_retry()
     tokio::time::timeout(Duration::from_secs(10), retrying)
         .await
         .expect("the row never said it was retrying");
+    // The read a window takes at once says so too (gaps row 210).
+    assert!(q.read_shared().await.retrying.contains_key(&id));
 
     failing.store(false, Ordering::SeqCst);
     q.pause(id).await;
@@ -1901,6 +1903,7 @@ async fn a_row_resumed_while_retrying_starts_its_new_run_without_the_old_retry()
         "the new run carries the old run's retry: {:?}",
         q.retrying().await.get(&id)
     );
+    assert!(!q.read_shared().await.retrying.contains_key(&id));
     q.cancel(id).await;
 }
 
@@ -3329,6 +3332,15 @@ async fn a_shared_list_hands_back_an_unchanged_row_as_the_same_row() {
         .iter()
         .zip(&after)
         .all(|(c, s)| c.id == s.id && c.description == s.description));
+    // The read a window takes at once hands out the same rows (gaps row 210).
+    let read = q.read_shared().await;
+    assert_eq!(read.rows.len(), after.len());
+    assert!(read
+        .rows
+        .iter()
+        .zip(&after)
+        .all(|(r, s)| std::sync::Arc::ptr_eq(r, s)));
+    assert!(read.retrying.is_empty() && read.swarms.is_empty());
 }
 
 /// A long list (past the length written whole at every save): what changed

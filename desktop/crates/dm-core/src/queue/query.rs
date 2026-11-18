@@ -5,6 +5,18 @@
 
 use super::*;
 
+/// The rows and what is running under them, read at once
+/// ([`Queue::read_shared`]).
+#[derive(Debug, Default)]
+pub struct SharedRead {
+    /// Every row in order, shared with the queue ([`Queue::list_shared`]).
+    pub rows: Vec<Arc<Entry>>,
+    /// The running rows a range is being retried for ([`Queue::retrying`]).
+    pub retrying: HashMap<Id, (u32, u32, String, std::time::Instant)>,
+    /// Each running torrent's swarm ([`Queue::swarms`]).
+    pub swarms: HashMap<Id, crate::torrent::Swarm>,
+}
+
 impl Queue {
     /// Each running torrent's swarm at its last sample, by row.
     pub async fn swarms(&self) -> HashMap<Id, crate::torrent::Swarm> {
@@ -53,6 +65,33 @@ impl Queue {
             .iter()
             .filter_map(|id| slots.get(id).map(|s| s.entry.clone()))
             .collect()
+    }
+
+    /// [`Self::list_shared`], [`Self::retrying`] and [`Self::swarms`] read
+    /// at once, under one hold of the rows and in one walk of them: what a
+    /// window draws from. Three reads each walked all the rows, and between
+    /// them a row could change (gaps row 210).
+    pub async fn read_shared(&self) -> SharedRead {
+        let slots = self.inner.slots.lock().await;
+        let order = self.inner.order.lock().await;
+        let mut read = SharedRead {
+            rows: Vec::with_capacity(order.len()),
+            retrying: HashMap::new(),
+            swarms: HashMap::new(),
+        };
+        for id in order.iter() {
+            let Some(slot) = slots.get(id) else { continue };
+            read.rows.push(slot.entry.clone());
+            if let Some(swarm) = slot.swarm {
+                read.swarms.insert(*id, swarm);
+            }
+            if slot.entry.state == State::Running {
+                if let Some(retry) = &slot.retrying {
+                    read.retrying.insert(*id, retry.clone());
+                }
+            }
+        }
+        read
     }
 
     /// The row with this id, if it is still there.
