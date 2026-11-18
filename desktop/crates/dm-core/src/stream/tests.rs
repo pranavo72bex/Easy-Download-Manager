@@ -44,12 +44,42 @@ fn segments_are_told_apart_by_their_first_bytes() {
 }
 
 #[test]
-fn a_second_initialisation_segment_is_refused_not_swapped_in() {
-    let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i2.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
-    assert!(beyond_dm(None, None, remapped, "http://h/v/i.m3u8").is_some());
+fn a_second_initialisation_segment_leads_the_segments_after_it() {
+    // An advert break and back: each run keeps its own (gaps row Y16), where it was refused.
+    let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\n#EXTINF:4,\na.m4s\n\
+                    #EXT-X-MAP:URI=\"i2.mp4\"\n#EXTINF:4,\nb.m4s\n\
+                    #EXT-X-MAP:URI=\"i1.mp4\"\n#EXTINF:4,\nc.m4s\n#EXT-X-ENDLIST\n";
+    assert_eq!(beyond_dm(None, None, remapped, "http://h/v/i.m3u8"), None);
+    assert!(changes_map(remapped, "http://h/v/i.m3u8"));
+    let read = media_playlist(remapped, "http://h/v/i.m3u8", "x", Quality::Best).unwrap();
+    let names: Vec<(&str, bool, u64)> = read
+        .parts
+        .iter()
+        .map(|p| (p.url.rsplit('/').next().unwrap(), p.init, p.sequence))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            ("i1.mp4", true, 0),
+            ("a.m4s", false, 0),
+            ("i2.mp4", true, 0),
+            ("b.m4s", false, 1),
+            ("i1.mp4", true, 0),
+            ("c.m4s", false, 2)
+        ]
+    );
+    // A part of it keeps the initialisation segment of each run it takes.
+    let (part, from, to) = cover(&read, 5.0, 9.0).unwrap();
+    let names: Vec<&str> = part
+        .parts
+        .iter()
+        .map(|p| p.url.rsplit('/').next().unwrap())
+        .collect();
+    assert_eq!(names, ["i2.mp4", "b.m4s", "i1.mp4", "c.m4s"]);
+    assert_eq!((from, to), (4.0, 12.0));
     // The same segment written two ways is one: compared as addresses.
     let rewritten = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"./i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
-    assert_eq!(beyond_dm(None, None, rewritten, "http://h/v/i.m3u8"), None);
+    assert!(!changes_map(rewritten, "http://h/v/i.m3u8"));
     let restated = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
     let read = media_playlist(restated, "http://h/v/i.m3u8", "x", Quality::Best).unwrap();
     assert_eq!(
@@ -75,9 +105,9 @@ fn streams_dm_cannot_assemble_itself_are_named() {
     let fmp4 = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\n#EXTINF:4,\na.m4s\n#EXT-X-ENDLIST\n";
     assert_eq!(beyond_dm(None, None, fmp4, "http://h/v/i.m3u8"), None);
     let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i2.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
-    assert!(beyond_dm(None, None, remapped, "http://h/v/i.m3u8")
-        .unwrap()
-        .contains("initialisation"));
+    // Joined run by run (gaps row Y16); refused only by a pair (`changes_map`).
+    assert_eq!(beyond_dm(None, None, remapped, "http://h/v/i.m3u8"), None);
+    assert!(changes_map(remapped, "http://h/v/i.m3u8"));
     let restated_map = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
     assert_eq!(
         beyond_dm(None, None, restated_map, "http://h/v/i.m3u8"),
@@ -111,6 +141,12 @@ fn streams_dm_cannot_assemble_itself_are_named() {
     assert_eq!(beyond_dm(None, None, rotated, "http://h/v/i.m3u8"), None);
     let sealed_init = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-ENDLIST\n";
     assert!(beyond_dm(None, None, sealed_init, "http://h/v/i.m3u8").is_some());
+    // SAMPLE-AES scrambles samples, never the initialisation segment; nor does a key put off.
+    let sampled = sealed_init.replace("AES-128", "SAMPLE-AES");
+    assert_eq!(beyond_dm(None, None, &sampled, "http://h/v/i.m3u8"), None);
+    assert!(sample_scrambled(&sampled) && !sample_scrambled(sealed_init));
+    let put_off = sealed_init.replace("#EXT-X-MAP", "#EXT-X-KEY:METHOD=NONE\n#EXT-X-MAP");
+    assert_eq!(beyond_dm(None, None, &put_off, "http://h/v/i.m3u8"), None);
     let separate = "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",DEFAULT=YES,URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO=\"a\"\nv.m3u8\n";
     assert!(
         beyond_dm(Some(separate), Some("a"), plain, "http://h/v/i.m3u8")
@@ -320,7 +356,7 @@ fn an_encryption_dm_cannot_undo_fails_loudly() {
     // worse than refusing.
     let text = MEDIA.replace(
         "#EXT-X-TARGETDURATION:10",
-        "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"k\"",
+        "#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"k\"",
     );
     let err = media_playlist(
         &text,
@@ -329,7 +365,7 @@ fn an_encryption_dm_cannot_undo_fails_loudly() {
         Quality::Best,
     )
     .unwrap_err();
-    assert!(err.to_string().contains("SAMPLE-AES"), "{err}");
+    assert!(err.to_string().contains("SAMPLE-AES-CTR"), "{err}");
 }
 
 #[test]
@@ -362,6 +398,7 @@ fn a_playlist_with_no_iv_uses_the_sequence_number() {
     let key = Key {
         uri: "https://e.com/k".into(),
         iv: None,
+        sample: false,
     };
     let mut expected = [0u8; 16];
     expected[8..].copy_from_slice(&7u64.to_be_bytes());
@@ -541,11 +578,16 @@ fn a_key_is_followed_switched_off_or_refused_by_its_method() {
         read.key.is_some(),
         "the stream's is its first scrambled segment's"
     );
+    // SAMPLE-AES with a clear key is read, its samples put in the clear once joined (gaps row
+    // Y16); a method dm has no way to undo is refused.
     let sample = clear.replace("AES-128,", "SAMPLE-AES,");
-    let why = media_playlist(&sample, url, url, Quality::Best)
+    let read = media_playlist(&sample, url, url, Quality::Best).unwrap();
+    assert!(read.parts[0].key.as_ref().is_some_and(|k| k.sample));
+    let counter = clear.replace("AES-128,", "SAMPLE-AES-CTR,");
+    let why = media_playlist(&counter, url, url, Quality::Best)
         .unwrap_err()
         .to_string();
-    assert!(why.contains("SAMPLE-AES encryption"), "{why}");
+    assert!(why.contains("SAMPLE-AES-CTR encryption"), "{why}");
     let nameless = clear.replace(",URI=\"k.bin\"", "");
     let why = media_playlist(&nameless, url, url, Quality::Best)
         .unwrap_err()

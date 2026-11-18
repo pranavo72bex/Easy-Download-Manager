@@ -100,6 +100,7 @@ pub(super) fn text_track(
         edits: Vec::new(),
         edits_timescale: MOVIE_TIMESCALE,
         samples,
+        descriptions: Vec::new(),
         start: None,
     }
 }

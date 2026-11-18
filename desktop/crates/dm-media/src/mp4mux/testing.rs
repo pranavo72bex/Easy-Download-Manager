@@ -186,3 +186,51 @@ pub fn samples_in(path: &Path) -> (Vec<Vec<u8>>, Vec<u32>) {
     let lengths = tracks[0].samples.iter().map(|s| s.duration).collect();
     (bytes, lengths)
 }
+
+/// One track of an MP4 as a test reads it back (gaps row Y16): its handler, timescale, each
+/// sample description whole, each sample's bytes, length and description (from 1), and when its
+/// first sample plays where its fragments say.
+#[derive(Debug)]
+pub struct ReadBack {
+    /// `vide`, `soun`...
+    pub handler: [u8; 4],
+    /// Ticks a second.
+    pub timescale: u32,
+    /// Each sample description, whole.
+    pub entries: Vec<Vec<u8>>,
+    /// Each sample's bytes.
+    pub samples: Vec<Vec<u8>>,
+    /// Each sample's length, in ticks.
+    pub durations: Vec<u32>,
+    /// Each sample's description, from 1.
+    pub described: Vec<u32>,
+    /// When its first sample plays, where its fragments say.
+    pub start: Option<u64>,
+}
+
+/// Every track of the MP4 at `path`, plain or fragmented (in runs too), read back.
+pub fn read_back(path: &Path) -> Vec<ReadBack> {
+    let data = std::fs::read(path).unwrap();
+    tracks_of_input(path, 0)
+        .unwrap()
+        .into_iter()
+        .map(|track| ReadBack {
+            handler: track.hdlr[16..20].try_into().unwrap(),
+            timescale: track.timescale,
+            entries: runs::entries_of(&track.stsd)
+                .into_iter()
+                .map(<[u8]>::to_vec)
+                .collect(),
+            samples: track
+                .samples
+                .iter()
+                .map(|s| data[s.offset as usize..(s.offset + u64::from(s.size)) as usize].to_vec())
+                .collect(),
+            durations: track.samples.iter().map(|s| s.duration).collect(),
+            described: (0..track.samples.len())
+                .map(|i| track.description_of(i))
+                .collect(),
+            start: track.start,
+        })
+        .collect()
+}

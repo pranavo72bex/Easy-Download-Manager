@@ -66,6 +66,23 @@ pub(crate) struct Track {
     /// file says (`tfdt`): a live stream's sound may start after its
     /// picture.
     pub(crate) start: Option<u64>,
+    /// Which entry of `stsd` (from 1) its samples use, from the sample each run of them starts
+    /// at; empty where every sample uses the first. A stream whose initialisation segment
+    /// changes part-way has one entry for each (gaps row Y16).
+    pub(crate) descriptions: Vec<(usize, u32)>,
+}
+
+impl Track {
+    /// The entry of `stsd` (from 1) sample `index` uses.
+    pub(crate) fn description_of(&self, index: usize) -> u32 {
+        let after = self
+            .descriptions
+            .partition_point(|(first, _)| *first <= index);
+        after
+            .checked_sub(1)
+            .and_then(|i| self.descriptions.get(i))
+            .map_or(1, |(_, d)| *d)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,11 +370,14 @@ pub fn join_cut_tagged(
     written
 }
 
+mod cenc;
 mod part;
 mod read;
+mod runs;
 mod text;
 mod write;
 
+pub use cenc::clear_cbcs;
 pub use part::{plan_plain_part, write_plain_part, PlainPart};
 use read::*;
 pub(crate) use read::{boxes, child};

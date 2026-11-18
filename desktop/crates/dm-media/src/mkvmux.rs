@@ -1182,6 +1182,7 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
                     edits: Vec::new(),
                     edits_timescale: 1000,
                     samples,
+                    descriptions: Vec::new(),
                     start: blocks.first().map(|b| ms(b).max(0) as u64),
                 });
             }
@@ -1242,6 +1243,7 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
                     }],
                     edits_timescale: 48_000,
                     samples,
+                    descriptions: Vec::new(),
                     start: blocks
                         .first()
                         .map(|b| (ms(b).max(0) as u64).saturating_mul(48)),

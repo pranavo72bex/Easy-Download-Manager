@@ -38,6 +38,8 @@ pub mod mp4mux;
 
 pub mod shape;
 
+pub mod sealed;
+
 pub mod subtitles;
 
 pub mod tsmux;

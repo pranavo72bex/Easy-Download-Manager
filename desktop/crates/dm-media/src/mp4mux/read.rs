@@ -49,12 +49,21 @@ pub(super) fn child_whole<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]
     boxes(data).find(|(k, _, _)| k == kind).map(|(_, _, w)| w)
 }
 
+/// An index, and the fragments after it, each with where it starts in the file.
+type Run = (Vec<u8>, Vec<(u64, Vec<u8>)>);
+
+/// A track's samples, and which sample description each run of them uses
+/// (`Track::descriptions`).
+type Described = (Vec<Sample>, Vec<(usize, u32)>);
+
 /// The top-level boxes of a file too big to read whole: `moov` and each
 /// `moof` read into memory with where it starts, the rest skipped.
 pub(super) fn read_input(file: &mut File, length: u64, input: usize) -> Result<Vec<Track>, String> {
     let mut at = 0u64;
-    let mut moov = None;
-    let mut fragments: Vec<(u64, Vec<u8>)> = Vec::new();
+    /* Each index with the fragments after it: one, in a file as any writer makes it; more where
+     * an HLS stream's initialisation segment changes part-way (an advert break) and its runs
+     * were joined as they came (gaps row Y16), each read against its own index. */
+    let mut runs: Vec<Run> = Vec::new();
     while at + 8 <= length {
         let mut header = [0u8; 16];
         file.seek(SeekFrom::Start(at)).map_err(|e| e.to_string())?;
@@ -95,22 +104,29 @@ pub(super) fn read_input(file: &mut File, length: u64, input: usize) -> Result<V
             let mut body = vec![0u8; (size - header_len) as usize];
             file.read_exact(&mut body).map_err(|e| e.to_string())?;
             if &kind == b"moov" {
-                moov = Some(body);
-            } else {
+                runs.push((body, Vec::new()));
+            } else if let Some((_, fragments)) = runs.last_mut() {
                 fragments.push((at, body));
             }
         }
         at = end;
     }
-    let moov = moov.ok_or("it has no index (moov)")?;
-    let mut tracks = tracks_of(&moov, input)?;
-    if !fragments.is_empty() {
-        let defaults = trex_defaults(&moov);
-        for (moof_at, moof) in &fragments {
+    if runs.is_empty() {
+        return Err("it has no index (moov)".into());
+    }
+    let mut read = Vec::with_capacity(runs.len());
+    for (moov, fragments) in &runs {
+        let mut tracks = tracks_of(moov, input)?;
+        let defaults = trex_defaults(moov);
+        for (moof_at, moof) in fragments {
             read_fragment(*moof_at, moof, &defaults, &mut tracks)?;
         }
+        read.push(tracks);
     }
-    Ok(tracks)
+    if read.len() == 1 {
+        return Ok(read.pop().unwrap_or_default());
+    }
+    super::runs::merge(read)
 }
 
 pub(super) fn movie_timescale(moov: &[u8]) -> u32 {
@@ -160,6 +176,7 @@ pub(super) fn tracks_of(moov: &[u8], input: usize) -> Result<Vec<Track>, String>
             .and_then(|e| child(e, b"elst"))
             .map(read_edits)
             .unwrap_or_default();
+        let (samples, descriptions) = described_samples(stbl)?;
         tracks.push(Track {
             input,
             id,
@@ -171,8 +188,9 @@ pub(super) fn tracks_of(moov: &[u8], input: usize) -> Result<Vec<Track>, String>
             stsd: stsd.to_vec(),
             edits,
             edits_timescale: movie_scale,
-            samples: plain_samples(stbl)?,
+            samples,
             start: None,
+            descriptions,
         });
     }
     Ok(tracks)
@@ -227,9 +245,16 @@ const MOST_SAMPLES: usize = 1 << 24;
 
 /// A plain MP4's samples, from its `stbl`. Empty for a fragmented one,
 /// whose tables are empty and whose samples are in its fragments.
+#[cfg(test)]
 pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
+    described_samples(stbl).map(|(samples, _)| samples)
+}
+
+/// [`plain_samples`], with which sample description each run of them uses, from the chunk map
+/// (`Track::descriptions`), where any is not the first.
+pub(super) fn described_samples(stbl: &[u8]) -> Result<Described, String> {
     let Some(stsz) = child(stbl, b"stsz") else {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     };
     let fixed = u32_at(stsz, 4).ok_or("a sample table is short")?;
     let count = u32_at(stsz, 8).ok_or("a sample table is short")? as usize;
@@ -244,7 +269,7 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
         entries(stsz.get(4..).unwrap_or_default(), 4, |e| u32_at(e, 0))?
     };
     if sizes.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     }
     let offsets: Vec<u64> = if let Some(co64) = child(stbl, b"co64") {
         entries(co64, 8, |e| u64_at(e, 0))?
@@ -253,7 +278,10 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
         entries(stco, 4, |e| u32_at(e, 0).map(u64::from))?
     };
     let stsc = child(stbl, b"stsc").ok_or("a track has no chunk map")?;
-    let runs = entries(stsc, 12, |e| Some((u32_at(e, 0)?, u32_at(e, 4)?)))?;
+    let runs = entries(stsc, 12, |e| {
+        Some((u32_at(e, 0)?, u32_at(e, 4)?, u32_at(e, 8)?.max(1)))
+    })?;
+    let mut descriptions: Vec<(usize, u32)> = Vec::new();
     let stts = child(stbl, b"stts").ok_or("a track has no timing")?;
     let times = entries(stts, 8, |e| Some((u32_at(e, 0)?, u32_at(e, 4)?)))?;
     let shifts = match child(stbl, b"ctts") {
@@ -269,11 +297,14 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
     let mut size_iter = sizes.iter();
     'chunks: for (chunk, offset) in offsets.iter().enumerate() {
         let number = chunk as u32 + 1;
-        let per_chunk = runs
+        let (per_chunk, description) = runs
             .iter()
             .rev()
-            .find(|(first, _)| *first <= number)
-            .map_or(0, |(_, n)| *n);
+            .find(|(first, _, _)| *first <= number)
+            .map_or((0, 1), |(_, n, d)| (*n, *d));
+        if descriptions.last().map_or(1, |(_, d)| *d) != description {
+            descriptions.push((samples.len(), description));
+        }
         let mut at = *offset;
         for _ in 0..per_chunk {
             let Some(size) = size_iter.next() else {
@@ -309,7 +340,7 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
             }
         }
     }
-    Ok(samples)
+    Ok((samples, descriptions))
 }
 
 pub(super) fn trex_defaults(moov: &[u8]) -> Vec<(u32, Defaults)> {
@@ -387,6 +418,12 @@ pub(super) fn read_fragment(
         let Some(track) = tracks.iter_mut().find(|t| t.id == id) else {
             continue;
         };
+        // Which of its sample descriptions the samples of this fragment use, where it is not the
+        // first (gaps row Y16).
+        let description = d.description.max(1);
+        if track.descriptions.last().map_or(1, |(_, d)| *d) != description {
+            track.descriptions.push((track.samples.len(), description));
+        }
         if track.samples.is_empty() && track.start.is_none() {
             track.start = child(traf, b"tfdt").and_then(|t| match t.first() {
                 Some(1) => u64_at(t, 4),

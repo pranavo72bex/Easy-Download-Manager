@@ -33,7 +33,11 @@ pub(super) fn take_sound(
             } => {
                 // The first frame's shape is the stream's.
                 stream.sound.get_or_insert(shape);
-                let frame = rest.get(skip..length).unwrap_or_default().to_vec();
+                let mut frame = rest.get(skip..length).unwrap_or_default().to_vec();
+                // A scrambled AAC frame in the clear (SAMPLE-AES, gaps row Y16).
+                if let Some((key, iv)) = stream.lock.filter(|_| stream.sealed) {
+                    crate::sealed::clear_adts(&mut frame, &key, &iv);
+                }
                 write(stream, &frame)?;
                 let offset = stream.written - frame.len() as u64;
                 stream

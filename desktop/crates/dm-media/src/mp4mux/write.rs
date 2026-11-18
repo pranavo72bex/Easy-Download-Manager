@@ -57,7 +57,9 @@ pub(super) fn chunks(tracks: &[Track]) -> Vec<Chunk> {
         let mut time = 0u64;
         let mut chunk_time = 0u64;
         for (i, sample) in track.samples.iter().enumerate() {
-            if i > first && time - chunk_time >= span {
+            // A chunk's samples share one sample description: a new one starts a chunk.
+            let described = track.descriptions.iter().any(|(at, _)| *at == i);
+            if i > first && (time - chunk_time >= span || described) {
                 all.push(Chunk {
                     track: t,
                     first,
@@ -247,17 +249,21 @@ pub(super) fn sample_table(track: &Track, offsets: &[u64], per_chunk: &[u32]) ->
     for s in samples {
         stsz.extend_from_slice(&s.size.to_be_bytes());
     }
-    let mut stsc_runs: Vec<(u32, u32)> = Vec::new();
+    // Each chunk's count and sample description, the description its first sample's.
+    let mut stsc_runs: Vec<(u32, u32, u32)> = Vec::new();
+    let mut first_sample = 0usize;
     for (i, n) in per_chunk.iter().enumerate() {
-        if stsc_runs.last().map(|(_, last)| last) != Some(n) {
-            stsc_runs.push((i as u32 + 1, *n));
+        let description = track.description_of(first_sample);
+        first_sample += *n as usize;
+        if stsc_runs.last().map(|(_, last, d)| (last, *d)) != Some((n, description)) {
+            stsc_runs.push((i as u32 + 1, *n, description));
         }
     }
     let mut stsc = (stsc_runs.len() as u32).to_be_bytes().to_vec();
-    for (first, n) in stsc_runs {
+    for (first, n, description) in stsc_runs {
         stsc.extend_from_slice(&first.to_be_bytes());
         stsc.extend_from_slice(&n.to_be_bytes());
-        stsc.extend_from_slice(&1u32.to_be_bytes());
+        stsc.extend_from_slice(&description.to_be_bytes());
     }
     let mut co64 = (offsets.len() as u32).to_be_bytes().to_vec();
     for o in offsets {

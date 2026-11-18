@@ -11,6 +11,34 @@ pub(super) fn read_ts(
     input: &Path,
     scratch: &dyn Fn(&str) -> PathBuf,
 ) -> Result<Vec<Elementary>, String> {
+    read_ts_locked(input, scratch, &crate::sealed::Locks::default())
+}
+
+/// The stream type a PMT names, as this reads it: a scrambled one (SAMPLE-AES) as what it holds,
+/// and whether it is scrambled. A scrambled kind this does not clear, or one with no key to
+/// clear it with, is refused.
+fn kind_of(kind: u8, locks: &crate::sealed::Locks) -> Result<(u8, bool), String> {
+    let (plain, sealed) = match kind {
+        SEALED_H264 => (H264, true),
+        SEALED_AAC => (AAC, true),
+        SEALED_AC3 | SEALED_EAC3 => {
+            return Err("its AC-3 sound is scrambled (SAMPLE-AES), which dm does not clear".into())
+        }
+        other => (other, false),
+    };
+    if sealed && !locks.any() {
+        return Err("its pictures or sound are scrambled (SAMPLE-AES) and no key was given".into());
+    }
+    Ok((plain, sealed))
+}
+
+/// [`read_ts`], each PES of a scrambled stream (SAMPLE-AES) put in the clear with the lock of
+/// the segment where it starts (gaps row Y16).
+pub(super) fn read_ts_locked(
+    input: &Path,
+    scratch: &dyn Fn(&str) -> PathBuf,
+    locks: &crate::sealed::Locks,
+) -> Result<Vec<Elementary>, String> {
     let file = File::open(input).map_err(|e| format!("the stream could not be read: {e}"))?;
     let mut reader = BufReader::with_capacity(1 << 20, file);
     let mut packet = [0u8; PACKET];
@@ -18,9 +46,11 @@ pub(super) fn read_ts(
     // PID → stream, in the order the tables named them.
     let mut streams: Vec<(u16, Elementary)> = Vec::new();
     let mut lost_sync = 0u32;
+    // Bytes read so far: where the packet in hand starts is this, less its length.
+    let mut consumed = 0u64;
     loop {
         match reader.read_exact(&mut packet) {
-            Ok(()) => {}
+            Ok(()) => consumed += PACKET as u64,
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
             Err(e) => return Err(format!("the stream could not be read: {e}")),
         }
@@ -37,6 +67,7 @@ pub(super) fn read_ts(
             reader
                 .read_exact(&mut rest)
                 .map_err(|_| "the stream ends mid-packet".to_string())?;
+            consumed += rest.len() as u64;
             let mut shifted = packet.get(at + 1..).unwrap_or_default().to_vec();
             shifted.extend_from_slice(&rest);
             packet.copy_from_slice(&shifted);
@@ -61,6 +92,15 @@ pub(super) fn read_ts(
             pmt_pids = read_pat(payload);
         } else if pmt_pids.contains(&pid) && start {
             for (kind, es_pid) in read_pmt(payload) {
+                let (kind, sealed) = match kind_of(kind, locks) {
+                    Ok(read) => read,
+                    Err(why) => {
+                        for (_, stream) in &streams {
+                            let _ = std::fs::remove_file(&stream.path);
+                        }
+                        return Err(why);
+                    }
+                };
                 if OTHERS.contains(&kind) {
                     for (_, stream) in &streams {
                         let _ = std::fs::remove_file(&stream.path);
@@ -85,6 +125,7 @@ pub(super) fn read_ts(
                             es_pid,
                             Elementary {
                                 kind,
+                                sealed,
                                 out: Some(BufWriter::with_capacity(1 << 20, out)),
                                 path,
                                 ..Elementary::default()
@@ -96,7 +137,11 @@ pub(super) fn read_ts(
         } else if let Some((_, stream)) = streams.iter_mut().find(|(p, _)| *p == pid) {
             if start && !stream.pes.is_empty() {
                 let pes = std::mem::take(&mut stream.pes);
+                stream.lock = stream.gathering;
                 take_pes(stream, &pes)?;
+            }
+            if start && stream.sealed {
+                stream.gathering = locks.at(consumed.saturating_sub(PACKET as u64));
             }
             if start || !stream.pes.is_empty() {
                 stream.pes.extend_from_slice(payload);
@@ -107,6 +152,7 @@ pub(super) fn read_ts(
     for (_, mut stream) in streams {
         if !stream.pes.is_empty() {
             let pes = std::mem::take(&mut stream.pes);
+            stream.lock = stream.gathering;
             take_pes(&mut stream, &pes)?;
         }
         if let Some(mut writer) = stream.out.take() {

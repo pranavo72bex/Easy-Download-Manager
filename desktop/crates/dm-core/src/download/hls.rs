@@ -55,10 +55,19 @@ pub(super) async fn download_stream(
         listed.found_to_be(found, url, options.quality);
     }
     // Trimmed exactly only where the muxer can: a fragmented MP4.
+    let fragmented = listed.container == "mp4" || listed.container == "m4a";
     let cut = options
         .span
-        .filter(|_| listed.container == "mp4" || listed.container == "m4a")
+        .filter(|_| fragmented)
         .map(|span| span.millis());
+    /* An initialisation segment that changes part-way (an advert break) makes runs joined as one
+     * MP4 by the muxer, each with its own set-up; samples scrambled by SAMPLE-AES are put in the
+     * clear once the segments are joined (gaps row Y16). */
+    let runs = listed.parts.iter().filter(|p| p.init).count() > 1;
+    let sealed = listed
+        .parts
+        .iter()
+        .any(|p| p.key.as_ref().is_some_and(|k| k.sample));
     if let Some(span) = options.span {
         listed.filename = named_for_span(&listed.filename, span);
     }
@@ -153,13 +162,20 @@ pub(super) async fn download_stream(
             .collect()
     };
     // A transport stream into an MP4 where asked and able; the `.ts` where
-    // not, which is still the stream, whole.
-    let (parts, filename) = match remux_ts(&listed.filename, &parts, options).await {
-        Some((mp4, name)) => (vec![mp4], name),
-        None => (parts, listed.filename.clone()),
+    // not, which is still the stream, whole. One scrambled by SAMPLE-AES is put in the clear
+    // first, and must be: what it was saved as would not play.
+    let (parts, filename) = if sealed {
+        super::hls_sealed::clear(&listed, &keys, &parts, options).await?
+    } else {
+        match remux_ts(&listed.filename, &parts, options).await {
+            Some((mp4, name)) => (vec![mp4], name),
+            None => (parts, listed.filename.clone()),
+        }
     };
     let parts = match cut {
-        Some(window) => vec![cut_fragments(&parts, window, options).await?],
+        Some(window) => vec![cut_fragments(&parts, Some(window), options).await?],
+        // Runs, each with its set-up, as one MP4 (gaps row Y16).
+        None if runs && fragmented => vec![cut_fragments(&parts, None, options).await?],
         None => parts,
     };
     let (path, bytes, category) = finish(&filename, None, &parts, options).await?;
@@ -274,10 +290,12 @@ pub(super) async fn record_live(
     let flushed = picture.out.flush().await;
     let picture_at = picture.path.clone();
     let recorded = picture.written.is_some();
+    let mut remapped = picture.remapped;
     drop(picture);
     // The sound is joined only where some of it was written whole.
     let sound_at = match heard {
         Some(mut track) => {
+            remapped |= track.remapped;
             let whole = track.out.flush().await.is_ok();
             (whole && track.written.is_some()).then(|| track.path.clone())
         }
@@ -320,6 +338,11 @@ pub(super) async fn record_live(
     };
     let (parts, filename) = match joined {
         Some((mp4, name)) => (vec![mp4], name),
+        // Runs of a fragmented recording, each with its own set-up, as one MP4 (gaps row Y16).
+        None if remapped && !crate::tsmux::is_transport_stream(&picture_at) => {
+            let flat = cut_fragments(std::slice::from_ref(&picture_at), None, &placing).await?;
+            (vec![flat], format!("{}.mp4", media_stem(&filename)))
+        }
         None => {
             let parts = vec![picture_at];
             match remux_ts(&filename, &parts, &placing).await {
@@ -359,7 +382,11 @@ struct LiveTrack {
     out: tokio::io::BufWriter<fs::File>,
     /// The sequence number of the last segment written.
     written: Option<u64>,
-    init_written: bool,
+    /// The initialisation segment last written (its address and bytes), and whether one that
+    /// changed was written after another: an advert break, made one MP4 when the recording
+    /// ends (gaps row Y16).
+    init_written: Option<(String, Option<(u64, u64)>)>,
+    remapped: bool,
     /// Each key fetched once, by its address.
     keys: std::collections::HashMap<String, Vec<u8>>,
     /// Rounds in a row the playlist did not answer.
@@ -380,7 +407,8 @@ impl LiveTrack {
             path,
             out,
             written: None,
-            init_written: false,
+            init_written: None,
+            remapped: false,
             keys: std::collections::HashMap::new(),
             misses: 0,
             missed: 0,
@@ -417,14 +445,32 @@ impl LiveTrack {
         if self.named.is_none() {
             self.named = Some(listed.filename.clone());
         }
+        // The initialisation segment of the segments that follow it, written before the first
+        // of them that is, where it is not the one written last.
+        let mut leading: Option<&stream::Part> = None;
         for part in &listed.parts {
-            let wanted = if part.init {
-                !self.init_written
-            } else {
-                self.written.is_none_or(|last| part.sequence > last)
-            };
-            if !wanted {
+            if part.init {
+                leading = Some(part);
                 continue;
+            }
+            if !self.written.is_none_or(|last| part.sequence > last) {
+                continue;
+            }
+            if let Some(init) = leading
+                .take()
+                .filter(|init| self.init_written.as_ref() != Some(&(init.url.clone(), init.range)))
+            {
+                let Ok(body) = retry::run_up_to(&options.control, options.tries(), || {
+                    fetch_segment_range(client, &init.url, init.range, options)
+                })
+                .await
+                else {
+                    break;
+                };
+                self.out.write_all(&body).await?;
+                downloaded.fetch_add(body.len() as u64, Ordering::Relaxed);
+                self.remapped |= self.init_written.is_some();
+                self.init_written = Some((init.url.clone(), init.range));
             }
             let Ok(body) = retry::run_up_to(&options.control, options.tries(), || {
                 fetch_segment_range(client, &part.url, part.range, options)
@@ -434,7 +480,11 @@ impl LiveTrack {
                 break;
             };
             let bytes = match part.key.as_ref() {
-                Some(declared) if !part.init => {
+                // Turned to SAMPLE-AES part-way: a recording is never joined whole to clear it.
+                Some(declared) if declared.sample => {
+                    return Err(Error::Internal(LIVE_SAMPLED.into()));
+                }
+                Some(declared) => {
                     if !self.keys.contains_key(&declared.uri) {
                         let key = fetch_capped(client, &declared.uri, 1024, options)
                             .await?
@@ -452,17 +502,13 @@ impl LiveTrack {
             };
             self.out.write_all(&bytes).await?;
             downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);
-            if part.init {
-                self.init_written = true;
-            } else {
-                if let Some(last) = self
-                    .written
-                    .filter(|last| part.sequence > last.saturating_add(1))
-                {
-                    self.missed += part.sequence - last - 1;
-                }
-                self.written = Some(part.sequence);
+            if let Some(last) = self
+                .written
+                .filter(|last| part.sequence > last.saturating_add(1))
+            {
+                self.missed += part.sequence - last - 1;
             }
+            self.written = Some(part.sequence);
         }
         self.out.flush().await?;
         if !stream::is_live(&text) {
@@ -819,6 +865,9 @@ pub(super) async fn resolve_stream(
             return Ok(Resolved::Beyond(why));
         }
         if stream::is_live(&media) {
+            if stream::sample_scrambled(&media) {
+                return Ok(Resolved::Beyond(LIVE_SAMPLED));
+            }
             return Ok(Resolved::Live(chosen.url, None));
         }
         let listed = stream::media_playlist(&media, &media_landed, url, quality)?;
@@ -831,10 +880,27 @@ pub(super) async fn resolve_stream(
         return Err(Error::Internal("that playlist lists no media".into()));
     }
     if stream::is_live(&text) {
+        if stream::sample_scrambled(&text) {
+            return Ok(Resolved::Beyond(LIVE_SAMPLED));
+        }
         return Ok(Resolved::Live(url.to_string(), None));
     }
     let listed = stream::media_playlist(&text, &landed, url, quality)?;
     Ok(Resolved::Own(listed, url.to_string()))
+}
+
+/// A live stream whose samples are scrambled (SAMPLE-AES): recorded as it comes, it is never
+/// joined whole, which is when they are put in the clear (gaps row Y16).
+const LIVE_SAMPLED: &str = "this live stream's samples are scrambled (SAMPLE-AES)";
+
+/// Why a playlist of a pair (picture and sound apart) is not dm's to join, where it is not: an
+/// initialisation segment that changes part-way or samples scrambled by SAMPLE-AES, which only
+/// a single playlist's join handles (gaps row Y16).
+fn pair_beyond(media: &str, landed: &str) -> Option<&'static str> {
+    if stream::changes_map(media, landed) {
+        return Some("this stream changes its initialisation segment part-way through");
+    }
+    stream::sample_scrambled(media).then_some("this stream's samples are scrambled (SAMPLE-AES)")
 }
 
 /// A picture and the sound the master keeps apart from it. Fragmented MP4 on
@@ -851,7 +917,9 @@ async fn resolve_pair(
     options: &Options,
 ) -> Result<Resolved, Error> {
     const APART: &str = "this stream carries its sound separately from its picture";
-    if let Some(why) = stream::beyond_dm(None, None, media, media_landed) {
+    if let Some(why) = stream::beyond_dm(None, None, media, media_landed)
+        .or_else(|| pair_beyond(media, media_landed))
+    {
         return Ok(Resolved::Beyond(why));
     }
     if stream::is_live(media) {
@@ -859,7 +927,10 @@ async fn resolve_pair(
         return Ok(Resolved::Live(rendition.to_string(), sound));
     }
     let (sound, sound_landed) = fetch_playlist(client, sound_url, options).await?;
-    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some() || stream::is_live(&sound) {
+    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some()
+        || pair_beyond(&sound, &sound_landed).is_some()
+        || stream::is_live(&sound)
+    {
         return Ok(Resolved::Beyond(APART));
     }
     let picture = stream::media_playlist(media, media_landed, name_from, options.quality)?;
@@ -902,7 +973,9 @@ async fn live_sound(
         Err(e @ (Error::Paused | Error::Cancelled)) => return Err(e),
         Err(_) => return Ok(None),
     };
-    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some() {
+    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some()
+        || pair_beyond(&sound, &sound_landed).is_some()
+    {
         return Ok(None);
     }
     let picture = stream::media_playlist(media, media_landed, name_from, options.quality);
@@ -1017,8 +1090,9 @@ async fn fetch_one_segment(
 
     let staging = done.with_extension("partial");
     let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
-    // One in the clear is written as it comes, not held whole first (gaps row Y17).
-    let key = part.key.as_ref().filter(|_| !part.init);
+    // One in the clear is written as it comes, not held whole first (gaps row Y17); so is one
+    // whose samples are scrambled (SAMPLE-AES), put in the clear once joined (gaps row Y16).
+    let key = part.key.as_ref().filter(|k| !part.init && !k.sample);
     if key.is_none() {
         let written = retry::run_up_to(&options.control, options.tries(), || {
             fetch_segment_to(client, &part.url, part.range, options, &staging)
@@ -1185,10 +1259,11 @@ pub(super) fn named_for_span(name: &str, span: crate::clip::Span) -> String {
 
 /// The fetched fragments of a fragmented MP4 (its initialisation segment
 /// first) joined, then cut to `window` (milliseconds) by the muxer's edit
-/// lists, into one file in the parts directory.
-async fn cut_fragments(
+/// lists, into one file in the parts directory. With no window, the whole: a stream whose
+/// initialisation segment changes part-way is made one MP4 of its runs (gaps row Y16).
+pub(super) async fn cut_fragments(
     parts: &[PathBuf],
-    window: (u64, u64),
+    window: Option<(u64, u64)>,
     options: &Options,
 ) -> Result<PathBuf, Error> {
     let whole = options.parts_dir.join("cut-input.mp4");
@@ -1200,7 +1275,7 @@ async fn cut_fragments(
         vec![whole.clone()],
         Vec::new(),
         out.clone(),
-        Some(window),
+        window,
         options.shape,
     )
     .await

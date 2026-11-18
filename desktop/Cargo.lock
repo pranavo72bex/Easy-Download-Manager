@@ -2151,6 +2151,8 @@ version = "0.10.0"
 name = "dm-media"
 version = "0.10.0"
 dependencies = [
+ "aes 0.9.3",
+ "cbc 0.2.1",
  "libc",
  "proptest",
  "rav1d",
