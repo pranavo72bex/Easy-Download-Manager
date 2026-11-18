@@ -394,3 +394,219 @@ async fn a_search_stopped_keeps_what_it_found_and_counts_as_it_goes() {
     );
     assert_eq!(counted, (1, 1));
 }
+
+/// A three-page site for "Save pages for offline reading" (gaps row F2): the start page in
+/// windows-1252, said only by the server, with a stylesheet (which imports another and names a
+/// picture), a picture, links to the two other pages and one to a page on another host; a page
+/// further in with a `<base href>`. The other host counts what it is asked for.
+async fn three_pages() -> (
+    String,
+    String,
+    std::sync::Arc<std::sync::atomic::AtomicUsize>,
+) {
+    use axum::http::header::CONTENT_TYPE;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let asked = std::sync::Arc::new(AtomicUsize::new(0));
+    let counted = asked.clone();
+    let outside = axum::Router::new().fallback(move || {
+        counted.fetch_add(1, Ordering::SeqCst);
+        async { Html("<p>elsewhere</p>") }
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    // Another host to the site: `localhost`, not `127.0.0.1`.
+    let away = format!("http://localhost:{}", listener.local_addr().unwrap().port());
+    tokio::spawn(async move { axum::serve(listener, outside).await.unwrap() });
+
+    let mut index =
+        br#"<!DOCTYPE html><html><head><link rel="stylesheet" href="css/site.css"><title>Caf"#
+            .to_vec();
+    index.push(0xE9);
+    index.extend_from_slice(
+        format!(
+            r#"</title></head><body><img src="img/logo.png" alt=""><a href="about.html">About</a>
+<a href="docs/guide?id=2#part">Guide</a> <a href="{away}/away.html">Away</a></body></html>"#
+        )
+        .as_bytes(),
+    );
+    let png = || async { ([(CONTENT_TYPE, "image/png")], vec![0x89, b'P', b'N', b'G']) };
+    let css = |body: &'static str| move || async move { ([(CONTENT_TYPE, "text/css")], body) };
+    let app = axum::Router::new()
+        .route(
+            "/",
+            get(move || {
+                let index = index.clone();
+                async move { ([(CONTENT_TYPE, "text/html; charset=windows-1252")], index) }
+            }),
+        )
+        .route(
+            "/about.html",
+            get(|| async {
+                Html(
+                    r#"<link rel=stylesheet href="/css/site.css"><a href="./">Home</a><a href="docs/guide?id=2">Guide</a>"#,
+                )
+            }),
+        )
+        .route(
+            "/docs/guide",
+            get(|| async {
+                Html(
+                    r#"<head><base href="/img/"></head><img src="logo.png"><a href="../about.html">About</a><a href="/">Home</a>"#,
+                )
+            }),
+        )
+        .route(
+            "/css/site.css",
+            get(css(r#"@import url(more.css); body { background: url("../img/bg.png") }"#)),
+        )
+        .route("/css/more.css", get(css("h1 { color: red }")))
+        .route("/img/logo.png", get(png))
+        .route("/img/bg.png", get(png));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (format!("http://{addr}"), away, asked)
+}
+
+/// Every `href` and `src` value in a saved page.
+fn links_in(html: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for attribute in ["href=\"", "src=\""] {
+        for (at, _) in html.match_indices(attribute) {
+            let rest = &html[at + attribute.len()..];
+            found.push(rest[..rest.find('"').unwrap()].to_string());
+        }
+    }
+    found
+}
+
+/// Every file under `folder`.
+fn files_under(folder: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(folder).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            files.extend(files_under(&path));
+        } else {
+            files.push(path);
+        }
+    }
+    files
+}
+
+/// Gaps row F2's close: a three-page site saved, whose saved index names no outside address.
+#[tokio::test]
+async fn pages_saved_for_offline_reading_link_to_each_other_and_name_no_outside_address() {
+    let (base, away, asked) = three_pages().await;
+    let folder = tempfile::tempdir().unwrap();
+    let search = Search {
+        page: format!("{base}/"),
+        depth: 1,
+        ..Search::default()
+    };
+    let saved = dm_shell::lists::offline::save_pages(&dm_core::client(), &search, folder.path())
+        .await
+        .unwrap();
+    assert_eq!((saved.pages, saved.resources, saved.stopped), (3, 4, false));
+    let site = folder
+        .path()
+        .join(base.trim_start_matches("http://").replace(':', "_"));
+    assert_eq!(saved.index, site.join("index.html"));
+
+    let bytes = std::fs::read(&saved.index).unwrap();
+    let index = String::from_utf8_lossy(&bytes).into_owned();
+    // Every address in the saved index is a relative path to a file saved beside it, but the one
+    // to the other host, left as it was.
+    let links = links_in(&index);
+    assert_eq!(links.len(), 5, "{links:?}");
+    for link in &links {
+        if link.starts_with(&away) {
+            assert_eq!(*link, format!("{away}/away.html"));
+            continue;
+        }
+        assert!(
+            !link.contains("://") && !link.starts_with('/'),
+            "{link} in {index}"
+        );
+        let file = link.split('#').next().unwrap();
+        assert!(site.join(file).is_file(), "{link} names no saved file");
+    }
+    assert!(index.contains(r#"href="about.html""#), "{index}");
+    assert!(index.contains("#part\""), "the fragment is kept: {index}");
+    assert_eq!(
+        index.matches("://").count(),
+        1,
+        "one outside address, no other: {index}"
+    );
+    // The charset the server said is written in, and the page's own bytes are as they came.
+    assert!(
+        index.contains(r#"<meta charset="windows-1252">"#),
+        "{index}"
+    );
+    assert!(bytes.windows(2).any(|w| w == [b'f', 0xE9]));
+
+    // No saved file names the site's own address, and the other host was never asked.
+    let files = files_under(folder.path());
+    assert_eq!(files.len(), 7, "{files:?}");
+    for file in &files {
+        let text = String::from_utf8_lossy(&std::fs::read(file).unwrap()).into_owned();
+        assert!(
+            !text.contains(base.trim_start_matches("http://")),
+            "{file:?}: {text}"
+        );
+    }
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+    // The page further in reads its `<base href>`'s picture, and links back up.
+    let guide = files
+        .iter()
+        .find(|f| f.parent().unwrap().ends_with("docs"))
+        .unwrap();
+    let guide_text = std::fs::read_to_string(guide).unwrap();
+    assert!(
+        guide_text.contains(r#"<img src="../img/logo.png">"#),
+        "{guide_text}"
+    );
+    assert!(
+        guide_text.contains(r#"<a href="../about.html">"#),
+        "{guide_text}"
+    );
+    assert!(
+        guide_text.contains(r#"<a href="../index.html">"#),
+        "{guide_text}"
+    );
+    assert!(
+        !guide_text.contains("/img/\""),
+        "the base is left out: {guide_text}"
+    );
+    let css = std::fs::read_to_string(site.join("css").join("site.css")).unwrap();
+    assert!(
+        css.contains("@import url(more.css);") && css.contains("url(../img/bg.png)"),
+        "{css}"
+    );
+}
+
+#[tokio::test]
+async fn a_page_past_the_depth_is_not_saved_and_its_link_stays_a_web_address() {
+    let (base, _, asked) = three_pages().await;
+    let folder = tempfile::tempdir().unwrap();
+    let search = Search {
+        page: format!("{base}/"),
+        depth: 0,
+        ..Search::default()
+    };
+    let saved = dm_shell::lists::offline::save_pages(&dm_core::client(), &search, folder.path())
+        .await
+        .unwrap();
+    assert_eq!((saved.pages, saved.resources), (1, 4));
+    let index = String::from_utf8_lossy(&std::fs::read(&saved.index).unwrap()).into_owned();
+    assert!(
+        index.contains(&format!(r#"href="{base}/about.html""#)),
+        "{index}"
+    );
+    assert!(
+        index.contains(&format!(r#"href="{base}/docs/guide?id=2#part""#)),
+        "{index}"
+    );
+    assert!(index.contains(r#"href="css/site.css""#), "{index}");
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 0);
+}
