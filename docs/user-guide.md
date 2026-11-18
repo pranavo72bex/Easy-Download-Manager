@@ -3,6 +3,33 @@
 The parts of dm the Help menu points to. For installing dm and its browser
 extension, see the [README](../README.md).
 
+## Every page of the help
+
+- **When something goes wrong:** [What dm's messages mean](guide/failures.md),
+  each failure and note a download can show, with what to do next.
+- **Topics:** [Videos and their qualities](guide/videos.md),
+  [Sign-ins](guide/sign-ins.md), [Proxies](guide/proxies.md),
+  [Speed limiter](guide/speed-limiter.md).
+- **Options:** [how it works](guide/options.md) and each page:
+  [General](guide/options-general.md), [Browser](guide/options-browser.md),
+  [Folders](guide/options-folders.md),
+  [Downloads](guide/options-downloads.md),
+  [Advanced](guide/options-advanced.md),
+  [Sign-ins](guide/options-sign-ins.md).
+- **Adding downloads:** [Add URL](guide/add-url.md),
+  [Download details](guide/download-details.md),
+  [Playlist](guide/playlist.md), [Download links](guide/download-links.md),
+  [Links on the clipboard](guide/clipboard-links.md),
+  [Add numbered series](guide/numbered-series.md),
+  [Grabber](guide/grabber.md), [Add dm to your browser](guide/welcome.md).
+- **While and after a download:** [Download progress](guide/download-window.md),
+  [Download complete](guide/download-complete.md),
+  [File properties](guide/properties.md),
+  [Update download link](guide/update-link.md),
+  [Move to queue](guide/move-to-queue.md),
+  [Move/Rename](guide/move-rename.md), [Scheduler](guide/scheduler.md),
+  [Questions dm asks](guide/questions.md), [About dm](guide/about.md).
+
 ## Queues and the Scheduler
 
 A queue is a list of downloads that wait their turn and start together.
@@ -22,13 +49,13 @@ choose another.
 - **Start and stop at set hours:** open **Downloads › Scheduler**. Pick a
   queue on the left. The Main queue's hours are the ones every queue
   follows unless you give it **Hours of its own for this queue**. Tick the
-  days, or give one date (YYYY-MM-DD), and the time to start and to stop.
+  days, or pick one date, and the time to start and to stop.
   **Start now** and **Stop** act on the queue you picked; **OK** keeps the
   hours of every queue.
 - **When the downloads are done:** the Scheduler can close dm, put the
   computer to sleep, hibernate it or shut it down once the scheduled
   downloads have finished, and try a failed download again a few times
-  first.
+  first. Every setting is in [Scheduler](guide/scheduler.md).
 
 ## Grabber
 
@@ -53,7 +80,8 @@ says so.
 **Save this search as** gives the search a name; **Run every (hours)** runs it
 again on its own and adds only the files it has not found before. Saved
 searches are listed under **Grabber projects** in the side panel: click one
-to open the Grabber with it filled in.
+to open the Grabber with it filled in. Every setting is in
+[Grabber](guide/grabber.md).
 
 ## Download links from a page
 
