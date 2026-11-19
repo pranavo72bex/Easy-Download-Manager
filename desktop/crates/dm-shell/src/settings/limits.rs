@@ -18,6 +18,9 @@ const SPEED_LIMIT_KB: (u64, u64) = (0, 1024 * 1024);
 /// A petabyte, and a month: past any allowance a link has.
 const LIMIT_MB: u64 = 1024 * 1024 * 1024;
 const LIMIT_HOURS: u64 = 24 * 31;
+/// Ten years: past any history a person keeps (Options › Downloads' "Forget finished downloads
+/// after … days").
+const FORGET_DAYS: u32 = 3650;
 
 /// Bounds for the attempts and the read timeout (Options › Advanced): a hundred tries is
 /// already an hour of asking,
@@ -83,6 +86,7 @@ impl Settings {
         self.limit_hours = self.limit_hours.clamp(1, LIMIT_HOURS);
         self.advanced.attempts = self.advanced.attempts.clamp(ATTEMPTS.0, ATTEMPTS.1);
         self.downloads.recheck_hours = self.downloads.recheck_hours.min(LIMIT_HOURS);
+        self.downloads.forget_after_days = self.downloads.forget_after_days.min(FORGET_DAYS);
         self.advanced.read_timeout = self
             .advanced
             .read_timeout

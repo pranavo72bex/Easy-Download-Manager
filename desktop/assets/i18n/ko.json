@@ -912,5 +912,8 @@
  "File's path": "파일 경로",
  "Type the file's full path, such as {}.": "{}처럼 파일의 전체 경로를 입력하세요.",
  "Export the list": "목록 내보내기",
- "Import a list": "목록 가져오기"
+ "Import a list": "목록 가져오기",
+ "Keep no record": "기록 남기지 않기",
+ "Forget finished downloads after (days, 0 for never)": "완료된 다운로드를 목록에서 지우는 기간(일, 0은 지우지 않음)",
+ "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "완료된 다운로드는 그 일수가 지나면 목록에서 사라집니다. 파일은 저장된 곳에 그대로 남습니다."
 }

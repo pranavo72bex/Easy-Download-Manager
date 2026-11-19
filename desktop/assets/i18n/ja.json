@@ -912,5 +912,8 @@
  "File's path": "ファイルのパス",
  "Type the file's full path, such as {}.": "{} のように、ファイルのフルパスを入力してください。",
  "Export the list": "リストをエクスポート",
- "Import a list": "リストをインポート"
+ "Import a list": "リストをインポート",
+ "Keep no record": "記録を残さない",
+ "Forget finished downloads after (days, 0 for never)": "完了したダウンロードを一覧から消すまで（日、0 で消さない）",
+ "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "完了したダウンロードは、その日数が経つと一覧から消えます。ファイルは保存した場所に残ります。"
 }

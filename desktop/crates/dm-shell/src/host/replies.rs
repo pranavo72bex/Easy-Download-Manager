@@ -31,6 +31,7 @@ pub(super) fn hello_reply(home: &Path, greeting: dm_protocol::Greeting) -> Reply
             feature::JUDGES_CATCH,
             feature::LISTS_STREAMS,
             feature::LISTS_DOWNLOADS,
+            feature::KEEPS_NO_RECORD,
         ]
         .map(String::from)
         .to_vec(),

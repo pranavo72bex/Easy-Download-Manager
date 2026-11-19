@@ -108,6 +108,7 @@ fn the_question_about_a_caught_download_carries_what_the_rules_read() {
         mime: "application/zip".into(),
         size: Some(42),
         store: Some("firefox-container-1".into()),
+        private: false,
     };
     let judge = judge_of(&found, "j7-1", "Firefox", true);
     assert_eq!(judge.id, "j7-1");

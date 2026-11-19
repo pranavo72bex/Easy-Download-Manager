@@ -27,6 +27,8 @@ impl DownloadList {
         if let Err(problem) = self.restore(&path).await {
             self.note(problem.to_string());
         }
+        // Whole when dm stopped, a row that keeps no record goes now (gaps row W17).
+        self.forget_whole_no_record().await;
         *crate::lock(&self.inner.store) = Some(path.clone());
         // What the download limit had used, and when the recheck queue last
         // ran, from before this launch: read off the runtime's threads.
@@ -296,7 +298,12 @@ impl DownloadList {
         // Shared, not copied: what changed since the last write is the rows
         // that are not the same allocation as then (`journal`).
         let rows = self.list_shared().await;
-        let previous = crate::lock(&self.inner.saved).take();
+        let mut previous = crate::lock(&self.inner.saved).take();
+        // A row that keeps no record went since: the whole list is written, and the journal
+        // whose lines named it is removed (`forget`).
+        if self.inner.whole_next.swap(false, Ordering::SeqCst) {
+            previous = None;
+        }
         let quota = crate::lock(&self.inner.quota).kept();
         let slow = Duration::from_millis(self.inner.slow_writes_ms.load(Ordering::Relaxed));
         let began = std::time::Instant::now();

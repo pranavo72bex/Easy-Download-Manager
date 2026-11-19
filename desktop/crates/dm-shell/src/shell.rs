@@ -89,6 +89,7 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         cookies: request.cookies.clone(),
         cookies_once: request.cookies_once,
         headers: request.headers.clone(),
+        keep_no_record: request.keep_no_record,
         post: posted(&request.url, request.post.as_ref()),
         title_hint: Some(request.title.clone()).filter(|t| !t.is_empty()),
         queue: if request.later {

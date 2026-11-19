@@ -912,5 +912,8 @@
  "File's path": "Pfad der Datei",
  "Type the file's full path, such as {}.": "Geben Sie den vollständigen Pfad der Datei ein, etwa {}.",
  "Export the list": "Liste exportieren",
- "Import a list": "Liste importieren"
+ "Import a list": "Liste importieren",
+ "Keep no record": "Keinen Verlauf behalten",
+ "Forget finished downloads after (days, 0 for never)": "Fertige Downloads vergessen nach (Tagen, 0 nie)",
+ "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "Ein fertiger Download verschwindet aus der Liste, sobald er so viele Tage alt ist. Seine Datei bleibt, wo sie gespeichert wurde."
 }

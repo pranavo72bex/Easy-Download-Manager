@@ -126,6 +126,7 @@ fn take(home: &Path, start: Start, world: &mut dyn World) -> Reply {
         deadline,
         post,
         renews,
+        private_window,
         ..
     } = start;
     let url = url.trim().to_string();
@@ -210,6 +211,7 @@ fn take(home: &Path, start: Start, world: &mut dyn World) -> Reply {
                 post,
                 from_browser: true,
                 renews,
+                keep_no_record: private_window,
                 ..Request::default()
             },
         ) {

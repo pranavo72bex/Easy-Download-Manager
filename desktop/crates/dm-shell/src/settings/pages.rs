@@ -211,6 +211,10 @@ pub struct DownloadSettings {
     /// Put a `.ts` stream into an MP4 (dm's own remux).
     #[serde(default = "super::yes")]
     pub remux_ts: bool,
+    /// Days after which a finished download leaves the list, its file left where it was saved
+    /// (gaps row W17); 0, the default, keeps every one.
+    #[serde(default)]
+    pub forget_after_days: u32,
 }
 
 impl Default for DownloadSettings {
@@ -228,6 +232,7 @@ impl Default for DownloadSettings {
             queue_limits: Vec::new(),
             queue_starts: Vec::new(),
             remux_ts: true,
+            forget_after_days: 0,
         }
     }
 }

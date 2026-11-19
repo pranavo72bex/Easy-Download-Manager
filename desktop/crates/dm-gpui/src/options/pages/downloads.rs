@@ -21,6 +21,7 @@ pub(super) fn downloads(
     queue_limits(o, p, window, cx, &s);
     queue_starts(o, p, cx, &s);
     watching_and_after(o, p, window, cx);
+    forgetting(o, p, window, cx);
 }
 
 /// Connections per file, and its presets.
@@ -377,4 +378,25 @@ fn watching_and_after(
         |o| o.draft.downloads.on_complete.clone(),
     );
     p.labelled(t("Command"), true, command);
+}
+
+/// Finished downloads forgotten once they are so many days old, their files kept (gaps row W17).
+fn forgetting(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
+    let days = input(
+        o,
+        window,
+        cx,
+        "forget_after_days",
+        "Forget finished downloads after (days, 0 for never)",
+        NUMBER,
+        true,
+        false,
+        |o| o.draft.downloads.forget_after_days.to_string(),
+    );
+    p.labelled(
+        t("Forget finished downloads after (days, 0 for never)"),
+        true,
+        days,
+    );
+    p.note(t("A finished download leaves the list once it is that many days old. Its file stays where it was saved."));
 }

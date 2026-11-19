@@ -70,6 +70,13 @@ says **From** and the browser's name. With several addresses it says **and
 - **Delete file after:** **Never**, **10 minutes**, **1 hour** or **1
   day**: that long after the download finishes, its file goes to the
   Recycle Bin (the Trash on macOS) and the row leaves the list.
+- **Keep no record:** ticked, dm forgets the download once its file is
+  whole: its row leaves the list, and its address, the page it came from
+  and any sign-in sent with it go too, so nothing of it is left in dm's
+  own files. The file itself stays where it was saved. It is ticked by
+  itself for a download handed over from a private browser window. Until
+  the file is whole the download is kept like any other, so it can go on
+  after dm is closed.
 
 ## Warnings
 

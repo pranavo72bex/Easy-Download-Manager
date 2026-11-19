@@ -38,7 +38,14 @@ pub struct Session {
     /// between (after a command, an add, Download details) took the change, and When done
     /// never fired.
     dry: bool,
+    /// When the finished downloads were last looked at for those to forget, and the days
+    /// Options › Downloads said then ([`Session::forget_old`]).
+    forgot: Option<(Instant, u32)>,
 }
+
+/// How often the finished downloads are looked at for those older than Options › Downloads'
+/// "Forget finished downloads after … days": at start, once a day, and when the days change.
+const FORGET_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 
 impl Deref for Session {
     type Target = dm_shell::app::session::Session;
@@ -239,6 +246,7 @@ impl Session {
         self.told(backend, rows, &mut effects);
         self.schedules(backend, rows, &mut effects);
         self.this_done(rows, &mut effects);
+        self.forget_old(backend);
         if self.queue_dry(backend, driver, &mut effects) {
             effects.push(Effect::Quit);
         }
@@ -355,6 +363,24 @@ impl Session {
                     self.app.countdown = Some((action, at));
                 }
             }
+        }
+    }
+
+    /// The finished downloads older than Options › Downloads' "Forget finished downloads after
+    /// … days" taken off the list, their files left (gaps row W17): at the first tick, once a
+    /// day after it, and at once when the days are changed. 0 days forgets nothing.
+    fn forget_old(&mut self, backend: &Backend) {
+        let days = backend.settings().downloads.forget_after_days;
+        let now = Instant::now();
+        let due = self
+            .forgot
+            .is_none_or(|(at, then)| then != days || now.duration_since(at) >= FORGET_EVERY);
+        if !due {
+            return;
+        }
+        self.forgot = Some((now, days));
+        if days > 0 {
+            backend.forget_finished(days);
         }
     }
 

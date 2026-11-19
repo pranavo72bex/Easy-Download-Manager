@@ -1622,6 +1622,7 @@ fn the_app_serves_the_menu_judges_catches_and_lists_streams() {
         dm_protocol::feature::JUDGES_CATCH,
         dm_protocol::feature::LISTS_STREAMS,
         dm_protocol::feature::LISTS_DOWNLOADS,
+        dm_protocol::feature::KEEPS_NO_RECORD,
     ] {
         assert!(first.has(name), "{name}");
     }
@@ -1896,4 +1897,31 @@ fn the_popup_is_told_what_the_window_is_fetching() {
     assert!(downloads.is_empty());
     assert_eq!(failed, published.failed);
     assert!(!launched, "asking for the list starts no dm");
+}
+
+/// A hand-over from a private window is filed keeping no record, and added so (gaps row W17); one
+/// from an ordinary window, as every released extension sends, keeps its row as before.
+#[test]
+fn a_private_windows_hand_over_is_filed_keeping_no_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let filed = |id: &str, private_window: bool| -> Request {
+        let frame = dm_protocol::Request::Start(Start {
+            id: id.into(),
+            url: "https://e.com/f.zip".into(),
+            referrer: "https://e.com/page".into(),
+            private_window,
+            ..Start::default()
+        })
+        .to_frame();
+        let (reply, _) = ask(dir.path(), frame, true, Ok(()));
+        assert!(matches!(reply, Some(Reply::Started { .. })), "{reply:?}");
+        let kept = std::fs::read_to_string(inbox(dir.path()).join(format!("{id}.json"))).unwrap();
+        serde_json::from_str(&kept).unwrap()
+    };
+    let private = filed("p1", true);
+    assert!(private.keep_no_record);
+    assert!(crate::shell::add_options(&private).keep_no_record);
+    let ordinary = filed("p2", false);
+    assert!(!ordinary.keep_no_record);
+    assert!(!crate::shell::add_options(&ordinary).keep_no_record);
 }

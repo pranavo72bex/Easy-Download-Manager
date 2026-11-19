@@ -296,3 +296,38 @@ fn a_file_starts_while_download_details_asks_and_lands_where_chosen() {
         !h.rows().iter().any(|r| r.url.ends_with("/other.pdf"))
     });
 }
+
+/// Download details' "Keep no record" goes with the download (contract row B69, gaps row W17):
+/// unticked for an address typed in, ticked it adds the row keeping no record; a download the
+/// browser handed over from a private window opens with it ticked.
+#[test]
+fn keep_no_record_is_ticked_in_download_details_and_goes_with_the_download() {
+    use crate::dialogs::details::Details;
+    let world = world();
+    let mut h = world.harness();
+    details(&mut h, vec![world.url("file.zip")]);
+    named(&mut h, "file.zip");
+    let ticked = |h: &mut Harness| h.dialog(|d: &mut Details, _, _| d.keep_no_record);
+    assert!(!ticked(&mut h), "unticked for an address typed in");
+    h.reveal("Keep no record");
+    h.click("Keep no record");
+    assert!(ticked(&mut h));
+    h.click("Add for later");
+    h.until("the row", |h| !h.rows().is_empty());
+    assert!(h.rows()[0].keep_no_record, "added keeping no record");
+
+    h.settings_to(|s| s.general.ask_panel_downloads = true);
+    h.hand(Request {
+        url: world.url("other.pdf"),
+        referrer: world.url("page.html"),
+        ask: true,
+        keep_no_record: true,
+        ..Default::default()
+    });
+    h.until("Download details", |h| h.dialog_open("Download details"));
+    assert!(ticked(&mut h), "ticked by itself from a private window");
+    h.click("Cancel");
+    h.until("Download details to close", |h| {
+        !h.dialog_open("Download details")
+    });
+}

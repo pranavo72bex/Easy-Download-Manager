@@ -229,6 +229,8 @@ async fn start_for(found: &Catchable) -> Start {
         // A form's answer: the form, for dm to send again. Its type goes
         // with the browser's own request headers above.
         post: FORMS.with(|f| f.borrow_mut().take(&found.asked_url, &found.url, now())),
+        // From a private window: the app keeps no record of it once whole (gaps row W17).
+        private_window: found.private,
         ..Start::default()
     };
     // The form's type, as the browser's request named it.

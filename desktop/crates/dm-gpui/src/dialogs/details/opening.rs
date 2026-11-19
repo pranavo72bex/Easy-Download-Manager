@@ -36,6 +36,7 @@ pub(super) fn begun_early(
                         cookies: handed.cookies.clone(),
                         cookies_once: handed.cookies_once,
                         headers: handed.headers.clone(),
+                        keep_no_record: handed.keep_no_record,
                         ..dm_core::AddOptions::default()
                     },
                 )
@@ -179,6 +180,7 @@ pub fn open_handed(view: WeakEntity<Downloads>, request: dm_shell::host::Request
         post,
         browser: request.browser,
         caught: request.caught,
+        keep_no_record: request.keep_no_record,
     };
     // The panel's "Part" line: the dialog opens with the part on.
     let part = (!(request.from.is_empty() && request.to.is_empty())).then(|| {
@@ -299,6 +301,7 @@ fn open_now(
                     queues,
                     delete_after: None,
                     replace: false,
+                    keep_no_record: handed.keep_no_record,
                     choices: None,
                     choices_asked: false,
                     part: part_on,

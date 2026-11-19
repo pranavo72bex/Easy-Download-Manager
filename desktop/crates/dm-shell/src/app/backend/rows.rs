@@ -26,10 +26,13 @@ impl Backend {
         let with = settings.with_site_rule(url, admit(url, with)?);
         held_to_downloads(&with, &settings)?;
         let url = settings.with_login(url.trim());
-        let later = with.later;
+        let (later, no_record) = (with.later, with.keep_no_record);
         let id = self
             .block_on(self.queue.add_with(&url, with))
             .ok_or_else(|| "that is not a URL dm can download".to_string())?;
+        if no_record {
+            self.forget_recent([url.as_str()]);
+        }
         if !later {
             self.block_on(async { shell::wake(&self.queue) });
         }
@@ -53,6 +56,13 @@ impl Backend {
         let starts = admitted
             .iter()
             .any(|item| item.as_ref().is_ok_and(|(_, with)| !with.later));
+        self.forget_recent(
+            admitted
+                .iter()
+                .filter_map(|item| item.as_ref().ok())
+                .filter(|(_, with)| with.keep_no_record)
+                .map(|(url, _)| url.as_str()),
+        );
         let ids = self.block_on(
             self.queue.add_each(
                 admitted
@@ -74,6 +84,36 @@ impl Backend {
                     .ok_or_else(|| "that is not a URL dm can download".to_string())
             })
             .collect()
+    }
+
+    /// Addresses added keeping no record (`AddOptions::keep_no_record`, gaps row W17) are not
+    /// kept in Add URL's Recent list either: taken out where Add URL put them as they were typed.
+    fn forget_recent(&self, urls: impl IntoIterator<Item = &str>) {
+        let gone: Vec<String> = urls.into_iter().map(lists::bare).collect();
+        let recent = self.settings().recent_urls;
+        if !recent.iter().any(|u| gone.contains(u)) {
+            return;
+        }
+        let kept = recent.into_iter().filter(|u| !gone.contains(u)).collect();
+        if let Err(e) = self.remember_urls(kept) {
+            self.note(e);
+        }
+    }
+
+    /// Options › Downloads' "Forget finished downloads after … days": the finished rows that
+    /// finished more than `days` days ago taken off the list, their files left where they were
+    /// saved (gaps row W17). How many went.
+    pub fn forget_finished(&self, days: u32) -> usize {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        self.block_on(self.queue.forget_finished_older_than(days, now))
+    }
+
+    /// "Keep no record" for a download (Download details, for a row begun while it asked): one
+    /// whose file is already whole goes now (gaps row W17).
+    pub fn set_keep_no_record(&self, id: Id, on: bool) {
+        self.block_on(self.queue.set_keep_no_record(id, on));
     }
 
     /// Sets a download's description.

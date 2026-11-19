@@ -96,6 +96,11 @@ impl Options {
                     s.downloads.recheck_hours = n;
                 }
             }
+            ["forget_after_days"] => {
+                if let Some(n) = n(0, 3650) {
+                    s.downloads.forget_after_days = n as u32;
+                }
+            }
             ["on_complete"] => s.downloads.on_complete = text.into(),
             _ => return false,
         }

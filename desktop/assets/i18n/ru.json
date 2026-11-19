@@ -912,5 +912,8 @@
  "File's path": "Путь к файлу",
  "Type the file's full path, such as {}.": "Введите полный путь к файлу, например {}.",
  "Export the list": "Экспортировать список",
- "Import a list": "Импортировать список"
+ "Import a list": "Импортировать список",
+ "Keep no record": "Не оставлять следов",
+ "Forget finished downloads after (days, 0 for never)": "Забывать завершённые загрузки через (дней, 0 никогда)",
+ "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "Завершённая загрузка исчезает из списка, когда ей исполняется столько дней. Её файл остаётся там, где был сохранён."
 }

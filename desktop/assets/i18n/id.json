@@ -912,5 +912,8 @@
  "File's path": "Jalur berkas",
  "Type the file's full path, such as {}.": "Ketik jalur lengkap berkas, seperti {}.",
  "Export the list": "Ekspor daftar",
- "Import a list": "Impor daftar"
+ "Import a list": "Impor daftar",
+ "Keep no record": "Jangan simpan riwayat",
+ "Forget finished downloads after (days, 0 for never)": "Lupakan unduhan selesai setelah (hari, 0 tidak pernah)",
+ "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "Unduhan yang selesai keluar dari daftar setelah berumur sebanyak hari itu. Berkasnya tetap di tempat ia disimpan."
 }

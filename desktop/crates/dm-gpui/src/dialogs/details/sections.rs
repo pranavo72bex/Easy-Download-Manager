@@ -8,6 +8,8 @@
 
 use super::*;
 
+mod no_record;
+
 /// What each section is drawn with: the look in force, the screen its words
 /// are recorded on, and the labels' column.
 pub(super) struct Look {
