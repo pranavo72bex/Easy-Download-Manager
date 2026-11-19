@@ -125,6 +125,18 @@ pub struct Plan {
     /// How many of the manifest's periods are not in the plan, as their picture or sound is
     /// not like the rest's (an advert in another format): the row says so (gaps row Y18).
     pub left_out: usize,
+    /// The subtitles listed as whole WebVTT files, one a language (`texts_of`): put inside the
+    /// file where Options says so (gaps row Y20).
+    pub texts: Vec<Text>,
+}
+
+/// A subtitle track a manifest lists as one WebVTT file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Text {
+    /// Its language (`lang`), as a file's name can carry it; `und` where it names none.
+    pub language: String,
+    /// The file's address.
+    pub url: String,
 }
 
 impl Plan {
@@ -906,7 +918,61 @@ pub fn plan(
         audio,
         protected_above,
         left_out,
+        texts: texts_of(&root, url),
     })
+}
+
+/// The subtitles of a manifest of one period that are whole WebVTT files (`text/vtt` with a
+/// `BaseURL`), the first of each language. Pieces of WebVTT, or text carried in MP4 pieces
+/// (`stpp`, `wvtt`), are not read; nor the text of a manifest of several periods, whose times
+/// would each start again where the joined picture does not.
+fn texts_of(root: &Node, url: &str) -> Vec<Text> {
+    let mut periods = root.children("Period");
+    let (Some(period), None) = (periods.next(), periods.next()) else {
+        return Vec::new();
+    };
+    let Ok(period_base) = base_of(url, root).and_then(|top| base_of(&top, period)) else {
+        return Vec::new();
+    };
+    let pieced = |node: &Node| {
+        node.child("SegmentTemplate").is_some() || node.child("SegmentList").is_some()
+    };
+    let mut out: Vec<Text> = Vec::new();
+    for set in period.children("AdaptationSet") {
+        if set.child("ContentProtection").is_some() || pieced(period) || pieced(set) {
+            continue;
+        }
+        for rep in set.children("Representation") {
+            let said = |name: &str| {
+                rep.attr(name)
+                    .or_else(|| set.attr(name))
+                    .unwrap_or_default()
+            };
+            let whole = rep
+                .child("BaseURL")
+                .or_else(|| set.child("BaseURL"))
+                .is_some_and(|b| !b.text.trim().is_empty());
+            if !said("mimeType").eq_ignore_ascii_case("text/vtt") || !whole || pieced(rep) {
+                continue;
+            }
+            let lang = said("lang").trim();
+            let named = !lang.is_empty()
+                && lang
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'));
+            let language = if named { lang } else { "und" }.to_string();
+            let Ok(address) = base_of(&period_base, set).and_then(|b| base_of(&b, rep)) else {
+                continue;
+            };
+            if out.iter().all(|t| t.language != language) {
+                out.push(Text {
+                    language,
+                    url: address,
+                });
+            }
+        }
+    }
+    out
 }
 
 /// The tallest picture the manifest lists copy-protected (`ContentProtection` on its set or

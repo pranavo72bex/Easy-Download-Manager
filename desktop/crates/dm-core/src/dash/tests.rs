@@ -343,6 +343,7 @@ fn a_track_is_known_by_its_height_or_codec_and_subtitles_are_left_out() {
         audio: plan.audio.clone(),
         protected_above: false,
         left_out: 0,
+        texts: Vec::new(),
     };
     assert!(sound_only.signature().starts_with("dash - a:"));
 }
@@ -711,4 +712,55 @@ fn a_sound_language_asked_for_picks_its_dub_or_else_the_main_sound() {
             .id,
         "en"
     );
+}
+
+#[test]
+fn whole_webvtt_files_are_listed_once_a_language_and_pieced_text_is_not() {
+    let body = r#"<Period>
+  <AdaptationSet contentType="video" mimeType="video/mp4">
+    <SegmentTemplate timescale="1000" duration="4000" initialization="v/init.mp4" media="v/$Number$.m4s"/>
+    <Representation id="v720" bandwidth="2500000" width="1280" height="720"/>
+  </AdaptationSet>
+  <AdaptationSet contentType="text" mimeType="text/vtt" lang="en">
+    <Representation id="en"><BaseURL>subs/en.vtt</BaseURL></Representation>
+    <Representation id="en-again"><BaseURL>subs/en-2.vtt</BaseURL></Representation>
+  </AdaptationSet>
+  <AdaptationSet contentType="text" mimeType="text/vtt" lang="pt-BR">
+    <Representation id="pt"><BaseURL>subs/pt.vtt</BaseURL></Representation>
+  </AdaptationSet>
+  <AdaptationSet contentType="text" mimeType="text/vtt">
+    <Representation id="unnamed"><BaseURL>subs/x.vtt</BaseURL></Representation>
+  </AdaptationSet>
+  <AdaptationSet contentType="text" mimeType="text/vtt" lang="de">
+    <SegmentTemplate timescale="1000" duration="4000" media="de/$Number$.vtt"/>
+    <Representation id="de-pieces"/>
+  </AdaptationSet>
+  <AdaptationSet contentType="text" mimeType="application/mp4" codecs="stpp" lang="fr">
+    <Representation id="fr"><BaseURL>subs/fr.mp4</BaseURL></Representation>
+  </AdaptationSet>
+</Period>"#;
+    let plan = plan(&mpd(body), URL, Quality::Best, None).unwrap();
+    let listed: Vec<(&str, &str)> = plan
+        .texts
+        .iter()
+        .map(|t| (t.language.as_str(), t.url.as_str()))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("en", "https://cdn.example/v/show/subs/en.vtt"),
+            ("pt-BR", "https://cdn.example/v/show/subs/pt.vtt"),
+            ("und", "https://cdn.example/v/show/subs/x.vtt"),
+        ]
+    );
+    assert_eq!(plan.video.unwrap().id, "v720", "the picture as before");
+    // Several periods: their text would start again at each, so none is listed.
+    let two = format!("{body}{}", body.replace("<Period>", "<Period id=\"2\">"));
+    assert!(plan_of_two(&two).is_empty());
+}
+
+fn plan_of_two(periods: &str) -> Vec<Text> {
+    plan(&mpd(periods), URL, Quality::Best, None)
+        .map(|p| p.texts)
+        .unwrap_or_default()
 }

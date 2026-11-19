@@ -64,10 +64,40 @@ pub(super) async fn download_dash(
         options.save_name.as_deref(),
     );
     let signature = format!("{url}\n{}", plan.signature());
+    // Carried inside the file where Options says so (gaps row Y20); an `.m4a` has no picture to
+    // show them over.
+    let texts = if options.subtitles && plan.video.is_some() {
+        subtitles_of(client, &plan.texts, options).await
+    } else {
+        Vec::new()
+    };
     join_tracks(
-        client, &tracks, &filename, extension, webm, &signature, options, report,
+        client, &tracks, &filename, extension, webm, &signature, texts, options, report,
     )
     .await
+}
+
+/// The subtitles a manifest lists as whole WebVTT files, fetched and read. One that cannot be
+/// had, or holds no cue, is passed over: subtitles are not worth the video.
+async fn subtitles_of(
+    client: &reqwest::Client,
+    texts: &[dash::Text],
+    options: &Options,
+) -> Vec<crate::subtitles::Subtitle> {
+    let mut read = Vec::new();
+    for text in texts {
+        let Ok(got) = fetch_capped(client, &text.url, 16 * 1024 * 1024, options).await else {
+            continue;
+        };
+        let cues = crate::subtitles::parse_vtt(&String::from_utf8_lossy(&got.body));
+        if !cues.is_empty() {
+            read.push(crate::subtitles::Subtitle {
+                language: text.language.clone(),
+                cues,
+            });
+        }
+    }
+    read
 }
 
 /// A plan joined from several periods, checked before its pieces are fetched:
@@ -211,7 +241,15 @@ pub(super) async fn download_pair(
         options.save_name.as_deref(),
     );
     join_tracks(
-        client, &refs, &name, "mp4", false, &signature, options, report,
+        client,
+        &refs,
+        &name,
+        "mp4",
+        false,
+        &signature,
+        Vec::new(),
+        options,
+        report,
     )
     .await
 }
@@ -287,7 +325,15 @@ pub(super) async fn download_media_pair(
         ..options.clone()
     };
     join_tracks(
-        client, &refs, &filename, "mp4", false, &signature, options, report,
+        client,
+        &refs,
+        &filename,
+        "mp4",
+        false,
+        &signature,
+        Vec::new(),
+        options,
+        report,
     )
     .await
 }
@@ -520,7 +566,9 @@ const TRACK_MOST: u64 = 1 << 40;
 
 /// The tracks fetched, gathered one file each, and joined into the file
 /// named `filename`, placed where downloads go. `signature` says what is
-/// being fetched: parts staged for something else are not adopted.
+/// being fetched: parts staged for something else are not adopted. `texts`
+/// are carried as subtitle tracks where an MP4 or a Matroska file is made
+/// (not by the joins of transport streams).
 #[allow(clippy::too_many_arguments)]
 async fn join_tracks(
     client: &reqwest::Client,
@@ -529,6 +577,7 @@ async fn join_tracks(
     extension: &str,
     webm: bool,
     signature: &str,
+    texts: Vec<crate::subtitles::Subtitle>,
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
@@ -635,7 +684,7 @@ async fn join_tracks(
         // Run to the end like the remux of a transport stream: cut loose
         // from a pause it would go on writing a file a resume makes afresh.
         let made = if webm || mkv {
-            crate::mkvmux::join_async(files.clone(), partial.clone()).await
+            crate::mkvmux::join_with_text_async(files.clone(), texts, partial.clone()).await
         } else if let [picture, sound] = files.as_slice().iter().collect::<Vec<_>>()[..]
             .iter()
             .map(|p| (*p).clone())
@@ -650,10 +699,10 @@ async fn join_tracks(
             {
                 crate::tsmux::join_ts_async(picture.clone(), sound.clone(), partial.clone()).await
             } else {
-                join_mp4(files.clone(), partial.clone(), options).await
+                join_mp4(files.clone(), texts, partial.clone(), options).await
             }
         } else {
-            join_mp4(files.clone(), partial.clone(), options).await
+            join_mp4(files.clone(), texts, partial.clone(), options).await
         };
         if let Err(why) = made {
             let _ = fs::remove_file(&partial).await;
@@ -686,20 +735,20 @@ async fn join_tracks(
     })
 }
 
-/// The tracks joined into one MP4, cut to the span where there is one.
-async fn join_mp4(files: Vec<PathBuf>, out: PathBuf, options: &Options) -> Result<u64, String> {
+/// The tracks joined into one MP4 with `texts` as its subtitles, cut to the span where there is
+/// one.
+async fn join_mp4(
+    files: Vec<PathBuf>,
+    texts: Vec<crate::subtitles::Subtitle>,
+    out: PathBuf,
+    options: &Options,
+) -> Result<u64, String> {
     match options.span {
         Some(span) => {
-            crate::mp4mux::join_cut_async(
-                files,
-                Vec::new(),
-                out,
-                Some(span.millis()),
-                options.shape,
-            )
-            .await
+            crate::mp4mux::join_cut_async(files, texts, out, Some(span.millis()), options.shape)
+                .await
         }
-        None => crate::mp4mux::join_async(files, out).await,
+        None => crate::mp4mux::join_with_text_async(files, texts, out).await,
     }
 }
 
@@ -1080,6 +1129,12 @@ pub(super) mod tests {
     }
 
     async fn serve(honours: bool) -> (String, tempfile::TempDir, usize) {
+        serve_with(honours, false).await
+    }
+
+    /// [`serve`], with an English subtitle file listed beside the picture and sound where
+    /// `texts` (gaps row Y20).
+    async fn serve_with(honours: bool, texts: bool) -> (String, tempfile::TempDir, usize) {
         let dir = tempfile::tempdir().unwrap();
         let (video, _) = fragmented(dir.path(), "v.mp4", 4);
         let (audio, _) = plain(dir.path(), "a.m4a", 7, 200);
@@ -1099,7 +1154,13 @@ pub(super) mod tests {
               <BaseURL>v.mp4</BaseURL><SegmentList>{list}</SegmentList></Representation></AdaptationSet>
             <AdaptationSet mimeType="audio/mp4"><Representation id="a" bandwidth="1">
               <BaseURL>a.m4a</BaseURL><SegmentBase indexRange="0-1"/></Representation></AdaptationSet>
-            </Period></MPD>"#
+            {listed}</Period></MPD>"#,
+            listed = if texts {
+                r#"<AdaptationSet mimeType="text/vtt" lang="en"><Representation id="t" bandwidth="1">
+              <BaseURL>en.vtt</BaseURL></Representation></AdaptationSet>"#
+            } else {
+                ""
+            }
         );
         let app = axum::Router::new()
             .route(
@@ -1115,7 +1176,11 @@ pub(super) mod tests {
                 }),
             )
             .route("/show/v.mp4", ranged(video, honours))
-            .route("/show/a.m4a", ranged(audio, honours));
+            .route("/show/a.m4a", ranged(audio, honours))
+            .route(
+                "/show/en.vtt",
+                get(|| async { "WEBVTT\n\n00:00.500 --> 00:01.500\nHello\n" }),
+            );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -1135,6 +1200,29 @@ pub(super) mod tests {
         assert_eq!(&data[4..8], b"ftyp");
         let traks = data.windows(4).filter(|w| *w == b"trak").count();
         assert_eq!(traks, tracks, "a picture and a sound");
+    }
+
+    #[tokio::test]
+    async fn a_manifests_subtitle_file_is_carried_inside_where_options_says_so() {
+        let client = crate::reqwest_defaults();
+        for subtitles in [true, false] {
+            let (url, dir, tracks) = serve_with(true, true).await;
+            let options = Options {
+                subtitles,
+                ..options(dir.path())
+            };
+            let done = crate::download::download(&client, &url, &options)
+                .await
+                .unwrap();
+            let data = std::fs::read(&done.path).unwrap();
+            let traks = data.windows(4).filter(|w| *w == b"trak").count();
+            let text = data.windows(4).any(|w| w == b"tx3g");
+            if subtitles {
+                assert_eq!((traks, text), (tracks + 1, true), "and the English text");
+            } else {
+                assert_eq!((traks, text), (tracks, false), "Options says none");
+            }
+        }
     }
 
     #[tokio::test]

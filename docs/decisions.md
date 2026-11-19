@@ -7947,3 +7947,27 @@ for, process-wide like Identify as dm (`set_sound_language`, from the setting `s
 * **No Options line yet.** A new line changes the window and its pictures, which waits for the
   maintainer's word; until then the setting is `settings.json`'s alone, empty by default, so
   nothing a person sees or gets changes.
+
+## DASH's subtitles: whole WebVTT files of a one-period manifest (2026-11-19, gaps row Y20)
+
+A DASH manifest's `text/vtt` sets were passed over with its thumbnails. They are now read where
+they can be timed without guessing, and put into the file by the writers that already carry a
+player page's subtitles (`mp4mux::join_with_text`, `mkvmux::join_with_text`), under the setting
+that already says so (Options › Downloads › Embed subtitles).
+
+* **One file a language, one period.** A set that is one file (`BaseURL`, no `SegmentTemplate`
+  or `SegmentList` on it, its representation or its period) is read whole, as a page's WebVTT
+  is; its cues are timed from the period's start, as the joined picture is. A manifest of
+  several periods is left out: each period's text starts its times again, and the joined
+  picture runs on across them. WebVTT in pieces and text carried in MP4 pieces (`stpp`, `wvtt`)
+  are not read yet.
+* **The first of each language.** A second set or representation in a language already taken is
+  passed over, as the writers carry one track a language. A set naming no language, or one no
+  file name could carry, is `und`.
+* **Not worth the video.** A file that cannot be fetched (16 MiB at most) or holds no cue is
+  passed over and the video saved without it, as a page's subtitles are. Sound alone (`.m4a`)
+  takes none.
+* **Not HLS yet.** HLS's `TYPE=SUBTITLES` renditions are segments of WebVTT timed against the
+  picture's transport-stream clock (`X-TIMESTAMP-MAP`), and a single transport stream is
+  remuxed by `tsmux`, which takes no text: both are to be worked through with a stream to test
+  against, not guessed at.

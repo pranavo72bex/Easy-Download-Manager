@@ -57,6 +57,8 @@ that part is downloaded. See [Download details](download-details.md).
 
 - **Options › Downloads › Embed subtitles in videos from player pages:** "A
   video's subtitles are saved inside its file, to turn on in your player."
+  It covers a DASH stream's subtitles too, where the stream lists each
+  language as one WebVTT file.
 - **Options › Downloads › Save streams that arrive as .ts as MP4:**
   "Streamed videos are saved as MP4 files, which more players open."
 - A live stream is recorded as it plays, until it ends, you stop it, or
