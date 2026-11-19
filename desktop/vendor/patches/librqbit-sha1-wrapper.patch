@@ -1,6 +1,6 @@
 dm's change to librqbit-sha1-wrapper 9.1.0 (crates.io, Apache-2.0), applied
 to the published crate with Cargo.lock, Cargo.toml.orig, .cargo_vcs_info.json
-and .cargo-ok removed first. Made again by desktop/vendor/vendor.sh; explained
+and .cargo-ok removed first. Made again by `cargo xtask vendor`; explained
 in desktop/vendor/README.md (each change marked `dm(sha1):`, its row in that
 file's table). The text before each file's section says what its hunks do, in
 order; git apply skips it.

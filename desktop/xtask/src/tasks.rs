@@ -43,6 +43,7 @@ usage: cargo xtask <job>, from the repository's root or desktop/
   size-baseline               lowers the size gate's baselines to the lengths now
   headers [fix] | update-key | sign-manifest <latest.json> | crates-list <file>
   sign-release <dir> | verify-release <dir>
+  vendor [--version <v>] [<crate>...]  desktop/vendor's copies, made again from crates.io
 build, test, package and qa do the same on Windows, macOS and Linux (xtask/src/tasks.rs).";
 
 /* ------------------------------------------------------------ the lines */
@@ -149,7 +150,7 @@ fn binary_name(os: &str) -> String {
 /// `path` without Windows' verbatim prefix (`\\?\`), which `canonicalize` puts on a drive's path
 /// and which Git for Windows' `sh`, and some programs given it as a folder or in `DM_BINARY`, do
 /// not read.
-fn plain(path: &Path) -> PathBuf {
+pub(crate) fn plain(path: &Path) -> PathBuf {
     let text = path.to_string_lossy();
     match text.strip_prefix(r"\\?\") {
         Some(rest) if !rest.starts_with("UNC") => PathBuf::from(rest),

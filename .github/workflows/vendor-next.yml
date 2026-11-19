@@ -1,0 +1,185 @@
+name: Next GPUI
+
+# Whether dm's patched GPUI copies (desktop/vendor/gpui-pre-linux and gpui-pre-windows, gaps rows
+# A17 and X5) carry over to the next gpui-pre snapshot. Weekly, crates.io is asked for the newest
+# gpui-pre; where it is newer than the one desktop/Cargo.toml pins, `cargo xtask vendor --version`
+# makes both copies from it with dm's patches (no SHA-256 is held for a new version, and the
+# command says so), the pin is moved to it in this run's checkout alone, and dm-gpui is checked on
+# Linux. The job summary says whether each patch still applies and whether the build passes; the
+# job fails where one does not. Nothing is committed or pushed: moving to the new snapshot is done
+# by hand, as desktop/vendor/README.md says.
+on:
+  schedule:
+    - cron: '0 5 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  next-gpui:
+    name: The next gpui-pre, with dm's patches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      # crates.io asks every client to name itself; this names the job, no person.
+      - name: Ask crates.io for the newest snapshot
+        id: next
+        env:
+          UA: dm-vendor-check (github actions)
+        run: |
+          set -eu
+          held=$(sed -n 's/^gpui = { package = "gpui-pre", version = "=\([^"]*\)" }.*$/\1/p' \
+            desktop/Cargo.toml)
+          if [ -z "$held" ]; then
+            echo "desktop/Cargo.toml pins no gpui-pre version this job can read" >&2
+            exit 1
+          fi
+          newest() {
+            curl -sSf -A "$UA" "https://crates.io/api/v1/crates/$1" \
+              | jq -r '.crate.max_stable_version // .crate.max_version'
+          }
+          next=$(newest gpui-pre)
+          linux=$(newest gpui-pre-linux)
+          windows=$(newest gpui-pre-windows)
+          case $next in
+            '' | null | *[!0-9A-Za-z.+-]*)
+              echo "crates.io gave no version for gpui-pre: '$next'" >&2
+              exit 1
+              ;;
+          esac
+          newer=false
+          top=$(printf '%s\n%s\n' "$held" "$next" | sort -V | tail -n 1)
+          if [ "$next" != "$held" ] && [ "$top" = "$next" ]; then
+            newer=true
+          fi
+          {
+            echo "held=$held"
+            echo "next=$next"
+            echo "newer=$newer"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## The next GPUI snapshot"
+            echo
+            echo "| Crate | Pinned | Newest on crates.io |"
+            echo "| --- | --- | --- |"
+            echo "| gpui-pre | $held | $next |"
+            echo "| gpui-pre-linux | $held | $linux |"
+            echo "| gpui-pre-windows | $held | $windows |"
+            echo
+            if [ "$newer" = false ]; then
+              echo "Nothing newer than $held is published: nothing to try."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.next.outputs.newer == 'true'
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: steps.next.outputs.newer == 'true'
+        with:
+          workspaces: desktop
+          save-if: false
+
+      - name: What the window (dm-gpui, GPUI) builds against
+        if: steps.next.outputs.newer == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev \
+            libvulkan-dev
+
+      # Each copy alone, so the summary can say which patch no longer applies.
+      - name: Make both GPUI copies from it, with dm's patches
+        id: vendor
+        if: steps.next.outputs.newer == 'true'
+        working-directory: desktop
+        env:
+          NEXT: ${{ steps.next.outputs.next }}
+        run: |
+          set -u
+          for system in linux windows; do
+            log="$RUNNER_TEMP/vendor-$system.log"
+            if cargo xtask vendor --version "$NEXT" "gpui-pre-$system" > "$log" 2>&1; then
+              echo "$system=applied" >> "$GITHUB_OUTPUT"
+            else
+              echo "$system=refused" >> "$GITHUB_OUTPUT"
+            fi
+            cat "$log"
+          done
+
+      - name: Pin dm-gpui to it (this checkout alone)
+        if: steps.next.outputs.newer == 'true' && steps.vendor.outputs.linux == 'applied'
+        env:
+          HELD: ${{ steps.next.outputs.held }}
+          NEXT: ${{ steps.next.outputs.next }}
+        run: |
+          set -eu
+          sed -i "s/\(package = \"gpui-pre[a-z-]*\", version = \"=\)$HELD\"/\1$NEXT\"/" \
+            desktop/Cargo.toml
+          grep -n 'package = "gpui-pre' desktop/Cargo.toml
+
+      # Not --locked: the lock file moves to the new snapshot here. A copy whose version the
+      # graph does not ask for is left unused by cargo, which says so; that is a failure too.
+      - name: Check dm-gpui on Linux with it
+        id: build
+        if: steps.next.outputs.newer == 'true' && steps.vendor.outputs.linux == 'applied'
+        working-directory: desktop
+        run: |
+          set -u
+          log="$RUNNER_TEMP/check.log"
+          if cargo check -p dm-gpui > "$log" 2>&1; then
+            if grep -q 'was not used in the crate graph' "$log"; then
+              echo "result=unused" >> "$GITHUB_OUTPUT"
+            else
+              echo "result=passed" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "result=failed" >> "$GITHUB_OUTPUT"
+          fi
+          tail -n 200 "$log"
+
+      - name: Say what held
+        if: always() && steps.next.outputs.newer == 'true'
+        env:
+          NEXT: ${{ steps.next.outputs.next }}
+          LINUX: ${{ steps.vendor.outputs.linux || 'not tried' }}
+          WINDOWS: ${{ steps.vendor.outputs.windows || 'not tried' }}
+          BUILD: ${{ steps.build.outputs.result || 'not tried' }}
+        run: |
+          set -u
+          tail_of() {
+            if [ -f "$2" ]; then
+              echo "<details><summary>$1</summary>"
+              echo
+              echo '```text'
+              tail -n 80 "$2"
+              echo '```'
+              echo "</details>"
+              echo
+            fi
+          }
+          {
+            echo "### gpui-pre $NEXT with dm's patches"
+            echo
+            echo "| What | Result |"
+            echo "| --- | --- |"
+            echo "| patches/gpui-pre-linux.patch | $LINUX |"
+            echo "| patches/gpui-pre-windows.patch | $WINDOWS |"
+            echo "| cargo check -p dm-gpui (Linux) | $BUILD |"
+            echo
+            echo "The Windows copy is only applied here; it is built on Windows when it is moved to."
+            echo "unused: cargo built the published gpui-pre-linux, not the copy (another crate"
+            echo "may pin the old snapshot). Nothing was committed."
+            echo
+            tail_of "cargo xtask vendor gpui-pre-linux" "$RUNNER_TEMP/vendor-linux.log"
+            tail_of "cargo xtask vendor gpui-pre-windows" "$RUNNER_TEMP/vendor-windows.log"
+            tail_of "cargo check -p dm-gpui" "$RUNNER_TEMP/check.log"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$LINUX" != applied ] || [ "$WINDOWS" != applied ] \
+            || [ "$BUILD" != passed ]; then
+            echo "gpui-pre $NEXT: a patch no longer applies or dm-gpui does not build" >&2
+            exit 1
+          fi

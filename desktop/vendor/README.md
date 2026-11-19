@@ -7,10 +7,23 @@ itself, the copy is removed.
 
 Every copy is made the same way (gaps rows P3, A17 and X5): the published
 crate, checked against its SHA-256, with what dm's build does not use removed
-and `patches/<crate>.patch` applied. `sh desktop/vendor/vendor.sh` makes all
-four again (`sh desktop/vendor/vendor.sh gpui-pre-linux` one); nothing from
-the crates is run, and run on a clean tree, `git status` then shows no change.
+and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all four again
+(`cargo xtask vendor gpui-pre-linux` one), the same on Windows, macOS and
+Linux (`desktop/xtask/src/vendor.rs`, which holds each crate's version and
+SHA-256 and what is removed from it; it needs `curl`, `tar` and `git`, which
+Windows 10 and later have, `git` from Git for Windows). Nothing from the
+crates is run, and run on a clean tree, `git status` then shows no change.
+The crates are unpacked in `DM_VENDOR_WORK` where that names a folder, and
+otherwise in a new folder of the system's own, removed after.
 Each patch explains its hunks at its head, where `git apply` skips the text.
+
+Each week CI tries the next GPUI snapshot (`.github/workflows/vendor-next.yml`):
+where crates.io has a `gpui-pre` newer than the one pinned, it makes both GPUI
+copies from it with `cargo xtask vendor --version <new> gpui-pre-linux
+gpui-pre-windows` (`--version` takes a version that has no SHA-256 held, and
+says so) and checks `dm-gpui` on Linux with it pinned; its summary says whether
+each patch still applies and whether the build passes. It commits nothing:
+moving to the new snapshot is the change below, made by hand.
 Each change in a copy is marked in its code `dm(<tag>):`, the tag one row of
 the table below; `cargo xtask layers` (`desktop/xtask/src/vendor_marks.rs`)
 fails on a mark with no tag, a tag with no row and a row no mark names.
@@ -62,7 +75,8 @@ again when its file was chosen anew during its hash check, a handshake that
 came in more than one read, and a listener that panicked once every branch
 of its `select!` was disabled (`session.rs` `task_listener`, `else =>
 continue`, kept beside dm's change there, below). To move to another
-version: change `LIBRQBIT_VERSION` and the SHA-256s in `vendor.sh`, run it,
+version: change `LIBRQBIT_VERSION` and the SHA-256s in `xtask/src/vendor.rs`,
+run `cargo xtask vendor librqbit librqbit-sha1-wrapper`,
 mend any hunk `git apply` refuses, and write each patch again as the `git
 diff` from the published crate (with the same files removed) to the mended
 copy.
@@ -145,8 +159,9 @@ the version the GPUI window (`crates/dm-gpui`, pinned `gpui-pre` 0.3.12) is
 built with on Linux. Removed: the crate's `Cargo.lock`, `.cargo_vcs_info.json`
 and `.cargo-ok`; `Cargo.toml.orig` is kept. The other `gpui-pre-*` crates are
 used as published. To move to another snapshot: change `GPUI_VERSION` and the
-two GPUI SHA-256s in `vendor.sh` (with the version `desktop/Cargo.toml` pins),
-run it, mend any hunk `git apply` refuses, and write each patch again as the
+two GPUI SHA-256s in `xtask/src/vendor.rs` (with the version
+`desktop/Cargo.toml` pins, which a test of that file holds them to), run
+`cargo xtask vendor gpui-pre-linux gpui-pre-windows`, mend any hunk `git apply` refuses, and write each patch again as the
 `git diff` from the published crate (with the same files removed) to the
 mended copy, keeping the text at the patch's head.
 
