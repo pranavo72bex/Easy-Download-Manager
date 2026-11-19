@@ -16,7 +16,7 @@
 //!   every sentence a failure is raised with (`Error::Internal`, `Error::Connection`) in
 //!   `dm-core` and `dm-net`;
 //! - every label, explanation and note of Options' pages (`dm-gpui/src/options/pages.rs` and
-//!   the Dial Up / VPN section's file).
+//!   the file of each page in `pages/`, the Dial Up / VPN section's among them).
 //!
 //! The sentence is matched without regard to case, spacing, line breaks, or Markdown's `*` and
 //! backticks.
@@ -48,11 +48,10 @@ const RAISED: [&str; 3] = [
     "Error::Internal(format!(",
     "Error::Connection(format!(",
 ];
-/// Options' pages.
-const OPTIONS: [&str; 2] = [
-    "desktop/crates/dm-gpui/src/options/pages.rs",
-    "desktop/crates/dm-gpui/src/options/pages/dialup.rs",
-];
+/// Options' pages: the file of what they share, and the folder of a file each.
+const OPTIONS: &str = "desktop/crates/dm-gpui/src/options/pages.rs";
+/// The folder of Options' pages, a file each.
+const OPTIONS_PAGES: &str = "desktop/crates/dm-gpui/src/options/pages";
 
 /// A sentence a person can see, and where it is written.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -172,8 +171,17 @@ pub(crate) fn sentences(root: &Path) -> Result<Vec<Sentence>, String> {
             }
         }
     }
-    // Options' words.
-    for file in OPTIONS {
+    // Options' words: what the pages share, then each page's file.
+    let mut pages = rust_files(&root.join(OPTIONS_PAGES));
+    pages.sort();
+    let mut files = vec![OPTIONS.to_string()];
+    files.extend(pages.iter().map(|path| {
+        path.strip_prefix(root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/")
+    }));
+    for file in &files {
         let text = read(&root.join(file))?;
         for lit in literals(&shipped(&text)) {
             if lit.text.contains(' ') || lit.text.chars().any(|c| c.is_uppercase()) {

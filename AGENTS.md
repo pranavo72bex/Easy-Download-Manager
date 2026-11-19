@@ -61,7 +61,7 @@ extension that hands it the browser's downloads.
   folders (`window/`: `list.rs` the rows and their reads, `tick.rs` what each
   wake does, `table.rs`, `menus.rs`, `toolbar.rs`, `sidebar.rs`; `dialogs/`:
   one file per dialog such as `addurl.rs` and `details.rs`; `options.rs` with
-  `options/pages.rs`; `widgets/`; `platform/`: the system's window calls, the
+  `options/pages.rs` and a file per page in `options/pages/`; `widgets/`; `platform/`: the system's window calls, the
   tray, drags and drops), and `port.rs` with `probe.rs` for the control port. `cargo packager -p dm-gpui` there builds the installers,
   from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
   holds dm's version. What is not code is in one folder, `desktop/assets/`
