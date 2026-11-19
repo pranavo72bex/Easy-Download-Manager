@@ -19,6 +19,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 pub mod app;
+pub mod backup;
 pub mod dialup;
 mod error;
 pub mod firewall;

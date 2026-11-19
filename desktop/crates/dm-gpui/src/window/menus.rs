@@ -273,6 +273,8 @@ pub fn carried_out(command: Command) -> bool {
             | C::SelectAll
             | C::Import
             | C::Export
+            | C::BackUp
+            | C::Restore
             | C::Help
             | C::ToggleCategories
             | C::ToggleToolbar

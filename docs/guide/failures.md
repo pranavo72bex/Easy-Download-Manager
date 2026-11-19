@@ -290,6 +290,36 @@ Torrents and proxies are under "Torrents" below.
   error follows in plain words. Check the path, or choose a folder dm may
   write to, and click **OK** again: the window stays open with the path.
 
+## Backups (Back up dm and Restore)
+
+- `The two passphrases differ.`
+  In "Back up dm", **Passphrase** and **Passphrase again** are not the same.
+  Type the passphrase again in both.
+- `That file is not a backup of dm.`
+  The file chosen in **File › Restore…** is not one **File › Back up dm…**
+  wrote (a settings file or a list is opened with Options' or Tasks'
+  Import). Nothing was restored.
+- `That passphrase does not open this backup's sign-ins.`
+  The passphrase is not the one the backup was made with (or the file was
+  changed since). The window stays open and nothing is restored: type it
+  again, with its capital letters, or leave it empty to restore everything
+  but the sign-ins.
+- `This backup's sign-ins were sealed by a newer dm, which this one cannot open.`
+  Update dm, or leave the passphrase empty to restore everything else.
+- `… could not be read: …`
+- `… could not be written: …`
+  The backup's file could not be opened, or written where you chose; the
+  file's error follows in plain words.
+- `The programs dm runs (after a download, at the end of the scheduled hours, the proxy script) were not restored: set them in Options.`
+  A file never sets a program for dm to run. Set them again in Options if
+  you want them.
+- `Some of its settings could not be read, so their defaults are in use: ….`
+  The backup was made by a newer dm, or was changed; the settings named
+  keep their defaults, and the rest were restored.
+- `Downloads it holds that this dm cannot read, left out: ….`
+  A newer dm's downloads this one does not know how to read; the rest were
+  added.
+
 ## Checksums
 
 A checksum is a fingerprint of a file. dm checks the finished file against

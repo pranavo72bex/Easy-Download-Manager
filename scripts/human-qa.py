@@ -1934,6 +1934,133 @@ def forgetting():
             dm.proc.kill()
 
 
+def backing_up():
+    """B72 (gaps row W16): File › Back up dm… writes one .dmbackup of the settings and the
+    list, the sign-ins sealed with the passphrase typed twice; File › Restore… in another dm
+    refuses a wrong passphrase in its window, restoring nothing, then with the right one puts
+    the settings in force and adds the downloads, one already listed not twice, the sign-ins
+    with them."""
+    passphrase, cookie = "qa backup 7", "session=qa-sealed-4k9"
+
+    def row(n, name, state, **more):
+        return dict({"id": n, "url": f"http://127.0.0.1:9/{name}", "state": {"kind": state},
+                     "progress": {"downloaded": 0, "total": None, "speed": 0.0, "eta": None},
+                     "filename": name}, **more)
+
+    def home_of(name, settings, rows):
+        home = WORK / name
+        (home / "downloads").mkdir(parents=True)
+        (home / "settings.json").write_text(json.dumps(dict({
+            "download_dir": str(home / "downloads"), "theme": "dark", "popups_version": 2,
+            "show_progress": False, "show_complete": False}, **settings)), encoding="utf-8")
+        (home / "queue.json").write_text(json.dumps(rows), encoding="utf-8")
+        return home
+
+    def opened(title):
+        for _ in range(60):
+            if title in dm.dialogs():
+                pause(0.8)
+                return True
+            time.sleep(0.25)
+        return False
+
+    def typed(text):
+        dm.call("ui.type", text=text)
+        pause(0.4)
+
+    backup = WORK / "dm.dmbackup"
+    home = home_of("backup-from", {"connections": 3, "site_rules": [{"host": "slow.example.com", "speed": 64}]},
+                   [row(1, "kept.bin", "paused"), row(2, "signed.bin", "paused", cookies=cookie)])
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.call("ui.window", to="shown")
+        pause(0.6)
+        dm.call("command.run", id="program.back_up")
+        shown = opened("Back up dm")
+        words = " ".join(dm.dialog_texts())
+        check("B72", "File › Back up dm… says what a backup holds, with Passphrase and Passphrase again",
+              shown and "One file of dm's settings" in words and "Passphrase again" in words, f"{dm.dialogs()}: {words[:200]}")
+        typed(passphrase)
+        dm.call("ui.key", key="Tab")
+        typed(passphrase)
+        dm.call("ui.choose", path=str(backup))
+        dm.click("Back up")
+        for _ in range(60):
+            if backup.is_file() and "Back up dm" not in dm.dialogs():
+                break
+            time.sleep(0.25)
+        text = backup.read_text(encoding="utf-8") if backup.is_file() else ""
+        try:
+            made = json.loads(text)
+        except ValueError:
+            made = {}
+        check("B72", "the backup is one JSON file of format 1: the settings, the queues' rows, the sign-ins sealed, none in clear",
+              made.get("format") == 1 and made.get("settings", {}).get("connections") == 3
+              and len(made.get("rows", [])) == 2 and made.get("sign_ins", {}).get("alg") == "chacha20poly1305"
+              and "qa-sealed-4k9" not in text,
+              f"{backup}: format {made.get('format')}, rows {len(made.get('rows', []))}, keys {sorted(made)}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+    home = home_of("backup-into", {}, [row(1, "kept.bin", "completed")])
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.call("ui.window", to="shown")
+        pause(0.6)
+        dm.call("ui.choose", path=str(backup))
+        dm.call("command.run", id="program.restore")
+        shown = opened("Restore dm")
+        words = " ".join(dm.dialog_texts())
+        check("B72", "File › Restore… says what restoring does and asks for the passphrase of the sealed sign-ins",
+              shown and "replace these, as OK in Options does" in words and "Passphrase" in words,
+              f"{dm.dialogs()}: {words[:200]}")
+        typed("not the passphrase")
+        dm.click("Restore")
+        pause(2.0)
+        words = " ".join(dm.dialog_texts())
+        check("B72", "a wrong passphrase is said in the window, which stays open, and nothing is restored",
+              "That passphrase does not open this backup's sign-ins." in words and "Restore dm" in dm.dialogs()
+              and len(dm.rows()) == 1, f"{dm.dialogs()}: {words[-200:]}; rows {len(dm.rows())}")
+        dm.call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
+        typed(passphrase)
+        dm.click("Restore")
+        for _ in range(60):
+            if "Restore dm" not in dm.dialogs() and len(dm.rows()) >= 2:
+                break
+            time.sleep(0.25)
+        pause(1.0)
+        rows = dm.rows()
+        signed = dm.row("signed.bin") or {}
+        said = dm.wait_for_text("Restored dm from", 10)
+        check("B72", "with the right one its downloads are added, one already listed not twice, the sign-ins with them",
+              len(rows) == 2 and len([r for r in rows if "kept.bin" in r.get("url", "")]) == 1
+              and signed.get("state", {}).get("kind") == "paused" and signed.get("signed_in") is True and said,
+              f"rows {[(r.get('filename'), r.get('state', {}).get('kind'), r.get('signed_in')) for r in rows]}; said {said}")
+        settings = {}
+        for _ in range(40):
+            try:
+                settings = json.loads((home / "settings.json").read_text(encoding="utf-8"))
+            except ValueError:
+                settings = {}
+            if settings.get("connections") == 3:
+                break
+            time.sleep(0.25)
+        check("B72", "and its settings are in force, as Options' OK puts them",
+              settings.get("connections") == 3
+              and any(r.get("host") == "slow.example.com" for r in settings.get("site_rules", [])),
+              f"connections {settings.get('connections')}, site rules {settings.get('site_rules')}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
@@ -1974,6 +2101,7 @@ def main():
         sys.exit(f"\nSTOPPED, no row checked: {stopped}")
     new_install(origin)
     forgetting()
+    backing_up()
     browser()
 
     print("\nThe contract, row by row", flush=True)

@@ -43,6 +43,8 @@ pub use queues::queue_names;
 mod recheck;
 mod runner;
 mod settings;
+// Rows from a backup taken in (gaps row W16).
+mod adopt;
 
 #[cfg(test)]
 use files::{copy_dir, rename_case_only};

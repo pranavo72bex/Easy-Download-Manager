@@ -286,5 +286,7 @@ pub fn opened(bytes: &[u8]) -> Opened {
 #[cfg(windows)]
 mod credentials;
 
+pub mod passphrase;
+
 #[cfg(test)]
 mod tests;

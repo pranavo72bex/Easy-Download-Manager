@@ -116,6 +116,19 @@ impl Asked {
     }
 }
 
+impl Asked {
+    /// A backup of dm to open, or a name to save one under (File › Back up dm… and Restore…,
+    /// gaps row W16).
+    pub fn backup(save: bool) -> Asked {
+        Asked {
+            save,
+            filter: Some((t("dm backups"), &["dmbackup"])),
+            name: save.then(|| dm_shell::backup::SUGGESTED.to_string()),
+            ..Asked::default()
+        }
+    }
+}
+
 /// The path a script chose ahead (`ui.choose`) and when.
 #[cfg(not(test))]
 static CHOSEN_AHEAD: std::sync::Mutex<Option<(PathBuf, std::time::Instant)>> =

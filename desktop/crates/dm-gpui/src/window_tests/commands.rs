@@ -175,6 +175,7 @@ fn every_command_runs_against_rows_in_every_state() {
                 | Command::Remove
                 | Command::Import
                 | Command::Export
+                | Command::Restore
                 | Command::CheckForUpdates
         ) {
             continue;

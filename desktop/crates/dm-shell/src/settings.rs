@@ -529,6 +529,8 @@ mod paths;
 mod scale;
 mod secrets;
 mod sites;
+// A backup's settings read in place of these (gaps row W16).
+mod restore;
 
 #[cfg(test)]
 mod tests;
