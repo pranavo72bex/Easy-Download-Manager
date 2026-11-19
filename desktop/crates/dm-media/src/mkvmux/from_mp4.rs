@@ -25,6 +25,7 @@ use std::path::Path;
 
 use super::{element, uint_element, Block, Input, TrackIn, CODEC_ID, TRACK_TYPE};
 use crate::mp4mux::{boxes, child, Track};
+use crate::Error;
 
 const CODEC_PRIVATE: u32 = 0x63A2;
 const LANGUAGE: u32 = 0x22_B59C;
@@ -58,7 +59,7 @@ struct Described {
 
 /// The MP4 at `path` as input `input` of a join: its picture and sound
 /// tracks, each sample a block whose time is in nanoseconds.
-pub(super) fn read(path: &Path, input: usize) -> Result<Input, String> {
+pub(super) fn read(path: &Path, input: usize) -> Result<Input, Error> {
     let tracks = crate::mp4mux::tracks_of_input(path, input)?;
     let mut file = File::open(path).map_err(|e| e.to_string())?;
     let mut out = Vec::new();
@@ -253,7 +254,7 @@ fn describe(
     kind: u64,
     timescale: u32,
     head: &[u8],
-) -> Result<Described, String> {
+) -> Result<Described, Error> {
     let named = String::from_utf8_lossy(fourcc).into_owned();
     if kind == 1 {
         // A visual sample entry's fields are 78 bytes, its boxes after.
@@ -269,7 +270,7 @@ fn describe(
             b"av01" => ("V_AV1", Some(config(b"av1C")?)),
             b"vp09" => ("V_VP9", None),
             b"vp08" => ("V_VP8", None),
-            _ => return Err(format!("dm does not put {named} into an MKV")),
+            _ => return Err(format!("dm does not put {named} into an MKV").into()),
         };
         let width = be16(entry, 24).unwrap_or(0);
         let height = be16(entry, 26).unwrap_or(0);
@@ -305,7 +306,8 @@ fn describe(
                 0x69 | 0x6B => Ok(sound(mpeg_audio(head), None)),
                 other => Err(format!(
                     "dm does not put sound of object type {other:#04x} into an MKV"
-                )),
+                )
+                .into()),
             }
         }
         b".mp3" => Ok(sound("A_MPEG/L3", None)),
@@ -339,7 +341,7 @@ fn describe(
                 opus_delay: Some(u64::from(pre_skip)),
             })
         }
-        _ => Err(format!("dm does not put {named} into an MKV")),
+        _ => Err(format!("dm does not put {named} into an MKV").into()),
     }
 }
 

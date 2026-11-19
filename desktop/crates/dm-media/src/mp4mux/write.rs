@@ -490,7 +490,7 @@ pub(crate) fn write_output(
     files: &mut [File],
     out: &Path,
     cut: Option<(u64, u64)>,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     write_output_tagged(tracks, files, out, cut, &super::Tags::default())
 }
 
@@ -502,7 +502,7 @@ pub(crate) fn write_output_tagged<S: Read + Seek>(
     out: &Path,
     cut: Option<(u64, u64)>,
     tags: &super::Tags,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     let ftyp = boxed(
         b"ftyp",
         &[b"isom", &0x200u32.to_be_bytes(), b"isomiso2avc1mp41"],

@@ -25,6 +25,7 @@
 
 mod assets;
 mod dialogs;
+mod error;
 mod options;
 mod platform;
 mod port;

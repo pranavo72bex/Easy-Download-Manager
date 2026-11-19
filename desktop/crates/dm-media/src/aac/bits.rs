@@ -5,6 +5,8 @@
 
 //! A big-endian bit reader over a byte slice; reading past the end is an error, never a panic.
 
+use crate::Error;
+
 pub(super) struct Bits<'a> {
     data: &'a [u8],
     pos: usize,
@@ -19,7 +21,7 @@ impl<'a> Bits<'a> {
         self.data.len().saturating_mul(8).saturating_sub(self.pos)
     }
 
-    pub(super) fn bit(&mut self) -> Result<u32, String> {
+    pub(super) fn bit(&mut self) -> Result<u32, Error> {
         let byte = self
             .data
             .get(self.pos / 8)
@@ -30,7 +32,7 @@ impl<'a> Bits<'a> {
     }
 
     /// `count` bits (at most 32), most significant first.
-    pub(super) fn bits(&mut self, count: usize) -> Result<u32, String> {
+    pub(super) fn bits(&mut self, count: usize) -> Result<u32, Error> {
         if count > 32 || count > self.left() {
             return Err("the AAC data ended inside a frame".into());
         }
@@ -41,7 +43,7 @@ impl<'a> Bits<'a> {
         Ok(value as u32)
     }
 
-    pub(super) fn flag(&mut self) -> Result<bool, String> {
+    pub(super) fn flag(&mut self) -> Result<bool, Error> {
         Ok(self.bit()? == 1)
     }
 }

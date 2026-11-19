@@ -21,6 +21,9 @@
 
 pub mod aac;
 
+mod error;
+pub use error::Error;
+
 pub mod fmp4;
 
 pub mod frames;

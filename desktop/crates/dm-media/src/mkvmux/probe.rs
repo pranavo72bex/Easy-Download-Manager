@@ -60,7 +60,7 @@ pub(crate) fn tags(path: &Path) -> crate::mp4mux::Tags {
     tags
 }
 
-fn read_tags(path: &Path, tags: &mut crate::mp4mux::Tags) -> Result<(), String> {
+fn read_tags(path: &Path, tags: &mut crate::mp4mux::Tags) -> Result<(), Error> {
     // Words, not pictures: an Info or a Tags this large is not one dm reads.
     const MOST: u64 = 1 << 20;
     let length = std::fs::metadata(path).map_err(|e| e.to_string())?.len();

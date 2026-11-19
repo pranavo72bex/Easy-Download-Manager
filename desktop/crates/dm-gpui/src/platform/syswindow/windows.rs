@@ -104,7 +104,7 @@ pub fn frames(window: &Window) -> Option<(gpui::Bounds<gpui::Pixels>, gpui::Boun
 
 /// Windows counts in the screen's pixels: points times the window's scale.
 /// The frame as it is seen goes to (x, y), as `frames` reports it.
-pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
+pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), Error> {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
     };
@@ -138,7 +138,7 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
 /// compositor holds), cut to what is seen of it (the system's invisible
 /// borders for resizing left out, as a person sees the window), saved as a
 /// PNG.
-pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
+pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), Error> {
     use windows_sys::Win32::Graphics::Gdi::{
         CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
         ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,

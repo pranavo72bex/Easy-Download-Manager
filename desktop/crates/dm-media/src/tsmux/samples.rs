@@ -38,7 +38,7 @@ pub(super) fn take_picture(
     data: &[u8],
     pts: Option<i64>,
     dts: Option<i64>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut sample = Vec::with_capacity(data.len() + 16);
     let mut key = false;
     let hevc = stream.kind == HEVC;
@@ -106,7 +106,7 @@ pub(super) fn append_to_last(
     stream: &mut Elementary,
     sample: &[u8],
     key: bool,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     if stream.samples.is_empty() {
         return Ok(());
     }
@@ -118,7 +118,7 @@ pub(super) fn append_to_last(
     Ok(())
 }
 
-pub(super) fn write(stream: &mut Elementary, bytes: &[u8]) -> Result<(), String> {
+pub(super) fn write(stream: &mut Elementary, bytes: &[u8]) -> Result<(), Error> {
     match &mut stream.sink {
         Sink::Scratch => {
             let out = stream.out.as_mut().ok_or("a scratch file went missing")?;

@@ -149,7 +149,7 @@ pub(super) fn opus_samples(packet: &[u8]) -> u32 {
 /// `av1C` WebM keeps as its private data) and Opus (`Opus` with `dOps`).
 /// For a video whose tallest picture comes only as WebM, joined into an
 /// MP4. Another codec, or frames laced together, is refused.
-pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux::Track>, String> {
+pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux::Track>, Error> {
     let read = read_input(path, input)?;
     let mut tracks = Vec::new();
     for track in &read.tracks {
@@ -185,7 +185,7 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
             "A_OPUS" => tracks.push(to_mp4::opus_track(
                 track, &blocks, private, &ms, &mut first, input,
             )?),
-            other => return Err(format!("dm does not put {other} into an MP4")),
+            other => return Err(format!("dm does not put {other} into an MP4").into()),
         }
     }
     Ok(tracks)

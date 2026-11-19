@@ -28,6 +28,9 @@ use std::sync::Arc;
 use librqbit::{AddTorrent, AddTorrentOptions, TorrentStatsState};
 use tokio_util::sync::CancellationToken;
 
+mod error;
+pub use error::Error;
+
 /// How a session is set up.
 #[derive(Debug, Clone, Default)]
 pub struct Setup {
@@ -71,7 +74,7 @@ impl Session {
     /// second session (two torrents at once, or a resume while the paused one is still closing)
     /// failed to start with it ("error initializing persistent DHT"). Each session finds peers
     /// afresh on a port of its own.
-    pub async fn start(setup: Setup) -> Result<Session, String> {
+    pub async fn start(setup: Setup) -> Result<Session, Error> {
         let session = librqbit::Session::new_with_opts(
             setup.output,
             librqbit::SessionOptions {
@@ -110,7 +113,7 @@ impl Session {
         source: Source,
         only: Option<Vec<usize>>,
         folder: Option<&Path>,
-    ) -> Result<Option<Torrent>, String> {
+    ) -> Result<Option<Torrent>, Error> {
         let add = match source {
             Source::Magnet(link) => AddTorrent::Url(link.into()),
             Source::File(bytes) => AddTorrent::TorrentFileBytes(bytes),
@@ -143,19 +146,19 @@ impl Session {
     }
 
     /// Asks for the files of `torrent` at the places in `files`, and no others.
-    pub async fn ask_for(&self, torrent: &Torrent, files: &HashSet<usize>) -> Result<(), String> {
+    pub async fn ask_for(&self, torrent: &Torrent, files: &HashSet<usize>) -> Result<(), Error> {
         self.0
             .update_only_files(&torrent.0, files)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| Error::from(e.to_string()))
     }
 
     /// Forgets the torrent `id`, deleting its files where `delete_files` says.
-    pub async fn forget(&self, id: Id, delete_files: bool) -> Result<(), String> {
+    pub async fn forget(&self, id: Id, delete_files: bool) -> Result<(), Error> {
         self.0
             .delete(id.into(), delete_files)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| Error::from(e.to_string()))
     }
 
     /// Where the session listens for peers, where it does.
@@ -232,7 +235,7 @@ impl Torrent {
     }
 
     /// Its files, in its own order; an error where its metadata is not known.
-    pub fn files(&self) -> Result<Vec<FileInfo>, String> {
+    pub fn files(&self) -> Result<Vec<FileInfo>, Error> {
         self.0
             .with_metadata(|metadata| {
                 metadata
@@ -244,7 +247,7 @@ impl Torrent {
                     })
                     .collect()
             })
-            .map_err(|e| e.to_string())
+            .map_err(|e| Error::from(e.to_string()))
     }
 
     /// Its state and counts now.
@@ -280,7 +283,7 @@ pub struct Metainfo {
 }
 
 /// The [`Metainfo`] of the `.torrent` file `bytes`; an error where it is not one.
-pub fn metainfo(bytes: &[u8]) -> Result<Metainfo, String> {
+pub fn metainfo(bytes: &[u8]) -> Result<Metainfo, Error> {
     let parsed = librqbit::torrent_from_bytes(bytes).map_err(|e| e.to_string())?;
     Ok(Metainfo {
         trackers: parsed

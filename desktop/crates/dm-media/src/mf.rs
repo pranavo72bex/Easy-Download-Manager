@@ -16,6 +16,8 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::sync::OnceLock;
 
+use crate::Error;
+
 use windows::core::{Interface, GUID, PCWSTR};
 use windows::Win32::Media::MediaFoundation::{
     IMFActivate, IMFAttributes, IMFSourceReader, IMFTransform, MFAudioFormat_AAC,
@@ -43,7 +45,7 @@ pub(crate) struct Started {
 }
 
 impl Started {
-    pub(crate) fn new() -> Result<Started, String> {
+    pub(crate) fn new() -> Result<Started, Error> {
         // SAFETY: no reserved pointer; balanced by CoUninitialize in Drop
         // only where it succeeded (S_OK and S_FALSE both count).
         let com = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
@@ -53,7 +55,7 @@ impl Started {
                 // SAFETY: undoes the CoInitializeEx above.
                 unsafe { CoUninitialize() };
             }
-            return Err(format!("the system's media library would not start ({e})"));
+            return Err(format!("the system's media library would not start ({e})").into());
         }
         Ok(Started { com })
     }
@@ -75,7 +77,7 @@ impl Drop for Started {
 /// tell the kind of by its name (a staged part with another extension) is
 /// opened as a byte stream said to be a WebM where it starts as one, else an
 /// MP4.
-pub(crate) fn reader(path: &Path) -> Result<IMFSourceReader, String> {
+pub(crate) fn reader(path: &Path) -> Result<IMFSourceReader, Error> {
     let wide: Vec<u16> = path
         .as_os_str()
         .encode_wide()
@@ -109,7 +111,7 @@ pub(crate) fn reader(path: &Path) -> Result<IMFSourceReader, String> {
             let _ = hint.SetString(&MF_BYTESTREAM_CONTENT_TYPE, PCWSTR(mime.as_ptr()));
         }
         MFCreateSourceReaderFromByteStream(&stream, attributes)
-            .map_err(|e| format!("the file is not one the system can read ({e})"))
+            .map_err(|e| Error::from(format!("the file is not one the system can read ({e})")))
     }
 }
 
@@ -196,7 +198,7 @@ pub(crate) fn h264_decoder() -> bool {
 }
 
 /// The system's H.264 decoder, ready to be given its input type.
-pub(crate) fn h264_transform() -> Result<IMFTransform, String> {
+pub(crate) fn h264_transform() -> Result<IMFTransform, Error> {
     let first = decoders(
         MFT_CATEGORY_VIDEO_DECODER,
         MFMediaType_Video,
@@ -208,5 +210,5 @@ pub(crate) fn h264_transform() -> Result<IMFTransform, String> {
     // SAFETY: the activation object is live; the transform it makes is a
     // COM object released when dropped.
     unsafe { first.ActivateObject::<IMFTransform>() }
-        .map_err(|e| format!("the system's video decoder would not start ({e})"))
+        .map_err(|e| Error::from(format!("the system's video decoder would not start ({e})")))
 }

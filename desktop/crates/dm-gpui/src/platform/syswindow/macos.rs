@@ -33,7 +33,7 @@ pub fn hide(window: &Window) {
 /// Puts `window`'s top-left corner at (`x`, `y`), in the points of the
 /// screen whose top-left is (0, 0), as `ui.windows` reports where windows
 /// stand.
-pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
+pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), Error> {
     let ns_window = ns_window(window).ok_or("the window has no system window")?;
     let main = objc2::MainThreadMarker::new().ok_or("not on the main thread")?;
     // AppKit counts from the bottom of the first screen, upwards.
@@ -49,7 +49,7 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
 
 /// Pictures `window` as it stands on screen, its frame without its shadow,
 /// into the PNG at `path` (the system's `screencapture`).
-pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
+pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), Error> {
     let ns_window = ns_window(window).ok_or("the window has no system window")?;
     let number = ns_window.windowNumber();
     folder_for(path)?;

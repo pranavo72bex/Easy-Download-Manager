@@ -17,6 +17,7 @@
 //! AV1 are refused in words.
 
 use crate::mp4mux::Track;
+use crate::Error;
 
 /// The shape a video is made into.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -58,7 +59,7 @@ impl Shape {
 /// Shapes `track` where it is a picture: its SPS's crop, its sample
 /// entry's size and its header's size. A sound or text track is left as it
 /// is; a picture that is not H.264 is refused.
-pub(crate) fn apply(track: &mut Track, shape: Shape) -> Result<(), String> {
+pub(crate) fn apply(track: &mut Track, shape: Shape) -> Result<(), Error> {
     // The handler box whole: its type after size, kind, version, predefined.
     if track.hdlr.get(16..20) != Some(b"vide") {
         return Ok(());
@@ -75,7 +76,7 @@ pub(crate) fn apply(track: &mut Track, shape: Shape) -> Result<(), String> {
 
 /// `stsd` (a whole box) with its first H.264 entry's SPS shaped, and the
 /// size it shows now.
-fn shaped_stsd(stsd: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), String> {
+fn shaped_stsd(stsd: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), Error> {
     // A full box: size, kind, version and flags, entry count; then entries.
     let entries = stsd
         .get(16..)
@@ -92,7 +93,8 @@ fn shaped_stsd(stsd: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), Strin
             "only an H.264 video can be made {}; this one is {}",
             shape.name(),
             String::from_utf8_lossy(kind)
-        ));
+        )
+        .into());
     }
     // A visual sample entry: 8 of header, 78 of fields, then its boxes.
     let fields = entry
@@ -128,7 +130,7 @@ fn shaped_stsd(stsd: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), Strin
 }
 
 /// An `avcC`'s contents with each SPS shaped; the size the first shows.
-fn shaped_avcc(avcc: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), String> {
+fn shaped_avcc(avcc: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), Error> {
     let head = avcc.get(..5).ok_or("the H.264 settings are cut short")?;
     let count = usize::from(*avcc.get(5).ok_or("the H.264 settings are cut short")? & 0x1f);
     let mut out = head.to_vec();
@@ -156,12 +158,12 @@ fn shaped_avcc(avcc: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), Strin
 
 /// One SPS NAL unit with its crop set to the middle of the picture in
 /// `shape`; and the size it then shows.
-fn shaped_sps(nal: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), String> {
+fn shaped_sps(nal: &[u8], shape: Shape) -> Result<(Vec<u8>, (u64, u64)), Error> {
     let header = *nal.first().ok_or("an empty SPS")?;
     let rbsp = unescape(nal.get(1..).unwrap_or_default());
     let mut r = Bits::new(&rbsp);
     let mut w = Writer::default();
-    let short = || "the SPS is cut short".to_string();
+    let short = || Error::from("the SPS is cut short");
     let profile = r.copy(&mut w, 8).ok_or_else(short)?;
     r.copy(&mut w, 16).ok_or_else(short)?; // constraints, level
     r.copy_ue(&mut w).ok_or_else(short)?; // its id

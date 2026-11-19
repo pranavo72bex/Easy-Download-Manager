@@ -8,6 +8,7 @@
 
 use super::{find, opus_samples, opus_shown, uint, vp9_shape, Block, TrackIn};
 use crate::mp4mux::{full, Sample, Track};
+use crate::Error;
 
 /// The VP9 (`vp09` with `vpcC`) or AV1 (`av01` with the `av1C` WebM keeps as its
 /// `private` data) picture `track`, whose frames are `blocks` of input `input`: `ms` is a
@@ -19,7 +20,7 @@ pub(super) fn picture_track(
     ms: &impl Fn(&Block) -> i64,
     first: &mut impl FnMut(&Block, usize) -> Vec<u8>,
     input: usize,
-) -> Result<Track, String> {
+) -> Result<Track, Error> {
     let video = find(&track.rest, 0xE0).unwrap_or_default();
     let width = find(video, 0xB0).map_or(0, uint) as u32;
     let height = find(video, 0xBA).map_or(0, uint) as u32;
@@ -91,7 +92,7 @@ pub(super) fn opus_track(
     ms: &impl Fn(&Block) -> i64,
     first: &mut impl FnMut(&Block, usize) -> Vec<u8>,
     input: usize,
-) -> Result<Track, String> {
+) -> Result<Track, Error> {
     // OpusHead, little-endian, as WebM keeps it; dOps is the same
     // fields big-endian, without the magic.
     let head = private

@@ -15,6 +15,8 @@ use dm_desktop_base::boot::Wake;
 use dm_desktop_base::control::{Reads, Request};
 use dm_shell::app::backend::Backend;
 
+use crate::error::Error;
+
 /// How many times the main window has been drawn (`Downloads::render`).
 pub static FRAMES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -26,7 +28,7 @@ pub fn open(
     wake: std::sync::Arc<dyn Fn(Wake) + Send + Sync>,
     backend: Backend,
     assistants_only: bool,
-) -> Result<mpsc::Receiver<Request>, String> {
+) -> Result<mpsc::Receiver<Request>, Error> {
     let home = dm_shell::settings::home();
     let token = dm_desktop_base::control::fresh_token(&home).map_err(|e| e.to_string())?;
     let (to_window, requests) = mpsc::channel();

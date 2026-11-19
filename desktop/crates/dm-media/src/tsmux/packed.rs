@@ -54,7 +54,7 @@ where
     for stream in &streams {
         let _ = std::fs::remove_file(&stream.path);
     }
-    result
+    result.map_err(String::from)
 }
 
 /// Puts the picture of the transport stream at `picture` and the sound of the one at `sound`
@@ -125,7 +125,7 @@ where
     for stream in &streams {
         let _ = std::fs::remove_file(&stream.path);
     }
-    result
+    result.map_err(String::from)
 }
 
 /// Whether the file at `path` starts as packed AAC does: an ID3 tag or an
@@ -150,7 +150,7 @@ pub fn is_transport_stream(path: &Path) -> bool {
         && head == [0x47]
 }
 
-fn read_packed(input: &Path, scratch: PathBuf) -> Result<Elementary, String> {
+fn read_packed(input: &Path, scratch: PathBuf) -> Result<Elementary, Error> {
     let mut file = File::open(input).map_err(|e| format!("the sound could not be read: {e}"))?;
     let out =
         File::create(&scratch).map_err(|e| format!("a scratch file could not be made: {e}"))?;

@@ -48,16 +48,16 @@ fn a_webm_with_other_sound_or_none_is_refused_in_words() {
     let dir = tempfile::tempdir().unwrap();
     let vorbis = dir.path().join("vorbis.webm");
     crate::mkvmux::testing::tiny_webm(&vorbis, "A_VORBIS", 2, 4);
-    let said = convert_bytes(&vorbis, None).unwrap_err();
+    let said = convert_bytes(&vorbis, None).unwrap_err().to_string();
     assert!(said.contains("VORBIS") && said.contains("Opus"), "{said}");
     let picture = dir.path().join("picture.webm");
     crate::mkvmux::testing::tiny_webm(&picture, "V_VP9", 1, 4);
-    let said = convert_bytes(&picture, None).unwrap_err();
+    let said = convert_bytes(&picture, None).unwrap_err().to_string();
     assert!(said.contains("no sound"), "{said}");
     if !opus_possible() {
         let opus = dir.path().join("sound.webm");
         crate::mkvmux::testing::opus_webm(&opus, 2, 312, 20, &vec![silent(2); 10]);
-        let said = convert_bytes(&opus, None).unwrap_err();
+        let said = convert_bytes(&opus, None).unwrap_err().to_string();
         assert!(said.contains("Opus decoder"), "{said}");
     }
 }

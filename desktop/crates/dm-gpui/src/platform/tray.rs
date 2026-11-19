@@ -20,6 +20,7 @@ use tray_icon::menu::{
 };
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
+use crate::error::Error;
 use crate::window::list::Downloads;
 
 /// What the tray asked of the window.
@@ -55,7 +56,7 @@ pub struct Tray {
 impl Tray {
     /// The tray, each choice of its menu and a click on its icon sent to
     /// `asked`.
-    pub fn new(asked: async_channel::Sender<Asked>) -> Result<Tray, String> {
+    pub fn new(asked: async_channel::Sender<Asked>) -> Result<Tray, Error> {
         use dm_desktop_base::tray::{menu_words, PRESETS};
         let [show, limiter, scheduler, quit, tooltip] = dm_desktop_base::tray::words();
         let show = MenuItem::new(show, true, None);
@@ -216,7 +217,7 @@ impl Tray {
 
 /// dm's own icon, for a taskbar's tray (Windows, Linux).
 #[cfg(not(target_os = "macos"))]
-fn app_icon() -> Result<tray_icon::Icon, String> {
+fn app_icon() -> Result<tray_icon::Icon, Error> {
     const PNG: &[u8] = dm_assets::APP_ICON_32;
     let mut decoder = png::Decoder::new(std::io::Cursor::new(PNG));
     decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::ALPHA);
@@ -224,14 +225,15 @@ fn app_icon() -> Result<tray_icon::Icon, String> {
     let mut rgba = vec![0; reader.output_buffer_size().unwrap_or(0)];
     let frame = reader.next_frame(&mut rgba).map_err(|e| e.to_string())?;
     rgba.truncate(frame.buffer_size());
-    tray_icon::Icon::from_rgba(rgba, frame.width, frame.height).map_err(|e| e.to_string())
+    tray_icon::Icon::from_rgba(rgba, frame.width, frame.height)
+        .map_err(|e| Error::from(e.to_string()))
 }
 
 /// The icon: an arrow down into a tray, black on clear, for the system to
 /// draw in the menu bar's colour (a template image), 18 points at twice the
 /// pixels.
 #[cfg(target_os = "macos")]
-fn template_icon() -> Result<tray_icon::Icon, String> {
+fn template_icon() -> Result<tray_icon::Icon, Error> {
     const SIDE: usize = 36;
     // Four samples a pixel's side, for smooth edges.
     const SAMPLES: usize = 4;
@@ -273,7 +275,8 @@ fn template_icon() -> Result<tray_icon::Icon, String> {
             rgba.extend_from_slice(&[0, 0, 0, alpha]);
         }
     }
-    tray_icon::Icon::from_rgba(rgba, SIDE as u32, SIDE as u32).map_err(|e| e.to_string())
+    tray_icon::Icon::from_rgba(rgba, SIDE as u32, SIDE as u32)
+        .map_err(|e| Error::from(e.to_string()))
 }
 
 impl Downloads {
@@ -296,7 +299,7 @@ impl Downloads {
             Err(e) => {
                 self.status
                     .problems
-                    .push(dm_desktop_base::tray::unavailable(&e));
+                    .push(dm_desktop_base::tray::unavailable(&e.to_string()));
                 return;
             }
         }

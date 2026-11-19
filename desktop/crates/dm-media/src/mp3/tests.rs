@@ -78,7 +78,11 @@ fn every_frame_starts_with_its_sync_and_has_its_size() {
 
 #[test]
 fn rates_and_channels_it_cannot_make_are_refused_in_words() {
-    assert!(Encoder::new(2, 22050).err().unwrap().contains("44.1"));
+    assert!(Encoder::new(2, 22050)
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("44.1"));
     assert!(Encoder::new(6, 44100).is_err());
 }
 

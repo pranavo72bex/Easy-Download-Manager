@@ -14,6 +14,7 @@ use super::{
     id_bytes, size8, uint_element, Placed, Positioned, BLOCK, BLOCK_GROUP, CLUSTER, CLUSTER_MS,
     SIMPLE_BLOCK, TIMECODE,
 };
+use crate::Error;
 
 /// Writes the clusters to `w`, the file at `out`, from `at`, where it stands in the segment:
 /// a new one at a picture's key frame a second or more in, or before a block's offset would
@@ -26,7 +27,7 @@ pub(super) fn write_clusters(
     files: &mut [Positioned],
     has_video: bool,
     mut at: u64,
-) -> Result<(u64, Vec<(i64, u64, u64)>), String> {
+) -> Result<(u64, Vec<(i64, u64, u64)>), Error> {
     let wrote = |e: std::io::Error| format!("{} could not be written: {e}", out.display());
     let mut cues = Vec::new();
     let mut i = 0;

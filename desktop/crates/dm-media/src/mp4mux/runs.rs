@@ -75,7 +75,7 @@ fn empty_like(track: &Track) -> Track {
 }
 
 /// The stream's tracks, from its runs in order.
-pub(super) fn merge(runs: Vec<Vec<Track>>) -> Result<Vec<Track>, String> {
+pub(super) fn merge(runs: Vec<Vec<Track>>) -> Result<Vec<Track>, Error> {
     let mut out: Vec<Track> = Vec::new();
     // Each track's sample descriptions so far, and where its next sample starts, in its ticks.
     let mut described: Vec<Vec<Vec<u8>>> = Vec::new();
@@ -146,7 +146,7 @@ fn append(
     next: &mut u64,
     track: &Track,
     target: u128,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let (into, from) = (joined.timescale, track.timescale.max(1));
     let target = ticks(target, into);
     if joined.samples.is_empty() {

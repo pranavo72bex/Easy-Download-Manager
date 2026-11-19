@@ -27,6 +27,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use crate::mp4mux::{boxed, full, Edit, Sample, Source, Track, MATRIX};
+use crate::Error;
 
 const PACKET: usize = 188;
 const TIMESCALE: u32 = 90_000;
@@ -190,7 +191,7 @@ where
         freed: segments == Segments::Freed,
         watch: None,
     };
-    remux(reading, out, place)
+    remux(reading, out, place).map_err(String::from)
 }
 
 /// [`to_mp4_clear`] of a stream read from its segments where they lie, each left as it is
@@ -206,7 +207,7 @@ pub fn to_mp4_from_clear(
         freed: false,
         watch: None,
     };
-    remux(reading, out, |_| Vec::new())
+    remux(reading, out, |_| Vec::new()).map_err(String::from)
 }
 
 /// [`to_mp4`] of a stream whose pictures and sound are scrambled by HLS's SAMPLE-AES (gaps row
@@ -214,7 +215,7 @@ pub fn to_mp4_from_clear(
 /// segment starts in `input`), as Apple's "MPEG-2 Stream Encryption Format for HTTP Live
 /// Streaming" describes. H.264 and ADTS AAC; scrambled AC-3 is refused.
 pub fn to_mp4_clear(input: &Path, out: &Path, locks: &crate::sealed::Locks) -> Result<u64, String> {
-    to_mp4_placed(input, out, locks, |_| Vec::new())
+    to_mp4_placed(input, out, locks, |_| Vec::new()).map_err(String::from)
 }
 
 /// [`to_mp4`], with subtitles timed once the stream is read (an HLS stream's WebVTT segments,
@@ -226,7 +227,7 @@ pub fn to_mp4_with_text<F>(input: &Path, out: &Path, place: F) -> Result<u64, St
 where
     F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
-    to_mp4_placed(input, out, &crate::sealed::Locks::default(), place)
+    to_mp4_placed(input, out, &crate::sealed::Locks::default(), place).map_err(String::from)
 }
 
 /// [`to_mp4_clear`], with subtitles as [`to_mp4_with_text`] times them.
@@ -235,7 +236,7 @@ fn to_mp4_placed<F>(
     out: &Path,
     locks: &crate::sealed::Locks,
     place: F,
-) -> Result<u64, String>
+) -> Result<u64, Error>
 where
     F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {

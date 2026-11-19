@@ -71,6 +71,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod catching;
+mod error;
 pub mod media;
 mod reply;
 mod rules;
@@ -79,6 +80,7 @@ pub use catching::{
     browser_named, extension_for_mime, extension_of, host_of, Candidate, CatchRules, Left,
     BROWSERS, CATCH_DEFAULTS_VERSION, CLICK_KEYS, DEFAULT_EXTENSIONS, MENU_ITEMS,
 };
+pub use error::Error;
 pub use reply::{Failure, Hello, Reply, SettingsReply, Unreadable};
 pub use rules::{
     AnswerRule, ExcludeRules, Finder, Rules, SiteProfile, MAX_RULES_BYTES, RULES_FORMAT,

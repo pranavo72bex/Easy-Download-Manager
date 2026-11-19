@@ -116,7 +116,7 @@ fn no_rate_asked_for_is_192_for_stereo_and_128_for_mono_as_before() {
 #[test]
 fn a_rate_it_does_not_have_is_refused_in_words() {
     for kbps in [0, 8, 100, 193, 384, 448] {
-        let said = Encoder::at(2, 44100, Some(kbps)).err().unwrap();
+        let said = Encoder::at(2, 44100, Some(kbps)).err().unwrap().to_string();
         assert!(
             said.contains("kbit/s") && said.contains("320"),
             "{kbps}: {said}"
@@ -124,7 +124,9 @@ fn a_rate_it_does_not_have_is_refused_in_words() {
         assert!(encode_all(&[0; 4608], 2, 44100, Some(kbps)).is_err());
     }
     // Refused before the source is opened: a file that is not there says the rate.
-    let said = convert_bytes(std::path::Path::new("no such file.m4a"), Some(100)).unwrap_err();
+    let said = convert_bytes(std::path::Path::new("no such file.m4a"), Some(100))
+        .unwrap_err()
+        .to_string();
     assert!(said.contains("kbit/s"), "{said}");
 }
 

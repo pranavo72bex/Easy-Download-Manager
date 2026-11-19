@@ -12,6 +12,8 @@
 
 use std::path::Path;
 
+use crate::Error;
+
 #[cfg(windows)]
 mod win;
 
@@ -27,7 +29,7 @@ pub struct Pcm {
 }
 
 /// `path`'s sound as samples, at most two channels, at a rate MP3 has.
-pub fn read(path: &Path) -> Result<Pcm, String> {
+pub fn read(path: &Path) -> Result<Pcm, Error> {
     #[cfg(target_os = "macos")]
     {
         mac::read(path)
@@ -45,6 +47,7 @@ pub fn read(path: &Path) -> Result<Pcm, String> {
 #[cfg(target_os = "macos")]
 mod mac {
     use super::Pcm;
+    use crate::Error;
     use std::ffi::c_void;
     use std::path::Path;
 
@@ -117,11 +120,11 @@ mod mac {
         u32::from_be_bytes(*code)
     }
 
-    pub(super) fn read(path: &Path) -> Result<Pcm, String> {
+    pub(super) fn read(path: &Path) -> Result<Pcm, Error> {
         use std::os::unix::ffi::OsStrExt;
         let bytes = path.as_os_str().as_bytes();
         let failed = |what: &str, status: OsStatus| {
-            format!("the sound could not be read ({what}, {status})")
+            Error::from(format!("the sound could not be read ({what}, {status})"))
         };
         // SAFETY: the URL is made from a byte slice of its stated length
         // and released below; the file reference is used only after a
