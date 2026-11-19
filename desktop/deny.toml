@@ -36,6 +36,8 @@ ignore = [
     "RUSTSEC-2025-0134",
     "RUSTSEC-2026-0206",
     "RUSTSEC-2026-0192",
+    # chrono "unmaintained" (desktop/.cargo/audit.toml says why; gaps row 215).
+    "RUSTSEC-2026-0543",
 ]
 
 [licenses]

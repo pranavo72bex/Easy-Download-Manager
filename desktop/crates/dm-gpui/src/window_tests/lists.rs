@@ -224,6 +224,12 @@ fn the_toolbar_acts_on_the_selected_row() {
 
     h.click("Stop");
     h.until("Stop", |h| state(h) == State::Paused);
+    // The engine's row reads Paused before the window has read it again: a click on a frame
+    // still showing Resume greyed does nothing (macOS CI, twice), so it waits for Resume to be
+    // offered.
+    h.until("Resume to be offered", |h| {
+        h.enabled(dm_shell::app::commands::Command::DownloadNow)
+    });
     h.click("Resume");
     h.until("Resume", |h| {
         matches!(state(h), State::Queued | State::Running)

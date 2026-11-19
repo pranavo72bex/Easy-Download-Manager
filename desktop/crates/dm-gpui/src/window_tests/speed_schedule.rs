@@ -570,16 +570,22 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
         });
     }
     let last_day = format!("{}-12-31", dm_desktop_base::scheduler::today().0);
-    // Start now acts on the queue chosen in the list, not the list's.
+    // Start now acts on the queue chosen in the list, not the list's. It runs off the window's
+    // thread and is said once done, so the sentence is waited for (CI's Windows runner read it
+    // before it came).
     h.click("Start now");
-    let said = h.view(|view| {
-        view.status
-            .said
-            .clone()
-            .map(|(said, _)| said)
-            .unwrap_or_default()
+    let said = |h: &mut Harness| {
+        h.view(|view| {
+            view.status
+                .said
+                .clone()
+                .map(|(said, _)| said)
+                .unwrap_or_default()
+        })
+    };
+    h.until("Start now to say it started the Night queue", |h| {
+        said(h).contains("Night")
     });
-    assert!(said.contains("Night"), "Start now: {said:?}");
     h.click("OK");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));
     let night = kept(&mut h).queue_schedules["Night"].clone();
