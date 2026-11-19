@@ -103,7 +103,7 @@ fn a_newer_release_offers_its_installer_as_a_download_in_dm() {
         .unwrap();
     let offer = |h: &mut Harness, url: String, sha256: String| {
         h.view(|view| {
-            *view.checked.lock().unwrap() =
+            *view.threads.checked.lock().unwrap() =
                 Update::Newer("9.9.9".into(), Some(Installer { url, sha256 }))
         });
         h.run(Command::About);
@@ -330,7 +330,7 @@ fn view_drop_target_shows_and_hides_the_floating_target() {
     let world = world();
     let mut h = world.harness();
     let open = |h: &mut Harness| {
-        h.view(|view| view.drop_window)
+        h.view(|view| view.windows.drop_window)
             .is_some_and(|w| h.cx.update(|cx| cx.windows().contains(&w)))
     };
     h.click("View");
@@ -378,7 +378,7 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
     assert_eq!(row.queue, dm_core::MAIN_QUEUE);
     h.click("Main queue");
     h.until("the Main queue to be shown", |h| {
-        h.view(|view| view.place.clone())
+        h.view(|view| view.list.place.clone())
             == dm_shell::app::places::Place::Queue(dm_core::MAIN_QUEUE.into())
     });
     h.click("Start Queue");
@@ -1297,7 +1297,8 @@ fn a_link_saved_in_the_watched_folder_is_added_and_its_file_put_aside() {
     assert_eq!(h.rows().len(), 2, "the file with no link added nothing");
     h.until("the file with no link to be said once", |h| {
         h.view(|view| {
-            view.problems
+            view.status
+                .problems
                 .iter()
                 .any(|p| p.contains("nothing.txt") && p.contains("no link"))
         })
@@ -1597,7 +1598,7 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
     );
     // Said, so not said again: the words are cleared and it stays quiet.
     h.view(|view| {
-        view.said = None;
+        view.status.said = None;
         view.big_download_hint();
     });
     assert!(h.said().is_empty(), "said a second time");
@@ -1618,7 +1619,7 @@ fn a_started_download_says_once_where_its_progress_is() {
     assert!(h.view(|view| view.backend.settings()).hinted_details);
     // Said, so not said again.
     h.view(|view| {
-        view.said = None;
+        view.status.said = None;
         view.details_hint();
     });
     assert!(h.said().is_empty(), "said a second time");
@@ -1713,7 +1714,7 @@ fn the_list_behind_the_remove_question_takes_no_clicks() {
     h.add_url(&world.url("other.pdf"), "Add for later");
     h.until("both rows", |h| h.rows().len() == 2);
     h.select("file.zip");
-    let chosen = h.view(|view| view.selected.clone());
+    let chosen = h.view(|view| view.list.selected.clone());
     h.run(Command::Remove);
     h.until("the question", |h| h.dialogs().len() == 1);
     assert!(
@@ -1727,7 +1728,7 @@ fn the_list_behind_the_remove_question_takes_no_clicks() {
     if cfg!(not(any(target_os = "macos", windows))) {
         h.click("other.pdf");
         assert_eq!(
-            h.view(|view| view.selected.clone()),
+            h.view(|view| view.list.selected.clone()),
             chosen,
             "a row was selected under the question"
         );

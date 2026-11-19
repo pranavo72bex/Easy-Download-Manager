@@ -35,7 +35,8 @@ fn add_later(h: &mut Harness, world: &World, names: &[&str]) {
 /// The rows' names in the list's order.
 fn shown(h: &mut Harness) -> Vec<String> {
     h.view(|view| {
-        view.shown
+        view.list
+            .shown
             .iter()
             .filter_map(|&i| view.rows.get(i))
             .map(|r| dm_shell::app::names::name_of(r))
@@ -289,7 +290,7 @@ fn five_hundred_rows_draw_inside_a_frame_budget() {
     h.command("downloads.find");
     h.type_text("stalled-4");
     h.until("the box to narrow", |h| {
-        h.view(|view| view.shown.len()) < 500
+        h.view(|view| view.list.shown.len()) < 500
     });
     let filtered = frame(&mut h);
     println!("500 rows, narrowed: {filtered:?} a frame");
@@ -371,7 +372,7 @@ fn long_status_text_wraps_and_stays_on_screen() {
     );
     h.close_dialogs();
     h.view(|view| {
-        view.said = Some((
+        view.status.said = Some((
             format!(
                 "this computer could not open {}: xdg-open: {}",
                 "/x".repeat(30),
@@ -474,7 +475,13 @@ fn windows_a_download_opens_keep_clear_of_the_toolbar_and_questions() {
     let main_frame = frame(&mut h, main);
     let add = h.bounds_of("Add URL");
     let windows: Vec<Bounds<Pixels>> = h
-        .view(|view| view.progress_windows.values().copied().collect::<Vec<_>>())
+        .view(|view| {
+            view.windows
+                .progress_windows
+                .values()
+                .copied()
+                .collect::<Vec<_>>()
+        })
         .into_iter()
         .map(|w| frame(&mut h, w))
         .collect();
@@ -494,7 +501,9 @@ fn windows_a_download_opens_keep_clear_of_the_toolbar_and_questions() {
     h.apply(|s| s.show_complete = true);
     h.click("Tasks");
     h.click("Exit");
-    h.until("the Exit question", |h| h.view(|view| view.exit_asked));
+    h.until("the Exit question", |h| {
+        h.view(|view| view.questions.exit_asked)
+    });
     let url = world.url("file.zip");
     h.view(|view| view.backend.add(&url)).unwrap();
     h.until("it to finish", finished);
@@ -546,7 +555,7 @@ fn the_places_are_reachable_when_they_give_way_at_large_text() {
     text_size(&mut h, 1.2);
     h.click("Videos");
     h.until("Videos chosen", |h| {
-        h.view(|view| view.place == Place::Kind(dm_core::Category::Videos))
+        h.view(|view| view.list.place == Place::Kind(dm_core::Category::Videos))
     });
     text_size(&mut h, 1.0);
 }
@@ -567,13 +576,13 @@ fn the_last_row_can_be_reached_at_large_text() {
         add_later(&mut h, &world, &names);
         if clipboard_bar {
             let offered = world.url("offered.zip");
-            h.view(|view| view.clipboard.offered = Some(offered));
+            h.view(|view| view.system.clipboard.offered = Some(offered));
         }
         h.key("end", &[]);
         let last = shown(&mut h).last().unwrap().clone();
         h.until_shown(&last);
         let row = h.bounds_of(&last);
-        let list = h.view(|view| view.scroll.0.borrow().base_handle.bounds());
+        let list = h.view(|view| view.list.scroll.0.borrow().base_handle.bounds());
         assert!(
             row.bottom() <= list.bottom() + px(0.5) && row.top() >= list.top(),
             "{last} at {row:?} outside the list {list:?}"
@@ -662,7 +671,7 @@ fn a_list_with_room_for_one_row_stays_where_it_was_scrolled() {
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     add_later(&mut h, &world, &names);
     let offered = world.url("offered.zip");
-    h.view(|view| view.clipboard.offered = Some(offered));
+    h.view(|view| view.system.clipboard.offered = Some(offered));
     h.key("end", &[]);
     let last = shown(&mut h).last().unwrap().clone();
     h.until_shown(&last);
@@ -697,7 +706,7 @@ fn the_queue_columns_heading_is_named_and_sorts() {
     );
     h.drag(at, at, true);
     h.until("the sort by queue", |h| {
-        matches!(h.view(|view| view.sort), Some((Column::Queue, _)))
+        matches!(h.view(|view| view.list.sort), Some((Column::Queue, _)))
     });
 }
 
@@ -708,7 +717,7 @@ fn the_queue_columns_heading_is_named_and_sorts() {
 fn the_sort_and_what_is_shown_come_back_after_a_restart() {
     let world = world();
     let mut h = world.harness();
-    let sort = |h: &mut Harness| h.view(|view| view.sort);
+    let sort = |h: &mut Harness| h.view(|view| view.list.sort);
     h.click("Size");
     h.until("sorted up", |h| sort(h) == Some((Column::Size, true)));
     h.click("Size");
@@ -726,8 +735,8 @@ fn the_sort_and_what_is_shown_come_back_after_a_restart() {
     // Started again with what was kept.
     let mut again = world.harness_with(kept);
     again.view(|view| {
-        assert_eq!(view.sort, Some((Column::Size, false)));
-        assert!(!view.show_sidebar && !view.show_toolbar);
+        assert_eq!(view.list.sort, Some((Column::Size, false)));
+        assert!(!view.layout.show_sidebar && !view.layout.show_toolbar);
     });
 
     // A third click: the order added, kept so.

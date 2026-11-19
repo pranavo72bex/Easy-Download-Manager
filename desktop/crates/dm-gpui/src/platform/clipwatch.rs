@@ -31,28 +31,32 @@ impl Downloads {
     /// clipboard holds now, so a link copied long ago is not offered.
     pub(crate) fn watch_clipboard(&mut self, on: bool) {
         let platform = &self.backend.platform;
-        self.clipboard.turn(on, || platform.clipboard());
+        self.system.clipboard.turn(on, || platform.clipboard());
     }
 
     /// Looks at the clipboard, where it is watched and a look is due: one
     /// link taken at once opens Download details, several their list.
     pub(crate) fn check_clipboard(&mut self, cx: &mut Context<Self>) {
-        if !self.clipboard.on
-            || self.clipboard_reading
-            || self.clipboard.polled.is_some_and(|at| at.elapsed() < EVERY)
+        if !self.system.clipboard.on
+            || self.system.clipboard_reading
+            || self
+                .system
+                .clipboard
+                .polled
+                .is_some_and(|at| at.elapsed() < EVERY)
         {
             return;
         }
         // Read off the window's thread, as a copied page can be megabytes
         // of text (gaps row 183), and looked at here once it is.
-        self.clipboard_reading = true;
+        self.system.clipboard_reading = true;
         let platform = self.backend.platform.clone();
         let read = cx.background_spawn(async move { platform.clipboard() });
         cx.spawn(async move |this, cx| {
             let text = read.await;
             let _ = this.update(cx, |this, cx| {
-                this.clipboard_reading = false;
-                if this.clipboard.on {
+                this.system.clipboard_reading = false;
+                if this.system.clipboard.on {
                     this.clipboard_read(text, cx);
                 }
             });
@@ -64,7 +68,7 @@ impl Downloads {
     /// Download details, several their list; else offered or passed over.
     fn clipboard_read(&mut self, text: Option<String>, cx: &mut Context<Self>) {
         let start_copied = self.backend.settings().start_copied;
-        match self.clipboard.look(text, &self.rows, start_copied) {
+        match self.system.clipboard.look(text, &self.rows, start_copied) {
             Looked::Take(links) if links.len() == 1 => {
                 crate::dialogs::details::open(cx.entity().downgrade(), links, cx);
             }
@@ -82,12 +86,12 @@ impl Downloads {
         screen: &Screen,
         cx: &mut Context<Self>,
     ) -> Option<gpui::Div> {
-        let url = self.clipboard.offered.clone()?;
-        let several = self.clipboard.offered_all.len() > 1;
+        let url = self.system.clipboard.offered.clone()?;
+        let several = self.system.clipboard.offered_all.len() > 1;
         let words = if several {
             tf(
                 "Links on your clipboard: {}",
-                &[&self.clipboard.offered_all.len()],
+                &[&self.system.clipboard.offered_all.len()],
             )
         } else {
             t("Link on your clipboard:").to_string()
@@ -123,8 +127,8 @@ impl Downloads {
                 .child(
                     native::button("clipboard-download", download.into(), true, theme, screen)
                         .on_click(cx.listener(move |view, _, _, cx| {
-                            let links = view.clipboard.offered_all.clone();
-                            view.clipboard.dismiss_all();
+                            let links = view.system.clipboard.offered_all.clone();
+                            view.system.clipboard.dismiss_all();
                             if links.len() > 1 {
                                 // The list that holds them, each to tick.
                                 view.add_from_clipboard(cx);
@@ -147,7 +151,7 @@ impl Downloads {
                         screen,
                     )
                     .on_click(cx.listener(|view, _, _, cx| {
-                        view.clipboard.dismiss_all();
+                        view.system.clipboard.dismiss_all();
                         cx.notify();
                     })),
                 ),

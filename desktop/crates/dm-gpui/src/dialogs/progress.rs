@@ -275,6 +275,7 @@ impl Render for Progress {
                 return div().into_any_element();
             };
             let named = view
+                .known
                 .shown_names
                 .get(&self.id)
                 .cloned()

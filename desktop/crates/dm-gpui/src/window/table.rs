@@ -58,7 +58,7 @@ fn numeric(column: Column) -> bool {
 
 /// The columns shown, in the person's order.
 pub fn columns(view: &Downloads) -> Vec<Column> {
-    let settings = &view.drawn;
+    let settings = &view.known.drawn;
     Column::ordered(&settings.column_order)
         .into_iter()
         .filter(|c| !settings.columns_hidden.iter().any(|h| h == c.key()))
@@ -179,7 +179,7 @@ fn words(column: Column, row: &Entry, whens: &format::Whens) -> String {
 /// The list as a screen reader is told it (gaps row U23): a table named Downloads, of the
 /// header and the rows of the place chosen, in the columns shown. It said a flat list.
 pub fn told_table(table: Stateful<Div>, view: &Downloads) -> Stateful<Div> {
-    as_table(table, view.shown.len(), columns(view).len())
+    as_table(table, view.list.shown.len(), columns(view).len())
 }
 
 /// `table` told as one of `rows` rows under its header's, in `columns` columns.
@@ -245,7 +245,7 @@ pub fn header(
     screen: &Screen,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let sort = view.sort;
+    let sort = view.list.sort;
     let widths = view.widths();
     div()
         .id("header")
@@ -404,8 +404,8 @@ impl Render for DraggedColumn {
 impl Downloads {
     /// The columns' widths as drawn: the ones kept, and the one being dragged.
     pub(crate) fn widths(&self) -> Widths {
-        let mut widths = self.drawn.column_widths.clone();
-        if let Some((column, wide)) = self.resizing {
+        let mut widths = self.known.drawn.column_widths.clone();
+        if let Some((column, wide)) = self.layout.resizing {
             widths.insert(column.key().to_string(), wide);
         }
         widths
@@ -415,12 +415,13 @@ impl Downloads {
     /// second meanwhile and at its end, so a drag let go anywhere is kept.
     pub(crate) fn resize_column(&mut self, column: Column, wide: f32, cx: &mut Context<Self>) {
         let wide = wide.clamp(NARROWEST, WIDEST).round();
-        self.resizing = Some((column, wide));
+        self.layout.resizing = Some((column, wide));
         let due = self
+            .layout
             .resize_kept
             .is_none_or(|at| at.elapsed() >= RESIZE_KEPT_EVERY);
         if due {
-            self.resize_kept = Some(std::time::Instant::now());
+            self.layout.resize_kept = Some(std::time::Instant::now());
             self.keep_width(column, wide);
         }
         cx.notify();
@@ -428,12 +429,12 @@ impl Downloads {
 
     /// The drag let go over the header: its last width kept.
     pub(crate) fn finish_resize(&mut self, cx: &mut Context<Self>) {
-        if let Some((column, wide)) = self.resizing {
+        if let Some((column, wide)) = self.layout.resizing {
             self.keep_width(column, wide);
             self.read();
         }
-        self.resizing = None;
-        self.resize_kept = None;
+        self.layout.resizing = None;
+        self.layout.resize_kept = None;
         cx.notify();
     }
 
@@ -441,16 +442,17 @@ impl Downloads {
     /// among the rows listed (and its heading), within what a column may be.
     pub(crate) fn fit_column(&mut self, column: Column, cx: &mut Context<Self>) {
         let longest = self
+            .list
             .shown
             .iter()
             .filter_map(|&r| self.rows.get(r))
-            .map(|row| words(column, row, &self.whens).chars().count())
+            .map(|row| words(column, row, &self.known.whens).chars().count())
             .chain([column.title().chars().count() + 2])
             .max()
             .unwrap_or(0);
         // About the width of a letter of the list's text, and the cell's margins.
         let wide = longest as f32 * crate::widgets::native::TEXT * 0.58 + 18.0;
-        self.resizing = None;
+        self.layout.resizing = None;
         self.keep_width(column, wide.clamp(NARROWEST, WIDEST).round());
         self.read();
         cx.notify();
@@ -532,7 +534,7 @@ fn row_cells(
         widths,
         told,
     } = layout;
-    let (names, whens) = (&view.shown_names, &view.whens);
+    let (names, whens) = (&view.known.shown_names, &view.known.whens);
     let mut buttons = Some(buttons);
     let id = row.id as usize;
     columns
@@ -655,7 +657,7 @@ fn row_cells(
                 // A row not saved yet shows the folder it will go to, without that guess
                 // written into the row (`names::planned_folder`).
                 if column == Column::Folder && said.is_empty() {
-                    let settings = &view.drawn;
+                    let settings = &view.known.drawn;
                     said = dm_shell::app::names::planned_folder(
                         row,
                         &settings.download_dir,
@@ -680,7 +682,7 @@ fn row_cells(
 /// Without it a new window was an empty table that said nothing.
 pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
     let screen = view.screen.clone();
-    let filtered = !view.filter.read(cx).value().trim().is_empty();
+    let filtered = !view.list.filter.read(cx).value().trim().is_empty();
     let (heading, line, next_step) =
         dm_desktop_base::rows::empty_words(!view.rows.is_empty(), filtered);
     div()
@@ -733,7 +735,7 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
 /// The rows of the place chosen.
 pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
     let screen = view.screen.clone();
-    let count = view.shown.len();
+    let count = view.list.shown.len();
     uniform_list(
         "rows",
         count,
@@ -745,7 +747,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
             // the window: nothing else asks for them (gaps row U23).
             let told = window.is_a11y_active();
             this.laid_out(range.clone(), cx);
-            let categories = this.drawn.categories();
+            let categories = this.known.drawn.categories();
             let columns = columns(this);
             let widths = this.widths();
             let list = cx.entity().downgrade();
@@ -754,14 +756,15 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
             let chosen_finished = std::cell::OnceCell::new();
             range
                 .filter_map(|i| {
-                    this.shown
+                    this.list
+                        .shown
                         .get(i)
                         .and_then(|&r| this.rows.get(r))
                         .map(|row| (i, row))
                 })
                 .map(|(i, row)| {
-                    let kind = this.places.placed(row, &categories).0;
-                    let chosen = this.selected.contains(&row.id);
+                    let kind = this.list.places.placed(row, &categories).0;
+                    let chosen = this.list.selected.contains(&row.id);
                     // A chosen row in the selection colour, its words on it,
                     // as a macOS list draws one.
                     let background = theme.selection;
@@ -769,20 +772,20 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                     let theme = if chosen { theme.chosen() } else { theme };
                     // A finished row's file dragged out; and, in the list's own order, any
                     // row dragged onto another to stand there (gaps row U39).
-                    let reorders = this.sort.is_none();
+                    let reorders = this.list.sort.is_none();
                     let draggable = reorders
                         || crate::platform::dragout::may_carry(row)
                         || (chosen
                             && *chosen_finished.get_or_init(|| {
                                 this.rows.iter().any(|r| {
-                                    this.selected.contains(&r.id)
+                                    this.list.selected.contains(&r.id)
                                         && crate::platform::dragout::may_carry(r)
                                 })
                             }));
                     let dragged = draggable.then(|| crate::platform::dragout::DraggedRow {
                         id: row.id,
                         list: list.clone(),
-                        name: shown_name(row, &this.shown_names),
+                        name: shown_name(row, &this.known.shown_names),
                         theme: original,
                     });
                     // Known by its download, not by where it is: the
@@ -794,7 +797,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .role(Role::Row)
                         // What a screen reader says of it: its file and how
                         // it stands, as the row shows them (it said nothing).
-                        .aria_label(spoken(row, &this.shown_names))
+                        .aria_label(spoken(row, &this.known.shown_names))
                         .aria_selected(chosen)
                         // Its place in the table, under the header's row.
                         .aria_row_index(i + 1)
@@ -890,7 +893,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                 .collect()
         }),
     )
-    .track_scroll(&view.scroll)
+    .track_scroll(&view.list.scroll)
     .flex_1()
     // A sideways gesture is the table's, to move the columns (`list.rs`);
     // the rows took it as an up-and-down one.
@@ -975,8 +978,8 @@ fn row_buttons(
                     // Delete on one of several chosen rows deletes them all; every other
                     // button acts on its own row.
                     if !(command == Command::Remove
-                        && view.selected.len() > 1
-                        && view.selected.contains(&id))
+                        && view.list.selected.len() > 1
+                        && view.list.selected.contains(&id))
                     {
                         view.click_row(id, false, false);
                     }

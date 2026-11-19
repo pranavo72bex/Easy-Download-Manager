@@ -400,9 +400,14 @@ impl Details {
                         view.add(urls, with, cx)?;
                         if let (Some(size), [id]) = (
                             size,
-                            view.selected.iter().copied().collect::<Vec<_>>().as_slice(),
+                            view.list
+                                .selected
+                                .iter()
+                                .copied()
+                                .collect::<Vec<_>>()
+                                .as_slice(),
                         ) {
-                            view.sizes_told.insert(*id, size);
+                            view.known.sizes_told.insert(*id, size);
                             view.read();
                         }
                         Ok(())

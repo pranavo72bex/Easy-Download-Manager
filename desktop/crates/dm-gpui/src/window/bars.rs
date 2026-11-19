@@ -141,7 +141,7 @@ impl Downloads {
             .filter(|r| matches!(r.state, State::Failed(_)))
             .map(|r| r.id)
             .collect();
-        if failed.is_empty() || failed.is_subset(&self.bars.failed_hidden) {
+        if failed.is_empty() || failed.is_subset(&self.layout.bars.failed_hidden) {
             return None;
         }
         let count = failed.len();
@@ -161,7 +161,7 @@ impl Downloads {
                 .child(
                     native::button("failed-hide", t("Hide").into(), false, theme, screen).on_click(
                         cx.listener(move |view, _, _, cx| {
-                            view.bars.failed_hidden.clone_from(&failed);
+                            view.layout.bars.failed_hidden.clone_from(&failed);
                             cx.notify();
                         }),
                     ),
@@ -189,15 +189,16 @@ impl Downloads {
         cx: &mut Context<Self>,
     ) -> Option<gpui::Div> {
         let stale = self
+            .layout
             .bars
             .browser
             .is_none_or(|(at, _)| at.elapsed() > BROWSER_LOOKED_FOR);
-        if stale && self.bars.browser_looking.is_none() {
+        if stale && self.layout.bars.browser_looking.is_none() {
             // Two files looked for off the window's thread, and drawn again
             // where the answer changed: a frame waited on the disk for them
             // (gaps row 180).
             let began = Instant::now();
-            self.bars.browser_looking = Some(began);
+            self.layout.bars.browser_looking = Some(began);
             let home = dm_shell::settings::home();
             let looked = cx.background_spawn(async move {
                 !dm_shell::host::browser_seen(&home) && !home.join(BROWSER_HINT_HIDDEN).exists()
@@ -205,13 +206,13 @@ impl Downloads {
             cx.spawn(async move |this, cx| {
                 let shows = looked.await;
                 let _ = this.update(cx, |this, cx| {
-                    this.bars.browser_looking = None;
+                    this.layout.bars.browser_looking = None;
                     // Not now, pressed while it looked, has the last word.
-                    if this.bars.browser.is_some_and(|(at, _)| at > began) {
+                    if this.layout.bars.browser.is_some_and(|(at, _)| at > began) {
                         return;
                     }
-                    let before = this.bars.browser.map(|(_, shows)| shows);
-                    this.bars.browser = Some((Instant::now(), shows));
+                    let before = this.layout.bars.browser.map(|(_, shows)| shows);
+                    this.layout.bars.browser = Some((Instant::now(), shows));
                     if before != Some(shows) {
                         cx.notify();
                     }
@@ -219,7 +220,7 @@ impl Downloads {
             })
             .detach();
         }
-        if !self.bars.browser.is_some_and(|(_, shows)| shows) {
+        if !self.layout.bars.browser.is_some_and(|(_, shows)| shows) {
             return None;
         }
         let pages = dm_desktop_base::project::extension_browsers()
@@ -263,7 +264,7 @@ impl Downloads {
                             let home = dm_shell::settings::home();
                             let _ = std::fs::create_dir_all(&home);
                             let _ = std::fs::write(home.join(BROWSER_HINT_HIDDEN), b"");
-                            view.bars.browser = Some((Instant::now(), false));
+                            view.layout.bars.browser = Some((Instant::now(), false));
                             cx.notify();
                         })),
                 ),

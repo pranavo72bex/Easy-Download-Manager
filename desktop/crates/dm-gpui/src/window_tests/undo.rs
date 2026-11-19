@@ -65,5 +65,5 @@ fn undo_goes_with_the_next_command_that_changes_the_list() {
     h.call("command.run", json!({ "id": Command::StopAll.id() }))
         .unwrap();
     h.until("Undo to go", |h| !h.shows("Undo"));
-    assert!(h.view(|view| !view.undo.is_kept()));
+    assert!(h.view(|view| !view.status.undo.is_kept()));
 }

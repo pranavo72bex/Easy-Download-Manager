@@ -219,7 +219,7 @@ impl Downloads {
     pub(crate) fn welcome_if_new(&mut self, cx: &mut Context<Self>) {
         let own_home = dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty());
         let home = dm_shell::settings::home();
-        if self.hidden
+        if self.system.hidden
             || own_home
             || dm_shell::host::browser_seen(&home)
             || home.join(WELCOMED).exists()

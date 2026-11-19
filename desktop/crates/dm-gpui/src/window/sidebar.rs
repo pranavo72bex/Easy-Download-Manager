@@ -75,7 +75,7 @@ fn picture(place: &Place) -> &'static str {
 /// Every place the panel lists, in order, with its heading where a group
 /// starts.
 fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> {
-    let settings = &view.drawn;
+    let settings = &view.known.drawn;
     let mut all = vec![(
         Some("All Downloads"),
         Place::All,
@@ -99,7 +99,7 @@ fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> 
     all.push((Some(""), Place::Unfinished, t("Unfinished").into()));
     all.push((None, Place::Finished, t("Finished").into()));
     // As the last read found them, not from every row at each frame.
-    for (i, queue) in view.queue_list.iter().cloned().enumerate() {
+    for (i, queue) in view.known.queue_list.iter().cloned().enumerate() {
         let heading = (i == 0).then_some("Queues");
         let label = name(&queue);
         all.push((heading, Place::Queue(queue), label.into()));
@@ -115,7 +115,7 @@ pub fn sidebar(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let categories = view.drawn.categories();
+    let categories = view.known.drawn.categories();
     let wide = view.panel_width();
     div()
         .id("sidebar-panel")
@@ -260,7 +260,7 @@ fn projects(
     cx: &mut Context<Downloads>,
 ) -> Option<gpui::AnyElement> {
     const HEADING: &str = "Grabber projects";
-    let searches = &view.drawn.site_searches;
+    let searches = &view.known.drawn.site_searches;
     if searches.is_empty() {
         return None;
     }
@@ -326,8 +326,8 @@ fn place_row(
     label: SharedString,
     shut: bool,
 ) -> impl IntoElement {
-    let count = view.places.count(&place, &view.rows, categories);
-    let chosen = place == view.place;
+    let count = view.list.places.count(&place, &view.rows, categories);
+    let chosen = place == view.list.place;
     let icon = picture(&place);
     let whole = cut(
         drawn_width(&label, crate::widgets::native::TEXT, window, cx),
@@ -444,22 +444,27 @@ impl Downloads {
     /// The side panel's width as drawn, in points at 100%: the one being dragged, else the one
     /// kept.
     pub(crate) fn panel_width(&self) -> f32 {
-        SIDEBAR_WIDTH.held(self.panel_resizing.unwrap_or(self.drawn.sidebar_width))
+        SIDEBAR_WIDTH.held(
+            self.layout
+                .panel_resizing
+                .unwrap_or(self.known.drawn.sidebar_width),
+        )
     }
 
     /// The panel's edge dragged to `wide` points (at 100%): drawn at once, kept a few times a
     /// second meanwhile and when let go, as a column's edge is (`table.rs`).
     pub(crate) fn resize_panel(&mut self, wide: f32, cx: &mut Context<Self>) {
         let wide = SIDEBAR_WIDTH.held(wide);
-        if self.panel_resizing == Some(wide) {
+        if self.layout.panel_resizing == Some(wide) {
             return;
         }
-        self.panel_resizing = Some(wide);
+        self.layout.panel_resizing = Some(wide);
         let due = self
+            .layout
             .resize_kept
             .is_none_or(|at| at.elapsed() >= crate::window::table::RESIZE_KEPT_EVERY);
         if due {
-            self.resize_kept = Some(std::time::Instant::now());
+            self.layout.resize_kept = Some(std::time::Instant::now());
             self.keep_panel_width(wide);
         }
         cx.notify();
@@ -467,11 +472,11 @@ impl Downloads {
 
     /// The drag let go: its last width kept, and drawn from the settings again.
     pub(crate) fn finish_panel_resize(&mut self, cx: &mut Context<Self>) {
-        let Some(wide) = self.panel_resizing.take() else {
+        let Some(wide) = self.layout.panel_resizing.take() else {
             return;
         };
         self.keep_panel_width(wide);
-        self.resize_kept = None;
+        self.layout.resize_kept = None;
         self.read();
         cx.notify();
     }
@@ -483,7 +488,7 @@ impl Downloads {
 
     /// Whether the side panel's group under `heading` is shut (gaps row U42).
     pub(crate) fn group_shut(&self, heading: &str) -> bool {
-        !heading.is_empty() && self.drawn.shut_groups.iter().any(|g| g == heading)
+        !heading.is_empty() && self.known.drawn.shut_groups.iter().any(|g| g == heading)
     }
 
     /// The group under `heading` shut, or opened again, and kept for the next launch.

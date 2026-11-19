@@ -725,7 +725,7 @@ impl Downloads {
     /// Options open at `tab`; brought forward where it is open, at its tab as it stands.
     pub(crate) fn open_options_at(&mut self, tab: Tab, cx: &mut Context<Self>) {
         let open = cx.windows();
-        if let Some(options) = self.options_window.filter(|w| open.contains(w)) {
+        if let Some(options) = self.windows.options_window.filter(|w| open.contains(w)) {
             let _ = options.update(cx, |_, window, _| window.activate_window());
             return;
         }
@@ -735,7 +735,7 @@ impl Downloads {
         let me = view.clone();
         cx.defer(move |cx| {
             let handle = open_window(view, settings, queues, tab, cx);
-            let _ = me.update(cx, |me, _| me.options_window = handle);
+            let _ = me.update(cx, |me, _| me.windows.options_window = handle);
         });
     }
 
@@ -751,7 +751,7 @@ impl Downloads {
         let before = self.backend.settings();
         let (outcome, kept) = self
             .backend
-            .set_settings_from(wanted, self.scripted.by_script());
+            .set_settings_from(wanted, self.port.scripted.by_script());
         let said = if kept.command {
             Some(t("The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again"))
         } else if kept.schedule {
@@ -769,7 +769,7 @@ impl Downloads {
         let now = outcome?;
         dm_desktop_base::i18n::set(dm_desktop_base::i18n::chosen(&now.language));
         if before.site_searches != now.site_searches {
-            self.searches_checked = None;
+            self.threads.searches_checked = None;
         }
         if before.watch_clipboard != now.watch_clipboard {
             self.watch_clipboard(now.watch_clipboard);
@@ -780,11 +780,11 @@ impl Downloads {
         // Every window at the text size chosen, at once; the View menu's
         // percentage with it.
         if crate::window::zoom::set(now.text_size, cx) {
-            self.menu_ticks = None;
+            self.menus.menu_ticks = None;
         }
         if before.language != now.language {
             // The menus and every window in the language picked.
-            self.menu_ticks = None;
+            self.menus.menu_ticks = None;
             cx.refresh_windows();
         }
         if before.language != now.language || before.download_dir != now.download_dir {
@@ -798,7 +798,7 @@ impl Downloads {
         }
         // The names and places follow the settings (the download folder,
         // the categories): worked out again, not only where a row changed.
-        self.read_all = true;
+        self.known.read_all = true;
         self.read();
         // The menus' ticks too (the speed limit, the drop target).
         self.refresh_menus(cx);

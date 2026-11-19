@@ -171,7 +171,7 @@ fn keys_with_modifiers_reach_the_window_and_unknown_keys_are_refused() {
         .unwrap();
     assert_eq!(pressed["pressed"], "A");
     h.until("every row to be selected", |h| {
-        h.view(|view| view.selected.len() == 2)
+        h.view(|view| view.list.selected.len() == 2)
     });
 }
 
@@ -230,12 +230,12 @@ fn commands_are_listed_and_run_and_what_cannot_run_is_said() {
     h.close_dialogs();
 
     // Exit is not asked about over the port: dm quits.
-    assert!(!h.view(|view| view.quit_asked));
+    assert!(!h.view(|view| view.questions.quit_asked));
     let quit = h
         .call("command.run", json!({ "id": "program.exit" }))
         .unwrap();
     assert_eq!(quit["ran"], "program.exit");
-    h.until("dm to quit", |h| h.view(|view| view.quit_asked));
+    h.until("dm to quit", |h| h.view(|view| view.questions.quit_asked));
     assert!(h
         .call("nonsense", json!({}))
         .unwrap_err()
@@ -254,7 +254,7 @@ fn the_selection_and_the_place_shown_are_set_and_read_back() {
         .call("ui.select", json!({ "ids": [one, 424242, "x"] }))
         .unwrap();
     assert_eq!(picked, json!({ "selected": [one] }));
-    assert!(h.view(|view| view.selected.contains(&one)));
+    assert!(h.view(|view| view.list.selected.contains(&one)));
 
     for place in [
         "all",
@@ -267,7 +267,7 @@ fn the_selection_and_the_place_shown_are_set_and_read_back() {
         assert_eq!(said["place"], place);
     }
     assert!(h.view(|view| matches!(
-        view.place,
+        view.list.place,
         dm_shell::app::places::Place::Queue(ref q) if q == "Main queue"
     )));
     for (place, why) in [
@@ -288,7 +288,7 @@ fn the_selection_and_the_place_shown_are_set_and_read_back() {
     h.call("ui.place", json!({ "place": "custom:Mine" }))
         .unwrap();
     assert!(h.view(|view| matches!(
-        view.place,
+        view.list.place,
         dm_shell::app::places::Place::Custom(ref c) if c == "Mine"
     )));
 

@@ -27,7 +27,7 @@ impl Downloads {
         if !deleting_files && chosen.iter().all(|r| r.state == State::Completed) {
             let rows = self.backend.finished_rows(&ids);
             self.backend.remove_many(&ids);
-            let n = self.undo.keep(rows);
+            let n = self.status.undo.keep(rows);
             if n > 0 {
                 self.undo_expires(cx);
                 self.say(dm_desktop_base::i18n::tn(
@@ -103,7 +103,7 @@ impl Downloads {
     ) {
         // The row after those removed, or the one before where they were
         // the last, is chosen next, so the keys have somewhere to go on from.
-        let shown: Vec<dm_core::Id> = (0..self.shown.len())
+        let shown: Vec<dm_core::Id> = (0..self.list.shown.len())
             .filter_map(|p| self.id_at(p))
             .collect();
         let next = shown
@@ -134,9 +134,9 @@ impl Downloads {
             },
             move |this, failed, _| {
                 this.read();
-                this.selected = next.into_iter().collect();
-                this.anchor = next;
-                this.cursor = next;
+                this.list.selected = next.into_iter().collect();
+                this.list.anchor = next;
+                this.list.cursor = next;
                 if !failed.is_empty() {
                     this.say(dm_desktop_base::i18n::tf(
                         "Could not delete {}",
@@ -161,10 +161,10 @@ impl Downloads {
 
     /// Puts back the rows the last Remove took off, while Undo is on offer.
     pub fn undo_remove(&mut self) {
-        if let Some(ids) = self.undo.put_back(&self.backend) {
+        if let Some(ids) = self.status.undo.put_back(&self.backend) {
             let n = ids.len();
             self.read();
-            self.selected = ids.into_iter().collect();
+            self.list.selected = ids.into_iter().collect();
             self.say(dm_desktop_base::i18n::tn(
                 "Put back {} download.||Put back {} downloads.",
                 n as u64,

@@ -39,14 +39,18 @@ fn find_next_steps_through_the_rows_the_box_shows() {
     run(&mut h, Command::Find);
     h.type_text(&port);
     h.until("the box to narrow by address", |h| {
-        h.view(|view| view.filter_text.clone()) == port
+        h.view(|view| view.list.filter_text.clone()) == port
     });
-    assert_eq!(h.view(|view| view.shown.len()), 2, "the box shows both");
+    assert_eq!(
+        h.view(|view| view.list.shown.len()),
+        2,
+        "the box shows both"
+    );
     run(&mut h, Command::FindNext);
-    let first = h.view(|view| view.selected.clone());
+    let first = h.view(|view| view.list.selected.clone());
     assert_eq!(first.len(), 1, "Find next chose no row the box shows");
     run(&mut h, Command::FindNext);
-    let second = h.view(|view| view.selected.clone());
+    let second = h.view(|view| view.list.selected.clone());
     assert_eq!(second.len(), 1);
     assert_ne!(
         first, second,
@@ -54,14 +58,14 @@ fn find_next_steps_through_the_rows_the_box_shows() {
     );
     run(&mut h, Command::FindPrevious);
     assert_eq!(
-        h.view(|view| view.selected.clone()),
+        h.view(|view| view.list.selected.clone()),
         first,
         "Find previous did not go back"
     );
     // And by its key, from the search box's own field (B48).
     h.key("f3", &[]);
     assert_eq!(
-        h.view(|view| view.selected.clone()),
+        h.view(|view| view.list.selected.clone()),
         second,
         "F3 from the box did not go on"
     );

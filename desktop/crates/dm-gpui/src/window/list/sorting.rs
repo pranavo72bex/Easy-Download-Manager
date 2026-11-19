@@ -16,13 +16,13 @@ impl Downloads {
     /// back in the order the downloads were added; kept in the settings, so
     /// the list comes back sorted so after a restart.
     pub fn sort_by(&mut self, column: Column, cx: &mut Context<Self>) {
-        self.sort = dm_desktop_base::columns::next_sort(self.sort, column);
+        self.list.sort = dm_desktop_base::columns::next_sort(self.list.sort, column);
         self.reshow();
         // The window's look alone (`keep_look`): kept for the next start with the file written
         // off the window's thread. Applied as a whole change of the settings it cost each click
         // about 50 ms on the window's thread, a sort taking 0.069 s at 100 rows where 0.017 s
         // had (`ui-bench.py`, 2026-11-16).
-        let sort = self.sort;
+        let sort = self.list.sort;
         self.backend
             .keep_look(|settings| dm_desktop_base::columns::keep_sort(settings, sort));
         cx.notify();
@@ -30,7 +30,7 @@ impl Downloads {
 
     /// The side panel and toolbar kept as they are now shown, for the next launch.
     pub(super) fn keep_shown(&mut self, cx: &mut Context<Self>) {
-        let (sidebar, toolbar) = (self.show_sidebar, self.show_toolbar);
+        let (sidebar, toolbar) = (self.layout.show_sidebar, self.layout.show_toolbar);
         self.backend.keep_look(|settings| {
             settings.show_categories = sidebar;
             settings.show_toolbar = toolbar;

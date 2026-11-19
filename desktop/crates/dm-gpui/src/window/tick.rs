@@ -36,8 +36,8 @@ impl Downloads {
         // window drawn again in its colours (`theme.rs`), not only the one in
         // front when it next draws.
         let contrast = dm_desktop_base::contrast::system();
-        if contrast != self.contrast {
-            self.contrast = contrast;
+        if contrast != self.layout.contrast {
+            self.layout.contrast = contrast;
             cx.refresh_windows();
         }
         // `--new-download` and `--when-done`, left in the inbox by this
@@ -85,7 +85,7 @@ impl Downloads {
         self.follow_drop_target(cx);
         self.refresh_menus(cx);
         let problems = self.backend.problems();
-        self.problems.extend(
+        self.status.problems.extend(
             problems
                 .iter()
                 .map(|p| dm_desktop_base::format::worded_problem(p)),
@@ -98,7 +98,7 @@ impl Downloads {
     fn carry(&mut self, effect: Effect, cx: &mut Context<Self>) {
         if let Some(done) = effect.on_platform(&self.backend) {
             if let Err(why) = done {
-                self.problems.push(why);
+                self.status.problems.push(why);
             }
             return;
         }
@@ -143,10 +143,10 @@ impl Downloads {
             // alone, which a screen reader may not read (gaps row U23).
             Effect::Told { finished, failures } => {
                 if let Some(sentence) = crate::window::a11y::heard(&finished, &failures) {
-                    self.heard = Some((sentence, Instant::now()));
+                    self.status.heard = Some((sentence, Instant::now()));
                 }
             }
-            Effect::Problem(why) => self.problems.push(why),
+            Effect::Problem(why) => self.status.problems.push(why),
             Effect::Armed(wanted) => self.say(tf(
                 "The schedule has set what dm does when the downloads are done: {}.",
                 &[&t(wanted.verb())],
@@ -168,12 +168,12 @@ impl Downloads {
     fn hang_up(&mut self, hang_up: bool) {
         if hang_up && cfg!(windows) {
             if let Some(hung) =
-                dm_shell::dialup::hang_up_later(std::sync::Arc::clone(&self.hung_up))
+                dm_shell::dialup::hang_up_later(std::sync::Arc::clone(&self.threads.hung_up))
             {
                 self.say_hung_up(hung);
             }
         }
-        let hung = dm_core::lock(&self.hung_up).take();
+        let hung = dm_core::lock(&self.threads.hung_up).take();
         if let Some(hung) = hung {
             self.say_hung_up(hung);
         }
@@ -184,7 +184,7 @@ impl Downloads {
     fn say_hung_up(&mut self, hung: dm_shell::dialup::HungUp) {
         match hung_up_words(hung) {
             Some(Ok(sentence)) => self.say(sentence),
-            Some(Err(problem)) => self.problems.push(problem),
+            Some(Err(problem)) => self.status.problems.push(problem),
             None => {}
         }
     }
@@ -194,7 +194,7 @@ impl Downloads {
     pub(crate) fn big_download_hint(&mut self) {
         use dm_shell::app::hints::Hint;
         let settings = self.backend.settings();
-        if !Hint::BigDownload.due(&settings, &self.rows, self.said.is_none()) {
+        if !Hint::BigDownload.due(&settings, &self.rows, self.status.said.is_none()) {
             return;
         }
         self.say(t("This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.").into());
@@ -211,7 +211,7 @@ impl Downloads {
     pub(crate) fn details_hint(&mut self) {
         use dm_shell::app::hints::Hint;
         let settings = self.backend.settings();
-        if !Hint::Details.due(&settings, &self.rows, self.said.is_none()) {
+        if !Hint::Details.due(&settings, &self.rows, self.status.said.is_none()) {
             return;
         }
         self.say(t("Hover a download and press Details to watch its progress.").into());
@@ -227,7 +227,7 @@ impl Downloads {
     /// address already listed, or added straight in.
     fn take_handed(&mut self, cx: &mut Context<Self>) {
         use dm_shell::app::handoff::{Asking, Route};
-        let asking = if self.handed_open {
+        let asking = if self.questions.handed_open {
             Asking::Busy
         } else {
             Asking::Free
@@ -242,7 +242,7 @@ impl Downloads {
             Route::Nothing | Route::Again => {}
             Route::FreshLink { id, url } => self.take_fresh_link(id, url, cx),
             Route::AskLinks(request) => {
-                self.handed_open = true;
+                self.questions.handed_open = true;
                 crate::dialogs::links::open(me, request, cx);
             }
             Route::AddLinks(items) => {
@@ -263,7 +263,7 @@ impl Downloads {
             }
             Route::Added(Err(e)) => self.say(e),
             Route::Ask(request) => {
-                self.handed_open = true;
+                self.questions.handed_open = true;
                 crate::dialogs::details::open_handed(me, request, cx);
             }
         }
@@ -305,7 +305,7 @@ impl Downloads {
                 // In the list of problems as well as the status line:
                 // whoever set it is likely away, and a status line is
                 // overwritten.
-                self.problems.push(e.clone());
+                self.status.problems.push(e.clone());
                 self.say(e);
             }
             _ => {}
@@ -322,7 +322,7 @@ impl Downloads {
             return;
         };
         for id in &done.gone {
-            self.selected.remove(id);
+            self.list.selected.remove(id);
         }
         if !done.failed.is_empty() {
             self.say(tf("Could not delete {}", &[&done.failed.join("; ")]));

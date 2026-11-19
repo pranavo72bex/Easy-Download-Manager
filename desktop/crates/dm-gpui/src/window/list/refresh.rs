@@ -21,12 +21,12 @@ impl Downloads {
     /// without saying so: compared before and after it (`needs_drawing`).
     pub(super) fn shown_beside(&self) -> (usize, Option<Instant>, usize, bool, bool, usize) {
         (
-            self.problems.len(),
-            self.said.as_ref().map(|(_, at)| *at),
-            self.sheets.len(),
-            self.menu.is_some(),
-            self.hidden,
-            self.selected.len(),
+            self.status.problems.len(),
+            self.status.said.as_ref().map(|(_, at)| *at),
+            self.questions.sheets.len(),
+            self.menus.menu.is_some(),
+            self.system.hidden,
+            self.list.selected.len(),
         )
     }
 
@@ -37,10 +37,11 @@ impl Downloads {
         self.session.countdown.is_some()
             || dm_desktop_base::rows::retrying_any()
             || self
+                .status
                 .said
                 .as_ref()
                 .is_some_and(|(_, at)| at.elapsed() < crate::window::statusbar::SAID_FOR + IDLE)
-            || self.timed_rows > 0
+            || self.known.timed_rows > 0
     }
 
     /// One read of the application into the window's rows (`Downloads::read`); whether
@@ -62,7 +63,7 @@ impl Downloads {
         // What it detected and the problems it met are the tick's.
         let mut changed = queue_changed || !read.problems.is_empty();
         self.session.note_read(read.detected);
-        self.problems.extend(read.problems);
+        self.status.problems.extend(read.problems);
         // What the read told beside the rows, which a row's words are said
         // from (ranges tried again, swarms, files taken by a later row, the
         // download limit).
@@ -72,8 +73,8 @@ impl Downloads {
         dm_desktop_base::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
         // The window's rows are the last read's, in its order, as the queue's rows are compared
         // with: a size told by a dialog (rare) or a read of everything takes every row.
-        let follows = !self.read_all
-            && self.sizes_told.is_empty()
+        let follows = !self.known.read_all
+            && self.known.sizes_told.is_empty()
             && read.snapshot.rows.len() == self.rows.len();
         let taken = match read.changes.at() {
             Some(at) if follows => self.take_changed(&read.snapshot.rows, at),
@@ -87,44 +88,51 @@ impl Downloads {
         // those of the rows that changed.
         self.keep_whens(&settings.language, moved, taken.finished_at);
         if moved {
-            self.named_at = Some(Instant::now());
+            self.known.named_at = Some(Instant::now());
             // The queues the rows name, for Start Queue's and Stop Queue's
             // arrows, the menu bar and the side panel: worked out from the
             // rows where they changed, not asked of the engine at each read
             // and each tick, a pass over every row under the queue's lock
             // each time (gaps row 181).
-            self.queue_list = dm_core::queue_names(self.rows.iter().map(|r| &**r));
+            self.known.queue_list = dm_core::queue_names(self.rows.iter().map(|r| &**r));
             // Each row by the name its file will get: a waiting second
             // copy reads "name (1)".
-            self.earlier = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
+            self.known.earlier = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
             let every: Vec<usize> = (0..self.rows.len()).collect();
-            self.shown_names.clear();
+            self.known.shown_names.clear();
             self.name_rows(&every, &settings);
             dm_desktop_base::rows::set_superseded(&self.rows);
             // A row taken off the list is no longer chosen.
             let ids: std::collections::HashSet<dm_core::Id> =
                 self.rows.iter().map(|r| r.id).collect();
-            self.selected.retain(|id| ids.contains(id));
-            self.places.place_rows(&self.rows, &settings.categories());
-        } else if changed && self.named_at.is_none_or(|at| at.elapsed() >= NAMES_EVERY) {
+            self.list.selected.retain(|id| ids.contains(id));
+            self.list
+                .places
+                .place_rows(&self.rows, &settings.categories());
+        } else if changed
+            && self
+                .known
+                .named_at
+                .is_none_or(|at| at.elapsed() >= NAMES_EVERY)
+        {
             // A waiting row's name follows its folder (a file of its name
             // arriving there makes it "name (1)"), so while anything changes
             // the rows on screen and those chosen are named again every two
             // seconds; the rest are named again when the list itself changes.
             // Every row named again every two seconds was, at 10,000 waiting
             // rows, 5,000 looks at the disk a second (gaps row 181).
-            self.named_at = Some(Instant::now());
+            self.known.named_at = Some(Instant::now());
             let seen = self.rows_seen();
             self.name_rows(&seen, &settings);
         }
         // The frame this read is for is drawn with these settings, not a
         // second copy of them.
-        self.drawn = std::rc::Rc::new(settings);
-        self.drawn_fresh = true;
+        self.known.drawn = std::rc::Rc::new(settings);
+        self.known.drawn_fresh = true;
         // Sorted again where a figure it sorts by may have moved: where a
         // row that changed compares otherwise than it did under the sort
         // (the sort is of the rows alone, its ties kept in the rows' order).
-        if moved || (changed && self.sort.is_some() && taken.sort_moved) {
+        if moved || (changed && self.list.sort.is_some() && taken.sort_moved) {
             self.reshow();
         }
         changed
@@ -135,16 +143,16 @@ impl Downloads {
     fn take_every(&mut self, mut rows: Vec<Arc<Entry>>) -> Taken {
         let mut taken = Taken::default();
         // A finished row's size is its file's, read once from the disk.
-        self.saved.apply(&mut rows);
+        self.known.saved.apply(&mut rows);
         // A size told by a dialog stands only until the row has its own.
-        if !self.sizes_told.is_empty() {
-            self.sizes_told.retain(|id, _| {
+        if !self.known.sizes_told.is_empty() {
+            self.known.sizes_told.retain(|id, _| {
                 rows.iter().any(|r| {
                     r.id == *id && r.progress.total.is_none() && r.progress.downloaded == 0
                 })
             });
             for row in &mut rows {
-                if let Some(size) = self.sizes_told.get(&row.id) {
+                if let Some(size) = self.known.sizes_told.get(&row.id) {
                     Arc::make_mut(row).progress.total = Some(*size);
                 }
             }
@@ -154,7 +162,7 @@ impl Downloads {
                 .iter()
                 .zip(&self.rows)
                 .all(|(new, old)| new.id == old.id);
-        taken.moved = !same_rows || std::mem::take(&mut self.read_all);
+        taken.moved = !same_rows || std::mem::take(&mut self.known.read_all);
         if same_rows {
             for (new, old) in rows.iter().zip(&self.rows) {
                 if Arc::ptr_eq(new, old) {
@@ -170,7 +178,7 @@ impl Downloads {
         }
         // Sorted again at any change, as every row was looked at.
         taken.sort_moved = true;
-        self.timed_rows = rows.iter().filter(|r| timed(r)).count();
+        self.known.timed_rows = rows.iter().filter(|r| timed(r)).count();
         self.rows = rows;
         taken
     }
@@ -188,7 +196,7 @@ impl Downloads {
             })
             .collect();
         // A row whose file was missing, unchanged in the queue: it was shown as the queue's.
-        for i in self.saved.apply_at(&mut self.rows, at) {
+        for i in self.known.saved.apply_at(&mut self.rows, at) {
             if let Some(row) = queue.get(i) {
                 olds.push((i, Arc::clone(row)));
             }
@@ -201,10 +209,10 @@ impl Downloads {
             taken.changed = true;
             taken.finished_at.extend(new.finished_at);
             taken.moved |= !placed_alike(&old, new);
-            taken.sort_moved |= self.sort.is_some_and(|(column, _)| {
+            taken.sort_moved |= self.list.sort.is_some_and(|(column, _)| {
                 dm_desktop_base::columns::compare(column, &old, new) != std::cmp::Ordering::Equal
             });
-            self.timed_rows = (self.timed_rows + usize::from(timed(new)))
+            self.known.timed_rows = (self.known.timed_rows + usize::from(timed(new)))
                 .saturating_sub(usize::from(timed(&old)));
         }
         taken
@@ -216,11 +224,12 @@ impl Downloads {
     /// placed again) or the day, zone or `language` changed; otherwise those
     /// of the rows that changed, `finished_at`.
     pub(super) fn keep_whens(&mut self, language: &str, all: bool, finished_at: Vec<u64>) {
-        if self.whens.renew(language) || all {
-            self.whens
+        if self.known.whens.renew(language) || all {
+            self.known
+                .whens
                 .keep(self.rows.iter().filter_map(|row| row.finished_at));
         } else {
-            self.whens.keep(finished_at);
+            self.known.whens.keep(finished_at);
         }
     }
 
@@ -230,16 +239,18 @@ impl Downloads {
     /// the commands that need its file, read what was found
     /// (`rows::gone`), not the disk as each frame is drawn (gaps row 180).
     pub(crate) fn look_for_files(&mut self, cx: &mut Context<Self>) {
-        if self.looking_for_files
+        if self.known.looking_for_files
             || self
+                .known
                 .files_looked
                 .is_some_and(|at| at.elapsed() < LOOK_EVERY)
         {
             return;
         }
         let on_screen = self
+            .list
             .shown
-            .get(self.visible.clone())
+            .get(self.list.visible.clone())
             .unwrap_or_default()
             .iter()
             .filter_map(|&r| self.rows.get(r))
@@ -249,16 +260,16 @@ impl Downloads {
             .filter(|r| !r.path.is_empty())
             .map(|r| (r.id, r.path.clone()))
             .collect();
-        self.files_looked = Some(Instant::now());
+        self.known.files_looked = Some(Instant::now());
         if files.is_empty() {
             return;
         }
-        self.looking_for_files = true;
+        self.known.looking_for_files = true;
         let found = cx.background_spawn(async move { dm_desktop_base::rows::look_for(files) });
         cx.spawn(async move |this, cx| {
             let found = found.await;
             let _ = this.update(cx, |this, cx| {
-                this.looking_for_files = false;
+                this.known.looking_for_files = false;
                 if dm_desktop_base::rows::set_looked(found) {
                     cx.notify();
                 }
@@ -281,24 +292,26 @@ impl Downloads {
                 row,
                 &settings.download_dir,
                 &mut categories,
-                Some(self.earlier.get(&row.id).copied().unwrap_or(0)),
+                Some(self.known.earlier.get(&row.id).copied().unwrap_or(0)),
             );
-            self.shown_names.insert(row.id, name);
+            self.known.shown_names.insert(row.id, name);
         }
     }
 
     /// Where in `rows` the rows on screen and those chosen are.
     pub(super) fn rows_seen(&self) -> Vec<usize> {
         let mut seen: Vec<usize> = self
+            .list
             .shown
-            .get(self.visible.clone())
+            .get(self.list.visible.clone())
             .unwrap_or_default()
             .to_vec();
         seen.extend(
-            self.selected
+            self.list
+                .selected
                 .iter()
-                .filter_map(|id| self.positions.get(id))
-                .filter_map(|&at| self.shown.get(at).copied()),
+                .filter_map(|id| self.list.positions.get(id))
+                .filter_map(|&at| self.list.shown.get(at).copied()),
         );
         seen.sort_unstable();
         seen.dedup();
@@ -310,14 +323,19 @@ impl Downloads {
     pub(super) fn reshow(&mut self) {
         // The row at the top of the view, held there below.
         let top = self.top_row();
-        let categories = self.drawn.categories();
+        let categories = self.known.drawn.categories();
         let mut shown: Vec<usize> = (0..self.rows.len())
             .filter(|&i| {
-                self.places.within(&self.place, &self.rows[i], &categories)
-                    && self.places.matches_filter(&self.filter_text, &self.rows[i])
+                self.list
+                    .places
+                    .within(&self.list.place, &self.rows[i], &categories)
+                    && self
+                        .list
+                        .places
+                        .matches_filter(&self.list.filter_text, &self.rows[i])
             })
             .collect();
-        if let Some((column, up)) = self.sort {
+        if let Some((column, up)) = self.list.sort {
             let rows = &self.rows;
             shown.sort_by(|&a, &b| {
                 let order = dm_desktop_base::columns::compare(column, &rows[a], &rows[b]);
@@ -328,20 +346,20 @@ impl Downloads {
                 }
             });
         }
-        self.positions = shown
+        self.list.positions = shown
             .iter()
             .enumerate()
             .filter_map(|(at, &r)| self.rows.get(r).map(|row| (row.id, at)))
             .collect();
-        self.shown = shown;
+        self.list.shown = shown;
         // Rows added or taken away above the view, or a sort, no longer
         // move what is in it: the row that was at its top stays there
         // (gaps row 182).
         if let Some((id, was, height, offset)) = top {
-            if let Some(&now) = self.positions.get(&id) {
+            if let Some(&now) = self.list.positions.get(&id) {
                 let held = holding_top(offset, height, was, now);
                 if held != offset {
-                    let state = self.scroll.0.borrow();
+                    let state = self.list.scroll.0.borrow();
                     let x = state.base_handle.offset().x;
                     state.base_handle.set_offset(gpui::point(x, gpui::px(held)));
                 }
@@ -352,12 +370,12 @@ impl Downloads {
     /// The list laid out `range` on screen: its files are looked for at
     /// once where it moved.
     pub(crate) fn laid_out(&mut self, range: std::ops::Range<usize>, cx: &mut Context<Self>) {
-        if self.visible != range {
-            self.visible = range;
-            self.files_looked = None;
+        if self.list.visible != range {
+            self.list.visible = range;
+            self.known.files_looked = None;
             self.look_for_files(cx);
             // The rows come into sight named at the next read (`read`).
-            self.named_at = None;
+            self.known.named_at = None;
         }
     }
 
@@ -365,7 +383,7 @@ impl Downloads {
     /// rows' height and how far the list is scrolled (both in points); none
     /// before the list is first laid out.
     pub(super) fn top_row(&self) -> Option<(dm_core::Id, usize, f32, f32)> {
-        let state = self.scroll.0.borrow();
+        let state = self.list.scroll.0.borrow();
         // Not laid out yet: nothing on screen to hold.
         state.last_item_size?;
         let height = f32::from(crate::window::zoom::px(ROW_HEIGHT));

@@ -288,13 +288,15 @@ impl Downloads {
         let (asked, heard) = async_channel::unbounded::<Asked>();
         match Tray::new(asked) {
             Ok(tray) => {
-                self.tray = Some(tray);
+                self.system.tray = Some(tray);
                 // Registered again with a panel that starts after dm, or
                 // restarts (Linux).
                 dm_desktop_base::tray::keep_registered();
             }
             Err(e) => {
-                self.problems.push(dm_desktop_base::tray::unavailable(&e));
+                self.status
+                    .problems
+                    .push(dm_desktop_base::tray::unavailable(&e));
                 return;
             }
         }
@@ -335,7 +337,7 @@ impl Downloads {
         let speed_limit = self.backend.settings().speed_limit;
         let tip = dm_desktop_base::tray::activity(&self.rows)
             .unwrap_or_else(|| dm_desktop_base::tray::words()[4].to_string());
-        if let Some(tray) = self.tray.as_mut() {
+        if let Some(tray) = self.system.tray.as_mut() {
             tray.follow(tip, speed_limit);
         }
     }
@@ -344,7 +346,7 @@ impl Downloads {
     /// Options › General says ("When I close the window"). True where the
     /// window may close, as it does where there is no tray to keep dm in.
     pub(crate) fn close_asked(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        if self.tray.is_none()
+        if self.system.tray.is_none()
             || crate::platform::syswindow::nowhere_to_hide(window)
             || !dm_desktop_base::tray::host_showing()
         {
@@ -404,7 +406,7 @@ impl Downloads {
     /// after the update that asked.
     fn hide_main(&mut self, cx: &mut Context<Self>) {
         let main = self.main_window();
-        self.hidden = true;
+        self.system.hidden = true;
         cx.defer(move |cx| {
             let _ = main.update(cx, |_, window, _| hide(window));
         });
@@ -414,13 +416,13 @@ impl Downloads {
     /// it was.
     pub(crate) fn hide_window(&mut self, window: &mut Window) {
         hide(window);
-        self.hidden = true;
+        self.system.hidden = true;
     }
 
     /// The window back from the tray, in front.
     pub(crate) fn show_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         crate::platform::syswindow::show(window);
-        self.hidden = false;
+        self.system.hidden = false;
         window.activate_window();
         cx.activate(true);
     }

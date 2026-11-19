@@ -640,7 +640,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
         }
     });
     h.until("the list emptied", |h| h.rows().is_empty());
-    h.view(|v| v.said = None);
+    h.view(|v| v.status.said = None);
     h.click("Run");
     h.until("the search to come back again", |h| {
         h.shows_part("found nothing new")
@@ -710,7 +710,7 @@ fn an_address_already_in_the_list_is_asked_about_before_it_is_added_again() {
     h.click("Resume it");
     h.until("the question to go", |h| !h.shows("Already in the list"));
     assert!(
-        h.view(|v| v.selected.contains(&id)),
+        h.view(|v| v.list.selected.contains(&id)),
         "the row was not shown"
     );
     assert_eq!(h.rows().len(), 1);
@@ -1227,10 +1227,10 @@ fn the_window_behind_a_dialog_takes_no_clicks() {
     )
     .unwrap();
     assert!(!h.dialog_open("Add URL"), "Add URL opened behind Options");
-    let before = h.view(|v| v.place.clone());
+    let before = h.view(|v| v.list.place.clone());
     h.click("Finished");
     assert_eq!(
-        h.view(|v| v.place.clone()),
+        h.view(|v| v.list.place.clone()),
         before,
         "a place was picked behind Options"
     );
@@ -1537,7 +1537,9 @@ fn the_close_question_is_asked_once_and_the_answer_is_kept() {
     h.act(|view, cx| view.ask_close(cx));
     h.until_shown(question);
     h.click("Keep running");
-    h.until("the window sent to the tray", |h| h.view(|v| v.hidden));
+    h.until("the window sent to the tray", |h| {
+        h.view(|v| v.system.hidden)
+    });
     assert!(!h.shows(question));
     assert_eq!(h.view(|v| v.backend.settings().on_close), "tray");
 

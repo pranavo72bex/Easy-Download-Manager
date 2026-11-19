@@ -174,6 +174,7 @@ impl Downloads {
             return;
         }
         let at = self
+            .menus
             .menu_at
             .and_then(|now| usable.iter().position(|&i| i == now));
         let next = match at {
@@ -181,13 +182,18 @@ impl Downloads {
             None if by < 0 => usable.len() - 1,
             None => 0,
         };
-        self.menu_at = usable.get(next).copied();
+        self.menus.menu_at = usable.get(next).copied();
     }
 
     /// Return in the open row menu: the entry the keyboard is on, carried out.
     pub fn confirm_menu(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
         let all = entries(self);
-        if let Some(entry) = self.menu_at.and_then(|i| all.get(i)).filter(|e| e.enabled) {
+        if let Some(entry) = self
+            .menus
+            .menu_at
+            .and_then(|i| all.get(i))
+            .filter(|e| e.enabled)
+        {
             let act = entry.act;
             self.act_from_menu(act, window, cx);
         }
@@ -227,7 +233,7 @@ pub fn menu(
             Act::Run(command) => command.id().into(),
             Act::DeleteAfter(seconds) => ("delete-after", seconds.unwrap_or(0)).into(),
         };
-        let keyed = view.menu_at == Some(i);
+        let keyed = view.menus.menu_at == Some(i);
         let act = entry.act;
         items.push(
             item(id, entry.words, entry.enabled, keyed, theme)

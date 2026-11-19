@@ -14,7 +14,7 @@ use crate::harness::{settings_file, Harness};
 
 /// The problems said above the list.
 fn problems(h: &mut Harness) -> Vec<String> {
-    h.view(|view| view.problems.clone())
+    h.view(|view| view.status.problems.clone())
 }
 
 /// `paths` dropped on the list, as the system hands a drop to the window.
@@ -218,15 +218,17 @@ fn sorted_by_status_the_rows_go_in_the_order_of_their_state() {
     h.click("Status");
     h.until("the sort by status", |h| {
         h.view(|view| {
-            view.sort
+            view.list
+                .sort
                 .is_some_and(|(c, _)| c == dm_desktop_base::columns::Column::Status)
         })
     });
     let order: Vec<&'static str> = h.view(|view| {
-        if view.sort.is_some_and(|(_, ascending)| !ascending) {
-            view.shown.reverse();
+        if view.list.sort.is_some_and(|(_, ascending)| !ascending) {
+            view.list.shown.reverse();
         }
-        view.shown
+        view.list
+            .shown
             .iter()
             .map(|&i| dm_desktop_base::rows::kind(&view.rows[i].state))
             .collect()
@@ -311,10 +313,10 @@ fn the_floating_drop_target_takes_what_is_dropped_on_it() {
     h.click("View");
     h.click("Drop target");
     h.until("the drop target", |h| {
-        h.view(|view| view.drop_window)
+        h.view(|view| view.windows.drop_window)
             .is_some_and(|w| h.cx.update(|cx| cx.windows().contains(&w)))
     });
-    let target = h.view(|view| view.drop_window).unwrap();
+    let target = h.view(|view| view.windows.drop_window).unwrap();
     let at = gpui::point(gpui::px(20.0), gpui::px(20.0));
     let links = world.dir.path().join("more.txt");
     std::fs::write(&links, format!("{}\n", world.url("other.pdf"))).unwrap();

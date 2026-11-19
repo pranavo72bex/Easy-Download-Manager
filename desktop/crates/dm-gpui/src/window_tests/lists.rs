@@ -40,7 +40,8 @@ fn add_later(h: &mut Harness, world: &World, name: &str) {
 /// The names of the rows the list shows, in its order.
 fn shown(h: &mut Harness) -> Vec<String> {
     h.view(|view| {
-        view.shown
+        view.list
+            .shown
             .iter()
             .filter_map(|&i| view.rows.get(i))
             .map(|r| dm_shell::app::names::name_of(r))
@@ -172,9 +173,12 @@ fn when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen() {
                 .is_some_and(|(action, _)| action == WhenDone::Quit)
         })
     });
-    assert!(!h.view(|view| view.quit_asked), "quit before its countdown");
+    assert!(
+        !h.view(|view| view.questions.quit_asked),
+        "quit before its countdown"
+    );
     h.view(|view| view.session.countdown = Some((WhenDone::Quit, Instant::now())));
-    h.until("dm to quit", |h| h.view(|view| view.quit_asked));
+    h.until("dm to quit", |h| h.view(|view| view.questions.quit_asked));
 }
 
 /// A row not saved yet shows the name chosen for it, not its address's.
@@ -265,18 +269,20 @@ fn the_category_tree_filters_the_one_list() {
     // Unfinished is every download not finished: the stalled one and the one that failed
     // (gaps row U1).
     h.click("Finished");
-    h.until("Finished", |h| h.view(|view| view.place == Place::Finished));
+    h.until("Finished", |h| {
+        h.view(|view| view.list.place == Place::Finished)
+    });
     assert_eq!(sorted(&mut h), ["file.zip"]);
     h.click("Unfinished");
     h.until("Unfinished", |h| {
-        h.view(|view| view.place == Place::Unfinished)
+        h.view(|view| view.list.place == Place::Unfinished)
     });
     assert_eq!(sorted(&mut h), ["secret.zip", "stalled.bin"]);
     // Both archives, the failed one too, known by its name though the server never said what
     // it was.
     h.click("Archives");
     h.until("Archives", |h| {
-        h.view(|view| view.place == Place::Kind(dm_core::Category::Archives))
+        h.view(|view| view.list.place == Place::Kind(dm_core::Category::Archives))
     });
     assert_eq!(sorted(&mut h), ["file.zip", "secret.zip"]);
 }
@@ -293,12 +299,12 @@ fn clicking_a_heading_sorts_and_clicking_again_reverses() {
     h.until("three rows", |h| h.rows().len() == 3);
     h.click("File Name");
     h.until("the sort", |h| {
-        h.view(|view| view.sort) == Some((Column::Name, true))
+        h.view(|view| view.list.sort) == Some((Column::Name, true))
     });
     assert_eq!(shown(&mut h), ["a.bin", "b.bin", "c.bin"]);
     h.click("File Name");
     h.until("the sort reversed", |h| {
-        h.view(|view| view.sort) == Some((Column::Name, false))
+        h.view(|view| view.list.sort) == Some((Column::Name, false))
     });
     assert_eq!(shown(&mut h), ["c.bin", "b.bin", "a.bin"]);
 }
@@ -508,7 +514,7 @@ fn the_status_bars_folder_never_covers_what_it_says() {
     settings.download_dir = deep;
     let mut h = world.harness_with(settings);
     h.view(|view| {
-        view.said = Some((
+        view.status.said = Some((
             "Something long was said here, long enough to fill much of the status bar.".into(),
             Instant::now(),
         ))
@@ -706,8 +712,8 @@ fn a_finished_rows_size_is_its_files() {
     // read, as a read of everything does (a read otherwise takes only the rows that changed,
     // gaps row 181).
     h.view(|view| {
-        view.saved = Default::default();
-        view.read_all = true;
+        view.known.saved = Default::default();
+        view.known.read_all = true;
     });
     h.until("the file's own size", |h| {
         h.rows()[0].progress.total == Some(1000)
@@ -727,7 +733,7 @@ fn queued_rows_are_sorted_into_their_kind_by_name() {
     assert!(h.rows().iter().all(|r| r.category.is_none()), "the premise");
     h.click("Videos");
     h.until("Videos", |h| {
-        h.view(|view| view.place == Place::Kind(dm_core::Category::Videos))
+        h.view(|view| view.list.place == Place::Kind(dm_core::Category::Videos))
     });
     assert_eq!(shown(&mut h), ["clip.mp4"]);
 }
@@ -764,7 +770,7 @@ fn a_row_of_no_known_kind_is_under_other() {
     h.until("the row", |h| h.rows().len() == 1);
     h.click("Other");
     h.until("Other", |h| {
-        h.view(|view| view.place == Place::Kind(dm_core::Category::Other))
+        h.view(|view| view.list.place == Place::Kind(dm_core::Category::Other))
     });
     assert_eq!(
         shown(&mut h),
@@ -880,6 +886,7 @@ fn the_rows_a_command_acts_on_are_the_selected_ones_in_table_order() {
                 h.update(|view, cx| view.sort_by(column, cx));
                 let (expected, got) = h.view(|view| {
                     let expected: Vec<_> = view
+                        .list
                         .shown
                         .iter()
                         .filter_map(|&i| view.rows.get(i))

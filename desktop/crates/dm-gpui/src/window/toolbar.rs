@@ -48,7 +48,7 @@ pub fn toolbar(
     _window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let settings = &view.drawn;
+    let settings = &view.known.drawn;
     let buttons = dm_shell::app::commands::toolbar_shown(settings);
     // View › Customize toolbar: a picture with its word, the picture alone
     // (its word on hover), or the word alone.
@@ -89,7 +89,7 @@ pub fn toolbar(
             // lists the queues; the one chosen is started or stopped,
             // whatever the list shows (B64).
             let queues = matches!(command, Command::StartQueue | Command::StopQueue)
-                .then(|| view.queue_list.clone());
+                .then(|| view.known.queue_list.clone());
             let arrow = queues.map(|queues| {
                 div()
                     .id((command.id(), 1usize))

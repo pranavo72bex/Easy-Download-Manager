@@ -101,7 +101,7 @@ impl Downloads {
             let _ = view.update(cx, |view, cx| {
                 view.backend.cancel(id);
                 view.close_progress(id, cx);
-                view.progress_closed.insert(id);
+                view.windows.progress_closed.insert(id);
                 view.read();
                 cx.notify();
             });
@@ -111,7 +111,7 @@ impl Downloads {
 
     /// A browser's hand-off has been answered: the next may be asked.
     pub fn handed_closed(&mut self) {
-        self.handed_open = false;
+        self.questions.handed_open = false;
     }
 
     /// Where Add URL's OK sends the address (`add_url::decide`), and the
@@ -217,8 +217,8 @@ impl Downloads {
         use dm_shell::app::rules::GoOn;
         match dm_desktop_base::add_url::carry(&self.rows, address, id, how) {
             Carried::Show { id, go_on } => {
-                self.selected.clear();
-                self.selected.insert(id);
+                self.list.selected.clear();
+                self.list.selected.insert(id);
                 match go_on {
                     Some(GoOn::Retry) => self.backend.retry(id),
                     Some(GoOn::Resume) => self.backend.resume(id),
@@ -242,9 +242,10 @@ impl Downloads {
     /// the names chosen for rows that have now finished, and asks the next
     /// question when none is being asked.
     pub(super) fn watch_asks(&mut self, cx: &mut Context<Self>) {
-        self.asks.watch(&self.rows);
+        self.questions.asks.watch(&self.rows);
         let rows = &self.rows;
         let due = self
+            .questions
             .renames
             .due(|id| rows.iter().find(|r| r.id == id).map(|r| r.state.clone()));
         for (id, name) in due {
@@ -258,11 +259,15 @@ impl Downloads {
     pub(super) fn promote_asks(&mut self, cx: &mut Context<Self>) {
         use dm_desktop_base::asks;
         use dm_shell::app::questions::Question;
-        if self.asking {
+        if self.questions.asking {
             return;
         }
         let rows = &self.rows;
-        let Some(question) = self.asks.next(|id| rows.iter().any(|r| r.id == id)) else {
+        let Some(question) = self
+            .questions
+            .asks
+            .next(|id| rows.iter().any(|r| r.id == id))
+        else {
             return;
         };
         let ask = match &question {
@@ -289,7 +294,7 @@ impl Downloads {
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
             let _ = view.update(cx, |view, cx| {
-                view.asking = false;
+                view.questions.asking = false;
                 // "The file doesn't exist"'s second button: a fresh link for its row (gaps row U10).
                 if let (Question::NotFound(id), 1) = (&question, button) {
                     view.run_on(*id, dm_shell::app::commands::Command::UpdateLink, cx);
@@ -301,7 +306,7 @@ impl Downloads {
             });
         });
         self.sheet(asked, None, None, answer, cx);
-        self.asking = true;
+        self.questions.asking = true;
     }
 
     /// Carries out the answer to a question a download raised: `yes` the
@@ -319,7 +324,11 @@ impl Downloads {
                     .iter()
                     .find(|r| r.id == id)
                     .map(|r| r.state.clone());
-                if let Some(now) = self.renames.ask(id, state.as_ref(), &address_name) {
+                if let Some(now) = self
+                    .questions
+                    .renames
+                    .ask(id, state.as_ref(), &address_name)
+                {
                     let _ = self.backend.rename(id, &now);
                 }
             }
@@ -339,14 +348,14 @@ impl Downloads {
             self.quit(cx);
             return;
         }
-        if self.exit_asked {
+        if self.questions.exit_asked {
             return;
         }
-        self.exit_asked = true;
+        self.questions.exit_asked = true;
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
             let _ = view.update(cx, |view, cx| {
-                view.exit_asked = false;
+                view.questions.exit_asked = false;
                 if button == EXIT {
                     view.quit(cx);
                 } else {
@@ -387,7 +396,7 @@ impl Downloads {
         self.wind_down();
         // The questions it closes are not answered, and none waiting is asked.
         crate::dialogs::question::quitting();
-        self.sheets.clear();
+        self.questions.sheets.clear();
         #[cfg(target_os = "macos")]
         crate::platform::sheets::end_all_now();
         for (handle, _, dialog) in crate::window::screen::Screens::all(cx) {
@@ -403,7 +412,7 @@ impl Downloads {
                 });
             }
         }
-        self.quit_asked = true;
+        self.questions.quit_asked = true;
         cx.quit();
     }
 
@@ -425,7 +434,11 @@ impl Downloads {
         dm_desktop_base::control::closing();
         dm_desktop_base::control::forget_port(&dm_shell::settings::home());
         // Where and as large as the window was, for the next start.
-        crate::window::frame::keep(&dm_shell::settings::home(), self.frame, self.display);
+        crate::window::frame::keep(
+            &dm_shell::settings::home(),
+            self.windows.frame,
+            self.windows.display,
+        );
     }
 
     /// Asks `asked` as a sheet on the main window, after any question
@@ -442,29 +455,31 @@ impl Downloads {
         cx: &mut Context<Self>,
     ) {
         // Asked over the window: one put away in the tray comes back for it.
-        if self.hidden {
+        if self.system.hidden {
             self.show_main(cx);
         }
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, ticked, cx| {
             answer(button, ticked, cx);
             let _ = view.update(cx, |view, cx| {
-                view.sheet_open = false;
-                view.question_window = None;
+                view.questions.sheet_open = false;
+                view.questions.question_window = None;
                 view.show_sheets(cx);
                 // The hold over the window goes with the question.
                 cx.notify();
             });
         });
-        self.sheets.push_back((asked, reword, live, answer));
+        self.questions
+            .sheets
+            .push_back((asked, reword, live, answer));
         // Asked from another of dm's windows (a progress window's Cancel download): the main
         // window, which a question waits for on macOS and Windows, is brought in front, and its
         // coming in front shows it (`observe_window_activation`). Without it the question
         // would wait unseen until the person clicked the main window (found by the window's
         // tests).
-        let main = self.main;
+        let main = self.questions.main;
         if cfg!(any(target_os = "macos", windows))
-            && !self.sheet_open
+            && !self.questions.sheet_open
             && cx.active_window() != Some(main)
         {
             cx.defer(move |cx| {
@@ -483,18 +498,18 @@ impl Downloads {
     /// manager hands the keys to whichever window it likes as a dialog
     /// closes (openbox: a Download complete window left open), or to none.
     pub(super) fn show_sheets(&mut self, cx: &mut Context<Self>) {
-        let main = self.main;
+        let main = self.questions.main;
         let in_front = |cx: &Context<Self>| {
             !cfg!(any(target_os = "macos", windows)) || cx.active_window() == Some(main)
         };
-        while !self.sheet_open && in_front(cx) {
-            let Some((asked, reword, live, answer)) = self.sheets.pop_front() else {
+        while !self.questions.sheet_open && in_front(cx) {
+            let Some((asked, reword, live, answer)) = self.questions.sheets.pop_front() else {
                 return;
             };
             let live = live.map(|live| (live, cx.entity()));
             let opened = crate::dialogs::question::ask(asked, reword, live, answer, cx);
-            self.sheet_open = opened.is_some();
-            self.question_window = opened;
+            self.questions.sheet_open = opened.is_some();
+            self.questions.question_window = opened;
         }
     }
 }

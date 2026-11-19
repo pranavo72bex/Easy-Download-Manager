@@ -62,15 +62,15 @@ pub fn parts(view: &Downloads) -> Vec<String> {
     }
     // A sentence said a moment ago.
     let mut said_wait = false;
-    if let Some((said, at)) = &view.said {
+    if let Some((said, at)) = &view.status.said {
         if at.elapsed() < SAID_FOR {
             parts.push(format!("· {said}"));
-            said_wait = view.said_schedule_wait;
+            said_wait = view.status.said_schedule_wait;
         }
     }
     // What holds the downloads back, so a queue that does nothing is not taken for a broken
     // one: the download limit spent, or the schedule shut (gaps row U37).
-    let settings = &view.drawn;
+    let settings = &view.known.drawn;
     if let Some(wait) = view.backend.allowance_spent() {
         parts.push(tf(
             "· download limit of {} MB reached, held for {}",
@@ -84,7 +84,7 @@ pub fn parts(view: &Downloads) -> Vec<String> {
             },
         );
     }
-    let limit = view.drawn.speed_limit;
+    let limit = view.known.drawn.speed_limit;
     parts.push(if limit > 0 {
         tf("· limited to {} KB/s", &[&limit])
     } else {
@@ -101,7 +101,7 @@ pub fn statusbar(
     cx: &mut gpui::Context<Downloads>,
 ) -> impl IntoElement {
     // Undo, for the moment after downloads were taken off the list.
-    let undo = view.undo.live();
+    let undo = view.status.undo.live();
     let mut said = parts(view);
     let whole = said.join(" ");
     // The last part, the speed limit, is a control (gaps row U29): the same
@@ -127,6 +127,7 @@ pub fn statusbar(
         .child(screen.label(limit));
     // What finished or failed a moment ago, for a screen reader alone.
     let heard = view
+        .status
         .heard
         .as_ref()
         .filter(|(_, at)| at.elapsed() < SAID_FOR)

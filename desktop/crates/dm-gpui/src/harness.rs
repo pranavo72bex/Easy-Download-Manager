@@ -498,10 +498,10 @@ impl Harness {
     /// display's refresh does): how many times the main window was built for it (gaps row
     /// 181). The test platform draws a window as soon as it is told it changed.
     pub(crate) fn wake_counting_renders(&mut self) -> u64 {
-        let before = self.view(|view| view.renders);
+        let before = self.view(|view| view.known.renders);
         self.wakes.send(Wake::Now);
         self.cx.run_until_parked();
-        self.view(|view| view.renders) - before
+        self.view(|view| view.known.renders) - before
     }
 
     /// Asks the window `method` with `params`, as the control port does, and its answer.
@@ -552,7 +552,7 @@ impl Harness {
 
     /// What the status line says now.
     pub(crate) fn said(&mut self) -> String {
-        self.view(|view| view.said.as_ref().map(|(s, _)| s.clone()))
+        self.view(|view| view.status.said.as_ref().map(|(s, _)| s.clone()))
             .unwrap_or_default()
     }
 
@@ -611,7 +611,7 @@ impl Harness {
         self.until_within(
             "the script's moment to pass",
             std::time::Duration::from_secs(10),
-            &mut |h| !h.view(|view| view.scripted.by_script()),
+            &mut |h| !h.view(|view| view.port.scripted.by_script()),
         );
     }
 
@@ -661,7 +661,7 @@ impl Harness {
         self.click(name);
         let id = self.row(name).id;
         self.until(&format!("{name} to be selected"), |h| {
-            h.view(|view| view.selected.len() == 1 && view.selected.contains(&id))
+            h.view(|view| view.list.selected.len() == 1 && view.list.selected.contains(&id))
         });
     }
 
@@ -787,7 +787,7 @@ impl Harness {
         };
         let at = drawn.bounds.center();
         // A person's, not the port's: what the port clicked a moment ago is not held against it.
-        self.view(|view| view.scripted = Default::default());
+        self.view(|view| view.port.scripted = Default::default());
         self.cx.update(|cx| {
             let _ = window.update(cx, |_, window, cx| {
                 let none = Modifiers::default();
@@ -885,7 +885,7 @@ impl Harness {
     /// port leaves to a person (the port's clicks a moment ago are not held against it).
     pub(crate) fn run(&mut self, command: dm_shell::app::commands::Command) {
         self.update(|view, cx| {
-            view.scripted = Default::default();
+            view.port.scripted = Default::default();
             view.run(command, cx)
         });
     }
@@ -1084,7 +1084,7 @@ impl Harness {
     /// The menu item at `path` (`["Downloads", "Speed limiter", "Limit speed"]`) as the
     /// window's menus show it now: whether it is ticked, and whether greyed.
     pub(crate) fn menu_item(&mut self, path: &[&str]) -> (bool, bool) {
-        let ticks = self.view(|view| view.menu_ticks.clone().unwrap_or_default());
+        let ticks = self.view(|view| view.menus.menu_ticks.clone().unwrap_or_default());
         let menus: Vec<gpui::OwnedMenu> = crate::window::menus::window_menus(&ticks)
             .into_iter()
             .map(|menu| menu.owned())
@@ -1197,7 +1197,7 @@ impl Harness {
     /// `assistants_only`: opened because AI assistants are allowed, for them alone.
     pub(crate) fn open_port(&mut self, token: &str, assistants_only: bool) -> u16 {
         let backend = self.view(|view| {
-            view.assistants_only = assistants_only;
+            view.port.assistants_only = assistants_only;
             view.backend.clone()
         });
         dm_desktop_base::control::listen_reading(
@@ -1381,7 +1381,7 @@ impl Harness {
 
     /// Whether the window takes requests from AI assistants alone, as `dm --mcp-only` opens it.
     pub(crate) fn assistants_only(&mut self, only: bool) {
-        self.view(|view| view.assistants_only = only);
+        self.view(|view| view.port.assistants_only = only);
     }
 }
 
