@@ -993,5 +993,10 @@
  "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Downloads warten, solange der Computer unter diesem Stand mit Akku läuft, und gehen weiter, sobald er lädt oder wieder darüber liegt.",
  "The connection is metered": "Die Verbindung ist getaktet",
  "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Darüber herunterzuladen kann Geld kosten oder ein Datenvolumen aufbrauchen. Jeder Download wartet, bis Sie wählen.",
- "Download anyway": "Trotzdem herunterladen"
+ "Download anyway": "Trotzdem herunterladen",
+ "Only through": "Nur über",
+ "Any network": "Beliebiges Netzwerk",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Jeder Download geht nur über dieses Netzwerk, etwa das Ihres VPN. Solange es nicht verbunden ist, warten Downloads, sagen es und machen von selbst weiter, wenn es zurück ist. Torrents und Livestreams starten nicht, solange eines gewählt ist, und das zweite Netzwerk wird nicht verwendet.",
+ "Waiting for the network": "Warte auf das Netzwerk",
+ "the network downloads go only through is not connected. dm goes on when it is back": "das Netzwerk, über das allein heruntergeladen wird, ist nicht verbunden. dm macht weiter, sobald es zurück ist"
 }

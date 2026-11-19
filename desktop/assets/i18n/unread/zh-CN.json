@@ -175,5 +175,10 @@
  "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.",
  "The connection is metered",
  "Downloading over it may cost money or use up a data plan. Every download waits until you choose.",
- "Download anyway"
+ "Download anyway",
+ "Only through",
+ "Any network",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.",
+ "Waiting for the network",
+ "the network downloads go only through is not connected. dm goes on when it is back"
 ]

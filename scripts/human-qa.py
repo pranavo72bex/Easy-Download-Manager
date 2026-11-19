@@ -289,6 +289,7 @@ FILES = {
     "same.bin": (1 * MiB, 0, "plain"),            # the same file from a second address (B73)
     "ep1.mp3": (1 * MiB, 0, "plain"),             # a followed feed's items (B75)
     "ep2.mp3": (1 * MiB, 0, "plain"),
+    "only.bin": (2 * MiB, 0, "plain"),            # held to one network (B77)
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -406,11 +407,12 @@ def start_server():
 
     def accept():
         while True:
-            c, _ = srv.accept()
+            c, peer = srv.accept()
             with LOCK:
                 CONNS[0] += 1
                 n = CONNS[0]
-            log(ev="accept", conn=n)
+            # Where it came from: a download held to one network comes from its address (B77).
+            log(ev="accept", conn=n, peer=peer[0])
             threading.Thread(target=serve, args=(c, n), daemon=True).start()
 
     threading.Thread(target=accept, daemon=True).start()
@@ -1665,6 +1667,7 @@ def walk(dm, origin):
     unpack_when_done(dm, files)
     same_file_again(dm, files)
     follow_feed(dm, files)
+    only_through(dm, files)
 
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
@@ -1999,6 +2002,74 @@ def follow_feed(dm, files):
     pause(1.0)
     check("B75", "Stop following forgets it, its rows kept", follows() == [] and bool(dm.row("/ep2.mp3")),
           f"follows {follows()}")
+
+
+def only_through(dm, files):
+    """B77 (gaps row W12): Options › Advanced › Network has "Only through", a pop-up of the
+    computer's networks with Any network first; one chosen and kept with OK, a download from
+    this computer's own server still completes, every connection coming from that network's
+    address rather than the loopback's; Any network puts it back."""
+    def advanced_page():
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        dm.click("Advanced")
+        pause(0.8)
+        seen = dm.dialog_texts()
+        if "Only through" not in seen:
+            # Below the page's first screen in a small window: scrolled to, as a person does.
+            dm.call("ui.scroll", text="Time out a silent connection after (seconds)", lines=3)
+            pause(0.5)
+            seen = dm.dialog_texts()
+        return seen
+
+    def kept():
+        try:
+            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return saved.get("only_through", "")
+
+    note = ("Every download goes out over this network alone, such as your VPN's. While it is not "
+            "connected, downloads wait and say so, and go on by themselves when it is back. Torrents "
+            "and live streams do not start while one is chosen, and the second network is not used.")
+    words = advanced_page()
+    laid_out = ("Only through" in words and "Any network" in words
+                and (note in words or note in " ".join(words)))
+    before = set(words)
+    dm.click("Any network")
+    pause(0.8)
+    # The pop-up's lines: each network as "name (address)" or, on macOS, "Wi-Fi (en0)".
+    listed = [w for w in dm.dialog_texts() if w not in before and "(" in w and w.endswith(")")]
+    check("B77", "Options › Advanced › Network has Only through, Any network at first, listing the computer's networks",
+          laid_out and bool(listed), f"listed {listed}; words {words[:16]}")
+    if not listed:
+        dm.call("ui.key", key="Escape")
+        dm.click("Cancel")
+        return
+    dm.click(listed[0])
+    dm.click("OK")
+    pause(1.0)
+    chosen = kept()
+    since = len(LOG)
+    dm.add(f"{files}/only.bin")
+    r = dm.wait("only.bin", ("completed", "failed"), 60)
+    same, said = whole(r, "only.bin")
+    peers = {e.get("peer") for e in LOG[since:] if e.get("ev") == "accept"}
+    check("B77", "one chosen is kept with OK, and a download completes over it, from its address alone",
+          bool(chosen) and chosen in listed[0] and same and bool(peers) and "127.0.0.1" not in peers,
+          f"kept {chosen!r}; {said}; came from {sorted(p for p in peers if p)}")
+    # Put back as a new install has it, for the checks that follow.
+    advanced_page()
+    dm.click(chosen or listed[0])
+    pause(0.8)
+    dm.click("Any network")
+    dm.click("OK")
+    pause(1.0)
+    check("B77", "Any network puts it back", kept() == "", f"kept {kept()!r}")
 
 
 def new_install(origin):

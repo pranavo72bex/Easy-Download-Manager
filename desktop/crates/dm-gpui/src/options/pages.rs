@@ -382,6 +382,14 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
                 s.second_path = found.name.clone();
             }
         }
+        // The one network every download is held to (gaps row W12).
+        "only-through" => {
+            if i == 0 {
+                s.advanced.only_through.clear();
+            } else if let Some(found) = o.networks.get(i - 1) {
+                s.advanced.only_through = found.name.clone();
+            }
+        }
         "dialup-connection" => {
             if i == 0 {
                 s.advanced.dialup.connection.clear();

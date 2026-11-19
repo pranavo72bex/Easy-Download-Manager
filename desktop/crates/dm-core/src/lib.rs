@@ -31,6 +31,8 @@ mod clip;
 
 pub(crate) use dm_net::connect_first;
 
+pub(crate) use dm_net::only_through;
+
 pub(crate) use dm_net::control;
 
 pub use dm_net::cookies;
@@ -198,6 +200,15 @@ pub use connect_first::{ConnectFirst, Redial};
 // A test's own hook alone; the program's is put in force by `configure`.
 #[doc(hidden)]
 pub use connect_first::set_connect_first;
+
+// The one network downloads are held to (gaps row W12): a test's own adapter and list alone;
+// the program's is put in force by `configure`.
+#[doc(hidden)]
+pub use only_through::{set_lister as set_adapter_lister, set_only_through};
+
+// Changes each time the network downloads are held to, or its address, changes: a client built
+// at another is built again (`DownloadList::client_built_with`).
+pub use only_through::generation as network_generation;
 
 pub use control::{Control, Wanted};
 

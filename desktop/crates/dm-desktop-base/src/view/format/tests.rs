@@ -105,6 +105,14 @@ fn common_failures_have_plain_reasons() {
         let cause = retry_cause(raw).unwrap_or_else(|| panic!("{raw}"));
         assert!(RETRY_CAUSES.contains(&cause), "{cause}");
     }
+    // A download waiting for the one network downloads are held to (gaps row W12), whatever
+    // its adapter is called.
+    assert_eq!(
+        retry_cause(
+            "the network Proton VPN timed out that downloads go only through is not connected"
+        ),
+        Some("Waiting for the network")
+    );
     assert_eq!(retry_cause("disk: No space left on device"), None);
     assert_eq!(
         reason("network: error following redirect for url (http://a/loop): too many redirects"),

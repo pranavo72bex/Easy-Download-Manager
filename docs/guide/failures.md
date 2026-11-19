@@ -201,6 +201,22 @@ it made of a finished archive:
   dm waits for the Windows dial-up or VPN connection set in **Options ›
   Advanced** before a download, and the waiting itself failed. This should
   not happen. Click **Retry**.
+- `the network … that downloads go only through is not connected`
+  Shown on a waiting row as **Waiting for the network**: downloads are held
+  to one network (**Options › Advanced › Network › Only through**), such as
+  a VPN's, and it has no address now. Nothing is sent meanwhile. dm looks for
+  it every few seconds and goes on by itself once it is back; to download
+  without it, choose **Any network** there.
+- `… cannot be held to one network, and downloads go only through …, so dm did not start it: choose Any network under Options › Advanced › Network to fetch it`
+  A torrent, or a live stream (RTMP, RTSP, MMS), makes connections dm cannot
+  hold to the one network chosen in **Options › Advanced › Network › Only
+  through**, so it is not started rather than sent around it. Choose **Any
+  network** there, then click **Retry**.
+- `… has no address the network chosen can reach`
+  An FTP server (or the proxy in front of it) has only addresses of a kind
+  the network chosen in **Only through** has none of, such as an IPv6
+  server on a VPN with an IPv4 address alone. Choose **Any network**, or
+  another network, then click **Retry**.
 - `the NTLM sign-in could not be made: no random numbers to make it with`
   The server asked for a Windows network sign-in (NTLM), which needs random
   numbers from Windows, and none came. This should not happen. Click

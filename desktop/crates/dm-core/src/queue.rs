@@ -628,6 +628,14 @@ struct Inner {
     /// Running downloads keep the client they started with. A plain mutex:
     /// it is only ever copied out or replaced.
     client: std::sync::Mutex<reqwest::Client>,
+    /// The proxy and read timeout `client` was last built with (`set_client`), and the
+    /// network generation it was built at (`only_through::generation`): where downloads are
+    /// held to one network and its address changed since, it is built again on the new one
+    /// before the next download starts (gaps row W12).
+    client_made: std::sync::Mutex<(Option<(crate::proxy::Proxy, Duration)>, u64)>,
+    /// `only_through::restarts` as the scheduler last saw it: a change stops what runs and
+    /// puts it back in line, to go out bound to the network chosen or wait for it.
+    restarts_seen: AtomicU64,
     /// What went wrong that no row can carry: the queue file that could not
     /// be written, the parts that could not be removed. Printed to stderr
     /// these reached nobody — a Dock-launched app has no stderr — while the

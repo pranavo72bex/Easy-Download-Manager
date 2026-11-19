@@ -19,8 +19,11 @@ pub fn builder() -> reqwest::ClientBuilder {
 /// `builder` given dm's TLS: rustls with ring and the public roots, the
 /// set-up the stream protocols use ([`tls_config`]). Every
 /// client is built through this: reqwest is built without a TLS provider of
-/// its own, so one without it could not reach an `https://` address.
+/// its own, so one without it could not reach an `https://` address. So every
+/// client goes out from the one network downloads are held to, where they are
+/// (`only_through`, gaps row W12).
 pub fn with_tls(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    let builder = crate::only_through::bind(builder);
     match tls_config() {
         Ok(config) => builder.tls_backend_preconfigured((*config).clone()),
         Err(_) => builder,
@@ -155,18 +158,34 @@ pub fn refuses_http1(why: &str) -> bool {
 /// where [`share_one_client`] has made it, so the one-off requests (a playlist's page, a
 /// video's reading, a checksum file) share its connections, DNS answers and TLS sessions
 /// rather than each building its own (gaps row S14); else a new one.
+///
+/// The shared one is made again where the network downloads are held to has changed since
+/// (`only_through::generation`, gaps row W12): bound to an address the adapter no longer
+/// has, it could reach nothing.
 pub fn client() -> reqwest::Client {
-    SHARED.get().cloned().unwrap_or_else(fresh_client)
+    let now = crate::only_through::generation();
+    let mut shared = crate::lock(&SHARED);
+    let Some(made) = shared.as_mut() else {
+        return fresh_client();
+    };
+    if made.0 != now {
+        *made = (now, fresh_client());
+    }
+    made.1.clone()
 }
 
-/// The shared client [`client`] hands out, once made.
-static SHARED: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+/// The shared client [`client`] hands out, once made, and the generation of the network
+/// it was made bound to.
+static SHARED: std::sync::Mutex<Option<(u64, reqwest::Client)>> = std::sync::Mutex::new(None);
 
 /// Makes the one client [`client`] hands out from now on, for a program with one runtime: dm
 /// itself at its start. Not for tests, each with a runtime of its own: a pooled connection
 /// lives on the runtime that opened it, and is dead to the next.
 pub fn share_one_client() {
-    let _ = SHARED.set(fresh_client());
+    let mut shared = crate::lock(&SHARED);
+    if shared.is_none() {
+        *shared = Some((crate::only_through::generation(), fresh_client()));
+    }
 }
 
 // The one `expect` dm ships: rustls is compiled in, so the only way this

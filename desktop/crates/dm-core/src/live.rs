@@ -104,6 +104,14 @@ pub async fn download_live(
              turn the proxy off for this site (Options › Advanced) to fetch it"
         )));
     }
+    // Its sockets are partly the RTSP library's, which dm cannot bind to one network: held to
+    // one (gaps row W12), a stream is not recorded rather than sent around it.
+    if let Some(name) = crate::only_through::only_through() {
+        let what = format!("a {scheme}:// stream");
+        return Err(Error::Internal(crate::only_through::refused_words(
+            &what, &name,
+        )));
+    }
     // RTMPE is not dm's: Flash's encrypted RTMP, a protection dm does not
     // undo.
     if !own(url) {

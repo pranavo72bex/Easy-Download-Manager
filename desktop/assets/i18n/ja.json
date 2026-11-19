@@ -993,5 +993,10 @@
  "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "コンピューターがこの残量未満でバッテリー駆動している間はダウンロードを待ち、充電されるか残量が上回ると再開します。",
  "The connection is metered": "従量制課金接続です",
  "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "この接続でダウンロードすると料金がかかったり、データ通信量を使い切ったりすることがあります。選ぶまですべてのダウンロードが待機します。",
- "Download anyway": "それでもダウンロード"
+ "Download anyway": "それでもダウンロード",
+ "Only through": "使用するネットワーク",
+ "Any network": "任意のネットワーク",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "すべてのダウンロードはこのネットワーク (VPN など) だけを通ります。接続されていない間はダウンロードが理由を示して待機し、戻ると自動で再開します。選択中はトレントとライブ配信は開始せず、2つ目のネットワークも使いません。",
+ "Waiting for the network": "ネットワーク待機中",
+ "the network downloads go only through is not connected. dm goes on when it is back": "ダウンロードに使うネットワークが接続されていません。戻ると dm が再開します"
 }

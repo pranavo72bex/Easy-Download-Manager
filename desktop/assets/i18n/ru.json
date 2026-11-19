@@ -993,5 +993,10 @@
  "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Загрузки ждут, пока компьютер работает от батареи ниже этого уровня, и продолжаются, как только он заряжается или заряд снова выше.",
  "The connection is metered": "Подключение лимитное",
  "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Загрузка через него может стоить денег или израсходовать пакет трафика. Все загрузки ждут вашего выбора.",
- "Download anyway": "Всё равно загрузить"
+ "Download anyway": "Всё равно загрузить",
+ "Only through": "Только через",
+ "Any network": "Любая сеть",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Все загрузки идут только через эту сеть, например через VPN. Пока она не подключена, загрузки ждут, сообщая об этом, и сами продолжаются, когда она вернётся. Торренты и прямые трансляции не запускаются, пока сеть выбрана, а вторая сеть не используется.",
+ "Waiting for the network": "Ожидание сети",
+ "the network downloads go only through is not connected. dm goes on when it is back": "сеть, через которую идут загрузки, не подключена. dm продолжит, когда она вернётся"
 }

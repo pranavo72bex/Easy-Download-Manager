@@ -993,5 +993,10 @@
  "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "计算机使用电池且电量低于此值时，下载会等待；充电或电量重新高于此值后继续。",
  "The connection is metered": "当前为按流量计费的连接",
  "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "通过它下载可能产生费用或耗尽流量套餐。在你选择之前，所有下载都会等待。",
- "Download anyway": "仍然下载"
+ "Download anyway": "仍然下载",
+ "Only through": "仅通过",
+ "Any network": "任意网络",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "每个下载只通过这个网络发出，例如你的 VPN。它未连接时，下载会等待并说明原因，回来后自动继续。选定后不会开始种子和直播，也不使用第二网络。",
+ "Waiting for the network": "正在等待网络",
+ "the network downloads go only through is not connected. dm goes on when it is back": "下载所走的网络未连接。网络恢复后 dm 会继续"
 }

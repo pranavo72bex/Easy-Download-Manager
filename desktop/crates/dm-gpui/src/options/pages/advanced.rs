@@ -15,6 +15,7 @@ pub(super) fn advanced(
     cx: &mut Context<Options>,
 ) {
     network(o, p, window, cx);
+    only_through(o, p);
     second_network(o, p, cx);
     site_limits(o, p, window, cx);
     site_rules(o, p, window, cx);
@@ -86,8 +87,8 @@ fn network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
 /// A second network beside the system's, and how to use a phone as one.
 fn second_network(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
     let (theme, screen) = (p.theme, p.screen.clone());
-    // A second network beside the one the system routes by.
-    o.networks = dm_core::interfaces();
+    // A second network beside the one the system routes by, from the networks `only_through`
+    // listed.
     let network_words = |o: &Options| -> Vec<SharedString> {
         std::iter::once(SharedString::from(t("None")))
             .chain(o.networks.iter().map(|found| {
@@ -108,9 +109,10 @@ fn second_network(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
             .position(|n| n.name == second)
             .map(|i| i + 1)
     };
+    // Not beside the one network downloads are held to: greyed while one is (gaps row W12).
     p.labelled(
         t("Second network"),
-        true,
+        o.draft.advanced.only_through.is_empty(),
         popup::button(
             "network",
             if second.is_empty() {
@@ -154,6 +156,43 @@ fn second_network(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
             p.hint(step);
         }
     }
+}
+
+/// The one network every download is held to, such as a VPN's (gaps row W12): the computer's
+/// networks in a pop-up, as the second network's, "Any network" first.
+fn only_through(o: &mut Options, p: &mut Page) {
+    let (theme, screen) = (p.theme, p.screen.clone());
+    o.networks = dm_core::interfaces();
+    let only = o.draft.advanced.only_through.clone();
+    let words: Vec<SharedString> = std::iter::once(SharedString::from(t("Any network")))
+        .chain(o.networks.iter().map(|found| {
+            match dm_core::system_name(&found.name) {
+                Some(named) => format!("{named} ({})", found.name),
+                None => format!("{} ({})", found.name, found.address),
+            }
+            .into()
+        }))
+        .collect();
+    // One chosen and not connected now is still the one chosen, by its name.
+    let at = if only.is_empty() {
+        Some(0)
+    } else {
+        o.networks
+            .iter()
+            .position(|n| n.name == only)
+            .map(|i| i + 1)
+    };
+    let shown = if only.is_empty() {
+        t("Any network").to_string()
+    } else {
+        only
+    };
+    p.labelled(
+        t("Only through"),
+        true,
+        popup::button("only-through", shown.into(), words, at, theme, &screen),
+    );
+    p.note(t("Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used."));
 }
 
 /// Sites with their own connection limit, and the button adding one.
