@@ -6,16 +6,15 @@
 //! The background's listeners, registered from here (gaps row 169).
 //!
 //! A Manifest V3 background must register its listeners on its first turn, or a browser that
-//! woke it for an event finds nobody listening (decisions, 2026-10-12). They were registered by
-//! `background.js`, which forwarded each event once the WebAssembly had loaded. The WebAssembly is
-//! now written into the background's script and started at once (`initSync`, `scripts/package.sh`),
+//! woke it for an event finds nobody listening (decisions, 2026-10-12). The WebAssembly is
+//! written into the background's script and started at once (`initSync`, `scripts/package.sh`),
 //! so this registers them itself on that first turn, and the background has no JavaScript of its
 //! own.
 
 use super::*;
 use wasm_bindgen::closure::Closure;
 
-/// Every listener the background has, in the order `background.js` registered them.
+/// Every listener the background has, registered on its first turn.
 #[wasm_bindgen]
 pub fn background_start() {
     let all = ["<all_urls>"];
@@ -129,7 +128,7 @@ pub fn background_start() {
 
 /// Registers `listener` on the event at `path` (`downloads.onCreated`), with the event's own
 /// further arguments. An event this browser lacks (Firefox has no `onDeterminingFilename`) is
-/// passed over, as `background.js`'s `?.` did.
+/// passed over.
 fn listen<T: ?Sized + wasm_bindgen::closure::WasmClosure>(
     path: &str,
     listener: Closure<T>,

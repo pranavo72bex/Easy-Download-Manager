@@ -59,8 +59,8 @@ pub fn claim(handed: &shell::Orders) -> Claimed {
             }
             Claimed::HandedOff
         }
-        // Not taken for a running dm, which it used to be: dm exited without
-        // a word, every time. Nor started without it: a second dm started
+        // Not taken for a running dm: dm would exit without a word, every
+        // time. Nor started without it: a second dm started
         // the same way would write the same queue.
         Err(e) => Claimed::Refused(format!(
             "dm cannot tell whether another dm is running, so it has not started: {e}. \

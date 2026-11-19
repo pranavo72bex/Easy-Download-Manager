@@ -602,8 +602,8 @@ fn a_row_shows_at_230_percent_in_the_smallest_window() {
     assert!(row.bottom() <= px(460.0), "{row:?} below the window");
 }
 
-/// The progress window was once held at the room on the screen, 84% of the window's height for
-/// three connections. It is as tall as what it holds, its connections shut until asked for.
+/// The progress window is as tall as what it holds, its connections shut until asked for, not
+/// held at the room on the screen (84% of the window's height for three connections).
 #[test]
 fn the_progress_window_is_as_tall_as_what_it_holds() {
     // What is measured here grows with the text size another test may set.
@@ -678,8 +678,8 @@ fn a_list_with_room_for_one_row_stays_where_it_was_scrolled() {
     );
 }
 
-/// The queue column's heading is named "Queue" (it said "Q", which read as a search glass; the
-/// maintainer, 2026-11-06), and a click on it sorts the list by queue.
+/// The queue column's heading is named "Queue" (not "Q", which reads as a search glass; the
+/// maintainer), and a click on it sorts the list by queue.
 #[test]
 fn the_queue_columns_heading_is_named_and_sorts() {
     // A sort is saved.

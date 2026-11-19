@@ -116,9 +116,9 @@ pub fn http2_client() -> reqwest::Client {
 /// Whether `why` is a server refusing HTTP/1.1: it answered 505, answered an HTTP/1.1 request
 /// with HTTP/2's own preface or a GOAWAY, or would agree only on HTTP/2 in the TLS handshake. Not
 /// a connection that merely closed: that is any download cut short, and asked again over HTTP/2
-/// one failed in the wrong words. The words alone, not the address in them: a 404 from
-/// `http://127.0.0.1:50587/…` read as a 505 and was asked again over HTTP/2, which that
-/// server does not speak (human QA on macOS, 2026-11-13).
+/// one would fail in the wrong words. The words alone, not the address in them: a 404 from
+/// `http://127.0.0.1:50587/…` would read as a 505 and be asked again over HTTP/2, which that
+/// server does not speak (human QA on macOS).
 pub fn refuses_http1(why: &str) -> bool {
     let why: String = why
         .split_whitespace()

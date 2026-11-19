@@ -100,9 +100,9 @@ pub enum Error {
         got: String,
     },
 
-    /// A sentence written for the person reading the row. It used to be
-    /// prefixed "internal:", which made a site that wants a sign-in read as
-    /// a fault in dm.
+    /// A sentence written for the person reading the row, with no prefix
+    /// such as "internal:", which would make a site that wants a sign-in
+    /// read as a fault in dm.
     #[error("{0}")]
     Internal(String),
 }
@@ -161,9 +161,9 @@ impl Error {
 
     /// Turns a refused response into an error that says what refused and why.
     ///
-    /// One place, because both the probe and the range fetch need it and the
-    /// second one used to build it by hand with an empty body — so a refusal
-    /// that happened mid-download explained nothing at all.
+    /// One place, because both the probe and the range fetch need it; built
+    /// by hand with an empty body, a refusal that happened mid-download would
+    /// explain nothing at all.
     pub async fn from_response(mut res: reqwest::Response) -> Error {
         let status = res.status().as_u16();
         let url = res.url().to_string();

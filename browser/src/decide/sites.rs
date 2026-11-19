@@ -120,8 +120,8 @@ pub fn cookies_sent(sites: &[String], url: &str, video: bool, everywhere: bool) 
 /// their own) takes only the cookies the browser itself sent that host from the tab
 /// ([`cookies_named`], `RequestHeaders::sent_cookies`): a page names its player's source
 /// itself, and could name another site's file, or make its tab reach that site first, so that
-/// dm fetched it with a sign-in the browser keeps from that page (security review, 2026-11-07,
-/// gaps row 159 c).
+/// dm would fetch it with a sign-in the browser keeps from that page (security review, gaps
+/// row 159 c).
 pub fn session_goes(url: &str, found_on: &str, page: bool) -> bool {
     page || site_of(found_on).is_some_and(|site| site_listed(&[site], url))
 }

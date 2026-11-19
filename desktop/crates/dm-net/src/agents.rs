@@ -104,7 +104,7 @@ pub(crate) fn server_of(url: &str) -> Option<String> {
 }
 
 /// The agent a download goes out with first: Internet Explorer 11's, as
-/// reference A sends it (maintainer, 2026-11-01), so a site that takes only
+/// reference A sends it (maintainer), so a site that takes only
 /// browsers answers the first request. A site that refuses it is asked again
 /// with dm's own agents ([`FALLBACK_AGENTS`]), which the sites that refuse
 /// browsers' (Wikimedia asks for a contact address) take.
@@ -154,8 +154,8 @@ pub fn prefer_agent(url: &str, agent: &'static str) {
 /// browser's name: from then on it is asked by dm's own. Wikimedia's media
 /// servers (2026-11-07) limit browsers' names from a program, now on the
 /// first request and now only on the ranges after it, and serve dm's name;
-/// held to the browser's, the ranges were refused for as long as dm tried. A
-/// server that limits every name limits dm's too and is waited out as before;
+/// held to the browser's, the ranges would be refused for as long as dm tried.
+/// A server that limits every name limits dm's too and is waited out as any;
 /// one where the person chose dm's name first (Identify as dm only) is never
 /// moved to another by a limit.
 pub(crate) fn limited(url: &str) {

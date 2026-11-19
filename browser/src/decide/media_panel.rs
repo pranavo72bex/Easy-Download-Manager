@@ -194,7 +194,7 @@ pub const STREAMS_PATIENCE_MS: f64 = 8_000.0;
 /// make: only when they offer a choice by themselves. One line is no choice:
 /// a click answered with it alone hands that one over at once, at whatever
 /// quality the player happened to fetch, while the qualities the app was
-/// still reading go unseen (YouTube on macOS, 2026-11-11, gaps row 178).
+/// still reading go unseen (YouTube on macOS, gaps row 178).
 pub fn cut_reading_short(stream_lines: usize) -> bool {
     stream_lines >= 2
 }

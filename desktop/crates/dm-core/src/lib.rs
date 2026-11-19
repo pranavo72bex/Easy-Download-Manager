@@ -153,8 +153,8 @@ mod zipinfo;
 /// engine's kind without a dependency of their own.
 pub use reqwest;
 
-// What lib.rs held itself until 2026-11-04, by what it is about; every name is
-// where it was (`crate::lock`, `dm_core::Error`, `dm_core::agent_for`).
+// The crate root's own names, in modules by what they are about; every name is
+// still at the root (`crate::lock`, `dm_core::Error`, `dm_core::agent_for`).
 pub use agents::*;
 pub use error::*;
 pub use files::*;

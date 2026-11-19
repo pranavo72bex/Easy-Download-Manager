@@ -99,8 +99,8 @@ async fn read_track(tab: i64, url: &str, requester: &str) {
     keep_streams(tab).await;
 }
 
-/// A request a page's frame is sending (`webRequest.onBeforeRequest`, handed on whole by
-/// `background.js`): a form it posts is kept a moment by address, in memory, for a download that
+/// A request a page's frame is sending (`webRequest.onBeforeRequest`, handed on whole): a form
+/// it posts is kept a moment by address, in memory, for a download that
 /// is its answer. Which bodies, and how they are written down, is `decide::posted_body`.
 #[wasm_bindgen]
 pub fn on_before_request(details: JsValue) {

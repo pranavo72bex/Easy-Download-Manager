@@ -27,8 +27,8 @@ impl Downloads {
     }
 
     /// Whether the search box has words, which Find next and previous step through: told as
-    /// `false` always, they were greyed and refused whatever was typed (found by the window's
-    /// tests, 2026-11-13).
+    /// `false` always, they would be greyed and refuse whatever was typed (found by the window's
+    /// tests).
     fn finding(&self) -> bool {
         !self.filter_text.trim().is_empty()
     }

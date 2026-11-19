@@ -802,8 +802,8 @@ async fn a_bypassed_site_is_fetched_directly_and_an_https_proxy_is_refused() {
 
 /// Under "the computer's proxy settings" (a new install's default) on a
 /// computer that has no proxy, FTP goes direct, as the computer's own
-/// programs do: it was refused with "cannot send FTP through the computer's
-/// proxy settings" until 2026-11-06. Where a proxy is in force, the refusal
+/// programs do, not refused with "cannot send FTP through the computer's
+/// proxy settings". Where a proxy is in force, the refusal
 /// is checked by `download::tests` (it reads the computer's settings).
 #[tokio::test]
 async fn under_the_computers_proxy_settings_with_no_proxy_ftp_goes_direct() {

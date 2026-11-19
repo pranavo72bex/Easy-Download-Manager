@@ -208,8 +208,8 @@ async fn downloads_run_together_but_not_all_at_once() {
         .all(|e| e.state == DownloadState::Completed));
 }
 
-/// A finished file moved to a folder typed as a relative path is refused: it was taken against
-/// wherever dm had been started, and the file went there (Move/Rename, 2026-11-08).
+/// A finished file moved to a folder typed as a relative path is refused: taken against
+/// wherever dm had been started, the file would go there (Move/Rename).
 #[tokio::test]
 async fn a_finished_file_is_not_moved_to_a_relative_folder() {
     let (addr, _) = serve().await;
@@ -497,8 +497,8 @@ async fn two_schedulers_do_not_between_them_exceed_the_limit() {
 #[tokio::test]
 async fn a_link_added_before_the_saved_queue_loads_is_kept() {
     /* A browser hand-off on a cold start is queued while the saved queue is
-     * still being read. Both were numbered from 1, and restoring wrote the
-     * old row over the new one: the handed link vanished and the old row was
+     * still being read. Both numbered from 1, restoring would write the old
+     * row over the new one: the handed link would vanish and the old row be
      * listed twice. */
     let (addr, _) = serve().await;
     let dir = tempdir();
@@ -1059,9 +1059,9 @@ fn closed_now() -> dm_core::Schedule {
 }
 
 /// A window shut at `minute` past midnight and for hours after: one minute,
-/// twelve hours later. It was 00:00 to 00:01 whatever the time, which is open
-/// for the minute after midnight: a full suite that reached these tests then
-/// (the Windows session, 2026-11-07) ran what they hold, six failing at once.
+/// twelve hours later. A fixed 00:00 to 00:01 would be open for the minute
+/// after midnight, and a full suite that reached these tests then would run
+/// what they hold.
 fn closed_at(minute: u32) -> dm_core::Schedule {
     let from = (minute + 12 * 60) % (24 * 60);
     let to = (from + 1) % (24 * 60);
@@ -1894,9 +1894,10 @@ async fn serve_stalled_counting() -> (SocketAddr, Arc<AtomicUsize>, Arc<Open>) {
 
 #[tokio::test]
 async fn a_row_resumed_while_retrying_starts_its_new_run_without_the_old_retry() {
-    /* The old run's "retrying, attempt N" outlived a pause and a resume: the
-     * row showed it on a run that had not failed, and the queue counted the
-     * row as lending its place, so one more than the limit could start. */
+    /* The old run's "retrying, attempt N" must not outlive a pause and a
+     * resume: the row would show it on a run that had not failed, and the
+     * queue would count the row as lending its place, so one more than the
+     * limit could start. */
     use axum::http::HeaderMap;
     use std::sync::atomic::AtomicBool;
     let failing = Arc::new(AtomicBool::new(true));
@@ -1980,8 +1981,8 @@ async fn a_row_resumed_while_retrying_starts_its_new_run_without_the_old_retry()
 #[tokio::test]
 async fn a_resumed_row_waits_for_its_previous_run_to_stop_before_starting_again() {
     /* A pause is recorded the moment it is asked for; the task honours it a
-     * moment later. A resume in between used to start a second task on the
-     * same part files while the first still held them. Measured at the
+     * moment later. A resume in between must not start a second task on the
+     * same part files while the first still holds them. Measured at the
      * server: the row is started again, and never two of its requests are
      * open at once. */
     let (addr, hits, open) = serve_stalled_counting().await;
@@ -2064,10 +2065,10 @@ async fn a_queue_that_cannot_be_written_says_so_rather_than_pretending() {
 
 #[tokio::test]
 async fn an_unreadable_queue_file_is_kept_aside_and_said_rather_than_overwritten() {
-    /* A queue file that cannot be parsed used to be skipped and then, on the
-     * first save, overwritten with the empty list — so a release that changed
-     * a field destroyed every queue on first launch, with the parts those
-     * rows pointed at orphaned for good. */
+    /* A queue file that cannot be parsed, skipped and then overwritten with
+     * the empty list on the first save, would let a release that changed a
+     * field destroy every queue on first launch, with the parts those rows
+     * pointed at orphaned for good. */
     let dir = tempdir();
     let store = dir.path().join("queue.json");
     std::fs::write(&store, "[{\"id\": \"not a number\"}]").unwrap();
@@ -2862,8 +2863,8 @@ fn versioned(version: Arc<AtomicUsize>, gone: Arc<std::sync::atomic::AtomicBool>
 
 #[tokio::test]
 async fn a_recheck_that_cannot_fetch_the_new_version_keeps_the_old_file() {
-    /* The old copy was deleted as soon as a change was seen, before the new
-     * one was fetched; a server that then failed left neither. */
+    /* With the old copy deleted as soon as a change was seen, before the new
+     * one was fetched, a server that then failed would leave neither. */
     let version = Arc::new(AtomicUsize::new(1));
     let gone = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let addr = common::serve(versioned(Arc::clone(&version), Arc::clone(&gone))).await;
@@ -3301,7 +3302,7 @@ async fn a_row_that_is_not_downloading_has_no_speed_or_time_left() {
     q.resume(id).await;
     // The runner spawned above may still be looking at the queue (it waits up to a second
     // between looks), and a second `run` returns at once while one runs: it is waited for by
-    // the row, not by `run` (Windows CI, 2026-11-13: `run` came back with the row Queued).
+    // the row, not by `run` (on Windows CI `run` can come back with the row Queued).
     tokio::spawn({
         let q = q.clone();
         async move { q.run().await }

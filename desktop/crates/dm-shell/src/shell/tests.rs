@@ -335,8 +335,8 @@ fn the_host_is_started_for_an_extension_dm_knows_and_no_other() {
 }
 
 /* A link or a name that merely ends like the manifest, or a link to an
- * extension's page, is a person's download: it used to make the launch
- * a host that read nothing and dropped the link. */
+ * extension's page, is a person's download, not a launch as the host,
+ * which would read nothing and drop the link. */
 #[test]
 fn a_link_or_a_name_never_makes_a_launch_the_browsers() {
     let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -552,8 +552,7 @@ fn options_apply_to_the_link_after_them() {
 }
 
 /// Words after a `magnet:` link a protocol launch hands dm are the link's, never options: a
-/// split link cannot ask nothing, choose a folder or add another download (security audit,
-/// 2026-11-12).
+/// split link cannot ask nothing, choose a folder or add another download (security audit).
 #[test]
 fn a_magnet_launch_is_one_link_whatever_follows_it() {
     let launched = one_link_launch(argv(&[

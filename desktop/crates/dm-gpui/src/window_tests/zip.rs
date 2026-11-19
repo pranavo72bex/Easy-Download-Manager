@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! A ZIP's files are listed in Download details before the file is fetched, and in a finished
-//! ZIP's Properties (reference A shows a ZIP's contents; the maintainer's word of 2026-11-01).
+//! ZIP's Properties (reference A shows a ZIP's contents; the maintainer's word).
 
 use dm_core::State;
 

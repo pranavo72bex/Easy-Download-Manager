@@ -111,8 +111,8 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
 }
 
 /// A file over 4 GB bound for a FAT32 drive is refused
-/// before a byte is fetched, naming why and what to do, where it used to
-/// run to 4 GB and fail there. A test's drive holds nothing over 1,000
+/// before a byte is fetched, naming why and what to do, rather than run
+/// to 4 GB and fail there. A test's drive holds nothing over 1,000
 /// bytes.
 #[tokio::test]
 async fn a_file_too_large_for_the_drive_is_refused_before_it_is_fetched() {

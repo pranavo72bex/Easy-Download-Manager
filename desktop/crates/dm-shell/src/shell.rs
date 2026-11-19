@@ -111,10 +111,10 @@ pub fn args() -> Vec<String> {
 /// A launch whose first word is a `magnet:` link is the system handing dm that
 /// one link (the `magnet:` handler is registered as `"<dm>" "%1"`): every word
 /// after it is part of the link, never an option. On Windows a link holding a
-/// `"` and spaces, passed on unescaped by the program that opened it, was split
-/// into words that dm read as `--quiet`, `--save-to FOLDER` and another link, so
-/// a file of a page's choosing was saved into a folder of its choosing with
-/// nothing asked (security audit, 2026-11-12).
+/// `"` and spaces, passed on unescaped by the program that opened it, is split
+/// into words that dm would read as `--quiet`, `--save-to FOLDER` and another
+/// link, so a file of a page's choosing would be saved into a folder of its
+/// choosing with nothing asked (security audit).
 pub fn one_link_launch(args: Vec<String>) -> Vec<String> {
     match args.first() {
         Some(first)
@@ -546,9 +546,8 @@ pub async fn start(orders: &Orders) -> Started {
 /// What the settings put in force across the engine rather than on the queue:
 /// the name dm gives itself, the language of a dubbed video's sound, the
 /// dial-up or VPN connection every download waits for, and the second
-/// network. At the start and at every change: only
-/// the changes did it before, so a saved "Identify as dm only", second network
-/// or dial-up connection was not in force until Options' OK (2026-11-08).
+/// network. At the start and at every change, so a saved "Identify as dm only",
+/// second network or dial-up connection is in force before Options' OK.
 /// What went wrong, in words.
 fn engine_wide(settings: &Settings) -> Option<String> {
     dm_core::set_identify_as_dm(settings.identify_as_dm);
@@ -589,9 +588,9 @@ pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), Str
 /// Puts the cookies file in force: read again each time, so one exported
 /// again since is in force without choosing it again. One that can no
 /// longer be read is a problem to show, not a reason to refuse the change
-/// it came with — a cookies file moved away used to fail every change of
-/// every setting after it, the language and a saved search's last run
-/// among them. Said once, until it reads again or another problem replaces
+/// it came with — refused, a cookies file moved away would fail every
+/// change of every setting after it, the language and a saved search's last
+/// run among them. Said once, until it reads again or another problem replaces
 /// it, since this runs on every change.
 pub fn use_cookies(settings: &Settings) -> Option<String> {
     static SAID: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
@@ -662,7 +661,7 @@ pub async fn apply(
 ///
 /// The scheduler runs only while something is queued or running, and a held
 /// row is neither: without this, a window opening at one in the morning
-/// started nothing until a person touched the queue.
+/// would start nothing until a person touched the queue.
 pub fn watch_rules(queue: &Queue) {
     let queue = queue.clone();
     tokio::spawn(async move {

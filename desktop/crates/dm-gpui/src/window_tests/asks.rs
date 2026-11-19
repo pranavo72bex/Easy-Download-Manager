@@ -3,7 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! What reference A asks about, and dm now asks (maintainer, 2026-11-01): the name the server
+//! What reference A asks about, and dm asks too (maintainer): the name the server
 //! sent, a web page where a file was asked for, a 404.
 
 use dm_core::State;

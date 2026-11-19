@@ -117,8 +117,8 @@ impl Places {
         use std::hash::{Hash, Hasher};
         // Under other categories of a person's own, every row is placed
         // again; under the same, only those whose name, address, note or
-        // kind changed (a read of the list four times a second used to parse
-        // and lowercase every row's, 5,000 of them).
+        // kind changed (otherwise a read of the list four times a second
+        // would parse and lowercase every row's, 5,000 of them).
         let rules = format!("{:?}", categories.custom);
         if rules != self.rules {
             self.rules = rules;

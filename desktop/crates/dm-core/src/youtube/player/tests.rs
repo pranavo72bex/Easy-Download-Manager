@@ -343,7 +343,7 @@ document.body.appendChild(null);})(_yt_player);
 }
 /// The live player (a file named by `DM_JS_PLAYER`, YouTube's `base.js`) answers both
 /// checks in dm's own interpreter: each `n` and signature given back changed (gaps row F15,
-/// which on 2026-11-13 found its answers the same as JavaScriptCore's).
+/// which found its answers the same as JavaScriptCore's).
 #[tokio::test]
 async fn the_live_player_answers_in_dm_js() {
     let Some(path) = std::env::var_os("DM_JS_PLAYER") else {

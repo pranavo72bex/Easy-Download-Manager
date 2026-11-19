@@ -5,12 +5,10 @@
 
 //! What the browser extension and the desktop app say to each other.
 //!
-//! The two used to be written in two languages, each with its own copy of
-//! the vocabulary, kept in step by a comment asking whoever changed one to
-//! retype the other. Both are Rust now, so the words, the shapes of the
-//! messages and the rule that decides which downloads the app takes are
-//! written here once: the native host in dm-shell answers with these types
-//! and the extension, compiled to WebAssembly, asks with them.
+//! Both are Rust, so the words, the shapes of the messages and the rule
+//! that decides which downloads the app takes are written here once: the
+//! native host in dm-shell answers with these types and the extension,
+//! compiled to WebAssembly, asks with them.
 //!
 //! Native messaging frames are JSON objects. Every one carries
 //! `protocolVersion` and a `type`; the rest depends on the type.

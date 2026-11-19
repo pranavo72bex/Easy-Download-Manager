@@ -5,10 +5,8 @@
 
 //! One dm at a time.
 //!
-//! Every browser hand-off used to start a second copy of the app: the host
-//! process spawned the desktop on its first request without asking whether
-//! one was already running, and nothing stopped the second from opening a
-//! second window, a second tray icon and a second queue writing the same
+//! A browser hand-off must not start a second copy of the app, with a second
+//! window, a second tray icon and a second queue writing the same
 //! `queue.json` as the first. An advisory lock on one file under dm's home
 //! is the whole mechanism: the running app holds it for its lifetime, and
 //! anything that wants to know whether dm is running tries to take it.
@@ -28,7 +26,7 @@ fn lock_path(home: &Path) -> std::path::PathBuf {
 /// How long a claim keeps trying a lock held by someone else before it
 /// believes a dm is running. The native host's probe holds it for the
 /// moment between taking and letting go; a dm starting in that moment
-/// used to exit, believing another was running, and none was.
+/// would otherwise exit, believing another was running when none was.
 const CLAIM_FOR: Duration = Duration::from_millis(500);
 
 /// Takes the lock for this process: `Ok(Some)` with it, `Ok(None)` when
@@ -38,8 +36,8 @@ const CLAIM_FOR: Duration = Duration::from_millis(500);
 /// released by the OS when the process ends however it ends — a crash
 /// leaves nothing stale to clean up, which a pid file would.
 ///
-/// A lock file that cannot be opened or locked used to read as "another dm
-/// has it", and dm then exited without a word, every time it was started.
+/// A lock file that cannot be opened or locked is an error, not "another dm
+/// has it", which would have dm exit without a word every time it started.
 pub fn claim(home: &Path) -> std::io::Result<Option<File>> {
     let deadline = std::time::Instant::now() + CLAIM_FOR;
     loop {

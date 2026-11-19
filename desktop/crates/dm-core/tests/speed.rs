@@ -448,7 +448,7 @@ async fn a_connection_gone_silent_is_asked_again_before_the_read_timeout() {
 /// download: a ninth connection beside eight. The race goes the other way
 /// in this test's runtime, so this holds the invariant (never a separate
 /// request for range 0) and the QA's `connections_1_8_32` is the regression
-/// test: 5 of 10 runs failed before, 10 of 10 pass after (2026-11-06).
+/// test: 5 of 10 runs fail without the fix, 10 of 10 pass with it.
 const ROUNDS: usize = 5;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

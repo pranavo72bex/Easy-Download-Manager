@@ -60,7 +60,7 @@ pub(crate) fn drawn_width(text: &str, size: f32, window: &Window, cx: &gpui::App
 
 /// A place's picture beside its name, as Finder's and Mail's sidebars have one: each kind its
 /// row's own (`kind_picture`), and a picture of what the others hold. All drawn in one colour,
-/// the system's accent, as a source list's are (the maintainer, 2026-11-12: "monocolor").
+/// the system's accent, as a source list's are (the maintainer: "monocolor").
 fn picture(place: &Place) -> &'static str {
     match place {
         Place::All => "icons/place-all.svg",
@@ -230,8 +230,8 @@ fn group_heading(
                 .cursor_pointer()
                 .child(screen.label(t(heading)))
                 // An arrow drawn as the panel's other icons are, not a character of the font
-                // (`⌄` and `›` sat at odd heights): up while the group is open, to close it, and
-                // down while it is shut, to open it (the maintainer, 2026-11-13).
+                // (`⌄` and `›` sit at odd heights): up while the group is open, to close it, and
+                // down while it is shut, to open it (the maintainer).
                 .child(
                     gpui::svg()
                         .path(if shut {

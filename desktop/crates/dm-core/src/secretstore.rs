@@ -274,8 +274,8 @@ pub fn sealed(plain: Vec<u8>) -> Vec<u8> {
 pub fn opened(bytes: &[u8]) -> Opened {
     match system() {
         Some(store) => open_with(store, bytes),
-        // This system's store by name: macOS and Linux were told of Windows' (security
-        // review, 2026-11-07, gaps row 159 f).
+        // This system's store by name, not Windows' on macOS and Linux (security review,
+        // gaps row 159 f).
         None if is_sealed(bytes) => Opened::Failed(format!(
             "the secrets are sealed under a key in {STORE_NAME}, which is not available here"
         )),

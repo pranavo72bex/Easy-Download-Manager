@@ -289,11 +289,11 @@ pub(super) async fn run(
     first_body: Option<First>,
 ) -> Result<(), Error> {
     /* The probe's answer streams the file from byte 0: it is range 0's, for
-     * whichever connection takes range 0. It was given to the first
-     * connection started, which used it only if it also took range 0; the
+     * whichever connection takes range 0. Given to the first connection
+     * started, it would be used only if that one also took range 0; the
      * connections start together, and when another took it first the
-     * answer was held, unread, for as long as that connection ran: a ninth
-     * connection beside eight (QA connections_1_8_32, 2026-11-06). */
+     * answer would be held, unread, for as long as that connection ran: a
+     * ninth connection beside eight (QA connections_1_8_32). */
     let probe = Arc::new(std::sync::Mutex::new(first_body));
     let next = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     // Ranges a connection gave up on, for the others to take.
@@ -984,8 +984,8 @@ pub(super) async fn fetch_segment(
         /* A request the server took and never answered: a server that holds
          * connections past its limit open rather than refusing them (seen
          * with proof.ovh.net at 16 connections, 2026-10-30). Waited out,
-         * dm's tries on each held the download for minutes and then failed
-         * it, where fewer connections finished it. Stepped aside while
+         * dm's tries on each would hold the download for minutes and then
+         * fail it, where fewer connections finish it. Stepped aside while
          * others are served, the range goes to them. Only where this
          * request got no byte while the others did: a link gone quiet for
          * everyone (the computer asleep, a router restarting) is retried
@@ -1313,8 +1313,8 @@ pub(super) async fn attempt_segment(
         };
         let status = res.status();
         // The length an encoded body states is the encoded one, and what is written is decoded: held
-        // to it, a whole file was taken as short and fetched again for as long as retries last
-        // (engine review, 2026-11-08). A cut-off encoded body is still caught: the decoder says so.
+        // to it, a whole file would be taken as short and fetched again for as long as retries
+        // last (engine review). A cut-off encoded body is still caught: the decoder says so.
         let stated = if crate::decode::coding_of(res.headers()).is_some() {
             None
         } else {
@@ -1338,7 +1338,7 @@ pub(super) async fn attempt_segment(
             let all_of_it = from == 0 && stated == Some(end + 1);
             // A server that names no version, then or now, gives no sign of a change: its 200 is
             // ranges refused, fetched again on one connection, not "the file changed on the server"
-            // (engine review, 2026-11-08).
+            // (engine review).
             let unversioned = source.validator.is_none() && answered.is_none();
             if unversioned && !all_of_it {
                 return Err(Error::RangesIgnored);
@@ -1371,7 +1371,7 @@ pub(super) async fn attempt_segment(
             // The total it names is the file's length now: another than the one the ranges were
             // planned on is another file, whatever its validator says (a server that ignores
             // If-Range, or a weak ETag dm does not send), caught here rather than by the sampled
-            // checks of the bytes (engine review, 2026-11-08).
+            // checks of the bytes (engine review).
             let said_total = res
                 .headers()
                 .get(reqwest::header::CONTENT_RANGE)
@@ -1842,8 +1842,8 @@ pub(super) async fn attempt_segment(
 
     /* The whole file, asked for without a range, ended cleanly: that is its
      * end, whatever the plan guessed. An unknown length is planned to
-     * `u64::MAX` and an empty file as one byte, and both sat through every
-     * retry as "short" before this. A length the response stated is still
+     * `u64::MAX` and an empty file as one byte, and without this both would
+     * sit through every retry as "short". A length the response stated is still
      * held to, and assembly holds the total to the probed one. */
     if !resumable && stated.is_none_or(|stated| stated == written) {
         return Ok(None);

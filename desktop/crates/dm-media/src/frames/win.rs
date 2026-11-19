@@ -187,8 +187,8 @@ pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<F
         // Hundredths of a second each, rounded so the whole keeps time
         // (12 a second is 8, 8, 9, ...), and held until the next picture's
         // tick: a video with fewer pictures a second than asked skips ticks,
-        // and timed by its place in the list it played fast (a second of 10
-        // a second asked at 12 lasted 0.83 s; coverage tests, 2026-11-08).
+        // and timed by its place in the list it would play fast (a second of
+        // 10 a second asked at 12 would last 0.83 s; coverage tests).
         let ticks: Vec<_> = std::mem::take(&mut run.held.ticks).into_iter().collect();
         let at = |n: u64| (n * 100 + u64::from(fps) / 2) / u64::from(fps);
         // The last is held to the end of the part it plays, not one tick.

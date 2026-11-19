@@ -488,7 +488,7 @@ async fn get_range(
     // asked, is not read into memory and then found out. One that stops at
     // the file's last byte, short of the end asked for, is the file's end:
     // the 256 KiB looked at first, of a file smaller than that, is all of it
-    // (coverage tests, 2026-11-08).
+    // (coverage tests).
     let said = response
         .headers()
         .get(reqwest::header::CONTENT_RANGE)

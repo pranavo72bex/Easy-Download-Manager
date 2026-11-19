@@ -6,7 +6,7 @@
 use super::*;
 
 /// A new token takes away the port file a crash left, so the two are never read as a pair
-/// that sends the new token to an old port (security audit, 2026-11-12).
+/// that sends the new token to an old port (security audit).
 #[test]
 fn a_new_token_takes_away_a_port_file_left_behind() {
     let home = tempfile::tempdir().unwrap();

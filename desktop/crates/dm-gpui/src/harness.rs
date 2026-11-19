@@ -324,8 +324,8 @@ impl Harness {
     #[allow(dead_code)]
     pub(crate) fn key(&mut self, key: &str, modifiers: &[&str]) {
         // "cmd" is the system's command key, as the tests mean it: Ctrl on Windows and Linux,
-        // where the Windows or Super key selected nothing and opened nothing (Windows CI,
-        // 2026-11-13: a field typed into kept its old text beside the new).
+        // where the Windows or Super key would select nothing and open nothing (on Windows
+        // CI a field typed into would keep its old text beside the new).
         let modifiers: Vec<&str> = modifiers
             .iter()
             .map(|m| match *m {

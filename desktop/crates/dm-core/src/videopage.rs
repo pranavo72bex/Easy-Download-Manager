@@ -250,8 +250,7 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
 
     /* Placed by the same code as every other download — the category
      * folder, a name nothing else has, a rename that falls back to a copy
-     * across filesystems, the digest checked and a failing file removed.
-     * This used to be a second copy of all of that, one rule at a time. */
+     * across filesystems, the digest checked and a failing file removed. */
     let (dest, bytes, category) =
         crate::download::finish(&name, None, &[produced.to_path_buf()], options).await?;
     let _ = tokio::fs::remove_dir_all(&options.parts_dir).await;

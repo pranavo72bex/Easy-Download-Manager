@@ -285,8 +285,8 @@ fn inside(url: &Url) -> bool {
 /// Whether `to`, an address that what was fetched from `from` names (a playlist's segment, key
 /// or map, a DASH piece, a Metalink mirror, a page's link), would take dm from a public address
 /// to one inside, as [`inward`] judges a redirect. Those addresses are requested as first hops,
-/// which `inward` never judged, so a public playlist naming `http://192.168.1.1/…` sent dm there
-/// with the page's Referer and any cookies held for that host (security audit, 2026-11-12).
+/// which `inward` never judges, so a public playlist naming `http://192.168.1.1/…` would send dm
+/// there with the page's Referer and any cookies held for that host (security audit).
 /// Either not an address: not judged inside.
 pub fn named_inside(from: &str, to: &str) -> bool {
     match (Url::parse(from.trim()), Url::parse(to.trim())) {

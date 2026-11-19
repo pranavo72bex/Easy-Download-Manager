@@ -13,8 +13,8 @@ use super::*;
 /// this many bytes, or every [`LEDGER_EVERY_TIME`], whichever comes first.
 /// What a range had on disk past its ledger is fetched again after a crash:
 /// killed outright at 40% of a 120 MiB file on a dozen connections, dm
-/// fetched 16.5 MB again at the old marks (4 MiB or a second) where
-/// reference A fetched 3.2 MB (gaps row 65, 2026-11-08). A ledger is twenty
+/// fetched 16.5 MB again at marks of 4 MiB or a second where
+/// reference A fetched 3.2 MB (gaps row 65). A ledger is twenty
 /// bytes written over, with no sync, so four times as often costs nothing
 /// that shows.
 pub(in crate::download) const LEDGER_EVERY: u64 = 512 * 1024;

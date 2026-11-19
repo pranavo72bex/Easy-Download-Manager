@@ -446,7 +446,7 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
         ),
     );
     // The window's scale, a slider of four stops (60, 80, 100 and 120
-    // percent; the maintainer's word of 2026-11-11), the one View › Larger
+    // percent; the maintainer's word), the one View › Larger
     // and Smaller and Ctrl (⌘) with + and − also step: it shows the scale in
     // force, a choice takes effect at once in every window, and it is kept
     // whatever OK or Cancel. Each stop's

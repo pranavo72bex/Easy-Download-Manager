@@ -440,9 +440,9 @@ pub(super) fn clicked() {
             // Less than a choice, or a refusal, while YouTube's own player
             // may still be getting its list: that is waited for (bounded,
             // the panel still saying it reads the qualities) rather than
-            // the page handed over unasked or the click given back. The
-            // first click came before the player had a list, once, and
-            // handed the page over (macOS, 2026-11-11, gaps row 178).
+            // the page handed over unasked or the click given back, as a
+            // first click that comes before the player has a list would
+            // hand the page over (macOS, gaps row 178).
             // Listed by the player meanwhile, or the panel no longer
             // reading (a new player under it): nothing more to do here.
             let _ = heights_listed(player).await;

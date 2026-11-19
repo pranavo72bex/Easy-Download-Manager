@@ -104,7 +104,7 @@ pub enum Mode {
     /// removed, and nothing else. No window, no lock.
     Unregister,
     /// Words that are no link, file or option: a typo, not a request to open
-    /// the window (`dm lst` used to open dm silently).
+    /// the window (`dm lst` would otherwise open dm silently).
     Typo(Vec<String>),
     /// `--headless`: dm with no window and no toolkit at all
     /// ([`crate::headless`]).

@@ -332,7 +332,7 @@ pub const SCRIPT_ACTS_FOR: std::time::Duration = std::time::Duration::from_secs(
 /// file, and the commands dm runs when a download finishes, are refused for
 /// a moment after: words on a button are no proof of what it does, so the
 /// refusal is made where the file would be run, not only where the click is
-/// aimed (security review of 2026-11-07, gaps row 159 f).
+/// aimed (security review, gaps row 159 f).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ScriptGuard(Option<std::time::Instant>);
 
@@ -344,8 +344,8 @@ static LAST_ACTED: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mut
 /// ([`SCRIPT_ACTS_FOR`] after it last acted), a folder typed into Add URL, Properties, Save to or
 /// Move/Rename is held to the download folder or below it, as the port's own `downloads.add` is
 /// (`add_asked`) and Options' folders are (`Settings::keep_places_of`): a script that typed
-/// `~/Library/LaunchAgents` there put a file of a page's choosing where it runs at login
-/// (security audit of 2026-11-12, gaps row 199).
+/// `~/Library/LaunchAgents` there would put a file of a page's choosing where it runs at login
+/// (security audit, gaps row 199).
 pub fn folder_refused(folder: &std::path::Path, download_dir: &std::path::Path) -> Option<String> {
     let acting = dm_core::lock(&LAST_ACTED).is_some_and(|at| at.elapsed() < SCRIPT_ACTS_FOR);
     folder_refused_while(acting, folder, download_dir)

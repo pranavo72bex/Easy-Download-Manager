@@ -18,10 +18,10 @@ pub(super) fn part_path(parts_dir: &Path, index: usize) -> PathBuf {
 /// The file a ranged download is written into, every range at its own
 /// offset.
 ///
-/// Ranges used to go into a part file each, and the parts were copied into
-/// the finished file at the end: every byte written twice, and on a fast
-/// link the copy took longer than the fetch (2 GB: 4.4 s fetched, then 7 to
-/// 9 s joining, `qa/baseline.md`). Written in place, finishing is a rename.
+/// Ranges going into a part file each, copied into the finished file at the
+/// end, would write every byte twice, and on a fast link the copy takes
+/// longer than the fetch (2 GB: 4.4 s fetched, then 7 to 9 s joining).
+/// Written in place, finishing is a rename.
 pub(crate) const STAGED: &str = "staged";
 
 pub(crate) fn staged_path(parts_dir: &Path) -> PathBuf {
@@ -38,7 +38,7 @@ pub(crate) const RANGE: &str = "range-";
 /// staged, and on Windows one sparse staged file wrote and copied slower than plain files: in a
 /// probe of eight threads writing 16 KiB at a time, 512 MiB took 1.8 to 1.95 s into one sparse file
 /// against 0.42 s into eight plain ones, and 1.6 s against 1.1 s to copy (gaps row 166; the
-/// maintainer's choice of 2026-11-10). On one disk the staged file stays, finished by a rename.
+/// maintainer's choice). On one disk the staged file stays, finished by a rename.
 pub(crate) fn range_path(parts_dir: &Path, index: usize) -> PathBuf {
     parts_dir.join(format!("{RANGE}{index:04}"))
 }
@@ -72,8 +72,8 @@ pub(crate) fn stage_by_range(parts_dir: &Path, dest_dir: &Path, by_ranges: bool)
 
 /// `file` made sparse on Windows, so it takes its room only as bytes land,
 /// as files on other systems do. A staged file is made as long as the
-/// download first (`ranged::preallocate`); NTFS then wrote zeros over
-/// everything before the first byte a range wrote far into it, so a 4.5 GiB
+/// download first (`ranged::preallocate`); not sparse, NTFS writes zeros over
+/// everything before the first byte a range writes far into it, so a 4.5 GiB
 /// file's last range waited 95 s on this computer's disk (2026-11-07) and dm
 /// took twice reference A's time (gaps row 158). A file system without sparse
 /// files (FAT) says no, and the file is as it was before.
@@ -118,9 +118,8 @@ pub(super) async fn as_slow_as_the_disk(bytes: u64) {
 }
 
 /// The ledger of range `index`: how many of its bytes are on disk, in
-/// decimal. A part file's length used to be this number; in one shared
-/// file, where every range's region exists from the start, it is written
-/// down instead.
+/// decimal. In one shared file, where every range's region exists from the
+/// start, no file's length can say it, so it is written down.
 pub(crate) fn ledger_path(parts_dir: &Path, index: usize) -> PathBuf {
     parts_dir.join(format!("done-{index:04}"))
 }
@@ -176,12 +175,11 @@ fn mark_synced(parts_dir: &Path, index: usize, done: u64) {
 /// The syncs a stop began (`sync_and_mark`), counted until each has written its mark or given up.
 ///
 /// A sync runs on a blocking thread, and the thread goes on when the connection that asked for
-/// it is stopped: a range still syncing when a stop's grace ran out (`STOP_GRACE`, on a slow or
-/// loaded disk) wrote its mark after the download had returned, so a Delete removing the parts
-/// at once found a file come into the folder and left the folder behind
-/// (`queue.rs` `deleting_a_row_removes_the_parts_where_it_began_after_the_folder_changed`,
-/// failed once in a whole `cargo test --workspace` with the disk nearly full, 2026-11-12). A
-/// download waits for these before it returns (`settled`).
+/// it is stopped: a range still syncing when a stop's grace runs out (`STOP_GRACE`, on a slow or
+/// loaded disk) would write its mark after the download had returned, so a Delete removing the
+/// parts at once would find a file come into the folder and leave the folder behind
+/// (`queue.rs` `deleting_a_row_removes_the_parts_where_it_began_after_the_folder_changed`, with
+/// the disk nearly full). A download waits for these before it returns (`settled`).
 #[derive(Debug, Default)]
 pub(super) struct Stopping {
     count: AtomicUsize,

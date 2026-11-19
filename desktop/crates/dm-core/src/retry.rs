@@ -144,7 +144,7 @@ where
 /// progress, as `progress` measures it (the bytes on disk). The budget
 /// is for failing to get anywhere: a link that drops every few megabytes,
 /// each drop resumed from where it got to, is a download going well, and
-/// five such drops used to fail a large file part-way.
+/// five such drops would otherwise fail a large file part-way.
 pub async fn run_making_progress<F, Fut, T>(
     control: &Control,
     attempts: impl Into<Tries>,

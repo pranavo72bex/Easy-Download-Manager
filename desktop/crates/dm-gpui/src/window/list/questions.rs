@@ -153,9 +153,9 @@ impl Downloads {
             .map(|r| dm_desktop_base::rows::status_of(r))
             .unwrap_or_default();
         let (go_on, can_replace) = dm_desktop_base::add_url::duplicate_offers(&self.rows, id);
-        // The first, which changes nothing, is Return's: an Return pressed
-        // for Download details, a moment before this asked, fetched the file
-        // a second time.
+        // The first, which changes nothing, is Return's: a Return pressed
+        // for Download details, a moment before this asks, would otherwise
+        // fetch the file a second time.
         let mut choices = vec![
             (
                 if go_on { t("Resume it") } else { t("Show it") },
@@ -458,8 +458,8 @@ impl Downloads {
         // Asked from another of dm's windows (a progress window's Cancel download): the main
         // window, which a question waits for on macOS and Windows, is brought in front, and its
         // coming in front shows it (`observe_window_activation`). Without it the question
-        // waited unseen until the person clicked the main window (found by the window's tests,
-        // 2026-11-13).
+        // would wait unseen until the person clicked the main window (found by the window's
+        // tests).
         let main = self.main;
         if cfg!(any(target_os = "macos", windows))
             && !self.sheet_open

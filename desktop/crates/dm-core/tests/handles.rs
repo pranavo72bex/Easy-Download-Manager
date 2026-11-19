@@ -6,7 +6,7 @@
 //! Whether the engine keeps Windows handles after downloads (gaps row 156):
 //! it does not, with one range or four, one client for all or one each
 //! (2026-11-07: +4, +4 and +0 over forty downloads each). What the app kept
-//! was each finished download's toast's (`dm-desktop` `tests/handles.rs`).
+//! was each finished download's toast's (`dm-desktop-base` `tests/handles.rs`).
 
 #![cfg(windows)]
 

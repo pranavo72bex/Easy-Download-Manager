@@ -170,9 +170,9 @@ pub fn pieces(size: Option<u64>, connections: usize, resumable: bool) -> Vec<Seg
 /// Part files and ledgers are matched to ranges by index, and an index says nothing
 /// about the offset it was written at: the same `part-0001` is bytes
 /// 512M–1G under an eight-way plan and 256M–512M under a sixteen-way one.
-/// Every start used to re-plan from the connection setting of the moment,
-/// so pausing, changing the setting and resuming spliced one plan's bytes
-/// into another's offsets and reported the result Completed. The plan is
+/// A start that re-planned from the connection setting of the moment would,
+/// after a pause and a change of the setting, splice one plan's bytes into
+/// another's offsets and report the result Completed. The plan is
 /// written down when the parts are first staged and read back before they
 /// are adopted, so a resume finishes the plan it started rather than the
 /// one the settings now suggest.
@@ -188,11 +188,11 @@ pub struct Recorded {
     ///
     /// `If-Range` guards one run only. Across a pause the next run probes
     /// the file as it is now and sends *that* validator as the condition, so
-    /// a file republished at the same length was served as a range of the
-    /// new version and appended to parts of the old one — reported Completed
-    /// and matching neither. Parts are adopted only under the validator they
-    /// were fetched under. Plans written before this have none and are
-    /// adopted only from a server that offers none.
+    /// a file republished at the same length would be served as a range of
+    /// the new version and appended to parts of the old one — reported
+    /// Completed and matching neither. Parts are adopted only under the
+    /// validator they were fetched under. A plan with none is adopted only
+    /// from a server that offers none.
     #[serde(default)]
     pub validator: Option<String>,
 }

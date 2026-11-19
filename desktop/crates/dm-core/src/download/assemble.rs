@@ -113,9 +113,9 @@ pub(super) async fn join_parts(
 /// waiting for it, so the row says Completed as soon as the system holds the whole file, as
 /// reference A's does. Waited for, a file copied to a hard disk on another drive than dm's home
 /// spent most of its finish on the flush: 512 MiB took 10 to 12.7 s where reference A took 5.7 to
-/// 6.4 s (gaps row 166, 2026-11-09; the maintainer's choices of 2026-11-10, `docs/decisions.md`).
+/// 6.4 s (gaps row 166; the maintainer's choices, `docs/decisions.md` 2026-11-10).
 /// What it gives up: a power cut in the seconds after Completed can leave the file's last blocks
-/// unwritten, which the 2026-11-08 sync before Completed had ruled out. Called once nothing more is
+/// unwritten, which a sync before Completed would rule out. Called once nothing more is
 /// done to the file (after the queue's renames and the mark of where it came from).
 ///
 /// On Windows nothing is asked: the system's own write-behind puts the file on the disk within
@@ -146,9 +146,9 @@ pub(crate) fn sync_after(path: PathBuf) {
 }
 
 /* The first part becomes the file by a rename, and the rest are appended to
- * it on one blocking thread. The join used to copy every byte again through
- * async I/O 8 KiB at a time, each read and write a hop to the blocking pool:
- * on a fast link it took longer than the download did. `std::io::copy` into
+ * it on one blocking thread. A join copying every byte again through async
+ * I/O 8 KiB at a time, each read and write a hop to the blocking pool, would
+ * take longer on a fast link than the download did. `std::io::copy` into
  * a large `BufWriter` reads in large blocks, and on Linux becomes
  * `copy_file_range`, which the kernel does without copying through dm (and
  * Btrfs or XFS without copying at all). */
@@ -241,19 +241,18 @@ pub(super) const SEAM_WINDOW: u64 = 512;
 /// file's last bytes where it is the last range, claimed for asking again and compared with the
 /// bytes on disk, as reference A looks at its seams a second time. A seam is claimed once, by
 /// whichever of its two ranges is whole second, so the end of every range is looked at in the
-/// same request as the start of the next, while the download goes on. The seams used to be asked
-/// one after another after the last byte, with every range's end asked apart as well: the finish
-/// waited out eight round trips, and each range's end was fetched twice over (gaps rows 171 and
-/// 177).
+/// same request as the start of the next, while the download goes on. Asked one after another
+/// after the last byte, with every range's end asked apart as well, the finish would wait out
+/// eight round trips and each range's end would be fetched twice over (gaps rows 171 and 177).
 ///
 /// The spans are handed on to the download's checks (`ask_handed`), not asked on the range's own
-/// connection: that connection takes its next work at once, a range to halve or to fetch, where
-/// it used to wait out a round trip or two of its checks first (gaps row S4). The checks go out
+/// connection: that connection takes its next work at once, a range to halve or to fetch, rather
+/// than waiting out a round trip or two of its checks first (gaps row S4). The checks go out
 /// on the places of the connections that are done with ranges, as many at once as there are such
 /// places, so the server is never asked more at once than the download's connections asked of it,
 /// and a site limited to so many connections sees no more (`Options::host_limits`). At the end,
 /// the range whole last finds the others' places free and its two checks (a seam either side, or
-/// a seam and the file's end) go out at once, as they did on its own connection (2026-11-11).
+/// a seam and the file's end) go out at once, as they would on its own connection.
 ///
 /// A request that fails or is not answered as a range proves nothing and is let pass; bytes that
 /// differ, or the whole file answered under the validator (another version of it), are a finding,
@@ -721,10 +720,9 @@ pub(super) async fn assemble(
 /// Everything that happens once the bytes are all on disk.
 ///
 /// Shared by every route that ends in a file: ranged downloads, streams, FTP,
-/// live recordings, video downloads and a torrent of one file. Ranged
-/// downloads and streams used to carry their own copy of this, including the checksum block —
-/// directly under a comment claiming there was one place that decided
-/// whether a file is the file.
+/// live recordings, video downloads and a torrent of one file. No route
+/// keeps its own copy of this, the checksum block included: this is the
+/// one place that decides whether a file is the file.
 pub(crate) async fn finish(
     name: &str,
     content_type: Option<&str>,

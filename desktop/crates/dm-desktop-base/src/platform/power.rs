@@ -133,8 +133,8 @@ fn suspend(action: WhenDone, _hibernate: bool, _report: Report) -> Result<(), St
 
 /// Starts `command` and waits for it on a thread of its own, telling
 /// `report` if it fails, whenever that is. A refusal — no permission to
-/// shut down, a system that will not suspend — used to be ignored: the
-/// countdown ended, nothing happened, and nothing said so. Waiting on the
+/// shut down, a system that will not suspend — is told: ignored, the
+/// countdown would end, nothing happen, and nothing say so. Waiting on the
 /// window's thread would hold the window, and a suspend that returns only
 /// on waking would hold it for the night.
 fn watch(

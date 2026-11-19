@@ -71,8 +71,8 @@ fn plain(word: &str) -> bool {
 /// The name an item is kept under in the keychain: dm's own name where it is plain, and
 /// otherwise the name spelt in base64url. A Sign-in's name holds a line break between the
 /// site and the user (`settings/secrets.rs`), which `security -i` would split, so every
-/// Sign-in's password was refused and stayed in the settings file (security review,
-/// 2026-11-07). Plain names, the proxy's among them, are kept as they always were.
+/// Sign-in's password would be refused and stay in the settings file (security review).
+/// Plain names, the proxy's among them, are kept as they are.
 #[cfg(target_os = "macos")]
 fn keyed(name: &str) -> std::borrow::Cow<'_, str> {
     if plain(name) {

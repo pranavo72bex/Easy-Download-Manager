@@ -158,9 +158,9 @@ pub const DROP_KINDS: [&str; 6] = ["webloc", "url", "txt", "text", "html", "htm"
 
 /// Links in a dropped browser item: the address itself where a drag source
 /// hands one over as the path, else the first 64 KB of a text-like file.
-/// Read from the path, and only that much: the whole file used to be read,
-/// on the window's thread, to look at the start of it, and a dropped 4 GB
-/// image held the window until it had. The file's bytes as the drop hands
+/// Read from the path, and only that much: the whole file read on the
+/// window's thread to look at the start of it, a dropped 4 GB image would
+/// hold the window until it had. The file's bytes as the drop hands
 /// them over are the fallback where the path cannot be opened.
 pub fn links_at(path: &std::path::Path, bytes: impl FnOnce() -> Option<Vec<u8>>) -> Vec<String> {
     use std::io::Read;

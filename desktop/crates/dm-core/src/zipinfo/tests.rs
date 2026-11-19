@@ -6,7 +6,7 @@
 use super::*;
 
 /// A file said to unpack to more than the cap is refused before anything is fetched, and
-/// unpacking stops at the cap whatever the list says (security audit, 2026-11-12).
+/// unpacking stops at the cap whatever the list says (security audit).
 #[tokio::test]
 async fn a_file_said_to_unpack_past_the_cap_is_refused_and_never_unpacked_past_it() {
     let huge = ZipEntry {

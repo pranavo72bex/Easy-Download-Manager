@@ -1349,9 +1349,8 @@ fn an_av1_webm_picture_and_opus_sound_join_into_one_mp4() {
 }
 
 /// A part cut from a plain MP4 on the web (`download/plain.rs`, the Part line on an ordinary video
-/// file): its index and the frames of the part asked for by range, written as an MP4 of its own.
-/// Until 2026-11-08 nothing tested this path; it had been run by hand on two real files (gaps
-/// row 45).
+/// file): its index and the frames of the part asked for by range, written as an MP4 of its own
+/// (gaps row 45).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_part_is_cut_from_a_plain_mp4_on_the_web() {
     use axum::body::Body;
