@@ -126,6 +126,8 @@ fn advanced_holds_the_connection_and_the_proxy_settings_on_one_page() {
         "Attempts per connection (0 to keep trying)",
         "Wait between attempts (seconds, 0 for automatic)",
         "Time out a silent connection after (seconds)",
+        // The one network every download is held to (gaps row W12).
+        "Only through",
         "Second network",
         "Connect through a proxy",
     ] {

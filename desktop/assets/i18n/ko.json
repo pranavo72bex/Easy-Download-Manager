@@ -929,5 +929,10 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "같은 이름의 폴더에 압축 풀림, 압축 파일은 휴지통으로 보냄",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "같은 이름의 폴더에 압축 풀림, 하지만 압축 파일을 휴지통으로 보내지 못함",
  "not unpacked: the archive has a password": "압축 풀지 않음: 압축 파일에 암호가 있음",
- "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌"
+ "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌",
+ "Only through": "다음으로만 연결",
+ "Any network": "모든 네트워크",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "모든 다운로드가 이 네트워크(예: VPN)로만 나갑니다. 연결되지 않은 동안 다운로드는 그 이유를 표시하며 기다리고, 다시 연결되면 저절로 이어집니다. 선택된 동안 토렌트와 라이브 스트림은 시작되지 않으며 두 번째 네트워크는 사용하지 않습니다.",
+ "Waiting for the network": "네트워크 기다리는 중",
+ "the network downloads go only through is not connected. dm goes on when it is back": "다운로드에 쓰는 네트워크가 연결되어 있지 않습니다. 다시 연결되면 dm이 이어서 받습니다"
 }

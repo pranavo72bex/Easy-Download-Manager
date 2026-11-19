@@ -34,6 +34,9 @@ pub async fn start(orders: &Orders) -> Started {
     let (mut saved, unreadable) = Settings::load();
     let mut notices: Vec<String> = unreadable.into_iter().collect();
 
+    // The network the client below is built bound to, for the queue to build it again on the
+    // one the settings hold downloads to, which is put in force after it (gaps row W12).
+    let built_at = dm_core::network_generation();
     let client = match saved.client() {
         Ok(client) => client,
         Err(why) => {
@@ -70,6 +73,7 @@ pub async fn start(orders: &Orders) -> Started {
         ),
         saved.downloads.concurrency,
     );
+    queue.client_built_with(&saved.advanced.proxy, saved.read_timeout(), built_at);
     // Before anything can serve the queue: applying it from a spawned task
     // raced the scheduler, and a scheduled queue ran at launch.
     queue.set_schedule(saved.schedule.clone());
@@ -135,6 +139,9 @@ fn engine_config(settings: &Settings) -> dm_core::EngineConfig {
         second_path: (!settings.advanced.proxy.enabled).then(|| settings.second_path.clone()),
         // YouTube's cut players, kept between sessions under dm's home (gaps row Y13).
         kept_players: Some(crate::settings::home().join(dm_core::paths::PLAYERS)),
+        // The one network every download is held to; the second network is then off
+        // (`dm_core::configure`, gaps row W12).
+        only_through: settings.advanced.only_through.clone(),
     }
 }
 

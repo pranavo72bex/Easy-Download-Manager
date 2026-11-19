@@ -929,5 +929,10 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "diekstrak ke folder bernama sama, dan arsipnya dipindahkan ke Tempat Sampah",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "diekstrak ke folder bernama sama, tetapi arsipnya tidak dapat dipindahkan ke Tempat Sampah",
  "not unpacked: the archive has a password": "tidak diekstrak: arsipnya memiliki kata sandi",
- "not unpacked: Extract here on its menu says why": "tidak diekstrak: \"Ekstrak di sini\" di menunya memberi tahu alasannya"
+ "not unpacked: Extract here on its menu says why": "tidak diekstrak: \"Ekstrak di sini\" di menunya memberi tahu alasannya",
+ "Only through": "Hanya melalui",
+ "Any network": "Jaringan apa pun",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Setiap unduhan keluar hanya lewat jaringan ini, seperti jaringan VPN Anda. Selama tidak tersambung, unduhan menunggu dan mengatakannya, lalu lanjut sendiri saat jaringan kembali. Torrent dan siaran langsung tidak dimulai selama satu jaringan dipilih, dan jaringan kedua tidak dipakai.",
+ "Waiting for the network": "Menunggu jaringan",
+ "the network downloads go only through is not connected. dm goes on when it is back": "jaringan yang menjadi satu-satunya jalan unduhan tidak tersambung. dm lanjut saat jaringan kembali"
 }

@@ -63,7 +63,7 @@ pub struct Options {
     pub(crate) to_proxy: bool,
     /// The queues there are, for Downloads' limits and start times.
     pub(crate) queues: Vec<String>,
-    /// The second networks offered, as last listed.
+    /// The networks offered for Only through and the second network, as last listed.
     pub(crate) networks: Vec<dm_core::Interface>,
     /// "How to use your phone" is open.
     pub(crate) phone: bool,

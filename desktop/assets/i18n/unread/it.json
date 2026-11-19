@@ -111,5 +111,10 @@
  "unpacked into a folder of its name, and the archive sent to the Trash",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash",
  "not unpacked: the archive has a password",
- "not unpacked: Extract here on its menu says why"
+ "not unpacked: Extract here on its menu says why",
+ "Only through",
+ "Any network",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.",
+ "Waiting for the network",
+ "the network downloads go only through is not connected. dm goes on when it is back"
 ]

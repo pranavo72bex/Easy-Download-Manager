@@ -929,5 +929,10 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "descomprimido en una carpeta con su nombre, y el archivo comprimido enviado a la papelera",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "descomprimido en una carpeta con su nombre, pero el archivo comprimido no se pudo enviar a la papelera",
  "not unpacked: the archive has a password": "no descomprimido: el archivo comprimido tiene contraseña",
- "not unpacked: Extract here on its menu says why": "no descomprimido: «Extraer aquí» en su menú dice por qué"
+ "not unpacked: Extract here on its menu says why": "no descomprimido: «Extraer aquí» en su menú dice por qué",
+ "Only through": "Solo a través de",
+ "Any network": "Cualquier red",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Cada descarga sale solo por esta red, como la de tu VPN. Mientras no esté conectada, las descargas esperan y lo dicen, y siguen solas cuando vuelve. Los torrents y las emisiones en directo no empiezan mientras haya una elegida, y no se usa la segunda red.",
+ "Waiting for the network": "Esperando la red",
+ "the network downloads go only through is not connected. dm goes on when it is back": "la red por la que salen las descargas no está conectada. dm sigue cuando vuelva"
 }

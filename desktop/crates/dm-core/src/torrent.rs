@@ -315,6 +315,14 @@ pub async fn download_torrent(
     if let Some(why) = options.no_route_through_system_proxy(url, "a torrent") {
         return Err(Error::Internal(why));
     }
+    // The swarm's sockets are librqbit's, which dm cannot bind to one network: held to one
+    // (gaps row W12), a torrent is not started rather than sent around it.
+    if let Some(name) = crate::only_through::only_through() {
+        return Err(Error::Internal(crate::only_through::refused_words(
+            "a torrent",
+            &name,
+        )));
+    }
     let connect = swarm_proxy(options.proxy_for(url).as_deref())?;
     let proxied = connect.is_some();
     // Behind a proxy, or asked to keep to the trackers: no DHT, no local discovery.

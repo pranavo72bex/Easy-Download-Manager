@@ -291,6 +291,11 @@ pub struct AdvancedSettings {
     /// A folder and a speed limit for a site's downloads (Options › Advanced).
     #[serde(default, deserialize_with = "super::lenient::site_rules")]
     pub site_rules: Vec<SiteRule>,
+    /// The one network every download is held to (Options › Advanced › Network › Only
+    /// through, gaps row W12), by its adapter's name (`dm_core::interfaces`); empty for any.
+    /// Chosen, the second network is not used.
+    #[serde(default)]
+    pub only_through: String,
 }
 
 impl Default for AdvancedSettings {
@@ -312,6 +317,7 @@ impl Default for AdvancedSettings {
             read_timeout: default_read_timeout(),
             host_limits: Vec::new(),
             site_rules: Vec::new(),
+            only_through: String::new(),
         }
     }
 }

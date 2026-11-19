@@ -76,6 +76,8 @@ impl DownloadList {
         if self.inner.closing.load(Ordering::SeqCst) {
             return;
         }
+        // The network downloads are held to, chosen anew or gone: what runs starts again.
+        self.restart_for_network().await;
         // Outside the window, nothing new starts and what is running is put
         // down. Pausing rather than letting it run to the end is the point:
         // the reason to set a window is a link that must be free outside it.
@@ -294,7 +296,6 @@ impl DownloadList {
             let (tx, rx) = tokio::sync::mpsc::channel(32);
             let watcher = tokio::spawn(watch_run(queue.clone(), id, ran_with.clone(), staged, rx));
 
-            let client = crate::lock(&inner.client).clone();
             // A dial-up or VPN connection the person chose is up before the first request, and
             // the download waits for it: never sent around it (`connect_first.rs`).
             let connected = if form_lost {
@@ -314,6 +315,14 @@ impl DownloadList {
                 ))
                 .await
             };
+            // The network downloads are held to has an address first, and the download waits
+            // for it, saying why (gaps row W12).
+            let connected = match connected {
+                Ok(()) if !form_lost => sent(network_first(&options.control, tx.clone())).await,
+                other => other,
+            };
+            // Taken once the network is there: built again where its address changed.
+            let client = queue.client_now();
             let outcome = if form_lost {
                 drop(tx);
                 Err(crate::Error::Internal(
@@ -524,6 +533,23 @@ async fn watch_run(
         }
     }
     reported
+}
+
+/// Waits for the network downloads are held to (`only_through::before_download`), telling the
+/// row why on `told` as a retry's wait is told, until it is there or the download is stopped.
+async fn network_first(
+    control: &Control,
+    told: tokio::sync::mpsc::Sender<crate::download::Update>,
+) -> Result<(), Error> {
+    crate::only_through::before_download(control, move |look, why, wait| {
+        let _ = told.try_send(crate::download::Update::Retrying {
+            attempt: look,
+            of: 0,
+            why,
+            wait,
+        });
+    })
+    .await
 }
 
 /// `future`, boxed with `Send` named where it is made: awaited inside `tokio::spawn`, an async

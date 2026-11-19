@@ -38,6 +38,8 @@ impl DownloadList {
                 recheck: std::sync::Mutex::new((None, now_millis())),
                 starts: std::sync::Mutex::new(QueueStarts::default()),
                 client: std::sync::Mutex::new(client),
+                client_made: std::sync::Mutex::new((None, crate::only_through::generation())),
+                restarts_seen: AtomicU64::new(crate::only_through::restarts()),
                 saves: AtomicU64::new(0),
                 saved: std::sync::Mutex::new(None),
                 changed: std::sync::Mutex::new(None),

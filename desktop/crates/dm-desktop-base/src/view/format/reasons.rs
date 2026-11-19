@@ -15,7 +15,7 @@
 /// system's and servers' own words, and the same rewording serves texts that carry no kind (a
 /// stalled row's why, a retry's cause, a file error). It chooses only the words shown, and the
 /// next step and button that go with them (gaps row A9).
-pub const REASONS: [(&[&str], &str); 33] = [
+pub const REASONS: [(&[&str], &str); 34] = [
     // First: the failure text of a row waiting for a fresh address also names
     // the refusal that expired it (`dm_core::LINK_EXPIRED`).
     (
@@ -28,6 +28,12 @@ pub const REASONS: [(&[&str], &str); 33] = [
     (
         &["did not come up"],
         "cannot connect to the Internet. The dial-up or VPN connection did not come up",
+    ),
+    // Third: a download waiting for the one network downloads are held to (dm-net's
+    // `only_through`, gaps row W12), before any of the words below its adapter's name may hold.
+    (
+        &["that downloads go only through"],
+        "the network downloads go only through is not connected. dm goes on when it is back",
     ),
     (
         &[
@@ -251,12 +257,15 @@ pub fn retry_cause(raw: &str) -> Option<&'static str> {
         "cannot connect to the Internet. The dial-up or VPN connection did not come up" => {
             Some("Redialling")
         }
+        "the network downloads go only through is not connected. dm goes on when it is back" => {
+            Some("Waiting for the network")
+        }
         _ => None,
     }
 }
 
 /// Every word [`retry_cause`] can give, for the catalogs.
-pub const RETRY_CAUSES: [&str; 8] = [
+pub const RETRY_CAUSES: [&str; 9] = [
     "Server error",
     "Too many requests",
     "Connection dropped",
@@ -265,6 +274,7 @@ pub const RETRY_CAUSES: [&str; 8] = [
     "No answer",
     "Server unreachable",
     "Redialling",
+    "Waiting for the network",
 ];
 
 /// A failure's plain reason, in English, if it is one dm knows; see

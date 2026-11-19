@@ -929,5 +929,10 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "rozpakowano do folderu o jego nazwie, a archiwum przeniesiono do kosza",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "rozpakowano do folderu o jego nazwie, ale archiwum nie udało się przenieść do kosza",
  "not unpacked: the archive has a password": "nie rozpakowano: archiwum ma hasło",
- "not unpacked: Extract here on its menu says why": "nie rozpakowano: „Wypakuj tutaj” w jego menu mówi dlaczego"
+ "not unpacked: Extract here on its menu says why": "nie rozpakowano: „Wypakuj tutaj” w jego menu mówi dlaczego",
+ "Only through": "Tylko przez",
+ "Any network": "Dowolna sieć",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Każde pobieranie wychodzi tylko przez tę sieć, na przykład sieć VPN. Dopóki nie jest połączona, pobierania czekają, mówiąc o tym, i same wznawiają się, gdy wróci. Torrenty i transmisje na żywo nie startują, dopóki wybrana jest sieć, a druga sieć nie jest używana.",
+ "Waiting for the network": "Czeka na sieć",
+ "the network downloads go only through is not connected. dm goes on when it is back": "sieć, przez którą jedynie idą pobierania, nie jest połączona. dm wznowi, gdy wróci"
 }

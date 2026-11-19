@@ -929,5 +929,10 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "同じ名前のフォルダーに展開済み、アーカイブはゴミ箱へ移動",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "同じ名前のフォルダーに展開済み、ただしアーカイブをゴミ箱へ移動できませんでした",
  "not unpacked: the archive has a password": "展開されていません: アーカイブにパスワードがあります",
- "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります"
+ "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります",
+ "Only through": "使用するネットワーク",
+ "Any network": "任意のネットワーク",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "すべてのダウンロードはこのネットワーク (VPN など) だけを通ります。接続されていない間はダウンロードが理由を示して待機し、戻ると自動で再開します。選択中はトレントとライブ配信は開始せず、2つ目のネットワークも使いません。",
+ "Waiting for the network": "ネットワーク待機中",
+ "the network downloads go only through is not connected. dm goes on when it is back": "ダウンロードに使うネットワークが接続されていません。戻ると dm が再開します"
 }

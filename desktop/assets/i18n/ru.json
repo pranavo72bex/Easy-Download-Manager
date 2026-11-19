@@ -929,5 +929,10 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "распакован в папку с его именем, архив отправлен в корзину",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "распакован в папку с его именем, но архив не удалось отправить в корзину",
  "not unpacked: the archive has a password": "не распакован: у архива есть пароль",
- "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему"
+ "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему",
+ "Only through": "Только через",
+ "Any network": "Любая сеть",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Все загрузки идут только через эту сеть, например через VPN. Пока она не подключена, загрузки ждут, сообщая об этом, и сами продолжаются, когда она вернётся. Торренты и прямые трансляции не запускаются, пока сеть выбрана, а вторая сеть не используется.",
+ "Waiting for the network": "Ожидание сети",
+ "the network downloads go only through is not connected. dm goes on when it is back": "сеть, через которую идут загрузки, не подключена. dm продолжит, когда она вернётся"
 }
