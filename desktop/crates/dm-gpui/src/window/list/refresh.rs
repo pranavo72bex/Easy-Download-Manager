@@ -71,6 +71,8 @@ impl Downloads {
         dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
         dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
         dm_desktop_base::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
+        // What of the computer's state holds the rows: their reason (gaps row W11).
+        dm_desktop_base::rows::set_held_by(self.backend.held_by());
         // The window's rows are the last read's, in its order, as the queue's rows are compared
         // with: a size told by a dialog (rare) or a read of everything takes every row.
         let follows = !self.known.read_all

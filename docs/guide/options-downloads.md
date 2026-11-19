@@ -70,3 +70,25 @@ A site that allows fewer connections can be given its own number: see
 - "When a download finishes, run this command (a virus checker or a script).
   The file's path is added at the end:" type it in **Command**. Empty runs
   nothing.
+
+## A metered connection and the battery
+
+- **On a metered connection:** **Go on** (at first), **Ask** or **Wait**.
+  "Where the system marks the connection as metered: a phone's hotspot, a
+  capped plan. Downloads that wait go on by themselves once it is not."
+  With **Wait**, every download waits while the connection is metered, its
+  row saying "Waiting: the connection is metered", and goes on by itself
+  when it is not. With **Ask**, dm asks "The connection is metered" once
+  each time the connection becomes metered, the downloads waiting until you
+  choose **Download anyway** or **Wait**; with no window open, **Ask**
+  waits. Windows says a connection is metered from Settings › Network
+  (and for a phone's connection by itself); on Linux, NetworkManager says
+  it. macOS does not tell dm, so there the downloads go on.
+- **On battery: wait below (%, 0 for never):** "Downloads wait while the
+  computer runs on its battery below this level, and go on once it charges
+  or is above it again." Their rows say "Waiting: the battery is low". 0,
+  the setting at first, never waits.
+
+A connection or a battery the system says nothing of never holds a
+download. A download you start with **Start download** while they wait
+goes on; one you paused stays paused when the wait ends.

@@ -283,11 +283,14 @@ impl Downloads {
     /// second while a download runs, whose figures nothing else tells it of
     /// (the engine reports them that often;
     /// read once a second, they moved in jumps); a second for When done's
-    /// countdown and the clipboard; else 30 seconds.
+    /// countdown and the clipboard, and while a metered connection or a low battery holds
+    /// the downloads, which go on within moments of its end (gaps row W11); else 30 seconds.
     fn clock_every(&self) -> Duration {
         clock(
             self.rows.iter().any(|r| r.state == State::Running),
-            self.session.countdown.is_some() || self.system.clipboard.on,
+            self.session.countdown.is_some()
+                || self.system.clipboard.on
+                || self.backend.held_by().is_some(),
         )
     }
 

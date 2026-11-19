@@ -102,6 +102,12 @@ impl Options {
                 }
             }
             ["on_complete"] => s.downloads.on_complete = text.into(),
+            // A percent of the battery (gaps row W11).
+            ["battery_below"] => {
+                if let Some(n) = n(0, 100) {
+                    s.downloads.battery_below = n as u32;
+                }
+            }
             _ => return false,
         }
         true

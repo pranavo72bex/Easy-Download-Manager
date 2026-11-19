@@ -45,6 +45,8 @@ mod runner;
 mod settings;
 // Rows from a backup taken in (gaps row W16).
 mod adopt;
+mod waits;
+pub use waits::Hold;
 
 #[cfg(test)]
 use files::{copy_dir, rename_case_only};
@@ -650,6 +652,9 @@ struct Inner {
     /// The next write is of the whole list, the journal gone with it: a row that keeps no
     /// record went since, and the journal's lines still name it (`forget`).
     whole_next: AtomicBool,
+    /// What of the computer's state holds every download (gaps row W11: a metered connection, a
+    /// low battery), as whoever drives dm last said (`hold_for`); a leaf lock.
+    held_by: std::sync::Mutex<Option<Hold>>,
 }
 
 /// A queue of downloads.

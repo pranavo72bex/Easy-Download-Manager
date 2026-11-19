@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "フォロー中の {} を読み込めませんでした: {}",
  "the items {} gained could not be added: {}": "{} の新しい項目を追加できませんでした: {}",
  "what is followed could not be saved: {}": "フォローの内容を保存できませんでした: {}",
- "Following {}, checked again every {} hours.": "{} をフォローしました。{} 時間ごとに再確認します。"
+ "Following {}, checked again every {} hours.": "{} をフォローしました。{} 時間ごとに再確認します。",
+ "Waiting: {}": "待機中：{}",
+ "the connection is metered": "従量制課金接続です",
+ "the battery is low": "バッテリー残量が少なくなっています",
+ "On a metered connection": "従量制課金接続のとき",
+ "Go on": "続ける",
+ "Ask": "確認する",
+ "Wait": "待つ",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "システムが接続を従量制課金としている場合（スマートフォンのテザリング、上限のあるプランなど）。待機中のダウンロードは、従量制でなくなると自動的に再開します。",
+ "On battery: wait below (%, 0 for never)": "バッテリー駆動時：この値未満で待つ（%、0 で待たない）",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "コンピューターがこの残量未満でバッテリー駆動している間はダウンロードを待ち、充電されるか残量が上回ると再開します。",
+ "The connection is metered": "従量制課金接続です",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "この接続でダウンロードすると料金がかかったり、データ通信量を使い切ったりすることがあります。選ぶまですべてのダウンロードが待機します。",
+ "Download anyway": "それでもダウンロード"
 }

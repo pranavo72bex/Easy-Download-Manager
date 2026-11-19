@@ -43,6 +43,7 @@ impl DownloadList {
                 saved: std::sync::Mutex::new(None),
                 changed: std::sync::Mutex::new(None),
                 whole_next: AtomicBool::new(false),
+                held_by: std::sync::Mutex::new(None),
             }),
         }
     }

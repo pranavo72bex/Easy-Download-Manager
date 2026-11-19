@@ -163,6 +163,7 @@ impl Downloads {
             )),
             Effect::Scheduled { hang_up } => self.hang_up(hang_up),
             Effect::Quit => self.quit(cx),
+            Effect::AskMetered => self.ask_metered(cx),
             // Carried on the platform, above.
             Effect::Notify { .. }
             | Effect::NotifyFile { .. }
@@ -170,6 +171,31 @@ impl Downloads {
             | Effect::Open(_)
             | Effect::Reveal(_) => {}
         }
+    }
+
+    /// The connection has become metered and Options › Downloads says to ask (gaps row W11):
+    /// every download waits meanwhile; Download anyway lets them go on until the connection is
+    /// no longer metered, Wait (the default, which costs nothing) keeps them waiting until then.
+    fn ask_metered(&mut self, cx: &mut Context<Self>) {
+        let asked = crate::dialogs::question::Asked {
+            title: t("The connection is metered").into(),
+            lines: vec![t("Downloading over it may cost money or use up a data plan. Every download waits until you choose.").into()],
+            named: None,
+            detail: None,
+            toggle: None,
+            ticked: false,
+            buttons: vec![t("Wait").into(), t("Download anyway").into()],
+            default: 0,
+            escape: 0,
+        };
+        let view = cx.entity().downgrade();
+        let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
+            let _ = view.update(cx, |view, cx| {
+                view.session.answer_metered(button == 1);
+                cx.notify();
+            });
+        });
+        self.sheet(asked, None, None, answer, cx);
     }
 
     /// Scheduler › Hang up modem when done, where the schedules asked for it (`hang_up`): off

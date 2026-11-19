@@ -14,7 +14,8 @@
 //! `region` (how the computer writes numbers and dates), Windows' taskbar
 //! button (`taskbar`'s progress, `jumplist`), `drops` (what the system's
 //! drop target takes), `opened` (links and files macOS opens with dm) and
-//! `a11y_tree` (what VoiceOver is given of each window). Each is reached
+//! `a11y_tree` (what VoiceOver is given of each window); `metered` (whether the
+//! connection is metered and the computer on its battery, gaps row W11). Each is reached
 //! from the crate's root as before (`dm_desktop_base::quiet`).
 
 pub mod a11y_tree;
@@ -26,6 +27,7 @@ pub mod desktop;
 pub mod drops;
 pub mod jumplist;
 pub mod login;
+pub mod metered;
 pub mod mica;
 #[cfg(target_os = "macos")]
 pub mod opened;

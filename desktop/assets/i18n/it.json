@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "impossibile leggere {} (seguito): {}",
  "the items {} gained could not be added: {}": "impossibile aggiungere le novità di {}: {}",
  "what is followed could not be saved: {}": "impossibile salvare ciò che è seguito: {}",
- "Following {}, checked again every {} hours.": "Segui {}, controllato di nuovo ogni {} ore."
+ "Following {}, checked again every {} hours.": "Segui {}, controllato di nuovo ogni {} ore.",
+ "Waiting: {}": "In attesa: {}",
+ "the connection is metered": "la connessione è a consumo",
+ "the battery is low": "la batteria è scarica",
+ "On a metered connection": "Su una connessione a consumo",
+ "Go on": "Continua",
+ "Ask": "Chiedi",
+ "Wait": "Attendi",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Quando il sistema segna la connessione come a consumo: l'hotspot di un telefono, un piano limitato. I download in attesa riprendono da soli quando non lo è più.",
+ "On battery: wait below (%, 0 for never)": "A batteria: attendi sotto (%, 0 per mai)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "I download attendono finché il computer va a batteria sotto questo livello, e riprendono quando si ricarica o torna sopra.",
+ "The connection is metered": "La connessione è a consumo",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Scaricare con essa può costare denaro o esaurire un piano dati. Ogni download attende finché non scegli.",
+ "Download anyway": "Scarica comunque"
 }

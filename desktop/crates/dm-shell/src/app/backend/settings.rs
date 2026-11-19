@@ -34,6 +34,19 @@ impl Backend {
         self.queue.allowance_spent()
     }
 
+    /// What of the computer's state holds every download now (gaps row W11: a metered
+    /// connection, a low battery); `None` while nothing does.
+    #[must_use]
+    pub fn held_by(&self) -> Option<dm_core::Hold> {
+        self.queue.held_by()
+    }
+
+    /// Every download held for `hold`, or let go on with `None` (gaps row W11): told by the
+    /// application's tick, which reads the computer's state as Options › Downloads asks.
+    pub fn hold_for(&self, hold: Option<dm_core::Hold>) {
+        self.queue.hold_for(hold);
+    }
+
     /// The settings as they change, for a thread of its own to read.
     pub fn settings_handle(&self) -> Arc<Mutex<Settings>> {
         Arc::clone(&self.settings)

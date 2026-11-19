@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "nie udało się odczytać obserwowanego {}: {}",
  "the items {} gained could not be added: {}": "nie udało się dodać nowych pozycji z {}: {}",
  "what is followed could not be saved: {}": "nie udało się zapisać obserwowanych: {}",
- "Following {}, checked again every {} hours.": "Obserwowane: {}, sprawdzane ponownie co {} godz."
+ "Following {}, checked again every {} hours.": "Obserwowane: {}, sprawdzane ponownie co {} godz.",
+ "Waiting: {}": "Czeka: {}",
+ "the connection is metered": "połączenie jest taryfowe",
+ "the battery is low": "bateria jest słaba",
+ "On a metered connection": "Przy połączeniu taryfowym",
+ "Go on": "Kontynuuj",
+ "Ask": "Pytaj",
+ "Wait": "Czekaj",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Gdy system oznacza połączenie jako taryfowe: hotspot telefonu, plan z limitem. Czekające pobierania same ruszą dalej, gdy przestanie nim być.",
+ "On battery: wait below (%, 0 for never)": "Na baterii: czekaj poniżej (%, 0 – nigdy)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Pobierania czekają, dopóki komputer działa na baterii poniżej tego poziomu, i ruszają dalej, gdy się ładuje lub znów jest powyżej.",
+ "The connection is metered": "Połączenie jest taryfowe",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Pobieranie przez nie może kosztować lub zużyć pakiet danych. Każde pobieranie czeka, aż wybierzesz.",
+ "Download anyway": "Pobierz mimo to"
 }

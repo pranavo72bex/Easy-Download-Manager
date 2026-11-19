@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "无法读取关注的 {}：{}",
  "the items {} gained could not be added: {}": "无法添加 {} 的新项目：{}",
  "what is followed could not be saved: {}": "无法保存关注内容：{}",
- "Following {}, checked again every {} hours.": "已关注 {}，每 {} 小时再次检查。"
+ "Following {}, checked again every {} hours.": "已关注 {}，每 {} 小时再次检查。",
+ "Waiting: {}": "等待中：{}",
+ "the connection is metered": "当前为按流量计费的连接",
+ "the battery is low": "电池电量低",
+ "On a metered connection": "使用按流量计费的连接时",
+ "Go on": "继续",
+ "Ask": "询问",
+ "Wait": "等待",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "系统将连接标为按流量计费时：手机热点、有流量上限的套餐。等待中的下载会在连接不再按流量计费后自动继续。",
+ "On battery: wait below (%, 0 for never)": "使用电池时：低于此值则等待（%，0 表示从不）",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "计算机使用电池且电量低于此值时，下载会等待；充电或电量重新高于此值后继续。",
+ "The connection is metered": "当前为按流量计费的连接",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "通过它下载可能产生费用或耗尽流量套餐。在你选择之前，所有下载都会等待。",
+ "Download anyway": "仍然下载"
 }

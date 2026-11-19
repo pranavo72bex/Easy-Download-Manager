@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "{} (suivi) n'a pas pu être lu : {}",
  "the items {} gained could not be added: {}": "les nouveautés de {} n'ont pas pu être ajoutées : {}",
  "what is followed could not be saved: {}": "ce qui est suivi n'a pas pu être enregistré : {}",
- "Following {}, checked again every {} hours.": "{} est suivi, vérifié à nouveau toutes les {} heures."
+ "Following {}, checked again every {} hours.": "{} est suivi, vérifié à nouveau toutes les {} heures.",
+ "Waiting: {}": "En attente : {}",
+ "the connection is metered": "la connexion est limitée",
+ "the battery is low": "la batterie est faible",
+ "On a metered connection": "Sur une connexion limitée",
+ "Go on": "Continuer",
+ "Ask": "Demander",
+ "Wait": "Attendre",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Quand le système marque la connexion comme limitée : le partage de connexion d'un téléphone, un forfait plafonné. Les téléchargements en attente reprennent d'eux-mêmes dès qu'elle ne l'est plus.",
+ "On battery: wait below (%, 0 for never)": "Sur batterie : attendre en dessous de (%, 0 pour jamais)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Les téléchargements attendent tant que l'ordinateur est sur batterie sous ce niveau, et reprennent dès qu'il charge ou repasse au-dessus.",
+ "The connection is metered": "La connexion est limitée",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Télécharger par elle peut coûter de l'argent ou épuiser un forfait de données. Chaque téléchargement attend votre choix.",
+ "Download anyway": "Télécharger quand même"
 }

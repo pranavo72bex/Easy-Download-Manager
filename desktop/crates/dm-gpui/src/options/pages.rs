@@ -352,6 +352,12 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
                 s.downloads.sound_language = tag.to_string();
             }
         }
+        // Go on, ask or wait on a metered connection (gaps row W11).
+        "on-metered" => {
+            if let Some(word) = options::ON_METERED.get(i) {
+                s.downloads.on_metered = word.to_string();
+            }
+        }
         "queue-limit" => {
             let offered = limit_queues(&o.queues, &o.draft, pick.item);
             if let (Some(queue), Some(limit)) = (

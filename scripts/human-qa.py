@@ -2283,6 +2283,86 @@ def statistics(origin):
             dm.proc.kill()
 
 
+def metered_waits(origin):
+    """B76 (gaps row W11): with Options › Downloads' "On a metered connection" at Wait and "On
+    battery: wait below" at 30, a download waits while the connection is metered, saying why on
+    its row, then while the battery is below 30 %, then goes on by itself once neither holds; the
+    two lines are in Options with their notes and the choices kept. The state is a stand-in a
+    debug build reads (`DM_STATE_FILE`): Windows', NetworkManager's and IOKit's own answers are
+    the engine's tests' and the platform's (`metered.rs`), not this run's."""
+    home = WORK / "metered"
+    saved = home / "downloads"
+    saved.mkdir(parents=True)
+    state = home / "state.txt"
+    state.write_text("metered\n", encoding="utf-8")
+    FILES["metered.bin"] = (8 * MiB, 1 * MiB, "plain")
+    DATA["metered.bin"] = body("metered.bin", 8 * MiB)
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(saved), "theme": "dark", "popups_version": 2,
+        "show_progress": False, "show_complete": False,
+        "on_metered": "wait", "battery_below": 30}), encoding="utf-8")
+    os.environ["DM_STATE_FILE"] = str(state)
+    dm = Dm(home)
+    try:
+        dm.start()
+    finally:
+        os.environ.pop("DM_STATE_FILE", None)
+
+    def status():
+        r = dm.row("metered.bin") or {}
+        shown = dm.call("ui.inspect").get("result", {}).get("rows", [])
+        return next((x.get("status", "") for x in shown if x.get("id") == r.get("id")), "")
+
+    def said_within(words, seconds):
+        end = time.time() + seconds
+        while time.time() < end:
+            if status() == words:
+                return True
+            time.sleep(0.25)
+        return False
+
+    try:
+        dm.call("downloads.add", urls=[f"{origin}/files/metered.bin"])
+        metered = said_within("Waiting: the connection is metered", 15)
+        r = dm.row("metered.bin") or {}
+        check("B76", "on a metered connection with Wait, a download added waits, its row saying \"Waiting: the connection is metered\", with nothing fetched",
+              metered and r.get("state", {}).get("kind") == "paused"
+              and not (r.get("progress") or {}).get("downloaded"),
+              f"status {status()!r}, state {r.get('state')}, progress {r.get('progress')}")
+        state.write_text("battery 12\n", encoding="utf-8")
+        low = said_within("Waiting: the battery is low", 15)
+        check("B76", "on the battery at 12 % with 30 set, it waits, its row saying \"Waiting: the battery is low\"",
+              low, f"status {status()!r}")
+        state.write_text("", encoding="utf-8")
+        r = dm.wait("metered.bin", {"completed", "failed"}, 60) or {}
+        check("B76", "once neither holds, it goes on by itself and finishes",
+              r.get("state", {}).get("kind") == "completed", f"state {r.get('state')}, status {status()!r}")
+        dm.call("ui.window", to="shown")
+        pause(0.6)
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        dm.click("Downloads")
+        pause(0.8)
+        words = dm.scrolled_texts("Connections per file", turns=14)
+        dm.click("Cancel")
+        pause(0.6)
+        joined = " ".join(words)
+        check("B76", "Options › Downloads has On a metered connection (showing Wait) and On battery: wait below (%, 0 for never), each with its note",
+              "On a metered connection" in words and "Wait" in words
+              and "On battery: wait below (%, 0 for never)" in words
+              and "Where the system marks the connection as metered" in joined
+              and "Downloads wait while the computer runs on its battery" in joined, f"{words[-20:]}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
@@ -2325,6 +2405,7 @@ def main():
     forgetting()
     backing_up()
     statistics(origin)
+    metered_waits(origin)
     browser()
 
     print("\nThe contract, row by row", flush=True)

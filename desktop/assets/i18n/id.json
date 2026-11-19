@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "{} yang diikuti tidak dapat dibaca: {}",
  "the items {} gained could not be added: {}": "item baru dari {} tidak dapat ditambahkan: {}",
  "what is followed could not be saved: {}": "yang diikuti tidak dapat disimpan: {}",
- "Following {}, checked again every {} hours.": "Mengikuti {}, diperiksa lagi setiap {} jam."
+ "Following {}, checked again every {} hours.": "Mengikuti {}, diperiksa lagi setiap {} jam.",
+ "Waiting: {}": "Menunggu: {}",
+ "the connection is metered": "koneksi terukur",
+ "the battery is low": "baterai lemah",
+ "On a metered connection": "Pada koneksi terukur",
+ "Go on": "Lanjut",
+ "Ask": "Tanya",
+ "Wait": "Tunggu",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Bila sistem menandai koneksi sebagai terukur: hotspot ponsel, paket berkuota. Unduhan yang menunggu berlanjut sendiri begitu koneksi tidak terukur lagi.",
+ "On battery: wait below (%, 0 for never)": "Saat memakai baterai: tunggu di bawah (%, 0 untuk tidak pernah)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Unduhan menunggu selama komputer memakai baterai di bawah tingkat ini, dan berlanjut begitu diisi daya atau kembali di atasnya.",
+ "The connection is metered": "Koneksi terukur",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Mengunduh lewat koneksi ini bisa memakan biaya atau menghabiskan kuota data. Setiap unduhan menunggu sampai Anda memilih.",
+ "Download anyway": "Tetap unduh"
 }

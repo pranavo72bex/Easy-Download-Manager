@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "{} (gevolgd) kon niet worden gelezen: {}",
  "the items {} gained could not be added: {}": "wat {} erbij kreeg kon niet worden toegevoegd: {}",
  "what is followed could not be saved: {}": "wat gevolgd wordt kon niet worden opgeslagen: {}",
- "Following {}, checked again every {} hours.": "{} wordt gevolgd, elke {} uur opnieuw gecontroleerd."
+ "Following {}, checked again every {} hours.": "{} wordt gevolgd, elke {} uur opnieuw gecontroleerd.",
+ "Waiting: {}": "Wacht: {}",
+ "the connection is metered": "de verbinding is een verbinding met datalimiet",
+ "the battery is low": "de accu is bijna leeg",
+ "On a metered connection": "Bij een verbinding met datalimiet",
+ "Go on": "Doorgaan",
+ "Ask": "Vragen",
+ "Wait": "Wachten",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Waar het systeem de verbinding markeert als verbinding met datalimiet: de hotspot van een telefoon, een begrensd abonnement. Wachtende downloads gaan vanzelf verder zodra dat niet meer zo is.",
+ "On battery: wait below (%, 0 for never)": "Op accu: wachten onder (%, 0 voor nooit)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Downloads wachten zolang de computer onder dit niveau op zijn accu werkt, en gaan verder zodra hij oplaadt of er weer boven zit.",
+ "The connection is metered": "De verbinding is een verbinding met datalimiet",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Erover downloaden kan geld kosten of een databundel opmaken. Elke download wacht tot u kiest.",
+ "Download anyway": "Toch downloaden"
 }

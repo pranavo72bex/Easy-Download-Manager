@@ -81,7 +81,9 @@ impl DownloadList {
         // the reason to set a window is a link that must be free outside it.
         // The same for a download limit whose allowance is spent: held until
         // the period rolls over, then put back as the schedule's are.
-        let spent = self.allowance_spent().is_some();
+        // So for the computer's own state, a metered connection or a low battery, where Options
+        // says to wait for it to end (gaps row W11): every row, whatever its queue.
+        let spent = self.allowance_spent().is_some() || self.held_by().is_some();
         // Every queue on the one schedule: closed, nothing more to look at. With queues on
         // schedules of their own each row is held or put back by its own queue's window.
         if spent || (!self.has_queue_schedules() && !self.window_open()) {
@@ -194,7 +196,10 @@ impl DownloadList {
     pub(super) async fn hold_for_schedule(&self) {
         // All of it where the one schedule (or the download limit) says stop; only the rows of
         // queues whose own window is closed where queues have schedules of their own.
-        let all = self.allowance_spent().is_some() || !self.has_queue_schedules();
+        // And all of it while the computer's state holds the queue (gaps row W11).
+        let all = self.allowance_spent().is_some()
+            || self.held_by().is_some()
+            || !self.has_queue_schedules();
         let held = {
             let mut slots = self.inner.slots.lock().await;
             let mut held = false;

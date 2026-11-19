@@ -119,6 +119,22 @@ pub fn set_limit_holds(now: bool) {
 }
 
 thread_local! {
+    /// What of the computer's state holds every row (a metered connection, a low battery), as
+    /// the last refresh found it (gaps row W11).
+    static HELD_BY: std::cell::Cell<Option<dm_core::Hold>> = const { std::cell::Cell::new(None) };
+}
+
+/// What of the computer's state holds the rows now, for the statuses drawn next.
+pub fn set_held_by(now: Option<dm_core::Hold>) {
+    HELD_BY.with(|h| h.set(now));
+}
+
+/// What of the computer's state holds the rows, as the last refresh found it.
+fn held_now() -> Option<dm_core::Hold> {
+    HELD_BY.with(std::cell::Cell::get)
+}
+
+thread_local! {
     /// How long until the download limit allows more, and when a closed schedule opens ("23:00",
     /// "Mon 01:00"), as the last refresh found them: a waiting row says until when (gaps row U7).
     static HOLD_TIMES: std::cell::RefCell<(Option<std::time::Duration>, Option<String>)> =
@@ -309,6 +325,12 @@ fn running_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
 /// paused.
 fn paused_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     match &row.state {
+        // Held for the computer's state, said first: it is what holds every row now, whatever
+        // the schedule (gaps row W11).
+        State::Paused if row.paused_by_schedule && held_now().is_some() => {
+            let why = held_now().map_or("", dm_core::Hold::said);
+            crate::i18n::fill(words("Waiting: {}"), &[&words(why)])
+        }
         // Held by the schedule or the download limit, not by a person: it
         // goes on by itself, which "Stopped" would not say.
         // Saying what for: "Waiting" alone read as stuck.

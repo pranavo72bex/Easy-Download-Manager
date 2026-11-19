@@ -980,5 +980,18 @@
  "the followed {} could not be read: {}": "takip edilen {} okunamadı: {}",
  "the items {} gained could not be added: {}": "{} içindeki yeni öğeler eklenemedi: {}",
  "what is followed could not be saved: {}": "takip edilenler kaydedilemedi: {}",
- "Following {}, checked again every {} hours.": "{} takip ediliyor, {} saatte bir yeniden denetlenecek."
+ "Following {}, checked again every {} hours.": "{} takip ediliyor, {} saatte bir yeniden denetlenecek.",
+ "Waiting: {}": "Bekliyor: {}",
+ "the connection is metered": "bağlantı tarifeli",
+ "the battery is low": "pil zayıf",
+ "On a metered connection": "Tarifeli bağlantıda",
+ "Go on": "Devam et",
+ "Ask": "Sor",
+ "Wait": "Bekle",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Sistemin bağlantıyı tarifeli olarak işaretlediği yerde: bir telefonun erişim noktası, kotalı bir tarife. Bekleyen indirmeler, bağlantı tarifeli olmayınca kendiliğinden sürer.",
+ "On battery: wait below (%, 0 for never)": "Pilde: şunun altında bekle (%, 0 asla)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Bilgisayar bu düzeyin altında pille çalışırken indirmeler bekler; şarj olunca ya da yeniden üstüne çıkınca sürer.",
+ "The connection is metered": "Bağlantı tarifeli",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Bu bağlantıyla indirmek para tutabilir ya da bir veri paketini bitirebilir. Siz seçene dek her indirme bekler.",
+ "Download anyway": "Yine de indir"
 }

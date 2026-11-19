@@ -229,7 +229,28 @@ pub struct DownloadSettings {
     /// (gaps row W17); 0, the default, keeps every one.
     #[serde(default)]
     pub forget_after_days: u32,
+    /// What downloading does on a metered connection (a phone's hotspot, a capped plan), as the
+    /// system says (gaps row W11): `go` on, the default; `ask` once each time the connection
+    /// becomes metered; or `wait` until it is not. Any other word is read as `go`.
+    #[serde(default = "go_on")]
+    pub on_metered: String,
+    /// On its battery below this percent, the computer's downloads wait until it charges or is
+    /// above it again (gaps row W11); 0, the default, never waits.
+    #[serde(default)]
+    pub battery_below: u32,
 }
+
+/// `on_metered`'s default: downloading goes on.
+fn go_on() -> String {
+    METERED_GO.to_string()
+}
+
+/// `on_metered`: downloading goes on over a metered connection.
+pub const METERED_GO: &str = "go";
+/// `on_metered`: asked once each time the connection becomes metered.
+pub const METERED_ASK: &str = "ask";
+/// `on_metered`: downloads wait for a connection that is not metered.
+pub const METERED_WAIT: &str = "wait";
 
 impl Default for DownloadSettings {
     fn default() -> Self {
@@ -248,6 +269,8 @@ impl Default for DownloadSettings {
             remux_ts: true,
             sound_language: String::new(),
             forget_after_days: 0,
+            on_metered: go_on(),
+            battery_below: 0,
         }
     }
 }
