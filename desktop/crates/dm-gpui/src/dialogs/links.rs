@@ -609,7 +609,7 @@ fn open_now(view: WeakEntity<Downloads>, request: dm_shell::host::Request, cx: &
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: Download links could not be opened: {e}");
+        dm_core::note!(error, "dm-gpui: Download links could not be opened: {e}");
         let _ = failed.update(cx, |view, _| view.handed_closed());
     }
 }

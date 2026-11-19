@@ -31,6 +31,14 @@ use tokio::io::AsyncWriteExt;
 use crate::control::Control;
 use crate::Error;
 
+/// The longest one MMS request may last: a day, so a recording is ended by its stop or its
+/// server, not by the client.
+const PLAYING_FOR: Duration = Duration::from_secs(60 * 60 * 24);
+
+/// How long one wait for the stream's next bytes is given before it counts as the stream gone
+/// quiet ("sent nothing for 30 seconds").
+const SILENT_FOR: Duration = Duration::from_secs(30);
+
 const FILE_PROPERTIES: [u8; 16] = guid(
     0x8CAB_DCA1,
     0xA947,
@@ -190,7 +198,7 @@ pub async fn record(
     let address =
         http_address(url).ok_or_else(|| Error::Internal("not an mms:// address".into()))?;
     let client = crate::builder()
-        .timeout(Duration::from_secs(60 * 60 * 24))
+        .timeout(PLAYING_FOR)
         .build()
         .map_err(|e| Error::Internal(e.to_string()))?;
     // First: the header alone, for the streams in it.
@@ -235,8 +243,8 @@ pub async fn record(
     let mut stop = None;
     'stream: loop {
         let next = tokio::select! {
-            next = tokio::time::timeout(Duration::from_secs(30), body.next()) => next,
-            _ = tokio::time::sleep(Duration::from_millis(250)) => {
+            next = tokio::time::timeout(SILENT_FOR, body.next()) => next,
+            _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
                 if let Err(e) = control.check() {
                     stop = Some(e);
                     break;

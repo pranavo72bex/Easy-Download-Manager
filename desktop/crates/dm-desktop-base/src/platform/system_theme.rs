@@ -33,6 +33,13 @@ const DARK: u8 = 2;
 
 static FOUND: AtomicU8 = AtomicU8::new(UNKNOWN);
 
+/// How often the desktop is asked again, besides what the portal says as it changes.
+const ASK_EVERY: Duration = Duration::from_secs(5);
+
+/// How often a program [`run`] is looked at for whether it has finished, a hundred times at
+/// most (a second).
+const RUN_LOOK: Duration = Duration::from_millis(10);
+
 /// Whether the desktop prefers dark: `None` where it does not say (or
 /// off Linux, where the window library answers instead).
 pub fn prefers_dark() -> Option<bool> {
@@ -52,7 +59,7 @@ pub fn prefers_dark() -> Option<bool> {
                     FOUND.store(encode(said.or_else(ask)), Ordering::Relaxed);
                 });
                 loop {
-                    std::thread::sleep(Duration::from_secs(5));
+                    std::thread::sleep(ASK_EVERY);
                     FOUND.store(encode(ask()), Ordering::Relaxed);
                 }
             });
@@ -123,7 +130,7 @@ pub fn run(program: &str, args: &[&str]) -> Option<String> {
                 return Some(out);
             }
             Ok(Some(_)) | Err(_) => return None,
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
+            Ok(None) => std::thread::sleep(RUN_LOOK),
         }
     }
     let _ = child.kill();
@@ -151,6 +158,9 @@ mod portal {
     const NAMESPACE: &str = "org.freedesktop.appearance";
     const KEY: &str = "color-scheme";
 
+    /// How long the portal is given to answer a read.
+    const READ_WITHIN: std::time::Duration = std::time::Duration::from_secs(1);
+
     fn settings(connection: &Connection) -> zbus::Result<Proxy<'_>> {
         Proxy::new(
             connection,
@@ -164,7 +174,7 @@ mod portal {
     pub(super) fn read() -> Option<bool> {
         let connection = zbus::blocking::connection::Builder::session()
             .ok()?
-            .method_timeout(std::time::Duration::from_secs(1))
+            .method_timeout(READ_WITHIN)
             .build()
             .ok()?;
         let proxy = settings(&connection).ok()?;

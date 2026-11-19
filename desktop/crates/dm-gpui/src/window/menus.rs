@@ -342,7 +342,11 @@ pub fn bind_keys(cx: &mut App) {
             // Checked first: GPUI's binding panics on a keystroke it cannot
             // read, and a key dm cannot bind is said, not a crash.
             if let Err(e) = gpui::Keystroke::parse(keys) {
-                eprintln!("dm-gpui: {} cannot be bound to {keys}: {e:?}", command.id());
+                dm_core::note!(
+                    warn,
+                    "dm-gpui: {} cannot be bound to {keys}: {e:?}",
+                    command.id()
+                );
                 continue;
             }
             if *command == Command::Quit {
@@ -484,7 +488,7 @@ pub fn bind_keys(cx: &mut App) {
             dm_shell::settings::Settings::read_only(&dm_shell::settings::Settings::path());
         let folder = settings.download_dir.display().to_string();
         if let Err(e) = dm_shell::shell::open_file(&folder) {
-            eprintln!("dm: the download folder could not be opened: {e}");
+            dm_core::note!(warn, "dm: the download folder could not be opened: {e}");
         }
     });
 }

@@ -11,6 +11,10 @@
 
 use super::*;
 
+/// How often a quit asked while a question's sheet slides looks at whether it has stopped.
+#[cfg(target_os = "macos")]
+const SLIDING_LOOK: std::time::Duration = std::time::Duration::from_millis(10);
+
 /// When done's countdown as it stands: what dm will do and in how many
 /// seconds; `None` once it is over or cancelled.
 pub(super) fn countdown_question(view: &Downloads) -> Option<crate::dialogs::question::Asked> {
@@ -373,9 +377,7 @@ impl Downloads {
         if crate::platform::sheets::sliding() {
             cx.spawn(async move |this, cx| {
                 while crate::platform::sheets::sliding() {
-                    cx.background_executor()
-                        .timer(std::time::Duration::from_millis(10))
-                        .await;
+                    cx.background_executor().timer(SLIDING_LOOK).await;
                 }
                 let _ = this.update(cx, |this, cx| this.quit(cx));
             })

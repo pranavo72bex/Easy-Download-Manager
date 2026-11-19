@@ -71,6 +71,9 @@ pub use dm_net::javascript;
 
 pub(crate) use dm_net::limit;
 
+// dm's one way to log, `note!(warn, "…")` (gaps row A19): dm-net's, used as `dm_core::note!`.
+pub use dm_net::note;
+
 pub mod live;
 
 pub mod heap;

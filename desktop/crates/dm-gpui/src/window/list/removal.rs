@@ -10,6 +10,9 @@ use gpui::Context;
 
 use super::Downloads;
 
+/// How long past Undo's time the window is drawn again, so Undo has lapsed when it is.
+const UNDO_DRAWN_AFTER: std::time::Duration = std::time::Duration::from_millis(50);
+
 impl Downloads {
     /// Remove (or Delete file, `deleting_files`) on the rows chosen. Finished
     /// rows only leave the list, nothing lost, Undo on offer for a moment; any
@@ -148,7 +151,7 @@ impl Downloads {
     /// Draws the window again once Undo's time is over, so a lapsed Undo is not left drawn
     /// while nothing else wakes the window (gaps row U14).
     pub(super) fn undo_expires(&mut self, cx: &mut Context<Self>) {
-        let over = dm_shell::app::backend::UNDO_FOR + std::time::Duration::from_millis(50);
+        let over = dm_shell::app::backend::UNDO_FOR + UNDO_DRAWN_AFTER;
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(over).await;
             let _ = this.update(cx, |_, cx| cx.notify());

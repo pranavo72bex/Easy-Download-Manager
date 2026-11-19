@@ -27,6 +27,9 @@ const ENDED: u32 = 6;
 /// `RasHangUpW` returns, within a second or two.
 const ENDING: Duration = Duration::from_secs(5);
 
+/// How often that wait looks at whether the connection has ended.
+const ENDING_LOOK: Duration = Duration::from_millis(50);
+
 fn text(wide: &[u16]) -> String {
     let end = wide.iter().position(|c| *c == 0).unwrap_or(wide.len());
     String::from_utf16_lossy(wide.get(..end).unwrap_or_default())
@@ -201,7 +204,7 @@ impl super::Dialer for Ras {
         }
         let until = Instant::now() + ENDING;
         while mine.iter().any(held) && Instant::now() < until {
-            std::thread::sleep(Duration::from_millis(50));
+            std::thread::sleep(ENDING_LOOK);
         }
         Ok(true)
     }

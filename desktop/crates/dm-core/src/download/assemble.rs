@@ -136,7 +136,11 @@ pub(crate) fn sync_after(path: PathBuf) {
             .open(&path)
             .and_then(|file| file.sync_all());
         if let Err(e) = synced {
-            eprintln!("dm: {} was not synced to the disk: {e}", path.display());
+            crate::note!(
+                warn,
+                "dm: {} was not synced to the disk: {e}",
+                path.display()
+            );
         }
         #[cfg(unix)]
         if let Some(dir) = path.parent().and_then(|p| std::fs::File::open(p).ok()) {
@@ -458,6 +462,10 @@ enum Look {
     Unproven { refused: bool },
 }
 
+/// How long the bytes of a seam fetched afresh to compare ([`span_agrees`]) are given to arrive
+/// before the seam is left unproven.
+const SPAN_WITHIN: std::time::Duration = std::time::Duration::from_secs(15);
+
 /// Whether `low..=high` of the file, fetched afresh from the source of range `index` exactly as
 /// a range is asked for (with the headers a stream's reader says its server wants, and under the
 /// validator), is the bytes on disk.
@@ -512,8 +520,7 @@ async fn span_agrees(
     if res.content_length().is_some_and(|n| n != wanted) {
         return unproven;
     }
-    let Ok(Ok(there)) = tokio::time::timeout(std::time::Duration::from_secs(15), res.bytes()).await
-    else {
+    let Ok(Ok(there)) = tokio::time::timeout(SPAN_WITHIN, res.bytes()).await else {
         return unproven;
     };
     if there.len() as u64 != wanted {

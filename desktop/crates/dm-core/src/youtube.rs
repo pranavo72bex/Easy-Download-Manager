@@ -1408,7 +1408,8 @@ async fn read_within(
     if let Some(asked) = asked.filter(|a| !chosen.iter().any(|f| f.itag == *a)) {
         // Nothing new is said on the row; the log says what was taken instead.
         let took: Vec<String> = chosen.iter().map(|f| f.itag.to_string()).collect();
-        eprintln!(
+        crate::note!(
+            info,
             "dm: {id}: format {asked} is not in this reading; took {}",
             took.join("+")
         );

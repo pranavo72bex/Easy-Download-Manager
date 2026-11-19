@@ -280,6 +280,10 @@ fn connect_with(
     }
 }
 
+/// How often a wait between two dials ([`pause_while`]) looks at whether anyone still waits.
+#[cfg(windows)]
+const PAUSE_LOOK: Duration = Duration::from_millis(200);
+
 /// Waits `wait`, or less once nobody waits any more.
 #[cfg(windows)]
 fn pause_while(wait: Duration, waiting: &dyn Fn() -> bool) {
@@ -289,7 +293,7 @@ fn pause_while(wait: Duration, waiting: &dyn Fn() -> bool) {
         if left.is_zero() {
             return;
         }
-        std::thread::sleep(left.min(Duration::from_millis(200)));
+        std::thread::sleep(left.min(PAUSE_LOOK));
     }
 }
 

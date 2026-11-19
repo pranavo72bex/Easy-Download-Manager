@@ -16,6 +16,13 @@ use crate::{lists, shell, Settings};
 /// (`Backend::shut_down`): each stops at its next piece, and a person
 /// quitting is not kept waiting past this.
 pub const SHUT_DOWN_WITHIN: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// How long a running row given a new address (`Backend::set_url`) is waited for to stop.
+const STOP_FOR_ADDRESS_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// How often that wait looks at whether the row has stopped.
+const STOP_FOR_ADDRESS_LOOK: std::time::Duration = std::time::Duration::from_millis(25);
+
 use dm_core::{AddOptions, Connection, Entry, Id, Queue};
 
 pub use super::platform::{chooser_here, Platform};
@@ -643,13 +650,13 @@ impl Backend {
             .is_some_and(|row| row.state == dm_core::State::Running);
         if was_running {
             self.pause(id);
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            let deadline = std::time::Instant::now() + STOP_FOR_ADDRESS_WITHIN;
             while std::time::Instant::now() < deadline
                 && self
                     .block_on(self.queue.get(id))
                     .is_some_and(|row| row.state == dm_core::State::Running)
             {
-                std::thread::sleep(std::time::Duration::from_millis(25));
+                std::thread::sleep(STOP_FOR_ADDRESS_LOOK);
             }
         }
         let changed = self.block_on(self.queue.set_url(id, &url));

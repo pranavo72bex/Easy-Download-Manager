@@ -876,7 +876,7 @@ fn open_window(
     match opened {
         Ok(handle) => Some(handle.into()),
         Err(e) => {
-            eprintln!("dm-gpui: Options could not be opened: {e}");
+            dm_core::note!(error, "dm-gpui: Options could not be opened: {e}");
             None
         }
     }

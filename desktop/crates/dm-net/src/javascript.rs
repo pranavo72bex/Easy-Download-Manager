@@ -23,6 +23,10 @@ use std::time::Duration;
 /// What a stand-in host writes before its answer, on a line of its own.
 const ANSWER: &str = "dm-javascript-answer ";
 
+/// How long past a program's own time its host is waited for: the host stops the program at its
+/// time, and this is for a host that never answers.
+const HOST_GRACE: Duration = Duration::from_secs(15);
+
 /// A test's stand-in for the interpreter: a program, its arguments and its environment.
 #[derive(Clone, Debug)]
 #[doc(hidden)]
@@ -98,7 +102,7 @@ async fn in_host(
         let _ = input.shutdown().await;
     };
     // Its own watch stops the program at its time; this one is for a host that never answers.
-    let output = tokio::time::timeout(within + Duration::from_secs(15), async {
+    let output = tokio::time::timeout(within + HOST_GRACE, async {
         let ((), output) = tokio::join!(writing, child.wait_with_output());
         output
     })

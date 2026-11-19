@@ -56,6 +56,9 @@ pub(crate) fn linux_open(target: &Path) -> Result<(), String> {
 /// this holds the window this long.
 const OPENER_VERDICT: std::time::Duration = std::time::Duration::from_millis(1500);
 
+/// How often an opener is looked at within [`OPENER_VERDICT`] for whether it has failed.
+const OPENER_LOOK: std::time::Duration = std::time::Duration::from_millis(20);
+
 /// The same, looking for the openers along `path` where one is given.
 ///
 /// Each opener's exit is waited for (`OPENER_VERDICT`): `xdg-open` that
@@ -97,7 +100,7 @@ pub(crate) fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Re
             match child.try_wait() {
                 Ok(Some(status)) => break Some(status),
                 Ok(None) if std::time::Instant::now() < deadline => {
-                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    std::thread::sleep(OPENER_LOOK);
                 }
                 // Still running: it found something to open the file with.
                 // Reaped when it ends, so it leaves no zombie behind.

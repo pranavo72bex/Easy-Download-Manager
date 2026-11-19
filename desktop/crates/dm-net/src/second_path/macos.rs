@@ -7,17 +7,18 @@
 
 use std::collections::HashMap;
 
+/// How long the hardware ports read once are kept before they are read again.
+const PORTS_FOR: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// The name macOS gives an interface ("iPhone USB", "Wi-Fi"): `networksetup`'s
 /// hardware ports, read at most every few seconds (a phone plugged in shows
 /// up by its name at the next look).
 pub(super) fn system_name(interface: &str) -> Option<String> {
     use std::sync::Mutex;
-    use std::time::{Duration, Instant};
+    use std::time::Instant;
     static PORTS: Mutex<Option<(Instant, HashMap<String, String>)>> = Mutex::new(None);
     let mut held = crate::lock(&PORTS);
-    let stale = held
-        .as_ref()
-        .is_none_or(|(at, _)| at.elapsed() > Duration::from_secs(5));
+    let stale = held.as_ref().is_none_or(|(at, _)| at.elapsed() > PORTS_FOR);
     if stale {
         let listed = std::process::Command::new("/usr/sbin/networksetup")
             .arg("-listallhardwareports")

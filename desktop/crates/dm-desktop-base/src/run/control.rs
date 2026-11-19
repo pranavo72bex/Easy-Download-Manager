@@ -74,6 +74,12 @@ const AUTH_WITHIN: Duration = Duration::from_secs(5);
 const IDLE_LOOK: Duration = Duration::from_secs(60);
 const ANSWER_WITHIN: Duration = Duration::from_secs(60);
 
+/// How long an authenticated connection may send nothing before it is cut.
+const IDLE_WITHIN: Duration = Duration::from_secs(300);
+
+/// How often a wait for the window's answer looks at whether dm is closing.
+const ANSWER_LOOK: Duration = Duration::from_millis(100);
+
 /// Set as dm quits: a request still waiting is told so, not left to time
 /// out with "the window did not answer in time".
 static CLOSING: AtomicBool = AtomicBool::new(false);
@@ -375,10 +381,8 @@ fn serve(
                 authenticated = true;
                 // On the reader's own socket: on Windows a clone does not carry the
                 // option back, and a connection idle for the authentication limit was cut.
-                reader
-                    .get_ref()
-                    .set_read_timeout(Some(Duration::from_secs(300)))?;
-                out.set_read_timeout(Some(Duration::from_secs(300)))?;
+                reader.get_ref().set_read_timeout(Some(IDLE_WITHIN))?;
+                out.set_read_timeout(Some(IDLE_WITHIN))?;
                 write_reply(&mut out, &id, Ok(json!({ "authenticated": true })))?;
                 continue;
             }
@@ -427,7 +431,7 @@ fn wait_for(
 ) -> Result<Value, String> {
     let until = Instant::now() + within;
     loop {
-        match answered.recv_timeout(Duration::from_millis(100)) {
+        match answered.recv_timeout(ANSWER_LOOK) {
             Ok(answer) => return answer,
             Err(mpsc::RecvTimeoutError::Disconnected) => return Err("dm is closing".into()),
             Err(mpsc::RecvTimeoutError::Timeout) if closing.load(Ordering::SeqCst) => {

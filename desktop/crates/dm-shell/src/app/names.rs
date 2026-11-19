@@ -230,6 +230,10 @@ pub fn earlier_of_the_same_name(rows: &[Arc<Entry>]) -> HashMap<Id, usize> {
     before
 }
 
+/// How long the free name a row's folder was asked for is believed before the folder is asked
+/// again (`name_it_will_get_after`).
+const FREE_NAME_FOR: Duration = Duration::from_secs(2);
+
 /// The name a row's file will have in its folder: for one not yet placed,
 /// with the ` (1)` it will get where its folder already has that name (a
 /// file added again said `big.bin` until it finished as `big (1).bin`). The
@@ -264,7 +268,7 @@ pub fn name_it_will_get_after(
     FREE.with(|free| {
         let mut free = free.borrow_mut();
         if let Some((at, said)) = free.get(&key) {
-            if at.elapsed() < Duration::from_secs(2) {
+            if at.elapsed() < FREE_NAME_FOR {
                 return said.clone();
             }
         }
@@ -273,7 +277,7 @@ pub fn name_it_will_get_after(
         // for every one of them at every read (gaps row 181). Looked over
         // again only once it has doubled, so the look costs nothing a row.
         if free.len() > LIMIT.get() {
-            free.retain(|_, (at, _)| at.elapsed() < Duration::from_secs(2));
+            free.retain(|_, (at, _)| at.elapsed() < FREE_NAME_FOR);
             LIMIT.set((free.len() * 2).max(2000));
         }
         // Each earlier row of the same name bound for the same folder,

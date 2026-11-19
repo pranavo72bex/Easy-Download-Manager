@@ -7,6 +7,10 @@
 
 use super::*;
 
+/// How long one wait for the server's next message is given before it counts as the stream
+/// gone quiet ("sent nothing for 30 seconds").
+const SILENT_FOR: Duration = Duration::from_secs(30);
+
 /// How a session ended.
 pub(super) enum Ended {
     /// The server said the stream is over, or closed the connection.
@@ -64,8 +68,8 @@ pub async fn record(
     let mut acked = 0u64;
     let ended = loop {
         let next = tokio::select! {
-            m = tokio::time::timeout(Duration::from_secs(30), reader.message()) => m,
-            _ = tokio::time::sleep(Duration::from_millis(250)) => {
+            m = tokio::time::timeout(SILENT_FOR, reader.message()) => m,
+            _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
                 if let Err(stop) = control.check() {
                     break Ended::Stopped(stop);
                 }

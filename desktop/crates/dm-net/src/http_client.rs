@@ -32,6 +32,15 @@ pub fn with_tls(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
 /// short enough that a pause is honoured within it.
 pub const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// The least read timeout a setting may give: one second.
+const READ_TIMEOUT_LEAST: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// How long a server is given to take a connection.
+const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// How long an idle connection is kept for the next request to the same server.
+const POOL_IDLE_FOR: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// What a refused downgrade says.
 pub const INSECURE_REDIRECT: &str =
     "the secure address sent dm on to an insecure (http) one, where the file could be swapped on the way, so dm stopped";
@@ -88,15 +97,15 @@ pub fn builder_with(
          * writer on the same part files while the first still holds them. A
          * read that stalls this long is a dead connection, and the retry
          * policy already knows what to do with one of those. */
-        .connect_timeout(std::time::Duration::from_secs(20))
+        .connect_timeout(CONNECT_TIMEOUT)
         // A name looked up once a minute, not once a connection (`dns`, gaps row S19).
         .dns_resolver(crate::dns::resolver())
         // An idle connection, its buffers grown by a download, kept ten seconds
         // for the next request to the same server rather than reqwest's ninety
         // (gaps row S14): long enough for the next file of a batch, short
         // enough that dm at rest holds none of them.
-        .pool_idle_timeout(std::time::Duration::from_secs(10))
-        .read_timeout(read_timeout.max(std::time::Duration::from_secs(1)))
+        .pool_idle_timeout(POOL_IDLE_FOR)
+        .read_timeout(read_timeout.max(READ_TIMEOUT_LEAST))
         .user_agent(USER_AGENT)
 }
 

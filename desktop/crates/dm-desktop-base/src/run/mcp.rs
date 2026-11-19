@@ -20,6 +20,13 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+/// How long the running window is given to answer one request before the wait ends.
+const ANSWER_WITHIN: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// How long after a click, a typed word or a key the next request waits, so what is drawn
+/// next is read after it has been.
+const DRAWN_AFTER: std::time::Duration = std::time::Duration::from_millis(350);
+
 /// The tools offered, each a control-protocol method.
 fn tools() -> Value {
     let tool = |name: &str, description: &str, properties: Value, required: Vec<&str>| {
@@ -302,7 +309,7 @@ impl Control {
         // take a screenshot in) ends the wait rather than hanging the
         // assistant for good.
         stream
-            .set_read_timeout(Some(std::time::Duration::from_secs(90)))
+            .set_read_timeout(Some(ANSWER_WITHIN))
             .map_err(|e| e.to_string())?;
         let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         self.link = Some((stream, replies));
@@ -343,7 +350,7 @@ impl Control {
         // A click, a typed word or a key is done a frame at a time: what
         // is drawn next is read after it has been.
         if answer.is_ok() && matches!(method, "ui.click" | "ui.type" | "ui.key") {
-            std::thread::sleep(std::time::Duration::from_millis(350));
+            std::thread::sleep(DRAWN_AFTER);
         }
         if answer.is_err() && !self.alive() {
             // Gone mid-call: the next call connects again.

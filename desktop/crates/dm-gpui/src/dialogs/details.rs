@@ -1453,7 +1453,7 @@ fn open_now(
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: Download details could not be opened: {e}");
+        dm_core::note!(error, "dm-gpui: Download details could not be opened: {e}");
         // As Cancel ends it: the row begun for it goes, and the next
         // hand-off is not held back behind one that is never asked.
         if let Some(id) = early {

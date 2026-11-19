@@ -285,6 +285,6 @@ fn open(
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: the welcome could not be opened: {e}");
+        dm_core::note!(error, "dm-gpui: the welcome could not be opened: {e}");
     }
 }

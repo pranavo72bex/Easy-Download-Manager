@@ -267,6 +267,9 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
     })
 }
 
+/// The wait between two tries at removing a cancelled run's staging folder ([`remove_staging`]).
+const REMOVE_AGAIN_AFTER: std::time::Duration = std::time::Duration::from_millis(200);
+
 /// A cancelled run's staging folder, removed. Tried again for a few
 /// seconds: on Windows a file still open by a process that is only now
 /// ending cannot be deleted, and the first try left the folder behind.
@@ -276,7 +279,7 @@ async fn remove_staging(dir: &Path) {
             Ok(()) => return,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
             Err(_) if attempt < 14 => {
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                tokio::time::sleep(REMOVE_AGAIN_AFTER).await;
             }
             Err(_) => return,
         }

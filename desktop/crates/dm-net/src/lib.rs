@@ -43,6 +43,8 @@ pub mod javascript;
 
 pub mod limit;
 
+pub mod log;
+
 pub mod ntlm;
 
 pub mod pac;

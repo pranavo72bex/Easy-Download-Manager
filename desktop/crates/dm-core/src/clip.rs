@@ -407,7 +407,7 @@ pub(crate) async fn fetch_part(
         file.write_all(&bytes).await.map_err(Error::Disk)?;
         downloaded += bytes.len() as u64;
         if let Some(tx) = &report {
-            if last_said.elapsed() >= Duration::from_millis(250) || downloaded == total {
+            if last_said.elapsed() >= crate::download::SAMPLE_EVERY || downloaded == total {
                 let progress = meter.sample(downloaded, last_sample.elapsed());
                 last_sample = Instant::now();
                 last_said = Instant::now();

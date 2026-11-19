@@ -55,7 +55,10 @@ pub fn claim(handed: &shell::Orders) -> Claimed {
                 handed,
                 dm_shell::register::ensure_if_claimed,
             ) {
-                eprintln!("dm: your browsers could not be told where dm is: {why}");
+                dm_core::note!(
+                    warn,
+                    "dm: your browsers could not be told where dm is: {why}"
+                );
             }
             Claimed::HandedOff
         }

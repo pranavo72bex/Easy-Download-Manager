@@ -656,6 +656,10 @@ pub async fn apply(
     Ok(problems)
 }
 
+/// How often [`watch_rules`] looks at the schedule, the download limit, the recheck timer and
+/// the queues' start times.
+const RULES_EVERY: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// Starts the scheduler again when the schedule's window opens or the
 /// download limit's period rolls over, for the rows they held.
 ///
@@ -666,7 +670,7 @@ pub fn watch_rules(queue: &Queue) {
     let queue = queue.clone();
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            tokio::time::sleep(RULES_EVERY).await;
             if queue.may_run() && queue.held().await {
                 queue.run().await;
             }
@@ -1002,7 +1006,8 @@ pub async fn watch_inbox(
             // cannot be removed is left alone rather than queued again
             // twice a second for the life of the process.
             if let Err(e) = std::fs::remove_file(&path) {
-                eprintln!(
+                dm_core::note!(
+                    warn,
                     "dm: a hand-off in {} could not be consumed: {e}",
                     path.display()
                 );
@@ -1039,7 +1044,8 @@ pub async fn watch_inbox(
                 Err(e) => {
                     let kept = path.with_extension("unreadable");
                     let _ = std::fs::write(&kept, &text);
-                    eprintln!(
+                    dm_core::note!(
+                        warn,
                         "dm: a hand-off could not be read ({e}); kept as {}",
                         kept.display()
                     );

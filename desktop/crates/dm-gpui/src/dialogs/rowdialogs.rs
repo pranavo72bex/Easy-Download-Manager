@@ -63,7 +63,7 @@ fn open_window<V: Render + crate::widgets::native::CloseButton>(
             },
         );
         if let Err(e) = opened {
-            eprintln!("dm-gpui: {title} could not be opened: {e}");
+            dm_core::note!(error, "dm-gpui: {title} could not be opened: {e}");
         }
     });
 }
