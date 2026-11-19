@@ -263,6 +263,12 @@ pub struct Entry {
     /// asked for in a way the server never answered with the file.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub posted: bool,
+    /// What kind of failure a failed row's is ([`State::Failed`] keeps its sentence), from the
+    /// error that failed it; read through [`Entry::failed_as`]. Kept beside the state rather
+    /// than in it, so a queue saved by this dm is still read by an older one, which passes the
+    /// field over; one saved before it is worked out from the sentence once, as it is read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fail_kind: Option<crate::FailKind>,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -290,6 +296,19 @@ pub struct Connection {
 }
 
 impl Entry {
+    /// What kind of failure this row's is, where it failed: the kind its error carried, or
+    /// for a row with none (saved by a dm from before kinds, or made by hand) the one its
+    /// sentence gives ([`crate::FailKind::of_old_text`]). `None` for a row that has not failed.
+    pub fn failed_as(&self) -> Option<crate::FailKind> {
+        match &self.state {
+            State::Failed(said) => Some(
+                self.fail_kind
+                    .unwrap_or_else(|| crate::FailKind::of_old_text(said)),
+            ),
+            _ => None,
+        }
+    }
+
     /// Seconds until "Delete file after" is due for this row, as of `now`
     /// (Unix seconds): 0 once it is; `None` for a row with none, or one not
     /// finished well (a failed or cancelled row has no file to delete).
@@ -782,6 +801,7 @@ impl Queue {
                 said: String::new(),
                 post: None,
                 posted: false,
+                fail_kind: None,
             }),
             control: Control::new(),
             task: None,
@@ -808,24 +828,19 @@ impl Queue {
 /// made, as when its drive is taken out. `None` for any other failure.
 fn out_of_room(error: &Error, dirs: [&std::path::Path; 2]) -> Option<String> {
     let text = error.to_string();
-    let lower = text.to_ascii_lowercase();
-    let full = match error {
-        Error::Disk(io) => {
-            io.kind() == std::io::ErrorKind::StorageFull
-                // ENOSPC; Windows' ERROR_DISK_FULL and ERROR_HANDLE_DISK_FULL.
-                || matches!(io.raw_os_error(), Some(28 | 112 | 39))
-        }
-        _ => false,
-    } || [
-        "no space left",
-        "not enough room",
-        "disk full",
-        "disk is full",
-        // dm's own check of the download folder, before a byte is fetched.
-        "cannot be written to",
-    ]
-    .iter()
-    .any(|w| lower.contains(w));
+    // A full disk as the system says it, or dm's own look for room and at the download folder
+    // before a byte is fetched: by the kind the error carries.
+    let full = matches!(
+        error.fail_kind(),
+        crate::FailKind::DiskFull | crate::FailKind::NoRoom
+    ) || {
+        // The system's own words for a full disk, where its error reached dm inside another
+        // sentence (a copy's, a join's) and so carries no kind: text from outside dm.
+        let lower = text.to_ascii_lowercase();
+        ["no space left", "disk full", "disk is full"]
+            .iter()
+            .any(|w| lower.contains(w))
+    };
     if full {
         return Some(text);
     }
@@ -1142,7 +1157,10 @@ mod folder_tests {
         assert!(out_of_room(&full, [here, here]).is_some());
         let enospc = Error::Disk(std::io::Error::from_raw_os_error(28));
         assert!(out_of_room(&enospc, [here, here]).is_some());
-        let said = Error::Internal("the download folder cannot be written to".into());
+        let said = Error::known(
+            crate::FailKind::NoRoom,
+            "the download folder cannot be written to",
+        );
         assert_eq!(
             out_of_room(&said, [here, here]).as_deref(),
             Some("the download folder cannot be written to")

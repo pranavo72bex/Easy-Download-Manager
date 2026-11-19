@@ -177,12 +177,15 @@ pub(super) fn room_for(
             } else {
                 dir.as_path()
             };
-            return Err(Error::Internal(format!(
-                "not enough room: the file needs {}, and {} has {} free{others}",
-                amount(need),
-                named.display(),
-                amount(free)
-            )));
+            return Err(Error::known(
+                crate::FailKind::NoRoom,
+                format!(
+                    "not enough room: the file needs {}, and {} has {} free{others}",
+                    amount(need),
+                    named.display(),
+                    amount(free)
+                ),
+            ));
         }
     }
     let mut ids = Vec::new();
@@ -233,12 +236,15 @@ pub(crate) fn room_to_join(
     } else {
         options.parts_dir.parent().unwrap_or(into)
     };
-    Err(Error::Internal(format!(
-        "not enough room: the file needs {}, and {} has {} free",
-        amount(need),
-        named.display(),
-        amount(free)
-    )))
+    Err(Error::known(
+        crate::FailKind::NoRoom,
+        format!(
+            "not enough room: the file needs {}, and {} has {} free",
+            amount(need),
+            named.display(),
+            amount(free)
+        ),
+    ))
 }
 
 /// Bytes as a person reads them.

@@ -46,13 +46,11 @@ pub fn go_on(state: &State, held: bool) -> GoOn {
 /// 404 or 410) by its server after part of it had arrived, where the same
 /// address worked a moment before.
 pub fn link_expired(row: &Entry) -> bool {
-    let State::Failed(why) = &row.state else {
-        return false;
-    };
     row.progress.downloaded > 0
-        && ["answered 403", "answered 404", "answered 410"]
-            .iter()
-            .any(|code| why.contains(code))
+        && matches!(
+            row.failed_as(),
+            Some(dm_core::FailKind::Refused(403 | 404 | 410))
+        )
 }
 
 /// Which finished rows another, later one has taken the file of: a row whose

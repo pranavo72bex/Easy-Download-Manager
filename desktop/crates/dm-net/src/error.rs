@@ -105,6 +105,123 @@ pub enum Error {
     /// read as a fault in dm.
     #[error("{0}")]
     Internal(String),
+
+    /// A sentence written for the person reading the row, as [`Error::Internal`] is, for a
+    /// failure of a kind dm acts on: what is done about it is decided by its [`FailKind`],
+    /// never by its words (gaps row A9).
+    #[error("{said}")]
+    Known {
+        /// What kind of failure it is.
+        kind: FailKind,
+        /// The sentence the person reads.
+        said: String,
+    },
+}
+
+/// What kind of failure a download's is, where dm does something about that kind: asks
+/// whether to save a web page, asks about a link that is gone, waits for room. Carried by the
+/// error that stopped the download and kept on its row (`Entry::fail_kind`), so nothing
+/// decides by reading the sentence a person sees.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(from = "String", into = "String")]
+pub enum FailKind {
+    /// Any failure dm does nothing particular about.
+    #[default]
+    Other,
+    /// The server answered with this HTTP status, which is not a success.
+    Refused(u16),
+    /// A web page answered where the file was asked for: a sign-in, an expired link.
+    WebPage,
+    /// The system said the disk is full.
+    DiskFull,
+    /// dm's own look before writing found no room: too little free space for the file, or a
+    /// download folder that cannot be written to.
+    NoRoom,
+}
+
+impl FailKind {
+    /// Its word in a saved queue: "refused 404", "web page", and so on.
+    pub fn word(self) -> String {
+        match self {
+            FailKind::Other => "other".into(),
+            FailKind::Refused(status) => format!("refused {status}"),
+            FailKind::WebPage => "web page".into(),
+            FailKind::DiskFull => "disk full".into(),
+            FailKind::NoRoom => "no room".into(),
+        }
+    }
+
+    /// The kind a saved queue's word names; a word this dm does not know (written by a later
+    /// one) is [`FailKind::Other`], so the queue is still read.
+    pub fn from_word(word: &str) -> FailKind {
+        match word {
+            "web page" => FailKind::WebPage,
+            "disk full" => FailKind::DiskFull,
+            "no room" => FailKind::NoRoom,
+            _ => word
+                .strip_prefix("refused ")
+                .and_then(|status| status.parse().ok())
+                .map_or(FailKind::Other, FailKind::Refused),
+        }
+    }
+
+    /// The kind of a failure saved by a dm from before failures carried one, worked out once
+    /// from its sentence by the matching that dm did. Only a row read from such a file (or
+    /// made without a kind) is read this way: the one place a failure's words decide anything.
+    pub fn of_old_text(said: &str) -> FailKind {
+        let lower = said.to_ascii_lowercase();
+        if lower.contains("web page rather than the file") {
+            return FailKind::WebPage;
+        }
+        if let Some(status) = answered(&lower) {
+            return FailKind::Refused(status);
+        }
+        if lower.contains("not enough room") || lower.contains("cannot be written to") {
+            return FailKind::NoRoom;
+        }
+        if ["no space left", "disk full", "disk is full"]
+            .iter()
+            .any(|w| lower.contains(w))
+        {
+            return FailKind::DiskFull;
+        }
+        FailKind::Other
+    }
+}
+
+/// The status an old failure's sentence says a server answered: "the server answered 404 Not
+/// Found for …", or a link's 403, 404 or 410 in another server's words ("the MMS server
+/// answered 404 Not Found"). An FTP server's reply is no HTTP status, and was never read as one.
+fn answered(lower: &str) -> Option<u16> {
+    lower.match_indices("answered ").find_map(|(at, word)| {
+        let digits = lower.get(at + word.len()..)?.get(..3)?;
+        if !digits.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        let status: u16 = digits.parse().ok()?;
+        let ours = lower
+            .get(..at)
+            .is_some_and(|before| before.ends_with("the server "));
+        (ours || matches!(status, 403 | 404 | 410)).then_some(status)
+    })
+}
+
+impl From<String> for FailKind {
+    fn from(word: String) -> FailKind {
+        FailKind::from_word(&word)
+    }
+}
+
+impl From<FailKind> for String {
+    fn from(kind: FailKind) -> String {
+        kind.word()
+    }
+}
+
+/// Whether the system said the disk is full: ENOSPC, and Windows' ERROR_DISK_FULL and
+/// ERROR_HANDLE_DISK_FULL.
+fn disk_full(io: &std::io::Error) -> bool {
+    io.kind() == std::io::ErrorKind::StorageFull || matches!(io.raw_os_error(), Some(28 | 112 | 39))
 }
 
 impl Error {
@@ -113,6 +230,25 @@ impl Error {
         match self {
             Error::Refused { retry_after, .. } => *retry_after,
             _ => None,
+        }
+    }
+
+    /// A failure of a kind dm acts on, said in `said`.
+    pub fn known(kind: FailKind, said: impl Into<String>) -> Error {
+        Error::Known {
+            kind,
+            said: said.into(),
+        }
+    }
+
+    /// What kind of failure this is: a refusal's status, a full disk, or the kind it was made
+    /// with ([`Error::known`]); [`FailKind::Other`] for anything else.
+    pub fn fail_kind(&self) -> FailKind {
+        match self {
+            Error::Refused { status, .. } => FailKind::Refused(*status),
+            Error::Disk(io) if disk_full(io) => FailKind::DiskFull,
+            Error::Known { kind, .. } => *kind,
+            _ => FailKind::Other,
         }
     }
 }
@@ -156,11 +292,10 @@ impl Error {
     /// signed address from a browser stops working after a while, and what
     /// is staged under it is still good (`Queue::adopt_fresh_link`).
     pub fn link_expired(&self) -> bool {
-        match self {
-            Error::Refused { status, .. } => matches!(status, 403 | 410),
-            Error::Internal(said) => said.contains("web page rather than the file"),
-            _ => false,
-        }
+        matches!(
+            self.fail_kind(),
+            FailKind::Refused(403 | 410) | FailKind::WebPage
+        )
     }
 
     /// Turns a refused response into an error that says what refused and why.
@@ -485,5 +620,85 @@ mod tests {
             .to_string();
         assert!(why.contains("somewhere else"), "{why}");
         assert!(Error::refused_or(ask("/same").await.unwrap()).await.is_ok());
+    }
+}
+
+#[cfg(test)]
+mod kind_tests {
+    use super::*;
+
+    #[test]
+    fn a_kind_is_saved_as_a_word_and_read_back_and_an_unknown_word_is_other() {
+        let kinds = [
+            FailKind::Other,
+            FailKind::Refused(404),
+            FailKind::WebPage,
+            FailKind::DiskFull,
+            FailKind::NoRoom,
+        ];
+        for kind in kinds {
+            let saved = serde_json::to_string(&kind).unwrap();
+            assert_eq!(
+                serde_json::from_str::<FailKind>(&saved).unwrap(),
+                kind,
+                "{saved}"
+            );
+        }
+        assert_eq!(
+            serde_json::to_string(&FailKind::Refused(410)).unwrap(),
+            "\"refused 410\""
+        );
+        let later: FailKind = serde_json::from_str("\"a kind from a later dm\"").unwrap();
+        assert_eq!(later, FailKind::Other);
+    }
+
+    #[test]
+    fn an_old_sentence_gives_the_kind_its_words_were_matched_for() {
+        let of = FailKind::of_old_text;
+        assert_eq!(
+            of("that link answered with a web page rather than the file — it may have expired"),
+            FailKind::WebPage
+        );
+        assert_eq!(
+            of("the server answered 404 Not Found for https://e.com/a.zip"),
+            FailKind::Refused(404)
+        );
+        assert_eq!(
+            of(
+                "the link has expired: dm is waiting for the browser to hand over a new one \
+                (the server answered 403 Forbidden for https://e.com/a)"
+            ),
+            FailKind::Refused(403)
+        );
+        assert_eq!(
+            of("the MMS server answered 404 Not Found"),
+            FailKind::Refused(404)
+        );
+        assert_eq!(
+            of("the FTP server answered 550 No such file"),
+            FailKind::Other
+        );
+        assert_eq!(
+            of("not enough room: the file needs 2 GB, and /d has 1 GB free"),
+            FailKind::NoRoom
+        );
+        assert_eq!(
+            of("disk: No space left on device (os error 28)"),
+            FailKind::DiskFull
+        );
+        assert_eq!(of("the server refused the connection"), FailKind::Other);
+    }
+
+    #[test]
+    fn an_error_says_its_kind_and_its_words_are_as_made() {
+        let page = Error::known(FailKind::WebPage, "a page");
+        assert_eq!(page.to_string(), "a page");
+        assert!(page.link_expired());
+        let full = Error::Disk(std::io::Error::from(std::io::ErrorKind::StorageFull));
+        assert_eq!(full.fail_kind(), FailKind::DiskFull);
+        assert_eq!(
+            Error::Internal("web page rather than the file".into()).fail_kind(),
+            FailKind::Other
+        );
     }
 }

@@ -54,6 +54,7 @@ fn row(state: State, downloaded: u64, total: Option<u64>, finished_at: Option<u6
         said: String::new(),
         post: None,
         posted: false,
+        fail_kind: None,
     }
 }
 

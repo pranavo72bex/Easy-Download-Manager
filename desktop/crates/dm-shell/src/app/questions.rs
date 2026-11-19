@@ -12,7 +12,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use dm_core::{Entry, Id, State};
+use dm_core::{Entry, FailKind, Id};
 
 use super::names::address_file_name;
 
@@ -67,10 +67,7 @@ impl Questions {
         // is not asked about names one by one.
         let fresh = rows.iter().filter(|r| !seen.contains_key(&r.id)).count();
         for row in rows {
-            let failed = match &row.state {
-                State::Failed(why) => Some(why.as_str()),
-                _ => None,
-            };
+            let failed = row.failed_as();
             let before = seen.insert(row.id, (row.filename.clone(), failed.is_some()));
             if first {
                 continue;
@@ -97,11 +94,10 @@ impl Questions {
                 }
             }
             let newly_failed = before.as_ref().is_none_or(|(_, was)| !*was);
-            if let (true, Some(why)) = (newly_failed, failed) {
-                if why.contains("answered with a web page rather than the file") && !row.accept_page
-                {
+            if let (true, Some(kind)) = (newly_failed, failed) {
+                if kind == FailKind::WebPage && !row.accept_page {
                     self.waiting.push_back(Question::Page(row.id));
-                } else if why.contains("answered 404") {
+                } else if kind == FailKind::Refused(404) {
                     self.waiting.push_back(Question::NotFound(row.id));
                 }
             }

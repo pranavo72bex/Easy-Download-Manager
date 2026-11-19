@@ -186,6 +186,15 @@ fn request(
     builder
 }
 
+/// The MMS server's refusal, said as it was and carrying its status, which a link that has run
+/// out (403, 404, 410) is known by.
+fn refused(status: reqwest::StatusCode) -> Error {
+    Error::known(
+        crate::FailKind::Refused(status.as_u16()),
+        format!("the MMS server answered {status}"),
+    )
+}
+
 /// Records the stream at `url` into `part` until the server ends it or
 /// `control` stops it. Returns the bytes written; a stop is returned after
 /// the file is closed.
@@ -206,10 +215,7 @@ pub async fn record(
         .await
         .map_err(|e| Error::Internal(format!("the MMS server: {e}")))?;
     if !described.status().is_success() {
-        return Err(Error::Internal(format!(
-            "the MMS server answered {}",
-            described.status()
-        )));
+        return Err(refused(described.status()));
     }
     let mut buffer = described
         .bytes()
@@ -230,10 +236,7 @@ pub async fn record(
         .await
         .map_err(|e| Error::Internal(format!("the MMS server: {e}")))?;
     if !playing.status().is_success() {
-        return Err(Error::Internal(format!(
-            "the MMS server answered {}",
-            playing.status()
-        )));
+        return Err(refused(playing.status()));
     }
     let mut body = playing.bytes_stream();
     let mut file = tokio::fs::File::create(part).await?;

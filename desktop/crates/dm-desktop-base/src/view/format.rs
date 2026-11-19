@@ -275,6 +275,10 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
+/// Words, not a row's `FailKind`: what is reworded is mostly the network library's, the
+/// system's and servers' own words, and the same rewording serves texts that carry no kind (a
+/// stalled row's why, a retry's cause, a file error). It chooses only the words shown, and the
+/// next step and button that go with them (gaps row A9).
 pub const REASONS: [(&[&str], &str); 33] = [
     // First: the failure text of a row waiting for a fresh address also names
     // the refusal that expired it (`dm_core::LINK_EXPIRED`).

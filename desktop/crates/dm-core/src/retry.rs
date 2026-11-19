@@ -57,6 +57,8 @@ pub fn transient(error: &Error) -> bool {
 /// Whether the server's answer could not be read as HTTP at all (headers
 /// beyond any limit, a malformed status line or header): asking again gets the
 /// same bytes, so waiting between tries only held a failure back for minutes.
+/// Read from the HTTP library's own words: they come from outside dm, and the library gives
+/// these failures no kind of their own to match on (gaps row A9).
 fn unreadable_response(error: &reqwest::Error) -> bool {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(e) = source {
@@ -76,7 +78,8 @@ fn unreadable_response(error: &reqwest::Error) -> bool {
 /// Whether the connection was refused over the server's certificate (expired,
 /// for another name, from an issuer nobody trusts): it arrives as a failed
 /// connection, but asking again meets the same certificate, and two minutes
-/// of retries only held back the reason (BUGLOG.md, BUG-002).
+/// of retries only held back the reason (BUGLOG.md, BUG-002). The TLS library's words, as
+/// `unreadable_response` reads the HTTP library's.
 fn untrusted_certificate(error: &reqwest::Error) -> bool {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(e) = source {

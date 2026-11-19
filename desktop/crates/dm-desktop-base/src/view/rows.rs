@@ -351,7 +351,7 @@ fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         // sentences for 401 and 403 do (`format::REASONS`); anything else
         // with that status is said as the engine said it, with where. The
         // address and the server's own page were shown in the row.
-        State::Failed(reason) if needs_sign_in(reason) && format::reason(reason).is_none() => {
+        State::Failed(reason) if needs_sign_in(row) && format::reason(reason).is_none() => {
             format!(
                 "{} — {}",
                 crate::i18n::fill(words("Error: {}"), &[reason]),
@@ -396,11 +396,10 @@ pub fn going_into(row: &Entry) -> String {
         .unwrap_or_else(|| row.began_in.clone())
 }
 
-/// Whether a failure is a server refusing without a sign-in (401, 403).
-pub fn needs_sign_in(reason: &str) -> bool {
-    [" 401 ", " 403 "]
-        .iter()
-        .any(|code| format!(" {reason} ").contains(code))
+/// Whether `row` failed as a server refusing without a sign-in does (401, 403): by the kind
+/// of its failure, not its words.
+pub fn needs_sign_in(row: &Entry) -> bool {
+    matches!(row.failed_as(), Some(dm_core::FailKind::Refused(401 | 403)))
 }
 
 /// What the Size column says.

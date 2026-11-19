@@ -4,6 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
+use dm_core::State;
 
 fn row(id: Id, url: &str, name: &str, state: State) -> Arc<Entry> {
     Arc::new(
