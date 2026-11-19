@@ -22,6 +22,12 @@ use super::snapshot::{Changes, Snapshot};
 use super::watch::Watched;
 use crate::Settings;
 
+pub use this_done::ThisDone;
+pub use when_done::{carry_out, new_download_asked, when_done_asked, Carried};
+
+mod this_done;
+mod when_done;
+
 /// The application's memory between ticks, for whichever presentation drives
 /// it (the window, or a loop with no window): what was told, and the watched
 /// folder's. It does not own the `Backend`, which the presentation holds; its
@@ -60,109 +66,6 @@ pub struct Session {
     adds: Arc<Mutex<Adds>>,
     /// What is running, written for the browser's toolbar popup (`going.json`, gaps row U18).
     going: super::going::Publisher,
-}
-
-/// What dm does when one download is done, chosen in its own progress window (gaps row U36):
-/// nothing, open the file or its folder, or what Downloads › When done does for every download.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum ThisDone {
-    /// Nothing.
-    #[default]
-    Nothing,
-    /// The file opened.
-    Open,
-    /// Its folder opened, the file chosen there.
-    OpenFolder,
-    /// Exit, sleep, hibernate or turn off, through When done's own countdown.
-    Then(WhenDone),
-}
-
-impl ThisDone {
-    /// Every choice, in the order the progress window lists them.
-    pub const ALL: [ThisDone; 7] = [
-        ThisDone::Nothing,
-        ThisDone::Open,
-        ThisDone::OpenFolder,
-        ThisDone::Then(WhenDone::Quit),
-        ThisDone::Then(WhenDone::Sleep),
-        ThisDone::Then(WhenDone::Hibernate),
-        ThisDone::Then(WhenDone::ShutDown),
-    ];
-
-    /// Its words in English, as the menus name the same things.
-    pub fn english(self) -> &'static str {
-        match self {
-            ThisDone::Nothing | ThisDone::Then(WhenDone::Nothing) => "Do nothing",
-            ThisDone::Open => "Open",
-            ThisDone::OpenFolder => "Open folder",
-            ThisDone::Then(WhenDone::Quit) => "Exit dm",
-            ThisDone::Then(WhenDone::Sleep) => "Sleep",
-            ThisDone::Then(WhenDone::Hibernate) => "Hibernate",
-            ThisDone::Then(WhenDone::ShutDown) => "Turn off computer",
-        }
-    }
-}
-
-impl Session {
-    /// The downloads whose own "When this download is done" is due: each finished one, with its
-    /// choice, taken once. A choice for a download that failed, was cancelled or left the list
-    /// is forgotten.
-    pub fn this_done_due(&mut self, rows: &[Arc<Entry>]) -> Vec<(Entry, ThisDone)> {
-        let mut due = Vec::new();
-        self.this_done
-            .retain(|id, choice| match rows.iter().find(|r| r.id == *id) {
-                Some(row) if row.state == State::Completed => {
-                    due.push(((**row).clone(), *choice));
-                    false
-                }
-                Some(row) => !matches!(row.state, State::Failed(_) | State::Cancelled),
-                None => false,
-            });
-        due
-    }
-}
-
-#[cfg(test)]
-mod this_done_tests {
-    use super::*;
-
-    fn row(id: Id, state: State) -> Arc<Entry> {
-        Arc::new(
-            serde_json::from_value(serde_json::json!({
-                "id": id, "url": "https://e.com/f.bin",
-                "state": serde_json::to_value(&state).unwrap(),
-                "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
-                "filename": "f.bin",
-            }))
-            .unwrap(),
-        )
-    }
-
-    /// A download's own choice is due once, when it finishes; a failed or gone one's is
-    /// forgotten, a running one's kept (gaps row U36).
-    #[test]
-    fn a_downloads_own_choice_is_due_once_when_it_finishes() {
-        let mut session = Session::default();
-        session.this_done.insert(1, ThisDone::Open);
-        session.this_done.insert(2, ThisDone::Then(WhenDone::Sleep));
-        session.this_done.insert(3, ThisDone::OpenFolder);
-        session.this_done.insert(4, ThisDone::Open);
-        let rows = vec![
-            row(1, State::Running),
-            row(2, State::Failed("x".into())),
-            row(3, State::Completed),
-        ];
-        let due = session.this_done_due(&rows);
-        assert_eq!(due.len(), 1);
-        assert_eq!((due[0].0.id, due[0].1), (3, ThisDone::OpenFolder));
-        assert_eq!(
-            session.this_done.keys().copied().collect::<Vec<_>>(),
-            vec![1]
-        );
-        let rows = vec![row(1, State::Completed)];
-        assert_eq!(session.this_done_due(&rows).len(), 1);
-        assert!(session.this_done_due(&rows).is_empty(), "once");
-    }
 }
 
 /// How many addings run off the presentation's thread, and the ids of rows
@@ -542,23 +445,6 @@ pub fn delete_due(backend: &Backend, rows: &[Arc<Entry>], now: u64) -> Option<De
     Some(done)
 }
 
-/// The When done another dm asked for (`dm --when-done <word>`), left in
-/// the inbox under `home`: taken, so it is acted on once. A word dm does not
-/// know is dropped.
-pub fn when_done_asked(home: &std::path::Path) -> Option<WhenDone> {
-    let file = crate::host::inbox(home).join(crate::shell::WHEN_DONE_FILE);
-    let word = std::fs::read_to_string(&file).ok()?;
-    let _ = std::fs::remove_file(&file);
-    WhenDone::ALL.into_iter().find(|w| w.word() == word.trim())
-}
-
-/// Whether another dm asked for a new download (`dm --new-download`, the
-/// jump list's Add URL), left in the inbox under `home`: taken, so Add URL
-/// opens once.
-pub fn new_download_asked(home: &std::path::Path) -> bool {
-    std::fs::remove_file(crate::host::inbox(home).join(crate::shell::NEW_DOWNLOAD_FILE)).is_ok()
-}
-
 /// What [`Session::add`] came to.
 #[derive(Debug, Default)]
 pub struct Added {
@@ -589,32 +475,6 @@ impl Added {
             _ => None,
         }
     }
-}
-
-/// What carrying out a When done action that came due leads to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Carried {
-    /// dm closes: the presentation does it, as only it can close itself.
-    Quit,
-    /// The computer was asked (to sleep, hibernate or shut down).
-    Asked,
-}
-
-/// Carries out `action` once its countdown is over. Quit is the
-/// presentation's to do; anything else is asked of the computer through the
-/// platform, and a refusal that comes back later goes on `backend`'s problems,
-/// as anything running apart from the window does: whoever set it is likely
-/// away. An `Err` is a refusal said at once.
-pub fn carry_out(backend: &Backend, action: super::power::WhenDone) -> Result<Carried, String> {
-    if action == super::power::WhenDone::Quit {
-        return Ok(Carried::Quit);
-    }
-    let notices = backend.notices();
-    let report: super::power::Report = Box::new(move |why| dm_core::lock(&notices).push(why));
-    backend
-        .platform
-        .power(action, report)
-        .map(|()| Carried::Asked)
 }
 
 /// The end of one schedule's window over its `rows`: its failed downloads tried
