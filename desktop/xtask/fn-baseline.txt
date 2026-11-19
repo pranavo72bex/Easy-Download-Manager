@@ -31,7 +31,7 @@ desktop/crates/dm-gpui/src/dialogs/properties.rs render 448
 desktop/crates/dm-gpui/src/dialogs/scheduler.rs render 331
 desktop/crates/dm-gpui/src/dialogs/series.rs render 160
 desktop/crates/dm-gpui/src/harness/world.rs world 253
-desktop/crates/dm-gpui/src/main.rs main 284
+desktop/crates/dm-gpui/src/main.rs main 276
 desktop/crates/dm-gpui/src/options.rs put 192
 desktop/crates/dm-gpui/src/options.rs render 164
 desktop/crates/dm-gpui/src/options/pages/advanced.rs proxy 174
