@@ -32,7 +32,7 @@ fn the_language_chosen_is_in_force_before_the_window_opens() {
     let source = include_str!("main.rs");
     let main = source.split("#[cfg(test)]").next().unwrap_or_default();
     let set = main
-        .find("i18n::set(dm_desktop_base::i18n::chosen(")
+        .find("i18n::set(i18n::chosen(")
         .expect("main puts the chosen language in force");
     let run = main
         .find("application.run(")

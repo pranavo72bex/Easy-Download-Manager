@@ -11,6 +11,25 @@ use std::collections::{BTreeSet, HashMap};
 
 use dm_desktop_base::i18n::{CATALOGS, LANGUAGES};
 
+/// A file's source up to its test module: the first `#[cfg(test)]` that
+/// opens a `mod`. One on a `use` near the top (a name only the tests take)
+/// is not where the window's own words end.
+fn shipped(text: &str) -> &str {
+    let mut from = 0;
+    while let Some(at) = text[from..].find("#[cfg(test)]") {
+        let at = from + at;
+        let after = text[at + "#[cfg(test)]".len()..].trim_start();
+        if after.starts_with("mod ")
+            || after.starts_with("pub mod ")
+            || after.starts_with("pub(crate) mod ")
+        {
+            return &text[..at];
+        }
+        from = at + 1;
+    }
+    text
+}
+
 /// Every `.rs` file under `dir`, in folders too: the window's dialogs are a
 /// module of their own, and a scan of the top folder alone would silently
 /// stop checking their words. A module's `tests.rs` is its tests, whose
@@ -68,7 +87,7 @@ fn wanted() -> BTreeSet<String> {
     for file in files {
         let text = std::fs::read_to_string(file).unwrap();
         // The window's source, not its tests' made-up strings.
-        let text = text.split("#[cfg(test)]").next().unwrap_or_default();
+        let text = shipped(&text);
         // A label the window keeps beside its setting, its menu or its control and
         // translates where it draws it (an Options field's `("proxy.port", "Port")`, the
         // menus' titles, a tick box's `check("hide-html", "Hide HTML files", …)`): a
@@ -370,7 +389,7 @@ fn the_gpui_window_hands_no_english_straight_to_a_person() {
     let mut english = Vec::new();
     for file in rust_files(&gpui) {
         let text = std::fs::read_to_string(&file).unwrap();
-        let text = text.split("#[cfg(test)]").next().unwrap_or_default();
+        let text = shipped(&text);
         for sink in SHOWN {
             for (at, _) in text.match_indices(sink) {
                 let rest = &text[at + sink.len()..];

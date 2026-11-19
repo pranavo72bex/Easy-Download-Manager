@@ -1826,7 +1826,11 @@ fn a_full_settings_file_reads_into_the_pages_and_is_written_back_the_same() {
         serde_json::Value::Object(file.clone())
     );
     let keys = |value: serde_json::Value| -> Vec<String> {
-        value.as_object().unwrap().keys().cloned().collect()
+        // Sorted: serde_json keeps the order written when another crate of
+        // the workspace turns its `preserve_order` on, and order is not the question.
+        let mut keys: Vec<String> = value.as_object().unwrap().keys().cloned().collect();
+        keys.sort();
+        keys
     };
     assert_eq!(
         keys(serde_json::to_value(Settings::default()).unwrap()),

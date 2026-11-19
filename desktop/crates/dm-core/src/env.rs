@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn a_switch_in_the_table_is_known_and_one_outside_it_is_not() {
         assert!(known("DM_HOME"));
-        assert!(!known("HOME"));
+        assert!(!known("PATH"));
         assert!(!known(""));
     }
 }

@@ -91,6 +91,8 @@ fn what_a_row_says_of_retries_stalls_sign_ins_and_a_file_due_to_go() {
     // A refusal that wants a sign-in, in words dm has none plainer for.
     let mut refused = base.clone();
     refused.state = State::Failed("the ftp server said 401 not logged in".into());
+    // The engine says what kind of refusal it was; the words are not read for it (gaps row A9).
+    refused.fail_kind = Some(dm_core::FailKind::Refused(401));
     assert_eq!(
         status_in_english(&refused),
         "Error: the ftp server said 401 not logged in — it needs a sign-in: Properties › Login"

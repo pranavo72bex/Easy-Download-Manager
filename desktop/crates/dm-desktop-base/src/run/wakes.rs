@@ -117,12 +117,14 @@ mod tests {
             wakes.send(Wake::Now);
             wakes
         });
-        let next = runtime.block_on(tokio::time::timeout(within, woken.recv()));
+        // The timeout is made inside the runtime: tokio's clock refuses to be
+        // set outside one.
+        let next = runtime.block_on(async { tokio::time::timeout(within, woken.recv()).await });
         assert_eq!(next.ok().and_then(Result::ok), Some(Wake::Now));
         let _wakes = sent.join().unwrap();
         let short = std::time::Duration::from_millis(20);
         assert!(runtime
-            .block_on(tokio::time::timeout(short, woken.recv()))
+            .block_on(async { tokio::time::timeout(short, woken.recv()).await })
             .is_err());
     }
 }

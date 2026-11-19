@@ -290,6 +290,14 @@ Torrents and proxies are under "Torrents" below.
   error follows in plain words. Check the path, or choose a folder dm may
   write to, and click **OK** again: the window stays open with the path.
 
+- `the saved queue could not be read (…); it was kept as … and the queue starts empty`
+- `the saved queue could not be read (…) or moved aside (…); it will be overwritten by the next change`
+  Shown when dm starts and its own list of downloads (`queue.json`) is
+  damaged. In the first case the damaged file is kept under the name given,
+  so nothing is lost, and dm starts with an empty list. In the second, dm
+  could not even move it aside: copy `queue.json` somewhere safe before
+  adding a download.
+
 ## Checksums
 
 A checksum is a fingerprint of a file. dm checks the finished file against
@@ -443,6 +451,10 @@ between two times.
   Checks inside dm. They should not happen; click **Retry**.
 - `the MP3 could not be made: …`
 - `the GIF could not be made: …`
+- `the MP3 could not be written: …`
+- `making the MP3 stopped: …`
+- `the GIF could not be written: …`
+- `making the GIF stopped: …`
   The sound or the part came, but turning it into an MP3 or a GIF failed;
   the reason follows. The file it was made from is not removed.
 
@@ -519,6 +531,11 @@ the address came from your browser, play the video again and click
   A live DASH recording got nothing, or what it got could not be made into
   a video.
 
+- `the stream could not be put into an MP4: …`
+  Every piece of the stream came, but they could not be joined into one
+  MP4, and the pieces were already let go as they were joined. The reason
+  follows. Click **Retry** to fetch the stream again.
+
 ## Live recording (RTMP, RTSP, MMS)
 
 dm records `rtmp://`, `rtmps://`, `rtmpt://`, `rtsp://`, `rtsps://` and
@@ -547,6 +564,12 @@ was recorded is kept.
 - `the server does not speak plain RTMP`
 - `the server sent a message too large`
   The server is not an RTMP server dm can record from.
+- `not an rtmp:// address`
+- `dm does not speak …://`
+- `the address names no application and stream`
+  The address is not one dm can record over RTMP: it must start with
+  `rtmp://` (or `rtmps://`, `rtmpt://`) and name the server's application
+  and the stream, as `rtmp://server/app/stream`. Check the address.
 - `RTMPT: …`
 - `… did not open an RTMPT session: …`
 - `… answered no RTMPT session`
@@ -612,6 +635,15 @@ was recorded is kept.
 - `the finished torrent could not be released: …`
   dm's torrent engine failed; the reason follows. Click **Retry**, or close
   and open dm again.
+- `its session would not start: …`
+- `it could not be added again: …`
+- `it produced no handle`
+- `its files are no longer whole`
+  Sharing a finished torrent with others stopped. In the first three, dm's
+  torrent engine would not take the torrent up again; the reason follows.
+  In the last, the files on the disk no longer match the torrent (one was
+  moved, changed or deleted), so dm stopped sharing them. What was
+  downloaded is not touched.
 - `the torrent names a file outside its own folder, so it was not downloaded`
   A file name in the torrent would land outside the torrent's folder, so dm
   fetched nothing of it.
