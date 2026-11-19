@@ -110,11 +110,9 @@ def drag(pointer, start, end):
 
 def rows(home):
     try:
-        data = json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
+        return json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
     except (OSError, ValueError):
         return []
-    # {"format": N, "rows": [...]} since gaps row A8; a bare list before it.
-    return data.get("rows", []) if isinstance(data, dict) else data
 
 
 def drag_out(home, pointer, dm_rect, src_rect):

@@ -1498,11 +1498,9 @@ def plays(path):
 
 def queue_rows(home):
     try:
-        data = json.loads((home / "queue.json").read_text(encoding="utf-8"))
+        return json.loads((home / "queue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    # {"format": N, "rows": [...]} since gaps row A8; a bare list before it.
-    return data.get("rows", []) if isinstance(data, dict) else data
 
 
 def main():

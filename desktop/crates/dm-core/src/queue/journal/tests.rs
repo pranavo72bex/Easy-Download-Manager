@@ -123,7 +123,7 @@ fn same(read: &[Entry], rows: &[Arc<Entry>]) -> bool {
 }
 
 #[test]
-fn the_queue_and_its_secrets_carry_their_format_and_read_back_the_same_rows() {
+fn the_queue_and_its_secrets_stay_bare_lists_and_read_back_the_same_rows() {
     // A short list (written indented) and a long one (compact, then a journal).
     for count in [3, 600] {
         let dir = tempfile::tempdir().unwrap();
@@ -131,10 +131,12 @@ fn the_queue_and_its_secrets_carry_their_format_and_read_back_the_same_rows() {
         let mut rows: Vec<Arc<Entry>> = (1..=count).map(row).collect();
         Arc::make_mut(&mut rows[1]).cookies = "session=abc".into();
         let saved = write(&file, rows.clone(), None).unwrap();
-        let text = std::fs::read(&file).unwrap();
-        assert_eq!(crate::saved::format_of(&text), QUEUE_FORMAT);
-        let secrets = std::fs::read(secrets_file(&file)).unwrap();
-        assert_eq!(crate::saved::format_of(&secrets), SECRETS_FORMAT);
+        // Bare lists, as an older dm reads them: no number in either.
+        for kept in [file.clone(), secrets_file(&file)] {
+            let text = std::fs::read(&kept).unwrap();
+            assert_eq!(text.first(), Some(&b'['), "{}", kept.display());
+            assert!(serde_json::from_slice::<Vec<serde_json::Value>>(&text).is_ok());
+        }
         // The secrets come back in the queue's own read (`persist`), not in this one.
         Arc::make_mut(&mut rows[1]).cookies.clear();
         assert!(same(&read(&file), &rows), "{count} rows");
@@ -170,4 +172,10 @@ fn a_queue_file_and_journal_from_before_the_numbers_read_as_they_did() {
     );
     std::fs::write(journal_file(&file), journal).unwrap();
     assert_eq!(read(&file)[2].description, "from the journal");
+
+    // The object shape an early build of this change wrote still reads, rows equal.
+    std::fs::remove_file(journal_file(&file)).unwrap();
+    let object = serde_json::json!({ "format": 1, "rows": bare });
+    std::fs::write(&file, object.to_string()).unwrap();
+    assert!(same(&read(&file), &rows));
 }

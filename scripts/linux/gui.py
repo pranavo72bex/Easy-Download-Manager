@@ -611,11 +611,9 @@ def finished(home, url, seconds):
 
 def queue_rows(home):
     try:
-        data = json.loads((home / "queue.json").read_text(encoding="utf-8"))
+        return json.loads((home / "queue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    # {"format": N, "rows": [...]} since gaps row A8; a bare list before it.
-    return data.get("rows", []) if isinstance(data, dict) else data
 
 
 def row_of(home, url):
@@ -1336,7 +1334,7 @@ def main():
                 time.sleep(0.05)
             time.sleep(0.5)
             x("xdotool", "mouseup", "1")
-        rows = lambda: queue_rows(home)
+        rows = lambda: json.loads((home / "queue.json").read_text(encoding="utf-8")) if (home / "queue.json").exists() else []
         added = wait_for(lambda: len([r for r in rows() if r["url"].endswith((".zip"))]) >= 2, 15)
         check("a file of links dropped on the window is read and its links queued",
               added, f"{[r['url'] for r in rows()]}")

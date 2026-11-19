@@ -391,10 +391,10 @@ fn the_real_world_lists_qualities_from_a_reading_kept_or_none_for_a_site_without
     );
 }
 
-/// The formats cache and the extension's file carry their format numbers (gaps row A8); files
-/// from before the numbers read the same.
+/// The formats cache stays a bare list, read in either shape, and the extension's file carries
+/// its format number (gaps row A8).
 #[test]
-fn the_formats_cache_and_the_extension_file_carry_their_format() {
+fn the_formats_cache_stays_a_list_and_the_extension_file_carries_its_format() {
     let home = tempfile::tempdir().unwrap();
     let key = formats_key("https://video.example/watch/2", "");
     let kept = Choice {
@@ -404,19 +404,24 @@ fn the_formats_cache_and_the_extension_file_carry_their_format() {
     };
     remember_formats(home.path(), &key, std::slice::from_ref(&kept), 1000);
     let written = std::fs::read(formats_file(home.path())).unwrap();
-    assert_eq!(dm_core::saved::format_of(&written), FORMATS_FORMAT);
+    assert_eq!(
+        written.first(),
+        Some(&b'['),
+        "a bare list, as an older dm reads it"
+    );
     assert_eq!(
         recalled_formats(home.path(), &key, 1001),
         Some(vec![kept.clone()])
     );
-    // A bare list, as a dm before the numbers wrote it.
-    let old = serde_json::to_string(&[Remembered {
+    // The object shape an early build of this change wrote.
+    let rows = serde_json::to_value([Remembered {
         key: key.clone(),
         at: 1000,
         choices: vec![kept.clone()],
     }])
     .unwrap();
-    std::fs::write(formats_file(home.path()), old).unwrap();
+    let object = serde_json::json!({ "format": 1, "rows": rows }).to_string();
+    std::fs::write(formats_file(home.path()), object).unwrap();
     assert_eq!(recalled_formats(home.path(), &key, 1001), Some(vec![kept]));
 
     let greeting = dm_protocol::Greeting::default();

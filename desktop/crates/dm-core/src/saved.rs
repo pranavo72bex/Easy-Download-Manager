@@ -3,7 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The format number each JSON file dm saves carries (gaps row A8): `"format": N`, beside what
+//! The format number each JSON object dm saves carries (gaps row A8): `"format": N`, beside what
 //! the file holds, so a later dm can tell which shape it is reading. Each file has its own
 //! number, from 1, raised when the file's shape changes in a way its fields alone do not say.
 //!
@@ -13,9 +13,11 @@
 //! dm opened on a newer file loses nothing it understood.
 //!
 //! A file of one object is written as that object with `format` among its fields
-//! ([`Stamped`]). A file that was a bare list (the queue, its secrets, the formats cache) is
-//! written as `{"format": N, "rows": [...]}` ([`rows_to_vec`]), and either shape reads back
-//! ([`rows_from_slice`]).
+//! ([`Stamped`]). The files that are a bare list (the queue, its secrets, the formats cache)
+//! carry no number and stay bare lists, so an older dm still reads them: a downgrade must never
+//! set the queue aside. The queue's number is in its journal's first line instead
+//! (`queue/journal.rs`). They are read with [`rows_from_slice`], which also takes the
+//! `{"format": N, "rows": [...]}` object an early build of this change wrote.
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -31,15 +33,8 @@ pub struct Stamped<'a, T> {
     pub body: &'a T,
 }
 
-/// A list written with its format number.
-#[derive(Serialize)]
-struct RowsOut<'a, T> {
-    format: u32,
-    rows: &'a [T],
-}
-
-/// A list read with its format number; the number itself, and anything a newer dm put beside
-/// the rows, passed over.
+/// A list read from the object shape; the number, and anything else beside the rows, passed
+/// over.
 #[derive(Deserialize)]
 struct RowsIn<T> {
     rows: Vec<T>,
@@ -57,23 +52,8 @@ fn is_object(json: &[u8]) -> bool {
     json.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'{')
 }
 
-/// `rows` as a saved list of format `format`: `{"format": N, "rows": [...]}`, indented where
-/// `pretty`.
-pub fn rows_to_vec<T: Serialize>(
-    format: u32,
-    rows: &[T],
-    pretty: bool,
-) -> serde_json::Result<Vec<u8>> {
-    let file = RowsOut { format, rows };
-    if pretty {
-        serde_json::to_vec_pretty(&file)
-    } else {
-        serde_json::to_vec(&file)
-    }
-}
-
-/// The rows of a saved list, written either way: as [`rows_to_vec`] writes it, of any format,
-/// or as a bare list, as dm wrote it before the numbers. The error is serde's for the shape
+/// The rows of a saved list, in either shape: the bare list dm writes, or the
+/// `{"format": N, "rows": [...]}` object, of any number. The error is serde's for the shape
 /// found, so a file that is neither says why as before.
 pub fn rows_from_slice<T: DeserializeOwned>(json: &[u8]) -> serde_json::Result<Vec<T>> {
     if is_object(json) {
@@ -104,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn a_list_is_written_with_its_number_and_read_back_either_way() {
+    fn a_list_reads_back_in_either_shape() {
         let rows = vec![
             Thing {
                 name: "a".into(),
@@ -115,16 +95,16 @@ mod tests {
                 size: 2,
             },
         ];
-        for pretty in [true, false] {
-            let bytes = rows_to_vec(1, &rows, pretty).unwrap();
-            assert_eq!(format_of(&bytes), 1);
-            assert_eq!(rows_from_slice::<Thing>(&bytes).unwrap(), rows);
-        }
-        // Before the numbers: a bare list, format 0, read as ever.
-        let bare = serde_json::to_vec(&rows).unwrap();
+        // The bare list, as dm writes it: format 0.
+        let bare = serde_json::to_vec_pretty(&rows).unwrap();
         assert_eq!(format_of(&bare), 0);
         assert_eq!(rows_from_slice::<Thing>(&bare).unwrap(), rows);
-        // A newer dm's: a higher number and a field beside the rows, read as far as it goes.
+        // The object shape, as an early build wrote it.
+        let object = br#"{"format": 1, "rows": [{"name": "a", "size": 1},
+            {"name": "b", "size": 2}]}"#;
+        assert_eq!(format_of(object), 1);
+        assert_eq!(rows_from_slice::<Thing>(object).unwrap(), rows);
+        // A higher number and a field beside the rows: read as far as it goes.
         let newer = br#" {"format": 7, "rows": [{"name": "a", "size": 1, "colour": "red"}],
             "more": true}"#;
         assert_eq!(format_of(newer), 7);

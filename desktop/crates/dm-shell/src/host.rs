@@ -626,11 +626,9 @@ const FORMATS_KEPT_SECS: u64 = 600;
 /// How many pages' readings are kept.
 const FORMATS_KEPT_PAGES: usize = 48;
 
-/// The formats cache's format number (`dm_core::saved`). 0, before the numbers: a bare list.
-/// 1: `{"format": 1, "rows": [...]}`.
-const FORMATS_FORMAT: u32 = 1;
-
-/// The extension file's: 1, the hello's fields beside `format`.
+/// The extension file's format number (`dm_core::saved`): 1, the hello's fields beside
+/// `format`. The formats cache carries none: it stays a bare list, read in either shape
+/// (`dm_core::saved::rows_from_slice`).
 const EXTENSION_FORMAT: u32 = 1;
 
 fn now_secs() -> u64 {
@@ -696,7 +694,7 @@ fn remember_formats(home: &Path, key: &str, choices: &[Choice], now: u64) {
     });
     let excess = all.len().saturating_sub(FORMATS_KEPT_PAGES);
     all.drain(..excess);
-    let Ok(text) = dm_core::saved::rows_to_vec(FORMATS_FORMAT, &all, false) else {
+    let Ok(text) = serde_json::to_string(&all) else {
         return;
     };
     let _ = std::fs::create_dir_all(home);

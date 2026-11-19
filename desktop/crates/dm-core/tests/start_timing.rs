@@ -50,7 +50,7 @@ async fn reading_back_ten_thousand_rows() {
     );
     let bytes = std::fs::read(&store).unwrap();
     let started = std::time::Instant::now();
-    let rows: Vec<dm_core::Entry> = dm_core::saved::rows_from_slice(&bytes).unwrap();
+    let rows: Vec<dm_core::Entry> = serde_json::from_slice(&bytes).unwrap();
     println!("parse alone: {:?} ({} rows)", started.elapsed(), rows.len());
     let started = std::time::Instant::now();
     let again = serde_json::to_vec(&rows).unwrap();

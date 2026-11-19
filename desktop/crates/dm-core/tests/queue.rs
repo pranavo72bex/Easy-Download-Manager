@@ -2210,7 +2210,7 @@ async fn saves_at_the_same_time_do_not_report_a_failure_that_did_not_happen() {
     assert!(left.is_empty(), "temporary files were left behind");
     let saved: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&store).unwrap()).unwrap();
-    assert_eq!(saved["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(saved.as_array().unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -3617,7 +3617,7 @@ async fn a_forms_answer_keeps_its_form_off_disk_and_says_so_after_a_restart() {
     let written = std::fs::read_to_string(&store).unwrap();
     assert!(!written.contains("hunter2"), "the form was written to disk");
     let rows: serde_json::Value = serde_json::from_str(&written).unwrap();
-    assert_eq!(rows["rows"][0]["posted"], true, "{written}");
+    assert_eq!(rows[0]["posted"], true, "{written}");
 
     let second = queue(dir.path(), 1);
     second.persist_to(store.clone()).await;
