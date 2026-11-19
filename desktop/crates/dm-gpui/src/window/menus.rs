@@ -451,8 +451,12 @@ pub fn bind_keys(cx: &mut App) {
         bindings.push(KeyBinding::new("shift-tab", FocusPrevious, context));
     }
     cx.bind_keys(bindings);
-    // The application's own actions, heard from any window: registered
-    // once, here, as the menus are built again whenever the queues change.
+    hear_app_actions(cx);
+}
+
+/// The application's own actions, heard from any window: registered once (`bind_keys`), as the
+/// menus are built again whenever the queues change.
+fn hear_app_actions(cx: &mut App) {
     cx.on_action(|_: &FocusNext, cx| {
         if let Some(front) = cx.active_window() {
             let _ = front.update(cx, |_, window, cx| window.focus_next(cx));

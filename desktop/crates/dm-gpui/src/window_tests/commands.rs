@@ -13,7 +13,7 @@
 use dm_core::State;
 use dm_shell::app::commands::Command;
 
-use crate::harness::world::{payload, world};
+use crate::harness::world::{payload, world, World};
 use crate::harness::Harness;
 
 fn finished(h: &mut Harness) -> bool {
@@ -210,20 +210,29 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.until("file.zip to finish", finished);
     let done = h.row("file.zip");
 
+    view_and_help_items(&mut h);
+    let list = tasks_items(&mut h, &world);
+    file_items(&mut h, &done);
+    downloads_items(&mut h, &done);
+    last_items(&mut h, &done, &list);
+}
+
+/// View's items and Help's (`every_menu_item_clicked_does_what_it_says`).
+fn view_and_help_items(h: &mut Harness) {
     // View
-    press(&mut h, &["View", "Categories"]);
+    press(h, &["View", "Categories"]);
     assert!(
         !h.view(|v| v.layout.show_sidebar),
         "View › Categories did not hide the side panel"
     );
-    press(&mut h, &["View", "Categories"]);
+    press(h, &["View", "Categories"]);
     assert!(h.view(|v| v.layout.show_sidebar));
-    press(&mut h, &["View", "Toolbar"]);
+    press(h, &["View", "Toolbar"]);
     assert!(
         !h.view(|v| v.layout.show_toolbar),
         "View › Toolbar did not hide it"
     );
-    press(&mut h, &["View", "Toolbar"]);
+    press(h, &["View", "Toolbar"]);
     assert!(h.view(|v| v.layout.show_toolbar));
     for (item, column) in [
         ("Sort by name", Command::SortByName),
@@ -235,8 +244,8 @@ fn every_menu_item_clicked_does_what_it_says() {
         ("Sort by note", Command::SortByDescription),
     ] {
         h.view(|v| v.list.sort = None);
-        press(&mut h, &["View", "Sort by", item]);
-        let sorted = sort(&mut h);
+        press(h, &["View", "Sort by", item]);
+        let sorted = sort(h);
         assert!(
             sorted.as_ref().is_some_and(|(_, up)| *up),
             "{item} ({column:?}): {sorted:?}"
@@ -244,7 +253,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     }
 
     // Help
-    press(&mut h, &["Help", "Help"]);
+    press(h, &["Help", "Help"]);
     h.until("the help page", |h| {
         h.fake
             .opened
@@ -253,35 +262,38 @@ fn every_menu_item_clicked_does_what_it_says() {
             .iter()
             .any(|o| o == dm_desktop_base::project::HELP)
     });
-    press(&mut h, &["Help", "About dm"]);
+    press(h, &["Help", "About dm"]);
     h.until("About dm", |h| h.dialog_open("About dm"));
     h.close_dialogs();
     assert!(
-        !greyed(&mut h, Command::CheckForUpdates),
+        !greyed(h, Command::CheckForUpdates),
         "Check for updates is greyed out"
     );
+}
 
+/// Tasks' items, Export last: the list it wrote.
+fn tasks_items(h: &mut Harness, world: &World) -> std::path::PathBuf {
     // Tasks
-    press(&mut h, &["Tasks", "Add URL"]);
+    press(h, &["Tasks", "Add URL"]);
     h.until("Add URL", |h| h.dialog_open("Add URL"));
     h.close_dialogs();
-    press(&mut h, &["Tasks", "Add numbered series"]);
+    press(h, &["Tasks", "Add numbered series"]);
     h.until("Add numbered series", |h| {
         h.dialog_open("Add numbered series")
     });
     h.close_dialogs();
     h.cx.write_to_clipboard(gpui::ClipboardItem::new_string(world.url("clip.bin")));
-    press(&mut h, &["Tasks", "Add links from clipboard"]);
+    press(h, &["Tasks", "Add links from clipboard"]);
     h.until("Links on the clipboard", |h| {
         h.dialog_open("Links on the clipboard")
     });
     h.close_dialogs();
-    press(&mut h, &["Tasks", "Grabber"]);
+    press(h, &["Tasks", "Grabber"]);
     h.until("the Grabber", |h| h.dialog_open("Grabber"));
     h.close_dialogs();
     let list = world.dir.path().join("list.dmlist");
     h.choose_ahead(&list);
-    press(&mut h, &["Tasks", "Export"]);
+    press(h, &["Tasks", "Export"]);
     h.until("the list to be written", |_| list.is_file());
     let exported = std::fs::read_to_string(&list).unwrap();
     assert!(
@@ -290,14 +302,19 @@ fn every_menu_item_clicked_does_what_it_says() {
             .all(|n| exported.contains(n)),
         "Tasks › Export: {exported}"
     );
+    list
+}
 
+/// File's items, on the finished row (`done`), one waiting in the main queue and the running
+/// one.
+fn file_items(h: &mut Harness, done: &dm_core::Entry) {
     // File, on the finished row
     h.select_by_port("file.zip");
-    persons_choice(&mut h, Command::OpenFile);
+    persons_choice(h, Command::OpenFile);
     h.until("File › Open", |h| {
         h.fake.opened.lock().unwrap().contains(&done.path)
     });
-    press(&mut h, &["File", "Open folder"]);
+    press(h, &["File", "Open folder"]);
     h.until("File › Open folder", |h| {
         h.fake
             .opened
@@ -306,21 +323,18 @@ fn every_menu_item_clicked_does_what_it_says() {
             .iter()
             .any(|o| o.starts_with("reveal "))
     });
-    press(&mut h, &["File", "Properties"]);
+    press(h, &["File", "Properties"]);
     h.until("File › Properties", |h| h.dialog_open("File properties"));
     h.close_dialogs();
     assert!(
-        greyed(&mut h, Command::ShowProgress),
+        greyed(h, Command::ShowProgress),
         "a finished download has no progress"
     );
-    assert!(
-        greyed(&mut h, Command::UpdateLink),
-        "nor an address to refresh"
-    );
-    press(&mut h, &["File", "Move/Rename"]);
+    assert!(greyed(h, Command::UpdateLink), "nor an address to refresh");
+    press(h, &["File", "Move/Rename"]);
     h.until("File › Move/Rename", |h| h.dialog_open("Move/Rename"));
     h.close_dialogs();
-    press(&mut h, &["File", "Move to queue"]);
+    press(h, &["File", "Move to queue"]);
     h.until("File › Move to queue", |h| h.dialog_open("Move to queue"));
     h.close_dialogs();
 
@@ -331,19 +345,19 @@ fn every_menu_item_clicked_does_what_it_says() {
             .iter()
             .position(|r| dm_shell::app::names::name_of(r) == "other.pdf")
     };
-    let before = place(&mut h);
-    press(&mut h, &["File", "Move up"]);
+    let before = place(h);
+    press(h, &["File", "Move up"]);
     h.until("File › Move up", |h| place(h) < before);
-    press(&mut h, &["File", "Move down"]);
+    press(h, &["File", "Move down"]);
     h.until("File › Move down", |h| place(h) == before);
-    press(&mut h, &["File", "Take out of queue"]);
+    press(h, &["File", "Take out of queue"]);
     h.until("File › Take out of queue", |h| {
         h.row("other.pdf").queue.is_empty()
     });
 
     // File, on the running row
     h.select_by_port("stalled.bin");
-    press(&mut h, &["File", "Show progress"]);
+    press(h, &["File", "Show progress"]);
     h.until("File › Show progress", |h| {
         h.dialog_names().iter().any(|d| d == "Download progress")
     });
@@ -353,24 +367,27 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.until("Update download link greyed while downloading", |h| {
         greyed(h, Command::UpdateLink)
     });
-    press(&mut h, &["File", "Stop download"]);
+    press(h, &["File", "Stop download"]);
     h.until("Stop download", |h| is(h, "stalled.bin", State::Paused));
-    press(&mut h, &["File", "Update download link"]);
+    press(h, &["File", "Update download link"]);
     h.until("File › Update download link", |h| {
         h.dialog_open("Update download link")
     });
     h.close_dialogs();
-    press(&mut h, &["File", "Resume"]);
+    press(h, &["File", "Resume"]);
     h.until("Resume", |h| !is(h, "stalled.bin", State::Paused));
+}
 
+/// Downloads' items.
+fn downloads_items(h: &mut Harness, done: &dm_core::Entry) {
     // Downloads
-    press(&mut h, &["Downloads", "Stop All"]);
+    press(h, &["Downloads", "Stop All"]);
     h.until("Stop All", |h| {
         h.rows().iter().all(|r| r.state != State::Running)
     });
-    press(&mut h, &["Downloads", "Resume all"]);
+    press(h, &["Downloads", "Resume all"]);
     h.until("Resume all", |h| !is(h, "stalled.bin", State::Paused));
-    press(&mut h, &["File", "Select all"]);
+    press(h, &["File", "Select all"]);
     let shown: std::collections::BTreeSet<_> =
         h.view(|v| v.list.shown.iter().map(|&i| v.rows[i].id).collect());
     assert_eq!(
@@ -380,10 +397,10 @@ fn every_menu_item_clicked_does_what_it_says() {
     );
     // Find puts the keys in the top bar's search box; Find next steps to the next row whose
     // name holds its words.
-    press(&mut h, &["Downloads", "Find"]);
+    press(h, &["Downloads", "Find"]);
     h.type_text("file.zip");
     h.view(|v| v.list.selected.clear());
-    press(&mut h, &["Downloads", "Find next"]);
+    press(h, &["Downloads", "Find next"]);
     h.until("Downloads › Find next", |h| {
         h.view(|v| v.list.selected.contains(&done.id))
     });
@@ -392,31 +409,28 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.until("the search box emptied", |h| {
         h.view(|v| v.list.shown.len()) == 3
     });
-    press(&mut h, &["Downloads", "Scheduler"]);
+    press(h, &["Downloads", "Scheduler"]);
     h.until("Downloads › Scheduler", |h| h.dialog_open("Scheduler"));
     h.close_dialogs();
-    press(
-        &mut h,
-        &["Downloads", "Speed limiter", "Speed limiter settings"],
-    );
+    press(h, &["Downloads", "Speed limiter", "Speed limiter settings"]);
     h.until("Downloads › Speed limiter settings", |h| {
         h.dialog_open("Speed limiter")
     });
     h.close_dialogs();
     let limit = h.view(|v| v.backend.settings().advanced.speed_limit);
-    press(&mut h, &["Downloads", "Speed limiter", "Limit speed"]);
+    press(h, &["Downloads", "Speed limiter", "Limit speed"]);
     assert_ne!(
         h.view(|v| v.backend.settings().advanced.speed_limit),
         limit,
         "Limit speed"
     );
-    press(&mut h, &["Downloads", "Speed limiter", "Limit speed"]);
+    press(h, &["Downloads", "Speed limiter", "Limit speed"]);
     assert_eq!(
         h.view(|v| v.backend.settings().advanced.speed_limit),
         limit,
         "and back"
     );
-    press(&mut h, &["Downloads", "Options"]);
+    press(h, &["Downloads", "Options"]);
     h.until("Downloads › Options", |h| h.dialog_open("Options"));
     h.close_dialogs();
     use dm_shell::app::power::WhenDone;
@@ -433,7 +447,7 @@ fn every_menu_item_clicked_does_what_it_says() {
         .into_iter()
         .filter(|(_, w)| w.possible(dm_desktop_base::power::available))
     {
-        press(&mut h, &["Downloads", "When done", item]);
+        press(h, &["Downloads", "When done", item]);
         assert_eq!(
             h.view(|v| v.session.when_done),
             wanted,
@@ -450,19 +464,22 @@ fn every_menu_item_clicked_does_what_it_says() {
         "nothing slept"
     );
     // Each a list of the queues, as reference A's menu has.
-    press(&mut h, &["Downloads", "Start Queue", "Main queue"]);
+    press(h, &["Downloads", "Start Queue", "Main queue"]);
     let said = h.said();
     assert!(
         said.starts_with("Started") || said.starts_with("Nothing in"),
         "Start Queue: {said:?}"
     );
-    press(&mut h, &["Downloads", "Stop Queue", "Main queue"]);
+    press(h, &["Downloads", "Stop Queue", "Main queue"]);
     let said = h.said();
     assert!(said.starts_with("Stopped"), "Stop Queue: {said:?}");
+}
 
+/// Redownload, Delete Completed, Delete, Import (of the `list` Export wrote) and Exit.
+fn last_items(h: &mut Harness, done: &dm_core::Entry, list: &std::path::Path) {
     // The finished row again: fetched afresh, then the list cleared of it.
     h.select_by_port("file.zip");
-    press(&mut h, &["File", "Redownload"]);
+    press(h, &["File", "Redownload"]);
     // A fresh copy, beside the first (which stays), followed by its row.
     h.until("Redownload to finish again", |h| {
         h.rows()
@@ -475,24 +492,21 @@ fn every_menu_item_clicked_does_what_it_says() {
         std::path::Path::new(&done.path).exists(),
         "the first copy is kept"
     );
-    press(&mut h, &["Downloads", "Delete Completed"]);
+    press(h, &["Downloads", "Delete Completed"]);
     h.until("Downloads › Delete Completed", |h| {
         h.rows().iter().all(|r| r.state != State::Completed)
     });
 
     // Delete waits for a download to stop, then asks first.
     h.select_by_port("stalled.bin");
-    if !is(&mut h, "stalled.bin", State::Running) {
-        press(&mut h, &["File", "Resume"]);
+    if !is(h, "stalled.bin", State::Running) {
+        press(h, &["File", "Resume"]);
         h.until("it to run", |h| is(h, "stalled.bin", State::Running));
     }
-    assert!(
-        greyed(&mut h, Command::Remove),
-        "Delete while it is downloading"
-    );
-    press(&mut h, &["File", "Stop download"]);
+    assert!(greyed(h, Command::Remove), "Delete while it is downloading");
+    press(h, &["File", "Stop download"]);
     h.until("it to stop", |h| is(h, "stalled.bin", State::Paused));
-    press(&mut h, &["File", "Delete"]);
+    press(h, &["File", "Delete"]);
     h.until_shown("Yes, remove");
     h.click("Yes, remove");
     h.until("the row to go", |h| {
@@ -501,8 +515,8 @@ fn every_menu_item_clicked_does_what_it_says() {
 
     // Import what Export wrote at the start: its rows come back.
     let rows = h.rows().len();
-    h.choose_ahead(&list);
-    press(&mut h, &["Tasks", "Import"]);
+    h.choose_ahead(list);
+    press(h, &["Tasks", "Import"]);
     // A row of the list still there (under load a download the list kept may not have
     // finished or gone yet) is asked about: kept once, the others come back.
     h.until("Tasks › Import", |h| {
@@ -518,7 +532,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.until("all stopped", |h| {
         h.rows().iter().all(|r| r.state != State::Running)
     });
-    press(&mut h, &["Tasks", "Exit"]);
+    press(h, &["Tasks", "Exit"]);
     h.until("Tasks › Exit to quit", |_| {
         crate::dialogs::question::is_quitting()
     });

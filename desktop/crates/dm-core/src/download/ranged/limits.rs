@@ -312,33 +312,19 @@ impl Seen {
     }
 }
 
-/// What a connection at work on a download from a limiting server does next, once the server's
-/// pace allows a request: the first range of the longest run of ranges nobody fetches, nor will,
-/// with the request asked as far as the run goes; else the back half of the work of the range
-/// that would take longest, its own bytes and the ranges its answer will go on into together.
-/// The half is cut where it falls: in that range itself (halved, as `split_largest` does), or in
-/// one of the ranges after it (that one taken, or cut where the half falls, so the answer stops
-/// there). Only says whether anything is left to halve when not `judging`.
-pub(in crate::download) async fn pick_limited(job: &Job, judging: bool) -> Halving {
-    let mut segments = job.segments.lock().await;
-    let count = segments.len();
-    let mut seen: Vec<Seen> = (0..count)
-        .map(|index| Seen {
-            index,
-            live: *crate::lock(&job.live[index]),
-        })
-        .collect();
-    seen.sort_by_key(|s| s.live.start);
+/// A run of free ranges (`from` to `to` in the picker's order), with the range before it
+/// (`feeder`) if that one's answer goes on into the run, and the bytes it holds.
+struct Run {
+    from: usize,
+    to: usize,
+    feeder: Option<usize>,
+    bytes: u64,
+}
 
-    /* Runs of free ranges, each with the range before it if that one's answer goes on into the
-     * run: a free range something is on disk for is a run of its own, asked from where it got
-     * to, as no answer goes on into it. */
-    struct Run {
-        from: usize,
-        to: usize,
-        feeder: Option<usize>,
-        bytes: u64,
-    }
+/// Runs of free ranges, each with the range before it if that one's answer goes on into the
+/// run: a free range something is on disk for is a run of its own, asked from where it got
+/// to, as no answer goes on into it.
+fn runs_of(seen: &[Seen]) -> Vec<Run> {
     let mut runs: Vec<Run> = Vec::new();
     let mut at = 0;
     while at < seen.len() {
@@ -373,6 +359,28 @@ pub(in crate::download) async fn pick_limited(job: &Job, judging: bool) -> Halvi
         });
         at += 1;
     }
+    runs
+}
+
+/// What a connection at work on a download from a limiting server does next, once the server's
+/// pace allows a request: the first range of the longest run of ranges nobody fetches, nor will,
+/// with the request asked as far as the run goes; else the back half of the work of the range
+/// that would take longest, its own bytes and the ranges its answer will go on into together.
+/// The half is cut where it falls: in that range itself (halved, as `split_largest` does), or in
+/// one of the ranges after it (that one taken, or cut where the half falls, so the answer stops
+/// there). Only says whether anything is left to halve when not `judging`.
+pub(in crate::download) async fn pick_limited(job: &Job, judging: bool) -> Halving {
+    let mut segments = job.segments.lock().await;
+    let count = segments.len();
+    let mut seen: Vec<Seen> = (0..count)
+        .map(|index| Seen {
+            index,
+            live: *crate::lock(&job.live[index]),
+        })
+        .collect();
+    seen.sort_by_key(|s| s.live.start);
+
+    let runs = runs_of(&seen);
 
     // Nobody's: the longest such run, from its front.
     if let Some(run) = runs

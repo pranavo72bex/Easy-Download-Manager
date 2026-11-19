@@ -205,47 +205,11 @@ fn tokens(src: &str, from: usize) -> Result<(Vec<Token>, usize), String> {
             kind = Kind::Template;
             i = j;
         } else if c == b'/' && pattern_allowed(src, out.last()) {
-            let mut j = i + 1;
-            let mut class = false;
-            loop {
-                if j >= b.len() || at(j) == b'\n' {
-                    return Err(format!("a regular expression that never ends, at byte {i}"));
-                }
-                match at(j) {
-                    b'\\' => j += 2,
-                    b'[' => {
-                        class = true;
-                        j += 1;
-                    }
-                    b']' => {
-                        class = false;
-                        j += 1;
-                    }
-                    b'/' if !class => break,
-                    _ => j += 1,
-                }
-            }
-            j += 1;
-            while name_byte(at(j)) {
-                j += 1;
-            }
+            i = scan::pattern_end(b, i)?;
             kind = Kind::Pattern;
-            i = j;
         } else if c.is_ascii_digit() || (c == b'.' && at(i + 1).is_ascii_digit()) {
-            let hex = c == b'0' && (at(i + 1) | 0x20) == b'x';
-            let mut j = i + 1;
-            loop {
-                let d = at(j);
-                let part = d.is_ascii_alphanumeric() || d == b'_' || d == b'.';
-                // The sign of an exponent (`1E-6`), which a hex digit `e` is not.
-                let sign = (d == b'+' || d == b'-') && !hex && (at(j - 1) | 0x20) == b'e';
-                if !(part || sign) {
-                    break;
-                }
-                j += 1;
-            }
+            i = scan::number_end(b, i);
             kind = Kind::Number;
-            i = j;
         } else if name_byte(c) || c == b'\\' {
             let mut j = i;
             while name_byte(at(j)) || at(j) == b'\\' {
@@ -950,6 +914,8 @@ pub(crate) fn call(ns: &[&str], sigs: &[&str]) -> String {
         serde_json::json!({ "n": ns, "sig": sigs })
     )
 }
+
+mod scan;
 
 #[cfg(test)]
 mod tests;

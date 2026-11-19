@@ -152,7 +152,6 @@ impl Render for Series {
         let labels = [t("Address with *"), t("From")];
         let width = native::label_width(&labels);
         let digits: Vec<SharedString> = (0..=9).map(|d| d.to_string().into()).collect();
-        let count = listed.len();
         crate::widgets::native::dialog("series", t("Add numbered series"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .child(crate::widgets::fit::fitted(
@@ -210,44 +209,7 @@ impl Render for Series {
                     // end is seen before anything is fetched; its room kept
                     // whether or not there is a list yet, only the rows in
                     // view drawn.
-                    .child(
-                        div()
-                            .h(px(LINE * SHOWN as f32 + 8.0))
-                            .rounded(px(native::RADIUS))
-                            .border_1()
-                            .border_color(theme.separator)
-                            .bg(theme.background)
-                            .p(px(space::XS))
-                            .when(listed.is_empty(), |d| {
-                                d.child(native::note(
-                                    t("Each address the series makes is listed here."),
-                                    theme.muted,
-                                    &screen,
-                                ))
-                            })
-                            .when(!listed.is_empty(), |d| {
-                                let screen = screen.clone();
-                                d.child(
-                                    uniform_list("series-addresses", count, move |range, _, cx| {
-                                        let mono = crate::widgets::native::mono(cx);
-                                        range
-                                            .map(|i| {
-                                                div()
-                                                    .h(px(LINE))
-                                                    .w_full()
-                                                    .font_family(mono.clone())
-                                                    .text_size(px(native::SMALL_TEXT))
-                                                    .whitespace_nowrap()
-                                                    .overflow_hidden()
-                                                    .text_ellipsis()
-                                                    .child(screen.label(listed[i].clone()))
-                                            })
-                                            .collect()
-                                    })
-                                    .size_full(),
-                                )
-                            }),
-                    )
+                    .child(addresses(listed, theme, &screen))
                     // Greyed until there is an address to make a series of;
                     // with one, a press says what is wrong with the range.
                     .child(native::buttons(
@@ -279,6 +241,48 @@ impl Render for Series {
                     )),
             ))
     }
+}
+
+/// Every address the series makes (`listed`), so a wrong padding or end is seen before anything is
+/// fetched; its room kept whether or not there is a list yet, only the rows in view drawn.
+fn addresses(listed: Vec<String>, theme: Theme, screen: &Screen) -> impl IntoElement {
+    let count = listed.len();
+    div()
+        .h(px(LINE * SHOWN as f32 + 8.0))
+        .rounded(px(native::RADIUS))
+        .border_1()
+        .border_color(theme.separator)
+        .bg(theme.background)
+        .p(px(space::XS))
+        .when(listed.is_empty(), |d| {
+            d.child(native::note(
+                t("Each address the series makes is listed here."),
+                theme.muted,
+                screen,
+            ))
+        })
+        .when(!listed.is_empty(), |d| {
+            let screen = screen.clone();
+            d.child(
+                uniform_list("series-addresses", count, move |range, _, cx| {
+                    let mono = crate::widgets::native::mono(cx);
+                    range
+                        .map(|i| {
+                            div()
+                                .h(px(LINE))
+                                .w_full()
+                                .font_family(mono.clone())
+                                .text_size(px(native::SMALL_TEXT))
+                                .whitespace_nowrap()
+                                .overflow_hidden()
+                                .text_ellipsis()
+                                .child(screen.label(listed[i].clone()))
+                        })
+                        .collect()
+                })
+                .size_full(),
+            )
+        })
 }
 
 /// Opens Add numbered series.

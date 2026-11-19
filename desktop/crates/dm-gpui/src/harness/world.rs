@@ -86,243 +86,7 @@ pub(crate) fn world() -> World {
     home();
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let addr = runtime.block_on(async {
-        let app = axum::Router::new()
-            .route(
-                "/file.zip",
-                axum::routing::get(|| async { Response::new(Body::from(payload())) }),
-            )
-            // A ZIP from a server that serves ranges, one from a server that
-            // does not, and a file named .zip that is none.
-            .route(
-                "/pack.zip",
-                axum::routing::get(|h: axum::http::HeaderMap| async move { ranged(&h, tiny_zip()) }),
-            )
-            .route(
-                "/plain.zip",
-                axum::routing::get(|| async { Response::new(Body::from(tiny_zip())) }),
-            )
-            .route(
-                "/notzip.zip",
-                axum::routing::get(|h: axum::http::HeaderMap| async move {
-                    ranged(&h, b"this is only text, long enough to be read from its end".to_vec())
-                }),
-            )
-            .route(
-                "/page.html",
-                axum::routing::get(|| async {
-                    Response::new(Body::from(
-                        r#"<a href="file.zip">one</a> <a href="/other.pdf">two</a> <a href="next.html">page</a>"#,
-                    ))
-                }),
-            )
-            .route(
-                "/other.pdf",
-                axum::routing::get(|| async { Response::new(Body::from(payload())) }),
-            )
-            .route(
-                "/next.html",
-                axum::routing::get(|| async {
-                    // Said to be a page, so "Download all links" hides it.
-                    Response::builder()
-                        .header("content-type", "text/html")
-                        .body(Body::from(
-                            r#"<a href="deep.pdf">deep</a> <a href="page.html">back</a> <a href="http://elsewhere.invalid/x.html">away</a>"#,
-                        ))
-                        .unwrap()
-                }),
-            )
-            .route(
-                "/deep.pdf",
-                axum::routing::get(|| async { Response::new(Body::from(payload())) }),
-            )
-            .route(
-                "/secret.zip",
-                axum::routing::get(|| async {
-                    SECRET_ASKED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    Response::builder()
-                        .status(401)
-                        .body(Body::from("sign in first"))
-                        .unwrap()
-                }),
-            )
-            .route(
-                "/locked.zip",
-                axum::routing::get(|headers: axum::http::HeaderMap| async move {
-                    // Only with a sign-in, as a server behind a login is.
-                    if headers.contains_key("authorization") {
-                        Response::new(Body::from(payload()))
-                    } else {
-                        Response::builder()
-                            .status(401)
-                            .header("www-authenticate", "Basic realm=\"dm\"")
-                            .body(Body::from("sign in first"))
-                            .unwrap()
-                    }
-                }),
-            )
-            .route(
-                "/named",
-                axum::routing::get(|| async {
-                    // Named by its server, not by its address.
-                    Response::builder()
-                        .header(
-                            "content-disposition",
-                            "attachment; filename=\"report-2026.pdf\"",
-                        )
-                        .body(Body::from(payload()))
-                        .unwrap()
-                }),
-            )
-            .route(
-                "/article",
-                axum::routing::get(|| async {
-                    // A page typed into Add URL: neither a file nor a video site's page.
-                    Response::builder()
-                        .header("content-type", "text/html; charset=utf-8")
-                        .body(Body::from("<html><title>An article</title><body>words</body></html>"))
-                        .unwrap()
-                }),
-            )
-            .route(
-                "/pagefile.zip",
-                axum::routing::get(|| async {
-                    // A sign-in page where a file was asked for.
-                    Response::builder()
-                        .header("content-type", "text/html; charset=utf-8")
-                        .body(Body::from("<html><title>Sign in</title><body>expired</body></html>"))
-                        .unwrap()
-                }),
-            )
-            .route(
-                "/stalled.bin",
-                axum::routing::get(|| async {
-                    let never = futures_util::stream::pending::<Result<Vec<u8>, std::io::Error>>();
-                    Response::builder()
-                        .header("content-length", "1000000")
-                        .body(Body::from_stream(never))
-                        .unwrap()
-                }),
-            );
-        // A video that sends its first 128 KiB and then nothing.
-        let app = app.route(
-            "/half.mp4",
-            axum::routing::get(|| async {
-                let first = futures_util::stream::iter([Ok::<Vec<u8>, std::io::Error>(
-                    vec![9u8; 128 * 1024],
-                )]);
-                let never = futures_util::stream::pending();
-                Response::builder()
-                    .header("content-length", "1000000")
-                    .body(Body::from_stream(futures_util::StreamExt::chain(
-                        first, never,
-                    )))
-                    .unwrap()
-            }),
-        );
-        // 8 MiB served in ranges, each sending its first 64 KiB and then
-        // nothing: a download with several connections that stays under way.
-        // And the same sending nothing at all: its pieces wait for good.
-        let app = app
-            .route(
-                "/ranges-stall.bin",
-                axum::routing::get(|headers: axum::http::HeaderMap| {
-                    ranges_stall(64 * 1024, headers)
-                }),
-            )
-            .route(
-                "/ranges-silent.bin",
-                axum::routing::get(|headers: axum::http::HeaderMap| ranges_stall(0, headers)),
-            );
-        // A connection that ends after a thousand bytes of a million, every
-        // time, with no ranges to resume from: retried, then failed.
-        let app = app.route(
-            "/drops.bin",
-            axum::routing::get(|| async {
-                let some = futures_util::stream::iter([
-                    Ok::<Vec<u8>, std::io::Error>(vec![7u8; 1000]),
-                    Err(std::io::Error::other("cut")),
-                ]);
-                Response::builder()
-                    .header("content-length", "1000000")
-                    .body(Body::from_stream(some))
-                    .unwrap()
-            }),
-        );
-        // A signed link that runs out part-way: asked from the start, it
-        // sends a fifth of a million bytes and is cut (more than the 64 KiB
-        // a resume fetches again to check); asked to go on from part-way,
-        // it has expired.
-        let app = app.route(
-            "/expires.bin",
-            axum::routing::get(|headers: axum::http::HeaderMap| async move {
-                let from_start = headers
-                    .get("range")
-                    .and_then(|r| r.to_str().ok())
-                    .is_none_or(|r| r.starts_with("bytes=0-"));
-                if !from_start {
-                    return Response::builder()
-                        .status(403)
-                        .body(Body::from("Request has expired"))
-                        .unwrap();
-                }
-                // The engine's first look: one byte, and the size.
-                if headers.get("range").is_some_and(|r| r == "bytes=0-0" || r == "bytes=0-") {
-                    return Response::builder()
-                        .status(206)
-                        .header("content-range", "bytes 0-0/1000000")
-                        .header("accept-ranges", "bytes")
-                        .body(Body::from(vec![7u8]))
-                        .unwrap();
-                }
-                use futures_util::StreamExt;
-                // The bytes first, and the cut a moment after, as a
-                // connection that drops does.
-                let some = futures_util::stream::iter([true, false]).then(|bytes| async move {
-                    if bytes {
-                        Ok::<Vec<u8>, std::io::Error>(vec![7u8; 200_000])
-                    } else {
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-                        Err(std::io::Error::other("cut"))
-                    }
-                });
-                Response::builder()
-                    .status(if headers.contains_key("range") { 206 } else { 200 })
-                    .header("content-length", "1000000")
-                    .header("content-range", "bytes 0-999999/1000000")
-                    .header("accept-ranges", "bytes")
-                    .body(Body::from_stream(some))
-                    .unwrap()
-            }),
-        );
-        // The same file at a fresh link, whole and in ranges.
-        let app = app.route(
-            "/renewed.bin",
-            axum::routing::get(|headers: axum::http::HeaderMap| async move {
-                const SIZE: usize = 1_000_000;
-                let range = headers
-                    .get("range")
-                    .and_then(|r| r.to_str().ok())
-                    .and_then(|r| r.strip_prefix("bytes="))
-                    .and_then(|r| r.split_once('-'))
-                    .and_then(|(a, b)| {
-                        let a: usize = a.parse().ok()?;
-                        let b: usize = b.parse().unwrap_or(SIZE - 1).min(SIZE - 1);
-                        (a <= b).then_some((a, b))
-                    });
-                match range {
-                    Some((a, b)) => Response::builder()
-                        .status(206)
-                        .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
-                        .header("accept-ranges", "bytes")
-                        .body(Body::from(vec![7u8; b - a + 1]))
-                        .unwrap(),
-                    None => Response::builder()
-                        .header("accept-ranges", "bytes")
-                        .body(Body::from(vec![7u8; SIZE]))
-                        .unwrap(),
-                }
-            }),
-        );
+        let app = stalling_routes(file_routes());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -334,6 +98,256 @@ pub(crate) fn world() -> World {
         dir: tempfile::tempdir().unwrap(),
         addr,
     }
+}
+
+/// The server's files that come whole, or not at all: a sign-in, a page, a stall.
+fn file_routes() -> axum::Router {
+    axum::Router::new()
+        .route(
+            "/file.zip",
+            axum::routing::get(|| async { Response::new(Body::from(payload())) }),
+        )
+        // A ZIP from a server that serves ranges, one from a server that
+        // does not, and a file named .zip that is none.
+        .route(
+            "/pack.zip",
+            axum::routing::get(|h: axum::http::HeaderMap| async move { ranged(&h, tiny_zip()) }),
+        )
+        .route(
+            "/plain.zip",
+            axum::routing::get(|| async { Response::new(Body::from(tiny_zip())) }),
+        )
+        .route(
+            "/notzip.zip",
+            axum::routing::get(|h: axum::http::HeaderMap| async move {
+                ranged(&h, b"this is only text, long enough to be read from its end".to_vec())
+            }),
+        )
+        .route(
+            "/page.html",
+            axum::routing::get(|| async {
+                Response::new(Body::from(
+                    r#"<a href="file.zip">one</a> <a href="/other.pdf">two</a> <a href="next.html">page</a>"#,
+                ))
+            }),
+        )
+        .route(
+            "/other.pdf",
+            axum::routing::get(|| async { Response::new(Body::from(payload())) }),
+        )
+        .route(
+            "/next.html",
+            axum::routing::get(|| async {
+                // Said to be a page, so "Download all links" hides it.
+                Response::builder()
+                    .header("content-type", "text/html")
+                    .body(Body::from(
+                        r#"<a href="deep.pdf">deep</a> <a href="page.html">back</a> <a href="http://elsewhere.invalid/x.html">away</a>"#,
+                    ))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/deep.pdf",
+            axum::routing::get(|| async { Response::new(Body::from(payload())) }),
+        )
+        .route(
+            "/secret.zip",
+            axum::routing::get(|| async {
+                SECRET_ASKED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Response::builder()
+                    .status(401)
+                    .body(Body::from("sign in first"))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/locked.zip",
+            axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                // Only with a sign-in, as a server behind a login is.
+                if headers.contains_key("authorization") {
+                    Response::new(Body::from(payload()))
+                } else {
+                    Response::builder()
+                        .status(401)
+                        .header("www-authenticate", "Basic realm=\"dm\"")
+                        .body(Body::from("sign in first"))
+                        .unwrap()
+                }
+            }),
+        )
+        .route(
+            "/named",
+            axum::routing::get(|| async {
+                // Named by its server, not by its address.
+                Response::builder()
+                    .header(
+                        "content-disposition",
+                        "attachment; filename=\"report-2026.pdf\"",
+                    )
+                    .body(Body::from(payload()))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/article",
+            axum::routing::get(|| async {
+                // A page typed into Add URL: neither a file nor a video site's page.
+                Response::builder()
+                    .header("content-type", "text/html; charset=utf-8")
+                    .body(Body::from("<html><title>An article</title><body>words</body></html>"))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/pagefile.zip",
+            axum::routing::get(|| async {
+                // A sign-in page where a file was asked for.
+                Response::builder()
+                    .header("content-type", "text/html; charset=utf-8")
+                    .body(Body::from("<html><title>Sign in</title><body>expired</body></html>"))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/stalled.bin",
+            axum::routing::get(|| async {
+                let never = futures_util::stream::pending::<Result<Vec<u8>, std::io::Error>>();
+                Response::builder()
+                    .header("content-length", "1000000")
+                    .body(Body::from_stream(never))
+                    .unwrap()
+            }),
+        )
+}
+
+/// The server's files that stop part-way, drop, expire or come again at a fresh link.
+fn stalling_routes(app: axum::Router) -> axum::Router {
+    // A video that sends its first 128 KiB and then nothing.
+    let app = app.route(
+        "/half.mp4",
+        axum::routing::get(|| async {
+            let first =
+                futures_util::stream::iter([Ok::<Vec<u8>, std::io::Error>(vec![9u8; 128 * 1024])]);
+            let never = futures_util::stream::pending();
+            Response::builder()
+                .header("content-length", "1000000")
+                .body(Body::from_stream(futures_util::StreamExt::chain(
+                    first, never,
+                )))
+                .unwrap()
+        }),
+    );
+    // 8 MiB served in ranges, each sending its first 64 KiB and then
+    // nothing: a download with several connections that stays under way.
+    // And the same sending nothing at all: its pieces wait for good.
+    let app = app
+        .route(
+            "/ranges-stall.bin",
+            axum::routing::get(|headers: axum::http::HeaderMap| ranges_stall(64 * 1024, headers)),
+        )
+        .route(
+            "/ranges-silent.bin",
+            axum::routing::get(|headers: axum::http::HeaderMap| ranges_stall(0, headers)),
+        );
+    // A connection that ends after a thousand bytes of a million, every
+    // time, with no ranges to resume from: retried, then failed.
+    let app = app.route(
+        "/drops.bin",
+        axum::routing::get(|| async {
+            let some = futures_util::stream::iter([
+                Ok::<Vec<u8>, std::io::Error>(vec![7u8; 1000]),
+                Err(std::io::Error::other("cut")),
+            ]);
+            Response::builder()
+                .header("content-length", "1000000")
+                .body(Body::from_stream(some))
+                .unwrap()
+        }),
+    );
+    // A signed link that runs out part-way: asked from the start, it
+    // sends a fifth of a million bytes and is cut (more than the 64 KiB
+    // a resume fetches again to check); asked to go on from part-way,
+    // it has expired.
+    let app = app.route(
+        "/expires.bin",
+        axum::routing::get(|headers: axum::http::HeaderMap| async move {
+            let from_start = headers
+                .get("range")
+                .and_then(|r| r.to_str().ok())
+                .is_none_or(|r| r.starts_with("bytes=0-"));
+            if !from_start {
+                return Response::builder()
+                    .status(403)
+                    .body(Body::from("Request has expired"))
+                    .unwrap();
+            }
+            // The engine's first look: one byte, and the size.
+            if headers
+                .get("range")
+                .is_some_and(|r| r == "bytes=0-0" || r == "bytes=0-")
+            {
+                return Response::builder()
+                    .status(206)
+                    .header("content-range", "bytes 0-0/1000000")
+                    .header("accept-ranges", "bytes")
+                    .body(Body::from(vec![7u8]))
+                    .unwrap();
+            }
+            use futures_util::StreamExt;
+            // The bytes first, and the cut a moment after, as a
+            // connection that drops does.
+            let some = futures_util::stream::iter([true, false]).then(|bytes| async move {
+                if bytes {
+                    Ok::<Vec<u8>, std::io::Error>(vec![7u8; 200_000])
+                } else {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    Err(std::io::Error::other("cut"))
+                }
+            });
+            Response::builder()
+                .status(if headers.contains_key("range") {
+                    206
+                } else {
+                    200
+                })
+                .header("content-length", "1000000")
+                .header("content-range", "bytes 0-999999/1000000")
+                .header("accept-ranges", "bytes")
+                .body(Body::from_stream(some))
+                .unwrap()
+        }),
+    );
+    // The same file at a fresh link, whole and in ranges.
+    let app = app.route(
+        "/renewed.bin",
+        axum::routing::get(|headers: axum::http::HeaderMap| async move {
+            const SIZE: usize = 1_000_000;
+            let range = headers
+                .get("range")
+                .and_then(|r| r.to_str().ok())
+                .and_then(|r| r.strip_prefix("bytes="))
+                .and_then(|r| r.split_once('-'))
+                .and_then(|(a, b)| {
+                    let a: usize = a.parse().ok()?;
+                    let b: usize = b.parse().unwrap_or(SIZE - 1).min(SIZE - 1);
+                    (a <= b).then_some((a, b))
+                });
+            match range {
+                Some((a, b)) => Response::builder()
+                    .status(206)
+                    .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
+                    .header("accept-ranges", "bytes")
+                    .body(Body::from(vec![7u8; b - a + 1]))
+                    .unwrap(),
+                None => Response::builder()
+                    .header("accept-ranges", "bytes")
+                    .body(Body::from(vec![7u8; SIZE]))
+                    .unwrap(),
+            }
+        }),
+    );
+    app
 }
 
 impl World {

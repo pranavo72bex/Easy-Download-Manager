@@ -648,53 +648,13 @@ pub fn media_playlist(
         }
 
         if upper.starts_with("#EXT-X-KEY") {
-            let method = attribute(row, "METHOD")
-                .unwrap_or_default()
-                .to_ascii_uppercase();
-            if method == "NONE" {
-                key = None;
-                continue;
-            }
-            // SAMPLE-AES with a clear key: the samples are put in the clear once the segments
-            // are joined (gaps row Y16).
-            if method != "AES-128" && method != "SAMPLE-AES" {
-                return Err(Error::Internal(format!(
-                    "this stream uses {method} encryption, which dm cannot decrypt"
-                )));
-            }
-            let uri = attribute(row, "URI").ok_or_else(|| {
-                Error::Internal("the stream is encrypted but names no key".into())
-            })?;
-            /* Plain AES-128 is HLS's own scrambling, its key handed to any
-             * player that asks, as every player reads it. A key
-             * kept by a rights system (FairPlay's skd://, Widevine's or
-             * PlayReady's key formats) is copy protection, and dm does not
-             * get around copy protection: the stream is refused. */
-            let format = attribute(row, "KEYFORMAT").unwrap_or_default();
-            if protected_key(&format, &uri) {
-                return Err(Error::Internal(PROTECTED.into()));
-            }
-            key = Some(Key {
-                uri: join(url, &uri)?,
-                iv: attribute(row, "IV"),
-                sample: method == "SAMPLE-AES",
-            });
+            key = tags::key_of(row, url)?;
             continue;
         }
 
         if upper.starts_with("#EXT-X-MAP") {
             if let Some(uri) = attribute(row, "URI") {
-                let range = match attribute(row, "BYTERANGE") {
-                    Some(text) => match byte_range(&text)? {
-                        (len, Some(first)) => Some((first, first.saturating_add(len) - 1)),
-                        (_, None) => {
-                            return Err(Error::Internal(
-                                "the initialisation segment's byte range has no start".into(),
-                            ))
-                        }
-                    },
-                    None => None,
-                };
+                let range = tags::map_range(row)?;
                 let url = join(url, &uri)?;
                 // Restated, it is the same one, and is not put in again.
                 let same = init
@@ -722,35 +682,7 @@ pub fn media_playlist(
         return Err(Error::Internal("that playlist listed no segments".into()));
     }
 
-    // fMP4 segments concatenate into a valid MP4; MPEG-TS into a valid TS.
-    if parts.iter().any(|p| {
-        p.url
-            .split(['?', '#'])
-            .next()
-            .unwrap_or("")
-            .to_ascii_lowercase()
-            .ends_with(".m4s")
-    }) {
-        container = "mp4";
-    }
-    /* Sound alone is named for what its segments are, not for the quality
-     * asked: fMP4 sound is an `.m4a`, and sound in a transport stream stays
-     * a `.ts`, which the remux puts into an MP4 where it can. Called `.aac`
-     * whatever it was, neither opened as what its name said. Packed audio
-     * (`.aac` segments) joins into an `.aac` and is one. */
-    let packed_audio = parts.iter().all(|p| {
-        p.url
-            .split(['?', '#'])
-            .next()
-            .unwrap_or("")
-            .to_ascii_lowercase()
-            .ends_with(".aac")
-    });
-    if packed_audio {
-        container = "aac";
-    } else if quality == Quality::Audio && container == "mp4" {
-        container = "m4a";
-    }
+    container = tags::container_of(&parts, container, quality);
 
     // The stream's key, where one is: its first encrypted segment's; each segment keeps its
     // own, as the key may change part-way (gaps row Y16).
@@ -1006,6 +938,8 @@ pub fn decrypt(key: &[u8], iv: &[u8; 16], data: &[u8]) -> Result<Vec<u8>, Error>
         .decrypt_padded_vec::<Pkcs7>(data)
         .map_err(|_| Error::Internal("a stream segment failed to decrypt".into()))
 }
+
+mod tags;
 
 #[cfg(test)]
 mod tests;

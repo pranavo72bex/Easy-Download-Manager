@@ -18,11 +18,8 @@ use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
 use gpui::{
-    div, prelude::*, relative, uniform_list, AnyElement, Context, Div, Role, SharedString,
-    Stateful, Window,
+    div, prelude::*, uniform_list, AnyElement, Context, Div, Role, SharedString, Stateful, Window,
 };
-
-use crate::window::a11y::Told;
 
 use crate::widgets::space;
 use crate::window::list::{kind_picture, Downloads, ROW_HEIGHT};
@@ -30,6 +27,7 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod cells;
 mod pointer;
 
 /// The header's height, in points.
@@ -564,29 +562,7 @@ fn row_cells(
                             .flex_none()
                             .text_color(colour),
                     )
-                    .child({
-                        let (stem, extension) = name_parts(&name);
-                        let drawn = div()
-                            .flex()
-                            .min_w_0()
-                            .overflow_hidden()
-                            .child(
-                                div()
-                                    .min_w_0()
-                                    .overflow_hidden()
-                                    .whitespace_nowrap()
-                                    .text_ellipsis()
-                                    .child(SharedString::from(stem.to_string())),
-                            )
-                            .child(
-                                div()
-                                    .flex_none()
-                                    .whitespace_nowrap()
-                                    .child(SharedString::from(extension.to_string())),
-                            );
-                        // Read as the whole name, as it was one label.
-                        screen.mark(name.clone(), drawn)
-                    });
+                    .child(cells::name_drawn(&name, screen));
                 maybe_told(named, told, ("name", id), place, name)
             }
             // Reference A's Q: a mark for a download in a queue; its queue's name to a screen
@@ -629,28 +605,7 @@ fn row_cells(
                     })
                     .child(screen.label(said))
                     .when_some(fraction, |c, f| {
-                        let track = div()
-                            .mt(px(space::XXS))
-                            .w_full()
-                            .h(px(3.0))
-                            .rounded_full()
-                            .bg(theme.separator)
-                            .child(
-                                div()
-                                    .h_full()
-                                    .rounded_full()
-                                    .bg(theme.selection)
-                                    .w(relative(f.clamp(0.0, 1.0) as f32)),
-                            );
-                        // How far it is, told to a screen reader as a bar's value.
-                        c.child(if told {
-                            track
-                                .id("bar")
-                                .progress_bar(t("Progress"), f)
-                                .into_any_element()
-                        } else {
-                            track.into_any_element()
-                        })
+                        c.child(cells::progress_track(f, told, theme))
                     })
                     .into_any_element()
             }

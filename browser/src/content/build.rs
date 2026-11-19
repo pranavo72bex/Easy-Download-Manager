@@ -94,27 +94,7 @@ pub(super) fn build(document: &Document) -> Option<Panel> {
         });
     });
     if let Some(window) = window() {
-        listen(&window, "mousemove", |event| {
-            let Some((sx, sy, dx, dy)) = DRAG.with(|d| d.get()) else {
-                return;
-            };
-            let Some(mouse) = event.dyn_ref::<web_sys::MouseEvent>() else {
-                return;
-            };
-            let by = (
-                dx + f64::from(mouse.client_x()) - sx,
-                dy + f64::from(mouse.client_y()) - sy,
-            );
-            NUDGE.with(|n| n.set(by));
-            let view = window_size();
-            let (x, y) = decide::dragged(SPOT.with(|s| s.get()), by, PANEL_SIZE, view);
-            with_panel(|p| {
-                let style = p.host.style();
-                let _ = style.set_property_with_priority("left", &format!("{x}px"), "important");
-                let _ = style.set_property_with_priority("top", &format!("{y}px"), "important");
-            });
-        });
-        listen(&window, "mouseup", |_| DRAG.with(|d| d.set(None)));
+        listen_drag(&window);
     }
     // A button: Enter and Space click it already.
     listen(&go, "click", |event| {
@@ -158,6 +138,32 @@ pub(super) fn build(document: &Document) -> Option<Panel> {
         last_scan: 0.0,
         generation: 0,
     })
+}
+
+/// The window's half of the grip's drag: the pointer moving moves the
+/// panel, and letting go ends the drag.
+fn listen_drag(window: &Window) {
+    listen(window, "mousemove", |event| {
+        let Some((sx, sy, dx, dy)) = DRAG.with(|d| d.get()) else {
+            return;
+        };
+        let Some(mouse) = event.dyn_ref::<web_sys::MouseEvent>() else {
+            return;
+        };
+        let by = (
+            dx + f64::from(mouse.client_x()) - sx,
+            dy + f64::from(mouse.client_y()) - sy,
+        );
+        NUDGE.with(|n| n.set(by));
+        let view = window_size();
+        let (x, y) = decide::dragged(SPOT.with(|s| s.get()), by, PANEL_SIZE, view);
+        with_panel(|p| {
+            let style = p.host.style();
+            let _ = style.set_property_with_priority("left", &format!("{x}px"), "important");
+            let _ = style.set_property_with_priority("top", &format!("{y}px"), "important");
+        });
+    });
+    listen(window, "mouseup", |_| DRAG.with(|d| d.set(None)));
 }
 
 /// Listens for what a person does, and only that: an event a page's own

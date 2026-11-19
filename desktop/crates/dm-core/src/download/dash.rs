@@ -7,6 +7,7 @@ use super::hls_text::{HlsTexts, Texts};
 use super::*;
 use crate::dash::{self, Medium, Track};
 
+mod joins;
 mod text;
 
 /// Fetches a DASH stream as one file.
@@ -629,26 +630,7 @@ async fn join_tracks(
         joined = matroska.clone();
     }
     if !fs::metadata(&joined).await.is_ok_and(|m| m.len() > 0) {
-        let downloaded = Arc::new(AtomicU64::new(0));
-        // The size where the manifest gives every piece's bytes; else about, from each track's
-        // bitrate and playing time (gaps row Y22).
-        let (exact, about) = size_of_tracks(tracks);
-        let meter = report.map(|tx| {
-            crate::download::ranged::watch_estimating(
-                Arc::clone(&downloaded),
-                exact,
-                about.map(|bytes| Arc::new(AtomicU64::new(bytes))),
-                tx,
-            )
-        });
-        let fetched = fetch_tracks(client, tracks, options, &downloaded).await;
-        if let Some((handle, finished)) = meter {
-            let _ = finished.send(());
-            let _ = handle.await;
-        }
-        let files = fetched?;
-        options.control.check()?;
-        room_to_join(&files, &options.parts_dir, options)?;
+        let files = joins::fetch_tracks_shown(client, tracks, options, report).await?;
 
         // Matroska where it was asked for, or where the picture and sound
         // are a pair no MP4 holds (VP8 or Vorbis beside an MP4's samples),
@@ -674,50 +656,7 @@ async fn join_tracks(
         let _ = fs::remove_file(&partial).await;
         // Run to the end like the remux of a transport stream: cut loose
         // from a pause it would go on writing a file a resume makes afresh.
-        let made = if webm || mkv {
-            join_mkv(files.clone(), texts, partial.clone()).await
-        } else if let [picture, sound] = files.as_slice().iter().collect::<Vec<_>>()[..]
-            .iter()
-            .map(|p| (*p).clone())
-            .collect::<Vec<_>>()
-            .as_slice()
-        {
-            if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
-                match texts {
-                    Texts::Hls(texts) => {
-                        let place = move |clock| texts.timed_on(clock);
-                        let (ts, aac, out) = (picture.clone(), sound.clone(), partial.clone());
-                        crate::tsmux::join_packed_with_text_async(ts, aac, out, place).await
-                    }
-                    Texts::Timed(_) => {
-                        crate::tsmux::join_packed_async(
-                            picture.clone(),
-                            sound.clone(),
-                            partial.clone(),
-                        )
-                        .await
-                    }
-                }
-            } else if crate::tsmux::is_transport_stream(picture)
-                && crate::tsmux::is_transport_stream(sound)
-            {
-                match texts {
-                    Texts::Hls(texts) => {
-                        let place = move |clock| texts.timed_on(clock);
-                        let (seen, heard, out) = (picture.clone(), sound.clone(), partial.clone());
-                        crate::tsmux::join_ts_with_text_async(seen, heard, out, place).await
-                    }
-                    Texts::Timed(_) => {
-                        crate::tsmux::join_ts_async(picture.clone(), sound.clone(), partial.clone())
-                            .await
-                    }
-                }
-            } else {
-                join_mp4(files.clone(), texts, partial.clone(), options).await
-            }
-        } else {
-            join_mp4(files.clone(), texts, partial.clone(), options).await
-        };
+        let made = joins::join_files(&files, texts, &partial, webm || mkv, options).await;
         if let Err(why) = made {
             let _ = fs::remove_file(&partial).await;
             return Err(Error::Internal(format!(
