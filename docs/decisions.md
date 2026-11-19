@@ -8018,3 +8018,15 @@ The same day, of that kind of change in general: "no need of these type of chang
 dev page remove it". Closed with D5: D6 (`docs/decisions.md` split into files, a START-HERE page),
 X3 (a table of which test runs on which system in `docs/testing.md`) and X6 (`docs/platforms.md`).
 Rows whose only result is a page for developers are not taken up.
+
+## dm-desktop-base in three folders; one Mode (2026-11-19, gaps row A5)
+
+The crate's 48 modules are in `platform/` (the system's services), `view/` (dialog models and
+words with no toolkit) and `run/` (the ways dm runs); the folder modules are private and `lib.rs`
+re-exports each module, so every `dm_desktop_base::x` path stays and no other crate changed.
+The binary's modes are one `run::modes::Mode`, parsed in the order the two if-chains took them
+(`--headless` last, after the check for a mistyped flag, where `main.rs` took it); it replaces
+`modes::without_window` and `main.rs`'s own branching. The migration's `--accessibility`,
+`--churn` and demo "Delete the file?" dialog are gone: no script, check or workflow named them
+(`human-qa.py`'s accessibility rows read `a11y_tree::windows()` through the control port, which
+stays).
