@@ -133,6 +133,9 @@ struct Elementary {
     /// `EXT-X-DISCONTINUITY` (an advert, another encoder) starts its clock afresh, which read
     /// as it is put pictures back in time (gaps row Y16).
     shift: i64,
+    /// `shift` after each discontinuity, in order: what the subtitles of the stretches after
+    /// one are moved by ([`Clock::moved`], gaps row Y20).
+    moves: Vec<i64>,
     /// Its samples are scrambled (HLS's SAMPLE-AES, gaps row Y16): each PES is put in the clear
     /// with the key and vector of the segment it came in.
     sealed: bool,
@@ -141,6 +144,19 @@ struct Elementary {
     lock: crate::sealed::Lock,
     /// Where its samples go: its scratch file (`out`), counted alone, or kept to be read.
     sink: Sink,
+}
+
+/// What a remux tells the subtitles it carries (gaps row Y20): where the MP4 starts on the
+/// stream's 90 kHz clock, and how far the picture's clock was moved at each discontinuity.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Clock {
+    /// When the MP4 starts on the stream's clock: the earlier of its first picture and its
+    /// first sound (both are started from it).
+    pub zero: i64,
+    /// How far each stretch of the picture's clock was moved, in its ticks: the first stretch
+    /// (never, 0), then the one after each discontinuity its timestamps show (a leap ahead or
+    /// back), in order. What the stretch stamped `t` plays at `t + moved - zero` of the MP4.
+    pub moved: Vec<i64>,
 }
 
 /// Puts the transport stream at `input` into an MP4 at `out`, reading it twice and writing
@@ -165,7 +181,7 @@ pub fn to_mp4_from_with_text<F>(
     place: F,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     let locks = crate::sealed::Locks::default();
     let reading = Reading {
@@ -203,11 +219,12 @@ pub fn to_mp4_clear(input: &Path, out: &Path, locks: &crate::sealed::Locks) -> R
 
 /// [`to_mp4`], with subtitles timed once the stream is read (an HLS stream's WebVTT segments,
 /// gaps row Y20): `place` is given when the MP4 starts on the stream's 90 kHz clock, the
-/// earlier of its first picture and its first sound (both are started from it), and gives back
-/// the subtitles timed from there, carried as text tracks. Asked only where there is a picture.
+/// earlier of its first picture and its first sound (both are started from it), with how far
+/// the picture's clock was moved at each discontinuity ([`Clock`]), and gives back the
+/// subtitles timed from there, carried as text tracks. Asked only where there is a picture.
 pub fn to_mp4_with_text<F>(input: &Path, out: &Path, place: F) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     to_mp4_placed(input, out, &crate::sealed::Locks::default(), place)
 }
@@ -220,7 +237,7 @@ fn to_mp4_placed<F>(
     place: F,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     let inputs = [input.to_path_buf()];
     let reading = Reading {

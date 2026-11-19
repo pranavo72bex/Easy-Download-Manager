@@ -828,7 +828,7 @@ pub(super) async fn remux_ts_with(
     let mp4 = options.parts_dir.join(REMUXED);
     let partial = options.parts_dir.join(format!("{REMUXED}.partial"));
     let texts = texts.clone();
-    let place = move |zero| texts.timed(zero);
+    let place = move |clock| texts.timed_on(clock);
     /* Not raced against a pause: it runs at the disk's speed, and a blocking task cut loose would
      * go on writing the file a resume makes afresh. */
     let made =

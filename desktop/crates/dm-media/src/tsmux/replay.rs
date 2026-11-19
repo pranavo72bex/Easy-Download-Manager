@@ -266,7 +266,7 @@ pub(super) struct Reading<'a> {
 /// first, then each track's samples as the writer copies them. Returns its length.
 pub(super) fn remux<F>(reading: Reading<'_>, out: &Path, place: F) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     let Reading {
         inputs,

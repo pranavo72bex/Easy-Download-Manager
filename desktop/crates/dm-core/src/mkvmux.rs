@@ -38,3 +38,18 @@ pub async fn join_tagged_async(
         .await
         .map_err(|e| format!("joining stopped: {e}"))?
 }
+
+/// [`join_placed`], off the async runtime: `place` times the subtitles from when the output
+/// starts on the inputs' own timeline, in 90 kHz ticks (gaps row Y20).
+pub async fn join_placed_async<F>(
+    inputs: Vec<PathBuf>,
+    place: F,
+    out: PathBuf,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<Subtitle> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || join_placed(&inputs, place, &out))
+        .await
+        .map_err(|e| format!("joining stopped: {e}"))?
+}

@@ -27,7 +27,7 @@ pub async fn to_mp4_from_async<F>(
     place: F,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
 {
     tokio::task::spawn_blocking(move || to_mp4_from_with_text(&inputs, &out, segments, place))
         .await
@@ -35,14 +35,15 @@ where
 }
 
 /// [`to_mp4_with_text`], off the async runtime: `place` times the subtitles from when the MP4
-/// starts on the stream's 90 kHz clock (gaps row Y20).
+/// starts on the stream's 90 kHz clock, and how its picture's clock was moved at each
+/// discontinuity ([`Clock`], gaps row Y20).
 pub async fn to_mp4_with_text_async<F>(
     input: PathBuf,
     out: PathBuf,
     place: F,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
 {
     tokio::task::spawn_blocking(move || to_mp4_with_text(&input, &out, place))
         .await
@@ -57,7 +58,7 @@ pub async fn join_packed_with_text_async<F>(
     place: F,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
 {
     tokio::task::spawn_blocking(move || join_packed_with_text(&ts, &aac, &out, place))
         .await
@@ -72,7 +73,7 @@ pub async fn join_ts_with_text_async<F>(
     place: F,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
 {
     tokio::task::spawn_blocking(move || join_ts_with_text(&picture, &sound, &out, place))
         .await

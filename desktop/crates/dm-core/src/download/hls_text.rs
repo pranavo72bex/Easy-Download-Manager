@@ -12,7 +12,10 @@
 //! 90 kHz clock: a cue at `t` plays at `t - LOCAL + MPEGTS / 90` milliseconds of that clock
 //! (RFC 8216, 3.5). The file they go in starts at a time of that clock of its own, which only
 //! the writer knows once it has read the stream (`tsmux::to_mp4_with_text`,
-//! `mp4mux::join_cut_placed`): the cues are timed from it then, by [`HlsTexts::timed`].
+//! `mp4mux::join_cut_placed`, `mkvmux::join_placed`): the cues are timed from it then, by
+//! [`HlsTexts::timed`]. A transport stream's clock started afresh at a discontinuity is moved on
+//! by the remux to follow what came before; it says how far (`tsmux::Clock`), and the segments
+//! after the playlist's matching discontinuity are moved with it ([`HlsTexts::timed_on`]).
 
 use futures_util::StreamExt;
 
@@ -20,13 +23,13 @@ use super::*;
 use crate::subtitles::{Cue, Subtitle};
 
 /// The most of one language's subtitles fetched, its playlist and segments together.
-const TEXT_MOST: usize = 16 * 1024 * 1024;
+pub(super) const TEXT_MOST: usize = 16 * 1024 * 1024;
 /// Ticks of the 90 kHz clock MPEG timestamps keep, a millisecond.
 const TICKS_PER_MS: i64 = 90;
 /// MPEG timestamps are 33 bits, and wrap.
 const WRAP: i64 = 1 << 33;
 /// The most segments of one language fetched at once.
-const AT_ONCE: usize = 8;
+pub(super) const AT_ONCE: usize = 8;
 
 /// What a WebVTT segment's `X-TIMESTAMP-MAP` says: its cue time `local` (milliseconds) is the
 /// picture's 90 kHz clock at `mpegts`.
@@ -41,6 +44,9 @@ pub(super) struct TimestampMap {
 pub(super) struct VttSegment {
     pub(super) map: Option<TimestampMap>,
     pub(super) cues: Vec<Cue>,
+    /// How many discontinuities (`EXT-X-DISCONTINUITY`) its playlist puts before it: the
+    /// stretch of the picture's clock its map is on (`tsmux::Clock`).
+    pub(super) stretch: usize,
 }
 
 /// One language's subtitles, as fetched: its segments in order.
@@ -81,11 +87,29 @@ impl HlsTexts {
     /// Each language's cues timed for a file that starts at `zero` on the picture's 90 kHz
     /// clock; a language left with no cue is left out.
     pub(super) fn timed(&self, zero: i64) -> Vec<Subtitle> {
+        self.timed_on(crate::tsmux::Clock {
+            zero,
+            moved: Vec::new(),
+        })
+    }
+
+    /// [`HlsTexts::timed`], for an MP4 a transport stream's remux makes, which says how far it
+    /// moved the picture's clock at each discontinuity: a segment after its playlist's k-th
+    /// discontinuity is moved as the picture's stretch after its k-th was. Where the two count
+    /// their stretches apart (one the other does not show), or a part was asked for (whose
+    /// first segment is not the stream's), none is moved, as before.
+    pub(super) fn timed_on(&self, clock: crate::tsmux::Clock) -> Vec<Subtitle> {
+        let zero = clock.zero;
         let skipped = i64::try_from(self.skipped).unwrap_or(i64::MAX);
         let start = zero.saturating_sub(skipped.saturating_mul(TICKS_PER_MS));
         let mut out = Vec::new();
         for rendition in &self.renditions {
-            let cues = timed(&rendition.segments, start, zero);
+            let stretches = rendition.segments.iter().map(|s| s.stretch).max();
+            let moved: &[i64] = match stretches {
+                Some(last) if self.skipped == 0 && clock.moved.len() == last + 1 => &clock.moved,
+                _ => &[],
+            };
+            let cues = timed_across(&rendition.segments, start, zero, moved);
             if !cues.is_empty() {
                 out.push(Subtitle {
                     language: rendition.language.clone(),
@@ -99,7 +123,7 @@ impl HlsTexts {
 
 /// Subtitles to carry inside a joined file.
 pub(super) enum Texts {
-    /// Timed already, on the file's own timeline (a DASH manifest's whole WebVTT files).
+    /// Timed already, on the file's own timeline (a DASH manifest's WebVTT, no piece mapped).
     Timed(Vec<Subtitle>),
     /// An HLS stream's, timed once the writer knows when the file starts.
     Hls(HlsTexts),
@@ -113,14 +137,6 @@ impl Texts {
             Texts::Timed(Vec::new())
         } else {
             Texts::Hls(texts)
-        }
-    }
-
-    /// Those already timed; an HLS stream's are not, and none are given.
-    pub(super) fn into_timed(self) -> Vec<Subtitle> {
-        match self {
-            Texts::Timed(texts) => texts,
-            Texts::Hls(_) => Vec::new(),
         }
     }
 }
@@ -142,15 +158,33 @@ fn near(ticks: i64) -> i64 {
 /// `start`). A cue that ends before the file starts is dropped, one that starts before it
 /// starts with it; a cue repeated by the next segment (one that runs across both) is kept once.
 pub(super) fn timed(segments: &[VttSegment], start: i64, zero: i64) -> Vec<Cue> {
+    timed_across(segments, start, zero, &[])
+}
+
+/// [`timed`], a segment's map read on the picture's clock as moved at the discontinuity before
+/// it: by `moved[k]` ticks after its playlist's k-th (`tsmux::Clock::moved`). A segment
+/// `moved` does not name, or with no map, is not moved.
+pub(super) fn timed_across(
+    segments: &[VttSegment],
+    start: i64,
+    zero: i64,
+    moved: &[i64],
+) -> Vec<Cue> {
     let mut out: Vec<Cue> = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for segment in segments {
-        let map = segment.map.unwrap_or(TimestampMap {
-            mpegts: start,
-            local: 0,
-        });
+        let (map, by) = match segment.map {
+            Some(map) => (map, moved.get(segment.stretch).copied().unwrap_or(0)),
+            None => (
+                TimestampMap {
+                    mpegts: start,
+                    local: 0,
+                },
+                0,
+            ),
+        };
         let local = i64::try_from(map.local).unwrap_or(i64::MAX);
-        let shift = near(map.mpegts.saturating_sub(zero))
+        let shift = near(map.mpegts.saturating_add(by).saturating_sub(zero))
             .div_euclid(TICKS_PER_MS)
             .saturating_sub(local);
         let at = |t: u64| i64::try_from(t).unwrap_or(i64::MAX).saturating_add(shift);
@@ -197,12 +231,28 @@ pub(super) fn timestamp_map(vtt: &str) -> Option<TimestampMap> {
     })
 }
 
-/// A WebVTT segment's cues and map.
-fn segment_of(vtt: &str) -> VttSegment {
+/// A WebVTT segment's cues and map, on the first stretch of its stream's clock.
+pub(super) fn segment_of(vtt: &str) -> VttSegment {
     VttSegment {
         map: timestamp_map(vtt),
         cues: crate::subtitles::parse_vtt(vtt),
+        stretch: 0,
     }
+}
+
+/// For each segment a media playlist lists, how many discontinuities (`EXT-X-DISCONTINUITY`)
+/// come before it.
+pub(super) fn stretches_of(playlist: &str) -> Vec<usize> {
+    let mut seen = 0;
+    let mut out = Vec::new();
+    for line in playlist.lines().map(str::trim) {
+        if line == "#EXT-X-DISCONTINUITY" {
+            seen += 1;
+        } else if !line.is_empty() && !line.starts_with('#') {
+            out.push(seen);
+        }
+    }
+    out
 }
 
 /// The subtitle renditions `listed`, fetched and read. One that cannot be had, is larger than
@@ -261,12 +311,14 @@ async fn rendition(
     if playlist.parts.iter().any(|p| p.init || p.key.is_some()) {
         return Ok(None);
     }
+    // Which stretch of the clock each segment is on, where every segment is counted.
+    let stretches = Some(stretches_of(&text)).filter(|s| s.len() == playlist.parts.len());
     let mut total = got.body.len();
     let mut pieces = futures_util::stream::iter(
         playlist
             .parts
             .iter()
-            .map(|part| piece(client, part, options)),
+            .map(|part| piece(client, &part.url, part.range, options)),
     )
     .buffered(options.connections.clamp(1, AT_ONCE));
     let mut segments = Vec::new();
@@ -276,27 +328,30 @@ async fn rendition(
         if total > TEXT_MOST {
             return Ok(None);
         }
-        segments.push(segment_of(&String::from_utf8_lossy(&body)));
+        let stretch = stretches.as_ref().and_then(|s| s.get(segments.len()));
+        segments.push(VttSegment {
+            stretch: stretch.copied().unwrap_or(0),
+            ..segment_of(&String::from_utf8_lossy(&body))
+        });
     }
     Ok(read(segments))
 }
 
-/// One WebVTT segment's bytes.
-async fn piece(
+/// One WebVTT segment's bytes: of `url`, or the bytes `range` of it (first and last).
+pub(super) async fn piece(
     client: &reqwest::Client,
-    part: &stream::Part,
+    url: &str,
+    range: Option<(u64, u64)>,
     options: &Options,
 ) -> Result<Vec<u8>, Error> {
-    match part.range {
+    match range {
         Some(_) => {
             retry::run_up_to(&options.control, options.tries(), || {
-                hls::fetch_segment_range(client, &part.url, part.range, options)
+                hls::fetch_segment_range(client, url, range, options)
             })
             .await
         }
-        None => Ok(fetch_capped(client, &part.url, TEXT_MOST, options)
-            .await?
-            .body),
+        None => Ok(fetch_capped(client, url, TEXT_MOST, options).await?.body),
     }
 }
 
