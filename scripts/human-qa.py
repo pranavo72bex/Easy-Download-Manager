@@ -285,6 +285,7 @@ FILES = {
     "private.bin": (1 * MiB, 0, "plain"),             # Keep no record (B69)
     "kind.zip": (len(PACK), 0, "plain"),          # unpacked when done for its kind (B71)
     "own.zip": (len(PACK), 0, "plain"),           # unpacked when done for itself, then trashed (B71)
+    "graph.bin": (48 * MiB, 512 * 1024, "plain"),     # running while its speed line is looked at (B74)
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -2061,6 +2062,73 @@ def backing_up():
             dm.proc.kill()
 
 
+def statistics(origin):
+    """B74 (gaps row W15): a running download's progress window draws its speed
+    over the last five minutes, and View › Statistics opens with what has
+    finished, by day, by site and by category, and the speeds seen since dm
+    opened; nothing new is written."""
+    home = WORK / "statistics"
+    saved = home / "downloads"
+    saved.mkdir(parents=True)
+    now = int(time.time())
+    rows = []
+    for n, (host, name, size, days) in enumerate((("a.example", "film.mp4", 3 * MiB, 0),
+                                                  ("b.example", "notes.pdf", 1 * MiB, 2)), start=1):
+        (saved / name).write_bytes(b"kept")
+        rows.append({"id": n, "url": f"http://{host}/{name}", "state": {"kind": "completed"},
+                     "progress": {"downloaded": size, "total": size, "speed": 0.0, "eta": None},
+                     "filename": name, "finished_at": now - days * 86400, "path": str(saved / name)})
+    (home / "queue.json").write_text(json.dumps(rows), encoding="utf-8")
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(saved), "theme": "dark", "popups_version": 2,
+        "show_progress": True, "show_complete": False,
+        "ask_caught_downloads": False, "ask_panel_downloads": False}), encoding="utf-8")
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.add(f"{origin}/files/graph.bin")
+        dm.wait("graph.bin", ("running",), 20)
+        for _ in range(80):
+            if "Download progress" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(3)
+        words = dm.dialog_texts()
+        check("B74", "a running download's progress window draws its speed over the last 5 minutes",
+              "Speed over the last 5 minutes" in words, f"windows {dm.dialogs()}; words {words[:20]}")
+        dm.call("ui.key", key="Escape")
+        pause(0.8)
+        dm.click("View")
+        pause(0.5)
+        dm.click("Statistics")
+        for _ in range(40):
+            if "Statistics" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        words = dm.scrolled_texts("By category", turns=8)
+        check("B74", "View › Statistics opens with the files finished, by day, by site and by category",
+              all(w in words for w in ("Files finished", "Downloaded in all", "By day, the last 30 days",
+                                       "By site, the 10 largest", "By category", "a.example", "b.example",
+                                       "Videos", "Documents"))
+              and any(w.startswith("Busiest day: ") for w in words), f"{words[:40]}")
+        check("B74", "with the average and best speed of what ran since dm opened",
+              "Average speed" in words and "Best speed" in words and "not measured yet" not in words,
+              f"{words[-16:]}")
+        dm.call("ui.key", key="Escape")
+        pause(0.6)
+        kept = sorted(str(p.relative_to(home)) for p in home.rglob("*"))
+        check("B74", "and nothing of it is written in dm's folder",
+              not any("statistic" in k.lower() for k in kept)
+              and "statistic" not in (home / "settings.json").read_text(encoding="utf-8").lower(),
+              f"{kept}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
@@ -2102,6 +2170,7 @@ def main():
     new_install(origin)
     forgetting()
     backing_up()
+    statistics(origin)
     browser()
 
     print("\nThe contract, row by row", flush=True)

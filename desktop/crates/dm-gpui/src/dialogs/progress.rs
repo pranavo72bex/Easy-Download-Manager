@@ -35,7 +35,7 @@ use crate::window::zoom::px;
 
 mod sections;
 
-use sections::{connection_lines, facts, whole_bar, Look};
+use sections::{connection_lines, facts, speed_line, whole_bar, Look};
 
 /// The progress window's view.
 /// The pop-up "When this download is done" (gaps row U36).
@@ -67,6 +67,9 @@ pub struct Progress {
     inspecting: bool,
     /// Connections is open.
     connections: bool,
+    /// Its speed once a second over the last five minutes, while this window is open (gaps
+    /// row W15).
+    line: dm_desktop_base::statistics::SpeedLine,
     own_limit: Entity<InputState>,
     /// The window's keyboard: Escape closes it, as its close button does.
     focus: gpui::FocusHandle,
@@ -317,6 +320,13 @@ impl Render for Progress {
             crate::window::screen::Screens::named(window.window_handle(), "Download complete", cx);
         }
         let p = &row.progress;
+        // Its speed line, fed from the speed it shows (gaps row W15).
+        let speed_now = if row.state == State::Running && !joining {
+            p.speed
+        } else {
+            0.0
+        };
+        self.line.sample(std::time::Instant::now(), speed_now);
         let look = Look::new(theme, screen);
         let torrent = dm_core::is_torrent(&row.url);
         let pieces: Vec<(u64, u64)> = connections
@@ -335,7 +345,10 @@ impl Render for Progress {
         let conn_rows = (self.connections && !torrent)
             .then(|| connection_lines(&look, &row, &connections, &pieces, &speeds, joining));
         let body = facts(&look, &row, joining, resumable, native::body(theme))
-            .child(whole_bar(&look, &row, &pieces, multi));
+            .child(whole_bar(&look, &row, &pieces, multi))
+            .when(!row.state.settled(), |d| {
+                d.child(speed_line(&look, &self.line))
+            });
         let body = self.limits(&look, &row, this_done, cx, body);
         let body = self.connections_or_swarm(&look, torrent, conn_rows, cx, body);
         let body = body.child(self.buttons(&look, &row, cx));
@@ -453,6 +466,7 @@ pub fn open(
                     inspected: None,
                     inspecting: false,
                     connections: false,
+                    line: Default::default(),
                     own_limit,
                     focus,
                     screen,

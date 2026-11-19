@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "Niektórych jej ustawień nie udało się odczytać, więc obowiązują ich wartości domyślne: {}.",
  "Downloads it holds that this dm cannot read, left out: {}.": "Pobrania, których ten dm nie umie odczytać, pominięte: {}.",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "Utworzono kopię dm w {}, logowania zapieczętowane hasłem kopii.",
- "Backed up dm to {}.": "Utworzono kopię dm w {}."
+ "Backed up dm to {}.": "Utworzono kopię dm w {}.",
+ "Statistics…": "Statystyki…",
+ "Statistics": "Statystyki",
+ "Files finished": "Ukończone pliki",
+ "Downloaded in all": "Pobrano łącznie",
+ "By day, the last 30 days": "Według dni, ostatnie 30 dni",
+ "By site, the 10 largest": "Według witryn, 10 największych",
+ "By category": "Według kategorii",
+ "Average speed": "Średnia prędkość",
+ "Best speed": "Najwyższa prędkość",
+ "not measured yet": "jeszcze nie zmierzono",
+ "Nothing has finished yet.": "Nic jeszcze nie zostało ukończone.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Prędkości są mierzone, gdy dm jest otwarty, i zapominane po jego zamknięciu.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Obliczone z ukończonych pobrań na liście; nic nowego nie jest zapisywane.",
+ "Busiest day: {}, {}": "Najbardziej pracowity dzień: {}, {}",
+ "Speed over the last 5 minutes": "Prędkość z ostatnich 5 minut",
+ "no site": "brak witryny"
 }

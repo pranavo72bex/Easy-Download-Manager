@@ -32,6 +32,15 @@ impl Downloads {
         {
             dm_core::heap::give_back();
         }
+        // The downloads' speed together, for View › Statistics's average and best (gaps row
+        // W15): held in memory, never written.
+        let speed: f64 = self
+            .rows
+            .iter()
+            .filter(|r| matches!(r.state, dm_core::State::Running))
+            .map(|r| r.progress.speed)
+            .sum();
+        self.status.speeds.sample(Instant::now(), speed);
         // Windows' High Contrast turned on, off or to another theme: every
         // window drawn again in its colours (`theme.rs`), not only the one in
         // front when it next draws.

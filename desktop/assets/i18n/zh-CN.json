@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "部分设置无法读取，因此使用默认值：{}。",
  "Downloads it holds that this dm cannot read, left out: {}.": "此 dm 无法读取而略过的下载：{}。",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "已将 dm 备份到 {}，登录信息已用口令封存。",
- "Backed up dm to {}.": "已将 dm 备份到 {}。"
+ "Backed up dm to {}.": "已将 dm 备份到 {}。",
+ "Statistics…": "统计…",
+ "Statistics": "统计",
+ "Files finished": "已完成文件",
+ "Downloaded in all": "总下载量",
+ "By day, the last 30 days": "按天，最近 30 天",
+ "By site, the 10 largest": "按网站，前 10 名",
+ "By category": "按类别",
+ "Average speed": "平均速度",
+ "Best speed": "最高速度",
+ "not measured yet": "尚未测量",
+ "Nothing has finished yet.": "还没有完成的下载。",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "速度仅在 dm 打开时测量，关闭后即被遗忘。",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "根据列表中已完成的下载计算；不会保存任何新内容。",
+ "Busiest day: {}, {}": "最多的一天：{}，{}",
+ "Speed over the last 5 minutes": "最近 5 分钟的速度",
+ "no site": "无网站"
 }

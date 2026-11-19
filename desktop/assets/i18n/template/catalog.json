@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "",
  "Downloads it holds that this dm cannot read, left out: {}.": "",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "",
- "Backed up dm to {}.": ""
+ "Backed up dm to {}.": "",
+ "Statistics…": "",
+ "Statistics": "",
+ "Files finished": "",
+ "Downloaded in all": "",
+ "By day, the last 30 days": "",
+ "By site, the 10 largest": "",
+ "By category": "",
+ "Average speed": "",
+ "Best speed": "",
+ "not measured yet": "",
+ "Nothing has finished yet.": "",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "",
+ "Busiest day: {}, {}": "",
+ "Speed over the last 5 minutes": "",
+ "no site": ""
 }

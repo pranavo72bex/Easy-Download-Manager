@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "Некоторые её настройки не удалось прочитать, поэтому действуют значения по умолчанию: {}.",
  "Downloads it holds that this dm cannot read, left out: {}.": "Загрузки, которые этот dm не может прочитать, пропущены: {}.",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "Резервная копия dm сохранена в {}, входы запечатаны парольной фразой.",
- "Backed up dm to {}.": "Резервная копия dm сохранена в {}."
+ "Backed up dm to {}.": "Резервная копия dm сохранена в {}.",
+ "Statistics…": "Статистика…",
+ "Statistics": "Статистика",
+ "Files finished": "Завершено файлов",
+ "Downloaded in all": "Скачано всего",
+ "By day, the last 30 days": "По дням, последние 30 дней",
+ "By site, the 10 largest": "По сайтам, 10 крупнейших",
+ "By category": "По категориям",
+ "Average speed": "Средняя скорость",
+ "Best speed": "Лучшая скорость",
+ "not measured yet": "ещё не измерена",
+ "Nothing has finished yet.": "Пока ничего не завершено.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Скорость измеряется, пока dm открыт, и забывается при его закрытии.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Рассчитано по завершённым загрузкам из списка; ничего нового не сохраняется.",
+ "Busiest day: {}, {}": "Самый загруженный день: {}, {}",
+ "Speed over the last 5 minutes": "Скорость за последние 5 минут",
+ "no site": "без сайта"
 }

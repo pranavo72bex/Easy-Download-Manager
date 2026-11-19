@@ -94,6 +94,8 @@ pub(crate) enum WindowSize {
     Scheduler,
     /// The first start's welcome.
     Welcome,
+    /// View › Statistics (gaps row W15).
+    Statistics,
 }
 
 impl WindowSize {
@@ -132,6 +134,7 @@ impl WindowSize {
             Self::Properties => Each::all((560.0, 420.0)),
             Self::Scheduler => Each::all((720.0, 520.0)),
             Self::Welcome => Each::all((480.0, 300.0)),
+            Self::Statistics => Each::all((560.0, 560.0)),
         }
     }
 

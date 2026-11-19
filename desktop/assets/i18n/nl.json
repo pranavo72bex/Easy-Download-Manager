@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "Sommige instellingen konden niet worden gelezen, dus gelden hun standaardwaarden: {}.",
  "Downloads it holds that this dm cannot read, left out: {}.": "Downloads die deze dm niet kan lezen, weggelaten: {}.",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "Back-up van dm gemaakt in {}, de aanmeldingen verzegeld met de wachtzin.",
- "Backed up dm to {}.": "Back-up van dm gemaakt in {}."
+ "Backed up dm to {}.": "Back-up van dm gemaakt in {}.",
+ "Statistics…": "Statistieken…",
+ "Statistics": "Statistieken",
+ "Files finished": "Voltooide bestanden",
+ "Downloaded in all": "In totaal gedownload",
+ "By day, the last 30 days": "Per dag, de laatste 30 dagen",
+ "By site, the 10 largest": "Per site, de 10 grootste",
+ "By category": "Per categorie",
+ "Average speed": "Gemiddelde snelheid",
+ "Best speed": "Hoogste snelheid",
+ "not measured yet": "nog niet gemeten",
+ "Nothing has finished yet.": "Er is nog niets voltooid.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Snelheden worden gemeten zolang dm open is, en vergeten als het sluit.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Berekend uit de voltooide downloads in de lijst; er wordt niets nieuws bewaard.",
+ "Busiest day: {}, {}": "Drukste dag: {}, {}",
+ "Speed over the last 5 minutes": "Snelheid in de laatste 5 minuten",
+ "no site": "geen site"
 }

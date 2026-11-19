@@ -229,6 +229,9 @@ pub(super) fn view_menu(ticks: &Ticks) -> Menu {
         MenuItem::submenu(text_size),
         MenuItem::submenu(language),
         MenuItem::submenu(sort),
+        // What dm has done, in figures (gaps row W15).
+        MenuItem::separator(),
+        MenuItem::action(t("Statistics…"), crate::dialogs::statistics::ShowStatistics),
     ])
 }
 

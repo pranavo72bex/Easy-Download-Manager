@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "Einige ihrer Einstellungen konnten nicht gelesen werden, daher gelten ihre Standardwerte: {}.",
  "Downloads it holds that this dm cannot read, left out: {}.": "Downloads darin, die dieses dm nicht lesen kann, ausgelassen: {}.",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "dm nach {} gesichert, die Anmeldungen mit der Passphrase versiegelt.",
- "Backed up dm to {}.": "dm nach {} gesichert."
+ "Backed up dm to {}.": "dm nach {} gesichert.",
+ "Statistics…": "Statistik…",
+ "Statistics": "Statistik",
+ "Files finished": "Fertige Dateien",
+ "Downloaded in all": "Insgesamt heruntergeladen",
+ "By day, the last 30 days": "Nach Tag, die letzten 30 Tage",
+ "By site, the 10 largest": "Nach Website, die 10 größten",
+ "By category": "Nach Kategorie",
+ "Average speed": "Durchschnittliche Geschwindigkeit",
+ "Best speed": "Höchste Geschwindigkeit",
+ "not measured yet": "noch nicht gemessen",
+ "Nothing has finished yet.": "Noch ist nichts fertig.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Geschwindigkeiten werden gemessen, solange dm offen ist, und beim Schließen vergessen.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Aus den fertigen Downloads der Liste berechnet; nichts Neues wird gespeichert.",
+ "Busiest day: {}, {}": "Stärkster Tag: {}, {}",
+ "Speed over the last 5 minutes": "Geschwindigkeit der letzten 5 Minuten",
+ "no site": "keine Website"
 }

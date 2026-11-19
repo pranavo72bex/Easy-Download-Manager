@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "一部の設定を読み取れなかったため、既定値を使用しています: {}。",
  "Downloads it holds that this dm cannot read, left out: {}.": "この dm で読み取れないため除いたダウンロード: {}。",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "dm を {} にバックアップしました。サインインはパスフレーズで封印しました。",
- "Backed up dm to {}.": "dm を {} にバックアップしました。"
+ "Backed up dm to {}.": "dm を {} にバックアップしました。",
+ "Statistics…": "統計…",
+ "Statistics": "統計",
+ "Files finished": "完了したファイル",
+ "Downloaded in all": "合計ダウンロード量",
+ "By day, the last 30 days": "日別（過去 30 日）",
+ "By site, the 10 largest": "サイト別（上位 10）",
+ "By category": "カテゴリ別",
+ "Average speed": "平均速度",
+ "Best speed": "最高速度",
+ "not measured yet": "まだ測定されていません",
+ "Nothing has finished yet.": "まだ完了したものはありません。",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "速度は dm が開いている間に測定され、閉じると消去されます。",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "リスト内の完了したダウンロードから算出しています。新たに保存されるものはありません。",
+ "Busiest day: {}, {}": "最も多かった日: {}、{}",
+ "Speed over the last 5 minutes": "過去 5 分間の速度",
+ "no site": "サイトなし"
 }

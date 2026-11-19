@@ -950,5 +950,21 @@
  "Some of its settings could not be read, so their defaults are in use: {}.": "Bazı ayarları okunamadı, bu yüzden varsayılanları kullanılıyor: {}.",
  "Downloads it holds that this dm cannot read, left out: {}.": "Bu dm'in okuyamadığı indirmeler dışarıda kaldı: {}.",
  "Backed up dm to {}, its sign-ins sealed with the passphrase.": "dm {} konumuna yedeklendi, oturumlar parola ifadesiyle mühürlendi.",
- "Backed up dm to {}.": "dm {} konumuna yedeklendi."
+ "Backed up dm to {}.": "dm {} konumuna yedeklendi.",
+ "Statistics…": "İstatistikler…",
+ "Statistics": "İstatistikler",
+ "Files finished": "Biten dosyalar",
+ "Downloaded in all": "Toplam indirilen",
+ "By day, the last 30 days": "Güne göre, son 30 gün",
+ "By site, the 10 largest": "Siteye göre, en büyük 10",
+ "By category": "Kategoriye göre",
+ "Average speed": "Ortalama hız",
+ "Best speed": "En yüksek hız",
+ "not measured yet": "henüz ölçülmedi",
+ "Nothing has finished yet.": "Henüz hiçbir şey bitmedi.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Hızlar dm açıkken ölçülür ve kapandığında unutulur.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Listedeki biten indirmelerden hesaplandı; yeni hiçbir şey saklanmaz.",
+ "Busiest day: {}, {}": "En yoğun gün: {}, {}",
+ "Speed over the last 5 minutes": "Son 5 dakikadaki hız",
+ "no site": "site yok"
 }
