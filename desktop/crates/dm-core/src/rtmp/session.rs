@@ -117,135 +117,18 @@ pub(super) async fn record_within(
                 write_half.write_all(&ack).await?;
             }
         }
-        let body = &message.body;
-        match message.kind {
-            1 => {
-                let size = body.get(..4).map_or(128, |b| be(b, 4) & 0x7fff_ffff);
-                reader.chunk_size = (size as usize).clamp(1, 16 << 20);
-            }
-            5 => {
-                window = body.get(..4).map(|b| u64::from(be(b, 4)));
-            }
-            6 => {
-                // Set Peer Bandwidth: answered with the window it names.
-                if let Some(size) = body.get(..4) {
-                    let reply = chunks(2, 5, 0, 0, size, out_chunk);
-                    write_half.write_all(&reply).await?;
-                }
-            }
-            4 => {
-                // A ping is answered with its own time.
-                if body.get(..2) == Some(&[0, 6]) {
-                    let mut pong = vec![0, 7];
-                    pong.extend_from_slice(body.get(2..6).unwrap_or(&[0, 0, 0, 0]));
-                    write_half
-                        .write_all(&chunks(2, 4, 0, 0, &pong, out_chunk))
-                        .await?;
-                }
-            }
-            17 | 20 => {
-                let values = amf_values(if message.kind == 17 {
-                    body.get(1..).unwrap_or_default()
-                } else {
-                    body
-                });
-                let name = values.first().and_then(Amf::text).unwrap_or("");
-                let transaction = match values.get(1) {
-                    Some(Amf::Number(n)) => *n,
-                    _ => 0.0,
-                };
-                match (name, transaction as u32) {
-                    ("_result", 1) => {
-                        let create =
-                            command("createStream", 2.0, &[&|out: &mut Vec<u8>| out.push(0x05)]);
-                        write_half
-                            .write_all(&chunks(3, 20, 0, 0, &create, out_chunk))
-                            .await?;
-                    }
-                    ("_result", 2) => {
-                        let stream = match values.get(3) {
-                            Some(Amf::Number(n)) => *n as u32,
-                            _ => 1,
-                        };
-                        let mut buffer = vec![0, 3];
-                        buffer.extend_from_slice(&stream.to_be_bytes());
-                        buffer.extend_from_slice(&3000u32.to_be_bytes());
-                        let play = command(
-                            "play",
-                            0.0,
-                            &[
-                                &|out: &mut Vec<u8>| out.push(0x05),
-                                &|out: &mut Vec<u8>| amf_string(out, &target.play),
-                                &|out: &mut Vec<u8>| amf_number(out, -2.0),
-                            ],
-                        );
-                        let mut send = chunks(8, 20, stream, 0, &play, out_chunk);
-                        send.extend(chunks(2, 4, 0, 0, &buffer, out_chunk));
-                        write_half.write_all(&send).await?;
-                    }
-                    ("_error", _) => {
-                        let why = values
-                            .iter()
-                            .find_map(|v| v.field("description").and_then(Amf::text))
-                            .unwrap_or("the server refused")
-                            .to_string();
-                        break Ended::Stopped(Error::Internal(why));
-                    }
-                    ("onStatus", _) => {
-                        let info = values.iter().find(|v| v.field("code").is_some());
-                        let code = info
-                            .and_then(|v| v.field("code"))
-                            .and_then(Amf::text)
-                            .unwrap_or("");
-                        let level = info
-                            .and_then(|v| v.field("level"))
-                            .and_then(Amf::text)
-                            .unwrap_or("");
-                        match code {
-                            "NetStream.Play.Stop"
-                            | "NetStream.Play.Complete"
-                            | "NetStream.Play.UnpublishNotify" => break Ended::Over,
-                            _ if level == "error" => {
-                                let why = info
-                                    .and_then(|v| v.field("description"))
-                                    .and_then(Amf::text)
-                                    .unwrap_or(code);
-                                break Ended::Stopped(Error::Internal(format!(
-                                    "the server would not play it: {why}"
-                                )));
-                            }
-                            _ => {}
-                        }
-                    }
-                    ("close", _) => break Ended::Over,
-                    _ => {}
-                }
-            }
-            8 => recorder.audio(message.timestamp, body)?,
-            9 => recorder.video(message.timestamp, body)?,
-            22 => {
-                // Aggregate: FLV tags one after another.
-                let mut at = 0;
-                let mut base = None;
-                while let Some(head) = body.get(at..at + 11) {
-                    let size = be(head.get(1..).unwrap_or_default(), 3) as usize;
-                    // Three bytes of time, then the top eight bits.
-                    let time = be(head.get(4..).unwrap_or_default(), 3)
-                        | (u32::from(head.get(7).copied().unwrap_or(0)) << 24);
-                    let Some(data) = body.get(at + 11..at + 11 + size) else {
-                        break;
-                    };
-                    let first = *base.get_or_insert(time);
-                    let ms = message.timestamp.wrapping_add(time.wrapping_sub(first));
-                    match head.first().copied().unwrap_or(0) & 0x1f {
-                        8 => recorder.audio(ms, data)?,
-                        9 => recorder.video(ms, data)?,
-                        _ => {}
-                    }
-                    at += 11 + size + 4;
-                }
-            }
-            _ => {}
+        let ended = on_message(
+            &message,
+            &mut reader.chunk_size,
+            &mut window,
+            &mut write_half,
+            &mut recorder,
+            &target,
+            out_chunk,
+        )
+        .await?;
+        if let Some(ended) = ended {
+            break ended;
         }
         downloaded.store(recorder.written(), Ordering::Relaxed);
     };
@@ -257,4 +140,148 @@ pub(super) async fn record_within(
             "the server ended the stream before sending any of it".into(),
         )),
     }
+}
+
+/// What one `message` from the server asks of the session: a new chunk size or window, an
+/// answer, the stream played, or its audio and video recorded. `Some` where it ends the session.
+async fn on_message(
+    message: &Message,
+    chunk_size: &mut usize,
+    window: &mut Option<u64>,
+    write_half: &mut tokio::io::WriteHalf<Box<dyn Io>>,
+    recorder: &mut Recorder,
+    target: &Target,
+    out_chunk: usize,
+) -> Result<Option<Ended>, Error> {
+    let body = &message.body;
+    match message.kind {
+        1 => {
+            let size = body.get(..4).map_or(128, |b| be(b, 4) & 0x7fff_ffff);
+            *chunk_size = (size as usize).clamp(1, 16 << 20);
+        }
+        5 => {
+            *window = body.get(..4).map(|b| u64::from(be(b, 4)));
+        }
+        6 => {
+            // Set Peer Bandwidth: answered with the window it names.
+            if let Some(size) = body.get(..4) {
+                let reply = chunks(2, 5, 0, 0, size, out_chunk);
+                write_half.write_all(&reply).await?;
+            }
+        }
+        4 => {
+            // A ping is answered with its own time.
+            if body.get(..2) == Some(&[0, 6]) {
+                let mut pong = vec![0, 7];
+                pong.extend_from_slice(body.get(2..6).unwrap_or(&[0, 0, 0, 0]));
+                write_half
+                    .write_all(&chunks(2, 4, 0, 0, &pong, out_chunk))
+                    .await?;
+            }
+        }
+        17 | 20 => {
+            let values = amf_values(if message.kind == 17 {
+                body.get(1..).unwrap_or_default()
+            } else {
+                body
+            });
+            let name = values.first().and_then(Amf::text).unwrap_or("");
+            let transaction = match values.get(1) {
+                Some(Amf::Number(n)) => *n,
+                _ => 0.0,
+            };
+            match (name, transaction as u32) {
+                ("_result", 1) => {
+                    let create =
+                        command("createStream", 2.0, &[&|out: &mut Vec<u8>| out.push(0x05)]);
+                    write_half
+                        .write_all(&chunks(3, 20, 0, 0, &create, out_chunk))
+                        .await?;
+                }
+                ("_result", 2) => {
+                    let stream = match values.get(3) {
+                        Some(Amf::Number(n)) => *n as u32,
+                        _ => 1,
+                    };
+                    let mut buffer = vec![0, 3];
+                    buffer.extend_from_slice(&stream.to_be_bytes());
+                    buffer.extend_from_slice(&3000u32.to_be_bytes());
+                    let play = command(
+                        "play",
+                        0.0,
+                        &[
+                            &|out: &mut Vec<u8>| out.push(0x05),
+                            &|out: &mut Vec<u8>| amf_string(out, &target.play),
+                            &|out: &mut Vec<u8>| amf_number(out, -2.0),
+                        ],
+                    );
+                    let mut send = chunks(8, 20, stream, 0, &play, out_chunk);
+                    send.extend(chunks(2, 4, 0, 0, &buffer, out_chunk));
+                    write_half.write_all(&send).await?;
+                }
+                ("_error", _) => {
+                    let why = values
+                        .iter()
+                        .find_map(|v| v.field("description").and_then(Amf::text))
+                        .unwrap_or("the server refused")
+                        .to_string();
+                    return Ok(Some(Ended::Stopped(Error::Internal(why))));
+                }
+                ("onStatus", _) => {
+                    let info = values.iter().find(|v| v.field("code").is_some());
+                    let code = info
+                        .and_then(|v| v.field("code"))
+                        .and_then(Amf::text)
+                        .unwrap_or("");
+                    let level = info
+                        .and_then(|v| v.field("level"))
+                        .and_then(Amf::text)
+                        .unwrap_or("");
+                    match code {
+                        "NetStream.Play.Stop"
+                        | "NetStream.Play.Complete"
+                        | "NetStream.Play.UnpublishNotify" => return Ok(Some(Ended::Over)),
+                        _ if level == "error" => {
+                            let why = info
+                                .and_then(|v| v.field("description"))
+                                .and_then(Amf::text)
+                                .unwrap_or(code);
+                            return Ok(Some(Ended::Stopped(Error::Internal(format!(
+                                "the server would not play it: {why}"
+                            )))));
+                        }
+                        _ => {}
+                    }
+                }
+                ("close", _) => return Ok(Some(Ended::Over)),
+                _ => {}
+            }
+        }
+        8 => recorder.audio(message.timestamp, body)?,
+        9 => recorder.video(message.timestamp, body)?,
+        22 => {
+            // Aggregate: FLV tags one after another.
+            let mut at = 0;
+            let mut base = None;
+            while let Some(head) = body.get(at..at + 11) {
+                let size = be(head.get(1..).unwrap_or_default(), 3) as usize;
+                // Three bytes of time, then the top eight bits.
+                let time = be(head.get(4..).unwrap_or_default(), 3)
+                    | (u32::from(head.get(7).copied().unwrap_or(0)) << 24);
+                let Some(data) = body.get(at + 11..at + 11 + size) else {
+                    break;
+                };
+                let first = *base.get_or_insert(time);
+                let ms = message.timestamp.wrapping_add(time.wrapping_sub(first));
+                match head.first().copied().unwrap_or(0) & 0x1f {
+                    8 => recorder.audio(ms, data)?,
+                    9 => recorder.video(ms, data)?,
+                    _ => {}
+                }
+                at += 11 + size + 4;
+            }
+        }
+        _ => {}
+    }
+    Ok(None)
 }

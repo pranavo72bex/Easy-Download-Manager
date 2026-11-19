@@ -86,6 +86,12 @@ fn main() {
     // `--headless`: no window and no GPUI at all, so it runs where there is
     // no display (`dm_desktop_base::headless`).
     let headless = mode == Mode::Headless;
+    boot_and_run(&args, &handed, headless);
+}
+
+/// Starts dm (`boot::start`) once the command line has asked for its window or `--headless`,
+/// and runs it until it ends: with no window for `--headless`, else in its window.
+fn boot_and_run(args: &[String], handed: &dm_shell::shell::Orders, headless: bool) {
     // Woken from any thread, through the one wake channel; read on the window's own, in
     // `window::list::Downloads`, or by the headless loop.
     let (wakes, woken) = dm_desktop_base::wakes::pair();
@@ -103,7 +109,7 @@ fn main() {
         hidden,
         login_item,
         ..
-    } = match boot::start(&args, &handed, platform, wake.clone()) {
+    } = match boot::start(args, handed, platform, wake.clone()) {
         Ok(booted) => {
             dm_core::finish_trace::mark("start: settings, client and queue read");
             booted
@@ -186,15 +192,64 @@ fn main() {
             });
     }
 
+    windowed(
+        Ready {
+            backend,
+            woken,
+            requests,
+            assistants_only,
+            show_asked,
+            hidden,
+            mica,
+            login_item,
+        },
+        &wake,
+    );
+}
+
+/// What `boot_and_run` hands the window's run: the application, and what the window is made
+/// with.
+struct Ready {
+    /// The application, as every window asks it.
+    backend: dm_shell::app::backend::Backend,
+    /// Where the window hears it is woken.
+    woken: dm_desktop_base::wakes::Woken,
+    /// The control port's requests, where it is open.
+    requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
+    /// The port answers AI assistants and nothing else.
+    assistants_only: bool,
+    /// Set when another dm or the browser asked for the window to be shown.
+    show_asked: Arc<std::sync::atomic::AtomicBool>,
+    /// Launched by the login item: into the tray, no window yet.
+    hidden: bool,
+    /// Mica behind the window.
+    mica: bool,
+    /// The login item, put in step once the window is up.
+    login_item: Option<boot::LoginItem>,
+}
+
+/// dm in its window: the application run, the main window opened in it, until dm ends.
+fn windowed(ready: Ready, wake: &Arc<dyn Fn(Wake) + Send + Sync>) {
+    let Ready {
+        backend,
+        woken,
+        requests,
+        assistants_only,
+        show_asked,
+        hidden,
+        mica,
+        login_item,
+    } = ready;
+
     // The login item, put in step once the window is up (gaps row S16):
     // asked of the system before it, it held the first frame back.
-    let login_item = login_item.map(|item| (item, backend.clone(), Arc::clone(&wake)));
+    let login_item = login_item.map(|item| (item, backend.clone(), Arc::clone(wake)));
 
     let application = gpui_platform::application().with_assets(assets::Assets);
     // A click on the Dock icon with the window put away in the tray asks
     // for it back; without this the click would do nothing.
     {
-        let (flag, wake) = (Arc::clone(&show_asked), Arc::clone(&wake));
+        let (flag, wake) = (Arc::clone(&show_asked), Arc::clone(wake));
         application.on_reopen(move |_| {
             flag.store(true, std::sync::atomic::Ordering::Relaxed);
             wake(Wake::Now);
@@ -214,33 +269,7 @@ fn main() {
         // Everything at the text size chosen (View › Text size), from the
         // first frame: the theme's rem with it.
         window::zoom::start(backend.settings().text_size, cx);
-        // Where and as large as it was left, where that is still on a
-        // display; else in the middle (`frame.rs`).
-        let least = size(px(640.0), px(400.0));
-        let displays: Vec<(u64, Bounds<gpui::Pixels>)> = cx
-            .displays()
-            .iter()
-            .map(|display| (u64::from(display.id()), display.bounds()))
-            .collect();
-        let main_display = cx.primary_display().map(|display| display.bounds());
-        let kept = window::frame::kept(&dm_shell::settings::home()).and_then(|(kept, display)| {
-            if window::frame::DESKTOP_PLACES_IT {
-                return window::frame::sized(kept, main_display?, least).map(|kept| (kept, None));
-            }
-            window::frame::on_a_display(kept, display, &displays, least)
-                .map(|kept| (kept, display.map(gpui::DisplayId::from)))
-        });
-        let (window_bounds, display_id) = kept.unwrap_or_else(|| {
-            // The first start's size: on Windows as reference A's window and
-            // the system's own programs open, not most of a laptop's screen
-            // (900 by 600 takes two thirds of 1366 by 768, the maintainer's
-            // word), as wide as the toolbar's buttons need;
-            // macOS's as it was.
-            let (width, height) = widgets::native::WindowSize::Main.here();
-            let first = size(px(width), px(height));
-            let middle = Bounds::centered(None, first, cx);
-            (WindowBounds::Windowed(middle), None)
-        });
+        let (least, window_bounds, display_id) = where_it_opens(cx);
         // The list, as the window's build makes it.
         let made: std::rc::Rc<std::cell::RefCell<Option<gpui::Entity<window::list::Downloads>>>> =
             Default::default();
@@ -324,6 +353,42 @@ fn main() {
     });
 }
 
+/// Where the main window opens and how small it may be: where and as large as it was left,
+/// where that is still on a display; else in the middle (`frame.rs`).
+fn where_it_opens(
+    cx: &mut App,
+) -> (
+    gpui::Size<gpui::Pixels>,
+    WindowBounds,
+    Option<gpui::DisplayId>,
+) {
+    let least = size(px(640.0), px(400.0));
+    let displays: Vec<(u64, Bounds<gpui::Pixels>)> = cx
+        .displays()
+        .iter()
+        .map(|display| (u64::from(display.id()), display.bounds()))
+        .collect();
+    let main_display = cx.primary_display().map(|display| display.bounds());
+    let kept = window::frame::kept(&dm_shell::settings::home()).and_then(|(kept, display)| {
+        if window::frame::DESKTOP_PLACES_IT {
+            return window::frame::sized(kept, main_display?, least).map(|kept| (kept, None));
+        }
+        window::frame::on_a_display(kept, display, &displays, least)
+            .map(|kept| (kept, display.map(gpui::DisplayId::from)))
+    });
+    let (window_bounds, display_id) = kept.unwrap_or_else(|| {
+        // The first start's size: on Windows as reference A's window and
+        // the system's own programs open, not most of a laptop's screen
+        // (900 by 600 takes two thirds of 1366 by 768, the maintainer's
+        // word), as wide as the toolbar's buttons need;
+        // macOS's as it was.
+        let (width, height) = widgets::native::WindowSize::Main.here();
+        let first = size(px(width), px(height));
+        let middle = Bounds::centered(None, first, cx);
+        (WindowBounds::Windowed(middle), None)
+    });
+    (least, window_bounds, display_id)
+}
 /// What the application hears beside the window, once the main window is made: dm's menus in
 /// the system's menu bar and every command's key, Quit and View › Text size from any window in
 /// front. Run by `main` and by the window's tests (`harness.rs`), which start it as dm does.

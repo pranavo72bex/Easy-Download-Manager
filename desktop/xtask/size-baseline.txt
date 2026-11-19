@@ -26,7 +26,7 @@ desktop/crates/dm-gpui/src/dialogs/details.rs 928
 desktop/crates/dm-gpui/src/harness.rs 1403
 desktop/crates/dm-gpui/src/options.rs 889
 desktop/crates/dm-gpui/src/probe.rs 816
-desktop/crates/dm-gpui/src/window/list.rs 1744
+desktop/crates/dm-gpui/src/window/list.rs 1390
 desktop/crates/dm-gpui/src/window/table.rs 1071
 desktop/crates/dm-gpui/src/window_tests/dialogs.rs 2120
 desktop/crates/dm-gpui/src/window_tests/downloads.rs 1777

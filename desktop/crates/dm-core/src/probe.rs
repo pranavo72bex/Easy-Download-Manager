@@ -121,113 +121,15 @@ pub async fn probe_get(
     let posted = sign_in.and_then(|s| s.post_for(url)).is_some();
     let bounded = first.filter(|&n| n > 0 && !posted);
     let wanted = bounded.map_or_else(|| WHOLE.to_owned(), |n| format!("bytes=0-{}", n - 1));
-    let ask_as = |agent: &str, range: Option<&str>| {
-        let mut request = crate::download::with_form(client, url, sign_in)
-            .header(reqwest::header::USER_AGENT, agent)
-            .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
-        if let Some(range) = range.filter(|_| !posted) {
-            request = request.header(reqwest::header::RANGE, range);
-        }
-        let cookies = crate::cookies::header_with(sign_in, url);
-        request =
-            crate::download::stream_headers().onto(request, cookies.is_some(), referrer.is_some());
-        if let Some(cookies) = cookies {
-            request = request.header(reqwest::header::COOKIE, cookies);
-        }
-        match referrer {
-            Some(referrer) => request = request.header(reqwest::header::REFERER, referrer),
-            None => {
-                if let Some(folder) = crate::download::folder_referer(url) {
-                    request = request.header(reqwest::header::REFERER, folder);
-                }
-            }
-        }
-        request = crate::cookies::add_headers(request, sign_in, url);
-        crate::auth::send(client, request, url)
+    let asking = Asking {
+        client,
+        url,
+        referrer,
+        sign_in,
+        posted,
+        wanted,
     };
-    let ask = |agent: &str| ask_as(agent, Some(wanted.as_str()));
-    // A name the person gave this download is the one it is asked by, every time: none of the
-    // other names below is tried in its place.
-    let own = sign_in.and_then(crate::cookies::SignIn::agent);
-    let mut res = ask(crate::cookies::agent_with(sign_in, url)).await?;
-    if !posted
-        && own.is_none()
-        && res.status() == reqwest::StatusCode::FORBIDDEN
-        && crate::agent_for(url) == crate::first_agent()
-    {
-        for agent in crate::FALLBACK_AGENTS
-            .into_iter()
-            .filter(|a| *a != crate::first_agent())
-        {
-            let again = ask(agent).await?;
-            if again.status() != reqwest::StatusCode::FORBIDDEN {
-                crate::prefer_agent(url, agent);
-                crate::prefer_agent(again.url().as_str(), agent);
-                res = again;
-                break;
-            }
-        }
-    }
-    /* A browser's name told "429 Too many requests" at once, where dm's own is
-     * served: Wikimedia's media servers (2026-11-07) gave Internet Explorer's
-     * and Firefox's names `Retry-After: 600` from the first request ("please
-     * contact noc@wikimedia.org to discuss a less disruptive approach") and
-     * dm's name the file, as their policy asks a program to say what it is.
-     * Asked once more by dm's own name, and by its name alone where a site
-     * refuses the full one; a server that limits every name answers 429 to
-     * that too and is waited out as before, one request more than it was. */
-    if !posted
-        && own.is_none()
-        && res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
-        && crate::agent_for(url) == crate::IE_AGENT
-    {
-        for agent in [crate::USER_AGENT, crate::PLAIN_AGENT] {
-            let again = ask(agent).await?;
-            match again.status() {
-                reqwest::StatusCode::FORBIDDEN => continue,
-                reqwest::StatusCode::TOO_MANY_REQUESTS => break,
-                _ => {
-                    crate::prefer_agent(url, agent);
-                    crate::prefer_agent(again.url().as_str(), agent);
-                    res = again;
-                    break;
-                }
-            }
-        }
-    }
-    // Still refused, with a `Referer` dm made up (none was given): asked once
-    // more without it. A server that refuses any `Referer` but its own pages
-    // (thinkbroadband) served reference A and refused dm on every agent.
-    if !posted
-        && res.status() == reqwest::StatusCode::FORBIDDEN
-        && referrer.is_none()
-        && crate::download::folder_referer(url).is_some()
-    {
-        crate::drop_made_up_referer(url);
-        let again = ask(crate::cookies::agent_with(sign_in, url)).await?;
-        if again.status() == reqwest::StatusCode::FORBIDDEN {
-            crate::forget_dropped_referer(url);
-        } else {
-            crate::drop_made_up_referer(again.url().as_str());
-            res = again;
-        }
-    }
-
-    // A 404 is asked for a second time before it is said, as reference A does.
-    if !posted && res.status() == reqwest::StatusCode::NOT_FOUND {
-        res = ask(crate::cookies::agent_with(sign_in, url)).await?;
-    }
-
-    // Some servers fail a ranged request and serve the plain one, which is how
-    // reference A asks first. Taken only if the plain request succeeds; the
-    // ranged answer's error is what is said otherwise.
-    if !posted && res.status().is_server_error() {
-        if let Ok(plain) = ask_as(crate::cookies::agent_with(sign_in, url), None).await {
-            if plain.status().is_success() {
-                res = plain;
-            }
-        }
-    }
+    let mut res = asking.answered().await?;
 
     let status = res.status();
     let empty = status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE
@@ -251,7 +153,9 @@ pub async fn probe_get(
                 brings = (last.saturating_add(1) < total).then_some(last);
             }
             None => {
-                let whole = ask_as(crate::cookies::agent_with(sign_in, url), Some(WHOLE)).await?;
+                let whole = asking
+                    .ask_as(crate::cookies::agent_with(sign_in, url), Some(WHOLE))
+                    .await?;
                 if !whole.status().is_success() {
                     return Err(Error::from_response(whole).await);
                 }
@@ -259,6 +163,164 @@ pub async fn probe_get(
             }
         }
     }
+    Ok(described(res, url, empty, posted, brings))
+}
+
+/// How `probe_get` asks about an address: by which client, with what referrer and sign-in, and
+/// for what range.
+struct Asking<'a> {
+    client: &'a reqwest::Client,
+    url: &'a str,
+    referrer: Option<&'a str>,
+    sign_in: Option<&'a crate::cookies::SignIn>,
+    /// A form's answer: sent once, with no range and no second tries.
+    posted: bool,
+    /// The `Range` asked for.
+    wanted: String,
+}
+
+impl Asking<'_> {
+    /// One request by the name `agent`, for `range` where a range goes.
+    async fn ask_as(&self, agent: &str, range: Option<&str>) -> Result<reqwest::Response, Error> {
+        let (client, url, referrer, sign_in, posted) = (
+            self.client,
+            self.url,
+            self.referrer,
+            self.sign_in,
+            self.posted,
+        );
+        let mut request = crate::download::with_form(client, url, sign_in)
+            .header(reqwest::header::USER_AGENT, agent)
+            .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
+        if let Some(range) = range.filter(|_| !posted) {
+            request = request.header(reqwest::header::RANGE, range);
+        }
+        let cookies = crate::cookies::header_with(sign_in, url);
+        request =
+            crate::download::stream_headers().onto(request, cookies.is_some(), referrer.is_some());
+        if let Some(cookies) = cookies {
+            request = request.header(reqwest::header::COOKIE, cookies);
+        }
+        match referrer {
+            Some(referrer) => request = request.header(reqwest::header::REFERER, referrer),
+            None => {
+                if let Some(folder) = crate::download::folder_referer(url) {
+                    request = request.header(reqwest::header::REFERER, folder);
+                }
+            }
+        }
+        request = crate::cookies::add_headers(request, sign_in, url);
+        crate::auth::send(client, request, url).await
+    }
+
+    /// One request by the name `agent`, for the range wanted.
+    async fn ask(&self, agent: &str) -> Result<reqwest::Response, Error> {
+        self.ask_as(agent, Some(self.wanted.as_str())).await
+    }
+
+    /// The answer to the first request, or to the one asked again where a server refused it in
+    /// a way another name, no made-up `Referer` or a second try can mend.
+    async fn answered(&self) -> Result<reqwest::Response, Error> {
+        let (url, referrer, sign_in, posted) = (self.url, self.referrer, self.sign_in, self.posted);
+        // A name the person gave this download is the one it is asked by, every time: none of the
+        // other names below is tried in its place.
+        let own = sign_in.and_then(crate::cookies::SignIn::agent);
+        let mut res = self.ask(crate::cookies::agent_with(sign_in, url)).await?;
+        if !posted
+            && own.is_none()
+            && res.status() == reqwest::StatusCode::FORBIDDEN
+            && crate::agent_for(url) == crate::first_agent()
+        {
+            for agent in crate::FALLBACK_AGENTS
+                .into_iter()
+                .filter(|a| *a != crate::first_agent())
+            {
+                let again = self.ask(agent).await?;
+                if again.status() != reqwest::StatusCode::FORBIDDEN {
+                    crate::prefer_agent(url, agent);
+                    crate::prefer_agent(again.url().as_str(), agent);
+                    res = again;
+                    break;
+                }
+            }
+        }
+        /* A browser's name told "429 Too many requests" at once, where dm's own is
+         * served: Wikimedia's media servers (2026-11-07) gave Internet Explorer's
+         * and Firefox's names `Retry-After: 600` from the first request ("please
+         * contact noc@wikimedia.org to discuss a less disruptive approach") and
+         * dm's name the file, as their policy asks a program to say what it is.
+         * Asked once more by dm's own name, and by its name alone where a site
+         * refuses the full one; a server that limits every name answers 429 to
+         * that too and is waited out as before, one request more than it was. */
+        if !posted
+            && own.is_none()
+            && res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+            && crate::agent_for(url) == crate::IE_AGENT
+        {
+            for agent in [crate::USER_AGENT, crate::PLAIN_AGENT] {
+                let again = self.ask(agent).await?;
+                match again.status() {
+                    reqwest::StatusCode::FORBIDDEN => continue,
+                    reqwest::StatusCode::TOO_MANY_REQUESTS => break,
+                    _ => {
+                        crate::prefer_agent(url, agent);
+                        crate::prefer_agent(again.url().as_str(), agent);
+                        res = again;
+                        break;
+                    }
+                }
+            }
+        }
+        // Still refused, with a `Referer` dm made up (none was given): asked once
+        // more without it. A server that refuses any `Referer` but its own pages
+        // (thinkbroadband) served reference A and refused dm on every agent.
+        if !posted
+            && res.status() == reqwest::StatusCode::FORBIDDEN
+            && referrer.is_none()
+            && crate::download::folder_referer(url).is_some()
+        {
+            crate::drop_made_up_referer(url);
+            let again = self.ask(crate::cookies::agent_with(sign_in, url)).await?;
+            if again.status() == reqwest::StatusCode::FORBIDDEN {
+                crate::forget_dropped_referer(url);
+            } else {
+                crate::drop_made_up_referer(again.url().as_str());
+                res = again;
+            }
+        }
+
+        // A 404 is asked for a second time before it is said, as reference A does.
+        if !posted && res.status() == reqwest::StatusCode::NOT_FOUND {
+            res = self.ask(crate::cookies::agent_with(sign_in, url)).await?;
+        }
+
+        // Some servers fail a ranged request and serve the plain one, which is how
+        // reference A asks first. Taken only if the plain request succeeds; the
+        // ranged answer's error is what is said otherwise.
+        if !posted && res.status().is_server_error() {
+            if let Ok(plain) = self
+                .ask_as(crate::cookies::agent_with(sign_in, url), None)
+                .await
+            {
+                if plain.status().is_success() {
+                    res = plain;
+                }
+            }
+        }
+        Ok(res)
+    }
+}
+
+/// What the answer `res` to the address `url` says of the file: its size, whether it resumes,
+/// its name and the rest. `empty` where it is a file of no bytes, `posted` for a form's answer,
+/// `brings` the last byte the body brings where it stops short of the file's end.
+fn described(
+    res: reqwest::Response,
+    url: &str,
+    empty: bool,
+    posted: bool,
+    brings: Option<u64>,
+) -> ProbeWithBody {
     let status = res.status();
 
     let headers = res.headers().clone();
@@ -317,7 +379,7 @@ pub async fn probe_get(
         content_type.as_deref(),
     );
 
-    Ok(ProbeWithBody {
+    ProbeWithBody {
         probe: Probe {
             modified,
             digest,
@@ -330,7 +392,7 @@ pub async fn probe_get(
         },
         response: res,
         brings,
-    })
+    }
 }
 
 /// The `Range` that asks for the whole file from its first byte.
