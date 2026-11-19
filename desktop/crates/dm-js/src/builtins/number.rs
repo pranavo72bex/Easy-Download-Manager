@@ -14,6 +14,14 @@ use crate::value::{Key, Value};
 /// Installs them.
 pub fn install(interp: &mut Interp) {
     let np = interp.intrinsics.number_proto.clone();
+    install_number(interp, &np);
+    install_number_methods(interp, &np);
+    install_math(interp);
+    install_bigint(interp);
+}
+
+/// `Number`, with its constants and functions.
+fn install_number(interp: &mut Interp, np: &Obj) {
     let number = constructor(
         interp,
         "Number",
@@ -32,7 +40,7 @@ pub fn install(interp: &mut Interp) {
                 None => Value::Number(n),
             })
         },
-        &np,
+        np,
     );
     for (name, v) in [
         ("MAX_SAFE_INTEGER", 9007199254740991.0),
@@ -76,7 +84,11 @@ pub fn install(interp: &mut Interp) {
             }
         }
     }
-    method(interp, &np, "toString", 1, |i, this, a, _| {
+}
+
+/// `Number.prototype`'s methods.
+fn install_number_methods(interp: &mut Interp, np: &Obj) {
+    method(interp, np, "toString", 1, |i, this, a, _| {
         let n = this_number(i, this)?;
         let radix = match arg(a, 0) {
             Value::Undefined => 10,
@@ -91,14 +103,14 @@ pub fn install(interp: &mut Interp) {
             in_radix(n, radix)
         }))
     });
-    method(interp, &np, "toLocaleString", 0, |i, this, _, _| {
+    method(interp, np, "toLocaleString", 0, |i, this, _, _| {
         let n = this_number(i, this)?;
         Ok(Value::str(&crate::number::to_string(n)))
     });
-    method(interp, &np, "valueOf", 0, |i, this, _, _| {
+    method(interp, np, "valueOf", 0, |i, this, _, _| {
         Ok(Value::Number(this_number(i, this)?))
     });
-    method(interp, &np, "toFixed", 1, |i, this, a, _| {
+    method(interp, np, "toFixed", 1, |i, this, a, _| {
         let n = this_number(i, this)?;
         let digits = int_arg(i, a, 0)?;
         if !(0.0..=100.0).contains(&digits) {
@@ -109,7 +121,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::str(&format!("{:.*}", digits as usize, n)))
     });
-    method(interp, &np, "toPrecision", 1, |i, this, a, _| {
+    method(interp, np, "toPrecision", 1, |i, this, a, _| {
         let n = this_number(i, this)?;
         if matches!(arg(a, 0), Value::Undefined) || !n.is_finite() {
             return Ok(Value::str(&crate::number::to_string(n)));
@@ -139,7 +151,7 @@ pub fn install(interp: &mut Interp) {
             n
         )))
     });
-    method(interp, &np, "toExponential", 1, |i, this, a, _| {
+    method(interp, np, "toExponential", 1, |i, this, a, _| {
         let n = this_number(i, this)?;
         let s = match arg(a, 0) {
             Value::Undefined => format!("{n:e}"),
@@ -153,8 +165,10 @@ pub fn install(interp: &mut Interp) {
             x.abs()
         )))
     });
+}
 
-    // ---- Math
+/// `Math`.
+fn install_math(interp: &mut Interp) {
     let math = interp.plain_object();
     global(interp, "Math", Value::Object(math.clone()));
     let tag = Key::Symbol(interp.intrinsics.sym_to_string_tag.clone());
@@ -280,8 +294,10 @@ pub fn install(interp: &mut Interp) {
         });
         Ok(Value::Number((n >> 11) as f64 / (1u64 << 53) as f64))
     });
+}
 
-    // ---- BigInt
+/// `BigInt`, with its functions and its prototype's methods.
+fn install_bigint(interp: &mut Interp) {
     let bp = interp.intrinsics.bigint_proto.clone();
     let bigint = constructor(
         interp,

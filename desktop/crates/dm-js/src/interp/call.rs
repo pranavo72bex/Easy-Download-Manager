@@ -422,35 +422,7 @@ impl Interp {
 
     /// A class: its constructor, with its prototype's methods and its static members.
     pub fn make_class(&mut self, code: &Rc<ClassCode>, scope: &Scope) -> Res<Value> {
-        let (proto_parent, ctor_parent) = match &code.extends {
-            None => (
-                Some(self.intrinsics.object_proto.clone()),
-                self.intrinsics.function_proto.clone(),
-            ),
-            Some(e) => {
-                let parent = self.eval(e, scope)?;
-                match &parent {
-                    Value::Null => (None, self.intrinsics.function_proto.clone()),
-                    Value::Object(p) if p.is_callable() => {
-                        let pp = self.get(&parent, &Key::str("prototype"))?;
-                        let pp =
-                            match pp {
-                                Value::Object(o) => Some(o),
-                                Value::Null => None,
-                                _ => return Err(self.type_error(
-                                    "Class extends value does not have valid prototype property",
-                                )),
-                            };
-                        (pp, p.clone())
-                    }
-                    _ => {
-                        return Err(
-                            self.type_error("Class extends value is not a constructor or null")
-                        )
-                    }
-                }
-            }
-        };
+        let (proto_parent, ctor_parent) = self.class_parents(code, scope)?;
         let class_scope = Interp::scope_in(scope);
         let prototype = Obj::new(proto_parent, Class::Ordinary);
         let derived = code.extends.is_some();
@@ -516,42 +488,7 @@ impl Interp {
         if let Some(name) = &code.name {
             self.declare(&class_scope, name, Value::Object(ctor.clone()), false);
         }
-        for member in &code.members {
-            let target = if member.is_static {
-                ctor.clone()
-            } else {
-                prototype.clone()
-            };
-            match &member.kind {
-                MemberKind::Method(f) | MemberKind::Getter(f) | MemberKind::Setter(f) => {
-                    let key = self.prop_key(&member.key, &class_scope)?;
-                    let fv = self.make_function(f, &class_scope);
-                    let Value::Object(fo) = fv else { continue };
-                    self.set_home(&fo, &target);
-                    let prop = match &member.kind {
-                        MemberKind::Method(_) => Prop::data(Value::Object(fo), true, false, true),
-                        kind => {
-                            let (mut get, mut set) = match target.own(&key).map(|p| p.slot) {
-                                Some(Slot::Accessor(g, s)) => (g, s),
-                                _ => (None, None),
-                            };
-                            if matches!(kind, MemberKind::Getter(_)) {
-                                get = Some(fo);
-                            } else {
-                                set = Some(fo);
-                            }
-                            Prop {
-                                slot: Slot::Accessor(get, set),
-                                enumerable: false,
-                                configurable: true,
-                            }
-                        }
-                    };
-                    target.define(key, prop);
-                }
-                MemberKind::Field(_) | MemberKind::StaticBlock(_) => {}
-            }
-        }
+        self.class_methods(code, &ctor, &prototype, &class_scope)?;
         // Static fields and blocks, in order, with `this` the class.
         self.frames.push(Frame {
             this: Some(Value::Object(ctor.clone())),
@@ -586,6 +523,88 @@ impl Interp {
         self.frames.pop();
         r?;
         Ok(Value::Object(ctor))
+    }
+
+    /// What a class's prototype and constructor inherit from: `Object.prototype` and
+    /// `Function.prototype`, or what it `extends` (its prototype, and it).
+    fn class_parents(&mut self, code: &ClassCode, scope: &Scope) -> Res<(Option<Obj>, Obj)> {
+        Ok(match &code.extends {
+            None => (
+                Some(self.intrinsics.object_proto.clone()),
+                self.intrinsics.function_proto.clone(),
+            ),
+            Some(e) => {
+                let parent = self.eval(e, scope)?;
+                match &parent {
+                    Value::Null => (None, self.intrinsics.function_proto.clone()),
+                    Value::Object(p) if p.is_callable() => {
+                        let pp = self.get(&parent, &Key::str("prototype"))?;
+                        let pp =
+                            match pp {
+                                Value::Object(o) => Some(o),
+                                Value::Null => None,
+                                _ => return Err(self.type_error(
+                                    "Class extends value does not have valid prototype property",
+                                )),
+                            };
+                        (pp, p.clone())
+                    }
+                    _ => {
+                        return Err(
+                            self.type_error("Class extends value is not a constructor or null")
+                        )
+                    }
+                }
+            }
+        })
+    }
+
+    /// A class's methods, getters and setters: on its constructor where they are static, else
+    /// on its prototype.
+    fn class_methods(
+        &mut self,
+        code: &ClassCode,
+        ctor: &Obj,
+        prototype: &Obj,
+        class_scope: &Scope,
+    ) -> Res<()> {
+        for member in &code.members {
+            let target = if member.is_static {
+                ctor.clone()
+            } else {
+                prototype.clone()
+            };
+            match &member.kind {
+                MemberKind::Method(f) | MemberKind::Getter(f) | MemberKind::Setter(f) => {
+                    let key = self.prop_key(&member.key, class_scope)?;
+                    let fv = self.make_function(f, class_scope);
+                    let Value::Object(fo) = fv else { continue };
+                    self.set_home(&fo, &target);
+                    let prop = match &member.kind {
+                        MemberKind::Method(_) => Prop::data(Value::Object(fo), true, false, true),
+                        kind => {
+                            let (mut get, mut set) = match target.own(&key).map(|p| p.slot) {
+                                Some(Slot::Accessor(g, s)) => (g, s),
+                                _ => (None, None),
+                            };
+                            if matches!(kind, MemberKind::Getter(_)) {
+                                get = Some(fo);
+                            } else {
+                                set = Some(fo);
+                            }
+                            Prop {
+                                slot: Slot::Accessor(get, set),
+                                enumerable: false,
+                                configurable: true,
+                            }
+                        }
+                    };
+                    target.define(key, prop);
+                }
+                MemberKind::Field(_) | MemberKind::StaticBlock(_) => {}
+            }
+        }
+        Ok(())
     }
 
     /// A class's instance fields, set on `o` (`this` is `o` while their values are worked out).

@@ -14,6 +14,14 @@ use crate::value::{relative_index, Key, Value};
 /// Installs `String`.
 pub fn install(interp: &mut Interp) {
     let sp = interp.intrinsics.string_proto.clone();
+    install_string(interp, &sp);
+    install_finding(interp, &sp);
+    install_shaping(interp, &sp);
+    install_patterns(interp, &sp);
+}
+
+/// `String`, with its functions (`fromCharCode`, `fromCodePoint`, `raw`).
+fn install_string(interp: &mut Interp, sp: &Obj) {
     let string = constructor(
         interp,
         "String",
@@ -36,7 +44,7 @@ pub fn install(interp: &mut Interp) {
                 None => Value::String(s),
             })
         },
-        &sp,
+        sp,
     );
     method(interp, &string, "fromCharCode", 1, |i, _, a, _| {
         let mut out = Vec::with_capacity(a.len());
@@ -78,14 +86,17 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::String(out.into()))
     });
+}
 
-    method(interp, &sp, "toString", 0, |i, this, _, _| {
+/// `String.prototype`'s methods from `toString` to `endsWith`: those that read and find.
+fn install_finding(interp: &mut Interp, sp: &Obj) {
+    method(interp, sp, "toString", 0, |i, this, _, _| {
         Ok(Value::String(this_text(i, this)?))
     });
-    method(interp, &sp, "valueOf", 0, |i, this, _, _| {
+    method(interp, sp, "valueOf", 0, |i, this, _, _| {
         Ok(Value::String(this_text(i, this)?))
     });
-    method(interp, &sp, "charAt", 1, |i, this, a, _| {
+    method(interp, sp, "charAt", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let n = int_arg(i, a, 0)?;
         Ok(Value::String(if n >= 0.0 && (n as usize) < s.len() {
@@ -94,7 +105,7 @@ pub fn install(interp: &mut Interp) {
             text("")
         }))
     });
-    method(interp, &sp, "charCodeAt", 1, |i, this, a, _| {
+    method(interp, sp, "charCodeAt", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let n = int_arg(i, a, 0)?;
         Ok(Value::Number(if n >= 0.0 && (n as usize) < s.len() {
@@ -103,7 +114,7 @@ pub fn install(interp: &mut Interp) {
             f64::NAN
         }))
     });
-    method(interp, &sp, "codePointAt", 1, |i, this, a, _| {
+    method(interp, sp, "codePointAt", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let n = int_arg(i, a, 0)?;
         if n < 0.0 || n as usize >= s.len() {
@@ -121,7 +132,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Number(c as f64))
     });
-    method(interp, &sp, "at", 1, |i, this, a, _| {
+    method(interp, sp, "at", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let n = int_arg(i, a, 0)?;
         let at = if n < 0.0 { s.len() as f64 + n } else { n };
@@ -131,7 +142,7 @@ pub fn install(interp: &mut Interp) {
             Value::Undefined
         })
     });
-    method(interp, &sp, "indexOf", 1, |i, this, a, _| {
+    method(interp, sp, "indexOf", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let wanted = i.to_text(&arg(a, 0))?;
         let from = (int_arg(i, a, 1)?.max(0.0) as usize).min(s.len());
@@ -139,7 +150,7 @@ pub fn install(interp: &mut Interp) {
             find(&s, &wanted, from).map(|p| p as f64).unwrap_or(-1.0),
         ))
     });
-    method(interp, &sp, "lastIndexOf", 1, |i, this, a, _| {
+    method(interp, sp, "lastIndexOf", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let wanted = i.to_text(&arg(a, 0))?;
         let from = match arg(a, 1) {
@@ -161,21 +172,21 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Number(-1.0))
     });
-    method(interp, &sp, "includes", 1, |i, this, a, _| {
+    method(interp, sp, "includes", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         not_pattern(i, &arg(a, 0), "includes")?;
         let wanted = i.to_text(&arg(a, 0))?;
         let from = (int_arg(i, a, 1)?.max(0.0) as usize).min(s.len());
         Ok(Value::Bool(find(&s, &wanted, from).is_some()))
     });
-    method(interp, &sp, "startsWith", 1, |i, this, a, _| {
+    method(interp, sp, "startsWith", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         not_pattern(i, &arg(a, 0), "startsWith")?;
         let wanted = i.to_text(&arg(a, 0))?;
         let from = (int_arg(i, a, 1)?.max(0.0) as usize).min(s.len());
         Ok(Value::Bool(s[from..].starts_with(&wanted)))
     });
-    method(interp, &sp, "endsWith", 1, |i, this, a, _| {
+    method(interp, sp, "endsWith", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         not_pattern(i, &arg(a, 0), "endsWith")?;
         let wanted = i.to_text(&arg(a, 0))?;
@@ -185,7 +196,11 @@ pub fn install(interp: &mut Interp) {
         };
         Ok(Value::Bool(s[..end].ends_with(&wanted)))
     });
-    method(interp, &sp, "slice", 2, |i, this, a, _| {
+}
+
+/// `String.prototype`'s methods from `slice` to `isWellFormed`: cut, cased, trimmed, padded.
+fn install_shaping(interp: &mut Interp, sp: &Obj) {
+    method(interp, sp, "slice", 2, |i, this, a, _| {
         let s = this_str(i, this)?;
         let start = relative_index(i.to_number(&arg(a, 0))?, s.len());
         let end = match arg(a, 1) {
@@ -196,7 +211,7 @@ pub fn install(interp: &mut Interp) {
             s.get(start..end.max(start)).unwrap_or(&[]).to_vec().into(),
         ))
     });
-    method(interp, &sp, "substring", 2, |i, this, a, _| {
+    method(interp, sp, "substring", 2, |i, this, a, _| {
         let s = this_str(i, this)?;
         let clamp = |n: f64| (crate::value::to_integer(n).max(0.0) as usize).min(s.len());
         let start = clamp(i.to_number(&arg(a, 0))?);
@@ -207,7 +222,7 @@ pub fn install(interp: &mut Interp) {
         let (lo, hi) = (start.min(end), start.max(end));
         Ok(Value::String(s[lo..hi].to_vec().into()))
     });
-    method(interp, &sp, "substr", 2, |i, this, a, _| {
+    method(interp, sp, "substr", 2, |i, this, a, _| {
         let s = this_str(i, this)?;
         let start = relative_index(i.to_number(&arg(a, 0))?, s.len());
         let count = match arg(a, 1) {
@@ -218,40 +233,40 @@ pub fn install(interp: &mut Interp) {
         };
         Ok(Value::String(s[start..start + count].to_vec().into()))
     });
-    method(interp, &sp, "toUpperCase", 0, |i, this, _, _| {
+    method(interp, sp, "toUpperCase", 0, |i, this, _, _| {
         map_case(i, this, true)
     });
-    method(interp, &sp, "toLowerCase", 0, |i, this, _, _| {
+    method(interp, sp, "toLowerCase", 0, |i, this, _, _| {
         map_case(i, this, false)
     });
-    method(interp, &sp, "toLocaleUpperCase", 0, |i, this, _, _| {
+    method(interp, sp, "toLocaleUpperCase", 0, |i, this, _, _| {
         map_case(i, this, true)
     });
-    method(interp, &sp, "toLocaleLowerCase", 0, |i, this, _, _| {
+    method(interp, sp, "toLocaleLowerCase", 0, |i, this, _, _| {
         map_case(i, this, false)
     });
-    method(interp, &sp, "trim", 0, |i, this, _, _| {
+    method(interp, sp, "trim", 0, |i, this, _, _| {
         trim(i, this, true, true)
     });
-    method(interp, &sp, "trimStart", 0, |i, this, _, _| {
+    method(interp, sp, "trimStart", 0, |i, this, _, _| {
         trim(i, this, true, false)
     });
-    method(interp, &sp, "trimEnd", 0, |i, this, _, _| {
+    method(interp, sp, "trimEnd", 0, |i, this, _, _| {
         trim(i, this, false, true)
     });
-    method(interp, &sp, "trimLeft", 0, |i, this, _, _| {
+    method(interp, sp, "trimLeft", 0, |i, this, _, _| {
         trim(i, this, true, false)
     });
-    method(interp, &sp, "trimRight", 0, |i, this, _, _| {
+    method(interp, sp, "trimRight", 0, |i, this, _, _| {
         trim(i, this, false, true)
     });
-    method(interp, &sp, "padStart", 2, |i, this, a, _| {
+    method(interp, sp, "padStart", 2, |i, this, a, _| {
         pad(i, this, a, true)
     });
-    method(interp, &sp, "padEnd", 2, |i, this, a, _| {
+    method(interp, sp, "padEnd", 2, |i, this, a, _| {
         pad(i, this, a, false)
     });
-    method(interp, &sp, "repeat", 1, |i, this, a, _| {
+    method(interp, sp, "repeat", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let n = int_arg(i, a, 0)?;
         if n < 0.0 || n.is_infinite() || n * s.len() as f64 > 1e9 {
@@ -259,14 +274,14 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::String(s.repeat(n as usize).into()))
     });
-    method(interp, &sp, "concat", 1, |i, this, a, _| {
+    method(interp, sp, "concat", 1, |i, this, a, _| {
         let mut out = this_str(i, this)?.to_vec();
         for v in a {
             out.extend_from_slice(&i.to_text(v)?);
         }
         Ok(Value::String(out.into()))
     });
-    method(interp, &sp, "localeCompare", 1, |i, this, a, _| {
+    method(interp, sp, "localeCompare", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let other = i.to_text(&arg(a, 0))?;
         Ok(Value::Number(match s[..].cmp(&other[..]) {
@@ -275,16 +290,20 @@ pub fn install(interp: &mut Interp) {
             std::cmp::Ordering::Greater => 1.0,
         }))
     });
-    method(interp, &sp, "normalize", 0, |i, this, _, _| {
+    method(interp, sp, "normalize", 0, |i, this, _, _| {
         Ok(Value::String(this_str(i, this)?))
     });
-    method(interp, &sp, "isWellFormed", 0, |i, this, _, _| {
+    method(interp, sp, "isWellFormed", 0, |i, this, _, _| {
         let s = this_str(i, this)?;
         Ok(Value::Bool(
             char::decode_utf16(s.iter().copied()).all(|c| c.is_ok()),
         ))
     });
-    method(interp, &sp, "split", 2, |i, this, a, _| {
+}
+
+/// `String.prototype`'s methods that take patterns (`split` … `search`), and its iterator.
+fn install_patterns(interp: &mut Interp, sp: &Obj) {
+    method(interp, sp, "split", 2, |i, this, a, _| {
         let sep = arg(a, 0);
         if super::regexp::is_pattern(&sep) {
             let s = this_str(i, this)?;
@@ -319,7 +338,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(i.array(out))
     });
-    method(interp, &sp, "replace", 2, |i, this, a, _| {
+    method(interp, sp, "replace", 2, |i, this, a, _| {
         let s = this_str(i, this)?;
         if super::regexp::is_pattern(&arg(a, 0)) {
             return super::regexp::replace(i, &arg(a, 0), &s, arg(a, 1));
@@ -327,7 +346,7 @@ pub fn install(interp: &mut Interp) {
         let wanted = i.to_text(&arg(a, 0))?;
         replace_plain(i, &s, &wanted, &arg(a, 1), false)
     });
-    method(interp, &sp, "replaceAll", 2, |i, this, a, _| {
+    method(interp, sp, "replaceAll", 2, |i, this, a, _| {
         let s = this_str(i, this)?;
         if super::regexp::is_pattern(&arg(a, 0)) {
             return super::regexp::replace(i, &arg(a, 0), &s, arg(a, 1));
@@ -335,12 +354,12 @@ pub fn install(interp: &mut Interp) {
         let wanted = i.to_text(&arg(a, 0))?;
         replace_plain(i, &s, &wanted, &arg(a, 1), true)
     });
-    method(interp, &sp, "match", 1, |i, this, a, _| {
+    method(interp, sp, "match", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let pattern = super::regexp::coerce(i, &arg(a, 0))?;
         super::regexp::match_all_or_first(i, &pattern, &s)
     });
-    method(interp, &sp, "matchAll", 1, |i, this, a, _| {
+    method(interp, sp, "matchAll", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let pattern = super::regexp::coerce(i, &arg(a, 0))?;
         let Value::Object(p) = pattern else {
@@ -357,7 +376,7 @@ pub fn install(interp: &mut Interp) {
             }),
         )))
     });
-    method(interp, &sp, "search", 1, |i, this, a, _| {
+    method(interp, sp, "search", 1, |i, this, a, _| {
         let s = this_str(i, this)?;
         let pattern = super::regexp::coerce(i, &arg(a, 0))?;
         let Value::Object(p) = pattern else {
@@ -378,7 +397,7 @@ pub fn install(interp: &mut Interp) {
     let iter_key = Key::Symbol(interp.intrinsics.sym_iterator.clone());
     let f = symbol_method(
         interp,
-        &sp,
+        sp,
         &iter_key,
         "[Symbol.iterator]",
         |i, this, _, _| {

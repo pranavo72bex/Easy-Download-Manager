@@ -30,15 +30,8 @@ desktop/crates/dm-gpui/src/window/table.rs row_cells 155
 desktop/crates/dm-gpui/src/window/table.rs rows 169
 desktop/crates/dm-gpui/src/window/toolbar.rs toolbar 162
 desktop/crates/dm-gpui/src/window_tests/commands.rs every_menu_item_clicked_does_what_it_says 325
-desktop/crates/dm-js/src/builtins/array.rs install 413
 desktop/crates/dm-js/src/builtins/date.rs install 157
-desktop/crates/dm-js/src/builtins/number.rs install 364
-desktop/crates/dm-js/src/builtins/object.rs install 719
-desktop/crates/dm-js/src/builtins/string.rs install 379
-desktop/crates/dm-js/src/builtins/typed.rs install 292
 desktop/crates/dm-js/src/interp.rs looped 155
-desktop/crates/dm-js/src/interp/call.rs make_class 166
-desktop/crates/dm-js/src/regexp.rs run 168
 desktop/crates/dm-media/src/frames.rs read 183
 desktop/crates/dm-media/src/mkvmux.rs mp4_tracks 162
 desktop/crates/dm-media/src/mkvmux.rs write 189

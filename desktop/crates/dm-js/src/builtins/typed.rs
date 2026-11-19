@@ -18,6 +18,16 @@ use crate::value::{relative_index, Key, Value};
 
 /// Installs them.
 pub fn install(interp: &mut Interp) {
+    install_array_buffer(interp);
+    let base = interp.intrinsics.typed_protos[10].clone();
+    install_typed_reading(interp, &base);
+    install_typed_methods(interp, &base);
+    install_data_view(interp);
+    install_typed_kinds(interp);
+}
+
+/// `ArrayBuffer`, with its `byteLength` and `slice`.
+fn install_array_buffer(interp: &mut Interp) {
     let abp = interp.intrinsics.array_buffer_proto.clone();
     constructor(
         interp,
@@ -76,8 +86,10 @@ pub fn install(interp: &mut Interp) {
             }),
         )))
     });
+}
 
-    let base = interp.intrinsics.typed_protos[10].clone();
+/// The typed arrays' shared prototype: the array methods that only read, and its getters.
+fn install_typed_reading(interp: &mut Interp, base: &Obj) {
     // The array methods that only read.
     let ap = interp.intrinsics.array_proto.clone();
     for name in [
@@ -111,14 +123,14 @@ pub fn install(interp: &mut Interp) {
     base.set_hidden(iter_key, interp.intrinsics.array_values.clone());
     getter(
         interp,
-        &base,
+        base,
         Key::str("length"),
         "length",
         |i, this, _, _| Ok(Value::Number(view(i, this)?.2 as f64)),
     );
     getter(
         interp,
-        &base,
+        base,
         Key::str("byteLength"),
         "byteLength",
         |i, this, _, _| {
@@ -128,14 +140,14 @@ pub fn install(interp: &mut Interp) {
     );
     getter(
         interp,
-        &base,
+        base,
         Key::str("byteOffset"),
         "byteOffset",
         |i, this, _, _| Ok(Value::Number(view(i, this)?.1 as f64)),
     );
     getter(
         interp,
-        &base,
+        base,
         Key::str("buffer"),
         "buffer",
         |i, this, _, _| {
@@ -153,7 +165,11 @@ pub fn install(interp: &mut Interp) {
             )))
         },
     );
-    method(interp, &base, "set", 1, |i, this, a, _| {
+}
+
+/// The typed arrays' own methods (`set`, `subarray`, `slice`, `map`, …).
+fn install_typed_methods(interp: &mut Interp, base: &Obj) {
+    method(interp, base, "set", 1, |i, this, a, _| {
         let offset = int_arg(i, a, 1)?.max(0.0) as usize;
         let items = super::array::items_of(i, &arg(a, 0))?;
         let (_, _, len, _) = view(i, this)?;
@@ -165,7 +181,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Undefined)
     });
-    method(interp, &base, "subarray", 2, |i, this, a, _| {
+    method(interp, base, "subarray", 2, |i, this, a, _| {
         let (buffer, offset, len, kind) = view(i, this)?;
         let start = relative_index(i.to_number(&arg(a, 0))?, len);
         let end = match arg(a, 1) {
@@ -183,7 +199,7 @@ pub fn install(interp: &mut Interp) {
             },
         ))
     });
-    method(interp, &base, "slice", 2, |i, this, a, _| {
+    method(interp, base, "slice", 2, |i, this, a, _| {
         let (_, _, len, kind) = view(i, this)?;
         let start = relative_index(i.to_number(&arg(a, 0))?, len);
         let end = match arg(a, 1) {
@@ -194,7 +210,7 @@ pub fn install(interp: &mut Interp) {
         let piece = items.get(start..end.max(start)).unwrap_or(&[]).to_vec();
         of_values(i, kind, &piece)
     });
-    method(interp, &base, "map", 1, |i, this, a, _| {
+    method(interp, base, "map", 1, |i, this, a, _| {
         let (_, _, _, kind) = view(i, this)?;
         let items = super::array::items_of(i, this)?;
         let mut out = Vec::with_capacity(items.len());
@@ -207,7 +223,7 @@ pub fn install(interp: &mut Interp) {
         }
         of_values(i, kind, &out)
     });
-    method(interp, &base, "filter", 1, |i, this, a, _| {
+    method(interp, base, "filter", 1, |i, this, a, _| {
         let (_, _, _, kind) = view(i, this)?;
         let items = super::array::items_of(i, this)?;
         let mut out = Vec::new();
@@ -224,7 +240,7 @@ pub fn install(interp: &mut Interp) {
         }
         of_values(i, kind, &out)
     });
-    method(interp, &base, "fill", 1, |i, this, a, _| {
+    method(interp, base, "fill", 1, |i, this, a, _| {
         let (_, _, len, _) = view(i, this)?;
         let n = i.to_number(&arg(a, 0))?;
         let start = relative_index(i.to_number(&arg(a, 1))?, len);
@@ -237,7 +253,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(this.clone())
     });
-    method(interp, &base, "reverse", 0, |i, this, _, _| {
+    method(interp, base, "reverse", 0, |i, this, _, _| {
         let mut items = super::array::items_of(i, this)?;
         items.reverse();
         for (k, v) in items.into_iter().enumerate() {
@@ -245,7 +261,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(this.clone())
     });
-    method(interp, &base, "sort", 1, |i, this, a, _| {
+    method(interp, base, "sort", 1, |i, this, a, _| {
         let mut items = super::array::items_of(i, this)?;
         let compare = arg(a, 0);
         if compare.as_object().is_some_and(|f| f.is_callable()) {
@@ -263,8 +279,10 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(this.clone())
     });
+}
 
-    install_data_view(interp);
+/// Each kind of typed array (`Int8Array`, …): its constructor, its size, `from` and `of`.
+fn install_typed_kinds(interp: &mut Interp) {
     for kind in 1u8..=9 {
         let (name, size) = KINDS[kind as usize];
         let proto = interp.intrinsics.typed_protos[kind as usize].clone();
